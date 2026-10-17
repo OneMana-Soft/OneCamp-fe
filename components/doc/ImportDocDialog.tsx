@@ -17,7 +17,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils/helpers/cn"
 import {
-  apiMessage,
   CONTENT_IO_JOB_EVENT,
   ContentIOCapabilities,
   ContentIOJob,
@@ -26,6 +25,7 @@ import {
   loadCapabilities,
   startImport,
 } from "@/lib/export/contentIO"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 const POLL_MS = 1500
 // What an import reads when the API has not said (it always says).
@@ -125,7 +125,7 @@ export default function ImportDocDialog({ docId, onClose }: { docId: string; onC
         const job = await startImport(row.file, parent, caps)
         update(row.key, { job })
       } catch (err) {
-        update(row.key, { error: apiMessage(err, "The file couldn't be imported. Try again.") })
+        update(row.key, { error: apiErrorMessage(err, "The file couldn't be imported. Try again.") })
       }
     }
   }

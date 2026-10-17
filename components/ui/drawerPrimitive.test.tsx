@@ -118,6 +118,24 @@ describe("detents", () => {
   })
 })
 
+describe("one sheet", () => {
+  // The long-press message sheet drew vaul's scrim and sheet itself, so the
+  // fix for a close Chrome never reports passed it by (REVIEW-FE-SHELL db2 F2).
+  it("is drawn only by components/ui/drawer: nothing else imports vaul", () => {
+    const own: string[] = []
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === "node_modules" || e.name.startsWith(".")) continue
+        const p = join(dir, e.name)
+        if (e.isDirectory()) walk(p)
+        else if (/\.tsx?$/.test(e.name) && !/\.test\./.test(e.name) && /from "vaul"/.test(readFileSync(p, "utf8"))) own.push(p.slice(ROOT.length + 1))
+      }
+    }
+    for (const d of ["app", "components", "hooks", "lib"]) walk(join(ROOT, d))
+    expect(own).toEqual(["components/ui/drawer.tsx"])
+  })
+})
+
 describe("an options menu (C7)", () => {
   it("is grouped cards with a Cancel card under them", () => {
     render(

@@ -27,12 +27,12 @@ const TEXT = new Set(["P", "H1", "H2", "H3", "H4", "H5", "H6", "PRE"])
 /** Blocks in a body saved before blocks had ids. */
 const BLOCK = new Set([...LEAF, "BLOCKQUOTE", "UL", "OL", "LI", "TABLE"])
 
-export function isBlock(el: Element): boolean {
+function isBlock(el: Element): boolean {
   return el.hasAttribute("data-block-id") || BLOCK.has(el.tagName) || (el.tagName === "DIV" && el.hasAttribute("data-type"))
 }
 
 /** The blocks directly inside `el`: through wrappers (a checklist item's label and body), never into a block. */
-export function blockKids(el: Element): HTMLElement[] {
+function blockKids(el: Element): HTMLElement[] {
   const out: HTMLElement[] = []
   const walk = (parent: Element) => {
     for (const child of Array.from(parent.children)) {

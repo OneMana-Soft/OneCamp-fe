@@ -32,9 +32,6 @@ export const ANSWER_POLL_MS = 2000
  */
 export const ANSWER_WAIT_MAX_MS = 10 * 60 * 1000
 
-/** The words shown while waiting, so a returning person knows why the last question has no answer yet. */
-export const STILL_WRITING = "Still writing the answer to your last question. It will appear here when it is done."
-
 type RecoveryStep = "wait" | "adopt" | "give-up"
 
 /**

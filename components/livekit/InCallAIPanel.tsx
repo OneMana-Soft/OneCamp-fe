@@ -94,7 +94,7 @@ export function InCallAIPanel({
                         </p>
                     </div>
                 </div>
-                <Button aria-label="Close AI panel" variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-lg text-ink-3 hover:bg-white/10 hover:text-foreground">
+                <Button data-tone="light" aria-label="Close AI panel" variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-lg text-ink-3 hover:text-foreground">
                     <X className="h-4 w-4" />
                 </Button>
             </div>

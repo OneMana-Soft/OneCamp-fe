@@ -1,12 +1,11 @@
 "use client"
 
-import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { usePhone } from "@/hooks/usePhone"
-import { Home, CheckSquare, Calendar, Bell, Inbox, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot, BarChart3, Target, TrendingUp, Lock, LayoutDashboard } from "@/lib/icons";
+import { Home, Calendar, Bell, Inbox, FileText, MessageCircle, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot, BarChart3, Target, TrendingUp, LayoutDashboard } from "@/lib/icons";
 import { Plug } from "lucide-react";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog"
@@ -15,7 +14,6 @@ import { useTheme } from "next-themes"
 import { CommandGroup, CommandItem } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
-import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GO_KEYS } from "@/lib/goKeys"
 import { paneFromHref } from "@/lib/split"
@@ -38,8 +36,12 @@ import { useDebounce } from "@/hooks/useDebounce"
 import { matchScore, NAMED_MATCH, paletteTargets, rankTargets, type PaletteTarget } from "@/lib/search/paletteMatch"
 import { resultPath } from "@/lib/search/resultPath"
 import { getContext, getHighlightedTitle, getIcon, getTitle, hitHueId, searchResultKeys } from "@/lib/utils/helpers/search"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { Tile } from "@/components/ui/graphics/Tile"
+import { RecentMark, recentHue } from "@/components/ui/graphics/recentMark"
+import { PlaceMark, placeMarkHue, type MarkedPlace } from "@/components/ui/graphics/placeMark"
+import { CATEGORY_KIND, isBuiltInStatus } from "@/lib/taskStatus"
+import type { PlaceHue } from "@/lib/placeHue"
+import { resultHue } from "@/lib/search/resultHue"
 import {
   unifiedSearch,
   isAbortedRequest,
@@ -72,7 +74,7 @@ import { SearchResult } from "@/services/searchService"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
 import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
-import { BellOff, ChevronRight, Columns2, Keyboard, Maximize2, MessageSquare, MessageSquarePlus, Moon, Paperclip, Sun } from "@/lib/icons"
+import { BellOff, ChevronRight, Columns2, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun } from "@/lib/icons"
 import { FEATURE_AI, FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
 import { projectAt } from "@/lib/task/startingProject"
 import { clockTime } from "@/lib/utils/date/clock"
@@ -139,17 +141,6 @@ function makeSearchRecentItem(result: SearchResult, selfUUID: string): Omit<Rece
       return null
   }
 }
-
-const RECENT_GLYPH: Record<RecentItem["type"], typeof Clock> = {
-  task: CheckSquare,
-  channel: Hash,
-  doc: FileText,
-  project: FolderKanban,
-  team: Users,
-  chat: MessageCircle,
-  user: User,
-}
-
 
 // A source is a category, so each has a fixed hue.
 function aiSourceIcon(source: UnifiedSource) {
@@ -1002,7 +993,8 @@ export function CommandPalette() {
               key={`jump-${t.kind}-${t.id}`}
               value={`jump-${t.kind}-${t.id}`}
               onSelect={() => handleTargetSelect(t)}
-              icon={targetIcon(t)}
+              icon={<PlaceMark place={targetPlace(t)} />}
+              hue={placeMarkHue(targetPlace(t))}
               label={highlight(t.label, query)}
               meta={TARGET_KIND_LABEL[t.kind]}
               href={t.path}
@@ -1032,6 +1024,7 @@ export function CommandPalette() {
                 value={`hit-${hitKeys[idx]}`}
                 onSelect={() => handleSearchSelect(result)}
                 icon={hitMark(result)}
+                hue={resultHue(result)}
                 label={getHighlightedTitle(result)}
                 meta={getContext(result)}
                 href={href}
@@ -1099,7 +1092,8 @@ export function CommandPalette() {
               key={`recent-${item.type}-${item.id}`}
               value={`recent-${item.type}-${item.id}`}
               onSelect={() => handleRecentSelect(item)}
-              icon={recentItemMark(item)}
+              icon={<RecentMark item={item} />}
+              hue={recentHue(item)}
               label={item.title}
               meta={RECENT_KIND_LABEL[item.type]}
               href={item.path}
@@ -1346,64 +1340,57 @@ function hitKindLabel(type: SearchResult["type"]): string {
   return known[type] ?? "Result"
 }
 
-const TARGET_GLYPH: Record<PaletteTarget["kind"], typeof Hash> = {
-  channel: Hash,
-  chat: MessageCircle,
-  project: FolderKanban,
-  team: Users,
-  doc: FileText,
-  board: LayoutDashboard,
+/** A palette place as the one mark reads it (components/ui/graphics/placeMark). */
+function targetPlace(t: PaletteTarget): MarkedPlace {
+  switch (t.kind) {
+    case "chat":
+      return { kind: "person", label: t.label }
+    case "project":
+      return { kind: "project", id: t.hueId ?? t.id }
+    case "channel":
+      return { kind: "channel", id: t.id, isPrivate: t.isPrivate }
+    default:
+      return { kind: t.kind, id: t.id, label: t.label }
+  }
+}
+
+/** A hit as the one mark reads it: a place's identity, a task's status, a message, reply or file's glyph. */
+function hitPlace(result: SearchResult): MarkedPlace {
+  switch (result.type) {
+    case "project":
+      return { kind: "project", id: result.project?.project_id }
+    case "channel":
+      return { kind: "channel", id: result.channel?.ch_id, isPrivate: !!result.channel?.ch_private }
+    case "doc":
+      // Search carries the doc's icon, its absence too.
+      return { kind: "doc", id: result.doc?.doc_uuid, icon: result.doc?.doc_icon ?? null }
+    case "task": {
+      const status: string = result.task?.task_status ?? ""
+      return { kind: "task", status: CATEGORY_KIND[isBuiltInStatus(status) ? status : "todo"] }
+    }
+    case "post":
+      return { kind: "message" }
+    case "chat":
+    case "comment":
+      return { kind: "reply" }
+    case "attachment":
+      return { kind: "file" }
+    case "board":
+    case "team":
+      return { kind: result.type }
+    default:
+      return { kind: null }
+  }
 }
 
 /**
- * A place's mark, 20px (design v3, P1): a project is its gradient tile in its
- * own hue, a person their face, and a channel, doc, board or team a quiet
- * ink-3 glyph. A channel and a doc have no hue (DESIGN.md, "Colour is a noun").
- */
-function targetIcon(t: PaletteTarget) {
-  if (t.kind === "chat") return <IdentityMark variant="avatar" size={20} id={avatarSeed(t.label)} label={t.label} />
-  if (t.kind === "project") return <ProjectTile id={t.hueId ?? t.id} size={20} />
-  const Glyph = t.kind === "channel" && t.isPrivate ? Lock : TARGET_GLYPH[t.kind]
-  return <Glyph className="h-4 w-4 text-ink-3" aria-hidden="true" />
-}
-
-
-/** A message, doc or task hit's glyph, by its kind. */
-const HIT_GLYPH: Partial<Record<SearchResult["type"], typeof Hash>> = {
-  post: MessageSquare,
-  chat: MessageCircle,
-  comment: MessageCircle,
-  doc: FileText,
-  board: LayoutDashboard,
-  task: CheckSquare,
-  attachment: Paperclip,
-  project: FolderKanban,
-  channel: Hash,
-  team: Users,
-}
-
-/**
- * A hit's mark, drawn as the places are (design v3, P1): a person's face, a
- * project's tile, anything else its kind's ink-3 glyph. The search page's
- * marks put every hit on its identity hue, so a task in the palette sat on a
- * sun square beside the ink-3 docs and boards above it.
+ * A hit's mark, drawn as the places are (design v3, P1): the one mark
+ * (PlaceMark) for every kind but a person, who leads with their face and its
+ * photo (lib/utils/helpers/search getIcon).
  */
 function hitMark(result: SearchResult) {
   if (result.type === "user") return getIcon(result)
-  if (result.type === "project" && result.project?.project_id) return <ProjectTile id={result.project.project_id} size={20} />
-  const Glyph = HIT_GLYPH[result.type] ?? Search
-  return <Glyph className="h-4 w-4 text-ink-3" aria-hidden="true" />
-}
-
-/**
- * A recent item's mark, as the places are drawn: a project's tile, a person's
- * face, any other kind its ink-3 glyph.
- */
-function recentItemMark(item: Pick<RecentItem, "id" | "type" | "title">) {
-  if (item.type === "user") return <IdentityMark variant="avatar" size={20} id={avatarSeed(item.title)} label={item.title} />
-  if (item.type === "project") return <ProjectTile id={item.id} size={20} />
-  const Glyph = RECENT_GLYPH[item.type] ?? Clock
-  return <Glyph className="h-4 w-4 text-ink-3" aria-hidden="true" />
+  return <PlaceMark place={hitPlace(result)} />
 }
 
 /** The G-then-letter keys a navigation command has, shown so the row teaches them. */
@@ -1507,6 +1494,7 @@ function PaletteRow({
   value,
   onSelect,
   icon,
+  hue,
   label,
   meta,
   keys,
@@ -1518,6 +1506,8 @@ function PaletteRow({
   value: string
   onSelect: () => void
   icon?: React.ReactNode
+  /** The hue of what the row opens (lib/placeHue): its highlight tints in it (SH-24). */
+  hue?: PlaceHue
   label: React.ReactNode
   meta?: React.ReactNode
   keys?: string
@@ -1531,6 +1521,7 @@ function PaletteRow({
       value={value}
       onSelect={onSelect}
       className={cn("palette-row", className)}
+      data-hue={hue}
       data-href={href}
       data-peek-title={peek?.title}
       data-peek-kind={peek?.kind}

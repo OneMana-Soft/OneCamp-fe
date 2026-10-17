@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { addDays, addMonths, format, isSameDay, isSameMonth, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { Check, ChevronLeft, ChevronRight, Ellipsis, Link2, Pin, PinOff, Plus } from "@/lib/icons";
-import { DayCell } from "@/components/ui/calendar";
+import { DayCell } from "@/components/ui/dayCell";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
@@ -46,7 +46,7 @@ export function MiniMonth({
     <div className="select-none" data-mini-month="">
       <div className="mb-1.5 flex items-center justify-between pl-1">
         <span className="text-ui-sm font-semibold text-ink">{format(month, "MMMM yyyy")}</span>
-        <div className="flex gap-0.5">
+        <div className="flex gap-0.5" data-touch-group="24">
           <Button variant="ghost" size="icon-xs" aria-label="Previous month" onClick={() => go(-1)}>
             <ChevronLeft />
           </Button>
@@ -104,13 +104,14 @@ export interface CalendarRow {
 /** A calendar's row (C04): a colour checkbox, the name, how many this week. */
 export function CalendarListRow({ row }: { row: CalendarRow }) {
   return (
-    <div className="group/row flex h-8 items-center gap-2.5 rounded-lg px-1.5 hover:bg-hover" data-calendar-row={row.id}>
+    <div className="group/row flex h-8 items-center gap-2.5 rounded-lg px-1.5 hover:bg-hover pointer-coarse:h-11" data-calendar-row={row.id}>
       <button
         type="button"
         role="checkbox"
         aria-checked={row.on}
         aria-label={row.name}
         onClick={row.onToggle}
+        data-touch-target=""
         className={cn(
           row.hue ? HUE_CLASS[row.hue] : "",
           "flex size-4 shrink-0 items-center justify-center rounded-[5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1",
@@ -125,7 +126,7 @@ export function CalendarListRow({ row }: { row: CalendarRow }) {
       >
         {row.on ? <Check className="size-3 animate-spring" aria-hidden="true" /> : null}
       </button>
-      <button type="button" onClick={row.onToggle} className="min-w-0 flex-1 truncate text-left text-ui font-[450] text-ink outline-none">
+      <button type="button" onClick={row.onToggle} className="min-w-0 flex-1 truncate rounded-sm text-left text-ui font-[450] text-ink">
         {row.name}
       </button>
       {row.marks?.length ? (
@@ -135,11 +136,11 @@ export function CalendarListRow({ row }: { row: CalendarRow }) {
           ))}
         </span>
       ) : null}
-      {row.count !== undefined ? <span className="text-meta tabular-nums text-ink-3 group-hover/row:hidden">{row.count} this week</span> : null}
+      {row.count !== undefined ? <span className="text-meta tabular-nums text-ink-3 group-hover/row:hidden group-focus-within/row:hidden">{row.count} this week</span> : null}
       {row.onOnly || row.menu ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-xs" aria-label={`${row.name} options`} className="hidden group-hover/row:inline-flex data-[state=open]:inline-flex [@media(hover:none)]:inline-flex">
+            <Button variant="ghost" size="icon-xs" aria-label={`${row.name} options`} className="hidden group-hover/row:inline-flex group-focus-within/row:inline-flex data-[state=open]:inline-flex [@media(hover:none)]:inline-flex">
               <Ellipsis />
             </Button>
           </DropdownMenuTrigger>
@@ -214,7 +215,7 @@ export function CalendarsPanel({
       <button
         type="button"
         onClick={onBookingPages}
-        className="flex h-8 items-center gap-2.5 rounded-lg px-1.5 text-left text-ui text-ink outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand"
+        className="flex h-8 items-center gap-2.5 rounded-lg px-1.5 text-left text-ui text-ink outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11"
       >
         <Link2 className="size-4 text-ink-3" aria-hidden="true" />
         <span className="flex-1">Booking pages</span>
@@ -226,7 +227,7 @@ export function CalendarsPanel({
           type="button"
           onClick={onDisconnectGoogle}
           disabled={busy}
-          className="flex h-8 items-center gap-2.5 rounded-lg px-1.5 text-left text-ui text-ink-2 outline-none hover:bg-hover hover:text-danger-ink focus-visible:ring-2 focus-visible:ring-brand"
+          className="flex h-8 items-center gap-2.5 rounded-lg px-1.5 text-left text-ui text-ink-2 outline-none hover:bg-hover hover:text-danger-ink focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11"
         >
           <GoogleGlyph />
           Disconnect Google Calendar
@@ -242,7 +243,7 @@ export function CalendarsPanel({
           type="button"
           onClick={onConnectGoogle}
           disabled={busy}
-          className="flex h-8 items-center gap-2.5 rounded-lg px-1.5 text-left text-ui text-ink outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand"
+          className="flex h-8 items-center gap-2.5 rounded-lg px-1.5 text-left text-ui text-ink outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11"
         >
           <GoogleGlyph />
           <span className="flex-1">Connect Google Calendar</span>

@@ -43,6 +43,7 @@ import {
 } from "@/lib/icons";
 import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
 import { cn } from "@/lib/utils/helpers/cn";
+import { ix } from "@/lib/ui/interactive";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -407,7 +408,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                       key={id}
                       variant="ghost"
                       onClick={() => void execute(id)}
-                      className="group h-11 w-full justify-start gap-3 rounded-lg px-2 text-left hover:bg-hover active:bg-press"
+                      className="group h-11 w-full justify-start gap-3 rounded-lg px-2 text-left"
                     >
                       <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-agent-muted text-agent-ink [&_svg]:!text-agent-ink">
                         <Icon className="!size-4" />
@@ -426,7 +427,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                   <Button
                     variant="ghost"
                     onClick={() => setShowPromptInput(true)}
-                    className="h-9 w-full justify-start gap-3 rounded-lg px-2 text-ui-sm text-ink-2 hover:bg-hover hover:text-ink"
+                    className="h-9 w-full justify-start gap-3 rounded-lg px-2 text-ui-sm text-ink-2 hover:text-ink"
                   >
                     <span className="inline-flex size-7 items-center justify-center">
                       <MessageSquarePlus className="!size-4" />
@@ -472,7 +473,9 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                       onClick={back}
                       aria-label="Back to the actions"
                       title="Back (Esc)"
-                      className="rounded-lg p-1.5 text-ink-3 outline-none transition-colors duration-[140ms] hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+                      {...ix("icon")}
+                      data-touch-target=""
+                      className="rounded-lg p-1.5 text-ink-3 hover:text-ink"
                     >
                       <ArrowLeft className="size-3" />
                     </button>
@@ -507,7 +510,9 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                             onClick={copy}
                             aria-label="Copy the answer"
                             title="Copy"
-                            className="rounded-lg p-1.5 text-ink-3 outline-none transition-colors duration-[140ms] hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+                            {...ix("icon")}
+                            data-touch-target=""
+                            className="rounded-lg p-1.5 text-ink-3 hover:text-ink"
                           >
                             {copied ? <Check className="size-3 text-success-ink" /> : <Copy className="size-3" />}
                           </button>
@@ -517,7 +522,9 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                           onClick={() => void execute(run.action, { prompt: run.prompt })}
                           aria-label="Try again"
                           title="Try again"
-                          className="rounded-lg p-1.5 text-ink-3 outline-none transition-colors duration-[140ms] hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+                          {...ix("icon")}
+                          data-touch-target=""
+                          className="rounded-lg p-1.5 text-ink-3 hover:text-ink"
                         >
                           <RotateCcw className="size-3" />
                         </button>
@@ -575,7 +582,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                         size="icon"
                         disabled={!refinePrompt.trim()}
                         onClick={refine}
-                        className="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-ink-2 hover:bg-hover"
+                        className="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-ink-2"
                       >
                         <CornerDownLeft className="size-4" />
                       </Button>

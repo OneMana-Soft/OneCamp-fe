@@ -21,7 +21,7 @@ import type { UserProfileInterface } from "@/types/user"
  * conversation as chatSlice keeps it), or a group's. The same targets an edit
  * takes (hooks/useSaveEdit), so a list names a message one way for both.
  */
-export type MessageRef = Extract<EditTarget, { kind: "post" | "dm" | "group" }>
+type MessageRef = Extract<EditTarget, { kind: "post" | "dm" | "group" }>
 
 /**
  * Deletes a message the way every list and thread page does (QA F-01, F-02):

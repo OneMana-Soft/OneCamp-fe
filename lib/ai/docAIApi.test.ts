@@ -7,7 +7,7 @@ vi.mock("@/lib/axiosInstance", () => ({
   OWN_ERRORS: { ownErrors: true },
 }))
 
-import { DOC_AI_PATHS, getDocAIModel, getDocAIStarters, messageOf, recordAppliedEdit, revertAgentEdit } from "./docAIApi"
+import { DOC_AI_PATHS, getDocAIModel, getDocAIStarters, recordAppliedEdit, revertAgentEdit } from "./docAIApi"
 
 // Doc AI's routes beside the stream (router/docsAI.go): their answers in
 // words a person can act on, and the record's body without the text.
@@ -56,10 +56,16 @@ describe("doc AI's routes", () => {
     expect(Object.keys(post.mock.calls[0][1])).not.toContain("text")
   })
 
-  it("says the server's reason, or its own", () => {
-    expect(messageOf(httpError(403, { msg: "You can't edit this doc." }), "fallback")).toBe("You can't edit this doc.")
-    expect(messageOf(httpError(500, { msg: "  " }), "fallback")).toBe("fallback")
-    expect(messageOf(new Error("network"), "fallback")).toBe("fallback")
+  // GENERIC-FE's fold, 16 Oct 2026: Doc AI read the server's msg by hand, so a server fault's
+  // developer text and axios's own timeout words reached people as they were. Its answers go
+  // through apiErrorMessage: the server's reason, else plain words.
+  it("says the server's reason, and a server fault or a timeout in plain words", async () => {
+    post.mockRejectedValueOnce(httpError(403, { msg: "You can't edit this doc." }))
+    expect(await revertAgentEdit("d1", { edit_id: "e1" })).toMatchObject({ ok: false, message: "You can't edit this doc." })
+    post.mockRejectedValueOnce(httpError(500, { msg: "Failed to revert edit: pq: deadlock detected" }))
+    expect(await revertAgentEdit("d1", { edit_id: "e1" })).toMatchObject({ ok: false, message: "The revert couldn't be made just now. Try again in a moment." })
+    post.mockRejectedValueOnce(Object.assign(new Error("timeout of 30000ms exceeded"), { isAxiosError: true, code: "ECONNABORTED" }))
+    expect(await revertAgentEdit("d1", { edit_id: "e1" })).toMatchObject({ ok: false, message: "The server took too long to answer. Try again in a moment." })
   })
 })
 
@@ -78,7 +84,8 @@ describe("reverting an agent's edit", () => {
   it("says why it couldn't, with what to do", async () => {
     post.mockRejectedValueOnce(httpError(422, { msg: "That edit was already reverted." }))
     expect(await revertAgentEdit("d1", { run_id: "r1" }, true)).toEqual({ ok: false, editedSince: false, message: "That edit was already reverted." })
-    post.mockRejectedValueOnce(new Error("offline"))
-    expect(await revertAgentEdit("d1", { edit_id: "e1" })).toMatchObject({ ok: false, message: "The revert couldn't be made just now. Try again in a moment." })
+    // Offline, as axios says it: plain words, never "Network Error".
+    post.mockRejectedValueOnce(Object.assign(new Error("Network Error"), { isAxiosError: true, code: "ERR_NETWORK" }))
+    expect(await revertAgentEdit("d1", { edit_id: "e1" })).toMatchObject({ ok: false, message: "The server could not be reached. Check your connection and try again in a moment." })
   })
 })

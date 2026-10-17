@@ -11,6 +11,7 @@
  */
 
 import { useState } from "react"
+import { fieldKeyDown } from "@/lib/keys/ime"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -185,10 +186,10 @@ function FieldRow({
           disabled={busy}
           onChange={(e) => setName(e.target.value)}
           onBlur={saveName}
-          onKeyDown={(e) => {
+          onKeyDown={fieldKeyDown((e) => {
             if (e.key === "Enter") e.currentTarget.blur()
             if (e.key === "Escape") setName(field.name)
-          }}
+          })}
           className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-2 shadow-none focus-visible:border-input"
         />
         <FieldKind type={field.type} />
@@ -200,7 +201,7 @@ function FieldRow({
             disabled={busy}
             onChange={(e) => setCurrency(e.target.value.toUpperCase())}
             onBlur={saveCurrency}
-            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            onKeyDown={fieldKeyDown((e) => e.key === "Enter" && e.currentTarget.blur())}
             className="h-8 w-16 text-xs uppercase"
           />
         )}

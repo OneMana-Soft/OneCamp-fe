@@ -33,7 +33,6 @@ import {createListForTaskInfo, clearTaskListVisibleInfo} from "@/store/slice/tas
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
-import {useTranslation} from "react-i18next";
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
 import { statusOptions } from "@/lib/taskStatus"
@@ -71,7 +70,6 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
     const taskListState = useSelector(
         (state: RootState) => state.TaskInfo.taskListVisibleInfo || NO_TASKS,
     )
-    const {t} = useTranslation()
 
 
     // <CHANGE> Initialize all states from URL parameters

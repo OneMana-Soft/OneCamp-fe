@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { fieldLabel } from "@/lib/ui/fieldRow"
 
@@ -42,8 +42,15 @@ vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof impo
 vi.mock("@/components/ai/RescheduleDialog", () => ({ default: () => null }))
 vi.mock("@/components/ai/MeetingPrepDialog", () => ({ default: () => null }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
+// The delete question, as the one helper the calendar's Delete key and menu ask with too.
+const askedToDelete = vi.fn()
+vi.mock("@/lib/calendar/confirmDelete", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/calendar/confirmDelete")>()
+  return { ...real, deleteEventConfirm: (e: Parameters<typeof real.deleteEventConfirm>[0]) => (askedToDelete(e), real.deleteEventConfirm(e)) }
+})
 
 import EventInfoPanel from "./eventInfoPanel"
+import { deleteEventRequest } from "@/lib/calendar/confirmDelete"
 
 afterEach(() => {
   cleanup()
@@ -56,6 +63,7 @@ afterEach(() => {
   asked.length = 0
   makeRequest.mockReset()
   dispatch.mockReset()
+  askedToDelete.mockReset()
   booking = undefined
 })
 
@@ -193,6 +201,15 @@ describe("an event in the side panel", () => {
     expect(screen.queryByRole("button", { name: "Close panel" })).toBeNull()
     expect(screen.getByRole("button", { name: "Edit event" })).toBeTruthy()
   })
+
+  // PTC-53: the phone's page showed four icons, and nothing hovers to name them.
+  it("on the phone's own page, names Edit and puts the rest in a labelled menu", () => {
+    panel({ onClose: vi.fn() })
+    expect(screen.getByRole("button", { name: "Edit event" }).textContent).toBe("Edit event")
+    expect(screen.queryByRole("button", { name: "Delete event" })).toBeNull()
+    fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Enter" })
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Prep brief", "Find a better time", "Delete event"])
+  })
 })
 
 // CAL-BUG-7: on a phone, and from a link, the panel looked for the event in
@@ -273,6 +290,16 @@ describe("saving the guests", () => {
     expect(call.payload).toHaveProperty("participants", [])
   })
 
+  // VD-32: ⌘⏎ saves the event being edited, from any field, the notes included.
+  it("saves with ⌘⏎ from the notes, as Save does", async () => {
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    const notes = document.querySelector<HTMLTextAreaElement>("form[data-event-edit] textarea")!
+    fireEvent.keyDown(notes, { key: "Enter", metaKey: true })
+    await waitFor(() => expect(makeRequest).toHaveBeenCalled(), { timeout: 5000 })
+    expect(makeRequest.mock.calls[0][0]).toMatchObject({ failureTitle: "Couldn't save the event", payload: expect.objectContaining({ title: "Standup" }) })
+  })
+
   // CAL-BUG-16 (the web's half): a refused save says the server's reason.
   it("lets the server's reason for a refusal be told", async () => {
     panel()
@@ -323,5 +350,26 @@ describe("a booked meeting", () => {
     fireEvent.click(saveButton())
     await waitFor(() => expect(makeRequest).toHaveBeenCalledTimes(1), { timeout: 5000 })
     expect(confirmed()).toHaveLength(0)
+  })
+})
+
+describe("deleting", () => {
+  it("asks first, in the words the calendar's Delete key and menu ask with", () => {
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
+    expect(askedToDelete).toHaveBeenCalledWith(expect.objectContaining({ event_uuid: "e1" }))
+    const asked = dispatch.mock.calls.map(([a]) => a?.payload?.data).filter((d) => d && d.title)
+    expect(asked[0]).toMatchObject({ title: "Delete this event?", description: "It's removed from everyone's calendar. This can't be undone.", confirmText: "Delete event", destructive: true })
+  })
+
+  it("sends the request the calendar's Delete key and menu send", async () => {
+    makeRequest.mockResolvedValue({})
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Delete event" }))
+    const asked = dispatch.mock.calls.map(([a]) => a?.payload?.data).filter((d) => d && d.title)
+    await act(async () => {
+      await asked[0].onConfirm()
+    })
+    expect(makeRequest).toHaveBeenCalledWith(deleteEventRequest("e1"))
   })
 })

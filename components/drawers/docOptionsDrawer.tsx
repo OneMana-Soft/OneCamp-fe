@@ -30,7 +30,6 @@ interface docOptionsDrawerProps {
     drawerOpenState: boolean;
     setOpenState: (state: boolean) => void;
     isOwner: boolean
-    deleteMessage: () => void
     docId: string
 }
 
@@ -47,7 +46,7 @@ const labelOf = (group: string) => GROUP_LABEL[group] ?? group.charAt(0).toUpper
  * SHEET_SUBSHEETS (the four exports) is one row that opens as a sheet of its
  * own. What destroys is alone, and last (design v3, mobile C7).
  */
-export function DocOptionsDrawer({drawerOpenState, setOpenState, docId, isOwner, deleteMessage}: docOptionsDrawerProps) {
+export function DocOptionsDrawer({drawerOpenState, setOpenState, docId, isOwner}: docOptionsDrawerProps) {
     const gate = useEditionGate()
     const docInfo = useFetch<DocInfoResponse>(docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '');
     // The group open as a sheet of its own (Export), or the sheet itself.
@@ -56,13 +55,6 @@ export function DocOptionsDrawer({drawerOpenState, setOpenState, docId, isOwner,
     function closeDrawer() {
         setSubsheet(null)
         setOpenState(false);
-    }
-
-    const handleDeleteClick = () => {
-        setTimeout(() => {
-            deleteMessage()
-        }, 100);
-        closeDrawer()
     }
 
     // The same rule as the desktop menu: what the server decided (lib/docs/abilities).
@@ -82,13 +74,11 @@ export function DocOptionsDrawer({drawerOpenState, setOpenState, docId, isOwner,
 
     const row = (a: ShownAction) => {
         const Icon = a.icon as LucideIcon
-        // Delete is the page's to confirm (it was handed in).
-        const choose = a.action.id === "doc.delete"
-            ? handleDeleteClick
-            : () => {
-                closeDrawer()
-                void a.run()
-            }
+        // Every row runs its action, Delete too (doc.trash: to the trash, with Undo).
+        const choose = () => {
+            closeDrawer()
+            void a.run()
+        }
         return a.action.destructive ? (
             <DrawerDestructiveActionLink key={a.action.id} onLinkClick={choose} linkText={a.label} Icon={Icon} />
         ) : (

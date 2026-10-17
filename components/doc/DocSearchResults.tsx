@@ -12,14 +12,13 @@ import { Virtuoso } from "react-virtuoso"
 
 import { DocRow } from "@/components/doc/docRows"
 import { DocRowsSkeleton } from "@/components/doc/docListResult"
-import { usePagedList, type ListPage } from "@/components/doc/usePagedList"
+import { PagedListFooter, usePagedList, type ListPage } from "@/components/doc/usePagedList"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SpotSearch } from "@/components/ui/graphics"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { Loader2 } from "@/lib/icons"
 import { searchKey } from "@/services/docHomeService"
 import type { Envelope } from "@/services/docGraphService"
 import type { DocSearchItem, DocSearchPage } from "@/types/docHome"
@@ -34,7 +33,7 @@ const readSearch = (d: Envelope<DocSearchPage>): ListPage<DocSearchItem> => ({
 const docId = (d: DocSearchItem) => d.doc_uuid
 
 /** "12 docs", "1 doc", and "the best 200" when more matched than were searched. Pure. */
-export function searchCountLabel(count: number | undefined, capped: boolean): string {
+function searchCountLabel(count: number | undefined, capped: boolean): string {
   if (count === undefined) return ""
   const n = `${count} ${count === 1 ? "doc" : "docs"}`
   return capped ? `${n}, from the 200 that match best` : n
@@ -112,23 +111,7 @@ export function DocSearchResults({
         }}
         components={{
           Header: () => <div className="h-3 sm:h-4" />,
-          Footer: () => (
-            <div className="flex w-full justify-center py-4">
-              {list.moreFailed ? (
-                <span role="alert" className="flex items-center gap-2 text-ui-sm text-ink-3">
-                  Couldn&apos;t load more results.
-                  <button type="button" onClick={list.retryMore} className="font-medium text-ink-2 underline-offset-2 hover:underline">
-                    Try again
-                  </button>
-                </span>
-              ) : list.hasMore ? (
-                <span role="status" className="flex items-center gap-2 text-ui-sm text-ink-3">
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Loading…
-                </span>
-              ) : null}
-            </div>
-          ),
+          Footer: () => <PagedListFooter what="results" failed={list.moreFailed} loading={list.hasMore} onRetry={list.retryMore} />,
         }}
         itemContent={(_, d) => (
           <div className="mx-auto max-w-[1040px] px-4 sm:px-8">

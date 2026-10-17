@@ -5,6 +5,8 @@ import { AgentEditDialog } from "@/components/admin/AgentEditDialog"
 
 // The dialog's lists (channels, projects, models, MCP servers, what AI can do)
 // aren't what's under test; it opens with none of them loaded.
+// Every channel, as the agent editor reads it (useEveryChannel).
+vi.mock("@/components/admin/useEveryChannel", () => ({ useEveryChannel: () => ({ channels: [], isLoading: false, isError: false }) }))
 vi.mock("@/hooks/useFetch", () => ({
     useFetch: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: vi.fn() }),
 }))

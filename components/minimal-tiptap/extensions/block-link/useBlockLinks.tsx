@@ -3,6 +3,7 @@
 import * as React from "react"
 import type { Editor } from "@tiptap/core"
 import { CornerUpLeft } from "@/lib/icons"
+import { isPlainLeftClick } from "@/lib/ui/linkClick"
 import { inAppPath } from "@/lib/utils/useInternalLinkRouter"
 import { jumpToBlock, parseBlockLink } from "./blockLink"
 import { reducedMotion } from "../block-commands/effects"
@@ -54,7 +55,7 @@ export function useBlockLinks(editor: Editor | null, docId: string): React.React
   React.useEffect(() => {
     if (!editor) return
     const onClick = (e: MouseEvent) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      if (e.defaultPrevented || !isPlainLeftClick(e)) return
       const a = (e.target as Element | null)?.closest?.("a")
       if (!a) return
       // In the editable text a click edits (link.ts).

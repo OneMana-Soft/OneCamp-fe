@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
-import { GuestChannelActions, GuestGateComposer, PHONE_HIT } from "@/components/guest/guestChannel"
+import { GuestChannelActions, GuestGateComposer } from "@/components/guest/guestChannel"
 
 // Critic, 11 Oct. A guest is a client on their own phone, and the guest
 // channel's controls were sized for a pointer: Continue was 32px beside a
@@ -23,17 +23,26 @@ describe("the guest channel on a phone", () => {
     expect(classes(screen.getByRole("button", { name: "Send" }))).toContain("max-md:size-11")
   })
 
-  it("gives the name chip a 44px target without moving it", () => {
+  // The app's one touch target (app/phone.css F3, data-touch-target): 44px
+  // under a finger, whatever the control's size, nothing moved. The guest
+  // channel drew its own (PHONE_HIT, and Reply's own insets), by the
+  // window's width instead of the pointer, and on Load earlier on top of the
+  // one its Button already carries.
+  it("gives the name chip the app's 44px target without moving it", () => {
     render(<GuestChannelActions name="Jordan Ellis" onRename={() => {}} />)
     const chip = screen.getByRole("button", { name: /change name/ })
-    for (const c of PHONE_HIT.split(" ")) expect(classes(chip)).toContain(c)
-    expect(PHONE_HIT).toMatch(/sm:after:hidden/)
+    expect(chip).toHaveAttribute("data-touch-target")
+    expect(chip.className).not.toMatch(/after:/)
   })
 
-  it("gives Reply and Load earlier the same targets", () => {
+  it("gives Reply the same target, and leaves Load earlier its Button's", () => {
     const src = readFileSync("app/guest/c/[token]/page.tsx", "utf8")
-    expect(src).toMatch(/after:-inset-y-3\.5/)
-    expect(src).toMatch(/rounded-\[14px\] px-3 \$\{PHONE_HIT\}/)
+    expect(src).toMatch(/<button type="button" data-touch-target="" onClick=\{\(\) => setThread\(m\.id\)\}/)
+    expect(src).toMatch(/<Button variant="ghost" size="sm" className="rounded-\[14px\] px-3"/)
+    // No hand-made target left on the guest pages.
+    for (const f of ["app/guest/c/[token]/page.tsx", "components/guest/guestChannel.tsx"]) {
+      expect(readFileSync(f, "utf8")).not.toMatch(/after:-inset|PHONE_HIT/)
+    }
   })
 })
 

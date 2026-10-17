@@ -22,6 +22,8 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { cn } from "@/lib/utils/helpers/cn";
+import { submitOnModEnter } from "@/lib/keys/chord";
+import type { EventDraftValues } from "@/lib/calendar/duplicate";
 
 const formSchema = z.object({
     title: z.string().min(1, "Give it a title").max(100),
@@ -44,8 +46,8 @@ interface Props {
     onSuccess?: () => void;
     /** Where a slot click put it. */
     defaultStartDate?: Date;
-    /** What quick create already knows ("More options"). */
-    initial?: { title: string; start: Date; end: Date; isFocus: boolean; guests: PickedPerson[] };
+    /** What quick create already knows ("More options"), or a copy of an event (Duplicate). */
+    initial?: EventDraftValues;
     isGCalConnected?: boolean;
 }
 
@@ -97,12 +99,12 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
         setGuests(initial?.guests ?? []);
         form.reset({
             title: initial?.title ?? "",
-            description: "",
+            description: initial?.description ?? "",
             startTime: local(start),
             endTime: local(end),
             syncToGoogleCalendar: false,
             isFocus: initial?.isFocus ?? false,
-            isAway: false,
+            isAway: initial?.isAway ?? false,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, defaultStartDate, initial]);
@@ -150,7 +152,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                 <DialogTitle className="sr-only">New event</DialogTitle>
                 <DialogDescription className="sr-only">Add it to your calendar, and to your guests&apos; calendars too.</DialogDescription>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex max-h-[85dvh] flex-col">
+                    <form onSubmit={form.handleSubmit(onSubmit)} onKeyDown={submitOnModEnter} className="flex max-h-[85dvh] flex-col">
                         <div className="overflow-y-auto px-6 pb-2 pt-6">
                             <FormField
                                 control={form.control}
@@ -239,7 +241,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                             id="event-notes"
                                             rows={3}
                                             placeholder="Agenda, a call link, anything people should know"
-                                            className="w-full resize-none rounded-lg bg-raised px-2.5 py-2 text-ui text-ink shadow-e1 outline-none placeholder:text-ink-3 focus-visible:ring-1 focus-visible:ring-brand/50"
+                                            className="w-full resize-none rounded-lg bg-raised px-2.5 py-2 text-ui text-ink shadow-e1 outline-none placeholder:text-ink-3 focus-visible:focus-halo"
                                         />
                                     )}
                                 />

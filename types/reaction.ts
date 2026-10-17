@@ -7,7 +7,6 @@ import {DocInfoInterface} from "@/types/doc";
 
 type ReactionCategoryType =
     | 'frequent'
-    | 'custom'
     | 'people'
     | 'nature'
     | 'foods'
@@ -98,9 +97,10 @@ interface ReactionsData {
     reactions: { [key: string]: ReactionDataInterface }
 }
 
+// No "custom": a workspace's own emoji have no store yet, and the group asked
+// for them with an empty address, so it never loaded (hooks/reactions/useReactionsData).
 const ALL_REACTION_CATEGORIES: Readonly<ReactionCategoryType[]> = [
     'frequent',
-    'custom',
     'people',
     'nature',
     'foods',
@@ -117,8 +117,6 @@ function getReactionCategoryLabel(id: string) {
             return 'Search results'
         case 'frequent':
             return 'Frequently used'
-        case 'custom':
-            return 'Custom'
         case 'people':
             return 'Smileys and people'
         case 'nature':

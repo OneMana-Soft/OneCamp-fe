@@ -8,9 +8,6 @@ import type { UserProfileUpdateInterface } from "@/types/user"
  * so the two say a failure the same way.
  */
 
-/** Said when a newly chosen photo didn't upload. The save stops there: going on kept the old photo as if the new one were in. */
-export const PHOTO_NOT_UPLOADED = "Couldn't upload your photo. Try again, or remove it and save the rest."
-
 export type ProfileSaveOutcome =
   | { ok: true }
   /** `field` names the field the refusal is about, when there is one. */

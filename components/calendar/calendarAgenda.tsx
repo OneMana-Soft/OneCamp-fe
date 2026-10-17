@@ -6,9 +6,9 @@ import { SpotCalendar } from "@/components/ui/graphics";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { Button } from "@/components/ui/button";
 import { hueOf, kindOf } from "@/components/calendar/calendarTones";
-import { allDayItem } from "@/components/calendar/calendarLayout";
+import { allDayItem, daySpan, daySpanWords } from "@/components/calendar/calendarLayout";
 import { allDayLastDay } from "@/lib/calendar/allDay";
-import { joinLinkOf } from "@/components/calendar/eventPopover";
+import { joinLinkOf } from "@/lib/calendar/joinLink";
 import { cn } from "@/lib/utils/helpers/cn";
 import { clockRange, clockTime } from "@/lib/utils/date/clock";
 
@@ -52,7 +52,7 @@ function itemDetail(item: AgendaItem, day: Date): string {
     const last = allDayLastDay(start, end);
     return isSameDay(start, last) ? "All day" : `All day, until ${format(last, "d MMM")}`;
   }
-  if (!isSameDay(start, day)) return "Continues";
+  // A span of a day or more says its days ("Thu 09:30 – Fri 09:30") on each day it is listed.
   return times;
 }
 
@@ -136,7 +136,7 @@ export function CalendarAgenda({
                 const kind = kindOf(item);
                 const isNext = item.event_uuid === next && isSameDay(start, day);
                 const live = isNext && start <= now && now < end;
-                const timed = !item.isTask && !allDayItem(item, start, end) && isSameDay(start, day);
+                const span = daySpan(item, start, end, day);
                 const link = item.event_description ? joinLinkOf(item) : null;
                 const soon = !!link && differenceInMinutes(start, now) <= 10 && now < end;
                 const i = n++;
@@ -146,6 +146,8 @@ export function CalendarAgenda({
                       type="button"
                       onClick={(e) => onOpen(item, e.currentTarget)}
                       data-next={isNext || undefined}
+                      // Which item it is, for the calendar's keys and its menu (E, Delete, a right-click).
+                      data-event-uuid={item.event_uuid}
                       className={cn(
                         "flex w-full items-center gap-3 rounded-lg px-2 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand",
                         desktop ? "min-h-[52px] py-1.5" : "min-h-[56px] py-2",
@@ -153,13 +155,13 @@ export function CalendarAgenda({
                       )}
                     >
                       <span className="flex w-[72px] shrink-0 flex-col text-ui-sm font-[450] leading-4 tabular-nums text-ink-2">
-                        {timed ? (
+                        {span.kind === "timed" ? (
                           <>
                             <span>{clockTime(start)}</span>
                             <span className="text-meta text-ink-3">{clockTime(end)}</span>
                           </>
                         ) : (
-                          <span className="text-meta text-ink-3">{item.isTask ? "Due" : "All day"}</span>
+                          <span className="text-meta text-ink-3">{daySpanWords(span)}</span>
                         )}
                       </span>
                       <span

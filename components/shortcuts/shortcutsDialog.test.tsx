@@ -4,14 +4,21 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 vi.mock("@/hooks/useClientConfig", () => ({ useAIAvailable: () => true }))
+// The page the list is opened on: the calendar shows its own group first.
+let pathname: string | null = null
+vi.mock("next/navigation", () => ({ usePathname: () => pathname }))
 
 import { ShortcutsDialog, combosOf, openShortcuts, pieces, pressedMatches, pressedOf } from "./ShortcutsDialog"
+import { CALENDAR_KEYS } from "@/lib/calendar/keys"
 
 // Design v3 (shell §K, mock M7): a 720px dialog with a filter that takes the
 // focus, two columns of groups titled as the palette titles its groups, v3 kbd
 // chips, and rows that light up when their keys are pressed.
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  pathname = null
+})
 
 const openList = () => {
   render(<ShortcutsDialog />)
@@ -22,7 +29,7 @@ describe("the keyboard shortcuts list", () => {
   it("titles its groups as the palette titles its groups, in v3's order", () => {
     openList()
     const headings = screen.getAllByRole("heading", { level: 3 })
-    expect(headings.map((h) => h.textContent)).toEqual(["Everywhere", "Go to", "Lists and boards", "Split view", "Composer"])
+    expect(headings.map((h) => h.textContent)).toEqual(["Everywhere", "Go to", "Calendar", "Lists and boards", "Split view", "Composer"])
     const command = readFileSync(resolve(__dirname, "../ui/command.tsx"), "utf8")
     expect(command).toMatch(/\[&_\[cmdk-group-heading\]\]:font-medium/)
     for (const h of headings) {
@@ -78,6 +85,25 @@ describe("the keyboard shortcuts list", () => {
     expect(row.querySelector("kbd")!.className).toMatch(/kbd-hit/)
     expect(palette).not.toHaveBeenCalled()
     document.removeEventListener("keydown", palette)
+  })
+})
+
+// VD-34, FE-F-3: the calendar's keys were only in its tooltips. "?" on the
+// calendar opens the list on a Calendar group made from the table it binds.
+describe("the calendar's group", () => {
+  it("comes first on the calendar, and after Go to elsewhere", () => {
+    pathname = "/app/calendar"
+    openList()
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent).slice(0, 3)).toEqual(["Calendar", "Everywhere", "Go to"])
+  })
+
+  it("lists every key the calendar binds, with its other keys", () => {
+    openList()
+    const rows = Array.from(document.querySelectorAll('[data-shortcut-group="Calendar"] li'))
+    expect(rows.map((r) => r.querySelector("span")?.textContent)).toEqual(CALENDAR_KEYS.map((r) => r.label))
+    expect(screen.getByText("Next day, week or month").closest("li")!.textContent).toBe("Next day, week or monthJorN")
+    expect(screen.getByText("Undo the last move").closest("li")!.textContent).toBe("Undo the last moveZorCtrlZ")
+    expect(screen.getByText("Search events").closest("li")!.querySelector("kbd")?.textContent).toBe("/")
   })
 })
 
@@ -137,6 +163,7 @@ describe("reading a written shortcut", () => {
     expect(pieces("J / K (or ↓ / ↑)", false)).toEqual([{ key: "J" }, { word: "/" }, { key: "K" }, { word: "or" }, { key: "↓" }, { word: "/" }, { key: "↑" }])
     expect(pieces("Ctrl/⌘ + K", true)).toEqual([{ key: "⌘" }, { key: "K" }])
     expect(pieces("Alt + click a link", false)).toEqual([{ key: "Alt" }, { word: "click" }, { word: "a" }, { word: "link" }])
+    expect(pieces("/", false)).toEqual([{ key: "/" }])
     // A "/" after "+" is the slash key.
     expect(pieces("? or Ctrl/⌘ + / or F1", true)).toEqual([{ key: "?" }, { word: "or" }, { key: "⌘" }, { key: "/" }, { word: "or" }, { key: "F1" }])
   })

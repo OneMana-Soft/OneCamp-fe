@@ -40,7 +40,7 @@ interface Part {
   href?: string
 }
 
-export function autolinks(s: string): Part[] {
+function autolinks(s: string): Part[] {
   const parts: Part[] = []
   let last = 0
   for (let i = 0; i < s.length; i++) {

@@ -40,9 +40,11 @@ describe("the segmented control", () => {
     expect(thumb.className).toContain("shadow-sel")
     expect(thumb.className).toContain("transition-transform")
     expect(thumb.className).not.toMatch(/transition-(all|\[width|\[left)/)
-    // Before it is measured, the chosen option draws the same surface itself.
+    // Before it is measured, the layer raises the chosen option itself
+    // (app/interaction.css, a [data-segmented] well whose thumb is off).
     const item = screen.getByRole("radio", { name: "Off" })
-    expect(item.className).toContain("data-[state=checked]:bg-raised")
+    expect(item.getAttribute("data-interactive")).toBe("tab")
+    expect(item.closest("[data-segmented]")?.hasAttribute("data-thumb")).toBe(true)
     expect(item.className).not.toContain("data-[state=checked]:bg-background")
   })
 

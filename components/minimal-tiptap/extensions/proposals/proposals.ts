@@ -31,7 +31,7 @@ import {
 } from '@/lib/proposals/review'
 import type { ProposalHunk } from '@/lib/proposals/types'
 
-export interface ProposalsState {
+interface ProposalsState {
   /** The proposals under review in this editor, by id. */
   active: Record<string, Tracked>
   /**

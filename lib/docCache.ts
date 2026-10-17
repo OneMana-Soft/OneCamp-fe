@@ -1,6 +1,6 @@
 import type { Dispatch } from "@reduxjs/toolkit"
 
-import { appMutate, patchCached } from "@/lib/swrMutate"
+import { appMutate, cachedData, patchCached } from "@/lib/swrMutate"
 import { docCommentsKey } from "@/lib/docCommentsCache"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { addUserDoc, removeUserDoc, updateUserDocTitle } from "@/store/slice/userSlice"
@@ -17,7 +17,6 @@ import type { DocInfoInterface, DocInfoListInterfaceResp, DocInfoResponse } from
  */
 
 export const docInfoKey = (docId: string) => `${GetEndpointUrl.GetDocInfo}/${docId}`
-export const docPermissionsKey = (docId: string) => `${GetEndpointUrl.GetDocPermissions}?doc_uuid=${docId}`
 
 // The docs home's lists (/doc/list) answer in the same shape. Named here, not
 // imported from services/docGraphService: this module is on the doc's page.
@@ -35,12 +34,12 @@ const patchTree = (docId: string, change: (n: { uuid?: string; title?: string })
     })
 
 /** A page of a docs list (private, shared, or the docs home's), any page and size. */
-export function isDocListKey(key: string): boolean {
+function isDocListKey(key: string): boolean {
     return LIST_PATHS.some((path) => key === path || key.startsWith(`${path}?`) || key.startsWith(`${path}/`))
 }
 
 /** Changes one doc wherever a docs list page has it; the same page when none does. */
-export function patchListedDoc(page: DocInfoListInterfaceResp, docId: string, change: (doc: DocInfoInterface) => DocInfoInterface | null): DocInfoListInterfaceResp {
+function patchListedDoc(page: DocInfoListInterfaceResp, docId: string, change: (doc: DocInfoInterface) => DocInfoInterface | null): DocInfoListInterfaceResp {
     const docs = page?.data?.docs
     if (!docs?.some((d) => d.doc_uuid === docId)) return page
     const next: DocInfoInterface[] = []
@@ -60,6 +59,17 @@ const withInfo = (docId: string, change: (doc: DocInfoInterface) => DocInfoInter
 
 /** Ask again for every docs list page (where a doc goes, or which list, is the server's to say). */
 const refetchLists = () => void appMutate((key: unknown) => typeof key === "string" && isDocListKey(key))
+
+/**
+ * Whether a page made inside this doc is sent as private: as the doc is, when
+ * the caller knows it (a tree's row says), else as the doc's info in the cache
+ * says (its page has it), else private. The server makes a subpage as private
+ * as its parent whatever it's told, but one without nested pages (v2.72) makes
+ * it at the top, open to the whole workspace unless it's told it is private.
+ */
+export function subpagePrivate(parentId: string, known?: boolean): boolean {
+    return known ?? cachedData<DocInfoResponse>(docInfoKey(parentId))?.data?.doc_private ?? true
+}
 
 export function docCreated(dispatch: Dispatch, doc: { doc_uuid: string; doc_title: string }) {
     dispatch(addUserDoc({ doc: { doc_uuid: doc.doc_uuid, doc_title: doc.doc_title } }))

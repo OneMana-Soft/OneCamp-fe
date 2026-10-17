@@ -44,7 +44,7 @@ export const getOutput = (editor: Editor, format: UseMinimalTiptapEditorProps['o
   }
 }
 
-export const isUrl = (
+const isUrl = (
   text: string,
   options: { requireHostname: boolean; allowBase64?: boolean } = { requireHostname: false }
 ): boolean => {

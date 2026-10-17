@@ -140,13 +140,29 @@ test("the breadcrumb shows the path, and a page dropped on a crumb, or on Docs, 
 test("More's Delete moves the doc to the trash, leaves its page, and Undo brings it back (N32)", async ({ browser }, testInfo) => {
   const relay = new CollabRelay()
   const tab = await open(browser, testInfo, relay, SAM, {
-    answers: { "/doc/delete": { data: { batch_id: "b1", count: 1 } }, "/doc/restore": { data: { restored: 1, parent_uuid: "" } } },
+    answers: {
+      "/doc/delete": { data: { batch_id: "b1", count: 1 } },
+      "/doc/restore": { data: { restored: 1, parent_uuid: "" } },
+      // The docs home it leaves for, with its list as a person would have it
+      // (the doc just deleted gone from it). Unanswered, the home drew its
+      // error state, and on a loaded machine its failed reads and retries
+      // held the page until the toast's six seconds had nearly run.
+      "/doc/list": (url: URL) => ({ data: { scope: url.searchParams.get("scope") ?? "recent", docs: [], count: 0, next_cursor: "" } }),
+      "/doc/children": { data: { parent: "", nodes: [], hidden: 0, count: 0 } },
+    },
   })
   await more(tab.page, "Delete")
   await expect.poll(() => tab.posts.some((p) => p.path === "/doc/delete")).toBe(true)
-  await expect(tab.page).toHaveURL(/\/app\/doc$/)
-  // The words a row's menu says too (one docActions module).
+  // The words a row's menu says too (one docActions module), up as the page
+  // is left. A person going for Undo points at the toasts, which opens the
+  // stack out and holds every toast's clock (shell T1). Without that, a toast
+  // that came in on top (an unanswered read's "Not in this test") covered the
+  // Undo, and the click waited behind it until the six seconds ran out; on a
+  // loaded machine they also ran out while the page was being left.
   const toast = tab.page.getByText("Moved “Launch notes” to the trash", { exact: true })
+  await expect(toast).toBeVisible()
+  await tab.page.getByRole("region", { name: /^Notifications/ }).getByRole("list").hover()
+  await expect(tab.page).toHaveURL(/\/app\/doc$/)
   await expect(toast).toBeVisible()
   await tab.page.getByRole("button", { name: "Undo" }).click()
   await expect.poll(() => tab.posts.find((p) => p.path === "/doc/restore")?.body).toEqual({ doc_uuid: DOC })

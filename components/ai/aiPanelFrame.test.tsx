@@ -133,7 +133,8 @@ describe("the AI panel's frame (hub.md AI1, AI2, AI4, AI5, AI10)", () => {
     expect(rest).toMatch(/border-radius: 16px/)
     expect(rest).toMatch(/box-shadow: var\(--e2\);/)
     expect(rest).not.toMatch(/brand/)
-    expect(css).toMatch(/\.ai-composer:focus-within \{[^}]*--brand/)
+    // The field halo, the accent's (app/interaction.css --ix-halo).
+    expect(css).toMatch(/\.ai-composer:focus-within \{[^}]*var\(--ix-halo\)/)
     const send = screen.getByRole("button", { name: "Send message" })
     expect(send.hasAttribute("disabled")).toBe(true)
     expect(send.className).toContain("bg-press")

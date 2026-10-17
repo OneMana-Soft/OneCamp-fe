@@ -10,6 +10,8 @@ import { ALL_EDITIONS, bareContext } from "@/components/docEditor/registry/manif
 
 /** The doc's blocks, loaded as the app loads them. */
 export const loadDocBlocks = () => loadBlocks("doc", ALL_EDITIONS)
+/** The doc's blocks as an editor of this saved content loads them: holding a table, its editing too (registry/onDemand.ts). */
+export const loadDocBlocksFor = (saved: string) => loadBlocks("doc", ALL_EDITIONS, saved)
 
 /** A doc's editor holding this content (HTML or JSON), the caret at its end. */
 export function docEditor(content: string | JSONContent): Editor {

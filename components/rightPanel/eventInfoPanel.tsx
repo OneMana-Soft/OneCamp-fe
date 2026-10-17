@@ -11,7 +11,9 @@ import type { CalendarEventInterface, GetEventsResponse, CreateEventPayload } fr
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ErrorState } from "@/components/ui/error-state";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
-import { X, Plus, Trash2, CalendarClock, Sparkles, LogOut } from "@/lib/icons";
+import { X, Plus, Trash2, CalendarClock, Sparkles, LogOut, Ellipsis } from "@/lib/icons";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { EventMenuRows, type EventMenuItem } from "@/components/calendar/eventMenu";
 import { Edit2 } from "@/lib/icons";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { SpotError } from "@/components/ui/graphics";
@@ -24,6 +26,8 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { allDayItem } from "@/components/calendar/calendarLayout";
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay";
 import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
+import { deleteEventConfirm, deleteEventRequest } from "@/lib/calendar/confirmDelete";
+import { submitOnModEnter } from "@/lib/keys/chord";
 import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { wholeDays } from "@/lib/timeOff";
 import RescheduleDialog from "@/components/ai/RescheduleDialog";
@@ -286,12 +290,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
 
     const executeDelete = async () => {
         try {
-            await post.makeRequest({
-                method: "DELETE",
-                apiEndpoint: (`/event/deleteEvent/${event?.event_uuid}`) as any,
-                showErrorToast: true,
-                failureTitle: "Couldn't delete the event",
-            });
+            await post.makeRequest(deleteEventRequest(event.event_uuid));
             closeGone();
         } catch {
             // The toast said why.
@@ -299,14 +298,10 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     };
 
     const handleDelete = async () => {
-        // A booked meeting names its guest, and whether they'll be told (CAL-BUG-4).
-        const words = event.event_booking
-            ? bookedMeetingConfirm(event.event_booking, "delete")
-            : { title: "Delete this event?", description: "It's removed from everyone's calendar. This can't be undone.", confirmText: "Delete event" };
         dispatch(openUI({
             key: 'confirmAlert',
             data: {
-                ...words,
+                ...deleteEventConfirm(event),
                 destructive: true,
                 onConfirm: executeDelete
             }
@@ -316,7 +311,22 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // Which calendar it is on, in that calendar's hue, the way the calendar
     // draws it: dot and word under the title, as a task's status sits under its.
     const onGoogle = event.event_uuid.startsWith("gcal-");
-    const quietIcon = "h-8 w-8 text-muted-foreground hover:text-foreground";
+    // What the person can do with the event, once: quiet icon buttons in the
+    // right panel's header, where hovering names them; on the phone's page,
+    // where nothing hovers, Edit with its name and the rest in a labelled menu
+    // (PTC-53).
+    const viewActions: EventAction[] = [
+        ...(isCreator || isParticipant ? [{ label: "Prep brief", icon: Sparkles, onSelect: () => setPrepOpen(true) }] : []),
+        ...(isCreator
+            ? [
+                  { label: "Find a better time", icon: CalendarClock, onSelect: () => setRescheduleOpen(true) },
+                  { label: "Delete event", icon: Trash2, onSelect: handleDelete, destructive: true },
+                  { label: "Edit event", icon: Edit2, onSelect: () => setIsEditing(true), main: true },
+              ]
+            : isParticipant
+              ? [{ label: "Leave event", icon: LogOut, onSelect: handleLeave, destructive: true }]
+              : []),
+    ];
 
     const actions = isEditing ? (
         <>
@@ -327,33 +337,19 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 Save
             </Button>
         </>
-    ) : (
+    ) : inPanel ? (
         <>
-            {(isCreator || isParticipant) && (
-                <Button variant="ghost" size="icon" className={quietIcon} title="Prep brief" aria-label="Prep brief" onClick={() => setPrepOpen(true)}>
-                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+            {viewActions.map((a) => (
+                // A destructive one is red only when it is about to act: at rest
+                // it is one of the row's quiet buttons. Its press and hover tint
+                // are the layer's danger tone (data-tone), not a fill of its own.
+                <Button key={a.label} variant="ghost" size="icon" data-tone={a.destructive ? "danger" : undefined} className={cn("h-8 w-8 text-muted-foreground", a.destructive ? "hover:text-danger-ink" : "hover:text-foreground")} title={a.label} aria-label={a.label} onClick={a.onSelect}>
+                    <a.icon className="h-4 w-4" aria-hidden="true" />
                 </Button>
-            )}
-            {isCreator ? (
-                <>
-                    <Button variant="ghost" size="icon" className={quietIcon} title="Find a better time" aria-label="Find a better time" onClick={() => setRescheduleOpen(true)}>
-                        <CalendarClock className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                    {/* Red only when it is about to act: at rest it is one of
-                        the row's quiet buttons. */}
-                    <Button aria-label="Delete event" title="Delete event" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-danger-ink" onClick={handleDelete}>
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                    <Button aria-label="Edit event" title="Edit event" variant="ghost" size="icon" className={quietIcon} onClick={() => setIsEditing(true)}>
-                        <Edit2 className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                </>
-            ) : isParticipant ? (
-                <Button aria-label="Leave event" title="Leave event" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-danger-ink" onClick={handleLeave}>
-                    <LogOut className="h-4 w-4" aria-hidden="true" />
-                </Button>
-            ) : null}
+            ))}
         </>
+    ) : (
+        <PhoneEventActions actions={viewActions} />
     );
 
     return (
@@ -457,7 +453,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     <Form {...form}>
                         {/* The same label column as the facts above it, so a
                             field opens for editing where its value was. */}
-                        <form onSubmit={form.handleSubmit(handleSave)} data-event-edit="">
+                        <form onSubmit={form.handleSubmit(handleSave)} onKeyDown={submitOnModEnter} data-event-edit="">
                             <FormField
                                 control={form.control}
                                 name="title"
@@ -622,6 +618,41 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 eventUUID={event.event_uuid}
             />
         </EventPanelFrame>
+    );
+}
+
+/** Something the person can do with an event, from its panel or its page: a menu row with its icon. */
+interface EventAction extends EventMenuItem {
+    icon: React.ElementType;
+    /** The phone page's one named button. */
+    main?: boolean;
+}
+
+/** The phone page's actions (PTC-53): the main one with its name, the rest in a labelled menu. */
+function PhoneEventActions({ actions }: { actions: EventAction[] }) {
+    const main = actions.find((a) => a.main);
+    const rest = actions.filter((a) => !a.main);
+    return (
+        <>
+            {main ? (
+                <Button variant="secondary" size="sm" onClick={main.onSelect}>
+                    <main.icon aria-hidden="true" />
+                    {main.label}
+                </Button>
+            ) : null}
+            {rest.length ? (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label="More actions">
+                            <Ellipsis />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                        <EventMenuRows items={rest} />
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ) : null}
+        </>
     );
 }
 

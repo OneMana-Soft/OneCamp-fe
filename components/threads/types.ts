@@ -31,7 +31,7 @@ export type ThreadComment = CommentInfoInterface & {
   thread_id: string
 }
 
-export type ParticipantRole = 'author' | 'replier' | 'mentioned' | 'reader'
+type ParticipantRole = 'author' | 'replier' | 'mentioned' | 'reader'
 
 export interface ThreadParticipant {
   user_uuid: string

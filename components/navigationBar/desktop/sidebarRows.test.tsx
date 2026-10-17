@@ -33,6 +33,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { MediaQueryProvider } from "@/context/MediaQueryContext"
 import { Home, Inbox, CircleCheck } from "@/lib/icons"
 import { projectHue } from "@/lib/projectHue"
+import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import type { DesktopChildrenNavType } from "@/types/nav"
 
@@ -98,14 +99,28 @@ describe("a sidebar row's states", () => {
     expect(CSS).toMatch(/\.shell-row\[data-muted="true"\] \{ color: var\(--ink-3\); font-weight: 400; \}/)
   })
 
-  it("draws a channel's # in ink-3, monochrome, and a private one as a lock", () => {
+  // INTERACTION_SPEC D13: a channel wears its hue, as a 16px tint tile holding
+  // its # (a lock for a private one), and its row carries the hue so it tints
+  // in it; a starred doc wears its glyph in its hue. Both were grey glyphs.
+  it("draws a channel as its tile in its own hue, a private one with a lock, and the row in that hue", () => {
     section("Channels", [
-      { title: "engineering", path: "/app/channel/c1", variant: "ghost" },
-      { title: "leads", path: "/app/channel/c4", variant: "ghost", isPrivate: true },
+      { title: "engineering", path: "/app/channel/c1", variant: "ghost", kind: "channel", hue_id: "c1" },
+      { title: "leads", path: "/app/channel/c4", variant: "ghost", kind: "channel", hue_id: "c4", isPrivate: true },
     ])
-    const hash = rowOf("engineering").querySelector("svg")!
-    expect(hash.getAttribute("class")).not.toMatch(/hue/)
-    expect(rowOf("leads").querySelector("svg")!.getAttribute("class")).toMatch(/lucide-lock/)
+    const tile = rowOf("engineering").querySelector<HTMLElement>("[data-channel-tile]")!
+    expect(tile.dataset.channelTile).toBe("16")
+    expect(tile.dataset.hue).toBe(hueFor("c1"))
+    expect(tile.className).toContain(HUE_CLASS[hueFor("c1")])
+    expect(rowOf("engineering").getAttribute("data-hue")).toBe(hueFor("c1"))
+    expect(rowOf("leads").querySelector("[data-channel-tile] svg")!.getAttribute("class")).toMatch(/lucide-lock/)
+    expect(rowOf("leads").getAttribute("data-hue")).toBe(hueFor("c4"))
+  })
+
+  it("draws a starred doc as its glyph in its own hue", () => {
+    section("Starred", [{ title: "Q4 launch plan", path: "/app/doc/d2", variant: "ghost", kind: "doc", hue_id: "d2" }])
+    const glyph = rowOf("Q4 launch plan").querySelector("[data-doc-icon]")!
+    expect(glyph.getAttribute("data-hue")).toBe(hueFor("d2"))
+    expect(rowOf("Q4 launch plan").getAttribute("data-hue")).toBe(hueFor("d2"))
   })
 
   // One project tile (12 Oct): the header's glyph tile, 16px, in the project's
@@ -167,7 +182,8 @@ describe("sidebar sections", () => {
   it("folds more than eight projects behind Show more, but never the current one", () => {
     const rows = Array.from({ length: 11 }, (_, i): DesktopChildrenNavType => ({ title: `P${i}`, path: `/app/project/p${i}`, variant: i === 10 ? "sidebarActive" : "ghost", project_uuid: `p${i}` }))
     section("Projects", rows, { cap: 8 })
-    expect(screen.getByText("Show 3 more")).toBeTruthy()
+    // Two are folded: the current one past the cap is already shown.
+    expect(screen.getByText("Show 2 more")).toBeTruthy()
     expect(screen.queryByText("P9")).toBeNull()
     expect(screen.getByText("P10")).toBeTruthy()
   })

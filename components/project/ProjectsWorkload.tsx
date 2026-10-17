@@ -45,21 +45,26 @@ import {
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { app_task_path } from "@/types/paths"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { ix } from "@/lib/ui/interactive"
+import { personHue } from "@/lib/utils/getAvatarColor"
 
 const STATUSES = statusOptions(null)
 const isMeasure = (v: unknown): v is Measure => v === "tasks" || v === "hours"
 
 /**
  * A week's capacity column (design v3, work.md W41): a 32 x 36 r6 column on
- * --press (what they take on) fills from the bottom with the load. Room and
- * full are two neutral steps of ink-2 (35 % and 70 %); only over uses colour,
- * danger at 85 %, with a 4 px danger cap above the column for the excess.
- * Full was the accent once, which is for the one primary action on a page.
+ * --press (what they take on) fills from the bottom with the load, in the
+ * person's own hue (INTERACTION_SPEC D13, PG2-08): room is its avatar's light
+ * stop at 35 %, full its deep stop at 70 %. Over is danger at 85 %, with a 4 px
+ * danger cap above the column for the excess. Two greys on a grey well read as
+ * skeletons that never loaded. The hue comes from the person's row (data-hue);
+ * outside one (the key) the steps are ink-2. Full was the accent once, which
+ * is for the one primary action on a page.
  */
 export const FILL: Record<Load, string> = {
   free: "transparent",
-  room: "color-mix(in oklab, var(--ink-2) 35%, transparent)",
-  full: "color-mix(in oklab, var(--ink-2) 70%, transparent)",
+  room: "color-mix(in oklab, var(--hue-a1, var(--ink-2)) 35%, transparent)",
+  full: "color-mix(in oklab, var(--hue-a2, var(--ink-2)) 70%, transparent)",
   over: "color-mix(in oklab, var(--destructive) 85%, transparent)",
 }
 
@@ -346,7 +351,7 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
             </thead>
             <tbody>
               {rows.map((row, r) => (
-                <tr key={row.key} data-row={r} data-row-key={row.key} className="group">
+                <tr key={row.key} data-row={r} data-row-key={row.key} data-hue={row.person ? personHue(row.person) : undefined} className="group">
                   <th
                     scope="row"
                     className="sticky left-0 z-10 h-[52px] border-b border-line bg-sheet px-3 py-1.5 text-left font-normal"
@@ -689,8 +694,10 @@ function TasksPopover({
           onFocus={() => onFocus(id)}
           aria-label={label}
           data-load={meter?.load ?? kind}
+          // On the interaction layer: it tints in the person's hue (their row's data-hue, D13).
+          {...ix("button")}
           className={cn(
-            "relative mx-auto flex flex-col items-center justify-center gap-1 rounded-md text-xs font-[510] tabular-nums outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring",
+            "relative mx-auto flex flex-col items-center justify-center gap-1 rounded-md text-xs font-[510] tabular-nums",
             kind === "overdue" ? "h-11 w-12 text-danger-ink" : "h-[52px] w-16 text-foreground",
           )}
         >
@@ -757,7 +764,7 @@ function TaskLine({
         <button
           type="button"
           onClick={() => actions.openTask(t.task_uuid)}
-          className="block w-full truncate text-left text-sm outline-none hover:underline focus-visible:underline"
+          className="block w-full truncate rounded-sm text-left text-sm hover:underline"
         >
           {t.task_name}
         </button>

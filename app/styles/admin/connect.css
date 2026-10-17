@@ -617,7 +617,9 @@
     box-shadow: var(--e1);
     transition: box-shadow 140ms var(--ease-out), transform 140ms var(--ease-out);
   }
-  .cx-app-card-live:hover { box-shadow: var(--e2); transform: translateY(-1px); }
+  @media (hover: hover) {
+    .cx-app-card-live:hover { box-shadow: var(--e2); transform: translateY(-1px); }
+  }
   .cx-app-card-live:has(.cx-app-open:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
   /* The whole card opens the sheet; the install slot sits above that layer. */
   .cx-app-open {
@@ -643,7 +645,9 @@
   .cx-app-slot > .cx-app-slot-label[data-show="true"] { opacity: 1; transform: none; }
   .cx-app-installed { min-width: 104px; justify-content: flex-end; }
   @media (prefers-reduced-motion: reduce) {
-    .cx-app-card-live:hover { transform: none; }
+    @media (hover: hover) {
+      .cx-app-card-live:hover { transform: none; }
+    }
   }
 
   /* Installed apps: rows between inset hairlines in the settings card. */

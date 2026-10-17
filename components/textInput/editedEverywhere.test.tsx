@@ -18,7 +18,6 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined }), useF
 const { default: store } = await import("@/store/store")
 const { default: MinimalTiptapTextInput } = await import("./textInput")
 const { editedTitle } = await import("@/lib/chat/editedMark")
-const { applyReplyEdit } = await import("@/lib/chat/replyEdit")
 const { addChannelComments, updateChannelCommentByCommentUUID } = await import("@/store/slice/channelCommentSlice")
 
 afterEach(cleanup)
@@ -62,16 +61,10 @@ describe("when a message or a reply was edited", () => {
     expect(editedTitle("2026-10-14T09:00:00Z", "2026-10-14T09:05:00Z")).toMatch(/^Edited .+ · originally .+$/)
   })
 
-  it("stamps a reply's edit as it is applied, live or your own", () => {
-    const before = Date.now()
+  it("holds a reply's edit with the time it was made", () => {
     store.dispatch(addChannelComments({ postId: "p1", comments: [{ comment_uuid: "c1", comment_text: "<p>typo</p>", comment_created_at: "2026-10-14T09:00:00Z" } as never] }))
-    store.dispatch(updateChannelCommentByCommentUUID({ postId: "p1", commentUUID: "c1", htmlText: "<p>fixed</p>" }))
+    store.dispatch(updateChannelCommentByCommentUUID({ postId: "p1", commentUUID: "c1", htmlText: "<p>fixed</p>", updatedAt: "2026-10-14T09:05:00Z" }))
     const reply = store.getState().channelComment.postComments["p1"][0]
-    expect(reply.comment_text).toBe("<p>fixed</p>")
-    expect(Date.parse(reply.comment_updated_at!)).toBeGreaterThanOrEqual(before - 1000)
-    const mine = { comment_text: "<p>a</p>" } as { comment_text: string; comment_updated_at?: string }
-    applyReplyEdit(mine, "<p>b</p>")
-    expect(mine.comment_text).toBe("<p>b</p>")
-    expect(mine.comment_updated_at).toBeTruthy()
+    expect(reply).toMatchObject({ comment_text: "<p>fixed</p>", comment_updated_at: "2026-10-14T09:05:00Z" })
   })
 })

@@ -13,6 +13,7 @@
  * the blocks registered for their kind, in one order.
  */
 
+import type { OnDemandBlock } from "./onDemand"
 import type { DocAbilities } from "@/lib/docs/abilities"
 import type { ComponentType, ElementType } from 'react'
 import type { AnyExtension, Editor, JSONContent, Range } from '@tiptap/core'
@@ -165,6 +166,14 @@ export interface BlockSpec {
    * are), what makes them.
    */
   load?: () => Promise<AnyExtension[] | ((ctx: BlockContext) => AnyExtension[])>
+  /**
+   * Or plugins a doc needs only once it holds one of these nodes (a table's
+   * editing): its editor is made with stand-ins for them and fetches them the
+   * moment it holds one, and only a doc whose saved copy holds one waits for
+   * them (registry/onDemand.ts). One map from node types to a chunk, for any
+   * block.
+   */
+  onDemand?: OnDemandBlock
   /**
    * Its place in the editor's extension list, lower first (a later
    * extension's keys run first: how-docs-work-frontend §2d). Packages leave it

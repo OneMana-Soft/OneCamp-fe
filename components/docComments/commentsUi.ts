@@ -15,7 +15,7 @@ import { useMedia } from "@/context/MediaQueryContext"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import type { Anchor, ResolvedAnchor } from "@/lib/anchors/types"
 
-export interface CommentsUi {
+interface CommentsUi {
     /** The thread looked at: its words drawn strong, its card open. */
     active: string | null
     /** The thread the pointer is over, in the margin or the panel. */
@@ -55,11 +55,6 @@ function subscribe(docId: string, listener: () => void) {
         set.delete(listener)
         if (set.size === 0) listeners.delete(docId)
     }
-}
-
-export function useCommentsUi(docId: string): CommentsUi {
-    const sub = useCallback((l: () => void) => subscribe(docId, l), [docId])
-    return useSyncExternalStore(sub, () => uiOf(docId), () => EMPTY)
 }
 
 /**

@@ -59,7 +59,7 @@ export const ChannelListResult = ({
                 // the desktop sidebar does. Without it a tap waited for both in
                 // turn before asking for a single message (~800 ms on a phone).
                 prefetch
-                className="block focus:outline-none"
+                className="block rounded-md focus-visible:-outline-offset-2"
             >
                 <ChannelListChannel
                     channelId={channel.ch_uuid}

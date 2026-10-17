@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
+// Every channel, as the pickers read it (useEveryChannel).
+vi.mock("@/components/admin/useEveryChannel", () => ({ useEveryChannel: () => ({ channels: [], isLoading: false, isError: false }) }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: vi.fn() }) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }))
 vi.mock("@/components/admin/SkillLibraryDialog", () => ({ SkillLibraryDialog: () => null }))
@@ -130,6 +132,20 @@ describe("the agent editor", () => {
     expect(document.body.innerHTML).not.toMatch(/\buppercase\b/)
   })
 
+  // ST-36: the autonomy cards were buttons that said nothing when chosen,
+  // and inserted a check that pushed the title along.
+  it("chooses autonomy from a radio group of cards that keep the check's place", () => {
+    render(<AgentEditDialog agent={null} open onClose={() => {}} onSaved={() => {}} />)
+    toStep(2)
+    const group = screen.getByRole("radiogroup", { name: "Autonomy for write actions" })
+    const approval = Array.from(group.querySelectorAll<HTMLElement>('[role="radio"]')).find((r) => /Require approval/.test(r.textContent ?? ""))!
+    fireEvent.click(approval)
+    expect(approval.getAttribute("aria-checked")).toBe("true")
+    // Each card keeps its check's slot (MenuCheck), on or off.
+    for (const r of Array.from(group.querySelectorAll('[role="radio"]'))) expect(r.querySelectorAll("[data-menu-check]")).toHaveLength(1)
+    expect(approval.querySelector("[data-menu-check]")!.getAttribute("data-menu-check")).toBe("on")
+  })
+
   it("chooses the trigger from a radio group", () => {
     render(<AgentEditDialog agent={null} open onClose={() => {}} onSaved={() => {}} />)
     toStep(2)
@@ -162,7 +178,10 @@ describe("the agent editor", () => {
       const radios = Array.from(group.querySelectorAll('[role="radio"]'))
       expect(radios.length).toBeGreaterThan(1)
       for (const r of radios) {
-        expect(r.className).toContain("data-[state=checked]:bg-raised")
+        // The house segmented control: a tab of the interaction layer in its well,
+        // which raises the chosen one (app/interaction.css, [data-segmented]).
+        expect(r.closest("[data-segmented]")).not.toBeNull()
+        expect(r.getAttribute("data-interactive")).toBe("tab")
         expect(r.className).not.toContain("border-primary")
       }
     }

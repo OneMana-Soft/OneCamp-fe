@@ -12,6 +12,8 @@ vi.mock("@/services/slackBridgeService", async (orig) => ({
   linkSlackChannel: vi.fn(),
   unlinkSlackChannel: vi.fn(),
 }))
+// Every channel, as the pickers read it (useEveryChannel).
+vi.mock("@/components/admin/useEveryChannel", () => ({ useEveryChannel: () => ({ channels: [{ ch_uuid: "c2", ch_name: "design" }], isLoading: false, isError: false }) }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => ({ data: { channels_list: [{ ch_uuid: "c2", ch_name: "design" }] }, isLoading: false, isError: false, mutate: vi.fn() }),
 }))

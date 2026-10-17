@@ -64,7 +64,6 @@ async function authorsDoc(): Promise<{ update: Uint8Array; editor: Editor }> {
     editor = useDocEditor({
       collaboration: { enabled: true, documentId: "doc-1", username: "Author", userId: "author" },
       provider,
-      providerSynced: true,
     }) as unknown as Editor | null
     return null
   }

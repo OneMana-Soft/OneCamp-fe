@@ -22,7 +22,7 @@ export interface MarketplaceTemplate {
   author_name?: string
 }
 
-export interface InstallResult {
+interface InstallResult {
   kind: TemplateKind
   entity_id: string
   name: string

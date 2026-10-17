@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 const toastSpy = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastSpy }), toast: toastSpy }))
+// Every channel, as the pickers read it (useEveryChannel).
+vi.mock("@/components/admin/useEveryChannel", () => ({ useEveryChannel: () => ({ channels: [], isLoading: false, isError: false }) }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: vi.fn() }) }))
 vi.mock("@/components/task/TaskMoveFilterFields", () => ({ TaskMoveFilterFields: () => null, ANY_MOVE: {} }))
 vi.mock("@/services/workflowService", async (orig) => ({

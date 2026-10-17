@@ -90,6 +90,3 @@ export function CornerCard({
     host,
   )
 }
-
-/** A corner card's surface: r12 on the pop surface at e3, 16px in. */
-export const cornerCardClass = "rounded-xl bg-pop p-4 text-ink shadow-e3"

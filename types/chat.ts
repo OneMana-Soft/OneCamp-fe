@@ -91,10 +91,3 @@ export interface DmMemberUpdateInterface {
     user_uuid: string,
     grp_id: string
 }
-
-export interface GetChatCallInterface {
-    grp_id?: string,
-    user_uuid?: string,
-    audio_enabled?: boolean,
-    video_enabled?: boolean,
-}

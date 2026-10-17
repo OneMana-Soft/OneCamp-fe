@@ -148,6 +148,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
                     <HubRow
                       key={i}
                       as="li"
+                      opens
                       density="two-line"
                       lead={<IdentityMark variant="avatar" size={24} id={avatarSeed(h.meta || h.title)} label={h.meta || h.title} />}
                       title={

@@ -116,6 +116,8 @@ export function TabletRail({
         const { badge, dot, spoken } = countFor(p)
         const Icon = p.icon
         // In a channel, Channels is the way to the list (T3), not away from the channel.
+        // Its name starts with the word on it, as every cell's does, so "tap
+        // Channels" reaches it by voice; aria-expanded says the list is shown.
         if (p.segment === "channel" && onList) {
           return (
             <button
@@ -124,7 +126,7 @@ export function TabletRail({
               onClick={onList}
               aria-current={here ? "page" : undefined}
               aria-expanded={listOpen}
-              aria-label={`${listOpen ? "Hide" : "Show"} the channel list${spoken}`}
+              aria-label={`${p.title}${spoken}`}
               className="tablet-cell"
             >
               <Cell label={p.title} badge={badge} dot={dot}><Icon /></Cell>

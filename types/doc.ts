@@ -1,6 +1,5 @@
 import {UserProfileDataInterface} from "@/types/user";
 import {CommentInfoInterface} from "@/types/comment";
-import {AttachmentMediaReq} from "@/types/attachment";
 import type { DocPageFields } from "@/types/docChrome";
 
 export interface DocInfoInterface extends DocPageFields {
@@ -48,34 +47,4 @@ export interface DocInfoResponse {
 export interface DocSidebarInfo {
     doc_uuid: string;
     doc_title: string;
-}
-
-export interface CreateDocCommentInterface {
-    doc_comment_uuid?: string;
-    doc_comment_body?: string;
-    doc_uuid?: string;
-    doc_comment_attachments?: AttachmentMediaReq[];
-}
-
-
-// Doc snapshot (version history). Mirrors the board snapshot shape; the blob
-// (gzipped HTML body) lives in object storage, this is the metadata for the UI.
-export interface DocSnapshotContributor {
-    user_uuid: string;
-    user_full_name?: string;
-    user_name?: string;
-    user_profile_object_key?: string;
-}
-
-export interface DocSnapshot {
-    id: string;
-    body_bytes: number;
-    reason: "interval" | "mass_delete" | "manual";
-    created_at: string;
-    contributors?: DocSnapshotContributor[];
-}
-
-export interface DocSnapshotListResponse {
-    msg: string;
-    data: DocSnapshot[] | null;
 }

@@ -30,7 +30,7 @@ import { newUploadId } from "../image/uploads"
  * highlighted (as moved by the keys; the menu wraps it), and whether Enter
  * took it.
  */
-export interface PasteMenu {
+interface PasteMenu {
   from: number
   to: number
   href: string
@@ -38,7 +38,7 @@ export interface PasteMenu {
   accepted?: boolean
 }
 
-export const smartPasteKey = new PluginKey<PasteMenu | null>("smartPaste")
+const smartPasteKey = new PluginKey<PasteMenu | null>("smartPaste")
 
 /** The open paste menu, or null. */
 export const pasteMenuOf = (state: EditorState): PasteMenu | null => smartPasteKey.getState(state) ?? null
@@ -72,7 +72,7 @@ function pasteLink(view: EditorView, href: string) {
  * (found by its plugin's key, as lib/proposals/review.ts finds it), else
  * ProseMirror's history.
  */
-export function stopCapturing(state: EditorState, tr?: Transaction) {
+function stopCapturing(state: EditorState, tr?: Transaction) {
   const undo = state.plugins.find((p) => String((p as unknown as { key: string }).key).startsWith("y-undo$"))
   ;(undo?.getState(state) as { undoManager?: { stopCapturing(): void } } | undefined)?.undoManager?.stopCapturing()
   if (tr) closeHistory(tr)

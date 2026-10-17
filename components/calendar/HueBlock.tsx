@@ -86,6 +86,18 @@ export function hueBlockClasses(item: CalendarItemLike, { past, live, selected, 
   )
 }
 
+/**
+ * Where a lifted block or bar was, while it moves (INTERACTION_SPEC §2.5's
+ * placeholder): its own box, emptied, with a dashed line-3 outline inside it
+ * and its hue at 4 %. The week's and the month's drags draw it alike. Pure.
+ */
+export function dragPlaceholderClasses(item: CalendarItemLike): string {
+  return cn(
+    HUE_CLASS[hueOf(item)],
+    "bg-[color-mix(in_oklab,var(--hue-tint)_4%,transparent)] shadow-none outline-[1.5px] outline-dashed outline-line-3 outline-offset-[-1.5px] [&>*]:invisible",
+  )
+}
+
 export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function HueBlock(
   { item, variant, past, live, selected, quiet, continued, as = "button", className, children, ...rest },
   ref,
@@ -106,6 +118,8 @@ export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function Hu
       ref={ref as React.Ref<HTMLButtonElement>}
       type={as === "button" ? "button" : undefined}
       data-hue-block={kind}
+      // Which item it is, for the calendar's keys and its menu (E, Delete, a right-click).
+      data-event-uuid={item.event_uuid}
       data-hue={kind === "event" || kind === "task" ? hueOf(item) : undefined}
       data-past={past || undefined}
       data-live={live || undefined}

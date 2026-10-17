@@ -1,10 +1,13 @@
 "use client"
 
 import type * as React from "react"
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react"
 import { useSelector } from "react-redux"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { startOfDay } from "date-fns"
+import { DndContext, DragOverlay, useDroppable, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type KeyboardCoordinateGetter } from "@dnd-kit/core"
+import { addDays, format, startOfDay } from "date-fns"
+import { announce } from "@/lib/ui/announce"
+import { dragPoint, useDndSetup, useDragState, type DragWords } from "@/lib/ui/dnd"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -70,8 +73,11 @@ import { STICK_INSET, TimelineBar } from "./TimelineBar"
 import { UNSCHEDULED_DRAG, UnscheduledPanel } from "./UnscheduledPanel"
 import { ZoomSwitch } from "./ZoomSwitch"
 import { useProjectHue } from "@/lib/projectHue"
+import { edgeScroller } from "@/lib/ui/edgeScroll"
 
 const ROW_HEIGHT = 36
+/** The drop target a task from Unscheduled lands on: the grid of days. */
+const GRID = "timeline-grid"
 /** A group's row: shorter than a task's, on the sunken step (work.md W23). */
 const GROUP_HEIGHT = 32
 /** How long after a move the view watches for bars the move pushed along, to FLIP them. */
@@ -108,9 +114,6 @@ export function roundPath(path: string, r = 6): string {
   const last = pts[pts.length - 1]
   return `${d}L${last.x} ${last.y}`
 }
-/** How close to an edge a drag starts scrolling the timeline, and how fast. */
-const EDGE = 48
-const EDGE_STEP = 14
 
 const isZoom = (v: unknown): v is Zoom => ZOOMS.some((z) => z.value === v)
 
@@ -143,7 +146,6 @@ interface Drag {
   pointerX: number
   days: number
   moved: boolean
-  frame: number
 }
 
 /**
@@ -311,7 +313,7 @@ export function ProjectTimeline({
       e.stopPropagation()
       const el = scrollRef.current
       if (!el) return
-      const d: Drag = { task, kind, x0: e.clientX, scroll0: el.scrollLeft, pointerX: e.clientX, days: 0, moved: false, frame: 0 }
+      const d: Drag = { task, kind, x0: e.clientX, scroll0: el.scrollLeft, pointerX: e.clientX, days: 0, moved: false }
       drag.current = d
       const measure = () => {
         const dx = d.pointerX - d.x0 + (el.scrollLeft - d.scroll0)
@@ -322,27 +324,21 @@ export function ProjectTimeline({
           setPreview({ id: task.task_uuid, kind, days })
         }
       }
-      // Held near an edge, the timeline scrolls on under the pointer.
-      const edgeScroll = () => {
-        if (drag.current !== d) return
-        const box = el.getBoundingClientRect()
-        const step = d.pointerX > box.right - EDGE ? EDGE_STEP : d.pointerX < box.left + nameWidth + EDGE ? -EDGE_STEP : 0
-        if (step) {
-          el.scrollLeft += step
-          measure()
-        }
-        d.frame = requestAnimationFrame(edgeScroll)
-      }
+      // Held near an edge, the timeline scrolls on under the pointer: the one
+      // edge scroll every drag uses (lib/ui/edgeScroll), sideways only, its
+      // left zone starting past the names drawn over that edge.
+      const scroller = edgeScroller(el, measure, undefined, { inset: { left: nameWidth }, axis: "x" })
       const move = (ev: globalThis.PointerEvent) => {
         d.pointerX = ev.clientX
         measure()
+        scroller.follow(ev.clientX, ev.clientY)
       }
       const finish = (save: boolean) => {
         window.removeEventListener("pointermove", move)
         window.removeEventListener("pointerup", up)
         window.removeEventListener("pointercancel", cancel)
         window.removeEventListener("keydown", escape, true)
-        cancelAnimationFrame(d.frame)
+        scroller.stop()
         drag.current = null
         setPreview(null)
         // The click that ends a drag, or a drag called off with Esc, isn't a
@@ -369,7 +365,6 @@ export function ProjectTimeline({
       window.addEventListener("pointerup", up)
       window.addEventListener("pointercancel", cancel)
       window.addEventListener("keydown", escape, true)
-      d.frame = requestAnimationFrame(edgeScroll)
     },
     [canEdit, dayWidth, nameWidth, reschedule, shiftAlong, land],
   )
@@ -458,44 +453,111 @@ export function ProjectTimeline({
   )
 
   // ---- Dropping a task with no dates on a day ------------------------------------
-  // The day under the pointer, or none over the names, which hide the days behind them.
-  const dayUnder = (e: DragEvent) => {
+  // The shared drag (lib/ui/dnd, INTERACTION_SPEC §5): a mouse, a finger held a
+  // beat, or the keyboard lifts a row of Unscheduled; the grid takes it, and
+  // a one-day ghost bar with its date shows where it lands.
+  const aimed = useRef<{ day: Date | null; row: number | null }>({ day: null, row: null })
+  const [lifted, setLifted] = useState<{ id: string; keys: boolean } | null>(null)
+  const unscheduledNow = useRef(unscheduled)
+  unscheduledNow.current = unscheduled
+  const aim = (day: Date | null, row: number | null) => {
+    const was = aimed.current
+    aimed.current = { day, row }
+    if (day?.getTime() !== was.day?.getTime()) setDropDay(day)
+    if (row !== was.row) setDropRow(row)
+  }
+  // The day at a point on screen: none over the names, which hide the days
+  // behind them, nor under the Unscheduled panel.
+  const dayAtPoint = (x: number, y: number) => {
     const view = scrollRef.current?.getBoundingClientRect()
     const body = bodyRef.current?.getBoundingClientRect()
-    if (!view || !body || e.clientX < view.left + nameWidth) return null
-    return dayAt(e.clientX - body.left - nameWidth, range, dayWidth)
+    if (!view || !body || x < view.left + nameWidth || x > view.right) return null
+    const panel = scrollRef.current?.parentElement?.querySelector("[data-unscheduled]")?.getBoundingClientRect()
+    if (panel && x >= panel.left && x <= panel.right && y >= panel.top && y <= panel.bottom) return null
+    return dayAt(x - body.left - nameWidth, range, dayWidth)
   }
-  // The row under the pointer, for the one-day ghost bar that follows it.
-  const rowUnder = (e: DragEvent) => {
+  // The row at a height, for the ghost bar.
+  const rowAtPoint = (y: number) => {
     const body = bodyRef.current?.getBoundingClientRect()
     if (!body) return null
-    const y = e.clientY - body.top
     let i = 0
-    while (i + 1 < tops.length && tops[i + 1] <= y) i++
+    while (i + 1 < tops.length && tops[i + 1] <= y - body.top) i++
     return Math.max(0, i)
   }
-  const onDragOver = (e: DragEvent) => {
-    if (!canEdit || !e.dataTransfer.types.includes(UNSCHEDULED_DRAG)) return
-    const day = dayUnder(e)
-    if (!day) return setDropDay(null)
-    e.preventDefault()
-    e.dataTransfer.dropEffect = "move"
-    if (day.getTime() !== dropDay?.getTime()) setDropDay(day)
-    const row = rowUnder(e)
-    if (row !== dropRow) setDropRow(row)
+  const dayWords = (day: Date) => format(day, "EEEE d MMMM")
+  const words = useMemo<DragWords>(
+    () => ({
+      name: (id) => unscheduledNow.current.find((t) => t.task_uuid === id)?.task_name ?? "the task",
+      place: (id) => (id === GRID ? { container: aimed.current.day ? `the timeline, ${format(aimed.current.day, "EEEE d MMMM")}` : "the timeline" } : { container: "Unscheduled" }),
+    }),
+    [],
+  )
+  // The keyboard: the first ← or → brings the task onto the grid at today, or
+  // the first day in view; then each moves it a day, the grid scrolling to
+  // keep it in sight. Space or Enter drops it there, Escape puts it back.
+  const keyDays: KeyboardCoordinateGetter = (event) => {
+    const by = event.code === "ArrowLeft" ? -1 : event.code === "ArrowRight" ? 1 : 0
+    const view = scrollRef.current
+    const body = bodyRef.current
+    if (!by || !view || !body) return undefined
+    event.preventDefault()
+    const seen = view.scrollLeft
+    // The days the Unscheduled panel covers are out of sight.
+    const panel = view.parentElement?.querySelector("[data-unscheduled]")
+    const room = view.clientWidth - nameWidth - (panel ? panel.getBoundingClientRect().width + 16 : 0)
+    let day = aimed.current.day
+    if (day) day = addDays(day, by)
+    else {
+      const t = offsetOf(today, range, dayWidth)
+      day = t >= seen && t + dayWidth <= seen + room ? today : dayAt(seen + 1, range, dayWidth)
+    }
+    const x = offsetOf(day, range, dayWidth)
+    if (x < 0 || x >= gridWidth) return undefined
+    if (x < seen) view.scrollLeft = x
+    else if (x + dayWidth > seen + room) view.scrollLeft = x + dayWidth - room
+    const row = aimed.current.row ?? rowAtPoint(view.getBoundingClientRect().top + HEADER_HEIGHT + 1) ?? 0
+    aim(day, row)
+    announce(dayWords(day))
+    const b = body.getBoundingClientRect()
+    return { x: b.left + nameWidth + x, y: b.top + (tops[row] ?? 0) }
   }
-  const onDrop = (e: DragEvent) => {
-    const id = e.dataTransfer.getData(UNSCHEDULED_DRAG)
-    const day = dayUnder(e)
-    setDropDay(null)
-    const task = unscheduled.find((t) => t.task_uuid === id)
-    if (!canEdit || !task || !day) return
-    e.preventDefault()
-    follow.current = { id: task.task_uuid, focus: false }
+  const dnd = useDndSetup(words, keyDays)
+  const landing = useDragState((_, over) => over === GRID && aimed.current.day !== null)
+  const { setNodeRef: setGrid } = useDroppable({ id: GRID, disabled: !canEdit })
+  const onLift = (e: DragStartEvent) => {
+    landing.handlers.onDragStart(e)
+    aimed.current = { day: null, row: null }
+    setLifted({ id: String(e.active.id), keys: e.activatorEvent instanceof globalThis.KeyboardEvent })
+  }
+  const onCarry = (e: DragMoveEvent) => {
+    landing.handlers.onDragMove(e)
+    const at = dragPoint(e)
+    // The keyboard aims through keyDays.
+    if (!at) return
+    const day = e.over?.id === GRID ? dayAtPoint(at.x, at.y) : null
+    aim(day, day ? rowAtPoint(at.y) : null)
+  }
+  const onLand = (e: DragEndEvent) => {
+    landing.handlers.onDragEnd(e)
+    const keys = lifted?.keys ?? false
+    // The keyboard's task lands where keyDays aimed it, on the grid.
+    const day = e.over?.id === GRID || keys ? aimed.current.day : null
+    const task = unscheduled.find((t) => t.task_uuid === e.active.id)
+    aim(null, null)
+    setLifted(null)
+    if (!canEdit || !task || !day || e.active.data.current?.type !== UNSCHEDULED_DRAG) return
+    follow.current = { id: task.task_uuid, focus: keys }
     watch.current = { until: Date.now() + WATCH_MS, skip: task.task_uuid }
     land(task.task_uuid)
     void reschedule(task, datesForDrop(day), { shift: shiftAlong })
   }
+  const onPutBack = (e: Parameters<typeof landing.handlers.onDragCancel>[0]) => {
+    landing.handlers.onDragCancel(e)
+    aim(null, null)
+    setLifted(null)
+  }
+  const liftedTask = lifted ? unscheduled.find((t) => t.task_uuid === lifted.id) : undefined
+  const liftedStatus = liftedTask ? statusOptionOf(liftedTask, statuses) : undefined
 
   const toggleGroup = (id: string) =>
     setCollapsed((prev) => {
@@ -608,7 +670,7 @@ export function ProjectTimeline({
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground aria-pressed:bg-press aria-pressed:text-foreground"
+          className="h-7 gap-1.5 px-2.5 text-ink-2 hover:text-foreground aria-pressed:text-foreground"
           aria-pressed={sideShown}
           disabled={unscheduled.length === 0}
           title={unscheduled.length === 0 ? "Every open task has a date" : undefined}
@@ -705,6 +767,7 @@ export function ProjectTimeline({
       {toolRow}
 
       <div className={frame}>
+        <DndContext {...dnd} {...landing.handlers} onDragStart={onLift} onDragMove={onCarry} onDragEnd={onLand} onDragCancel={onPutBack}>
         <div
           ref={scrollRef}
           role="region"
@@ -715,20 +778,12 @@ export function ProjectTimeline({
         >
           <TimelineHeader range={range} zoom={zoom} dayWidth={dayWidth} today={today} nameWidth={nameWidth} />
           <div
-            ref={bodyRef}
+            ref={(el) => {
+              bodyRef.current = el
+              setGrid(el)
+            }}
             className="relative"
             style={{ height: Math.max(virtualizer.getTotalSize(), nothingDated ? 320 : 0), width: nameWidth + gridWidth }}
-            onDragOver={onDragOver}
-            onDragLeave={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                setDropDay(null)
-                setDropRow(null)
-              }
-            }}
-            onDrop={(e) => {
-              setDropRow(null)
-              onDrop(e)
-            }}
           >
             {/* Weekends as sunken columns, week lines, and today's line. */}
             <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: nameWidth, width: gridWidth }}>
@@ -945,8 +1000,19 @@ export function ProjectTimeline({
         </div>
 
         {sideShown && (
-          <UnscheduledPanel tasks={unscheduled} statuses={statuses} canEdit={canEdit} onOpenTask={onOpenTask} onClose={() => setSideOpen(false)} />
+          <UnscheduledPanel tasks={unscheduled} statuses={statuses} canEdit={canEdit} onOpenTask={onOpenTask} onClose={() => setSideOpen(false)} away={lifted?.id} />
         )}
+        {/* The row a mouse or a finger carries (lifted, e3). A keyboard's task
+            travels as the ghost bar alone, which says the date it lands on. */}
+        <DragOverlay dropAnimation={null}>
+          {liftedTask && !lifted?.keys ? (
+            <div data-drag-state="lifted" className="flex h-9 w-[240px] items-center gap-2.5 rounded-md bg-raised px-2.5 text-sm shadow-e3">
+              {liftedStatus && <TaskStatusCell status={liftedStatus} label="tip" />}
+              <span className="min-w-0 flex-1 truncate">{liftedTask.task_name}</span>
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
       </div>
 
       <p id={helpId} className="sr-only">

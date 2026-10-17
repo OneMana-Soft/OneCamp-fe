@@ -25,7 +25,7 @@ function errorMessage(error: unknown): string {
 }
 
 /** Why a microphone or camera didn't start: refused, not there, in use by something else, or another reason. */
-export type MediaFailureKind = "denied" | "missing" | "busy" | "other"
+type MediaFailureKind = "denied" | "missing" | "busy" | "other"
 
 /** What kind of refusal a microphone's or camera's error is, by the browser's name for it. Pure. */
 export function mediaFailureKind(error: unknown): MediaFailureKind {
@@ -45,7 +45,7 @@ export function mediaFailureKind(error: unknown): MediaFailureKind {
   return "other"
 }
 
-export interface MediaFailureOptions {
+interface MediaFailureOptions {
   /** A menu beside the button picks the device (a call's dock), so the words point to it. True by default. */
   deviceMenu?: boolean
 }

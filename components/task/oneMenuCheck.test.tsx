@@ -97,7 +97,6 @@ describe("no list draws a check of its own", () => {
     // moves each and takes it off here; once this is empty the rule is strict.
     const notYet: Record<string, number> = {
       "components/admin/AddAdminDialog.tsx": 1,
-      "components/admin/AgentEditDialog.tsx": 6,
       "components/ai/ExtractTasksDialog.tsx": 1,
       "components/booking/BookingFlow.tsx": 1,
       "components/calendar/calendarsPopover.tsx": 1,
@@ -109,7 +108,7 @@ describe("no list draws a check of its own", () => {
       "components/minimal-tiptap/extensions/simple-table/TableMenu.tsx": 2,
       "components/searchDropdown/selectUserToMessageDropdown/selectUserToMessageDropdown.tsx": 1,
       "components/table/gridCells.tsx": 1,
-      "components/task/cyclesButton.tsx": 1,
+      "components/task/cyclesSwitcher.tsx": 1,
     }
     const counted: Record<string, number> = {}
     for (const f of [...sources("components"), ...sources("app")]) {
@@ -123,11 +122,7 @@ describe("no list draws a check of its own", () => {
 
   it("has the filter menus and pickers set the row's own check", () => {
     for (const f of [
-      "components/task/taskTableFieldFilter.tsx",
-      "components/task/taskTableFacetedStatusFilter.tsx",
-      "components/task/taskTableFacetedPriorityFilter.tsx",
-      "components/task/taskTableFacetedAssigneeFilter.tsx",
-      "components/task/taskTableFacetedProjectFilter.tsx",
+      "components/task/fieldFilterMenu.tsx",
       "components/task/taskKanbanColumnPriorityFilter.tsx",
       "components/task/taskKanbanProjectFilter.tsx",
       "components/tags/TagFilter.tsx",

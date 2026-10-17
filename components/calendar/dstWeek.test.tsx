@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render } from "@testing-library/react"
 import { WeekView, HOUR_HEIGHT } from "./weekView"
+import { installPointerEvent } from "@/lib/testing/pointerEvent"
 
 // CAL-BUG-18: on the day the clocks change, blocks were placed by the time
 // elapsed since midnight but the hour lines by the clock, so a 10:00 meeting
@@ -16,17 +17,7 @@ const CHANGES: Array<[zone: string, label: string, month: number, date: number]>
   ["Europe/London", "25 October", 9, 25],
 ]
 
-// jsdom has no PointerEvent: without one, a pointer event carries no coordinates.
-if (typeof window.PointerEvent === "undefined") {
-  class PointerEventPolyfill extends MouseEvent {
-    pointerId: number
-    constructor(type: string, init: PointerEventInit = {}) {
-      super(type, init)
-      this.pointerId = init.pointerId ?? 1
-    }
-  }
-  ;(window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = PointerEventPolyfill
-}
+installPointerEvent()
 
 const original = process.env.TZ
 beforeEach(() => {

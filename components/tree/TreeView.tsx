@@ -16,6 +16,8 @@ import { TreeHiddenRow, TreeRow } from "@/components/tree/TreeRow"
 import { canDrop, dropMove, dropZone, keyMove, type DropZone, type KeyMove, type TreeSpot } from "@/components/tree/treeDnd"
 import { useTreeLevel, type TreeNode, type TreeState } from "@/components/tree/useTree"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
+import type { CampHue } from "@/lib/campHue"
+import { ix } from "@/lib/ui/interactive"
 
 export interface TreeViewProps<N extends TreeNode, D> {
   tree: TreeState<N, D>
@@ -28,6 +30,8 @@ export interface TreeViewProps<N extends TreeNode, D> {
   /** An open row with nothing inside ("No pages inside"). */
   emptyLabel?: string
   icon?: (node: N) => ReactNode
+  /** The hue a row tints in, the one its icon wears (INTERACTION_SPEC D13, §2.2). */
+  hue?: (node: N) => CampHue | null | undefined
   actions?: (node: N) => ReactNode
   /** The row of the thing on screen, shown as the current place. */
   activeId?: string | null
@@ -182,6 +186,7 @@ function Level<N extends TreeNode, D>(p: LevelProps<N, D>) {
               title={node.title}
               placeholder={p.placeholder}
               icon={p.icon?.(node)}
+              hue={p.hue?.(node)}
               hasChildren={node.hasChildren}
               open={open}
               focused={tree.focused === node.id || (firstStop && i === 0)}
@@ -236,7 +241,7 @@ function Level<N extends TreeNode, D>(p: LevelProps<N, D>) {
       })}
       {level.hidden > 0 && <TreeHiddenRow depth={p.depth} label={p.hiddenLabel(level.hidden)} />}
       {level.count > level.nodes.length && (
-        <button type="button" onClick={() => tree.expandAll(p.parent)} className="shell-row nav-idle w-full text-left !text-2xs !font-medium !text-ink-3" style={indent}>
+        <button type="button" onClick={() => tree.expandAll(p.parent)} {...ix("nav")} className="shell-row nav-idle w-full text-left !text-2xs !font-medium !text-ink-3" style={indent}>
           Show {level.count - level.nodes.length} more
         </button>
       )}

@@ -397,30 +397,34 @@ export function MediaLightboxDialog({
                                         )}
                                         role="toolbar"
                                         aria-label="Image zoom controls"
+                                        data-touch-group=""
                                     >
                                         <Button
+                                            data-tone="light"
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => zoomIn()}
-                                            className="size-7 rounded-[14px] text-white/80 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
+                                            className="size-7 rounded-[14px] text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
                                             aria-label="Zoom in"
                                         >
                                             <ZoomIn className="h-4 w-4" />
                                         </Button>
                                         <Button
+                                            data-tone="light"
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => zoomOut()}
-                                            className="size-7 rounded-[14px] text-white/80 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
+                                            className="size-7 rounded-[14px] text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
                                             aria-label="Zoom out"
                                         >
                                             <ZoomOut className="h-4 w-4" />
                                         </Button>
                                         <Button
+                                            data-tone="light"
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => resetTransform()}
-                                            className="size-7 rounded-[14px] text-white/80 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
+                                            className="size-7 rounded-[14px] text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
                                             aria-label="Reset zoom"
                                         >
                                             <RotateCcw className="h-4 w-4" />
@@ -430,10 +434,11 @@ export function MediaLightboxDialog({
                                             className="w-px self-stretch bg-white/15 mx-0.5"
                                         />
                                         <Button
+                                            data-tone="light"
                                             variant="ghost"
                                             size="icon"
                                             onClick={handleDownload}
-                                            className="size-7 rounded-[14px] text-white/80 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
+                                            className="size-7 rounded-[14px] text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
                                             aria-label="Download"
                                         >
                                             <Download className="h-4 w-4" />

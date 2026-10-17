@@ -25,7 +25,6 @@ export enum GetEndpointUrl {
     // listed or resumed: the id lived only in React state and the history only
     // in Redis under a 30 minute TTL.
     AIChatSessions = "/ai/sessions",
-    Logout = "/logout",
     SelfProfile = "/user/profile",
     SelfProfileSideNav = "/user/sidebarNav",
     UserListNotBelongToChannel = "user/usersListNotBelongToChannelId",
@@ -74,7 +73,6 @@ export enum GetEndpointUrl {
     GetOnlyChatText = "/dm/getChatOnlyText",
     GetOnlyGroupChatText = "/groupChat/getChatOnlyText",
     GetUserStatuses = "/user/getAllUserEmojiStatusList",
-    GetUserEmojiStatus = "/user/getActiveUserEmojiStatus",
     GetPostWithAllComments = "/po/allComments",
     GetChatWithAllComments = "/dm/chatWithAllComments",
     GetAllCommentOfDoc = "/doc/getCommentList",
@@ -163,7 +161,6 @@ export enum GetEndpointUrl {
     GetUserProjectList = "/user/userProjectList",
     GetDmGroupParticipants = "/groupChat/getDmParticipants",
     GetDocInfo = "/doc/getDocInfo",
-    GetDocPermissions = "/doc/getDocPermissions",
     GetBoardInfo = "/board/getBoardInfo",
     GetScheduledMessages = "/message/scheduled",
     GetBoardList = "/board/getBoardList",
@@ -193,7 +190,6 @@ export enum GetEndpointUrl {
      */
     MyAIActivityProof = "/ai/activity/proof",
     AgentWorkForEntity = "/ai/agent-work/for", // append /{entityId}
-    GetAgent = "/agents",       // append /{id}
     GetAgentCard = "/agent-card", // append /{botUserId}; any member may read it
     GetChannelAgents = "/agent-card/channel", // append /{channelId}; channel members only
     GetAgentRuns = "/agents",   // append /{id}/runs
@@ -204,7 +200,6 @@ export enum GetEndpointUrl {
     // MCP servers (external tool providers)
     GetMcpServers = "/mcp/servers",
     GetMcpCatalog = "/mcp/catalog",
-    GetMcpServer = "/mcp/servers", // append /{id}
     // Tables (first-class structured-data entity)
     GetTables = "/tables",
     GetTable = "/tables",       // append /{id} (bundle)
@@ -213,8 +208,6 @@ export enum GetEndpointUrl {
     PickTableRows = "/tables",  // append /{id}/rows/pick?q=
     // External data sources (read-only connectors)
     GetDataSources = "/data-sources",              // management list (agent.manage)
-    GetDataSource = "/data-sources",               // append /{id}
-    GetQueryableDataSources = "/data-sources/queryable", // sources the user may query
     GetDataSourceSchema = "/data-sources",         // append /{id}/schema
     // API tokens (public API)
     GetApiTokens = "/api-tokens",
@@ -312,7 +305,6 @@ export enum GetEndpointUrl {
 
     // Workflows (capability-gated: admins always, members when allowed)
     GetAllWorkflows = "/workflows",
-    GetWorkflow = "/workflows", // append /{id}
     // Capability permission policies (Admin)
     GetCapabilityPolicies = "/admin/capabilities",
     // Current user's resolved capabilities (member-accessible)
@@ -326,8 +318,6 @@ export enum GetEndpointUrl {
     GetGitHubRateLimit = "/admin/github/rate-limit",
     GetGitHubWebhookHealth = "/admin/github/webhook-health",
     GetGitHubRepos = "/admin/github/repos",
-    GetGitHubLinkedRepos = "/admin/github/linked-repos", // append /{projectId}
-    GetGitHubImportJobs = "/admin/github/import-jobs", // append /{linkId}
     GetGitHubImportJob = "/admin/github/import-job", // append /{jobId}
 
     // GitHub (Task)
@@ -346,15 +336,8 @@ export enum GetEndpointUrl {
 
     // Slack Import (Admin)
     GetSlackImportJobs = "/admin/import/slack/jobs",
-    GetSlackImportJob = "/admin/import/slack/jobs", // append /{jobId}
     GetSlackImportErrors = "/admin/import/slack/jobs", // append /{jobId}/errors
-
-    // Generic Import (Admin) — Asana / Jira / Trello / Notion / Todoist
-    GetImportProviders = "/admin/import/providers",
-    GetImportConnections = "/admin/import/connections",
-    GetImportJobs = "/admin/import/jobs",
-    GetImportJob = "/admin/import/jobs", // append /{jobId}
-    GetImportJobErrors = "/admin/import/jobs", // append /{jobId}/errors
+    // The other providers' imports: services/importService.
 }
 
 

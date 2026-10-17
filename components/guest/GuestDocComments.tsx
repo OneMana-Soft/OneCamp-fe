@@ -148,7 +148,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
 
         {canComment ? (
           <form
-            className="mt-5 rounded-xl bg-raised p-3 shadow-e2"
+            className="composer-card mt-5 rounded-xl bg-raised p-3"
             data-guest-composer=""
             onSubmit={(e) => {
               e.preventDefault()
@@ -172,7 +172,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
                 maxLength={GUEST_NAME_MAX}
                 aria-invalid={!!nameError}
                 aria-describedby={nameError ? `${nameId}-err` : undefined}
-                className="h-8 min-w-0 flex-1 rounded-lg bg-sunken px-2.5 text-ui text-ink outline-none placeholder:text-ink-3 focus-visible:ring-1 focus-visible:ring-brand/50 aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-destructive max-sm:text-base sm:max-w-60"
+                className="h-8 min-w-0 flex-1 rounded-lg bg-sunken px-2.5 text-ui text-ink outline-none placeholder:text-ink-3 focus-visible:focus-halo aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-destructive max-sm:text-base sm:max-w-60"
                 placeholder="So the team knows who wrote this"
               />
             </div>

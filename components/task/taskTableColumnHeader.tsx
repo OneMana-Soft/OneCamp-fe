@@ -54,7 +54,7 @@ export function TaskTableColumnHeader<TData, TValue>({
             className={cn(
               right ? "-mr-2" : "-ml-2",
               "h-7 px-2 text-xs font-medium text-muted-foreground hover:text-foreground",
-              "data-[state=open]:bg-accent data-[state=open]:text-foreground",
+              "data-[state=open]:text-foreground",
             )}
             aria-label={`Sort by ${title}`}
           >

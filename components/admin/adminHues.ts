@@ -17,5 +17,3 @@ export const ADMIN_GROUP_HUE = {
   connections: "lake",
   system: "moss",
 } as const satisfies Record<string, CampHue>
-
-export type AdminGroup = keyof typeof ADMIN_GROUP_HUE

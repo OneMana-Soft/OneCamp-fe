@@ -36,7 +36,7 @@ export interface NodeSpec {
   attrs?: AttrSpec[]
 }
 
-export interface MarkSpec {
+interface MarkSpec {
   name: string
   /** Order on a node, outermost first in HTML: the editor schema's order. */
   rank: number

@@ -69,15 +69,17 @@ export async function renderMermaid(source: string): Promise<{ svg: string } | {
       },
     })
   }
+  // This draw's own: another may start before it ends, and seq moves on.
+  const id = `oc-mermaid-${++seq}`
   try {
-    const { svg } = await m.render(`oc-mermaid-${++seq}`, source)
+    const { svg } = await m.render(id, source)
     purifier ??= DOMPurify(window)
     const clean = purifier.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true }, ADD_TAGS: ["style"] })
     return { svg: clean.replace(/(<style[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open, css, close) => open + safeCss(css) + close) }
   } catch (e) {
-    // Mermaid leaves its error drawing in the page: take it away.
-    document.getElementById(`doc-oc-mermaid-${seq}`)?.remove()
-    document.getElementById(`oc-mermaid-${seq}`)?.remove()
+    // Mermaid leaves its error drawing in the page, in a <div id="d…">: take it away.
+    document.getElementById(`d${id}`)?.remove()
+    document.getElementById(id)?.remove()
     const message = e instanceof Error ? e.message : String(e)
     return { error: message.split("\n").find((l) => l.trim()) ?? "The diagram has a mistake in it." }
   }

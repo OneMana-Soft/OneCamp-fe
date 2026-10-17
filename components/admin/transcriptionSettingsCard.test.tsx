@@ -159,7 +159,10 @@ describe("call transcription settings", () => {
     vi.mocked(getTranscriptionConfig).mockResolvedValue(stored())
     render(<TranscriptionSettingsCard />)
     const browser = await screen.findByRole("radio", { name: "Browser" })
-    expect(browser.className).toContain("data-[state=checked]:bg-raised")
+    // The house segmented control: a tab of the interaction layer in its well,
+    // which raises the chosen one (app/interaction.css, [data-segmented]).
+    expect(browser.closest("[data-segmented]")).not.toBeNull()
+    expect(browser.getAttribute("data-interactive")).toBe("tab")
     expect(browser.className).not.toMatch(/(^|\s)bg-background(\s|$)/)
   })
 

@@ -80,11 +80,6 @@ export function reminderLabel(at: Date, now: Date): { text: string; due: boolean
   return { text: shortDate(at, now), due: false }
 }
 
-/** A value for <input type="datetime-local"> in the person's own time. */
-export function toLocalInput(d: Date): string {
-  return format(d, "yyyy-MM-dd'T'HH:mm")
-}
-
 /** Where a saved message opens: its thread, which shows the message itself. */
 export function messageLink(opts: { channelUUID?: string; postUUID?: string; chatUUID?: string; groupUUID?: string; chatMessageID?: string }): string | null {
   const { channelUUID, postUUID, chatUUID, groupUUID, chatMessageID } = opts

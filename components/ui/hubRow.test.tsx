@@ -59,7 +59,9 @@ describe("the HubRow", () => {
     const tools = CSS.slice(CSS.indexOf(".hub-row-tools {"), CSS.indexOf("}", CSS.indexOf(".hub-row-tools {")))
     expect(tools).toMatch(/border-radius: 10px/)
     expect(tools).toMatch(/box-shadow: var\(--e3\)/)
-    expect(CSS).toMatch(/\.hub-row\[data-has-tools\]:is\(:hover, :focus-within\) \.hub-row-meta \{\s*opacity: 0;/)
+    // On focus everywhere; on hover only where a pointer can hover, so a tap never leaves it gone.
+    expect(CSS).toMatch(/\.hub-row\[data-has-tools\]:focus-within \.hub-row-meta \{\s*opacity: 0;/)
+    expect(CSS).toMatch(/@media \(hover: hover\) \{\s*\.hub-row\[data-has-tools\]:hover \.hub-row-meta \{\s*opacity: 0;/)
     const { container } = render(
       <HubRow density="two-line" title="t" meta="10:42" tools={<HubToolButton label="Done" shortcut="E">x</HubToolButton>} />,
     )
@@ -179,6 +181,26 @@ describe("a row's tools where nothing can hover", () => {
     } finally {
       spy.mockRestore()
     }
+  })
+
+  // SH-29, SH-30: a row that opens through its stretched title is a row of
+  // the interaction layer (it tints and presses), and a list's keyboard place
+  // is an inset ring of its own, never the selected look.
+  it("is a row of the layer when it opens through its title, and a quiet item when it doesn't", () => {
+    const { container, rerender } = render(<HubRow density="two-line" opens title={<button type="button">Q4 launch plan</button>} />)
+    expect(container.querySelector("[data-hub-row]")!.getAttribute("data-interactive")).toBe("row")
+    rerender(<HubRow density="two-line" title="Q4 launch plan" />)
+    expect(container.querySelector("[data-hub-row]")!.hasAttribute("data-interactive")).toBe(false)
+  })
+
+  it("draws the keyboard's place as a ring, apart from selected", () => {
+    const { container, rerender } = render(<HubRow density="feed" opens cursor title="Maya Chen" />)
+    const row = container.querySelector("[data-hub-row]")!
+    expect(row.querySelector("[data-kbd-cursor]")!.className).toContain("ring-cursor")
+    expect(row.hasAttribute("data-selected")).toBe(false)
+    rerender(<HubRow density="feed" opens selected title="Maya Chen" />)
+    expect(row.querySelector("[data-kbd-cursor]")).toBeNull()
+    expect(row.getAttribute("data-selected")).toBe("true")
   })
 
   it("has no Actions on a row with no tools", () => {

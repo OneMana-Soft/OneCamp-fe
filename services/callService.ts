@@ -1,6 +1,6 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { publicCall } from "@/services/publicApi"
-import type { CallStateRead, CallTranscription } from "@/components/livekit/callState"
+import type { CallTranscription } from "@/components/livekit/callState"
 
 // The calls' own requests, from the CALLS-FE ↔ CALLS-BE contract
 // (design/calls-vs-zoom/P0.md, 13 Oct): turning captions on for a call,

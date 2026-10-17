@@ -114,7 +114,7 @@ function EditableChip({
 }
 
 const inputCls =
-    "min-w-[2ch] max-w-[16ch] rounded border border-border/60 bg-background px-1 py-px font-mono text-2xs text-foreground outline-none focus:border-primary/60";
+    "min-w-[2ch] max-w-[16ch] rounded border border-border/60 bg-background px-1 py-px font-mono text-2xs text-foreground outline-none focus-visible:focus-halo";
 
 // buildPlanChart turns a PlanResult into a bounded NormalizedChart for the
 // primary metric across groups (line for a date group-by, bar otherwise) — the

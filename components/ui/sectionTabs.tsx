@@ -5,6 +5,7 @@ import * as TabsPrimitive from "@radix-ui/react-tabs"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Badge } from "@/components/ui/badge"
+import { ix } from "@/lib/ui/interactive"
 
 /**
  * SectionTabs — Notion/Linear-style underline tab bar.
@@ -13,7 +14,10 @@ import { Badge } from "@/components/ui/badge"
  * focus rings, `role="tab"` semantics and `aria-selected` for free.
  *
  * Visual spec:
- *  - Active = thin bottom underline + bolder text, no filled pill.
+ *  - Active = ink text over a 2px ink rule; one weight (510) chosen or not,
+ *    so choosing a tab never moves the ones after it.
+ *  - Hover is a tinted pill behind the label (the interaction layer's tab:
+ *    hover, press, focus); the rule sits on the bar's hairline.
  *  - Tabs are buttons in a horizontal scrollable row on small screens.
  *  - Optional section icon + label on the left for desktop.
  *  - Tabs sit inside a 1px bottom-border container so the underline
@@ -58,31 +62,14 @@ export function SectionTabs({
 }: SectionTabsProps) {
     // A row of tabs wider than a phone scrolls sideways. It did so with no
     // cue ("Attachm" cut at the edge) and a tab chosen by a link could sit out
-    // of sight: the edge with more tabs past it now fades, and the chosen tab
-    // is scrolled into view.
+    // of sight: the edge with more tabs past it fades (data-edge-fade, the
+    // interaction layer's), and the chosen tab is scrolled into view, clear of
+    // the fade.
     const listRef = React.useRef<HTMLDivElement>(null)
-    const [more, setMore] = React.useState<{ start: boolean; end: boolean }>({ start: false, end: false })
-    const measure = React.useCallback(() => {
-        const el = listRef.current
-        if (!el) return
-        const start = el.scrollLeft > 1
-        const end = el.scrollWidth - el.scrollLeft - el.clientWidth > 1
-        setMore((m) => (m.start === start && m.end === end ? m : { start, end }))
-    }, [])
-    React.useEffect(() => {
-        const el = listRef.current
-        if (!el) return
-        measure()
-        if (typeof ResizeObserver === "undefined") return
-        const ro = new ResizeObserver(measure)
-        ro.observe(el)
-        return () => ro.disconnect()
-    }, [measure])
     React.useEffect(() => {
         const active = listRef.current?.querySelector<HTMLElement>('[data-state="active"]')
         active?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
-        measure()
-    }, [value, measure])
+    }, [value])
     return (
         <TabsPrimitive.Root
             value={value}
@@ -99,29 +86,19 @@ export function SectionTabs({
                     )}
                     <TabsPrimitive.List
                         ref={listRef}
-                        onScroll={measure}
-                        data-more-start={more.start || undefined}
-                        data-more-end={more.end || undefined}
-                        className={cn(
-                            "flex items-stretch h-full",
-                            "overflow-x-auto no-scrollbar",
-                            "min-w-0 flex-1",
-                            more.end && !more.start && "[mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)]",
-                            more.start && !more.end && "[mask-image:linear-gradient(to_left,black_calc(100%-2rem),transparent)]",
-                            more.start && more.end && "[mask-image:linear-gradient(to_right,transparent,black_2rem,black_calc(100%-2rem),transparent)]",
-                        )}
+                        data-edge-fade=""
+                        className="flex h-full min-w-0 flex-1 items-stretch overflow-x-auto no-scrollbar"
                     >
                         {tabs.map((tab) => (
                             <TabsPrimitive.Trigger
                                 key={tab.value}
                                 value={tab.value}
+                                {...ix("tab")}
                                 className={cn(
-                                    "group relative inline-flex items-center justify-center gap-1.5",
-                                    "h-full px-3 md:px-4 text-sm font-medium whitespace-nowrap",
-                                    "text-muted-foreground hover:text-foreground transition-colors",
-                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-inset",
-                                    "data-[state=active]:text-foreground data-[state=active]:font-semibold",
-                                    "after:content-[''] after:absolute after:left-3 after:right-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent",
+                                    "group relative inline-flex shrink-0 scroll-mx-6 items-center justify-center gap-1.5 self-center",
+                                    "h-8 rounded-md px-3 md:px-4 text-sm font-medium whitespace-nowrap",
+                                    "text-muted-foreground hover:text-foreground data-[state=active]:text-foreground",
+                                    "after:content-[''] after:absolute after:left-3 after:right-3 after:-bottom-2 md:after:-bottom-3 after:h-0.5 after:rounded-full after:bg-transparent",
                                     // Ink, not the accent (design v3 §3.12, chat C03): a
                                     // tab is where you are, not an action or "for you".
                                     "data-[state=active]:after:bg-ink",
@@ -132,7 +109,7 @@ export function SectionTabs({
                                     <Badge
                                         variant="secondary"
                                         className={cn(
-                                            "ml-0.5 px-1.5 py-0 h-[18px] min-w-[18px] text-3xs rounded-full",
+                                            "ml-0.5 px-1.5 py-0 h-[18px] min-w-[18px] text-3xs tabular-nums rounded-full",
                                             "bg-muted text-muted-foreground border-transparent",
                                             "group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary",
                                         )}

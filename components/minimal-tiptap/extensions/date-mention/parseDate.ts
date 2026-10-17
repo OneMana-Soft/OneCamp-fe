@@ -47,7 +47,7 @@ function comingWeekday(today: Date, weekday: number): Date {
 }
 
 /** The days a query names, best first, at most three; none when it names no day. */
-export function datesFor(query: string, today: Date): Array<{ date: Date; label?: string }> {
+function datesFor(query: string, today: Date): Array<{ date: Date; label?: string }> {
   const q = query.trim().toLowerCase().replace(/\s+/g, " ")
   if (!q) return []
   const out: Array<{ date: Date; label?: string }> = []
@@ -85,7 +85,7 @@ export function datesFor(query: string, today: Date): Array<{ date: Date; label?
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
 /** A day in full, as the "@" list's quieter words: "Fri 16 Oct", with the year when it isn't this one. */
-export function dayInFull(date: Date, today: Date): string {
+function dayInFull(date: Date, today: Date): string {
   return format(date, date.getFullYear() === today.getFullYear() ? "EEE d MMM" : "EEE d MMM yyyy")
 }
 

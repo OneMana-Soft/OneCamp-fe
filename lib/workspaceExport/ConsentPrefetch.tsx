@@ -10,6 +10,7 @@
  */
 import { useEffect } from "react"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { docInfoKey } from "@/lib/docCache"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { DocInfoResponse } from "@/types/doc"
@@ -17,7 +18,7 @@ import type { UserProfileInterface } from "@/types/user"
 import { loadConsent } from "./consent"
 
 export default function ConsentPrefetch({ docId }: { docId: string }) {
-  const doc = useFetch<DocInfoResponse>(docInfoKey(docId), undefined, undefined, { suppressErrorToast: true } as never).data?.data
+  const doc = useFetch<DocInfoResponse>(docInfoKey(docId), undefined, undefined, OWN_ERRORS).data?.data
   const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data
   const owner = doc?.doc_owner?.user_uuid || doc?.doc_created_by?.user_uuid
   const ownsPrivate = !!doc?.doc_private && !!me?.user_uuid && owner === me.user_uuid

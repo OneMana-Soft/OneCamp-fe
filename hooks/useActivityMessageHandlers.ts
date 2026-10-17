@@ -3,8 +3,6 @@
 import { useDispatch } from "react-redux"
 import mqttService, { msgActivityInterface } from "@/services/mqttService"
 import { incrementTotalUnreadActivityCount } from "@/store/slice/userSlice"
-import { useSelector } from "react-redux"
-import { RootState } from "@/store/store"
 import { appMutate } from "@/lib/swrMutate"
 import { inboxFeedKey, INBOX_PAGE_SIZE } from "@/lib/activity/feedPages"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -15,7 +13,6 @@ interface UseActivityMessageHandlersProps {
 
 export const useActivityMessageHandlers = ({ userUuid }: UseActivityMessageHandlersProps) => {
     const dispatch = useDispatch()
-    const totalUnreadActivityCount = useSelector((state: RootState) => state.users.userSidebar.totalUnreadActivityCount)
 
     const handleActivityMessage = (messageStr: string) => {
         try {

@@ -1,5 +1,6 @@
 import { useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { isPlainLeftClick } from "@/lib/ui/linkClick"
 
 // useInternalLinkRouter returns a click handler that intercepts clicks on
 // INTERNAL app links (same-origin paths beginning with "/app") inside rendered
@@ -38,7 +39,7 @@ export function useInternalLinkRouter(enabled: boolean = true) {
             if (!enabled) return
             if (e.defaultPrevented) return
             // Respect "open in new tab/window" and non-primary buttons.
-            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+            if (!isPlainLeftClick(e)) return
 
             const target = e.target as HTMLElement | null
             const anchor = target?.closest("a") as HTMLAnchorElement | null

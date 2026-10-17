@@ -777,7 +777,7 @@ function codeSpan(text: string): string {
 }
 
 /** A link's destination, in <> when it holds what a bare one cannot. */
-export function linkDest(href: string): string {
+function linkDest(href: string): string {
   let needsAngle = false
   let depth = 0
   for (const ch of href) {
@@ -818,7 +818,7 @@ function escapeLinkText(s: string): string {
 const isAlnum = (c: number) => (c >= 0x61 && c <= 0x7a) || (c >= 0x41 && c <= 0x5a) || (c >= 0x30 && c <= 0x39)
 
 /** Escapes text so Markdown reads it back as the same text. */
-export function escapeMarkdownText(s: string, atLineStart: boolean): string {
+function escapeMarkdownText(s: string, atLineStart: boolean): string {
   let out = ''
   for (let i = 0; i < s.length; i++) {
     const c = s[i]

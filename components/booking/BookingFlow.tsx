@@ -17,9 +17,8 @@ import { Switch } from "@/components/ui/switch"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { SpamTrap } from "@/components/common/SpamTrap"
 import { PaperCard, PublicFrame, WorkspaceMark } from "@/components/guest/PublicFrame"
-import { PublicGone } from "@/components/guest/publicStates"
+import { PublicGoneLater as PublicGone } from "@/components/guest/publicGoneLater"
 import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Globe, Loader2, Mail } from "@/lib/icons"
-import { celebrate, prefersReducedMotion } from "@/lib/celebrate"
 import { dayKey, googleCalendarUrl, icsFor, timeZones, type Slot } from "@/lib/calendar/availability"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -416,6 +415,11 @@ export function BookingFlow({ slug }: { slug: string }) {
 // K02. Who and what.
 // ----------------------------------------------------------------------------
 
+/** About how many lines a page's description takes beside the month: its breaks, and about 34 characters a line. Pure. */
+function descriptionLines(text: string): number {
+  return text.split("\n").length + text.length / 34
+}
+
 function HostAside({
   page,
   tz,
@@ -459,10 +463,16 @@ function HostAside({
         ) : null}
       </div>
       {page.description ? (
-        <div className="max-sm:hidden">
-          <p className={cn("whitespace-pre-line text-ui text-ink-2 [text-wrap:pretty]", !more && "line-clamp-6")}>{page.description}</p>
-          {!more && page.description.split("\n").length + page.description.length / 34 > 6 ? (
-            <button type="button" onClick={() => setMore(true)} className="mt-1 text-ui-sm font-medium text-brand-text hover:underline">
+        // On a phone too (PTC-10): three lines there, six beside the month, then More.
+        <div>
+          <p className={cn("whitespace-pre-line text-ui text-ink-2 [text-wrap:pretty]", !more && "line-clamp-3 sm:line-clamp-6")}>{page.description}</p>
+          {!more && descriptionLines(page.description) > 3 ? (
+            <button
+              type="button"
+              onClick={() => setMore(true)}
+              data-touch-target=""
+              className={cn("mt-1 text-ui-sm font-medium text-brand-text hover:underline", descriptionLines(page.description) <= 6 && "sm:hidden")}
+            >
               More
             </button>
           ) : null}
@@ -582,6 +592,8 @@ function MonthGrid({
   const count = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
   const keys = Array.from({ length: count }, (_, i) => `${monthKey(y, m)}-${String(i + 1).padStart(2, "0")}`)
   const available = keys.filter((k) => byDay.has(k))
+  // A day with fewer than four times left wears a sun dot, which says so under the month (PTC-51).
+  const fewLeft = !loading && available.some((k) => byDay.get(k)!.length < 4)
   const gridRef = React.useRef<HTMLDivElement>(null)
   const [focusKey, setFocusKey] = React.useState<string | null>(null)
   const roving = (selected && available.includes(selected) ? selected : null) ?? focusKey ?? available[0] ?? null
@@ -621,7 +633,9 @@ function MonthGrid({
         <h2 className="text-heading font-semibold text-ink tabular-nums" aria-live="polite">
           {monthName(y, m)} {y}
         </h2>
-        <div className="flex items-center gap-0.5">
+        {/* A touch group (app/phone.css F3b): under a finger the arrows stand
+            apart, or a tap on Previous's edge went to Next. */}
+        <div className="flex items-center gap-0.5" data-touch-group="">
           <Button variant="ghost" size="icon" className="size-7" onClick={() => onMonth(-1)} disabled={!canPrev} aria-label="Previous month">
             <ChevronLeft className="size-4" />
           </Button>
@@ -695,6 +709,12 @@ function MonthGrid({
             {note}
           </p>
         ) : null}
+        {fewLeft ? (
+          <p className="mt-2 flex items-center gap-1.5 text-meta text-ink-3" data-few-left="">
+            <span aria-hidden="true" className="size-[5px] rounded-[2.5px] bg-[var(--camp-sun-a2)]" />
+            Only a few times left
+          </p>
+        ) : null}
         {!loading && available.length === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="content-pop-in pointer-events-auto inline-flex items-center gap-2 rounded-[18px] bg-raised py-1.5 pl-3.5 pr-1.5 text-ui-sm text-ink-2 shadow-e1">
@@ -764,6 +784,7 @@ function SlotColumn({
                 role="radio"
                 aria-checked={on}
                 onClick={() => onH24(v === "24h")}
+                data-touch-target=""
                 className={cn("h-5 rounded-[5px] px-1.5 tabular-nums transition-colors", on ? "bg-raised text-ink shadow-e1" : "text-ink-3 hover:text-ink")}
               >
                 {v}
@@ -885,15 +906,16 @@ function GuestForm({
     setBusy(false)
     if (res.ok) return onBooked(res.data)
     if (res.status === 409 || /taken/i.test(res.msg)) return onTaken(slot)
-    // A refusal in the server's words: a bad field, or too many bookings from here.
-    if ((res.status === 400 || res.status === 429) && res.msg) {
-      setFailed(res.msg)
+    // A refusal in the server's words: a bad field, or too many bookings from
+    // here; and a retry in them too: a calendar it couldn't check (503).
+    if ((res.status === 400 || res.status === 429 || res.status === 503) && res.msg) {
+      setFailed(res.status === 503 ? `${res.msg} Your details are kept.` : res.msg)
       return
     }
     setFailed("Couldn't book. Your details are kept.")
   }
 
-  const field = "h-9 w-full rounded-lg bg-raised px-3 text-ui text-ink shadow-e1 outline-none placeholder:text-ink-3 focus-visible:ring-1 focus-visible:ring-brand/50 aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-destructive max-sm:h-11 max-sm:text-base"
+  const field = "h-9 w-full rounded-lg bg-raised px-3 text-ui text-ink shadow-e1 outline-none placeholder:text-ink-3 focus-visible:focus-halo aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-destructive max-sm:h-11 max-sm:text-base"
   return (
     <form onSubmit={submit} noValidate className="content-slide-in flex min-w-0 flex-col gap-4 px-5 pb-0 pt-2 sm:w-[440px] sm:shrink-0 sm:px-7 sm:pb-7 sm:pt-6" data-guest-form="">
       <Button type="button" variant="ghost" size="sm" className="-ml-2 h-7 gap-1 self-start px-2" onClick={onBack}>
@@ -935,7 +957,7 @@ function GuestForm({
           <span className={cn(busy && "invisible")}>{bookLabel(slot, tz, h24)}</span>
           {busy ? <Loader2 className="absolute size-4 animate-spin" aria-label="Booking" /> : null}
         </Button>
-        <p className="text-center text-meta text-ink-3 max-sm:hidden">By booking you agree to receive emails about this meeting.</p>
+        <p className="text-center text-meta text-ink-3">By booking you agree to receive emails about this meeting.</p>
       </div>
     </form>
   )
@@ -967,10 +989,20 @@ function Confirmation({ booked, tz, h24 }: { booked: Booked; tz: string; h24: bo
   const check = React.useRef<SVGGElement>(null)
   const fired = React.useRef(false)
   React.useEffect(() => {
-    if (fired.current || prefersReducedMotion()) return
+    if (fired.current) return
     fired.current = true
-    const t = setTimeout(() => celebrate(check.current), 420)
-    return () => clearTimeout(t)
+    let live = true
+    // The burst's code comes when it is wanted: the page's rare happy end
+    // doesn't ride with every outsider's first screen.
+    const t = setTimeout(() => {
+      void import("@/lib/celebrate").then(({ celebrate, prefersReducedMotion }) => {
+        if (live && !prefersReducedMotion()) celebrate(check.current)
+      })
+    }, 420)
+    return () => {
+      live = false
+      clearTimeout(t)
+    }
   }, [])
 
   return (

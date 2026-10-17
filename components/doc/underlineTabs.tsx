@@ -3,9 +3,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils/helpers/cn"
-import { useEdgeFade } from "@/hooks/useEdgeFade"
 
-export { edgeMask } from "@/hooks/useEdgeFade"
 
 export interface UnderlineTab {
   value: string
@@ -20,8 +18,9 @@ export interface UnderlineTab {
  * between tabs (transform and scaleX, 180 ms ease-out), so the eye follows it.
  * Arrow keys move between tabs, as a tablist does. Tabs wider than the column
  * (six on a phone, or beside a tablet's rail) scroll sideways, the chosen one
- * kept in view, and an edge with more tabs past it fades out, so a cut-off
- * tab reads as more to scroll to rather than a clipped word. A value no tab
+ * kept in view, and an edge with more tabs past it fades out (data-edge-fade,
+ * every tab strip's one behaviour), so a cut-off tab reads as more to scroll
+ * to rather than a clipped word. A value no tab
  * has chooses none (the docs home while it searches every doc): no
  * underline, and the first tab is the one Tab reaches.
  */
@@ -58,8 +57,6 @@ export function UnderlineTabs({
     return () => ro?.disconnect()
   }, [value, shape])
 
-  const fade = useEdgeFade(listRef, shape)
-
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return
     const right = e.key === "ArrowRight"
@@ -75,7 +72,7 @@ export function UnderlineTabs({
       role="tablist"
       aria-label={label}
       onKeyDown={onKeyDown}
-      {...fade}
+      data-edge-fade=""
       className={cn("relative flex h-10 items-stretch gap-1 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}
     >
       {tabs.map((t, i) => {

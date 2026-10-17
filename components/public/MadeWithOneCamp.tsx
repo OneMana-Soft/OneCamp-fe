@@ -11,7 +11,7 @@ export type PublicSurface = "booking" | "booked" | "form" | "guest-channel" | "g
 const site = () => (process.env.NEXT_PUBLIC_PRODUCT_SITE || "").replace(/\/$/, "")
 
 /** Where the credit links, or "" when this build names no product site. */
-export const madeWithHref = (surface: PublicSurface) => (site() ? `${site()}/?ref=made-with-${surface}` : "")
+const madeWithHref = (surface: PublicSurface) => (site() ? `${site()}/?ref=made-with-${surface}` : "")
 
 /** The ring logo at 14 px: the logo's gradient ring. */
 function RingMark() {

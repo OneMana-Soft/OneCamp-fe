@@ -46,7 +46,7 @@ vi.mock("@/lib/chat/celebrateFirst", () => ({ celebrateFirstMessage: () => spark
 vi.mock("@/components/channel/channelMessageList", () => ({ ChannelMessageList: () => null }))
 vi.mock("@/components/chat/chatMessageList", () => ({ ChatMessageList: () => null }))
 vi.mock("@/components/groupChat/groupChatMessageList", () => ({ GroupChatMessageList: () => null }))
-vi.mock("@/components/ai/ChannelAgents", () => ({ default: () => null, useChannelAgents: () => [] }))
+vi.mock("@/components/ai/ChannelAgents", () => ({ useChannelAgents: () => [] }))
 vi.mock("@/components/ai/CatchMeUpBanner", () => ({ default: () => null }))
 vi.mock("@/components/ai/ChannelMemoryIndicator", () => ({ ChannelMemoryIndicator: () => null }))
 vi.mock("@/components/ai/ComposerAIButton", () => ({ ComposerAIButton: () => null }))

@@ -11,6 +11,9 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: { doc_titl
 // What the person may do comes with the page's context; the sheet's own is only a fallback.
 vi.mock("@/hooks/useDocAbilities", () => ({ useDocAbilities: () => ({ level: "edit", view: true, comment: true, edit: true, share: false, askRead: false, askWrite: true, canAsk: () => true }) }))
 vi.mock("@/components/docEditor/registry/gate", () => ({ useEditionGate: () => ({ ai: false }) }))
+// What B6's page actions do, heard here: Delete is doc.trash (chrome/contributions.ts).
+const { trash } = vi.hoisted(() => ({ trash: vi.fn() }))
+vi.mock("@/components/docEditor/chrome/actions", () => ({ trash, toggleStar: vi.fn(), duplicate: vi.fn() }))
 vi.mock("@/lib/export/contentIO", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/export/contentIO")>()),
   knownCapabilities: () => null,
@@ -18,6 +21,8 @@ vi.mock("@/lib/export/contentIO", async (importOriginal) => ({
 }))
 
 import { DocOptionsDrawer } from "./docOptionsDrawer"
+// B6's page actions, which the doc page's guard registers as it loads (Delete among them).
+import "@/components/docEditor/chrome/contributions"
 import { createDocCommandBus, holdBus, provideActionContext } from "@/components/docEditor/registry/commandBus"
 import type { ActionContext } from "@/components/docEditor/registry/types"
 
@@ -41,7 +46,7 @@ function page(state: ActionContext["state"], more: Partial<ActionContext> = {}) 
   return bus
 }
 
-const sheet = () => render(<DocOptionsDrawer drawerOpenState setOpenState={() => {}} docId="doc-1" isOwner deleteMessage={() => {}} />)
+const sheet = () => render(<DocOptionsDrawer drawerOpenState setOpenState={() => {}} docId="doc-1" isOwner />)
 const rows = () => [...document.querySelectorAll("[data-sheet-group] button")].map((b) => b.textContent?.trim())
 
 describe("the phone's doc sheet", () => {
@@ -70,5 +75,17 @@ describe("the phone's doc sheet", () => {
     sheet()
     expect(rows()).not.toContain("Share")
     expect(rows()).toContain("Copy link")
+  })
+
+  // Review, 15 Oct 2026: the sheet kept a path for an action "doc.delete" that
+  // no package registers, fed a function that did nothing through the Redux
+  // store. Delete is B6's doc.trash, run as every other row is.
+  it("deletes as More does: Delete runs the doc's trash action, in the page's context", async () => {
+    page({ owner: true, canShare: true, desktop: false })
+    sheet()
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    })
+    expect(trash).toHaveBeenCalledWith(expect.objectContaining({ docId: "doc-1" }))
   })
 })

@@ -9,11 +9,11 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Bookmark, Trash2 } from "@/lib/icons"
+import { Trash2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useTaskViews } from "@/hooks/useTaskViews"
 import { sameView, type TaskViewState } from "@/lib/tasks/views"
+import { ix } from "@/lib/ui/interactive"
 import { MenuCheck } from "@/components/ui/menuCheck"
 
 interface PanelProps {
@@ -59,7 +59,8 @@ export function SavedTaskViewsPanel({ scope, current, apply, withColumns = true,
                 type="button"
                 onClick={() => apply(v.state)}
                 aria-current={active?.id === v.id ? "true" : undefined}
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                {...ix("item")}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm"
               >
                 <span className="min-w-0 flex-1 truncate">{v.name}</span>
                 {/* The view in use: the shared check at the row's end, as a select's chosen option has it. */}
@@ -93,30 +94,5 @@ export function SavedTaskViewsPanel({ scope, current, apply, withColumns = true,
         </Button>
       </form>
     </div>
-  )
-}
-
-/** The desktop toolbar's "Views" button. */
-export function SavedTaskViewsButton(props: Omit<PanelProps, "enabled">) {
-  const [open, setOpen] = React.useState(false)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground hover:text-foreground">
-          <Bookmark className="h-3.5 w-3.5" aria-hidden />
-          Views
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-2">
-        <SavedTaskViewsPanel
-          {...props}
-          enabled={open}
-          apply={(s) => {
-            props.apply(s)
-            setOpen(false)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
   )
 }

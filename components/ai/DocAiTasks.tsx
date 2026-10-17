@@ -21,7 +21,8 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { Calendar, Check, Loader2, User } from "@/lib/icons"
-import { findDocTasks, makeDocTasks, messageOf, type DocTask, type DocTasksMade } from "@/lib/ai/docAIApi"
+import { findDocTasks, makeDocTasks, type DocTask, type DocTasksMade } from "@/lib/ai/docAIApi"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 interface ProjectOption {
   project_uuid: string
@@ -32,7 +33,7 @@ interface ProjectOption {
 const live = (s?: string) => !s || s.startsWith("0001-01-01") || s.startsWith("1970-01-01")
 
 /** Each made task's chip at the end of its line, in one transaction. */
-export function insertTaskChips(editor: Editor, made: DocTasksMade["tasks"]) {
+function insertTaskChips(editor: Editor, made: DocTasksMade["tasks"]) {
   if (editor.isDestroyed || !editor.isEditable) return
   const { state } = editor
   const mention = state.schema.nodes.entityMention
@@ -83,7 +84,7 @@ export function DocAiTasks({ editor, docId, onDone }: { editor: Editor; docId: s
       },
       (e) => {
         if (!current) return
-        setError(messageOf(e, "The doc couldn't be read just now. Try again in a moment."))
+        setError(apiErrorMessage(e, "The doc couldn't be read just now. Try again in a moment."))
         setPhase("error")
       },
     )
@@ -114,7 +115,7 @@ export function DocAiTasks({ editor, docId, onDone }: { editor: Editor; docId: s
       })
       onDone()
     } catch (e) {
-      setError(messageOf(e, "None of the tasks could be made just now. Try again in a moment."))
+      setError(apiErrorMessage(e, "None of the tasks could be made just now. Try again in a moment."))
       setPhase("review")
     }
   }

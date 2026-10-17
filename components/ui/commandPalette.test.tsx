@@ -123,21 +123,22 @@ describe("the command palette", () => {
     expect(within(hits!).getAllByRole("option")).toHaveLength(3)
   })
 
-  // Only projects (their tile) and people (their face) carry hue (DESIGN_V3
-  // §3.5). Hits came on the search page's hue tiles: a task sat on a sun
-  // square under the ink-3 docs and boards of Jump to.
-  it("marks a message, chat or task hit with its kind's ink-3 glyph, never a hue tile", () => {
+  // Only places carry hue (DESIGN_V3 §3.5, D13). Hits came on the search
+  // page's hue tiles: a task sat on a sun square under the ink-3 docs and
+  // boards of Jump to. A message is its kind's ink-3 glyph, and a task its
+  // status glyph, as the search page, Recent and Home draw it (the one mark,
+  // components/ui/graphics/placeMark).
+  it("marks a message hit with its kind's ink-3 glyph and a task hit with its status glyph, never a hue tile", () => {
     answer = [
       { type: "post", post: { post_id: "a", post_body: "Lunch at noon", post_ch_name: "design", post_by_user_full_name: "Zed" } },
-      { type: "task", task: { task_id: "c", task_name: "Book the room", task_project_name: "Q4 launch" } },
+      { type: "task", task: { task_id: "c", task_name: "Book the room", task_project_name: "Q4 launch", task_status: "inProgress" } },
     ] as SearchResult[]
     const input = open()
     type(input, "zed")
-    for (const option of within(group("Messages, docs and tasks")!).getAllByRole("option")) {
-      const mark = option.querySelector(".palette-mark")!
-      expect(mark.querySelector("[data-hue]")).toBeNull()
-      expect(mark.querySelector("svg")?.getAttribute("class")).toMatch(/text-ink-3/)
-    }
+    const [message, task] = within(group("Messages, docs and tasks")!).getAllByRole("option").map((o) => o.querySelector(".palette-mark")!)
+    for (const mark of [message, task]) expect(mark.querySelector("[data-hue]")).toBeNull()
+    expect(message.querySelector("svg")?.getAttribute("class")).toMatch(/text-ink-3/)
+    expect(task.querySelector("[data-status-glyph]")?.getAttribute("data-status-glyph")).toBe("progress")
   })
 
   // A touch screen with no keyboard hides what the keys do (mobile T5).
@@ -209,14 +210,33 @@ describe("the command palette", () => {
 
   // Colour is a noun (design v3): a project carries its own hue on its tile;
   // a channel and a doc have none, only an ink-3 glyph.
-  it("marks a project in its own hue, and a channel in none", () => {
+  // A channel wears its own hue (INTERACTION_SPEC D13): the tile it has in the
+  // sidebar, the list and its header, not a grey #.
+  it("marks a project and a channel each in its own hue", () => {
     const input = open()
     type(input, "q4")
     const project = row(group("Jump to"), "Q4 launch")!
     expect(project.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor("p1"))
     type(input, "eng")
     const channel = row(group("Jump to"), "engineering")!
-    expect(channel.querySelector("[data-hue]")).toBeNull()
+    const tile = channel.querySelector("[data-channel-tile]")!
+    expect(tile.getAttribute("data-hue")).toBe(hueFor("c1"))
+  })
+
+  // SH-24: a row's highlight is the layer's menu tint in the hue of what it
+  // opens, where it was the grey --press for everything; its bar is that
+  // hue's mark.
+  it("tints a row's highlight in the hue of what it opens", () => {
+    const input = open()
+    type(input, "eng")
+    expect(row(group("Jump to"), "engineering")!.getAttribute("data-hue")).toBe(hueFor("c1"))
+    type(input, "q4")
+    expect(row(group("Jump to"), "Q4 launch")!.getAttribute("data-hue")).toBe(hueFor("p1"))
+    const rules = readFileSync(resolve(__dirname, "../../app/globals.css"), "utf8")
+    const at = rules.indexOf('.palette-row[data-selected="true"] {')
+    expect(rules.slice(at, rules.indexOf("}", at))).not.toMatch(/background/)
+    const bar = rules.indexOf('.palette-row[data-selected="true"]::before {')
+    expect(rules.slice(bar, rules.indexOf("}", bar))).toMatch(/background:\s*var\(--ix-mark/)
   })
 
   it("names no raw Tailwind hue for a kind", () => {
@@ -305,9 +325,9 @@ describe("the palette, as design v3 draws it (shell P1)", () => {
     expect(rule(".palette-input {")).toMatch(/font-size:\s*16px/)
   })
 
-  it("rows are 40px at r8, and the selected one carries the accent tick, not a grey fill alone", () => {
+  it("rows are 40px at r8, and the selected one carries a tick in its hue's mark (the accent without one), not a grey fill", () => {
     expect(rule(".palette-row {")).toMatch(/height:\s*40px[\s\S]*border-radius:\s*8px/)
-    expect(rule('.palette-row[data-selected="true"]::before {')).toMatch(/width:\s*2px[\s\S]*background:\s*var\(--brand\)/)
+    expect(rule('.palette-row[data-selected="true"]::before {')).toMatch(/width:\s*2px[\s\S]*background:\s*var\(--ix-mark, var\(--brand\)\)/)
   })
 
   it("marks what matched by weight, not a tint", () => {

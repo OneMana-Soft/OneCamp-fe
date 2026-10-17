@@ -37,9 +37,9 @@ export function suggestionMenuOpen(editor: Editor | null | undefined): boolean {
 }
 
 /** The ARIA a showing menu puts on the editable element, removed when it closes. */
-export const COMBOBOX_ATTRIBUTES = ["aria-controls", "aria-activedescendant", "aria-autocomplete"] as const
+const COMBOBOX_ATTRIBUTES = ["aria-controls", "aria-activedescendant", "aria-autocomplete"] as const
 
-export function clearComboboxAttributes(el: Element | null | undefined) {
+function clearComboboxAttributes(el: Element | null | undefined) {
   if (!el) return
   for (const name of COMBOBOX_ATTRIBUTES) el.removeAttribute(name)
 }
@@ -76,7 +76,7 @@ export interface SuggestionListExtras {
   comboboxFor: HTMLElement | null
 }
 
-export type SuggestionListRef = { onKeyDown: (props: SuggestionKeyDownProps) => boolean }
+type SuggestionListRef = { onKeyDown: (props: SuggestionKeyDownProps) => boolean }
 
 interface SuggestionPopupOptions<P> {
   /** The list (a forwardRef component exposing onKeyDown). */

@@ -37,6 +37,7 @@ import { followKeyboard } from "@/lib/ui/visualViewport";
 import { followHistory, noteRouteChange } from "@/lib/navigation/back";
 import { usePanelPlacement, useShellBand } from "@/components/navigationBar/tablet/useShellBand";
 import { isTabletBand } from "@/lib/ui/shellBand";
+import { OverlaySheet } from "@/components/ui/overlaySheet";
 
 /** The panel group beside the sidebar: the page, any split panes, the right panel. */
 const PANEL_GROUP_ID = "app-panels";
@@ -265,20 +266,23 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   // too: RightPanel's own). Beside the page, its width crushed what it sat
   // beside: on a tablet at 768 a list got 278px, its title on two lines and
   // New task cut off; in a 1024 window a conversation got about 360px, at
-  // 768 about 165.
+  // 768 about 165. The shared OverlaySheet: focus stays in it while it is
+  // open, and goes back where it was when it closes; Escape stays the
+  // panel's own (escape="own"), an editor's popup or a field first.
   const panelOverlay = rightPanelState.isOpen ? (
-    <>
-      <div className="shell-scrim" data-panel-scrim="" aria-hidden="true" onClick={() => dispatch(closeRightPanel())} />
-      <div
-        key="open"
-        data-right-panel=""
-        data-right-panel-sheet=""
-        data-panel-over=""
-        className="app-sheet shell-panel-sheet shell-panel-over flex flex-col overflow-hidden"
-      >
-        {panelBody}
-      </div>
-    </>
+    <OverlaySheet
+      key="open"
+      open
+      onClose={() => dispatch(closeRightPanel())}
+      label="Side panel"
+      escape="own"
+      data-right-panel=""
+      data-right-panel-sheet=""
+      data-panel-over=""
+      className="app-sheet shell-panel-sheet shell-panel-over flex flex-col overflow-hidden"
+    >
+      {panelBody}
+    </OverlaySheet>
   ) : null;
 
   // A tablet (design v3, mobile T4): the page's sheet takes the width, and

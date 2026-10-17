@@ -13,7 +13,6 @@ vi.mock("@/lib/ai/docAIApi", () => ({
   recordAppliedEdit: vi.fn(async () => undefined),
   findDocTasks: vi.fn(),
   makeDocTasks: vi.fn(),
-  messageOf: (_e: unknown, f: string) => f,
 }))
 // What the server says each action needs (/ai/status doc_action_needs): none
 // unless a test sets it, and then a reader is offered what reads the doc.

@@ -42,6 +42,30 @@ function failed(title: string, err: unknown, fallback = "Try again in a moment."
 /** The pages inside a doc that went with it, after a word ("and", "with"); "" when none did. */
 const pagesInside = (count: number, word: string) => (count > 1 ? ` ${word} ${count - 1} ${count === 2 ? "page" : "pages"} inside` : "")
 
+/**
+ * What a delete of d left: the pages inside that the person can't open, which
+ * stay, moved up to where d was. Counted, never named, and only the ones the
+ * person could see were there (the server counts no page under them).
+ */
+const pagesThatStayed = (kept: number | undefined, d: DocRef) =>
+  kept ? `${kept} ${kept === 1 ? "page" : "pages"} inside that you can't open ${kept === 1 ? "stays" : "stay"}, moved up to where ${named(d)} was.` : undefined
+
+/**
+ * What deleting a page in the trash for good says before it is confirmed
+ * (name in quotes): it goes, with the pages deleted with it that the person has
+ * full access to; any others stay in the trash for the people who have. The
+ * one wording for the trash's rows and the deleted page itself.
+ */
+export function purgeWarning(name: string, subpages: number | undefined): string {
+  if (!subpages) return `${name} goes for good. Nobody can bring it back.`
+  const pages = `${subpages} ${subpages === 1 ? "page" : "pages"}`
+  return `${name} and the ${pages} deleted with it go for good, apart from any you don't have full access to, which stay in the trash. Nobody can bring back what goes.`
+}
+
+/** What a delete for good left in the trash: the pages the person hasn't full access to. */
+export const pagesLeftInTrash = (kept: number | undefined) =>
+  kept ? `${kept} ${kept === 1 ? "page" : "pages"} you don't have full access to ${kept === 1 ? "stays" : "stay"} in the trash.` : undefined
+
 /** Stars a doc: in Starred at once, then on the server; put back if it refuses. Resolves whether it is starred. */
 export async function starDoc(dispatch: Dispatch, d: DocRef): Promise<boolean> {
   const place: Place = { kind: "star", resource_kind: "doc", resource_uuid: d.id, position: "", title: d.title, icon: d.icon, href: `${app_doc_path}/${d.id}` }
@@ -109,9 +133,9 @@ export async function duplicate(d: DocRef, open: (href: string) => void, opts?: 
  * deleted, and Undo takes them back to it. Resolves whether it went.
  */
 export async function trash(dispatch: Dispatch, d: DocRef, here: { onItsPage: boolean; go: (href: string) => void }): Promise<boolean> {
-  let count: number
+  let gone: Awaited<ReturnType<typeof deleteDoc>>
   try {
-    count = (await deleteDoc(d.id, OWN)).count
+    gone = await deleteDoc(d.id, OWN)
   } catch (err) {
     failed(`Couldn't move ${named(d)} to the trash`, err)
     return false
@@ -130,7 +154,8 @@ export async function trash(dispatch: Dispatch, d: DocRef, here: { onItsPage: bo
     if (here.onItsPage) here.go(page)
   }
   toast({
-    title: `Moved ${named(d)} to the trash${pagesInside(count, "with")}`,
+    title: `Moved ${named(d)} to the trash${pagesInside(gone.count, "with")}`,
+    description: pagesThatStayed(gone.kept, d),
     action: (
       <ToastAction altText="Undo: bring it back" onClick={() => void undo()}>
         Undo

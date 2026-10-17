@@ -1,6 +1,7 @@
 "use client"
 
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import * as React from "react"
 import { useSelector } from "react-redux"
 import { Building2, Inbox, Lock } from "@/lib/icons"
@@ -49,7 +50,6 @@ import {
   type InvitePick,
 } from "@/components/dialog/shareParts"
 
-const QUIET = { suppressErrorToast: true } as never
 const ALL: GrantLevel[] = ["full", "edit", "comment", "view"]
 const TEAM: GrantLevel[] = ["edit", "comment", "view"]
 type General = DocSharing["general"]
@@ -188,8 +188,8 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
   const docId = propDocId || reduxDocId
   const open = dialogOpenState && !!docId
   const gate = useEditionGate()
-  const accessQ = useFetch<{ data?: DocAccess }>(open ? docAccessKey(docId) : "", undefined, undefined, QUIET)
-  const doc = useFetch<DocInfoResponse>(open ? docInfoKey(docId) : "", undefined, undefined, QUIET).data?.data
+  const accessQ = useFetch<{ data?: DocAccess }>(open ? docAccessKey(docId) : "", undefined, undefined, OWN_ERRORS)
+  const doc = useFetch<DocInfoResponse>(open ? docInfoKey(docId) : "", undefined, undefined, OWN_ERRORS).data?.data
   const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data
   const [optimistic, setOptimistic] = React.useState<DocAccess | null>(null)
   const pending = React.useRef(0)
@@ -197,11 +197,11 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
   const sharing = access?.sharing
   const full = !!access?.can_share
   const canInvite = full || access?.level === "edit"
-  const requests = useFetch<{ data?: DocAccessRequests }>(open && full ? accessRequestsKey(docId) : "", undefined, undefined, QUIET)
+  const requests = useFetch<{ data?: DocAccessRequests }>(open && full ? accessRequestsKey(docId) : "", undefined, undefined, OWN_ERRORS)
   const incoming = (requests.data?.data?.incoming ?? []).filter((r) => r.status === "pending" && r.doc_uuid === docId)
-  const teamsQ = useFetch<TeamListResponseInterface>(open && canInvite ? GetEndpointUrl.GetUserTeamList : "", undefined, undefined, QUIET)
-  const kids = useFetch<Envelope<DocChildren>>(open && full ? childrenKey(docId, { limit: 1 }) : "", undefined, undefined, QUIET).data?.data
-  const links = useFetch<{ data?: ResourceGuestLink[] }>(open && full ? resourceGuestLinksKey("doc", docId) : "", undefined, undefined, QUIET).data?.data
+  const teamsQ = useFetch<TeamListResponseInterface>(open && canInvite ? GetEndpointUrl.GetUserTeamList : "", undefined, undefined, OWN_ERRORS)
+  const kids = useFetch<Envelope<DocChildren>>(open && full ? childrenKey(docId, { limit: 1 }) : "", undefined, undefined, OWN_ERRORS).data?.data
+  const links = useFetch<{ data?: ResourceGuestLink[] }>(open && full ? resourceGuestLinksKey("doc", docId) : "", undefined, undefined, OWN_ERRORS).data?.data
   const [subpages, setSubpages] = React.useState(false)
   const [tab, setTab] = React.useState<"share" | "publish">("share")
   // guestLinks: how many guest links the change turns off; null when they couldn't be read.

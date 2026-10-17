@@ -88,6 +88,21 @@ describe("the long-press sheet", () => {
     await waitFor(() => expect(deleted).toHaveBeenCalledTimes(1))
   })
 
+  // The question takes the place of the row that asked it: the focus goes to
+  // its Cancel, and back to the row when it's cancelled. It was left on the
+  // removed row, so a keyboard or a screen reader lost its place in the sheet.
+  it("moves the focus into the question, and back to Delete message on Cancel", () => {
+    sheet({ isOwner: true })
+    const row = screen.getByRole("button", { name: "Delete message" })
+    row.focus()
+    fireEvent.click(row)
+    const ask = screen.getByRole("group", { name: "Delete this message?" })
+    expect(document.activeElement).toBe(within(ask).getByRole("button", { name: "Cancel" }))
+
+    fireEvent.click(within(ask).getByRole("button", { name: "Cancel" }))
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Delete message" }))
+  })
+
   it("hides the owner's actions from everyone else", () => {
     sheet()
     expect(screen.queryByRole("button", { name: "Edit message" })).toBeNull()
@@ -98,10 +113,13 @@ describe("the long-press sheet", () => {
     expect(screen.getByRole("button", { name: "Delete message" }).className).toContain("text-danger-ink")
   })
 
-  it("dims the page with black at 32% and no blur, and buzzes once", async () => {
+  it("dims the page with the shared sheet's one scrim, no blur, and buzzes once", async () => {
     const { readFileSync } = await import("node:fs")
     const src = readFileSync("components/drawers/messageActionSheet.tsx", "utf8")
-    expect(src).toContain("bg-black/[0.32]")
+    // The shared sheet's scrim (32% ink, 55% black in dark), none of its own:
+    // its own could stay over the page after an interrupted close (db2 F2).
+    expect(src).toMatch(/<DrawerContent\b/)
+    expect(src).not.toMatch(/Overlay|bg-black\//)
     expect(src).not.toMatch(/backdrop-blur/)
     // The long press that opened it buzzes through feedback() (mobile F3: impact).
     expect(src).toContain(`feedback("impact")`)

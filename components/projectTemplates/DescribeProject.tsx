@@ -10,6 +10,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Sparkles } from "@/lib/icons"
+import { fieldKeyDown } from "@/lib/keys/ime"
 import { withAI } from "@/components/common/withFeature"
 import { draftProjectPlan } from "@/hooks/useProjectTemplates"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -79,12 +80,12 @@ function DescribeProjectUngated({ onDrafted }: { onDrafted: (t: ProjectTemplate)
         aria-describedby={hintId}
         placeholder="Launch our mobile app in six weeks, with a beta for 50 users first"
         onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
+        onKeyDown={fieldKeyDown((e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault()
             void draft()
           }
-        }}
+        })}
       />
       <p id={hintId} className="text-xs text-muted-foreground" aria-live="polite">
         {busy ? "Drafting the plan. On a small model this can take a minute or two." : "You'll see the plan before anything is made. Ctrl/⌘ Enter drafts it."}

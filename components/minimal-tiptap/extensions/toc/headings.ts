@@ -98,7 +98,7 @@ export function onDocHeadings(editor: Editor, listener: () => void): () => void 
 }
 
 /** Where a heading is now: by its id when it has one, else where it was. */
-export function headingPos(editor: Editor, heading: DocHeading): number | null {
+function headingPos(editor: Editor, heading: DocHeading): number | null {
   const { doc } = editor.state
   if (heading.id) {
     let found: number | null = null

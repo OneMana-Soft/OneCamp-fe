@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
@@ -118,12 +120,16 @@ describe("focus on buttons", () => {
   // Design v3 (§3.11): every button, filled or not, takes a 2px accent ring
   // 2px off its surface, drawn as an outline so forced-colours mode keeps it.
   // The gap is what makes it read as a ring on an orange fill.
+  // The ring is the interaction layer's, for every control of it, and no
+  // variant draws (or removes) its own.
   it("is a 2px accent outline standing 2px off the button, on every variant", () => {
     for (const variant of ["default", "destructive", "secondary", "outline", "ghost", "subtle", "link"] as const) {
       const cls = buttonVariants({ variant })
-      expect(cls, variant).toContain("focus-visible:outline-offset-2")
-      expect(cls, variant).toContain("focus-visible:outline-2")
-      expect(cls, variant).toContain("focus-visible:outline-ring")
+      expect(cls, variant).not.toMatch(/focus-visible:|outline-none/)
     }
+    const layer = readFileSync(join(process.cwd(), "app/interaction.css"), "utf8")
+    expect(layer).toMatch(/\[data-interactive\]:focus-visible \{\s*outline: var\(--ix-ring\) solid var\(--ring\);\s*outline-offset: var\(--ix-ring-offset\);/)
+    expect(layer).toMatch(/--ix-ring: 2px;/)
+    expect(layer).toMatch(/--ix-ring-offset: 2px;/)
   })
 })

@@ -89,13 +89,3 @@ export function DueLabel({
     </span>
   )
 }
-
-/** A start and due date as the panel shows them: "8 Oct → 10 Oct". */
-export function dueRangeWords(start: string | Date | null | undefined, due: string | Date | null | undefined, now: Date = new Date()): string {
-  const s = dueDateOf(start)
-  const d = dueDateOf(due)
-  if (s && d) return `${shortDate(s, now)} → ${shortDate(d, now)}`
-  if (d) return shortDate(d, now)
-  if (s) return `From ${shortDate(s, now)}`
-  return ""
-}

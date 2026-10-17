@@ -11,7 +11,7 @@ import type { JSONContent } from '@tiptap/core'
 import type { ProposalHunk } from './types'
 
 export const CORE_VERSION: number
-export const LIMITS: Readonly<{ blocks: number; hunks: number; diffCells: number }>
+export const LIMITS: Readonly<{ blocks: number; hunks: number; diffCells: number; diffWork: number; cellsPerCharacter: number }>
 
 export interface DiffRun { same: boolean; a0: number; a1: number; b0: number; b1: number }
 export interface Range { from: number; to: number }
@@ -21,7 +21,8 @@ export interface Located { exact: boolean; placed: Placed[]; conflicts: string[]
 export function nodeKey(node: PMNode): string
 export function nodesKey(nodes: PMNode[]): string
 export function childrenOf(node: PMNode): PMNode[]
-export function diffRuns(a: string[], b: string[]): DiffRun[] | null
+/** budget is shared by one call's diffs, each charging its table's cells; with none, only LIMITS.diffCells bounds a table. */
+export function diffRuns(a: string[], b: string[], budget?: { cells: number }): DiffRun[] | null
 /** Text as the diff's words: runs of letters and digits (any script), runs of white space, and every other character alone; joined, the text. */
 export function wordsOf(text: string): string[]
 export function diffBlocks(base: PMNode[], proposed: PMNode[]): ProposalHunk[]

@@ -112,19 +112,22 @@ describe("one report per failure", () => {
     expect(toasts.map((t) => t.description)).toEqual(["Someone renamed this first (d)"])
   })
 
-  it("keeps a read made by hand quiet while an error state says a load failed, and toasts it otherwise", async () => {
+  // An error state says its own read, and no other: one on screen kept every
+  // failed read quiet, a read made by hand for something else too, which
+  // nothing on screen explained (REVIEW-FE-SHELL, 16 Oct 2026).
+  it("keeps the read an error state says quiet, again when it fails again, and toasts a read made by hand for something else", async () => {
     answers["/members"] = { status: 500, data: { msg: "members are being moved (e)" } }
     const view = show("/members", true)
     await beat()
+    expect(toasts).toEqual([])
+    await axiosInstance.get("/members").catch(() => undefined)
+    await beat()
+    expect(toasts).toEqual([])
     answers["/export"] = { status: 500, data: { msg: "export is busy (e)" } }
     await axiosInstance.get("/export").catch(() => undefined)
     await beat()
-    expect(toasts).toEqual([])
+    expect(toasts.map((t) => t.description)).toEqual(["export is busy (e)"])
     view.unmount()
-    answers["/export"] = { status: 500, data: { msg: "export is busy (f)" } }
-    await axiosInstance.get("/export").catch(() => undefined)
-    await beat()
-    expect(toasts.map((t) => t.description)).toEqual(["export is busy (f)"])
   })
 })
 

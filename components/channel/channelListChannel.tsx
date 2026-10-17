@@ -1,7 +1,8 @@
 import React from "react";
 import { getLastMessagePreview } from "@/lib/utils/lastMessagePreview";
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment";
-import { Hash, Lock } from "@/lib/icons";
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile";
+import { placeHue } from "@/lib/placeHue";
 import { CallActiveIndicator } from "@/components/callIndicator/CallActiveIndicator";
 import { ListRow, UnreadBadge } from "@/components/ui/listRow";
 import { AttachmentMediaReq } from "@/types/attachment";
@@ -26,6 +27,7 @@ interface DmItemProps {
 
 export const ChannelListChannel: React.FC<DmItemProps> = React.memo(
     ({
+        channelId,
         isPrivate = false,
         lastUsername,
         lastUserMessage,
@@ -41,15 +43,11 @@ export const ChannelListChannel: React.FC<DmItemProps> = React.memo(
 
         const hasUnread = unseenMessageCount > 0;
 
-        // A channel has no hue (design v3 chat, rule 1.2 and C55): the
-        // monochrome # its header and the sidebar carry, on a neutral tile,
-        // a lock for a private one. The colour in a row of channels is the
-        // people in them, never the room.
-        const leading = (
-            <span aria-hidden="true" data-channel-mark="" className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-sunken text-ink-3 ring-1 ring-inset ring-line [&_svg]:size-4">
-                {isPrivate ? <Lock /> : <Hash />}
-            </span>
-        );
+        // A channel wears its hue (INTERACTION_SPEC D13, superseding v3
+        // chat's rule 1.2): the tile the sidebar, its header, the palette
+        // and search draw too, so a channel is one colour on every screen,
+        // a lock for a private one. Its row tints in the same hue.
+        const leading = <ChannelTile id={channelId} isPrivate={isPrivate} size={32} />;
 
         const titleNode = (
             <span className="inline-flex items-center gap-1.5">
@@ -74,6 +72,7 @@ export const ChannelListChannel: React.FC<DmItemProps> = React.memo(
 
         return (
             <ListRow
+                data-hue={placeHue("channel", channelId)}
                 density="default"
                 selected={userSelected}
                 emphasize={hasUnread}

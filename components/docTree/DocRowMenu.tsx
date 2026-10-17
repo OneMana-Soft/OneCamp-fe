@@ -27,7 +27,7 @@ import type { RootState } from "@/store/store"
 import { app_doc_path } from "@/types/paths"
 import { duplicate, rename, starDoc, trash, unstarDoc, type DocRef } from "@/components/docTree/docActions"
 
-export interface DocRowMenuProps {
+interface DocRowMenuProps {
   doc: DocRef
   /** The viewer may change it: rename, add pages inside, move it to the trash. */
   canEdit: boolean

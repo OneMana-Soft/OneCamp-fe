@@ -23,7 +23,7 @@ vi.mock("@/services/docGraphService", () => ({
 }))
 vi.mock("@/lib/docCache", () => ({ docDeleted: hoisted.deleted, docRestored: hoisted.restored }))
 
-import { duplicate, starDoc, trash, unstarDoc } from "./docActions"
+import { duplicate, pagesLeftInTrash, purgeWarning, starDoc, trash, unstarDoc } from "./docActions"
 import { starPlace, unstarPlace } from "@/store/slice/userSlice"
 
 const plan = { id: "d1", title: "Launch plan" }
@@ -50,6 +50,33 @@ describe("a doc's actions, from its row", () => {
     await act(async () => fireEvent.click(screen.getByText("Undo")))
     expect(hoisted.restored).toHaveBeenCalledWith("d1")
     expect(go).not.toHaveBeenCalled()
+  })
+
+  // A delete takes only the pages inside that the person can open (the owner's
+  // rule, 15 Oct 2026): the rest stay, moved up to where it was, counted, never
+  // named.
+  it("says how many pages inside it stayed because they can't be opened", async () => {
+    hoisted.deleteDoc.mockResolvedValue({ batch_id: "b", count: 3, kept: 1 })
+    await trash(vi.fn(), plan, { onItsPage: false, go: vi.fn() })
+    expect(hoisted.toasts[0].title).toBe("Moved “Launch plan” to the trash with 2 pages inside")
+    expect(hoisted.toasts[0].description).toBe("1 page inside that you can't open stays, moved up to where “Launch plan” was.")
+    hoisted.toasts.length = 0
+    hoisted.deleteDoc.mockResolvedValue({ batch_id: "b", count: 1, kept: 2 })
+    await trash(vi.fn(), plan, { onItsPage: false, go: vi.fn() })
+    expect(hoisted.toasts[0].description).toBe("2 pages inside that you can't open stay, moved up to where “Launch plan” was.")
+    hoisted.toasts.length = 0
+    hoisted.deleteDoc.mockResolvedValue({ batch_id: "b", count: 1, kept: 0 })
+    await trash(vi.fn(), plan, { onItsPage: false, go: vi.fn() })
+    expect(hoisted.toasts[0].description).toBeUndefined()
+  })
+
+  it("words a delete for good the same wherever it is asked, and what it left", () => {
+    expect(purgeWarning("“Old plan”", 0)).toBe("“Old plan” goes for good. Nobody can bring it back.")
+    expect(purgeWarning("“Old plan”", 1)).toBe(
+      "“Old plan” and the 1 page deleted with it go for good, apart from any you don't have full access to, which stay in the trash. Nobody can bring back what goes.",
+    )
+    expect(pagesLeftInTrash(0)).toBeUndefined()
+    expect(pagesLeftInTrash(1)).toBe("1 page you don't have full access to stays in the trash.")
   })
 
   it("says when Undo couldn't bring it back, and where it is", async () => {

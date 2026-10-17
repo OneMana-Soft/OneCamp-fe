@@ -19,6 +19,7 @@ import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCoun
 import { getNudges, dismissNudge, dismissAllNudges, type Nudge } from "@/services/nudgeService"
 import { setNudges, removeNudge, clearAllNudges } from "@/store/slice/nudgeSlice"
 import { withAI } from "@/components/common/withFeature"
+import { ix } from "@/lib/ui/interactive"
 
 /** How long "Clear all" waits for an Undo before it reaches the server. */
 const UNDO_MS = 5000
@@ -129,9 +130,10 @@ function InboxNudges() {
                             key={n.id}
                             role="button"
                             tabIndex={0}
+                            {...ix("row")}
                             data-urgent={n.priority > 0 ? "true" : undefined}
                             className={cn(
-                                "group flex cursor-pointer gap-3 px-5 py-3 transition-colors duration-[140ms] hover:bg-hover hover:duration-0 focus-visible:bg-hover focus-visible:outline-none",
+                                "group flex gap-3 px-5 py-3",
                                 busyId === n.id && "pointer-events-none opacity-50",
                             )}
                             onClick={() => handleOpen(n)}

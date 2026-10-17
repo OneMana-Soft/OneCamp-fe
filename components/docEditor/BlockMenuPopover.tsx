@@ -6,6 +6,7 @@ import { Check, ChevronRight, Search } from "@/lib/icons"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { cn } from "@/lib/utils/helpers/cn"
+import { isComposingKey } from "@/lib/keys/ime"
 import { useEditionGate } from "@/components/docEditor/registry/gate"
 import { useRegistryVersion } from "@/components/docEditor/registry/slots"
 import type { BlockMenuRequest } from "@/components/minimal-tiptap/extensions/block-commands/menuRequest"
@@ -72,6 +73,8 @@ export default function BlockMenuPopover({ editor, docId, request, onClose }: { 
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // An input method's keys pick and drop its words: none moves or closes the menu.
+    if (isComposingKey(e.nativeEvent)) return
     const inList = !!list
     const n = inList ? listRows.length : shown.length
     const set = inList ? setListActive : setActive

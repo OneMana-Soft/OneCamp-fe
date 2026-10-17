@@ -39,9 +39,6 @@ import { cn } from "@/lib/utils/helpers/cn"
 /** One length for every tab's skeleton: a typical first screen. */
 export const PEOPLE_SKELETON_ROWS = 8
 
-/** The leading mark of a row that is not a person: a team, an invitation. 32px, as an avatar is. */
-export const PERSON_TILE = "size-8"
-
 /**
  * The count of the list: how many there are, "of" how many while a search
  * narrows them, and a "+" while more are on their way. Nothing until the first

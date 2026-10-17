@@ -1,0 +1,50 @@
+{
+  "about": [
+    "The calendar's and the booking page's fluidity budgets (calendar programme A0; PM-8, CAL13, G-CAL-PERF). scripts/fluidity/content.mjs --only calendar,booking measures each on a production build with the demo's data, read only, and exits non-zero when an enforced value is over its max or wasn't measured. Each value is the median of the runs (--runs 3).",
+    "scenario is the content.mjs scenario that measures it. max is what a run must stay under now; target is the Wave A budget (design/calendar-vs-gcal/perf-mobile.md §2), and owner the package that gets it there.",
+    "measured is A0's own run: 14 Oct 2026, the A0 branch's build, inside browser-isolated under nice, while the workstation ran other gates (load average 60 to 90 on 32 cores), so the 4× timings varied up to fourfold from run to run. Where it is over target, max is that median with room for such a run (about 25 to 40%, rounded); where it is under, max is the target.",
+    "Never raise a max to make a run pass. Lower it when a package brings a metric down, and to the target once the metric holds there.",
+    "enforce: false on a budget prints it against its max without failing the run; no budget here uses it."
+  ],
+  "budgets": {
+    "homeToCalendarMs": {
+      "scenario": "calendar",
+      "owner": "B1",
+      "source": "Home → Calendar in the app (G then K), until the week draws its first item or says it is free. perf §2: 1,574 ms on a computer at 1× and 3,492 ms on a phone at 4× (13 Oct). A0 made the calendar's surfaces lazy (PM-3); B1 prefetches the route (PM-4). Wave A 900 ms at 1×, 2,000 ms at 4×",
+      "cpu1": { "max": 900, "target": 900, "measured": 648, "runs": [648, 783, 464] },
+      "cpu4": { "max": 3500, "target": 2000, "measured": 2664, "runs": [5211, 2664, 2276] }
+    },
+    "viewSwitchP95Ms": {
+      "scenario": "calendar",
+      "owner": "B1",
+      "source": "The slowest of a run's four switches (Week, Month, Day, Week), input to next paint. perf §2: 814 ms at 4× (13 Oct); the week grid's 7 × 96 cells re-render on every switch (PM-2). Wave A 300 ms, Wave C 200 ms",
+      "cpu4": { "max": 1300, "target": 300, "measured": 928, "runs": [1248, 928, 880] }
+    },
+    "nextPeriodP95Ms": {
+      "scenario": "calendar",
+      "owner": "B1",
+      "source": "J five times, the p95 of its key events. perf §2: next week at 4×, 396 ms (717 ms at worst) on 13 Oct. Wave A 250 ms, Wave C 150 ms",
+      "cpu4": { "max": 1600, "target": 250, "measured": 1160, "runs": [360, 1584, 1160] }
+    },
+    "popCardMs": {
+      "scenario": "calendar",
+      "owner": "C3",
+      "source": "A click on an event until its card is drawn, input to next paint. perf §2: 1,524 ms at 4× (13 Oct). Wave A 300 ms, Wave C 200 ms",
+      "cpu4": { "max": 900, "target": 300, "measured": 632, "runs": [632, 1056, 520] }
+    },
+    "bookingFirstDayMs": {
+      "scenario": "booking",
+      "owner": "B5",
+      "source": "/book/sam-rivera signed out at 390 × 844, from the navigation's start until its first bookable day is drawn. perf §2: 7,079 ms on a phone at 4× (13 Oct); CAL-BUG-20 took its zone lists out of the load. Wave A 3,000 ms, Wave C 2,000 ms",
+      "cpu4": { "max": 7000, "target": 3000, "measured": 6038, "runs": [7670, 6038, 5574] }
+    },
+    "bookingScriptKB": {
+      "scenario": "booking",
+      "owner": "B5",
+      "source": "The booking page's script until its first bookable day, gzip. perf §2: 391 KB (13 Oct); its own small bundle is B5's (PM-6). Wave A 250 KB, Wave C 200 KB",
+      "max": 375,
+      "target": 250,
+      "measured": 367
+    }
+  }
+}

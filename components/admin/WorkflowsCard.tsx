@@ -30,11 +30,11 @@ import {
 } from "@/components/admin/workflowsParts";
 import type { CampHue } from "@/lib/campHue";
 import { useFetch } from "@/hooks/useFetch";
+import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Plus, Trash2, Pencil, LayoutTemplate } from "@/lib/icons";
-import type { ChannelInfoListInterfaceResp } from "@/types/channel";
 import type { ProjectInfoInterface } from "@/types/project";
 import {
     Workflow,
@@ -203,7 +203,8 @@ const WorkflowsCard = ({
     const { data, isLoading, isError, mutate } = useFetch<{ data: Workflow[] }>(GetEndpointUrl.GetAllWorkflows);
     // The names the sentences use: the editor reads the same two lists, so
     // they are usually cached already.
-    const { data: channelsData } = useFetch<ChannelInfoListInterfaceResp>(GetEndpointUrl.GetAllActiveChannelList);
+    // Every channel's name, not the list's first page of 20 (useEveryChannel).
+    const { channels } = useEveryChannel();
     const { data: projectData } = useFetch<{ data: ProjectInfoInterface[] }>(GetEndpointUrl.projectListByAdminUID);
     const { toast } = useToast();
     const confirm = useConfirm();
@@ -234,12 +235,12 @@ const WorkflowsCard = ({
 
     const names = useMemo<SentenceNames>(() => {
         const ch = new Map<string, string>();
-        for (const c of (Array.isArray(channelsData?.channels_list) ? channelsData.channels_list : [])) ch.set(c.ch_uuid, c.ch_name);
+        for (const c of channels) ch.set(c.ch_uuid, c.ch_name);
         const pr = new Map<string, string>();
         const projects = Array.isArray(projectData?.data) ? projectData.data : [];
         for (const p of projects) if (p?.project_uuid && isZeroEpoch(p.project_deleted_at || "")) pr.set(p.project_uuid, p.project_name);
         return { channel: (id) => ch.get(id), project: (id) => pr.get(id) };
-    }, [channelsData, projectData]);
+    }, [channels, projectData]);
 
     const handleDelete = async (wf: Workflow) => {
         confirm({

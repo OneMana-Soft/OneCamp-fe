@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button"
 import { ColorPicker } from "@/components/ui/paletteColorPicker"
 import { GripVertical, Plus, X } from "@/lib/icons"
 import { isComposingKey } from "@/lib/keys/ime"
+import { announce } from "@/lib/ui/announce"
+import { ix } from "@/lib/ui/interactive"
 
 /** An option as the editor shows it: its id once it has one, its label and colour. */
 export interface ChoiceOption {
@@ -51,7 +53,7 @@ export function OptionsEditor<O extends ChoiceOption>({
   removal?: (option: O) => string | null
   /** What a rename does, said while it's typed ("Renames it in 12 rows"); null says nothing. */
   renames?: (option: O) => string | null
-  /** Options can be dragged by their grip into another order. */
+  /** Options can be dragged by their grip into another order, or moved with Alt+↑/↓ on their names. */
   reorder?: boolean
   /** The most options there can be. */
   max?: number
@@ -84,14 +86,17 @@ export function OptionsEditor<O extends ChoiceOption>({
     }
     onChange(options.map((x) => (x === o ? { ...x, label } : x)), [])
   }
-  const move = (to: number) => {
-    const from = dragged.current
-    dragged.current = null
-    if (from === null || from === to) return
+  const shift = (from: number, to: number) => {
+    if (from === to) return
     const next = [...options]
     const [moved] = next.splice(from, 1)
     next.splice(to, 0, moved)
     onChange(next, [])
+  }
+  const move = (to: number) => {
+    const from = dragged.current
+    dragged.current = null
+    if (from !== null) shift(from, to)
   }
 
   return (
@@ -128,6 +133,7 @@ export function OptionsEditor<O extends ChoiceOption>({
                   maxLength={maxLength}
                   aria-label="Option name"
                   aria-describedby={typed ? `${key}-renames` : undefined}
+                  aria-keyshortcuts={reorder ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
                   disabled={busy}
                   onChange={(e) => setRenaming({ key, text: e.target.value })}
                   onBlur={(e) => rename(o, e.currentTarget)}
@@ -140,6 +146,19 @@ export function OptionsEditor<O extends ChoiceOption>({
                       // Its name back (a menu or dialog it sits in closes as well).
                       e.currentTarget.value = o.label
                       setRenaming(null)
+                    } else if (reorder && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+                      // The grip's move, from the keyboard (TB-15): a place up
+                      // or down, said aloud. The name keeps the focus, and a
+                      // menu round it never takes the arrow as its own.
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const to = i + (e.key === "ArrowUp" ? -1 : 1)
+                      if (to < 0 || to >= options.length) {
+                        announce(`${o.label} is ${to < 0 ? "first" : "last"} already.`)
+                        return
+                      }
+                      shift(i, to)
+                      announce(`Moved ${o.label} to position ${to + 1} of ${options.length}.`)
                     }
                   }}
                   className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-ui text-ink outline-none focus:bg-raised focus:shadow-e1"
@@ -193,6 +212,7 @@ export function OptionsEditor<O extends ChoiceOption>({
             placeholder="Add an option"
             aria-label="New option"
             disabled={busy}
+            {...ix("field")}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               // Never the form's submit: Enter adds the option.
@@ -200,7 +220,7 @@ export function OptionsEditor<O extends ChoiceOption>({
               e.preventDefault()
               add()
             }}
-            className="h-7 min-w-0 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3"
+            className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-ui text-ink placeholder:text-ink-3"
           />
           <Button type="button" size="xs" variant="ghost" aria-label="Add option" disabled={busy || !draft.trim()} onClick={add}>
             Add

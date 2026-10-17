@@ -22,6 +22,8 @@ import type { NodeView, ViewMutationRecord } from "@tiptap/pm/view"
 import { glyph } from "@/components/docEditor/technical/glyphs"
 import { isDocColour, type DocColour } from "@/lib/docColours"
 import type { TableEditingApi } from "./tableEditing"
+import { TABLE_EDITING } from "@/components/docEditor/technical/onDemandIds"
+import { onDemandApi, withOnDemand } from "@/components/docEditor/registry/onDemand"
 
 declare module "@tiptap/core" {
   interface NodeConfig<Options, Storage> {
@@ -61,7 +63,7 @@ const cellAttributes = {
  * The table's columns as its first row has them: each column's width, or
  * none; and the table's width when every column has one, else its least.
  */
-export function updateColumns(node: PMNode, colgroup: HTMLElement, table: HTMLElement, minWidth = CELL_MIN_WIDTH): boolean {
+function updateColumns(node: PMNode, colgroup: HTMLElement, table: HTMLElement, minWidth = CELL_MIN_WIDTH): boolean {
   let total = 0
   let fixed = true
   let next = colgroup.firstChild as HTMLElement | null
@@ -104,11 +106,15 @@ export interface TableViewParts {
 }
 
 /**
- * The table editing an editor was made with (tableEditing.ts TableEditing,
- * the doc page's): none on a page that only reads, such as the guest's.
+ * Does fn with the editor's table editing: at once when it's here, else as
+ * soon as the doc's first table has fetched it (registry/onDemand.ts). An
+ * action fetches it itself, if nothing has, and does nothing offline or just
+ * after a failed fetch; a view (fetch false) waits.
+ * Nothing on a page that only reads, such as the guest's, made without it.
+ * Returns a way to stop waiting.
  */
-export function editingOf(editor: Editor): TableEditingApi | undefined {
-  return (editor.storage as Record<string, unknown>).simpleTableEditing as TableEditingApi | undefined
+export function withEditing(editor: Editor, fn: (editing: TableEditingApi) => void, fetch = true): () => void {
+  return withOnDemand<TableEditingApi>(editor, TABLE_EDITING, fn, fetch)
 }
 
 /** The table, drawn as prosemirror-tables' TableView draws it (a <colgroup> first), with the buttons that add a row and a column. */
@@ -120,6 +126,7 @@ class TableView implements NodeView {
   private readonly colgroup: HTMLElement
   private readonly controls: HTMLElement[] = []
   private detach: (() => void) | null = null
+  private stopWaiting: () => void = () => {}
 
   constructor(
     private node: PMNode,
@@ -148,14 +155,21 @@ class TableView implements NodeView {
         b.title = label
         b.append(glyph("plus", 14))
         b.addEventListener("mousedown", (e) => e.preventDefault())
-        b.addEventListener("click", () => editingOf(editor)?.addAtEnd(editor, this.getPos(), side))
+        b.addEventListener("click", () => void withEditing(editor, (editing) => editing.addAtEnd(editor, this.getPos(), side)))
         this.controls.push(b)
       }
     }
     this.layout()
-    // The editor's table editing draws its handles on this view.
-    const editing = editingOf(editor)
-    if (editing && editor.isEditable) this.detach = editing.decorate(this.parts())
+    // The editor's table editing draws its handles on this view, once the
+    // doc's tables have fetched it.
+    if (editor.isEditable)
+      this.stopWaiting = withEditing(
+        editor,
+        (editing) => {
+          this.detach = editing.decorate(this.parts())
+        },
+        false,
+      )
   }
 
   parts(): TableViewParts {
@@ -184,6 +198,7 @@ class TableView implements NodeView {
   }
 
   destroy() {
+    this.stopWaiting()
     this.detach?.()
   }
 }
@@ -219,7 +234,7 @@ export const TableRow = Node.create({
   renderHTML: ({ HTMLAttributes }) => ["tr", mergeAttributes(HTMLAttributes), 0],
 })
 
-export const TableHeader = Node.create({
+const TableHeader = Node.create({
   name: "tableHeader",
   content: "block+",
   isolating: true,
@@ -229,7 +244,7 @@ export const TableHeader = Node.create({
   renderHTML: ({ HTMLAttributes }) => ["th", mergeAttributes(HTMLAttributes), 0],
 })
 
-export const TableCell = Node.create({
+const TableCell = Node.create({
   name: "tableCell",
   content: "block+",
   isolating: true,
@@ -286,7 +301,7 @@ function cellBeside($cell: ResolvedPos, dir: 1 | -1): number | null {
  * first showed: a Tab pressed as a new table appeared did nothing, and what
  * was typed next went into the cell it left ("StepOwner").
  */
-export const TableKeys = Extension.create({
+const TableKeys = Extension.create({
   name: "simpleTableKeys",
   priority: 170,
 
@@ -308,16 +323,28 @@ export const TableKeys = Extension.create({
         const $next = state.doc.resolve(beside)
         view.dispatch(state.tr.setSelection(TextSelection.between($next, state.doc.resolve(beside + $next.nodeAfter!.nodeSize))).scrollIntoView())
       } else if (dir > 0) {
-        // Past the last cell: a row below, as + under the table adds one.
-        editingOf(editor)?.addAtEnd(editor, $cell.before(-1), "row")
+        // Past the last cell: a row below, as + under the table adds one
+        // (once table editing is here, to the table the caret is in then).
+        withEditing(editor, (editing) => editing.addAtEnd(editor, tableAtCaret(editor), "row"))
       }
       return true
     }
-    return { Tab: move(1), "Shift-Tab": move(-1) }
+    // ⌫ or Delete over every cell: the table goes, as in Notion. Here, ahead
+    // of the keys that would empty the cells instead (Tiptap's own, and table
+    // editing's); a cell selection is only ever table editing's.
+    const whole = () => onDemandApi<TableEditingApi>(editor, TABLE_EDITING)?.deleteWholeTable(editor) ?? false
+    return { Tab: move(1), "Shift-Tab": move(-1), Backspace: whole, Delete: whole }
   },
 })
 
 export const SIMPLE_TABLE = [Table, TableRow, TableHeader, TableCell, TableKeys]
+
+/** Where the table holding the caret starts, if one does. */
+function tableAtCaret(editor: Editor): number | undefined {
+  const { $from } = editor.state.selection
+  for (let d = $from.depth; d > 0; d--) if ($from.node(d).type.name === "table") return $from.before(d)
+  return undefined
+}
 
 /** "/" Simple table: three by three, its first row a header. */
 export function insertSimpleTable(editor: Editor, range: { from: number; to: number }) {

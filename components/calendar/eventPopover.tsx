@@ -16,6 +16,7 @@ import { allDayItem } from "@/components/calendar/calendarLayout";
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay";
 import type { CalendarEventInterface } from "@/types/calendar";
 import { clockRange, dayAndTime } from "@/lib/utils/date/clock";
+import { joinLinkOf } from "@/lib/calendar/joinLink";
 
 /**
  * Clicking an event opens this (content.md C12, owner decision 4): a 360 px
@@ -30,12 +31,6 @@ interface EventPopoverProps {
   onClose: () => void;
   /** Open the event in the right panel (to edit, prep or find a better time). */
   onOpenFull: (uuid: string) => void;
-}
-
-/** The first link in an event's notes: a call to join. */
-export function joinLinkOf(event: Pick<CalendarEventInterface, "event_description">): string | null {
-  const m = (event.event_description || "").match(/https?:\/\/[^\s"'<>]+/);
-  return m ? m[0] : null;
 }
 
 /** Notes as plain text (they're stored as rich text). */
@@ -131,7 +126,7 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull }: EventP
           <h2 id={titleId} className="line-clamp-2 min-w-0 flex-1 text-heading text-ink">
             {event.event_title}
           </h2>
-          <div className="-mr-2 -mt-1 flex shrink-0 items-center">
+          <div className="-mr-2 -mt-1 flex shrink-0 items-center" data-touch-group="">
             <Button variant="ghost" size="icon-sm" aria-label="Edit event" onClick={() => onOpenFull(event.event_uuid)}>
               <Pencil />
             </Button>

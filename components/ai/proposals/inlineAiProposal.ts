@@ -21,7 +21,7 @@ import { DOMParser as PMDOMParser, Fragment, Slice } from "@tiptap/pm/model"
 import { proposeReplacement, type Tracked } from "@/lib/proposals/review"
 import { discardProposal, proposalsOf, showProposal } from "@/components/minimal-tiptap/extensions/proposals"
 
-export interface AiOutput {
+interface AiOutput {
   html?: string
   text?: string
 }

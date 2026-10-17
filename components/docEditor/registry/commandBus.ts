@@ -98,7 +98,7 @@ export function editorOf(bus: DocCommandBus | undefined): Editor | undefined {
 }
 
 /** The doc used last on this page, if one is open: whose actions the palette offers. */
-export function activeBus(): DocCommandBus | undefined {
+function activeBus(): DocCommandBus | undefined {
   return live[live.length - 1]
 }
 
@@ -212,9 +212,6 @@ export function useDocCommand<K extends keyof DocCommands>(bus: DocCommandBus | 
     return bus.on(command, (p) => latest.current(p))
   }, [bus, command])
 }
-
-/** The one way to find blocks by id (B1's block-commands/blockIds.ts). */
-export { blocksWithIds }
 
 /** Where a block with this id sits now, or null (a 'block' anchor). */
 export function findBlock(editor: Editor, blockId: string): { from: number; to: number } | null {

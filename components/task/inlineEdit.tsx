@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Input } from "@/components/ui/input"
+import { isComposingKey } from "@/lib/keys/ime"
 import { inlineInput } from "@/lib/ui/fieldRow"
 import { propertyValue } from "@/lib/ui/propertyRow"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -86,6 +87,8 @@ export function InlineEdit({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={finish}
           onKeyDown={(e) => {
+            // An input method's Enter picks a word and its Escape drops one.
+            if (isComposingKey(e.nativeEvent)) return
             if (e.key === "Enter") {
               byKey.current = true
               e.currentTarget.blur()

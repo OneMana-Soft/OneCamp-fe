@@ -57,7 +57,7 @@ import { toast } from "@/hooks/use-toast"
 import { pinRange, pinnedRange, unpin } from "./docAiPlugin"
 import { panelPinOf } from "./docAiStore"
 
-export interface RunInput {
+interface RunInput {
   editor: Editor
   docId: string
   action: DocAIActionId
@@ -109,7 +109,7 @@ export interface Run {
 }
 
 /** How the review bar names an AI change: "AI · qwen3 4B, on your server". Pure. */
-export function reviewLabel(model: DocAIModel | null, writing = false): string {
+function reviewLabel(model: DocAIModel | null, writing = false): string {
   const head = writing ? "Writing" : "AI"
   if (!model?.label) return head
   return model.local ? `${head} · ${model.label}, on your server` : `${head} · ${model.label}, at ${model.provider_label || "a hosted model"}`
@@ -161,7 +161,7 @@ async function requestFor(input: RunInput): Promise<DocAIRequest> {
 }
 
 /** What a review ended with: how many of its changes went in, and the text before and after. */
-export interface Outcome {
+interface Outcome {
   changes: number
   of: number
   inserted: boolean
@@ -197,7 +197,7 @@ async function record(docId: string, action: DocAIActionId, model: DocAIModel | 
  * recorded once, as it was decided. The text after is the doc's, where the
  * change went: what was accepted, not what was proposed.
  */
-export function followProposal(editor: Editor, id: string, end: (o: Outcome) => void): () => void {
+function followProposal(editor: Editor, id: string, end: (o: Outcome) => void): () => void {
   let last: Tracked | undefined = proposalsOf(editor.state).active[id]
   const check = ({ transaction }: { transaction: Transaction }) => {
     const now = proposalsOf(editor.state).active[id]

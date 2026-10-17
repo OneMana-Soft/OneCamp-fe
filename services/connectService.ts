@@ -53,8 +53,3 @@ export async function denyConsent(id: string): Promise<string> {
   const res = await axiosInstance.post(`${PostEndpointUrl.AnswerOAuthRequest}/${id}/deny`, undefined, OWN_ERRORS)
   return (res.data?.data?.redirect as string) || ""
 }
-
-/** Scopes that change something, as opposed to reading. */
-export function isWriteScope(scope: string): boolean {
-  return scope.endsWith(":write")
-}

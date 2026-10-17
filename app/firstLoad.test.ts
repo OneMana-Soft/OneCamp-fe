@@ -94,13 +94,27 @@ const PROJECT_LAZY = [
   // lib/workloadKey), and the two came in whole, 37 KB, through useTaskUpdate.
   "lib/timeline.ts",
   "lib/workload.ts",
+  // The toolbar's menus (15 Oct 2026): the first screen draws the Cycles and
+  // Fields chips and the Display button, and each one's body is a chunk that
+  // loads as the pointer or the focus reaches it, with the app's select and
+  // cmdk in them. The goal chip reads its percentage from lib/goalPercent,
+  // not all of lib/goals.
+  "components/task/cyclesSwitcher.tsx",
+  "components/task/displayMenu.tsx",
+  "components/task/fieldFilterMenu.tsx",
+  "components/ui/select.tsx",
+  "components/ui/command.tsx",
+  "lib/goals.ts",
   // The number reader: a field's value is read where it is typed, in the task
   // panel (lib/tasks/fieldInput), never where a list shows it (17d, 16 Oct:
   // through lib/tasks/fields it took the route 1,160 B over its ceiling).
   "lib/format/number.ts",
 ]
-/** Bytes of source the project route reaches by static import: 1.61 MB before the split, 0.95 MB after. */
-const PROJECT_ROUTE_SOURCE_CEILING = 980_000
+/**
+ * Bytes of source the project route reaches by static import: 1.61 MB before
+ * the split, 0.95 MB after, 0.93 MB once the toolbar's menus were chunks.
+ */
+const PROJECT_ROUTE_SOURCE_CEILING = 935_000
 
 function reach(entry: string): Map<string, string | null> {
   const parent = new Map<string, string | null>([[entry, null]])
@@ -119,6 +133,13 @@ function reach(entry: string): Map<string, string | null> {
   return parent
 }
 
+/** Bytes of source a route reaches by static import. */
+function sourceBytes(reached: Map<string, string | null>): number {
+  let bytes = 0
+  for (const f of reached.keys()) bytes += readFileSync(f).length
+  return bytes
+}
+
 describe("a project's first screen", () => {
   const reached = reach(PROJECT_ROUTE)
   it("loads the list only: other tabs, the phone's page and the dialogs are chunks of their own", () => {
@@ -126,8 +147,77 @@ describe("a project's first screen", () => {
   })
 
   it("keeps the source it pulls in under its ceiling", () => {
-    let bytes = 0
-    for (const f of reached.keys()) bytes += readFileSync(f).length
+    const bytes = sourceBytes(reached)
     expect(bytes, `the project route reaches ${bytes} bytes of source (ceiling ${PROJECT_ROUTE_SOURCE_CEILING})`).toBeLessThanOrEqual(PROJECT_ROUTE_SOURCE_CEILING)
+  })
+})
+
+// The calendar's first screen (calendar programme A0; PM-3, CAL13): the grid
+// comes first. Quick create, the full dialog, the event panel, Go to with
+// the parser, the Calendars popover, an event's pop card and menu, the month
+// view and booking settings load on first use, fetched ahead when the page is idle
+// (calendarApp.tsx); the phone's day strip draws its days without the date
+// picker's library and its select (components/ui/dayCell.tsx). Its ceiling,
+// set at its first measurement, only goes down; so do the public booking
+// pages', which every outsider opens (CAL9).
+const CALENDAR_ROUTE = "app/app/calendar/page.tsx"
+const CALENDAR_LAZY = [
+  "components/calendar/quickCreateCard.tsx",
+  "components/calendar/createCalendarEventDialog.tsx",
+  "components/rightPanel/eventInfoPanel.tsx",
+  "components/calendar/goToDate.tsx",
+  "lib/calendar/parseEventText.ts",
+  "components/calendar/calendarsPopover.tsx",
+  "components/calendar/eventMenu.tsx",
+  "components/calendar/eventPopover.tsx",
+  "components/ui/dropdown-menu.tsx",
+  "components/calendar/monthView.tsx",
+  "components/calendar/dayOverflowPopover.tsx",
+  "components/calendar/bookingSettings.tsx",
+  "components/ui/calendar.tsx",
+  "components/ui/select.tsx",
+]
+/**
+ * 816,537 bytes when every surface came with the grid; 760,717 after (14 Oct
+ * 2026); 752,243 once the day strip stopped bringing the date picker (15 Oct);
+ * 768,587 with beta's shell on 16 Oct, and 743,642 once the month view became
+ * a chunk of its own.
+ */
+const CALENDAR_ROUTE_SOURCE_CEILING = 755_000
+/**
+ * The public booking pages: 219,767 and 227,303 bytes (14 Oct 2026); 241,094
+ * and 248,607 with beta's load-failure states on 16 Oct; 164,761 and 172,296
+ * once the gone page and the booked burst came only when wanted.
+ */
+const BOOKING_ROUTE_SOURCE_CEILINGS: Record<string, number> = {
+  "app/book/[slug]/page.tsx": 175_000,
+  "app/booking/[token]/page.tsx": 182_000,
+}
+/** What an outsider's booking page brings only when it is wanted: the gone or failed page, and the booked burst. */
+const BOOKING_LAZY = ["components/guest/publicStates.tsx", "components/ui/load-failure-state.tsx", "lib/celebrate.ts"]
+
+describe("the calendar's first screen", () => {
+  const reached = reach(CALENDAR_ROUTE)
+  it("loads the grid only: its surfaces are chunks of their own, loaded on first use", () => {
+    expect(CALENDAR_LAZY.filter((f) => reached.has(f))).toEqual([])
+  })
+
+  it("keeps the source it pulls in under its ceiling", () => {
+    const bytes = sourceBytes(reached)
+    expect(bytes, `the calendar route reaches ${bytes} bytes of source (ceiling ${CALENDAR_ROUTE_SOURCE_CEILING})`).toBeLessThanOrEqual(CALENDAR_ROUTE_SOURCE_CEILING)
+  })
+
+  it("leaves a booking page's rare ends, the gone page and the burst, to chunks of their own", () => {
+    for (const route of Object.keys(BOOKING_ROUTE_SOURCE_CEILINGS)) {
+      const reached = reach(route)
+      expect(BOOKING_LAZY.filter((f) => reached.has(f)), route).toEqual([])
+    }
+  })
+
+  it("keeps each public booking page under its own ceiling", () => {
+    for (const [route, ceiling] of Object.entries(BOOKING_ROUTE_SOURCE_CEILINGS)) {
+      const bytes = sourceBytes(reach(route))
+      expect(bytes, `${route} reaches ${bytes} bytes of source (ceiling ${ceiling})`).toBeLessThanOrEqual(ceiling)
+    }
   })
 })

@@ -19,6 +19,7 @@
  */
 
 import { saysWhy, statusWords } from "./errorToast"
+import { isTimeout } from "@/lib/http/requestTimeout"
 
 /** The error-carrying subset of a OneCamp response envelope. */
 interface ApiErrorEnvelope {
@@ -51,11 +52,13 @@ function envelopeOf(error: unknown): ApiErrorEnvelope | undefined {
  *
  * Order is the server's message, then what the status means, then the transport's (network
  * failures never reach a handler, so there is no envelope for "Network Error"), then the caller's
- * fallback. Two rules hold whatever the caller passes (QA SH-02, DSA-15):
+ * fallback. Three rules hold whatever the caller passes (QA SH-02, DSA-15; 16 Oct 2026):
  *   - a 403 says plainly that the person doesn't have permission, never the caller's words, which
  *     blamed the connection for a refusal;
  *   - a 5xx never shows the server's developer text ("Failed to create comment"): the caller's own
- *     words say what didn't happen, else the status's.
+ *     words say what didn't happen, else the status's;
+ *   - a request that got no answer says so in plain words, never the transport's own ("timeout of
+ *     30000ms exceeded", "socket hang up"). An Error the app threw itself keeps its words.
  *
  * DELIBERATELY DOES NOT READ THE `err` OR `error` KEYS. Handlers put raw dependency strings there —
  * a Postgres driver message naming the constraint, table and column. The server's redaction blanks
@@ -79,7 +82,13 @@ export function apiErrorMessage(error: unknown, fallback = ""): string {
   if (status) return statusWords(status) ?? (fallback || "Try again in a moment.")
 
   const transport = (error as { message?: unknown } | null | undefined)?.message
-  if (typeof transport === "string" && transport !== "") return TRANSPORT_WORDS[transport] ?? transport
+  if (typeof transport === "string" && transport !== "") {
+    if (TRANSPORT_WORDS[transport]) return TRANSPORT_WORDS[transport]
+    if (isTimeout(error as { code?: string })) return TIMED_OUT
+    // Axios's words for any other request with no answer name the machinery.
+    if ((error as { isAxiosError?: unknown }).isAxiosError === true) return UNREACHED
+    return transport
+  }
 
   return fallback
 }
@@ -94,6 +103,12 @@ const TRANSPORT_WORDS: Record<string, string> = {
   "Network Error": "The server could not be reached. Check your connection and try again in a moment.",
   "Request aborted": "The request was interrupted. Try again.",
 }
+
+/** A request that waited for an answer past its time (axios's ECONNABORTED or ETIMEDOUT). */
+const TIMED_OUT = "The server took too long to answer. Try again in a moment."
+
+/** Any other request axios sent that got no answer. */
+const UNREACHED = "Couldn't reach the server. Try again."
 
 /**
  * The machine-readable condition label, or "" when the server did not send one.

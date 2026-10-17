@@ -121,6 +121,28 @@ describe("adding a task in a column", () => {
     expect((screen.getByLabelText("New task name") as HTMLInputElement).value).toBe("")
   })
 
+  // Review, 15 Oct 2026: typing a name in Japanese, Chinese or Korean, the
+  // Enter that picks a word made the task with half its name, and the Escape
+  // that drops a word closed the box (lib/keys/ime.ts fieldKeyDown).
+  it("leaves an input method's Enter and Escape to it: no task made mid-word, the box kept", async () => {
+    const onQuickAdd = vi.fn(async () => true)
+    board({ onQuickAdd })
+    act(() => screen.getAllByRole("button", { name: /^new task$/i })[0].click())
+    const box = screen.getByLabelText("New task name") as HTMLInputElement
+    fireEvent.change(box, { target: { value: "リリース" } })
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter", isComposing: true })
+      fireEvent.keyDown(box, { key: "Enter", keyCode: 229 })
+      fireEvent.keyDown(box, { key: "Escape", isComposing: true })
+    })
+    expect(onQuickAdd).not.toHaveBeenCalled()
+    expect((screen.getByLabelText("New task name") as HTMLInputElement).value).toBe("リリース")
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" })
+    })
+    expect(onQuickAdd).toHaveBeenCalledWith("todo", "リリース")
+  })
+
   it("is not offered where the person cannot add", () => {
     board()
     expect(screen.queryByRole("button", { name: /new task/i })).toBeNull()

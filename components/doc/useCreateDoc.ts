@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation"
 import { useDispatch } from "react-redux"
 
 import { createDoc } from "@/services/docGraphService"
-import { docCreated } from "@/lib/docCache"
+import { docCreated, subpagePrivate } from "@/lib/docCache"
 import type { DocCreateRequest, DocSpace } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
 
 /** How a new doc starts, and where it goes. */
-export interface CreateDocOptions {
+interface CreateDocOptions {
   /**
    * A template's id. The server writes its body as it makes the doc (N37),
    * so the doc opens with it already there, in every tab, once.
@@ -20,6 +20,8 @@ export interface CreateDocOptions {
   title?: string
   /** The page it goes inside. */
   parentId?: string
+  /** Whether that page is private, when the caller knows (a tree's row): the new page is sent as that (subpagePrivate). */
+  parentPrivate?: boolean
   /** Where it goes at the top: private (the default), the workspace, or a project's or team's space. */
   space?: DocSpace
   /** Right after this page, among its siblings. */
@@ -47,17 +49,18 @@ function subscribe(l: () => void) {
 }
 const current = () => making
 
-/** The request a doc is made with. Pure. */
-export function createRequest(opts: CreateDocOptions): DocCreateRequest {
-  const req: DocCreateRequest = { doc_title: (opts.title ?? "").trim() }
+/**
+ * The request a doc is made with. doc_private always, a subpage's its
+ * parent's: a server without nested pages reads only it and the title
+ * (DocCreateRequest).
+ */
+function createRequest(opts: CreateDocOptions): DocCreateRequest {
+  const doc_title = (opts.title ?? "").trim()
+  const space = opts.space ?? "private"
+  const req: DocCreateRequest = opts.parentId
+    ? { doc_title, parent_uuid: opts.parentId, doc_private: subpagePrivate(opts.parentId, opts.parentPrivate) }
+    : { doc_title, space, doc_private: space !== "workspace" }
   if (opts.templateId) req.template_id = opts.templateId
-  if (opts.parentId) {
-    req.parent_uuid = opts.parentId
-  } else {
-    req.space = opts.space ?? "private"
-    // The first version's field, which a doc at the top still reads.
-    req.doc_private = req.space !== "workspace"
-  }
   if (opts.afterId) req.after_uuid = opts.afterId
   return req
 }

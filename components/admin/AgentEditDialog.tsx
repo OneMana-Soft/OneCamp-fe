@@ -6,6 +6,10 @@ import { SkillLibraryDialog } from "@/components/admin/SkillLibraryDialog"
 import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { TimeField } from "@/components/ui/date-field"
+import { ToggleChip } from "@/components/ui/toggleChip"
+import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
+import { ix } from "@/lib/ui/interactive"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -16,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { TaskMoveFilterFields, ANY_MOVE, type TaskMoveFilter } from "@/components/task/TaskMoveFilterFields"
 import { useFetch } from "@/hooks/useFetch"
+import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import type { UserProfileInterface } from "@/types/user"
 import { AGENT_TEMPLATES, scheduleDaysFor, type AgentTemplate } from "@/lib/agentTemplates"
 import { governanceSentence } from "@/lib/agentCardCopy"
@@ -31,6 +36,7 @@ import { Spark } from "@/components/ui/graphics/motifs"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { secretMoves, secretReentryHint } from "@/lib/utils/secretDestination"
 import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight, Plug, Shield } from "@/lib/icons"
+import { MenuCheck } from "@/components/ui/menuCheck"
 import {
   Agent,
   AgentInput,
@@ -60,7 +66,6 @@ import {
   type RemoteProtocol,
   remoteSecretHow,
 } from "@/services/agentService"
-import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 import { AgentEvalSection } from "@/components/admin/AgentEvalSection"
 import { AgentLearningSection } from "@/components/admin/AgentLearningSection"
 
@@ -214,13 +219,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   // Channels the agent can be scoped to (mention trigger). Only fetched while
   // open. Used to enforce "invited or silent": when channels are picked, the
   // agent only answers @mentions in those channels.
-  const { data: channelsData } = useFetch<ChannelInfoListInterfaceResp>(
-    open ? GetEndpointUrl.GetAllActiveChannelList : "",
-  )
-  const channels: ChannelInfoInterface[] = React.useMemo(
-    () => channelsData?.channels_list || [],
-    [channelsData],
-  )
+  // Every channel, not the list's first page of 20 (useEveryChannel).
+  const { channels } = useEveryChannel(open)
 
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
@@ -323,8 +323,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
         }),
       )
     } catch (e) {
-      const msg = (e as { response?: { data?: { msg?: string } } })?.response?.data?.msg
-      setAguiCheck({ ok: false, error: msg || "The check could not be run." })
+      setAguiCheck({ ok: false, error: apiErrorMessage(e, "The check could not be run.") })
     } finally {
       setAguiChecking(false)
     }
@@ -581,20 +580,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           {channels.map((c) => {
             const on = mentionChannelIds.has(c.ch_uuid)
             return (
-              <button
-                key={c.ch_uuid}
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggleChannel(c.ch_uuid)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                  on
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {on ? <Check className="h-3 w-3" /> : null}#{c.ch_name}
-              </button>
+              <ToggleChip key={c.ch_uuid} pressed={on} onPressedChange={() => toggleChannel(c.ch_uuid)}>
+                #{c.ch_name}
+              </ToggleChip>
             )
           })}
         </div>
@@ -799,21 +787,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               <Label className="text-xs font-medium text-muted-foreground">Start from a template</Label>
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="Agent templates">
                 {AGENT_TEMPLATES.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    title={t.description}
-                    aria-pressed={appliedTemplate?.id === t.id}
-                    onClick={() => applyTemplate(t)}
-                    className={cn(
-                      "rounded-sm border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                      appliedTemplate?.id === t.id
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
-                    )}
-                  >
+                  <ToggleChip key={t.id} title={t.description} pressed={appliedTemplate?.id === t.id} onPressedChange={() => applyTemplate(t)}>
                     {t.name}
-                  </button>
+                  </ToggleChip>
                 ))}
               </div>
               {appliedTemplate && (
@@ -925,19 +901,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     {g.tools.map((t) => {
                       const on = tools.has(t.name)
                       return (
-                        <button
-                          key={t.name}
-                          type="button"
-                          aria-pressed={on}
-                          onClick={() => toggleTool(t.name)}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                            on ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {on ? <Check className="h-3 w-3" /> : null}
+                        <ToggleChip key={t.name} pressed={on} onPressedChange={() => toggleTool(t.name)}>
                           {t.label}
-                        </button>
+                        </ToggleChip>
                       )
                     })}
                   </div>
@@ -967,21 +933,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                         const full = mcpToolFullName(s, t)
                         const on = tools.has(full)
                         return (
-                          <button
-                            key={full}
-                            type="button"
-                            aria-pressed={on}
-                            onClick={() => toggleTool(full)}
-                            title={t.description || t.name}
-                            className={cn(
-                              "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                              on ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground",
-                            )}
-                          >
-                            {on ? <Check className="h-3 w-3" /> : null}
+                          <ToggleChip key={full} pressed={on} onPressedChange={() => toggleTool(full)} title={t.description || t.name}>
                             {t.name}
                             <McpToolRiskBadge tool={t} compact />
-                          </button>
+                          </ToggleChip>
                         )
                       })}
                     </div>
@@ -1097,13 +1052,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     )}
                     <div className="flex items-center gap-2">
                       <Label htmlFor="agent-time" className="text-xs text-muted-foreground">At (your local time)</Label>
-                      <Input
-                        id="agent-time"
-                        type="time"
-                        value={scheduleTime}
-                        onChange={(e) => setScheduleTime(e.target.value || "09:00")}
-                        className="w-32"
-                      />
+                      <TimeField id="agent-time" value={scheduleTime} onChange={(v) => setScheduleTime(v || "09:00")} className="w-32" />
                     </div>
                   </>
                 )}
@@ -1222,28 +1171,19 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 {skills.map((s) => {
                   const on = skillIds.has(s.id)
                   return (
-                    <button
+                    <ToggleChip
                       key={s.id}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => toggleSkill(s.id)}
+                      pressed={on}
+                      onPressedChange={() => toggleSkill(s.id)}
                       title={
                         s.agent_count > 1
                           ? `Used by ${s.agent_count} agents. Editing it changes all of them.\n\n${s.instructions}`
                           : s.instructions
                       }
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                        on
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-background text-muted-foreground hover:text-foreground",
-                      )}
                     >
-                      {on ? <Check className="h-3 w-3" /> : null}{s.name}
-                      {s.agent_count > 1 && (
-                        <span className="text-2xs opacity-60">{s.agent_count}</span>
-                      )}
-                    </button>
+                      {s.name}
+                      {s.agent_count > 1 && <span className="text-2xs tabular-nums text-ink-3">{s.agent_count}</span>}
+                    </ToggleChip>
                   )
                 })}
               </div>
@@ -1282,20 +1222,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 {channels.map((c) => {
                   const on = knowledgeChannelIds.has(c.ch_uuid)
                   return (
-                    <button
-                      key={c.ch_uuid}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => toggleKnowledgeChannel(c.ch_uuid)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                        on
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-background text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {on ? <Check className="h-3 w-3" /> : null}#{c.ch_name}
-                    </button>
+                    <ToggleChip key={c.ch_uuid} pressed={on} onPressedChange={() => toggleKnowledgeChannel(c.ch_uuid)}>
+                      #{c.ch_name}
+                    </ToggleChip>
                   )
                 })}
               </div>
@@ -1310,7 +1239,12 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               How much this agent may do on its own. Reading and thinking always run automatically;
               this only governs actions that change the workspace (create a task, post a message…).
             </p>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <RadioGroupPrimitive.Root
+              value={autonomy}
+              onValueChange={(v) => setAutonomy(v as typeof autonomy)}
+              aria-label="Autonomy for write actions"
+              className="grid gap-2 sm:grid-cols-2"
+            >
               {([
                 {
                   value: "auto" as const,
@@ -1327,27 +1261,18 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   title: "Plan, then approve",
                   desc: "The agent proposes its whole plan as one approval; approve once and all steps run as the owner.",
                 },
-              ]).map((opt) => {
-                const on = autonomy === opt.value
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setAutonomy(opt.value)}
-                    className={cn(
-                      "rounded-lg border p-2.5 text-left transition-colors",
-                      on ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-accent",
-                    )}
-                  >
-                    <div className="flex items-center gap-1.5 text-sm font-medium">
-                      {on ? <Check className="h-3.5 w-3.5 text-primary" /> : null}
-                      {opt.title}
-                    </div>
-                    <p className="mt-0.5 text-2xs text-muted-foreground">{opt.desc}</p>
-                  </button>
-                )
-              })}
-            </div>
+              ]).map((opt) => (
+                // A card of the interaction layer: the accent's tint and ring when chosen,
+                // and the check's place kept, so the title never moves (ST-36).
+                <RadioGroupPrimitive.Item key={opt.value} value={opt.value} {...ix("card")} className="hover-lift rounded-lg bg-raised p-2.5 text-left shadow-e1">
+                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                    <MenuCheck checked={autonomy === opt.value} className="size-3.5 text-brand-text [&>svg]:size-3.5" />
+                    {opt.title}
+                  </span>
+                  <span className="mt-0.5 block text-2xs text-muted-foreground">{opt.desc}</span>
+                </RadioGroupPrimitive.Item>
+              ))}
+            </RadioGroupPrimitive.Root>
           </div>
 
           {/* Advanced — one collapsed section instead of five more fields in the

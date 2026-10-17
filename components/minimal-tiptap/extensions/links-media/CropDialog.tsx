@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/helpers/cn"
 import { viewableFileUrl } from "@/lib/docFiles"
 import { cropBox, cropString, FULL_CROP as FULL, type CropBox as Box } from "../image/crop"
-import { setAt, takePendingImage } from "./blockActions"
+import { takePendingImage } from "./blockActions"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
 
 type Grip = "move" | "nw" | "ne" | "sw" | "se"
@@ -111,7 +111,7 @@ export default function CropDialog({ onClose }: { docId: string; onClose(): void
               // The picture takes the frame's shape at its width (or finds it again as it loads).
               const width = Number(target.node.attrs.width) || 0
               const height = width && size ? Math.round((width * (box.h * size.h)) / (box.w * size.w)) : null
-              setAt(target.editor, target.pos, "image", { crop: cropString(box), height })
+              target.save({ crop: cropString(box), height }, "crop")
               onClose()
             }}
           >

@@ -41,7 +41,7 @@ export function parseBlockLink(hash: string): { blockId: string; hue: CampHue | 
 }
 
 /** This tab's own hue: the one its caret wears for collaborators. */
-export function myHue(editor: Editor): CampHue | null {
+function myHue(editor: Editor): CampHue | null {
   const ext = editor.extensionManager.extensions.find((e) => e.name === "collaborationCursor")
   const user = (ext?.options as { user?: { name?: unknown; id?: unknown; hue?: unknown } } | undefined)?.user
   return user ? collaboratorHue(user) : null

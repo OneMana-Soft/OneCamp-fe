@@ -3,15 +3,16 @@
    rather than as hand-drawn shadow-[...] utilities in the markup. */
 
 /* AI10: the composer is one step rounder than a channel's (16px, the page's
-   main object), raised at e2, with v3's input halo only while it has focus:
-   1px accent at 50% and a 3px halo at 12%. Never at rest. */
+   main object), raised at e2, with the field halo only while it has focus
+   (--ix-halo, app/interaction.css: the 1px accent and a 4px halo). Never at
+   rest. */
 .ai-composer {
   border-radius: 16px;
   box-shadow: var(--e2);
   transition: box-shadow 140ms var(--ease-out);
 }
 .ai-composer:focus-within {
-  box-shadow: var(--e2), 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 4px color-mix(in oklab, var(--brand) 12%, transparent);
+  box-shadow: var(--e2), var(--ix-halo);
 }
 
 /* AI4: your words in a neutral bubble, r16 with a 6px corner at the bottom
@@ -31,9 +32,13 @@
 
 /* S11 and AI8: a source chip whose marker is hovered, or itself hovered,
    rises to e2 with a 1px agent ring at 40%. */
-.ai-source-chip:hover,
 .ai-source-chip[data-lit] {
   box-shadow: var(--e2), 0 0 0 1px color-mix(in oklab, var(--agent) 40%, transparent);
+}
+@media (hover: hover) {
+  .ai-source-chip:hover {
+    box-shadow: var(--e2), 0 0 0 1px color-mix(in oklab, var(--agent) 40%, transparent);
+  }
 }
 
 /* A sunken block with an inset hairline: code, an error note. */

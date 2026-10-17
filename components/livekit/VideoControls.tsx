@@ -382,8 +382,9 @@ function RecordButton({ recording, loading, elapsed, onClick }: { recording: boo
           type="button"
           aria-label={recording ? "Stop recording" : "Record"}
           aria-pressed={recording}
-          disabled={loading}
-          onClick={onClick}
+          // Starting: it keeps its tooltip (a disabled button shows none).
+          aria-disabled={loading || undefined}
+          onClick={loading ? undefined : onClick}
           className={cn(DOCK_BUTTON, DOCK_STATE_CLASS.on, recording && "flex w-auto gap-2 px-3 font-mono text-meta @3xl:w-auto")}
         >
           {loading ? (

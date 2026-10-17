@@ -9,8 +9,6 @@
 
 import type { JSONContent } from '@tiptap/core'
 
-export type CodecFormat = 'markdown' | 'html' | 'json'
-
 export interface Codec {
   toMarkdown(doc: JSONContent): string
   fromMarkdown(markdown: string): JSONContent

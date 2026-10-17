@@ -82,10 +82,10 @@ export function FindTimeSuggestions({
       </div>
       {slots && slots.length === 0 && <p className="text-ui-sm text-ink-2">No shared free time this week. Try a shorter meeting.</p>}
       {slots && slots.length > 0 && (
-        // The strip scrolls sideways: its edge fades, so a cut chip reads
-        // as "more this way" rather than as broken; the end pad keeps the
-        // last chip clear of the fade.
-        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 pr-6 [mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]" data-find-time-strip="">
+        // The strip scrolls sideways: an edge with more past it fades, so a
+        // cut chip reads as "more this way" rather than as broken, and it
+        // rests on a whole day (data-edge-fade, every strip's one behaviour).
+        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1" data-find-time-strip="" data-edge-fade="">
           {groupByDay(slots, tz).map((d) => (
             <div key={d.day} className="flex shrink-0 flex-col gap-1">
               <span className="text-micro font-medium tabular-nums text-ink-3">{formatDay(d.day)}</span>
@@ -98,8 +98,9 @@ export function FindTimeSuggestions({
                       type="button"
                       aria-pressed={on}
                       onClick={() => onPick(new Date(s.start), new Date(s.end))}
+                      data-touch-target=""
                       className={cn(
-                        "extend-touch-target h-7 rounded-md px-2 text-meta font-medium tabular-nums outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-brand",
+                        "h-7 rounded-md px-2 text-meta font-medium tabular-nums outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-brand",
                         on ? "bg-brand-muted text-brand-text ring-1 ring-inset ring-brand" : "bg-raised text-ink shadow-e1 hover:shadow-e2",
                       )}
                     >

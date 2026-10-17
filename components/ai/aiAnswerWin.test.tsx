@@ -87,3 +87,17 @@ describe("a question the page arrived with (?ask= from search)", () => {
     expect(screen.getAllByText("When is the launch?")).toHaveLength(1)
   })
 })
+
+describe("a question the page arrived with (?ask= from search)", () => {
+  it("is asked once, even when the panel renders again", async () => {
+    serverAnswers(stream('{"content":"Thursday."}', '{"done":true}'))
+    let rerender: (ui: React.ReactElement) => void = () => {}
+    await act(async () => {
+      ;({ rerender } = render(<AiChatPanel variant="page" initialAsk="When is the launch?" />))
+    })
+    await screen.findByText("Thursday.")
+    await act(async () => rerender(<AiChatPanel variant="page" initialAsk="When is the launch?" />))
+    expect(calls.filter((u) => u.endsWith("/ai/ask/stream"))).toHaveLength(1)
+    expect(screen.getAllByText("When is the launch?")).toHaveLength(1)
+  })
+})

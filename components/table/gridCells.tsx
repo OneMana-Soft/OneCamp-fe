@@ -333,7 +333,7 @@ export function SelectCell({
       ))}
       {more > 0 ? <span className="chip h-[22px] shrink-0 text-ink-2">+{more}</span> : null}
       {selected.length === 0 && !readOnly ? (
-        <span className="text-ui text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Select…</span>
+        <span className="text-ui text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Select…</span>
       ) : null}
     </span>
   )
@@ -654,7 +654,7 @@ export function TextCell({
             rel="noopener noreferrer"
             tabIndex={-1}
             aria-label={`Open ${urlHost(local)}`}
-            className="pointer-events-auto shrink-0 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover/cell:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+            className="pointer-events-auto shrink-0 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover/cell:opacity-100 group-focus-within/cell:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
           >
             <ArrowUpRight className="size-3" />
           </a>
@@ -666,7 +666,7 @@ export function TextCell({
       <span className="flex min-w-0 items-center gap-1">
         <span className="truncate text-ink">{local}</span>
         {href ? (
-          <a href={href} tabIndex={-1} aria-label={`Write to ${local}`} className="pointer-events-auto shrink-0 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover/cell:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
+          <a href={href} tabIndex={-1} aria-label={`Write to ${local}`} className="pointer-events-auto shrink-0 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover/cell:opacity-100 group-focus-within/cell:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
             <Mail className="size-3" />
           </a>
         ) : null}

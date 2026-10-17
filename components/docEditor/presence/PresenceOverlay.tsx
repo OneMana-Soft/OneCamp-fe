@@ -1,20 +1,19 @@
 "use client"
 
 /**
- * Live presence over a doc's editor (B8; the 'editorOverlay' slot, loaded with
- * the first editor). It
- *   - says this tab's activity in its awareness state: idle after 2 minutes
- *     with no input, and a pulse when it edits (at most every 10 seconds);
- *   - reads everyone's into the presence store, by awareness client, for the
- *     stack (idle in amber, Editing or Viewing) and the meta line ("Edited
- *     just now by Maya");
+ * Live presence over a doc's editor (B8; the 'editorOverlay' slot, loaded a
+ * moment after the doc opens). It
+ *   - says this tab's idle state in its awareness: idle after 2 minutes with
+ *     no input;
  *   - says where this tab is looking only while someone follows it, so a
  *     reader's tab, or a doc nobody follows, sends nothing more;
  *   - follows someone: their screen, or their caret as it moves, until Esc,
  *     until the reader moves the page themselves, or until they leave; and
  *     jumps to someone once.
  * Someone is always found by their awareness client, never by name: two
- * people called Sam are two people (N50).
+ * people called Sam are two people (N50). This tab's edits, and everyone's
+ * state read into the presence store (the stack, "Edited just now by Maya"),
+ * start with the editor instead: presence/fromTheStart.ts.
  */
 
 import * as React from "react"
@@ -24,33 +23,30 @@ import { useDocBus } from "@/components/docEditor/registry/commandBus"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { collaboratorHue } from "@/lib/identityHue"
 import { cn } from "@/lib/utils/helpers/cn"
-import { setPresence } from "./store"
 import { setPresenceControl } from "./control"
-import { followersOf, newSeen, presenceOf, type AwarenessState } from "./people"
+import { followersOf, type AwarenessState } from "./people"
 import { awarenessOf, flagCaret, posOf, scrollerOf, showPos, showView, viewOf, type AwarenessLike, type View } from "./live"
 
 const IDLE_AFTER = 2 * 60_000
-const EDIT_PULSE_EVERY = 10_000
 const PAGE_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "])
 
-export default function PresenceOverlay({ docId, editor }: SlotProps) {
+export default function PresenceOverlay({ editor }: SlotProps) {
   const awareness = editor && !editor.isDestroyed ? awarenessOf(editor) : null
   if (!editor || !awareness) return null
-  return <Presence key={awareness.clientID} docId={docId} editor={editor} awareness={awareness} />
+  return <Presence key={awareness.clientID} editor={editor} awareness={awareness} />
 }
 
 const caretOf = (s: AwarenessState | undefined) => (s?.cursor as { head?: unknown } | null | undefined)?.head ?? null
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
 
-function Presence({ docId, editor, awareness }: { docId: string; editor: Editor; awareness: AwarenessLike }) {
+function Presence({ editor, awareness }: { editor: Editor; awareness: AwarenessLike }) {
   const bus = useDocBus()
   const [following, setFollowing] = React.useState<number | null>(null)
   const [said, setSaid] = React.useState("")
   const followingRef = React.useRef(following)
   followingRef.current = following
 
-  usePublishActivity(editor, awareness)
-  useReadPresence(docId, awareness)
+  usePublishIdle(awareness)
   useSayWhereIAm(editor, awareness)
 
   // The one followed says where they are looking while this is set.
@@ -141,8 +137,8 @@ function Presence({ docId, editor, awareness }: { docId: string; editor: Editor;
   )
 }
 
-/** Says this tab's idle state and its edits in its awareness state. */
-function usePublishActivity(editor: Editor, awareness: AwarenessLike) {
+/** Says this tab's idle state in its awareness state. */
+function usePublishIdle(awareness: AwarenessLike) {
   React.useEffect(() => {
     // Unknown until said: a tab opened out of sight says it is idle 2 minutes on.
     let idle: boolean | null = null
@@ -176,63 +172,6 @@ function usePublishActivity(editor: Editor, awareness: AwarenessLike) {
       document.removeEventListener("visibilitychange", seen)
     }
   }, [awareness])
-
-  React.useEffect(() => {
-    let last = 0
-    const onUpdate = ({ transaction }: { transaction: { docChanged: boolean; getMeta(key: string): unknown } }) => {
-      if (!transaction.docChanged) return
-      // What another tab wrote arrives through the sync: not this tab's edit.
-      if ((transaction.getMeta("y-sync$") as { isChangeOrigin?: boolean } | undefined)?.isChangeOrigin) return
-      const now = Date.now()
-      if (now - last < EDIT_PULSE_EVERY) return
-      last = now
-      awareness.setLocalStateField("edited", now)
-    }
-    editor.on("update", onUpdate)
-    return () => {
-      editor.off("update", onUpdate)
-    }
-  }, [editor, awareness])
-}
-
-/** How many editors of a doc read its presence (split view): the store is cleared when the last goes. */
-const readers = new Map<string, number>()
-
-function useReadPresence(docId: string, awareness: AwarenessLike) {
-  React.useEffect(() => {
-    readers.set(docId, (readers.get(docId) ?? 0) + 1)
-    const seen = newSeen()
-    let edit: ReturnType<typeof presenceOf>["edit"] = null
-    let said = ""
-    let frame = 0
-    const read = () => {
-      frame = 0
-      const p = presenceOf(awareness.getStates(), awareness.clientID, seen, edit, Date.now())
-      edit = p.edit
-      // Carets move on every key; the stack and the meta line render only
-      // when who is here, or how, changed.
-      const now = JSON.stringify(p)
-      if (now === said) return
-      said = now
-      setPresence(docId, p)
-    }
-    // At most once a frame.
-    const onChange = () => {
-      if (!frame) frame = window.requestAnimationFrame(read)
-    }
-    awareness.on("change", onChange)
-    read()
-    return () => {
-      awareness.off("change", onChange)
-      window.cancelAnimationFrame(frame)
-      const left = (readers.get(docId) ?? 1) - 1
-      if (left > 0) readers.set(docId, left)
-      else {
-        readers.delete(docId)
-        setPresence(docId, null)
-      }
-    }
-  }, [docId, awareness])
 }
 
 /** While someone follows this tab, it says where it is looking (its top block), as it scrolls. */

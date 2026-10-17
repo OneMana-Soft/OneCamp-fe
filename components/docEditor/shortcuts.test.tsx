@@ -87,7 +87,6 @@ async function docEditor(html = "<p></p>") {
     const e = useDocEditor({
       collaboration: { enabled: true, documentId: "d", username: "Sam Rivera", userId: "u-sam" },
       provider,
-      providerSynced: true,
     })
     editor = e as unknown as Editor | null
     return e ? (

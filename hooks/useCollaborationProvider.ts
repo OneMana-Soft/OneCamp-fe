@@ -14,7 +14,7 @@ import * as React from 'react'
 import { useCollabSession, type PresenceUser, type RecoveredEdits, type SessionStatus } from '@/lib/collabSession'
 
 export { collabUrl } from '@/lib/collabSocket'
-export { epochIn, samePeople, UNAVAILABLE_REASON, type RecoveredEdits } from '@/lib/collabSession'
+export { samePeople, UNAVAILABLE_REASON, type RecoveredEdits } from '@/lib/collabSession'
 
 interface CollaborationConfig {
   enabled: boolean
@@ -54,17 +54,7 @@ export function discardLocalCopy(documentId: string) {
   }
 }
 
-/** The server's stateless notices this hook used to act on (kept for callers that read them). */
-export function collabNotice(payload: string): 'epoch-changed' | 'schema-outdated' | null {
-  try {
-    const type = JSON.parse(payload)?.type
-    return type === 'epoch-changed' || type === 'schema-outdated' ? type : null
-  } catch {
-    return null
-  }
-}
-
-export interface CollaborationConnection {
+interface CollaborationConnection {
   provider: ReturnType<typeof useCollabSession>['provider']
   status: SessionStatus
   synced: boolean

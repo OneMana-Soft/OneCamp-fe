@@ -22,7 +22,6 @@ import {
 } from "@/store/slice/groupChatSlice";
 import {GroupChatMessages} from "@/components/groupChat/groupChatMessages";
 import {useSearchParams} from "next/navigation";
-import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
 import { pageEdgeQuery } from "@/lib/chat/pageEdge";
 import { useOlderPages } from "@/hooks/useOlderPages";
@@ -41,7 +40,6 @@ const EMPTY_CHATS: PostsRes[] = []
 // message. On a phone that re-render cost up to 300 ms a key.
 export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, messageId: propMessageId, unreadOnOpen}: ChatMessageListProps) {
 
-    const { isMobile } = useMedia();
     const searchParams = useLinkSearchParams(useSearchParams());
     const messageId = propMessageId || searchParams?.get('messageId') || undefined;
 
@@ -229,10 +227,12 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
 
     // Failed, with nothing to show: say so, never "This is the start of your
     // group". A group asks who is in it before its messages, so either answer
-    // failing is the conversation failing to load.
+    // failing is the conversation failing to load. Opened at a message, the
+    // page around it is the messages' read.
     const peopleFailed = !!dmParticipantsInfo.isError && !dmParticipantsInfo.data
-    if (chatMessageState.length === 0 && (peopleFailed || (latestMsg.isError && !latestMsg.data))) {
-        return <ConversationLoadError subject="this conversation" retry={() => (peopleFailed ? dmParticipantsInfo.mutate() : latestMsg.mutate())} />
+    const opening = messageId ? getNewChatsWithCurrentChat : latestMsg
+    if (chatMessageState.length === 0 && (peopleFailed || (opening.isError && !opening.data))) {
+        return <ConversationLoadError subject="this conversation" retry={() => (peopleFailed ? dmParticipantsInfo.mutate() : opening.mutate())} />
     }
 
 

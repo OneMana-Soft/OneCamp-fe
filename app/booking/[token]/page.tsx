@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { cancelBooking, getBooking, type BookingView } from "@/services/bookingService"
 import { publicTrouble, retryDelayMs, retryingText, type PublicTrouble } from "@/services/publicApi"
 import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame"
-import { PublicGone } from "@/components/guest/publicStates"
+import { PublicGoneLater as PublicGone } from "@/components/guest/publicGoneLater"
 import { BookingSpot, longDay, slotTime, zoneLabel } from "@/components/booking/BookingFlow"
 
 export default function ManageBooking({ params }: { params: Promise<{ token: string }> }) {

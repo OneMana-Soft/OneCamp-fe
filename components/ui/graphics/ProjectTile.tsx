@@ -26,7 +26,7 @@ export function projectGlyphFor(id: string | null | undefined, chosen?: string |
 }
 
 /** The sizes, with their radius and glyph (work.md W07; 14 sits in a 12px meta line, 24 is a search row's lead, 32 Home's project card). */
-const SIZES = {
+export const TILE_SIZES = {
   14: { radius: 4, glyph: 9 },
   16: { radius: 5, glyph: 10 },
   20: { radius: 6, glyph: 12 },
@@ -35,7 +35,7 @@ const SIZES = {
   32: { radius: 9, glyph: 16 },
   36: { radius: 10, glyph: 18 },
 } as const
-export type ProjectTileSize = keyof typeof SIZES
+export type ProjectTileSize = keyof typeof TILE_SIZES
 
 /**
  * A project's tile (design v3, work.md W07): a gradient from its hue's a1 to
@@ -69,7 +69,7 @@ export function ProjectTile({
   className?: string
 }) {
   const h = useProjectHue(id, chosen)
-  const { radius, glyph: g } = SIZES[size]
+  const { radius, glyph: g } = TILE_SIZES[size]
   const Glyph = PROJECT_GLYPHS[projectGlyphFor(id, glyph)]
   const style: CSSProperties = {
     width: size,

@@ -3,15 +3,16 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 
 /**
  * The content area's pop list (content.md §1.5): the slash menu, mentions,
  * references, the column type picker, the formula autocomplete and the
  * booking page's time zones. `pop`, e3, r12, 4 px padding; groups with 24 px
  * sentence-case headers; 32 px rows with a 24 px tile, the label and kbd
- * chips; and one highlight pill that slides between rows (`menu-cursor`)
- * instead of each row flashing. The highlighted row's description sits in a
- * footer, so rows stay one line.
+ * chips; and one highlight pill that slides between rows (`menu-cursor`,
+ * tinted by the interaction layer) instead of each row flashing. The
+ * highlighted row's description sits in a footer, so rows stay one line.
  *
  * Keys come from wherever focus is (a Tiptap suggestion keeps focus in the
  * editor), so the list exposes `onKeyDown` on its ref: ↑ ↓ wrap, Enter and
@@ -296,7 +297,7 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
           <span
             aria-hidden="true"
             data-menu-cursor=""
-            className="content-menu-cursor pointer-events-none absolute inset-x-1 top-0 rounded-lg bg-press"
+            className="content-menu-cursor pointer-events-none absolute inset-x-1 top-0 rounded-lg"
             style={{ height: cursor.h, transform: `translateY(${cursor.y}px)` }}
           />
         ) : null}
@@ -324,6 +325,7 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
                   rowRefs.current[i] = el
                 }}
                 id={`${listId}-${item.id}`}
+                {...ix("item")}
                 role="option"
                 aria-selected={isActive}
                 aria-disabled={item.disabled || undefined}
@@ -338,10 +340,9 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
                   if (!item.disabled) onSelect(item)
                 }}
                 className={cn(
-                  "group/row relative flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2 text-ui font-[450] text-ink-2",
+                  "group/row relative flex select-none items-center gap-2.5 rounded-lg px-2 text-ui font-[450] text-ink-2",
                   item.meta ? "h-11" : roomy ? "h-9" : "h-8",
                   isActive && "text-ink",
-                  item.disabled && "cursor-default text-ink-4",
                 )}
               >
                 {item.tile ? (

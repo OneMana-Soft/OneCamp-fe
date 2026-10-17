@@ -5,8 +5,9 @@
  *
  * The lead follows design v3's identity rules, where every type used to get a
  * hued tile: a project its gradient tile, a task its status glyph, a message
- * its author's face, a person their avatar, and a channel, a doc, a board or
- * a file a glyph in ink-3, since a channel and a doc carry no hue. The title
+ * its author's face, a person their avatar, a channel its tile and a doc its
+ * glyph in their hues (INTERACTION_SPEC D13), and a board or a file a glyph in
+ * ink-3. A channel's or a doc's row carries its hue (data-hue). The title
  * carries the match (the sun highlighter), the second line says where it is
  * and who, and a doc or a task that matched in its body adds the passage.
  */
@@ -19,8 +20,11 @@ import { HubRow, HubToolButton } from "@/components/ui/hubRow"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { StatusGlyph, type StatusKind } from "@/components/ui/graphics/glyphs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
+import { resultHue } from "@/lib/search/resultHue"
+import { DocIcon } from "@/components/docEditor/DocIcon"
 import { PrincipalTag } from "@/components/ui/principalTag"
-import { Eye, FileText, Hash, LayoutDashboard, Link, Paperclip, Users } from "@/lib/icons"
+import { Eye, FileText, LayoutDashboard, Link, Paperclip, Users } from "@/lib/icons"
 import { displayNameOf } from "@/lib/personName"
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { getHighlightedTitle, isResultPreviewable, Snippet } from "@/lib/utils/helpers/search"
@@ -58,7 +62,6 @@ export function SearchLead({ result }: { result: SearchResult }) {
     case "post":
     case "comment": {
       const r = result[result.type] ?? {}
-      const id = r.chat_by_user_id || r.post_by_user_id || r.comment_by_user_id
       const name = r.chat_by_user_full_name || r.post_by_user_full_name || r.comment_by_user_full_name
       return (
         <span data-search-lead="message" className="grid place-items-center">
@@ -72,8 +75,20 @@ export function SearchLead({ result }: { result: SearchResult }) {
           <IdentityMark variant="avatar" size={28} id={avatarSeed(result.user)} label={displayNameOf(result.user)} />
         </span>
       )
+    case "channel":
+      return (
+        <span data-search-lead="channel" className="grid size-6 place-items-center">
+          <ChannelTile id={result.channel?.ch_id} isPrivate={!!result.channel?.ch_private} size={24} />
+        </span>
+      )
+    case "doc":
+      return (
+        <span data-search-lead="doc" className="grid size-6 place-items-center">
+          <DocIcon id={result.doc?.doc_uuid} icon={result.doc?.doc_icon} />
+        </span>
+      )
     default: {
-      const Glyph = result.type === "channel" ? Hash : result.type === "team" ? Users : result.type === "board" ? LayoutDashboard : result.type === "attachment" ? Paperclip : FileText
+      const Glyph = result.type === "team" ? Users : result.type === "board" ? LayoutDashboard : result.type === "attachment" ? Paperclip : FileText
       return (
         <span data-search-lead={result.type} className="grid size-6 place-items-center text-ink-3 [&_svg]:size-4">
           <Glyph />
@@ -228,8 +243,10 @@ export function SearchResultRow({ result, onOpen, onPreview, href }: SearchResul
   return (
     <HubRow
       as="li"
+      opens
       density="two-line"
       data-search-row={result.type}
+      data-hue={resultHue(result)}
       leadSize={result.type === "user" ? 28 : 24}
       className="min-h-14"
       lead={<SearchLead result={result} />}

@@ -16,7 +16,7 @@ import { Kbd } from "@/components/ui/CommandList"
 import { openFloating } from "@/components/docEditor/technical/floating"
 import { isComposingKey } from "@/lib/keys/ime"
 
-export interface MathEditorOptions {
+interface MathEditorOptions {
   anchor: HTMLElement
   latex: string
   /** A block equation: several lines, ⌘↩ to finish. */

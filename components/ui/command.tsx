@@ -5,6 +5,7 @@ import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 import { MenuCheck, menuCheckState, type MenuChecked } from "@/components/ui/menuCheck"
 
 const Command = React.forwardRef<
@@ -110,9 +111,10 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-highlight data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "relative flex gap-2 select-none items-center rounded-md px-2 py-1.5 text-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
       className
     )}
+    {...ix("item")}
     {...(checked === undefined ? {} : menuCheckState(checked))}
     {...props}
   >
@@ -130,7 +132,7 @@ const CommandShortcut = ({
   return (
     <span
       className={cn(
-        "ml-auto pl-4 text-xs text-muted-foreground",
+        "ml-auto pl-4 text-xs tabular-nums text-muted-foreground",
         className
       )}
       {...props}

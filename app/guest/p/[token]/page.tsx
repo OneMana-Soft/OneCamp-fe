@@ -8,7 +8,7 @@ import { shortDate } from "@/lib/utils/date/shortDate"
 // for the live connection.
 
 import { use, useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, Calendar, FolderKanban, MessageSquare, User, X } from "@/lib/icons"
+import { ArrowLeft, X } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
   reviewGuestTask,
@@ -27,7 +27,6 @@ import {
   GuestNotYet,
   GuestPanelPending,
   GuestTroubleNote,
-  GuestTypeTile,
   pollOutcome,
   useGuestName,
   useGuestPoll,

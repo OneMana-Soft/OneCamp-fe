@@ -10,6 +10,7 @@ import Link from "next/link"
 import { addDays, format, startOfDay } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { TimeField } from "@/components/ui/date-field"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -84,7 +85,9 @@ export function BookingSettings() {
   return (
     <div className="h-full overflow-y-auto bg-sheet" data-booking-settings="">
       <div className="mx-auto w-full max-w-[960px] px-4 pb-16 pt-6 sm:px-8">
-        <div className="flex items-center gap-2 pb-1">
+        {/* One left edge for the title, its line, the card and New booking page
+            (PTC-52): on a computer the back arrow sits in the gutter. */}
+        <div className="flex items-center gap-2 pb-1 sm:-ml-9" data-booking-header="">
           {editing ? (
             <Button variant="ghost" size="icon-sm" aria-label="Back to booking pages" onClick={() => setEditing(null)}>
               <ChevronLeft />
@@ -98,7 +101,7 @@ export function BookingSettings() {
           )}
           <h1 className="font-display text-title-2 font-semibold text-ink">{editing ? (editing.id ? editing.title || "Booking page" : "New booking page") : "Booking pages"}</h1>
         </div>
-        <p className="pb-6 pl-9 text-ui text-ink-2">
+        <p className="pb-6 pl-9 text-ui text-ink-2 sm:pl-0">
           {editing ? "People outside your workspace pick a time you're free. It lands on your calendar." : "Share a link and let people book time with you, without the back-and-forth."}
         </p>
         {editing ? (
@@ -165,17 +168,18 @@ function PageList({ pages, loading, onEdit, onChanged }: { pages: BookingPage[];
         ) : (
           <ul className="grid">
             {pages.map((p) => (
-              <li key={p.id} className={RESOURCE_ROW}>
+              <li key={p.id} className={RESOURCE_ROW} data-touch-group="">
                 <span aria-hidden="true" className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", p.active ? "bg-brand-muted text-brand-text" : "bg-sunken text-ink-3")}>
                   <Link2 className="size-4" />
                 </span>
-                <button type="button" onClick={() => onEdit(p)} className="min-w-0 flex-1 text-left outline-none focus-visible:underline">
+                <button type="button" onClick={() => onEdit(p)} className="min-w-0 flex-1 rounded-sm text-left">
                   <span className="block truncate text-ui font-medium text-ink">
                     {p.title}
                     {!p.active && <span className="ml-2 text-meta font-normal text-ink-3">Paused</span>}
                   </span>
                   <span className="block truncate text-meta text-ink-3">
                     {p.duration_minutes} min · /book/{p.slug}
+                    {p.upcoming_bookings ? ` · ${p.upcoming_bookings} upcoming` : ""}
                   </span>
                 </button>
                 <Button variant="ghost" size="icon-sm" aria-label={`Copy the link to ${p.title}`} onClick={() => copy(p.slug)}>
@@ -243,7 +247,7 @@ function PageEditor({ page, onCancel, onSaved }: { page: BookingPage; onCancel: 
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="bp-slug">Link</Label>
-          <div className="flex h-8 items-center rounded-lg bg-raised pl-2.5 text-ui shadow-e1 focus-within:ring-1 focus-within:ring-brand/50">
+          <div className="flex h-8 items-center rounded-lg bg-raised pl-2.5 text-ui shadow-e1 focus-within:focus-halo">
             <span className="shrink-0 text-ink-3">/book/</span>
             <input
               id="bp-slug"
@@ -293,9 +297,9 @@ function PageEditor({ page, onCancel, onSaved }: { page: BookingPage; onCancel: 
             })}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-ui text-ink-2">
-            <Input dense type="time" aria-label="From" value={p.hours.start} onChange={(e) => setHours({ start: e.target.value })} className="w-28" />
+            <span className="w-28"><TimeField dense aria-label="From" value={p.hours.start} onChange={(start) => setHours({ start })} className="h-8" /></span>
             <span>to</span>
-            <Input dense type="time" aria-label="Until" value={p.hours.end} onChange={(e) => setHours({ end: e.target.value })} className="w-28" />
+            <span className="w-28"><TimeField dense aria-label="Until" value={p.hours.end} since={p.hours.start} onChange={(end) => setHours({ end })} className="h-8" /></span>
             <Select value={p.hours.tz} onValueChange={(tz) => setHours({ tz })}>
               <SelectTrigger dense className="min-w-0 flex-1" aria-label="Time zone">
                 <SelectValue />

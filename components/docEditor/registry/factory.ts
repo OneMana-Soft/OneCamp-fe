@@ -14,6 +14,11 @@
  * A spec with load() is fetched first (loadBlocks); an editor is built only
  * once its kind's blocks are all here (blocksReady), because y-prosemirror
  * deletes from the shared doc whatever its editor's schema can't hold.
+ *
+ * A spec with onDemand (plugins only: no schema) gives every editor of its
+ * kind its stand-ins (onDemand.ts, loaded with the lazy blocks, off a route's
+ * first load), and is itself waited for only by an editor whose saved content
+ * already holds its node: the rest fetch it when the doc first holds one.
  */
 
 import * as React from 'react'
@@ -23,7 +28,7 @@ import { blocksFor, registryVersion, subscribeRegistry, type EditionGate } from 
 import type { BlockContext, BlockSpec, EditorKind } from './types'
 
 /** Where a package's block goes when it names no order: after every built-in one. */
-export const PACKAGE_ORDER = 10_000
+const PACKAGE_ORDER = 10_000
 
 /** StarterKit's parts. One left unnamed by every spec is switched off. */
 const STARTER_KEYS = [
@@ -41,7 +46,7 @@ export function specsFor(kind: EditorKind, gate: EditionGate): BlockSpec[] {
 }
 
 /** StarterKit's options from the specs that use it: theirs, and false for the rest. */
-export function starterKitOptions(specs: BlockSpec[]): Record<string, unknown> {
+function starterKitOptions(specs: BlockSpec[]): Record<string, unknown> {
   const options: Record<string, unknown> = Object.fromEntries(STARTER_KEYS.map((k) => [k, false]))
   for (const spec of specs) if (spec.starterKit) Object.assign(options, spec.starterKit)
   return options
@@ -52,20 +57,46 @@ export function starterKitOptions(specs: BlockSpec[]): Record<string, unknown> {
 const loaded = new Map<string, AnyExtension[] | ((ctx: BlockContext) => AnyExtension[])>()
 const loading = new Map<string, Promise<void>>()
 
-/** The specs of a kind still to load. */
-export function pendingBlocks(kind: EditorKind, gate: EditionGate): BlockSpec[] {
-  return specsFor(kind, gate).filter((s) => s.load && !loaded.has(s.id))
+// The stand-ins for blocks on demand (onDemand.ts), loaded like a lazy block.
+let onDemand: typeof import('./onDemand') | null = null
+let onDemandLoading: Promise<typeof import('./onDemand')> | null = null
+function loadOnDemand() {
+  onDemandLoading ??= import('./onDemand').then(
+    (m) => (onDemand = m),
+    (e) => {
+      onDemandLoading = null
+      throw e
+    },
+  )
+  return onDemandLoading
 }
 
-/** Whether every block of a kind is here, so its editor can be built. */
-export function blocksReady(kind: EditorKind, gate: EditionGate): boolean {
-  return pendingBlocks(kind, gate).length === 0
+/** Whether an on-demand block holds up an editor: its stand-ins aren't here yet, or the saved content holds its node and its chunk isn't here. */
+function onDemandPending(spec: BlockSpec, saved: string): boolean {
+  if (!spec.onDemand) return false
+  if (!onDemand) return true
+  return saved !== '' && !onDemand.onDemandHere(spec.id) && spec.onDemand.saved.test(saved)
 }
 
-/** Fetches the blocks of a kind that load lazily. Safe to call early (on a link's hover) and often. */
-export function loadBlocks(kind: EditorKind, gate: EditionGate): Promise<void> {
+/**
+ * The specs of a kind still to load: those that load lazily, and those on
+ * demand whose node the editor's saved content (HTML) already holds.
+ */
+export function pendingBlocks(kind: EditorKind, gate: EditionGate, saved = ''): BlockSpec[] {
+  return specsFor(kind, gate).filter((s) => (s.load && !loaded.has(s.id)) || onDemandPending(s, saved))
+}
+
+/** Whether every block of a kind is here, so its editor can be built (one holding this saved content). */
+export function blocksReady(kind: EditorKind, gate: EditionGate, saved = ''): boolean {
+  return pendingBlocks(kind, gate, saved).length === 0
+}
+
+/** Fetches the blocks of a kind that load lazily (and those on demand its saved content asks for). Safe to call early (on a link's hover) and often. */
+export function loadBlocks(kind: EditorKind, gate: EditionGate, saved = ''): Promise<void> {
   return Promise.all(
-    pendingBlocks(kind, gate).map((spec) => {
+    pendingBlocks(kind, gate, saved).map((spec) => {
+      const od = spec.onDemand
+      if (od) return loadOnDemand().then((m) => (saved !== '' && od.saved.test(saved) ? m.fetchOnDemand(spec.id, od).then(() => undefined) : undefined))
       let p = loading.get(spec.id)
       if (!p) {
         p = spec.load!().then(
@@ -100,6 +131,10 @@ export function extensionsFor(ctx: BlockContext): AnyExtension[] {
     }
     if (spec.extensions) out.push(...spec.extensions)
     if (spec.create) out.push(...spec.create(ctx))
+    if (spec.onDemand) {
+      if (!onDemand) throw new Error(`The block "${spec.id}" hasn't loaded yet: build the ${ctx.kind} editor once blocksReady`)
+      out.push(onDemand.onDemandExtension(spec.id, spec.onDemand))
+    }
     if (spec.load) {
       const exts = loaded.get(spec.id)
       if (!exts) throw new Error(`The block "${spec.id}" hasn't loaded yet: build the ${ctx.kind} editor once blocksReady`)
@@ -125,16 +160,24 @@ function standIns(list: AnyExtension[]): AnyExtension[] {
 
 /**
  * Whether an editor of this kind can be built yet; starts loading what it
- * waits for. True at once when nothing of the kind loads lazily.
+ * waits for. True at once when nothing of the kind loads lazily. saved is the
+ * editor's saved content: a doc holding a block on demand waits for it, until
+ * its editor is built; a later copy of the content that holds one never takes
+ * the editor down to rebuild it (its stand-ins fetch it instead).
  */
-export function useBlocksReady(kind: EditorKind, gate: EditionGate): boolean {
+export function useBlocksReady(kind: EditorKind, gate: EditionGate, saved = ''): boolean {
   const version = React.useSyncExternalStore(subscribeRegistry, registryVersion, registryVersion)
   const [, setTick] = React.useState(0)
-  const ready = blocksReady(kind, gate)
+  // Once built, the saved content asks for nothing more: a block on demand
+  // comes through the editor's stand-ins (blocks that load lazily still do).
+  const built = React.useRef(false)
+  const asks = built.current ? '' : saved
+  const ready = blocksReady(kind, gate, asks)
+  if (ready) built.current = true
   React.useEffect(() => {
     if (ready) return
     let live = true
-    loadBlocks(kind, gate).then(
+    loadBlocks(kind, gate, asks).then(
       () => live && setTick((t) => t + 1),
       (e) => console.error(`Couldn't load the ${kind} editor's blocks`, e),
     )
@@ -142,6 +185,6 @@ export function useBlocksReady(kind: EditorKind, gate: EditionGate): boolean {
       live = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- gate by value
-  }, [ready, kind, gate.ai, version])
+  }, [ready, kind, gate.ai, version, asks])
   return ready
 }

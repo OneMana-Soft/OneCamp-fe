@@ -32,7 +32,10 @@ describe("deleting a form", () => {
     expect(ask.textContent).toContain("Its link stops working for anyone who has it.")
     expect(ask.textContent).toContain("The 3 tasks its answers made stay in the project.")
     expect(ask.textContent).toContain("This can't be undone.")
-    expect(screen.getByRole("button", { name: "Delete form" }).className).toMatch(/destructive/)
+    // Danger ink, and the interaction layer's danger tint under the cursor.
+    const del = screen.getByRole("button", { name: "Delete form" })
+    expect(del.className).toContain("text-danger-ink")
+    expect(del.getAttribute("data-tone")).toBe("danger")
   })
 
   it("says so when nobody has answered", () => {

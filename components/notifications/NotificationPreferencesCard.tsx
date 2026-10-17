@@ -2,8 +2,8 @@
 
 /**
  * Your notification preferences (design v3, admin S2): email, the digest and
- * quiet hours. ONE save model, instant: each switch, checkbox and choice
- * saves the moment it changes and says "Saved" with the row's tick; the time
+ * quiet hours. ONE save model, instant: each switch and choice saves the
+ * moment it changes and says "Saved" with the row's tick; the time
  * fields save 600ms after the last keystroke. The page used to say "Changes
  * here wait for Save" for this card while every other card on it saved at
  * once, with the Save far below.
@@ -19,15 +19,14 @@
  * (no provider configured): said once, at the top; a request that FAILED is
  * not that, and says the load failed with Try again.
  *
- * At 720px and wider the events are a matrix: events down the side, a
- * column per channel the server stores per event. Today that is Email only
- * (the preference model has no per-event push or in-app flags), so the
- * matrix has one column; a channel gains a column when the server stores it.
+ * Each event is a switch, on a computer and a phone alike. The preference
+ * model stores email per event only (push and in-app are not per event yet).
  */
 
 import * as React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
+import { TimeField } from "@/components/ui/date-field"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import {
   SettingRow,
@@ -95,11 +94,6 @@ export const EMAIL_EVENTS = [
   { key: "email_channel_invites", label: "Channel and project invites", help: "You're added to a new space." },
 ] as const satisfies ReadonlyArray<{ key: Key; label: string; help: string }>
 
-/**
- * The channels the server stores per event, as matrix columns. Push and in
- * app are not per event in the preference model yet: they get a column here
- * when it stores them.
- */
 const DIGEST_OPTIONS = [
   { value: "off", label: "Off" },
   { value: "daily", label: "Daily" },
@@ -367,26 +361,15 @@ export function NotificationPreferencesCard() {
                 <label htmlFor="qh_start" className="sr-only">
                   From
                 </label>
-                <Input
-                  id="qh_start"
-                  type="time"
-                  className="you-time h-8"
-                  value={working.quiet_hours_start || ""}
-                  onChange={(e) => type("quiet_hours_start", e.target.value)}
-                />
+                <TimeField id="qh_start" className="you-time h-8" value={working.quiet_hours_start || ""} onChange={(v) => type("quiet_hours_start", v)} />
                 <span aria-hidden="true" className="text-sm text-ink-3">
                   →
                 </span>
                 <label htmlFor="qh_end" className="sr-only">
                   Until
                 </label>
-                <Input
-                  id="qh_end"
-                  type="time"
-                  className="you-time h-8"
-                  value={working.quiet_hours_end || ""}
-                  onChange={(e) => type("quiet_hours_end", e.target.value)}
-                />
+                {/* No `since`: quiet hours run on past midnight (22:00 to 07:00). */}
+                <TimeField id="qh_end" className="you-time h-8" value={working.quiet_hours_end || ""} onChange={(v) => type("quiet_hours_end", v)} />
                 <QuietHoursBar start={working.quiet_hours_start} end={working.quiet_hours_end} tz={working.quiet_hours_tz} />
                 <SavedTick status={timeStatus} />
               </div>

@@ -260,7 +260,10 @@ describe("apps", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add your own app" }))
     const external = await screen.findByRole("radio", { name: "External" })
     expect(external.getAttribute("data-state")).toBe("checked")
-    expect(external.className).toContain("data-[state=checked]:bg-raised")
+    // The house segmented control: a tab of the interaction layer in its well,
+    // which raises the chosen one (app/interaction.css, [data-segmented]).
+    expect(external.closest("[data-segmented]")).not.toBeNull()
+    expect(external.getAttribute("data-interactive")).toBe("tab")
   })
 
   it("folds an installed app's controls under its words on a phone", async () => {

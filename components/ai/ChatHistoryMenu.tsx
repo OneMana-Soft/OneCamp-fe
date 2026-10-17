@@ -190,7 +190,7 @@ const ChatHistoryMenuUngated: React.FC<Props> = ({ onResume, currentId }) => {
                                                     type="button"
                                                     onClick={() => void resume(s.id)}
                                                     disabled={busyId === s.id}
-                                                    className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none focus-visible:underline"
+                                                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left"
                                                 >
                                                     <span className="min-w-0 flex-1 truncate text-ui-sm font-book">{s.title || "Untitled conversation"}</span>
                                                     <span className="shrink-0 text-meta tabular-nums text-ink-3 group-hover/hist:hidden">{when(s.updated_at || s.created_at, g)}</span>

@@ -47,6 +47,8 @@ describe("the people in New message", () => {
     expect(onSelect).toHaveBeenLastCalledWith([expect.objectContaining({ user_uuid: "maya" })])
     // Chosen, as a chip with a way to take it back.
     expect(container.querySelector("[data-picked]")?.textContent).toContain("Maya Chen")
+    // Its x is 20px drawn, a finger's 44px to tap (app/phone.css F3).
+    expect(screen.getByRole("button", { name: "Remove Maya Chen" }).hasAttribute("data-touch-target")).toBe(true)
     fireEvent.click(screen.getByRole("button", { name: "Remove Maya Chen" }))
     expect(container.querySelector("[data-picked]")).toBeNull()
   })

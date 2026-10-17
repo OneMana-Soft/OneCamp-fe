@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/drawer"
 import { app_admin, app_project_path, app_team_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_INVITATION_CREATE } from "@/services/capabilityService"
@@ -23,6 +22,7 @@ import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
 import { PhoneMark } from "@/components/navigationBar/mobile/phoneMark"
 import { destinationHue } from "@/lib/destinationHue"
 import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
+import { useSheetHandoff } from "@/components/drawers/sheetHandoff"
 
 /**
  * Where "Help and docs" goes: the docs on the product's site
@@ -49,7 +49,9 @@ export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
     const router = useRouter()
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const { can } = useCapabilities()
-    const [inviteOpen, setInviteOpen] = useState(false)
+    // The invite dialog is the sheet's own: the sheet hands over to it rather
+    // than closing with it (components/drawers/sheetHandoff).
+    const { handoff, handTo, handBack, sheetOpen, onSheetOpenChange } = useSheetHandoff<"invite">(() => setOpenState(false))
     const orgName = useNamedWorkspace() || "Your workspace"
     const host = typeof window === "undefined" ? "" : window.location.host
     const help = helpUrl()
@@ -63,7 +65,7 @@ export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
 
     return (
         <>
-        <Drawer detent="medium" onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer detent="medium" onOpenChange={onSheetOpenChange} open={sheetOpen(drawerOpenState)}>
             <DrawerContent {...phoneSheet}>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle>{orgName}</DrawerTitle>
@@ -95,10 +97,7 @@ export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
                             icon={UserPlus}
                             neutralTile
                             label="Invite people"
-                            onClick={() => {
-                                setInviteOpen(true)
-                                closeDrawer()
-                            }}
+                            onClick={() => handTo("invite")}
                         />
                     )}
                     {/* Absent, not greyed, for everyone but an admin. */}
@@ -125,7 +124,7 @@ export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
                 </div>
             </DrawerContent>
         </Drawer>
-        <MemberInviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+        <MemberInviteDialog open={handoff === "invite"} onOpenChange={handBack} />
         </>
     )
 }

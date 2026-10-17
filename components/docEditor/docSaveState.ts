@@ -66,9 +66,25 @@ export interface SaveProgress {
 const NOTHING: SaveProgress = { pending: false, waiting: 0, persistedAt: null }
 
 /**
+ * The reading after `prev`, or `prev` itself when it says the same: React then
+ * renders nothing. A key's change is written, sent and acknowledged, and each
+ * of those used to set a new reading, the same or not, so whatever showed the
+ * dot rendered again two to four times a key. Pure.
+ */
+export function nextProgress(prev: SaveProgress, pending: boolean, waiting: number, storedAt: number | null): SaveProgress {
+  const same = (prev.persistedAt?.getTime() ?? null) === storedAt
+  if (same && prev.pending === pending && prev.waiting === waiting) return prev
+  return { pending, waiting, persistedAt: same ? prev.persistedAt : storedAt === null ? null : new Date(storedAt) }
+}
+
+/**
  * Where this tab's edits stand: written here, sent, stored. Until the server
  * first says "persisted" (an older server never does; a new doc's first save
  * is the first time), an edit counts as saved once the server has it, as before.
+ *
+ * It changes as often as a key is typed (how many changes wait), so read it in
+ * the component that shows it (DocHeader's DocSaveDot), never in the page:
+ * the page and everything it draws rendered again on every key.
  */
 export function useSaveProgress(provider: HocuspocusProvider | undefined | null): SaveProgress {
   const [progress, setProgress] = React.useState<SaveProgress>(NOTHING)
@@ -87,7 +103,9 @@ export function useSaveProgress(provider: HocuspocusProvider | undefined | null)
       const notStored = stored ? !holdsMine(stored.stored, doc) : false
       const pending = unsent > 0 || notStored
       if (!pending) changes = 0
-      setProgress({ pending, waiting: pending ? Math.max(changes, unsent) : 0, persistedAt: stored && editedHere ? new Date(stored.at) : null })
+      const waiting = pending ? Math.max(changes, unsent) : 0
+      const storedAt = stored && editedHere ? stored.at : null
+      setProgress((prev) => nextProgress(prev, pending, waiting, storedAt))
     }
     // A change made in this tab, not one that arrived from the server.
     const onUpdate = (_update: Uint8Array, origin: unknown) => {
@@ -119,13 +137,14 @@ export function useSaveProgress(provider: HocuspocusProvider | undefined | null)
 }
 
 /**
- * Whether a collaborative doc has changes not yet stored for more than a
- * moment. An edit reaches the server in milliseconds and is stored a few
- * seconds after typing stops, so while someone types the dot breathes, and it
- * turns saved once the database holds their work.
+ * Whether a collaborative doc's changes have waited to be stored for more than
+ * a moment: `pending` held for `afterMs`. An edit reaches the server in
+ * milliseconds and is stored a few seconds after typing stops, so while someone
+ * types the dot breathes, and it turns saved once the database holds their
+ * work. It reads the one useSaveProgress the dot has: a second one listened to
+ * every key again.
  */
-export function useSlowSave(provider: HocuspocusProvider | undefined | null, afterMs = 700): boolean {
-  const { pending } = useSaveProgress(provider)
+export function useSlowSave(pending: boolean, afterMs = 700): boolean {
   const [slow, setSlow] = React.useState(false)
   React.useEffect(() => {
     if (!pending) {
@@ -167,4 +186,28 @@ export function docSaveState({
     return slowSave ? "saving" : "saved"
   }
   return "saved"
+}
+
+/** What the doc's save dot is worked out from: the session, which changes far less often than a key. */
+export interface DocSaveSource {
+  /** The session's provider; null for a copy with nothing to save (a reader's). */
+  provider: HocuspocusProvider | null | undefined
+  live: boolean
+  collabStatus?: CollabStatus
+  synced?: boolean
+  everSynced?: boolean
+}
+
+/**
+ * The doc's save dot, from its session: its state, when the doc was last
+ * stored, and how many changes wait. One reading of the provider, for the
+ * component that draws the dot.
+ */
+export function useDocSaveDot({ provider, live, collabStatus, synced, everSynced }: DocSaveSource): { state: SaveState; savedAt: Date | null; waiting: number } {
+  const progress = useSaveProgress(live ? provider : null)
+  const slowSave = useSlowSave(progress.pending)
+  const state = docSaveState({ live, collabStatus, synced, everSynced, slowSave })
+  // How many changes wait is said only offline; while online it changes with
+  // every key and would draw the dot again for nothing.
+  return { state, savedAt: progress.persistedAt, waiting: state === "offline" ? progress.waiting : 0 }
 }

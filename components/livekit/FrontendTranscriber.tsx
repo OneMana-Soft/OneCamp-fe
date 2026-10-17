@@ -458,7 +458,7 @@ export function FrontendTranscriber({ onTranscript, onStatus, active, persist, l
          if ("processLocally" in recognition) recognition.processLocally = onDevice;
          try {
             recognition.start();
-         } catch(e) { 
+         } catch { 
              // often throws if already started
          }
      } else if ((!isMicOn || !enabled) && recognition) {

@@ -10,7 +10,7 @@
 
 import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
-import { CMark, CNode, blank, node, plainText, setAttr, trimLeftSpace, trimRightSpace, trimSpace } from './doc'
+import { CMark, CNode, blank, node, plainText, trimLeftSpace, trimRightSpace, trimSpace } from './doc'
 import { fromHTML, safeImageSrc } from './html'
 import { linkify } from './linkify'
 import { normalize, isInlineNode, sameMarks } from './normalize'
@@ -723,5 +723,3 @@ function tagAttr(tag: string, name: string): string {
   const el = new DOMParser().parseFromString(tag, 'text/html').body.firstElementChild
   return el?.getAttribute(name) ?? ''
 }
-
-export { setAttr }

@@ -5,7 +5,7 @@ import { useMinimalTiptapEditor, type UseMinimalTiptapEditorProps } from "@/comp
 /** The doc's reading type (16/26 in its measure, its headings and blocks), on its EditorContent. */
 export const DOC_EDITOR_CLASS = "minimal-tiptap-editor doc-editor"
 
-export interface UseDocEditorProps
+interface UseDocEditorProps
   extends Omit<UseMinimalTiptapEditorProps, "kind" | "slashCommands" | "shouldRerenderOnTransaction" | "editorAttributes"> {
   /**
    * The id of the element that names the doc (its title heading), for the
@@ -17,7 +17,7 @@ export interface UseDocEditorProps
 }
 
 /** The editable area's role, name and keyboard hints. Pure. */
-export function docEditorAttributes({ labelledBy, editable }: { labelledBy?: string; editable: boolean }): Record<string, string> {
+function docEditorAttributes({ labelledBy, editable }: { labelledBy?: string; editable: boolean }): Record<string, string> {
   return {
     role: "textbox",
     "aria-multiline": "true",

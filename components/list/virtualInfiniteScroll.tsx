@@ -27,7 +27,8 @@ interface VirtualInfiniteScrollProps<T> {
     isLoading?: boolean
 
     /**
-     * Whether there are more items to load
+     * Whether there are more items to load. A list the server pages by index
+     * says it with lib/http/pageCount's hasPageAfter(pageIndex, pageCount).
      */
     hasMore?: boolean
 

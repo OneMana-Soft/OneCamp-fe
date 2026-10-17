@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { ChevronRight, Ellipsis } from "@/lib/icons"
 import { IntentLink } from "@/components/navigationBar/desktop/IntentLink"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -22,7 +23,6 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { usePageFacts } from "./chrome/pageFacts"
 import { useDoc } from "./chrome/useDoc"
 
-const QUIET = { suppressErrorToast: true } as never
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** One step of a path: a page (named, or one the viewer can't open), or the hidden middle. */
@@ -132,7 +132,7 @@ function PageCrumb({ node }: { node: TreeNodeJSON }) {
   const drop = useDropTarget(node.uuid!, name)
   return (
     <IntentLink href={`/app/doc/${node.uuid}`} className={cn(crumbClass, drop.over && "bg-press text-ink ring-2 ring-brand/50")} {...drop.props}>
-      {node.icon ? <DocIcon icon={node.icon} size={14} /> : null}
+      {node.icon ? <DocIcon icon={node.icon} id={node.uuid} size={14} /> : null}
       <span className="truncate">{name}</span>
     </IntentLink>
   )
@@ -161,7 +161,7 @@ function MoreCrumb({ nodes, hidden }: { nodes: TreeNodeJSON[]; hidden: number })
         {nodes.map((n) => (
           <DropdownMenuItem key={n.uuid} asChild className="h-[30px] gap-2 rounded-lg text-ui-sm">
             <IntentLink href={`/app/doc/${n.uuid}`}>
-              {n.icon ? <DocIcon icon={n.icon} size={14} /> : <span aria-hidden="true" className="size-3.5" />}
+              {n.icon ? <DocIcon icon={n.icon} id={n.uuid} size={14} /> : <span aria-hidden="true" className="size-3.5" />}
               <span className="truncate">{n.title?.trim() || "Untitled"}</span>
             </IntentLink>
           </DropdownMenuItem>
@@ -236,7 +236,8 @@ function DocCrumb({ docId, title, icon, canEdit }: { docId: string; title: strin
         drop.over && "bg-press ring-2 ring-brand/50",
       )}
     >
-      {icon ? <DocIcon icon={icon} size={16} /> : null}
+      {/* The open doc always shows its glyph, in its hue (D13): the header is where a doc is most often seen. */}
+      <DocIcon icon={icon} id={docId} size={16} />
       <span key={title} className="content-rise truncate">
         {title || "Untitled"}
       </span>
@@ -261,7 +262,7 @@ export default function Breadcrumbs({ docId }: SlotProps) {
 
 function Trail({ docId }: { docId: string }) {
   const doc = useDoc(docId)
-  const path = useFetch<Envelope<DocAncestors>>(docId ? ancestorsKey(docId) : "", undefined, undefined, QUIET).data?.data
+  const path = useFetch<Envelope<DocAncestors>>(docId ? ancestorsKey(docId) : "", undefined, undefined, OWN_ERRORS).data?.data
   const top = useDropTarget(null, "Docs")
   // A soft lock holds the title here too, until lifted for this person.
   const facts = usePageFacts(docId)
@@ -295,7 +296,7 @@ function Trail({ docId }: { docId: string }) {
  * each a link; the header that holds the breadcrumb isn't drawn on a phone.
  */
 export function PathLine({ docId }: { docId: string }) {
-  const path = useFetch<Envelope<DocAncestors>>(docId ? ancestorsKey(docId) : "", undefined, undefined, QUIET).data?.data
+  const path = useFetch<Envelope<DocAncestors>>(docId ? ancestorsKey(docId) : "", undefined, undefined, OWN_ERRORS).data?.data
   const steps = crumbsOf(path?.ancestors ?? [])
   if (!steps.length) return null
   return (
@@ -305,7 +306,7 @@ export function PathLine({ docId }: { docId: string }) {
           {i > 0 ? <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-ink-4" /> : null}
           {s.kind === "page" ? (
             <IntentLink href={`/app/doc/${s.node.uuid}`} className="inline-flex min-w-0 max-w-[140px] items-center gap-1 rounded px-0.5 text-ink-3 outline-none focus-visible:ring-2 focus-visible:ring-brand">
-              {s.node.icon ? <DocIcon icon={s.node.icon} size={12} /> : null}
+              {s.node.icon ? <DocIcon icon={s.node.icon} id={s.node.uuid} size={12} /> : null}
               <span className="truncate">{s.node.title?.trim() || "Untitled"}</span>
             </IntentLink>
           ) : s.kind === "more" ? (

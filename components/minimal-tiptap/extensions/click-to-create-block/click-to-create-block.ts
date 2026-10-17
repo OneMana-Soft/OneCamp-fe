@@ -16,7 +16,7 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
  * collaborators. Blur then deleted trailing empty paragraphs, including ones
  * someone else had just made.
  */
-export function placeCaretAtEnd(editor: Editor): boolean {
+function placeCaretAtEnd(editor: Editor): boolean {
   const { state } = editor
   const last = state.doc.lastChild
   const textAtEnd = !!last && last.isTextblock && !last.type.spec.code

@@ -47,6 +47,17 @@ describe("the doc page", () => {
     expect(src).toMatch(/<ConnectionPill /)
   })
 
+  // Review, 15 Oct 2026: the page read the saves (twice), which change with
+  // every key, so the page and its header rendered again two to four times a
+  // key, about 340 components a key in a 12-block doc (I20). The dot reads them.
+  it("leaves the saves to the dot: neither the page nor the header reads them", () => {
+    expect(src).not.toMatch(/useSaveProgress\(|useSlowSave\(|useDocSaveDot\(/)
+    const body = header.slice(header.indexOf("export function DocHeader("))
+    expect(body.slice(0, body.indexOf("\n}\n"))).not.toMatch(/useSaveProgress\(|useSlowSave\(|useDocSaveDot\(/)
+    const dot = header.slice(header.indexOf("function DocSaveDot("))
+    expect(dot.slice(0, dot.indexOf("\n}\n"))).toMatch(/useDocSaveDot\(source\)/)
+  })
+
   it("offers a way back from a doc that isn't there, instead of a bare sentence", () => {
     expect(src).not.toMatch(/Document not found or access denied/)
     const missing = src.slice(src.indexOf("if (!docInfo)"), src.indexOf('data-doc-view=""'))

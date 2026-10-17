@@ -6,7 +6,7 @@ import type { AuditEntry, AuditLogPage } from "@/services/settingsService"
 
 // The audit log says when it could not be read (it said "No audit entries
 // yet", which an auditor takes as a fact about the workspace), reaches entries
-// older than the latest fifty, marks the filter in use without spending the
+// older than the latest page, marks the filter in use without spending the
 // accent on it, and writes times in the app's one format. Design v3 (A11):
 // the page frame names the section, the category is a menu, rows are 44px
 // and grouped by day (auditLogRows.test.tsx holds the row rules).
@@ -67,21 +67,22 @@ describe("the audit log", () => {
     expect(document.querySelector("[data-empty-illustration] svg.hue-sun")).toBeTruthy()
   })
 
-  it("reaches entries older than the latest fifty", async () => {
-    const first = Array.from({ length: 50 }, (_, i) => entry(i))
-    getAdminAuditLog.mockResolvedValueOnce(page(first)).mockResolvedValueOnce(page([entry(50, { summary: "The oldest change" })]))
-    render(<AdminAuditLog />)
+  it("reaches entries older than the latest page", async () => {
+    // Pages of three, not the log's fifty: fifty rows drawn twice took the
+    // test to 2 s on a quiet machine and past vitest's 5 on a busy one, and
+    // the paging is the same at any size.
+    const first = Array.from({ length: 3 }, (_, i) => entry(i))
+    getAdminAuditLog.mockResolvedValueOnce(page(first)).mockResolvedValueOnce(page([entry(3, { summary: "The oldest change" })]))
+    render(<AdminAuditLog pageSize={3} />)
     await screen.findByText("Change 0")
-    // Found by its words, not by role: with fifty rows on the page, each a
-    // button, a role query works out every button's name, and that took 2.7 s
-    // of the test's 5 on a busy machine.
-    const older = screen.getByText("Show older entries")
-    expect(older.tagName).toBe("BUTTON")
+    expect(getAdminAuditLog.mock.calls.at(-1)?.[1]).toBe(3)
+    const older = screen.getByRole("button", { name: "Show older entries" })
     await act(async () => void fireEvent.click(older))
-    expect(getAdminAuditLog.mock.calls.at(-1)?.[2]).toBe(50)
+    // The next page, from the end of the ones shown.
+    expect(getAdminAuditLog.mock.calls.at(-1)?.slice(1, 3)).toEqual([3, 3])
     expect(await screen.findByText("The oldest change")).toBeTruthy()
     expect(screen.getByText("Change 0")).toBeTruthy()
-    // Fewer than fifty came back, so that was the end.
+    // Fewer than a page came back, so that was the end.
     expect(screen.queryByText("Show older entries")).toBeNull()
   })
 

@@ -33,7 +33,6 @@ vi.mock("@/lib/swrMutate", () => ({ dataToSeed: () => undefined }))
 vi.mock("@/components/search/searchField", () => ({ SearchField: () => <input aria-label="Search" /> }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
 let channels: { ch_uuid: string; ch_name: string }[] = []
-vi.mock("@/hooks/useApi", () => ({ useApi: () => ({ data: { channels_list: channels }, isLoading: false }) }))
 
 const { ChatUserList } = await import("@/components/chat/chatUserList")
 const { default: ChatPage } = await import("@/app/app/chat/page")

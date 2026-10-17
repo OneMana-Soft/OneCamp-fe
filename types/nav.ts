@@ -13,6 +13,10 @@ export interface DesktopChildrenNavType {
      *  hue (lib/campHue): the sidebar draws its glyph in that hue. A
      *  destination (All docs, Home) has none and stays neutral. */
     hue_id?: string
+    /** A channel draws its ChannelTile and a doc its DocIcon, in their hues (D13). */
+    kind?: "channel" | "doc"
+    /** A doc's icon, where its row's source has it (a starred place). */
+    doc_icon?: string
     userParticipants?: UserProfileDataInterface[]
     userProfile?: UserProfileDataInterface
     isCallActive?: boolean

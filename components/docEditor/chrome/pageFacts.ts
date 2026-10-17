@@ -7,7 +7,7 @@ import * as React from "react"
  * (B6): read as More opens (register.ts), and followed by the pieces that
  * draw them. PageGuard keeps it current from the doc's own answer.
  */
-export interface PageFacts {
+interface PageFacts {
   starred?: boolean
   /** The doc's lock: "" for none. */
   lock?: "" | "soft" | "hard"

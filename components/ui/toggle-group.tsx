@@ -6,6 +6,7 @@ import { type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { toggleVariants, underlineToggle } from "@/components/ui/toggle"
+import { ix } from "@/lib/ui/interactive"
 
 const ToggleGroupContext = React.createContext<
   VariantProps<typeof toggleVariants>
@@ -44,6 +45,7 @@ const ToggleGroupItem = React.forwardRef<
     VariantProps<typeof toggleVariants>
 >(({ className, children, variant, size, ...props }, ref) => {
   const context = React.useContext(ToggleGroupContext)
+  const underline = (context.variant || variant) === "underline"
 
   return (
     <ToggleGroupPrimitive.Item
@@ -53,11 +55,12 @@ const ToggleGroupItem = React.forwardRef<
           variant: context.variant || variant,
           size: context.size || size,
         }),
-        (context.variant || variant) === "underline" && underlineToggle,
+        underline && underlineToggle,
         className
       )}
       // A finger's target is 44px (app/phone.css F3).
       data-touch-target=""
+      {...ix(underline ? "tab" : "button")}
       {...props}
     >
       {children}

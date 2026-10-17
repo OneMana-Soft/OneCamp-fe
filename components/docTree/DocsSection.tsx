@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { lastInputWasPointer } from "@/lib/ui/inputModality"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 import { app_doc_path } from "@/types/paths"
 
 // A chunk that failed to load stays failed in React.lazy, so trying again
@@ -74,14 +75,14 @@ export function DocsSection({ open, setOpen, active, onAdd }: { open: boolean; s
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-label={open ? "Hide docs" : "Show docs"}
-          className="shell-icon-btn shell-sect-plus"
+          {...ix("icon")} className="shell-icon-btn shell-sect-plus"
           data-size="24"
         >
           <ChevronDown className={cn("h-3.5 w-3.5", !open && "-rotate-90")} aria-hidden="true" />
         </button>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" onClick={onAdd} aria-label="New doc" className="shell-icon-btn shell-sect-plus" data-size="24">
+            <button type="button" onClick={onAdd} aria-label="New doc" {...ix("icon")} className="shell-icon-btn shell-sect-plus" data-size="24">
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </TooltipTrigger>

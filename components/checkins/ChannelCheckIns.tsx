@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { TimeField } from "@/components/ui/date-field"
 import { Label } from "@/components/ui/label"
 import { useCheckIns } from "@/hooks/useCheckIns"
 import { useToast } from "@/hooks/use-toast"
@@ -97,7 +98,7 @@ function CheckInForm({ editing, onSave, onCancel }: { editing?: CheckIn; onSave:
       <div className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor="checkin-time">At</Label>
-          <Input id="checkin-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-9 w-32" required />
+          <TimeField id="checkin-time" value={time} onChange={setTime} className="h-9 w-32" required />
         </div>
         <p className="pb-2 text-xs text-muted-foreground">{tz}</p>
       </div>

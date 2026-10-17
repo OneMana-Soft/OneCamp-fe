@@ -7,6 +7,7 @@
 import { displayNameOf, matchesPerson } from "@/lib/personName"
 import type { Ending, Health } from "@/lib/projectUpdates"
 import { daysSince } from "@/lib/utils/relativeTime"
+import { localDay } from "@/lib/utils/timeZone"
 
 export type Measure = "projects" | "subgoals" | "number"
 export type GoalStatus = "open" | Ending
@@ -104,11 +105,8 @@ export const MEASURES: { value: Measure; label: string; hint: string }[] = [
 /** A check-in is due once the last is two weeks old (as on the server). */
 export const CHECK_IN_DUE_DAYS = 14
 
-/** "55%"; a dash for nothing to measure. Pure. */
-export function percent(v: number | null | undefined): string {
-  if (v === null || v === undefined || Number.isNaN(v)) return "—"
-  return `${Math.round(Math.min(1, Math.max(0, v)) * 100)}%`
-}
+/** "55%"; a dash for nothing to measure (lib/goalPercent, the chip's own). Pure. */
+export { percent } from "@/lib/goalPercent"
 
 const CURRENCY_SIGN = /^\p{Sc}$/u
 
@@ -214,9 +212,7 @@ export function overdue(g: Pick<GoalSummary, "status" | "due_date">, today: stri
 /** The last day of the quarter a day is in, as a goal date: the default due date. Pure. */
 export function quarterEnd(now: Date = new Date()): string {
   const q = Math.floor(now.getMonth() / 3)
-  const end = new Date(now.getFullYear(), q * 3 + 3, 0)
-  const p = (n: number) => String(n).padStart(2, "0")
-  return `${end.getFullYear()}-${p(end.getMonth() + 1)}-${p(end.getDate())}`
+  return localDay(new Date(now.getFullYear(), q * 3 + 3, 0))
 }
 
 export interface GoalNode {

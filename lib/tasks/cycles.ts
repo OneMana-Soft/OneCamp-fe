@@ -32,6 +32,19 @@ export function cycleDates(c: Pick<Cycle, "starts_at" | "ends_at">): string {
 /** Share done, 0–100. */
 export const percentDone = (p?: { total: number; done: number }) => (p && p.total > 0 ? Math.round((p.done / p.total) * 100) : 0)
 
+/** "3 d left", "Ends today", "Starts in 2 d", or "Ended": how the cycle stands in time. Pure. */
+export function timeLeft(c: Pick<Cycle, "starts_at" | "ends_at" | "completed_at">, now = Date.now()): string {
+  if (c.completed_at) return "Completed"
+  const day = 86_400_000
+  const start = Date.parse(c.starts_at)
+  const end = Date.parse(c.ends_at)
+  if (now < start) return `Starts in ${Math.max(1, Math.ceil((start - now) / day))} d`
+  const left = Math.ceil((end - now) / day)
+  if (left < 0) return "Ended"
+  if (left === 0) return "Ends today"
+  return `${left} d left`
+}
+
 /** Cycles a task can join: not completed, the current one first. */
 export function openCycles(cycles: Cycle[]): Cycle[] {
   const rank: Record<string, number> = { current: 0, ended: 1, upcoming: 2 }

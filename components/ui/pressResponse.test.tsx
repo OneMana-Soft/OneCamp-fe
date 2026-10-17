@@ -59,7 +59,9 @@ describe("the press response", () => {
     const { container } = render(<ListRow title="general" />)
     const row = container.firstElementChild as HTMLElement
     expect(row.getAttribute("data-press")).toBe("row")
-    expect(row.className).toMatch(/data-\[pressed=true\]:bg-press/)
+    // A row of the interaction layer: a held press (data-pressed) is its tint.
+    expect(row.getAttribute("data-interactive")).toBe("row")
+    expect(readFileSync(join(process.cwd(), "app/interaction.css"), "utf8")).toMatch(/\[data-interactive\]\[data-pressed="true"\]:not\(\[aria-disabled="true"\]\) \{\s*--ix-a: var\(--ix-press-a\);/)
     expect(row.className).not.toMatch(/bg-accent(?!\/)/)
     cleanup()
     render(<DrawerItem label="Share" onClick={() => {}} />)

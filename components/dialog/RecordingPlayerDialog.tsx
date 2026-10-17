@@ -19,6 +19,7 @@ import {formatDuration} from "@/lib/utils/format/formatDuration";
 import {downloadFile} from "@/lib/utils/file/downloadFile";
 import {useRecordingPlayback, type RecordingMedia} from "@/components/dialog/useRecordingPlayback";
 import {SaysLoadFailure} from "@/lib/http/loadFailure";
+import {hasPageAfter} from "@/lib/http/pageCount";
 import {toast} from "@/hooks/use-toast";
 
 export const RecordingPlayerDialog = () => {
@@ -104,14 +105,9 @@ export const RecordingPlayerDialog = () => {
     };
 
     const handleLoadMore = () => {
-        // Only load more if not loading and has more pages
-        if (!transcriptInfo.isLoading) {
-             // Check if we have more pages
-             // pageCount is returned by backend
-             const totalPages = transcriptInfo.data?.pageCount || 1;
-             if (pageIndex < totalPages - 1) {
-                 setPageIndex(prev => prev + 1);
-             }
+        // One page at a time, and none past the last.
+        if (!transcriptInfo.isLoading && hasPageAfter(pageIndex, transcriptInfo.data?.pageCount)) {
+            setPageIndex(prev => prev + 1);
         }
     };
 
@@ -282,7 +278,7 @@ export const RecordingPlayerDialog = () => {
                                     renderItem={renderTranscriptItem}
                                     onLoadMore={handleLoadMore}
                                     isLoading={transcriptInfo.isLoading}
-                                    hasMore={(transcriptInfo.data?.pageCount || 0) > pageIndex + 1}
+                                    hasMore={hasPageAfter(pageIndex, transcriptInfo.data?.pageCount)}
                                     className="h-full"
                                 />
                              )}

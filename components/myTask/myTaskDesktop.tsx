@@ -64,10 +64,10 @@ export const MyTaskDesktop = () => {
             <Tabs value={selectedTab} onValueChange={handleTabChange} className="flex min-h-0 flex-1 flex-col gap-0">
                 {/* One scroll container for both bodies. */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                    <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="mt-0 h-full outline-none data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
+                    <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="mt-0 h-full data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
                         <MyTaskTable onLayout={(l) => handleTabChange(l)} />
                     </KeptTab>
-                    <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="mt-0 h-full outline-none data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
+                    <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="mt-0 h-full data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
                         <MyTaskKanban className="px-5 pt-3" />
                     </KeptTab>
                 </div>

@@ -69,7 +69,7 @@ export function parseDelimited(input: string): string[][] | null {
 }
 
 /** A table of text, its first row the header; a field's line breaks stay line breaks. */
-export function tableOf(schema: Schema, rows: string[][]) {
+function tableOf(schema: Schema, rows: string[][]) {
   const inline = (text: string) =>
     text.split("\n").flatMap((part, i): PMNode[] => [...(i ? [schema.nodes.hardBreak?.create() ?? schema.text(" ")] : []), ...(part ? [schema.text(part)] : [])])
   const cell = (type: "tableHeader" | "tableCell", text: string) => schema.nodes[type].create(null, schema.nodes.paragraph.create(null, inline(text)))

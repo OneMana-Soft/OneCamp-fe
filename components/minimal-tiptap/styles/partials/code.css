@@ -158,18 +158,27 @@
   color: var(--ink-3);
   transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
 }
-button.doc-code-lang:hover,
 button.doc-code-lang[aria-expanded="true"] {
   background: var(--hover);
   color: var(--ink);
+}
+@media (hover: hover) {
+  button.doc-code-lang:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 button.doc-code-lang svg {
   opacity: 0;
   transition: opacity 140ms var(--ease-out);
 }
-.doc-code:hover button.doc-code-lang svg,
 button.doc-code-lang:focus-visible svg {
   opacity: 1;
+}
+@media (hover: hover) {
+  .doc-code:hover button.doc-code-lang svg {
+    opacity: 1;
+  }
 }
 .doc-code-act {
   display: grid;
@@ -187,15 +196,19 @@ button.doc-code-lang:focus-visible svg {
 .doc-code-caption[hidden] {
   display: none;
 }
-.doc-code:hover .doc-code-act,
 .doc-code:focus-within .doc-code-act,
 .doc-code-act:focus-visible,
 .doc-code-act[data-copied] {
   opacity: 1;
 }
-.doc-code-act:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .doc-code:hover .doc-code-act {
+    opacity: 1;
+  }
+  .doc-code-act:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 .doc-code-act[aria-pressed="true"] {
   background: var(--press);
@@ -238,8 +251,10 @@ button.doc-code-lang:focus-visible svg {
   color: var(--ink-3);
   transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
 }
-.doc-code-mode:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .doc-code-mode:hover {
+    color: var(--ink);
+  }
 }
 .doc-code-mode[aria-pressed="true"] {
   background: var(--raised);
@@ -454,14 +469,18 @@ button.doc-code-lang:focus-visible svg {
   width: 18px;
   margin-left: 4px;
 }
-.doc-table:hover .doc-table-add,
 .doc-table:focus-within .doc-table-add,
 .doc-table-add:focus-visible {
   opacity: 1;
 }
-.doc-table-add:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .doc-table:hover .doc-table-add {
+    opacity: 1;
+  }
+  .doc-table-add:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 .doc-table-add:focus-visible,
 .doc-table-grip:focus-visible {
@@ -485,8 +504,10 @@ button.doc-code-lang:focus-visible svg {
 .doc-table-grip[hidden] {
   display: none;
 }
-.doc-table-grip:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .doc-table-grip:hover {
+    color: var(--ink);
+  }
 }
 .doc-table-grip-row {
   width: 18px;
@@ -527,8 +548,10 @@ button.doc-code-lang:focus-visible svg {
 .minimal-tiptap-editor .ProseMirror[contenteditable="true"] .doc-math {
   cursor: pointer;
 }
-.minimal-tiptap-editor .ProseMirror[contenteditable="true"] .doc-math:hover {
-  background: var(--hover);
+@media (hover: hover) {
+  .minimal-tiptap-editor .ProseMirror[contenteditable="true"] .doc-math:hover {
+    background: var(--hover);
+  }
 }
 .minimal-tiptap-editor .ProseMirror .doc-math.ProseMirror-selectednode {
   outline: none;
@@ -611,9 +634,11 @@ button.doc-code-lang:focus-visible svg {
   border-radius: 9999px;
   color: inherit;
 }
-.doc-word-count-label:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .doc-word-count-label:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 .doc-word-count-off {
   display: grid;
@@ -626,9 +651,11 @@ button.doc-code-lang:focus-visible svg {
 .doc-word-count-off[hidden] {
   display: none;
 }
-.doc-word-count-off:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .doc-word-count-off:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 .doc-word-count button:focus-visible {
   outline: 2px solid var(--brand);

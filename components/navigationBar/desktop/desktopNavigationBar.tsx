@@ -45,7 +45,7 @@ import { TabletListPanel } from "@/components/navigationBar/tablet/TabletListPan
 import { useShellBand } from "@/components/navigationBar/tablet/useShellBand";
 import { isTabletBand } from "@/lib/ui/shellBand";
 import { DocsSection } from "@/components/docTree/DocsSection";
-import { FileText } from "@/lib/icons";
+import { rememberDocIcon } from "@/lib/docLook";
 
 /** The tablet's rail and its channel list, in pixels (design v3, mobile T2 and T3). */
 const TABLET_RAIL_PX = 72
@@ -293,6 +293,8 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
     const channelRow = (c: (typeof userSidebarState.userChannels)[number]): DesktopChildrenNavType => ({
         title: c.ch_name,
         unread_count: c?.unread_post_count,
+        kind: "channel",
+        hue_id: c.ch_uuid,
         mentions: c?.unread_mention_count,
         path: `${app_channel_path}/${c.ch_uuid}`,
         variant: (path.length > 3 && path[3] == c.ch_uuid) ? "sidebarActive" : "ghost",
@@ -305,12 +307,18 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
     // Channels are A to Z (D-S2): no row moves when something arrives in it.
     const starredDocRows: DesktopChildrenNavType[] = (userSidebarState.userStarred || [])
         .filter((p) => p && p.resource_kind === "doc")
-        .map((p) => ({
+        .map((p) => {
+            // Its icon, for the lists that name a doc without it (lib/docLook).
+            rememberDocIcon(p.resource_uuid, p.icon)
+            return {
             title: p.title || "Untitled",
             path: p.href || `${app_doc_path}/${p.resource_uuid}`,
-            icon: FileText,
+            kind: "doc",
+            hue_id: p.resource_uuid,
+            doc_icon: p.icon,
             variant: path.length > 3 && path[2] === "doc" && path[3] === p.resource_uuid ? "sidebarActive" : "ghost",
-        }))
+            } satisfies DesktopChildrenNavType
+        })
     const starredRows = [
         ...starredChannelRows(userSidebarState.userChannels || [], userSidebarState.userFavChannels || []).map(channelRow),
         ...starredDocRows,
@@ -402,6 +410,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                         onAdd={() => dispatch(openUI({ key: 'createChannel' }))}
                         addLabel="New channel"
                         rows={channelRows}
+                        cap={10}
                         invite={{ label: "Create a channel", onClick: () => dispatch(openUI({ key: 'createChannel' })) }}
                     />
                     <SidebarSection
@@ -411,6 +420,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                         onAdd={() => dispatch(openUI({ key: 'createChatMessage' }))}
                         addLabel="New message"
                         rows={dmRows}
+                        cap={8}
                         invite={{ label: "Message someone", onClick: () => dispatch(openUI({ key: 'createChatMessage' })) }}
                     />
                 </div>

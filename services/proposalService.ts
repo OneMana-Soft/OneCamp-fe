@@ -14,12 +14,12 @@ import type { JSONContent } from "@tiptap/core"
 // The paths live here until the integrator moves them into services/endPoints.ts
 // (an append-only file, edited at merge).
 
-export const PROPOSALS_URL = "/proposals"
+const PROPOSALS_URL = "/proposals"
 
-export const proposalsListUrl = (docId: string, kind = "doc") =>
+const proposalsListUrl = (docId: string, kind = "doc") =>
     docId ? `${PROPOSALS_URL}?resource_kind=${encodeURIComponent(kind)}&resource_uuid=${encodeURIComponent(docId)}` : ""
 
-export interface NewProposal {
+interface NewProposal {
     resource_kind: string
     resource_uuid: string
     thread_id?: string
@@ -33,7 +33,7 @@ export interface NewProposal {
     author_kind?: ProposalAuthorKind
 }
 
-export interface DecideInput {
+interface DecideInput {
     accept: boolean
     hunk_ids?: string[]
     apply?: "server" | "client"

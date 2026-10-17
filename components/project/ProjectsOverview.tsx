@@ -34,6 +34,8 @@ import { shortDate } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
 import { openUI } from "@/store/slice/uiSlice"
 import { app_project_path } from "@/types/paths"
+import { ix } from "@/lib/ui/interactive"
+import { useProjectHue } from "@/lib/projectHue"
 import { MenuCheck } from "@/components/ui/menuCheck"
 
 const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
@@ -133,13 +135,15 @@ type GrowProps = ReturnType<ReturnType<typeof useGrow>["bar"]>
 function Row({ p, grow, now }: { p: ProjectOverview; grow: GrowProps; now: Date }) {
   const total = p.open + p.done
   const pct = Math.round(progressOf(p) * 100)
+  const hue = useProjectHue(p.project_uuid)
   return (
     <Link
       href={href(p)}
       role="row"
       data-flip-id={p.project_uuid}
       data-project-row=""
-      className={cn(COLUMNS, "h-[52px] border-b border-line outline-none transition-colors duration-[140ms] hover:bg-hover focus-visible:bg-hover")}
+      {...ix("row", { hue })}
+      className={cn(COLUMNS, "h-[52px] border-b border-line")}
     >
       <ProjectTile id={p.project_uuid} size={20} />
       <span className="min-w-0">
@@ -193,9 +197,10 @@ function MobileRow({ p }: { p: ProjectOverview }) {
   )
   const pct = Math.round(progressOf(p) * 100)
   const any = p.open + p.done > 0
+  const hue = useProjectHue(p.project_uuid)
   return (
     <li>
-      <Link href={href(p)} data-project-row="" className="block border-b border-line outline-none active:bg-press focus-visible:bg-hover">
+      <Link href={href(p)} data-project-row="" {...ix("row", { hue })} className="block border-b border-line">
         <div className="flex h-[72px] items-center gap-3" {...longPress}>
           <ProjectTile id={p.project_uuid} size={28} />
           <span className="min-w-0 flex-1">
@@ -228,7 +233,7 @@ function Header({ sort, onSort }: { sort: OverviewSort; onSort: (s: OverviewSort
         type="button"
         onClick={() => onSort(s)}
         aria-pressed={sort === s}
-        className={cn("group/h inline-flex items-center gap-1 justify-self-start outline-none hover:text-foreground focus-visible:text-foreground", sort === s && "text-ink-2")}
+        className={cn("group/h inline-flex items-center gap-1 justify-self-start rounded-sm hover:text-foreground focus-visible:text-foreground", sort === s && "text-ink-2")}
       >
         {label}
         <ChevronDown aria-hidden="true" className={cn("size-3 transition-opacity", sort === s ? "opacity-100" : "opacity-0 group-hover/h:opacity-100")} />
@@ -279,7 +284,8 @@ function CheckRow({ on, children, onClick }: { on: boolean; children: ReactNode;
       role="menuitemcheckbox"
       aria-checked={on}
       onClick={onClick}
-      className="flex h-[30px] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-press focus-visible:bg-press"
+      {...ix("item")}
+      className="flex h-[30px] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-foreground"
     >
       <MenuCheck checked={on} />
       {children}
@@ -401,7 +407,8 @@ function DisplayMenu({
               role="menuitemradio"
               aria-checked={sort === s.value}
               onClick={() => setSort(s.value)}
-              className="flex h-[30px] w-full items-center justify-between rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-press focus-visible:bg-press"
+              {...ix("item")}
+              className="flex h-[30px] w-full items-center justify-between rounded-md px-2 text-left text-sm text-foreground"
             >
               {s.label}
               {/* One ordering at a time: its check ends the row. */}

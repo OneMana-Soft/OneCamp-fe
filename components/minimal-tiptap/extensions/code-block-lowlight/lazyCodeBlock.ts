@@ -25,7 +25,7 @@ export function loadHighlighter(): Promise<Highlighter> {
   return fetching
 }
 
-export const lazyLowlightKey = new PluginKey<DecorationSet>('lazyLowlight')
+const lazyLowlightKey = new PluginKey<DecorationSet>('lazyLowlight')
 
 
 /** Whether a range of a doc holds a code block. */

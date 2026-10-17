@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
-import { AccessCard, CopyLinkButton, GeneralAccessMark, ShareTokenInvite, ShareUserRow, generalAccessLine, withoutOwner } from "./shareParts"
+import { AccessCard, CopyLinkButton, GeneralAccessMark, InviteRow, ShareTokenInvite, ShareUserRow, generalAccessLine, withoutOwner } from "./shareParts"
 
 afterEach(cleanup)
 
@@ -42,6 +42,50 @@ describe("the invite row", () => {
     await act(async () => fireEvent.click(invite))
     expect(onInvite).toHaveBeenCalledWith([maya], "editor")
     expect(screen.queryByRole("button", { name: "Invite" })).toBeNull()
+  })
+
+  // Review, 15 Oct 2026: typing a name in Japanese, the Enter that picks the
+  // word picked whoever was highlighted, or sent the invites (lib/keys/ime.ts).
+  // Safari's says keyCode 229 and not isComposing.
+  it("leaves an input method's Enter to pick its word, never a person", async () => {
+    vi.useFakeTimers()
+    const onInvite = vi.fn().mockResolvedValue(undefined)
+    render(<ShareTokenInvite search={vi.fn().mockResolvedValue([maya])} roles={ROLES} defaultRole="editor" existing={new Set()} onInvite={onInvite} />)
+    const box = screen.getByRole("combobox", { name: "Add people" })
+    fireEvent.change(box, { target: { value: "ma" } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(350) })
+    vi.useRealTimers()
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true })
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 })
+    expect(document.querySelectorAll("[data-share-chip]")).toHaveLength(0)
+    expect(onInvite).not.toHaveBeenCalled()
+    fireEvent.keyDown(box, { key: "Enter" })
+    expect(document.querySelectorAll("[data-share-chip]")).toHaveLength(1)
+  })
+
+  it("and the doc's invite row, with teams, leaves it too", async () => {
+    vi.useFakeTimers()
+    const onInvite = vi.fn().mockResolvedValue(undefined)
+    render(
+      <InviteRow
+        searchPeople={vi.fn().mockResolvedValue([maya])}
+        teams={[{ team_uuid: "t1", team_name: "Marketing" }]}
+        levels={["edit", "view"]}
+        defaultLevel="edit"
+        existing={new Set()}
+        onInvite={onInvite}
+      />,
+    )
+    const box = screen.getByRole("combobox", { name: "Add people or teams" })
+    fireEvent.change(box, { target: { value: "ma" } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(350) })
+    vi.useRealTimers()
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true })
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 })
+    expect(document.querySelectorAll("[data-share-chip]")).toHaveLength(0)
+    expect(onInvite).not.toHaveBeenCalled()
+    fireEvent.keyDown(box, { key: "Enter" })
+    expect(document.querySelectorAll("[data-share-chip]")).toHaveLength(1)
   })
 })
 

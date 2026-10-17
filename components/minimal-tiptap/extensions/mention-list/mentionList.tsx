@@ -55,7 +55,7 @@ async function fetchChannelMentionAgents(channelId: string): Promise<UserProfile
 }
 
 /** How long the workspace's member list is kept for the "@" picker. */
-export const MEMBERS_TTL_MS = 60_000
+const MEMBERS_TTL_MS = 60_000
 
 let membersCache: { at: number; list: Promise<UserProfileDataInterface[]> } | null = null
 

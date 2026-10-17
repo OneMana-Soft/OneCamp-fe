@@ -11,46 +11,21 @@
  * CREATE: four tile buttons, each naming what it makes in a feature tile and
  * teaching its key.
  */
-import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import Link from "next/link"
 import { useDispatch, useSelector } from "react-redux"
 
 import { HubRow, HubSectionHeader, HubToolButton } from "@/components/ui/hubRow"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
-import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { Spark } from "@/components/ui/graphics/motifs"
-import { CheckSquare, Clock, Columns2, FileText, Hash, MessageCircle, Users, LayoutTemplate } from "@/lib/icons"
+import { CheckSquare, Columns2, FileText, MessageCircle, LayoutTemplate } from "@/lib/icons"
 import { paneFromHref } from "@/lib/split"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { cn } from "@/lib/utils/helpers/cn"
 import { openInSplit } from "@/store/slice/splitSlice"
 import { openUI } from "@/store/slice/uiSlice"
 import { useModKey } from "@/hooks/useModKey"
-import type { RecentItem } from "@/store/slice/recentItemsSlice"
 import type { RootState } from "@/store/store"
-import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
-
-/** The lead for a recent item: identity where the thing has one, an ink-3 glyph where it has none. */
-export function recentLead(item: Pick<RecentItem, "id" | "type" | "title">) {
-  switch (item.type) {
-    case "user":
-    case "chat":
-      return <IdentityMark variant="avatar" size={20} id={avatarSeed(item.title)} label={item.title} />
-    case "project":
-      return <ProjectTile id={item.id} />
-    case "task":
-      return <StatusGlyph status="todo" />
-    case "channel":
-      return <Hash className="size-4 text-ink-3" data-no-hue="" />
-    case "doc":
-      return <FileText className="size-4 text-ink-3" data-no-hue="" />
-    case "team":
-      return <Users className="size-4 text-ink-3" />
-    default:
-      return <Clock className="size-4 text-ink-3" />
-  }
-}
+import { RecentMark, recentHue } from "@/components/ui/graphics/recentMark"
 
 export function JumpBackIn({ className }: { className?: string }) {
   const dispatch = useDispatch()
@@ -69,7 +44,8 @@ export function JumpBackIn({ className }: { className?: string }) {
                 href={item.path}
                 density="compact"
                 data-recent-type={item.type}
-                lead={recentLead(item)}
+                data-hue={recentHue(item)}
+                lead={<RecentMark item={item} />}
                 title={item.title}
                 meta={relativeTime(new Date(item.timestamp).toISOString())}
                 tools={

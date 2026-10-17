@@ -42,7 +42,8 @@ interface Edit {
  * fails puts back the words and edit time they had and answers false, so the
  * box opens again holding what was typed (hooks/useEditInPlace). One write
  * per message at a time (lib/optimistic, keyed by its id). An edit that
- * leaves nothing is not sent, and answers true.
+ * leaves nothing, or changes nothing, is not sent, and answers true: the
+ * server stamps every update it's sent as an edit, for everyone.
  *
  * The lists and threads each had their own save; a thread's waited for the
  * server, closed the box at once, and lost what was typed when it failed.
@@ -115,9 +116,13 @@ export function useSaveEdit(): (target: EditTarget, html: string) => Promise<boo
         }
       }
       const { before } = edit
+      if (before?.html === html) return true
       const saved = await optimistic({
         key: `edit:${target.id}`,
-        apply: () => edit.show(html),
+        // An edit is now. The reducers set the time they are given (null:
+        // never edited) and keep their own when given none; a live edit is
+        // stamped as it arrives.
+        apply: () => edit.show(html, new Date().toISOString()),
         revert: () => {
           if (before) edit.show(before.html, before.updatedAt ?? null)
         },

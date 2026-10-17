@@ -138,6 +138,8 @@ export function SelectUserToMessageDropdown({
                             <button
                                 type="button"
                                 aria-label={`Remove ${displayNameOf(user)}`}
+                                // 20px drawn, a finger's 44px to tap (app/phone.css F3).
+                                data-touch-target=""
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     handleRemoveUser(user.user_uuid)

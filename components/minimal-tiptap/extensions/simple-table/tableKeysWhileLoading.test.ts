@@ -5,13 +5,13 @@ import { ALL_EDITIONS } from "@/components/docEditor/registry/manifest"
 import { docEditor, loadDocBlocks, press } from "../block-commands/blockTestKit"
 import { insertSimpleTable } from "./simpleTable"
 
-// Tab in a table, and table editing's chunk (tableEditing.ts). It came when
-// a doc first showed a table, and on a slow connection a new table's first
-// Tab came before it did: the key was swallowed, and what was typed next went
-// into the cell it left ("StepOwner"). Moving between cells needs only the
-// doc; and the doc's editor is made with table editing now, so it is never
-// on its way while a key can be pressed (registry/factory.ts). The chunk is
-// held here until the test lets it go.
+// Tab in a table, and table editing's chunk (tableEditing.ts), which a doc
+// fetches the first time it holds a table (registry/onDemand.ts). A new
+// table's Tab once came before the chunk did on a slow connection: the key was
+// swallowed, and what was typed next went into the cell it left ("StepOwner").
+// Moving between cells needs only the doc; the row after the last cell comes
+// with the chunk, as soon as it does, the caret in it. The chunk is held here
+// until the test lets it go.
 const held = vi.hoisted(() => {
   let release = () => {}
   const until = new Promise<void>((r) => (release = r))
@@ -40,13 +40,12 @@ function cells(e: Editor): string[][] {
 }
 
 describe("Tab in a table", () => {
-  it("is never pressed before table editing has come: the doc's editor waits for it, then Tab moves and adds the row after the last at once", async () => {
-    const loading = loadDocBlocks()
-    await new Promise((r) => setTimeout(r, 50))
-    expect(blocksReady("doc", ALL_EDITIONS)).toBe(false)
-    held.release()
-    await loading
+  it("moves between cells while its editing is on its way, and adds the row after the last as soon as it comes", async () => {
+    await loadDocBlocks()
+    // A doc without a table is built without waiting for table editing; one
+    // whose saved copy holds a table waits for it.
     expect(blocksReady("doc", ALL_EDITIONS)).toBe(true)
+    expect(blocksReady("doc", ALL_EDITIONS, "<table><tbody><tr><td><p>a</p></td></tr></tbody></table>")).toBe(false)
 
     const e = docEditor("<p></p>")
     insertSimpleTable(e, { from: 1, to: 1 })
@@ -57,10 +56,13 @@ describe("Tab in a table", () => {
     // ⇧Tab goes back, the cell's text chosen.
     press(e, "Shift-Tab")
     expect(e.state.doc.textBetween(e.state.selection.from, e.state.selection.to)).toBe("Step")
-    // Eight cells on is the last; one more adds a row, there and then.
-    for (let i = 0; i < 9; i++) press(e, "Tab")
-    expect(cells(e)).toHaveLength(4)
+    // Eight cells on is the last; one more asks for a row, which waits for the editing.
+    for (let i = 0; i < 9; i++) expect(press(e, "Tab").defaultPrevented).toBe(true)
+    expect(cells(e)).toHaveLength(3)
+    held.release()
+    await vi.waitFor(() => expect(cells(e)).toHaveLength(4))
     e.commands.insertContent("next")
     expect(cells(e)[3]).toEqual(["next", "", ""])
+    expect(blocksReady("doc", ALL_EDITIONS, "<table><tbody><tr><td><p>a</p></td></tr></tbody></table>")).toBe(true)
   }, 30_000)
 })

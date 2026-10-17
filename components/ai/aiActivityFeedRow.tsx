@@ -151,7 +151,6 @@ export function AIActivityFeedRow({ item: it, chain = "idle", sweepIndex = 0, br
             second={lines.why || null}
             meta={it.at ? formatListTimestamp(it.at) : undefined}
             className={cn(
-                evidence ? "cursor-pointer hover:bg-hover" : "cursor-default",
                 broken && "after:pointer-events-none after:absolute after:inset-y-2 after:left-0 after:w-0.5 after:rounded-full after:bg-destructive",
                 separated && "before:pointer-events-none before:absolute before:left-14 before:right-4 before:top-0 before:h-px before:bg-line hover:before:opacity-0",
             )}
@@ -172,7 +171,7 @@ export function AIActivityFeedRow({ item: it, chain = "idle", sweepIndex = 0, br
         >
             {open ? <RecordEvidence item={it} started={started} /> : null}
             {evidence && !open ? (
-                <ChevronDown aria-hidden className="absolute bottom-1.5 right-4 size-3.5 text-ink-4 opacity-0 transition-opacity group-hover/hubrow:opacity-100 [@media(hover:none)]:opacity-100" />
+                <ChevronDown aria-hidden className="absolute bottom-1.5 right-4 size-3.5 text-ink-4 opacity-0 transition-opacity group-hover/hubrow:opacity-100 group-focus-within/hubrow:opacity-100 [@media(hover:none)]:opacity-100" />
             ) : null}
         </HubRow>
     )

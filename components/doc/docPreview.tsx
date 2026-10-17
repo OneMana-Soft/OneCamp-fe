@@ -8,29 +8,35 @@ interface DocPreviewProps {
     content: string;
     /** The doc's title, set at the top of the page as the doc sets it. */
     title?: string;
+    /** The doc's icon, above the title as the doc sets it, drawn at twice its size. */
+    icon?: React.ReactNode;
+    /** On the doc's hue (its tint, from a data-hue above) rather than the sunken ground. */
+    tinted?: boolean;
     className?: string;
 }
 
 /**
- * A doc's first lines as a page (content.md D02): a sheet on the sunken
- * ground, bleeding off the bottom into a 24 px fade, holding the real title
- * and opening text in the doc's own type, in its own sizes zoomed to half
- * (CSS zoom), so it is laid out at the size it is drawn. It was scaled by a
- * transform, which laid the words out at full size and drew them at half:
- * the spaces landed between the wrong letters ("Thread skeep", "Docsfor",
- * QA DSA-30). Under the card's pointer the page rises 2 px, as if picked up.
+ * A doc's first lines as a page (content.md D02): a sheet on a ground in the
+ * doc's hue (D13; the sunken ground when it has none), bleeding off the bottom
+ * into a 24 px fade, holding its icon, the real title and the opening text in
+ * the doc's own type, in its own sizes zoomed to half (CSS zoom), so it is laid
+ * out at the size it is drawn. It was scaled by a transform, which laid the
+ * words out at full size and drew them at half: the spaces landed between the
+ * wrong letters ("Thread skeep", "Docsfor", QA DSA-30). Under the card's
+ * pointer the page rises 2 px, as if picked up.
  */
-export const DocPreview: React.FC<DocPreviewProps> = ({ content, title, className }) => {
+export const DocPreview: React.FC<DocPreviewProps> = ({ content, title, icon, tinted = false, className }) => {
     const hasContent = !!content && content.trim().length > 0 && !content.includes('Empty document');
 
     return (
-        <div className={cn("relative h-full w-full overflow-hidden bg-sunken px-4 pt-4", className)}>
+        <div className={cn("relative h-full w-full overflow-hidden px-4 pt-4", tinted ? "bg-hue-tint" : "bg-sunken", className)}>
             <div
                 data-doc-page=""
                 className="relative h-full overflow-hidden rounded-t-md bg-sheet shadow-e1 transition-transform duration-[140ms] ease-[var(--ease-out)] group-hover:-translate-y-0.5 motion-reduce:transform-none"
             >
                 {hasContent || title ? (
                     <div data-doc-preview-text="" className="pointer-events-none px-7 pt-6 text-ink select-none [zoom:0.5]" aria-hidden="true">
+                        {icon ? <div className="mb-2 flex">{icon}</div> : null}
                         {title ? <div className="mb-2 text-lg font-semibold leading-[26px] text-ink">{title}</div> : null}
                         {hasContent ? (
                             <SafeHtml
@@ -55,7 +61,7 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ content, title, classNam
                     </div>
                 )}
             </div>
-            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-b from-transparent to-sunken" />
+            <div aria-hidden="true" className={cn("pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-b from-transparent", tinted ? "to-hue-tint" : "to-sunken")} />
         </div>
     );
 };

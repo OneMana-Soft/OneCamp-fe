@@ -45,6 +45,3 @@ export function preloadAdminSection(key: string) {
   preloaded.add(key)
   for (const p of PRELOAD[key]()) p.catch(() => preloaded.delete(key))
 }
-
-/** The sections with a preload, for the guard. */
-export const PRELOADED_SECTIONS = Object.keys(PRELOAD)

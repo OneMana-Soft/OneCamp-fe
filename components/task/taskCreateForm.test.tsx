@@ -238,7 +238,11 @@ describe("the form's shape", () => {
     expect(screen.getByRole("button", { name: /Due date/ })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Labels" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Link a GitHub issue or pull request" })).toBeTruthy()
-    expect((screen.getByRole("button", { name: "Attach a file" }) as HTMLButtonElement).disabled).toBe(true)
+    // Files wait for it too, and say why in the layer's tip, focusable still.
+    const attach = screen.getByRole("button", { name: "Attach a file" })
+    expect(attach.getAttribute("aria-disabled")).toBe("true")
+    expect(attach.getAttribute("data-disabled-reason")).toBe("Pick a project first")
+    expect(attach.getAttribute("title")).toBeNull()
   })
 })
 

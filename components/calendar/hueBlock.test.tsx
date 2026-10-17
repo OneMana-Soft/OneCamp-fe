@@ -46,4 +46,10 @@ describe("an event drawn on time", () => {
     expect(block.getAttribute("data-hue-block")).toBe("task")
     expect(block.querySelector("svg")).toBeTruthy()
   })
+
+  // The calendar finds the event under the pointer or the focus by it: E, Delete and its menu.
+  it("carries its item's id", () => {
+    render(<HueBlock item={{ event_uuid: "e7" }} variant="row">Review</HueBlock>)
+    expect(screen.getByRole("button", { name: "Review" }).getAttribute("data-event-uuid")).toBe("e7")
+  })
 })

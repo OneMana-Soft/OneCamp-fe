@@ -54,7 +54,7 @@ declare module "@tiptap/core" {
 }
 
 /** The block menu for the chosen blocks or the caret's, standing at the first one's line. */
-export function openBlockMenu(editor: Editor, via: "keys" | "press", blocks?: BlockRef[]): boolean {
+function openBlockMenu(editor: Editor, via: "keys" | "press", blocks?: BlockRef[]): boolean {
   const { state, view } = editor
   const target = blocks ?? targetBlocks(state)
   if (!target.length) return false
@@ -79,7 +79,7 @@ function run(editor: Editor, make: (state: EditorState) => unknown): boolean {
 }
 
 /** How long a finger holds a block for its sheet, and how far it may wander. */
-export const LONG_PRESS_MS = 500
+const LONG_PRESS_MS = 500
 const PRESS_SLOP = 10
 
 /**

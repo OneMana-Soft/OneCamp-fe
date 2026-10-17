@@ -42,7 +42,7 @@ export const TeamListTabContent = ({ teamId }: { teamId: string }) => {
             onValueChange={(v) => setTab(v as "projects" | "docs")}
             className="flex h-full min-h-0 flex-col"
         >
-            <SectionTabsContent value="projects" className="flex min-h-0 flex-1 flex-col outline-none">
+            <SectionTabsContent value="projects" className="flex min-h-0 flex-1 flex-col">
                 <SearchField
                     onChange={handleSearchChange}
                     value={inputValue}
@@ -52,7 +52,7 @@ export const TeamListTabContent = ({ teamId }: { teamId: string }) => {
                     <TeamListTabProject searchQuery={searchQuery} teamId={teamId} />
                 </div>
             </SectionTabsContent>
-            <SectionTabsContent value="docs" className="min-h-0 flex-1 overflow-y-auto outline-none">
+            <SectionTabsContent value="docs" className="min-h-0 flex-1 overflow-y-auto">
                 <SpaceDocs space={`team:${teamId}` as const} name={teamInfo.data?.data.team_name} />
             </SectionTabsContent>
         </SectionTabs>

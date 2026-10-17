@@ -31,6 +31,22 @@ describe("a block, for the hand", () => {
     expect(b?.node.textContent).toBe("R")
   })
 
+  // Review, 16 Oct 2026: from inside a cell the hand took the cell's line, not
+  // the table. The rule stopped a level short of the table's own role, so the
+  // block handle sat in the gutter of the cell's text: over the cell beside it,
+  // on the edge that resizes that column, and its menu and drag took a line
+  // out of a cell.
+  it("is the table, from inside any of its cells, at the top and in a column", () => {
+    const table = (a: string, b: string) => `<table><tbody><tr><th><p>${a}1</p></th><th><p>${a}2</p></th></tr><tr><td><p>${b}1</p></td><td><p>${b}2</p></td></tr></tbody></table>`
+    const e = docEditor(`${table("h", "c")}<div data-type="column-list"><div data-type="column">${table("H", "C")}</div><div data-type="column"><p>R</p></div></div>`)
+    const doc = e.state.doc
+    for (const text of ["h1", "h2", "c1", "c2", "H1", "C2"]) {
+      const b = blockAt(doc, posOf(doc, text, "paragraph") + 1)
+      expect(b?.node.type.name, text).toBe("table")
+      expect(b?.node.textContent, text).toContain(text)
+    }
+  })
+
   it("chooses the blocks between two at their common level; two columns of one row choose the row", () => {
     const e = docEditor('<p>one</p><ul><li><p>a</p></li></ul><p>x</p><div data-type="column-list"><div data-type="column"><p>L</p></div><div data-type="column"><p>R</p></div></div>')
     const doc = e.state.doc

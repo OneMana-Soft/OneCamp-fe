@@ -2,6 +2,7 @@
 
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
+import { isComposingKey } from "@/lib/keys/ime"
 import * as React from "react"
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { Button } from "@/components/ui/button"
@@ -350,7 +351,7 @@ export function ShareTokenInvite({
     <div className="relative">
       <div className="flex items-start gap-2">
         <div
-          className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 rounded-lg bg-raised py-1 pl-1.5 pr-1 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50"
+          className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 rounded-lg bg-raised py-1 pl-1.5 pr-1 shadow-e1 focus-within:focus-halo"
           onClick={() => inputRef.current?.focus()}
         >
           {picked.map((u) => (
@@ -375,6 +376,8 @@ export function ShareTokenInvite({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
+              // An input method's Enter picks its word (a name in Japanese, say), never a person.
+              if (isComposingKey(e.nativeEvent)) return
               if (e.key === "ArrowDown" && shown.length) {
                 e.preventDefault()
                 setActive((i) => (i + 1) % shown.length)
@@ -740,6 +743,8 @@ export function InviteRow({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
+              // An input method's Enter picks its word, never a person or a team.
+              if (isComposingKey(e.nativeEvent)) return
               if (e.key === "ArrowDown" && options.length) {
                 e.preventDefault()
                 setActive((i) => (i + 1) % options.length)

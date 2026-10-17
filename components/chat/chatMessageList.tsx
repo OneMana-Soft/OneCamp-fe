@@ -15,7 +15,6 @@ import {ChatTypingBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import { ConversationLoadError } from "@/components/message/conversationError";
 import {useSearchParams} from "next/navigation";
-import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
 import { pageEdgeQuery } from "@/lib/chat/pageEdge";
 import { useOlderPages } from "@/hooks/useOlderPages";
@@ -35,7 +34,6 @@ interface ChatMessageListProps {
 // message. On a phone that re-render cost up to 300 ms a key.
 export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId: propMessageId, unreadOnOpen}: ChatMessageListProps) {
 
-    const { isMobile } = useMedia();
     const searchParams = useLinkSearchParams(useSearchParams());
     const messageId = propMessageId || searchParams?.get('messageId') || undefined;
 
@@ -242,9 +240,11 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
         )
     }
 
-    // Failed, with nothing to show: say so, never "This is the start of your conversation".
-    if (latestMsg.isError && !latestMsg.data && safeChatMessageState.length === 0) {
-        return <ConversationLoadError subject="this conversation" retry={() => latestMsg.mutate()} />
+    // Failed, with nothing to show: say so, never "This is the start of your
+    // conversation". Opened at a message, the page around it is the read.
+    const opening = messageId ? getNewChatsWithCurrentChat : latestMsg
+    if (opening.isError && !opening.data && safeChatMessageState.length === 0) {
+        return <ConversationLoadError subject="this conversation" retry={() => opening.mutate()} />
     }
 
     return (

@@ -153,7 +153,7 @@ export default function TablesPage() {
             </p>
           ) : null}
         </div>
-        <label className="hidden h-8 w-60 items-center gap-2 rounded-lg bg-raised px-2.5 text-ui text-ink-3 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50 sm:flex">
+        <label className="hidden h-8 w-60 items-center gap-2 rounded-lg bg-raised px-2.5 text-ui text-ink-3 shadow-e1 focus-within:focus-halo sm:flex">
           <Search className="size-3.5 shrink-0" aria-hidden="true" />
           <input
             ref={searchRef}
@@ -185,7 +185,7 @@ export default function TablesPage() {
           {/* A floating composer card, not a search field. */}
           <div
             data-ai-bar=""
-            className="mb-2 flex h-11 items-center gap-2.5 rounded-xl bg-raised pl-3.5 pr-1.5 shadow-e2 outline-0 outline-brand/15 transition-[outline-width] focus-within:outline-[3px] focus-within:ring-1 focus-within:ring-brand/50"
+            className="mb-2 flex h-11 items-center gap-2.5 rounded-xl bg-raised pl-3.5 pr-1.5 shadow-e2 outline-0 outline-brand/15 transition-[outline-width] focus-within:outline-[3px] focus-within:focus-halo"
           >
             <Spark size={16} className="shrink-0 text-agent" />
             <input
@@ -291,7 +291,7 @@ export default function TablesPage() {
                       if (e.key === "Enter") e.currentTarget.blur()
                       if (e.key === "Escape") setRenaming(null)
                     }}
-                    className="h-8 min-w-0 flex-1 rounded-lg bg-raised px-2 text-ui font-medium shadow-e1 outline-none focus:ring-1 focus:ring-brand/50"
+                    className="h-8 min-w-0 flex-1 rounded-lg bg-raised px-2 text-ui font-medium shadow-e1 outline-none focus:focus-halo"
                   />
                 </div>
               ) : (

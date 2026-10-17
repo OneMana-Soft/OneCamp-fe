@@ -12,6 +12,7 @@ import { aiPromptOf } from "@/components/table/ColumnMenu"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import type { CellCommit } from "@/lib/tables/useCellCommit"
 import { relativeTime } from "@/lib/utils/relativeTime"
+import { ix } from "@/lib/ui/interactive"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { useToast } from "@/hooks/use-toast"
 
@@ -45,7 +46,7 @@ function AiCellNote({ tableId, field, row, onFilled }: { tableId: string; field:
     <dd className="col-start-2 -mt-0.5 flex items-center gap-2 pb-1 text-meta text-ink-3 max-sm:col-start-1" data-ai-cell-note="">
       {kept ? <span>Written by a person, so AI leaves it be</span> : null}
       {ai ? (
-        <button type="button" onClick={() => void fill()} disabled={filling} className="inline-flex items-center gap-1 font-medium text-agent-ink outline-none hover:underline focus-visible:underline disabled:opacity-60">
+        <button type="button" onClick={() => void fill()} disabled={filling} className="inline-flex items-center gap-1 rounded-sm font-medium text-agent-ink hover:underline disabled:opacity-60">
           {filling ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <Spark size={12} className="text-agent" />}
           {filling ? "Filling…" : "Fill again"}
         </button>
@@ -154,7 +155,7 @@ export function RecordPanel({
       data-record-panel=""
       className="content-float fixed inset-y-2 right-2 z-[var(--z-popover)] flex w-[min(480px,calc(100vw-16px))] flex-col overflow-hidden rounded-[16px] bg-sheet shadow-e3 outline-none [--float-from-y:0px] max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:h-[88dvh] max-sm:w-full max-sm:rounded-b-none max-sm:shadow-sheet"
     >
-      <header className="flex h-12 shrink-0 items-center gap-1 px-3">
+      <header className="flex h-12 shrink-0 items-center gap-1 px-3" data-touch-group="">
         <TableGlyph id={tableId} size="sm" />
         <span className="ml-1.5 min-w-0 flex-1 truncate text-ui-sm text-ink-3">
           {tableName} · {index + 1} of {rows.length}
@@ -246,7 +247,8 @@ function PanelTitle({ label, value, readOnly, onCommit }: { label: string; value
       }}
       aria-label={label}
       placeholder="Untitled"
-      className="-mx-2 mb-4 block w-[calc(100%+16px)] resize-none overflow-hidden break-words rounded-lg bg-transparent px-2 py-1 font-display text-title-2 text-ink outline-none placeholder:text-ink-3 hover:bg-hover focus:bg-transparent"
+      {...ix("field")}
+      className="-mx-2 mb-4 block w-[calc(100%+16px)] resize-none overflow-hidden break-words rounded-lg bg-transparent px-2 py-1 font-display text-title-2 text-ink placeholder:text-ink-3"
     />
   )
 }

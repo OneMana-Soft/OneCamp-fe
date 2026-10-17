@@ -61,13 +61,14 @@ import { TableGlyph } from "@/components/table/TableGlyph"
 import { LoadFailureState } from "@/components/ui/load-failure-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableViewState, TABLE_VIEW_INSET, TOUCH_ROW } from "@/components/table/TableViewFrame"
-import { hueFor } from "@/lib/campHue"
+import { hueFor, type CampHue } from "@/lib/campHue"
 import { viewFromQuery, type ViewChoice } from "@/lib/tables/tableView"
 import { SaveDot, type SaveState } from "@/components/docEditor/SaveDot"
 import { DEFAULT_DISPLAY, ROW_HEIGHTS, listByDefault, loadDisplay, saveDisplay, type TableDisplay } from "@/lib/tables/display"
 import { useCellCommit } from "@/lib/tables/useCellCommit"
 import { FIELD_GLYPH } from "@/components/table/gridCells"
 import { toCsv } from "@/lib/tables/csv"
+import { ix } from "@/lib/ui/interactive"
 
 const VIEW_TABS: { type: ViewType | "chart"; label: string; icon: typeof LayoutGrid }[] = [
   { type: "grid", label: "Grid", icon: LayoutGrid },
@@ -99,9 +100,11 @@ function useNarrow(): boolean {
 /**
  * The view tabs (T04): 13/510 labels with their glyphs, and one ink underline
  * that slides between them by transform. Saved views need the server, so
- * these are the four built-in views.
+ * these are the four built-in views. Tabs of the interaction layer, in the
+ * table's own hue: a tinted pill under the pointer, the chosen one's glyph in
+ * the hue, the focus ring (TB-19), and a 44px tap under a finger.
  */
-function ViewTabs({ active, onPick }: { active: ViewChoice; onPick: (v: ViewChoice) => void }) {
+function ViewTabs({ active, onPick, hue }: { active: ViewChoice; onPick: (v: ViewChoice) => void; hue: CampHue }) {
   const wrap = React.useRef<HTMLDivElement>(null)
   const bar = React.useRef<HTMLSpanElement>(null)
   React.useLayoutEffect(() => {
@@ -113,7 +116,7 @@ function ViewTabs({ active, onPick }: { active: ViewChoice; onPick: (v: ViewChoi
     b.dataset.on = "true"
   }, [active])
   return (
-    <div ref={wrap} className="relative flex h-10 items-stretch gap-1 overflow-x-auto" role="group" aria-label="View">
+    <div ref={wrap} data-hue={hue} data-edge-fade="" className="relative flex h-10 items-center gap-1 overflow-x-auto" role="group" aria-label="View">
       {VIEW_TABS.map((tab) => {
         const Icon = tab.icon
         const on = active === tab.type
@@ -125,10 +128,8 @@ function ViewTabs({ active, onPick }: { active: ViewChoice; onPick: (v: ViewChoi
             data-touch-target=""
             onClick={() => onPick(tab.type)}
             aria-pressed={on}
-            className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 text-ui-sm font-medium outline-none transition-colors focus-visible:bg-hover",
-              on ? "text-ink [&>svg]:text-ink-2" : "text-ink-3 hover:text-ink-2 [&>svg]:text-ink-4",
-            )}
+            {...ix("tab")}
+            className={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-ui-sm font-medium", on ? "text-ink" : "text-ink-3 hover:text-ink-2 [&>svg]:text-ink-4")}
           >
             <Icon className="size-3.5" aria-hidden="true" /> {tab.label}
           </button>
@@ -503,7 +504,7 @@ export default function TableDetailPage() {
   const toolbarEnd = (
     <>
       {searching || query ? (
-        <label className="flex h-7 w-44 items-center gap-1.5 rounded-lg bg-raised px-2 text-ui-sm shadow-e1 focus-within:ring-1 focus-within:ring-brand/50 max-sm:w-32">
+        <label className="flex h-7 w-44 items-center gap-1.5 rounded-lg bg-raised px-2 text-ui-sm shadow-e1 focus-within:focus-halo max-sm:w-32">
           <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
           <input
             ref={searchRef}
@@ -650,7 +651,7 @@ export default function TableDetailPage() {
           <Lock className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
           <span>Only you can see this table. AI may have filled it from your private messages and docs.</span>
           {bundle.can_manage ? (
-            <button type="button" onClick={showToWorkspace} data-touch-target="" className="font-medium text-brand-text outline-none hover:underline focus-visible:underline">
+            <button type="button" onClick={showToWorkspace} data-touch-target="" className="rounded-sm font-medium text-brand-text hover:underline">
               Show to the workspace
             </button>
           ) : null}
@@ -671,7 +672,8 @@ export default function TableDetailPage() {
                   onBlur={commitName}
                   onKeyDown={(e) => e.key === "Enter" && !isComposingKey(e.nativeEvent) && e.currentTarget.blur()}
                   aria-label="Table name"
-                  className="-mx-1 block w-full truncate rounded-md border-b border-transparent bg-transparent px-1 font-display text-title-1 text-ink outline-none hover:bg-hover focus:bg-transparent"
+                  {...ix("field")}
+                  className="-mx-1 block w-full truncate rounded-md border-b border-transparent bg-transparent px-1 font-display text-title-1 text-ink"
                   maxLength={120}
                 />
               </h1>
@@ -686,7 +688,8 @@ export default function TableDetailPage() {
                 onKeyDown={(e) => e.key === "Enter" && !isComposingKey(e.nativeEvent) && e.currentTarget.blur()}
                 aria-label="What this table is for"
                 placeholder="Add a description"
-                className="-mx-1 mt-0.5 block w-full truncate rounded-md bg-transparent px-1 text-ui text-ink-2 outline-none placeholder:text-ink-3 hover:bg-hover focus:bg-transparent"
+                {...ix("field")}
+                className="-mx-1 mt-0.5 block w-full truncate rounded-md bg-transparent px-1 text-ui text-ink-2 placeholder:text-ink-3"
                 maxLength={500}
               />
             ) : t.description ? (
@@ -701,7 +704,7 @@ export default function TableDetailPage() {
           </div>
         </div>
 
-        <ViewTabs active={activeView} onPick={showView} />
+        <ViewTabs active={activeView} onPick={showView} hue={hueFor(tableId)} />
 
         {/* One frame for every view (TableViewFrame): the toolbar row, then a
             body that scrolls inside the frame, and one place where a view

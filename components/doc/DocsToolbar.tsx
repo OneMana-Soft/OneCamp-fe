@@ -21,6 +21,7 @@ import type { RootState } from "@/store/store"
 import type { DocListSort, DocSpace } from "@/types/docGraph"
 import type { ChannelAndUserListInterfaceResp } from "@/types/user"
 import type { DocsView } from "@/components/doc/docListResult"
+import { ix } from "@/lib/ui/interactive"
 
 export const SORT_LABEL: Record<DocListSort, string> = { edited: "Last edited", created: "Date created", title: "Title" }
 
@@ -33,12 +34,11 @@ export interface OwnerChoice {
 const chip =
   "inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-ui-sm text-ink-2 outline-none transition-colors hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand data-[state=open]:bg-press data-[state=open]:text-ink"
 const on = "bg-hover text-ink"
-const option =
-  "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-ui-sm text-ink outline-none hover:bg-hover focus-visible:bg-hover"
+const option = "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-ui-sm text-ink"
 
 function Choice({ chosen, onClick, children }: { chosen: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" role="menuitemradio" aria-checked={chosen} onClick={onClick} className={option}>
+    <button type="button" role="menuitemradio" aria-checked={chosen} onClick={onClick} {...ix("item")} className={option}>
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {chosen && <Check className="size-3.5 shrink-0 text-ink-2" aria-hidden="true" />}
     </button>
@@ -115,7 +115,7 @@ function OwnerMenu({ owner, onOwner, selfId, off }: { owner: OwnerChoice | null;
               Me
             </Choice>
           )}
-          <label className="mt-1 flex h-8 items-center gap-2 rounded-md bg-sunken px-2 text-ink-3 focus-within:ring-1 focus-within:ring-brand/50">
+          <label className="mt-1 flex h-8 items-center gap-2 rounded-md bg-sunken px-2 text-ink-3 focus-within:focus-halo">
             <Search className="size-3.5 shrink-0" aria-hidden="true" />
             <input
               value={text}

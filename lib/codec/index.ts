@@ -11,14 +11,14 @@
 
 import type { JSONContent } from '@tiptap/core'
 import type { Codec, CodecRule } from './types'
-import { CNode, canonicalJSON } from './doc'
+import { CNode } from './doc'
 import { normalize } from './normalize'
 import { toMarkdown, MarkdownOptions } from './markdown'
 import { fromMarkdown, readTable } from './markdownParse'
 import { fromHTML, toHTML } from './html'
 import { SHIPPED } from './schema'
 
-export interface CodecOptions {
+interface CodecOptions {
   /** The web app's origin, for links to channels, docs and tables; the page's own when absent. */
   appURL?: string
   /** Rules from block specs, for nodes the codec has none of its own for. */
@@ -54,6 +54,3 @@ export function createCodec(opts: CodecOptions = {}): Codec & {
 
 /** The codec with the codec's own rules. */
 export const codec = createCodec()
-
-export { canonicalJSON, normalize, toMarkdown, fromMarkdown, toHTML, fromHTML }
-export type { CNode } from './doc'

@@ -20,6 +20,7 @@ import { installRangeRects } from "@/lib/testing/rangeRects"
 
 vi.mock("@/lib/axiosInstance", () => ({
   default: { get: vi.fn(async () => ({ status: 200, data: {} })), post: vi.fn(async () => ({ data: {} })) },
+  OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))
@@ -120,9 +121,11 @@ describe("an open editor's plugins", () => {
     expect(editor).toBeTruthy()
     const plugins = editor.state.plugins
     const keys = plugins.map((p) => (p as unknown as { key: string }).key)
-    // Given when it was made: the soft lock, the AI keys and pins, table editing, find.
+    // Given when it was made: the soft lock, the AI keys and pins, table
+    // editing's stand-ins (its chunk comes with the doc's first table:
+    // registry/onDemand.ts), find.
     const has = (name: string) => keys.some((k) => k.startsWith(`${name}$`))
-    expect(["b6SoftLock", "docAi", "tableColumnResizing", "docFind"].filter((name) => !has(name))).toEqual([])
+    expect(["b6SoftLock", "docAi", "onDemand:simpleTableEditing", "docFind"].filter((name) => !has(name))).toEqual([])
     // Its bars and overlays are drawn: none added a plugin as it came.
     expect(added).not.toHaveBeenCalled()
 
@@ -142,9 +145,11 @@ describe("an open editor's plugins", () => {
     expect(aiBarOf(editor).open).toBe(true)
     await settle()
     act(() => closeAiBar(editor))
-    // A table, its editing already there.
+    // A table: its editing comes to the stand-ins the editor was made with.
     act(() => insertSimpleTable(editor, { from: editor.state.doc.content.size - 1, to: editor.state.doc.content.size - 1 }))
     expect(editor.getJSON().content?.some((n) => n.type === "table")).toBe(true)
+    const { columnResizingPluginKey } = await import("@tiptap/pm/tables")
+    await vi.waitFor(() => expect(columnResizingPluginKey.getState(editor.state)).toEqual(expect.objectContaining({ activeHandle: -1 })))
     // Find.
     act(() => openFind(editorActionContext(editor, AI)))
     // A selection, with the bar over it.

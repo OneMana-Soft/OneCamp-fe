@@ -1,11 +1,16 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeAll, describe, expect, it } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { getCoreRowModel, useReactTable, type ColumnDef, type ColumnFiltersState } from "@tanstack/react-table"
 import { useState } from "react"
-import { TaskTableFieldFilter, filterChoices } from "@/components/task/taskTableFieldFilter"
+import { TaskTableFieldFilter, filterChoices, warmFieldFilter } from "@/components/task/taskTableFieldFilter"
 import type { TaskField } from "@/lib/tasks/fields"
 
 afterEach(cleanup)
+// The list is a chunk of its own, which the chip loads on pointer or focus;
+// here it is in before the first click, as it is by a person's.
+beforeAll(async () => {
+  await warmFieldFilter()
+})
 
 const base = { project_id: "p", options: [], on_card: false, position: 0 }
 const channel: TaskField = { ...base, id: "c", name: "Channel", type: "select", filter_id: "field_c", options: [{ id: "aaaa1111", label: "Blog", color: "violet" }] }

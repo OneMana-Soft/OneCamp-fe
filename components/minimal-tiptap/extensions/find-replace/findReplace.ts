@@ -25,7 +25,7 @@ import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
 import { changedRange } from "@/components/minimal-tiptap/utils/changedRange"
 import { isComposingKey } from "@/lib/keys/ime"
 
-export interface FindOptions {
+interface FindOptions {
   caseSensitive: boolean
   wholeWord: boolean
 }
@@ -156,7 +156,7 @@ function apply(tr: Transaction, prev: FindState, old: EditorState, state: Editor
   return next
 }
 
-export interface FindHooks {
+interface FindHooks {
   /** ⌘⇧H in the doc while find is open. */
   replace(): void
   /** Escape in the doc while find is open. */

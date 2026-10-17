@@ -60,7 +60,7 @@ export interface DocSessionInput {
   keepEdits?: () => { html: string; text: string } | null
 }
 
-export interface DocSession {
+interface DocSession {
   provider: ReturnType<typeof useCollabSession>['provider']
   status: SessionStatus
   synced: boolean

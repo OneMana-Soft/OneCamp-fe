@@ -6,7 +6,6 @@ let pathname = "/app/task/t1"
 const router = { back: vi.fn(), replace: vi.fn(), push: vi.fn() }
 vi.mock("next/navigation", () => ({ usePathname: () => pathname, useRouter: () => router }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
-vi.mock("@/components/navigationBar/orgAvatarNav", () => ({ OrgAvatarNav: () => <span /> }))
 
 import { MobileTopNavigationBarFirst } from "./mobileTopNavigationBarFirst"
 

@@ -38,7 +38,7 @@ function grammarFor(language: string): string {
 }
 
 /** The code blocks in a range of a doc, outermost first (a code block holds no other). */
-export function codeBlocksIn(doc: PMNode, from: number, to: number, name: string) {
+function codeBlocksIn(doc: PMNode, from: number, to: number, name: string) {
   const found: Array<{ node: PMNode; pos: number }> = []
   doc.nodesBetween(from, to, (node, pos) => {
     if (node.type.name === name) found.push({ node, pos })
@@ -57,7 +57,7 @@ function flatten(nodes: HastNode[], classes: string[] = [], out: Array<{ text: s
 }
 
 /** One code block's decorations; pos is the block's own position. */
-export function decorate(node: PMNode, pos: number, defaultLanguage: string | null): Decoration[] {
+function decorate(node: PMNode, pos: number, defaultLanguage: string | null): Decoration[] {
   const language = (node.attrs.language as string | null) || defaultLanguage
   const text = node.textContent
   if (!text || language === "plaintext" || language === "mermaid") return []

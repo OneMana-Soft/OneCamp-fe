@@ -16,6 +16,7 @@ import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { DateField } from "@/components/ui/date-field"
 import { useToast } from "@/hooks/use-toast"
 import { captureMemory, CaptureMemoryInput, MemoryKind } from "@/services/memoryService"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
@@ -177,7 +178,7 @@ const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
               size="icon"
               aria-label="Save to memory"
               className={
-                "h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors " +
+                "h-8 w-8 rounded-md text-muted-foreground hover:text-foreground transition-colors " +
                 (className || "")
               }
             >
@@ -195,13 +196,7 @@ const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
             <p className="px-1 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground/70">
               Due date (optional)
             </p>
-            <input
-              type="date"
-              value={commitDue}
-              autoFocus
-              onChange={(e) => setCommitDue(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-            />
+            <DateField value={commitDue} onChange={setCommitDue} aria-label="Due date" className="h-8" />
             <div className="mt-2 flex items-center gap-1.5">
               <Button
                 type="button"

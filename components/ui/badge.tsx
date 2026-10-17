@@ -4,11 +4,9 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils/helpers/cn"
 
 const badgeVariants = cva(
-  // A badge is a label, not a control: no hover. The hover fills that used to
-  // be here (hover:bg-primary/80 on default) survived every caller's own
-  // colour through tailwind-merge, so a green "Connected" badge turned orange
-  // under the cursor, inviting a click that did nothing.
-  "inline-flex items-center rounded-sm border font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+  // A label, not a control: no hover (a green "Connected" turned orange under
+  // the cursor, inviting a click that did nothing) and no focus.
+  "inline-flex items-center rounded-sm border font-medium tabular-nums",
   {
     variants: {
       /**

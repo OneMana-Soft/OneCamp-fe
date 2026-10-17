@@ -1,11 +1,13 @@
 "use client"
 
 import { createElement, isValidElement, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react"
+import { fieldKeyDown } from "@/lib/keys/ime"
 
 import * as React from "react"
 
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, X } from "@/lib/icons"
+import { ix, withLabel } from "@/lib/ui/interactive"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
@@ -43,6 +45,7 @@ export function WorkTabs<T extends string>({
   useLayoutEffect(() => {
     const el = row.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(value)}"]`)
     if (!el) return
+    el.scrollIntoView?.({ block: "nearest", inline: "nearest" })
     const measure = () => setBar({ x: el.offsetLeft + 8, w: Math.max(0, el.offsetWidth - 16) })
     measure()
     if (typeof ResizeObserver === "undefined") return
@@ -66,7 +69,8 @@ export function WorkTabs<T extends string>({
       aria-label={label}
       data-work-tabs=""
       onKeyDown={move}
-      className={cn("no-scrollbar relative flex h-10 shrink-0 items-stretch overflow-x-auto border-b border-line", className)}
+      data-edge-fade=""
+      className={cn("no-scrollbar relative flex h-10 shrink-0 items-center overflow-x-auto border-b border-line", className)}
     >
       {tabs.map((t) => {
         const on = t.value === value
@@ -80,14 +84,12 @@ export function WorkTabs<T extends string>({
             aria-selected={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(t.value)}
-            className={cn(
-              "inline-flex shrink-0 items-center gap-[7px] whitespace-nowrap px-2.5 text-xs leading-5 outline-none transition-colors",
-              "focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-              on ? "font-[510] text-foreground" : "text-ink-2 hover:text-foreground",
-            )}
+            data-touch-target=""
+            {...ix("tab")}
+            className="inline-flex h-7 shrink-0 scroll-mx-6 items-center gap-[7px] whitespace-nowrap rounded-md px-2.5 text-xs leading-5 text-ink-2 hover:text-foreground aria-selected:text-foreground"
           >
-            {Icon && <Icon className={cn("size-3.5", on ? "text-foreground" : "text-ink-3")} />}
-            {t.label}
+            {Icon && <Icon className="size-3.5 text-ink-3" />}
+            {withLabel(t.label)}
             {t.count != null && t.count > 0 && <span className="text-xs tabular-nums text-ink-3">{t.count}</span>}
           </button>
         )
@@ -167,6 +169,9 @@ export function WorkSegmented<T extends string>({
       aria-label={label}
       onKeyDown={move}
       data-work-segmented=""
+      // The layer raises the choice until the thumb is measured.
+      data-segmented=""
+      data-thumb={thumb ? "on" : "off"}
       className={cn("relative inline-flex h-7 shrink-0 items-stretch rounded-md bg-press p-0.5", className)}
     >
       {thumb && (
@@ -191,11 +196,9 @@ export function WorkSegmented<T extends string>({
             title={o.title}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(o.value)}
-            className={cn(
-              "relative z-[1] inline-flex flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] px-2.5 text-xs font-[510] outline-none transition-colors",
-              "focus-visible:ring-2 focus-visible:ring-ring disabled:text-ink-4",
-              on ? "text-foreground" : "text-ink-2 hover:text-foreground",
-            )}
+            data-touch-target=""
+            {...ix("tab")}
+            className="relative z-[1] inline-flex flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] px-2.5 text-xs font-[510] text-ink-2 hover:text-foreground aria-checked:text-foreground"
           >
             {icon}
             {o.label}
@@ -236,7 +239,9 @@ export function WorkSearch({ value, onChange, placeholder, label }: { value: str
         aria-label={label}
         title={`${label} (/)`}
         onClick={() => setOpen(true)}
-        className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 outline-none transition-colors hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        data-touch-target=""
+        {...ix("icon")}
+        className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 hover:text-foreground"
       >
         <Search className="size-3.5" />
       </button>
@@ -252,12 +257,12 @@ export function WorkSearch({ value, onChange, placeholder, label }: { value: str
         aria-label={label}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
+        onKeyDown={fieldKeyDown((e) => {
           if (e.key === "Escape") {
             onChange("")
             setOpen(false)
           }
-        }}
+        })}
         onBlur={() => !value && setOpen(false)}
         className="field-surface h-7 w-full rounded-md pl-8 pr-7 text-xs text-foreground"
       />
@@ -270,6 +275,8 @@ export function WorkSearch({ value, onChange, placeholder, label }: { value: str
             onChange("")
             input.current?.focus()
           }}
+          data-touch-target=""
+          {...ix("icon")}
           className="absolute right-1.5 top-1/2 inline-flex size-4 -translate-y-1/2 items-center justify-center rounded-xs text-ink-3 hover:text-foreground"
         >
           <X className="size-3" />
@@ -305,6 +312,9 @@ export function WorkTabsList<T extends string>({ tabs, value, className }: { tab
     setBar({ x: el.offsetLeft + 8, w: Math.max(0, el.offsetWidth - 16) })
   }, [value])
   React.useLayoutEffect(place, [place, tabs.length])
+  React.useLayoutEffect(() => {
+    list.current?.querySelector<HTMLElement>(`[data-work-tab="${CSS.escape(value)}"]`)?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+  }, [value])
   React.useEffect(() => {
     const box = list.current
     if (!box || typeof ResizeObserver === "undefined") return
@@ -313,17 +323,14 @@ export function WorkTabsList<T extends string>({ tabs, value, className }: { tab
     return () => ro.disconnect()
   }, [place])
   return (
-    <TabsList ref={list} data-work-tabs="" className={cn("relative h-10 w-full justify-start gap-0 rounded-none border-b border-line bg-transparent p-0 px-3 overflow-x-auto no-scrollbar", className)}>
+    <TabsList ref={list} variant="underline" data-work-tabs="" data-edge-fade="" className={cn("relative gap-0 px-3", className)}>
       {tabs.map((t, i) => (
         <TabsTrigger
           key={t.value}
           value={t.value}
           data-work-tab={t.value}
           title={i < 9 ? `${t.label} (${i + 1})` : t.label}
-          className={cn(
-            "relative h-full shrink-0 gap-[7px] rounded-none bg-transparent px-3 text-sm font-normal text-ink-2 shadow-none transition-colors hover:text-foreground",
-            "[&_svg]:size-3.5 [&_svg]:text-ink-3 data-[state=active]:bg-transparent data-[state=active]:font-[510] data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:[&_svg]:text-foreground",
-          )}
+          className="scroll-mx-6 px-3 text-sm text-ink-2 after:hidden [&_svg]:text-ink-3"
         >
           {t.icon}
           {t.label}

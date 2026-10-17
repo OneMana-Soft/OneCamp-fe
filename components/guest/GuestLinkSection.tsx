@@ -431,7 +431,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
                     readOnly
                     aria-label="Guest link"
                     onFocus={(e) => e.currentTarget.select()}
-                    className="h-8 min-w-0 flex-1 rounded-lg bg-raised px-2.5 font-mono text-meta text-ink-2 shadow-e1 outline-none focus-visible:ring-1 focus-visible:ring-brand/50"
+                    className="h-8 min-w-0 flex-1 rounded-lg bg-raised px-2.5 font-mono text-meta text-ink-2 shadow-e1 outline-none focus-visible:focus-halo"
                   />
                   <Button
                     variant="secondary"

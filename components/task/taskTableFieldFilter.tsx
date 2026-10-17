@@ -7,13 +7,18 @@
 
 import { FilterChip } from "@/components/task/filterChip"
 import type { Table } from "@tanstack/react-table"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { OptionPill } from "@/components/task/fieldValue"
+import { lazyView } from "@/components/task/LazyView"
 import { FILTERABLE, FILTER_ANY, FILTER_NONE, type TaskField } from "@/lib/tasks/fields"
-import { cn } from "@/lib/utils/helpers/cn"
 
-type Choice = { value: string; label: string; color?: string }
+export type FieldChoice = { value: string; label: string; color?: string }
+type Choice = FieldChoice
+
+// The list of fields and values is a chunk of its own, with cmdk: the
+// project's first screen draws only the chip (app/firstLoad.test.ts).
+const Menu = lazyView(() => import("@/components/task/fieldFilterMenu"))
+/** Starts loading the list, as the chip does on pointer or focus. */
+export const warmFieldFilter = () => Menu.warm()
 
 /** What a field can be filtered to. Pure. */
 export function filterChoices(field: TaskField, people: { id: string; name: string }[]): Choice[] {
@@ -47,40 +52,20 @@ export function TaskTableFieldFilter<TData>({ table, fields, people, variant }: 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <FilterChip title="Fields" count={active} variant={variant} />
+        <FilterChip title="Fields" count={active} variant={variant} onPointerEnter={() => void warmFieldFilter()} onFocus={() => void warmFieldFilter()} />
       </PopoverTrigger>
       <PopoverContent className="w-[260px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Find a field or value…" />
-          <CommandList>
-            <CommandEmpty>Nothing by that name.</CommandEmpty>
-            {filterable.map((f) => {
-              const chosen = new Set(valuesOf(f))
-              return (
-                <CommandGroup key={f.id} heading={f.name}>
-                  {filterChoices(f, people).map((c) => {
-                    const on = chosen.has(c.value)
-                    return (
-                      <CommandItem key={c.value} checked={on} value={`${f.name} ${c.label}`} onSelect={() => toggle(f, c.value)}>
-                        {c.color ? <OptionPill label={c.label} color={c.color} /> : <span className={cn(c.value === FILTER_ANY || c.value === FILTER_NONE ? "text-muted-foreground" : "")}>{c.label}</span>}
-                      </CommandItem>
-                    )
-                  })}
-                </CommandGroup>
-              )
-            })}
-            {active > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem onSelect={clear} className="justify-center text-center">
-                    Clear field filters
-                  </CommandItem>
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-        </Command>
+        <Menu.View
+          fallback={<p className="p-3 text-sm text-ink-2">Loading…</p>}
+          render={(m) => (
+            <m.FieldFilterMenu
+              groups={filterable.map((f) => ({ field: f, choices: filterChoices(f, people), chosen: valuesOf(f) }))}
+              active={active}
+              onToggle={toggle}
+              onClear={clear}
+            />
+          )}
+        />
       </PopoverContent>
     </Popover>
   )

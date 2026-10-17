@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useConfirm } from "@/hooks/useConfirm"
 import { unsavedWhat } from "@/lib/unsavedChanges"
 import { SAVE_NUDGE_EVENT } from "@/components/ui/settingsSection"
+import { isPlainLeftClick } from "@/lib/ui/linkClick"
 
 const NUDGE_WINDOW_MS = 4000
 let lastNudge = 0
@@ -28,7 +29,7 @@ export function UnsavedChangesGuard() {
     const onClick = (e: MouseEvent) => {
       const what = unsavedWhat()
       if (!what) return
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      if (e.defaultPrevented || !isPlainLeftClick(e)) return
       const link = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null
       if (!link || (link.target && link.target !== "_self") || link.hasAttribute("download")) return
       const url = new URL(link.href, window.location.href)

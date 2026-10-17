@@ -11,13 +11,13 @@
  */
 
 /** Who reacted, as the event names them. */
-export interface EventPerson {
+interface EventPerson {
     user_uuid: string
     user_name: string
     user_profile_object_key?: string
 }
 
-export type DocCommentEvent =
+type DocCommentEvent =
     /** A comment was written: in a thread (its own event names the thread), or on the page the old way. */
     | { kind: "created"; docId: string; commentId: string }
     | { kind: "edited"; docId: string; commentId: string; html: string; at?: string }

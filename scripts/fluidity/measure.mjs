@@ -214,9 +214,11 @@ async function runOnce(browser, run, storage) {
 
   const clickLink = (name) => page.getByRole("link", { name }).first().click()
   // Out of the way between steps: the demo's lead prompt (it appears after a
-  // send) and whatever the right panel holds.
+  // send) and whatever the right panel holds. The prompt is named by its
+  // title, "Run it on your own server, free" since 15 Oct 2026 ("Run this on
+  // your own server" before).
   const tidy = async () => {
-    await page.locator('[aria-label="Run this on your own server"] button[aria-label="Dismiss"]').click({ timeout: 800 }).catch(() => {})
+    await page.getByRole("complementary", { name: /^Run (it|this) on your own server/ }).getByRole("button", { name: "Dismiss" }).click({ timeout: 800 }).catch(() => {})
     await page.locator('[data-right-panel] button[aria-label="Close panel"]').first().click({ timeout: 800 }).catch(() => {})
   }
   const composer = () => page.locator('main [contenteditable="true"], #main-content [contenteditable="true"], [data-split-view="-1"] [contenteditable="true"]').last()

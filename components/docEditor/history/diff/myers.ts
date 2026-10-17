@@ -6,7 +6,7 @@
  * replaced whole, which is what a reader sees anyway.
  */
 
-export type Op = { kind: "same"; a: number; b: number } | { kind: "del"; a: number } | { kind: "ins"; b: number }
+type Op = { kind: "same"; a: number; b: number } | { kind: "del"; a: number } | { kind: "ins"; b: number }
 
 export function myers(a: readonly string[], b: readonly string[], maxD = 2000): Op[] | null {
   // Common ends first: most edits sit in the middle of a long doc.

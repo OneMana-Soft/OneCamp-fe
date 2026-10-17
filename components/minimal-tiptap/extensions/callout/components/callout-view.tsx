@@ -42,10 +42,10 @@ const TONES: Record<string, Tone> = {
 }
 
 /** The kinds a person picks; "From AI" is an agent's own, kept on what an agent wrote. */
-export const PICKED_TONES = ['blue', 'yellow', 'red', 'green', 'purple', 'gray'] as const
+const PICKED_TONES = ['blue', 'yellow', 'red', 'green', 'purple', 'gray'] as const
 
 /** The icons a callout may wear, by their Lucide names (stored as data-icon). */
-export const CALLOUT_ICONS: Record<string, { icon: LucideIcon; label: string }> = {
+const CALLOUT_ICONS: Record<string, { icon: LucideIcon; label: string }> = {
   info: { icon: Info, label: 'Information' },
   lightbulb: { icon: Lightbulb, label: 'Light bulb' },
   'triangle-alert': { icon: AlertTriangle, label: 'Warning sign' },

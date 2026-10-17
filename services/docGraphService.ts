@@ -9,6 +9,7 @@
 import type { Dispatch } from "@reduxjs/toolkit"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { docRenamed } from "@/lib/docCache"
+import { rememberDocIcon } from "@/lib/docLook"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { appMutate, patchCached } from "@/lib/swrMutate"
 import type { TreeAdapter, TreeLevel, TreeNode } from "@/components/tree/useTree"
@@ -18,8 +19,8 @@ import type {
   DocChildren,
   DocCreateRequest,
   DocDeleteResult,
+  DocPurgeResult,
   DocDuplicateResult,
-  DocList,
   DocListScope,
   DocListSort,
   DocMovePreview,
@@ -28,7 +29,6 @@ import type {
   DocMoveTarget,
   DocRestoreResult,
   DocSpace,
-  DocTrash,
   Place,
   PlaceKind,
   TreeNodeJSON,
@@ -60,7 +60,7 @@ export interface Envelope<T> {
 const unwrap = <T>(res: { data?: Envelope<T> }): T => res.data?.data as T
 
 /** A write's options. ownErrors: the caller says a failure itself, so the app's toast stays quiet. */
-export interface WriteOptions {
+interface WriteOptions {
   ownErrors?: boolean
 }
 
@@ -91,8 +91,6 @@ export function listKey(scope: DocListScope, opts: { sort?: DocListSort; owner?:
   return `${DocGraphEndpoint.List}?${q.toString()}`
 }
 
-export const trashKey = (cursor?: string) => (cursor ? `${DocGraphEndpoint.Trash}?cursor=${encodeURIComponent(cursor)}` : DocGraphEndpoint.Trash)
-
 export const placesKey = (kind: PlaceKind = "star", resourceKind?: string) =>
   `${DocGraphEndpoint.Places}?kind=${kind}${resourceKind ? `&resource_kind=${encodeURIComponent(resourceKind)}` : ""}`
 
@@ -106,24 +104,8 @@ export function refreshDocGraph() {
 
 // Reads
 
-export async function getChildren(parent: string | null, opts: { space?: DocSpace; limit?: number } = {}): Promise<DocChildren> {
-  return unwrap(await axiosInstance.get(childrenKey(parent, opts)))
-}
-
 export async function getAncestors(docId: string): Promise<DocAncestors> {
   return unwrap(await axiosInstance.get(ancestorsKey(docId)))
-}
-
-export async function getDocList(scope: DocListScope, opts: Parameters<typeof listKey>[1] = {}): Promise<DocList> {
-  return unwrap(await axiosInstance.get(listKey(scope, opts)))
-}
-
-export async function getTrash(cursor?: string): Promise<DocTrash> {
-  return unwrap(await axiosInstance.get(trashKey(cursor)))
-}
-
-export async function getPlaces(kind: PlaceKind = "star", resourceKind?: string): Promise<Place[]> {
-  return unwrap<{ places: Place[] }>(await axiosInstance.get(placesKey(kind, resourceKind)))?.places ?? []
 }
 
 // Writes
@@ -170,10 +152,14 @@ export async function renameDoc(dispatch: Dispatch, docId: string, title: string
   docRenamed(dispatch, docId, title)
 }
 
-export async function purgeDoc(docId: string, opts?: WriteOptions): Promise<number> {
-  const out = unwrap<{ purged: number }>(await axiosInstance.post(DocGraphEndpoint.Purge, { doc_uuid: docId }, configOf(opts)))
+/**
+ * Deletes a doc in the trash for good, with the pages deleted with it that the
+ * person has full access to; the rest stay in the trash (kept).
+ */
+export async function purgeDoc(docId: string, opts?: WriteOptions): Promise<DocPurgeResult> {
+  const out = unwrap<DocPurgeResult>(await axiosInstance.post(DocGraphEndpoint.Purge, { doc_uuid: docId }, configOf(opts)))
   refreshDocGraph()
-  return out?.purged ?? 0
+  return { purged: out?.purged ?? 0, kept: out?.kept ?? 0 }
 }
 
 export async function duplicateDoc(docId: string, withChildren: boolean, opts?: WriteOptions): Promise<DocDuplicateResult> {
@@ -253,6 +239,8 @@ export function docTreeAdapter(space: DocSpace = "workspace"): TreeAdapter<DocTr
     read: (data): TreeLevel<DocTreeRow> => {
       const level = data?.data
       const nodes = (level?.nodes ?? []).filter((n) => n.uuid && !n.redacted)
+      // Each page's icon, or that it has none, for the lists that name a doc without it (lib/docLook).
+      for (const n of nodes) rememberDocIcon(n.uuid, n.icon)
       return { nodes: nodes.map(toRow), hidden: level?.hidden ?? 0, count: level?.count ?? nodes.length }
     },
     write: (data, nodes, countDelta) => {

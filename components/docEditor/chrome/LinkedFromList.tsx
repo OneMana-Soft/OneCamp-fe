@@ -21,7 +21,7 @@ interface Link {
 /** A doc's backlinks as one list: docs first, then tasks, then projects. Pure. */
 export function linksOf(l: Partial<DocBacklinks>): Link[] {
   return [
-    ...(l.docs ?? []).map((d) => ({ key: `doc-${d.doc_uuid}`, href: `/app/doc/${d.doc_uuid}`, label: d.doc_title?.trim() || "Untitled", icon: <DocIcon icon={d.doc_icon} size={14} /> })),
+    ...(l.docs ?? []).map((d) => ({ key: `doc-${d.doc_uuid}`, href: `/app/doc/${d.doc_uuid}`, label: d.doc_title?.trim() || "Untitled", icon: <DocIcon icon={d.doc_icon} id={d.doc_uuid} size={14} /> })),
     ...(l.tasks ?? []).map((t) => ({ key: `task-${t.task_uuid}`, href: `/app/task/${t.task_uuid}`, label: t.task_name || "Untitled task", icon: <CheckSquare aria-hidden="true" className="size-3.5 shrink-0 text-ink-3" /> })),
     ...(l.projects ?? []).map((p) => ({ key: `project-${p.project_uuid}`, href: `/app/project/${p.project_uuid}`, label: p.project_name || "Untitled project", icon: <FolderKanban aria-hidden="true" className="size-3.5 shrink-0 text-ink-3" /> })),
   ]

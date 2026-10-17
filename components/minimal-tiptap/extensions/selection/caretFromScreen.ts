@@ -3,6 +3,7 @@
 import { Extension } from "@tiptap/react"
 import { Plugin, PluginKey } from "@tiptap/pm/state"
 import type { EditorView } from "@tiptap/pm/view"
+import { isComposingKey } from "@/lib/keys/ime"
 
 /**
  * The caret a key acts on is the one on the screen.
@@ -40,7 +41,7 @@ export const CaretFromScreen = Extension.create({
         props: {
           handleDOMEvents: {
             keydown(view, event) {
-              if (!view.composing && !event.isComposing && event.keyCode !== 229 && !justFocused(view)) readCaretFromScreen(view)
+              if (!view.composing && !isComposingKey(event) && !justFocused(view)) readCaretFromScreen(view)
               return false
             },
           },

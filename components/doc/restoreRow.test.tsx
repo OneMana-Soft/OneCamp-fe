@@ -11,10 +11,15 @@ const restoreDoc = vi.fn(async (id: string) => {
   void id
   return 3
 })
-vi.mock("@/services/docGraphService", () => ({ restoreDoc: (id: string) => restoreDoc(id), purgeDoc: vi.fn() }))
+const purgeDoc = vi.fn(async (id: string) => {
+  void id
+  return { purged: 1, kept: 2 }
+})
+const confirm = vi.fn()
+vi.mock("@/services/docGraphService", () => ({ restoreDoc: (id: string) => restoreDoc(id), purgeDoc: (id: string) => purgeDoc(id) }))
 vi.mock("@/lib/docCache", () => ({ docRestored: vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: unknown) => toast(t) }))
 
@@ -40,6 +45,20 @@ describe("a row in the trash", () => {
     const line = screen.getByText(/goes for good on/).closest("p")!
     expect(line.className).toMatch(/max-sm:line-clamp-2/)
     expect(line.className).toMatch(/sm:truncate/)
+  })
+
+  // Only what the person has full access to goes for good (the owner's rule,
+  // 15 Oct 2026): the question says so, and the answer says what stayed.
+  it("deletes for good what the person has full access to, and says what stayed in the trash", async () => {
+    render(row(true))
+    fireEvent.click(screen.getByRole("button", { name: "Delete “Old plan” for good" }))
+    const asked = confirm.mock.calls[0][0]
+    expect(asked.description).toBe(
+      "“Old plan” and the 2 pages deleted with it go for good, apart from any you don't have full access to, which stay in the trash. Nobody can bring back what goes.",
+    )
+    await asked.onConfirm()
+    expect(purgeDoc).toHaveBeenCalledWith("old-plan")
+    expect(toast).toHaveBeenCalledWith({ title: "Deleted “Old plan” for good", description: "2 pages you don't have full access to stay in the trash." })
   })
 
   it("brings it back with the pages deleted with it, and says so", async () => {

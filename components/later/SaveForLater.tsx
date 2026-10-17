@@ -16,7 +16,8 @@ import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Bookmark, CalendarClock, Check, Clock, Trash2 } from "@/lib/icons"
 import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
-import { type LaterItemType, reminderChoices, reminderLabel, toLocalInput } from "@/lib/utils/later"
+import { type LaterItemType, reminderChoices, reminderLabel } from "@/lib/utils/later"
+import { toLocalInputValue } from "@/lib/messages/schedulePresets"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** The thing being saved, as the Later list will show and open it. */
@@ -101,7 +102,7 @@ export function SaveForLaterButton({
                 disabled={busy}
                 data-saved={saved ? "" : undefined}
                 className={cn(
-                  "h-8 w-8 rounded-md text-ink-3 hover:bg-hover hover:text-foreground",
+                  "h-8 w-8 rounded-md text-ink-3 hover:text-foreground",
                   saved && "text-brand hover:text-brand [&_svg]:fill-current [&_svg]:!text-brand",
                   className,
                 )}
@@ -190,7 +191,7 @@ function ReminderPicker({
 }) {
   const now = new Date()
   const fallback = reminderChoices(now).find((c) => c.key === "tomorrow")!.at
-  const [value, setValue] = useState(() => toLocalInput(initial && initial > now ? initial : fallback))
+  const [value, setValue] = useState(() => toLocalInputValue(initial && initial > now ? initial : fallback))
   const max = new Date(now.getTime() + 365 * 86_400_000)
   const at = value ? new Date(value) : null
   const problem = !at || Number.isNaN(at.getTime())
@@ -219,8 +220,8 @@ function ReminderPicker({
             type="datetime-local"
             aria-label="Reminder date and time"
             value={value}
-            min={toLocalInput(now)}
-            max={toLocalInput(max)}
+            min={toLocalInputValue(now)}
+            max={toLocalInputValue(max)}
             onChange={(e) => setValue(e.target.value)}
           />
           {value && problem && <p className="text-xs text-danger-ink">{problem}</p>}

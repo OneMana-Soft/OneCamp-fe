@@ -10,6 +10,7 @@
 import * as React from "react"
 import { ChevronDown, ChevronUp, Loader2, Pencil, Pin, PinOff, RotateCcw } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { isComposingKey } from "@/lib/keys/ime"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
@@ -188,7 +189,8 @@ function NameField({ initial, busy, onSave, onCancel }: { initial: string; busy:
         maxLength={MAX_NAME}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
+          // An input method's Escape drops the word being made, not the name.
+          if (e.key === "Escape" && !isComposingKey(e.nativeEvent)) {
             // The name, not the sheet.
             e.preventDefault()
             e.stopPropagation()
@@ -292,7 +294,7 @@ export function DiffBar({ compareWith, onCompareWith, hasBefore, hasNow, busy, s
         )}
       </span>
       {!quiet && !baseFailed && !busy && stats && targets.length > 0 && (
-        <span className="ml-auto flex items-center gap-1 sm:ml-0" data-change-stepper="">
+        <span className="ml-auto flex items-center gap-1 sm:ml-0" data-change-stepper="" data-touch-group="24">
           <span className="text-meta tabular-nums text-ink-3">{at < 0 ? `${targets.length} ${targets.length === 1 ? "change" : "changes"}` : `${at + 1} of ${targets.length}`}</span>
           <Button variant="ghost" size="icon-xs" aria-label="Previous change" disabled={at <= 0} onClick={() => go(at - 1)}>
             <ChevronUp />

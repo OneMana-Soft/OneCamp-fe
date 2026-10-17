@@ -33,7 +33,7 @@ export interface GlobalAttr {
   write(v: unknown): string
 }
 
-export const GLOBAL_ATTRS: readonly GlobalAttr[] = [
+const GLOBAL_ATTRS: readonly GlobalAttr[] = [
   // One line per package, with an import of its rules above.
   ...BLOCK_LAYOUT_ATTRS, // B1: indent and direction
   ...DOC_FORMAT_ATTRS, // B2: a block's colour, a large quote (docFormat.ts)

@@ -38,7 +38,7 @@
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   }
   .you-band[data-dropping="true"] {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 4px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
   }
   @media (max-width: 639px) {
     .you-band { padding: 20px 16px; gap: 14px; }
@@ -96,9 +96,13 @@
     opacity: 0;
     transition: opacity 140ms var(--ease-out);
   }
-  .you-avatar:hover .you-avatar-change,
   .you-avatar:focus-visible .you-avatar-change {
     opacity: 1;
+  }
+  @media (hover: hover) {
+    .you-avatar:hover .you-avatar-change {
+      opacity: 1;
+    }
   }
   @media (hover: none) {
     .you-avatar-change {
@@ -143,7 +147,9 @@
     color: var(--foreground);
     transition: transform 140ms var(--ease-out);
   }
-  .you-chip:hover { background: var(--hover); }
+  @media (hover: hover) {
+    .you-chip:hover { background: var(--hover); }
+  }
   .you-chip:active { transform: scale(0.98); }
   .you-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
@@ -262,7 +268,9 @@
     outline-offset: 2px;
     transition: transform 140ms var(--ease-out);
   }
-  .you-swatch:hover { transform: scale(1.06); }
+  @media (hover: hover) {
+    .you-swatch:hover { transform: scale(1.06); }
+  }
   .you-swatch:focus-visible { outline-color: var(--ring); }
   /* The chosen swatch springs as it is chosen, and keeps the ink ring. */
   .you-swatch[aria-checked="true"] {
@@ -364,7 +372,8 @@
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: none; }
   }
-  .you-time { width: 96px; }
+  /* A TimeField: its clock, and "10:30 pm" on a 12-hour clock. */
+  .you-time { width: 120px; }
   .you-tz-label { font-size: 12.5px; color: var(--ink-3); }
   .you-tz { width: 14rem; font-size: 12.5px; }
   /* The 24-hour bar: 240×24, the quiet span on --press, a moon, and now as a

@@ -12,12 +12,8 @@ describe("a task table's headers and its column menu", () => {
 
   it("names columns in sentence case, not with CSS capitalize", () => {
     // "Start Date", "Created At" beside headers reading "Start date".
-    for (const f of ["components/task/taskTableViewOptions.tsx", "components/myTask/myTaskKanban.tsx", "components/project/projectTaskKanban.tsx"]) {
+    for (const f of ["components/myTask/myTaskKanban.tsx", "components/project/projectTaskKanban.tsx"]) {
       expect(read(f), f).not.toMatch(/["\s]capitalize["\s]/)
     }
-  })
-
-  it("keeps View at every width", () => {
-    expect(read("components/task/taskTableViewOptions.tsx")).not.toContain("lg:flex")
   })
 })

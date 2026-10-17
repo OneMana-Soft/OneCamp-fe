@@ -49,6 +49,16 @@ export const disarmGo = () => {
 }
 export const goArmed = (now: number = Date.now()) => goArmedAt > 0 && now - goArmedAt < GO_WINDOW_MS
 
+/**
+ * Pages whose own keys take G, where G then a letter goes nowhere: a
+ * whiteboard, whose tools are single letters (L is its line tool, so G then L
+ * must not leave the board), and the calendar, where G is Google Calendar's
+ * "Go to a date". Pure.
+ */
+export function pageTakesG(pathname: string): boolean {
+  return /^\/app\/board\/./.test(pathname) || /^\/app\/calendar\/?$/.test(pathname)
+}
+
 /** Where G then `key` goes, or null. */
 export function goTarget(key: string): string | null {
   return GO_KEYS.find((g) => g.key === key.toLowerCase())?.to ?? null

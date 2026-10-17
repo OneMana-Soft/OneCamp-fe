@@ -21,6 +21,7 @@ import axiosInstance from "@/lib/axiosInstance"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DateField } from "@/components/ui/date-field"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -329,8 +330,8 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             <Group title="Invoice">
               <Field label="Number"><Input value={number} onChange={(e) => setNumber(e.target.value)} /></Field>
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Issued"><Input type="date" value={issued} onChange={(e) => setIssued(e.target.value)} /></Field>
-                <Field label="Due"><Input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
+                <Field label="Issued"><DateField value={issued} onChange={setIssued} /></Field>
+                <Field label="Due"><DateField value={due} onChange={setDue} min={issued || undefined} /></Field>
               </div>
               <Field label="Notes"><Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Thank you for your business." /></Field>
             </Group>

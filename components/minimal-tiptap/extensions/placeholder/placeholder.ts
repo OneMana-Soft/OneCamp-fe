@@ -20,7 +20,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 // in the doc; this marks the caret's (and the empty doc's). The doc editor
 // shows only the current one anyway.
 
-export interface DocPlaceholderOptions {
+interface DocPlaceholderOptions {
   emptyEditorClass: string
   emptyNodeClass: string
   placeholder: string | ((props: { editor: Editor; node: PMNode; pos: number; hasAnchor: boolean }) => string)
@@ -31,7 +31,7 @@ export interface DocPlaceholderOptions {
   includeChildren: boolean
 }
 
-export const docPlaceholderKey = new PluginKey('docPlaceholder')
+const docPlaceholderKey = new PluginKey('docPlaceholder')
 
 /** Whether the doc is one empty textblock: the "empty editor" look. Constant work. */
 export function isEmptyDoc(doc: PMNode): boolean {
@@ -44,7 +44,7 @@ export function isEmptyDoc(doc: PMNode): boolean {
  * The placeholder decorations for a doc and a caret: the caret's empty block
  * (or blocks, nested), and nothing else. Exported for its test.
  */
-export function placeholderDecorations(doc: PMNode, anchor: number, options: DocPlaceholderOptions, editor: Editor): Decoration[] {
+function placeholderDecorations(doc: PMNode, anchor: number, options: DocPlaceholderOptions, editor: Editor): Decoration[] {
   const out: Decoration[] = []
   const emptyDoc = isEmptyDoc(doc)
   const pos = Math.max(0, Math.min(anchor, doc.content.size))

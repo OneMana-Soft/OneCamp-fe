@@ -6,6 +6,8 @@ import { checkRemoteBrain } from "@/services/agentService"
 
 // The editor's lists (servers, models, channels, projects) are not under test,
 // and a real fetch leaves SWR's retry timer running after the page is gone.
+// Every channel, as the agent editor reads it (useEveryChannel).
+vi.mock("@/components/admin/useEveryChannel", () => ({ useEveryChannel: () => ({ channels: [], isLoading: false, isError: false }) }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, mutate: vi.fn() }) }))
 
 // An existing agent's dialog also shows its evaluations and what its history

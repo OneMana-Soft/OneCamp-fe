@@ -6,7 +6,7 @@
 import axiosInstance, { OWN_ERRORS } from '@/lib/axiosInstance'
 
 // Here until the integrator adds them to services/endPoints.ts (append-only).
-export const CONTENT_IO_ROUTES = {
+const CONTENT_IO_ROUTES = {
   capabilities: '/content-io/capabilities',
   job: (id: string) => `/content-io/jobs/${encodeURIComponent(id)}`,
   importDoc: '/doc/import',
@@ -84,7 +84,7 @@ export function forgetCapabilities(caps: ContentIOCapabilities | null = null) {
   asking = null
 }
 
-export class ExportRefused extends Error {}
+class ExportRefused extends Error {}
 
 /**
  * Records an export (the doc.export event) before the file is made. A member
@@ -133,8 +133,3 @@ export async function getJob(id: string): Promise<ContentIOJob> {
   return res.data.job as ContentIOJob
 }
 
-/** The API's message for a failed request, when it sent one. */
-export function apiMessage(err: unknown, fallback: string): string {
-  const msg = (err as { response?: { data?: { msg?: unknown } } })?.response?.data?.msg
-  return typeof msg === 'string' && msg.trim() ? msg : fallback
-}

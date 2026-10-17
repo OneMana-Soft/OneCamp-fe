@@ -9,6 +9,7 @@ import { GlobalErrorBoundary } from "@/components/error/GlobalErrorBoundary";
 import "@/lib/env"; // Validate environment variables early
 import { FCMHandler } from "@/components/fcm/FCMHandler";
 import { DocumentTitle } from "@/components/common/DocumentTitle";
+import { LiveRegion } from "@/lib/ui/announce";
 import { Suspense } from "react";
 import { FaviconBadge } from "@/components/common/FaviconBadge";
 
@@ -36,6 +37,8 @@ export default function AppLayout({
           </Suspense>
           <FaviconBadge />
         </AppProtectedRoute>
+        {/* The one polite live region (lib/ui/announce). */}
+        <LiveRegion />
       </GlobalErrorBoundary>
     </ClientProviders>
   );

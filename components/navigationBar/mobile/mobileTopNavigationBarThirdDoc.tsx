@@ -1,4 +1,5 @@
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
 import {DocInfoResponse} from "@/types/doc";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {Button} from "@/components/ui/button";
@@ -17,7 +18,7 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
     const dispatch = useDispatch();
     const docCommentCount = useSelector((state: RootState) => state.createDocComment?.docCommentCount[docId]);
     // The page says why a doc didn't open (no access, the trash); the bar stays quiet.
-    const docInfo = useFetch<DocInfoResponse>(docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '', undefined, undefined, { suppressErrorToast: true } as never);
+    const docInfo = useFetch<DocInfoResponse>(docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '', undefined, undefined, OWN_ERRORS);
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     const [isOwner, setIsOwner] = useState(false)
@@ -34,9 +35,6 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
 
     }, [docInfo.data, selfProfile.data])
 
-    // Delete is B6's doc.trash on the sheet: to the trash, with Undo.
-    const deleteDoc = () => {}
-
 
     return (
         <div className='flex justify-end space-x-1'>
@@ -45,7 +43,7 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
                 the top of a phone one-handed is at its least accurate. */}
             <Button variant='ghost' className="h-11 min-w-11" asChild><Link href={commentHref} aria-label="Comments"><MessageCircle className='h-5'/>{docCommentCount || ''}</Link></Button>
 
-            <Button variant='ghost' size='icon' className="h-11 w-11" aria-label="Document options" onClick={() => dispatch(openUI({ key: 'docOptionsDrawer', data: { docId: docId, isOwner: isOwner, deleteDoc: deleteDoc } }))}><Ellipsis className='h-5'/></Button>
+            <Button variant='ghost' size='icon' className="h-11 w-11" aria-label="Document options" onClick={() => dispatch(openUI({ key: 'docOptionsDrawer', data: { docId: docId, isOwner: isOwner } }))}><Ellipsis className='h-5'/></Button>
 
         </div>
 

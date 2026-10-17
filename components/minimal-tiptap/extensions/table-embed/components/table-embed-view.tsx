@@ -1,15 +1,34 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
 import { useFetch } from "@/hooks/useFetch"
 import { EmbedCard, EmbedGone } from "@/components/minimal-tiptap/components/embed-card"
 import { useMqttTopic } from "@/hooks/useMqttTopic"
-import { DataTableGrid } from "@/components/table/DataTableGrid"
 import { TableBundle, tableBundleKey } from "@/services/tableService"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
+
+// The grid (DataTableGrid, its cells, menus and virtual rows: about 38 KB
+// gzip) is fetched with the first table a doc embeds, not with every doc: it
+// came with the doc's blocks, so every doc open carried it (the doc route's
+// weight, routeKbOverHome). This view is made for each embed the doc holds,
+// however it came (its first content, an insert, a paste, another person's
+// edit), so that is when it loads; until then the embed shows its rows loading.
+const DataTableGrid = React.lazy(() => import("@/components/table/DataTableGrid").then((m) => ({ default: m.DataTableGrid })))
+
+/** The embed's rows while they load: the table's own, or the grid's code. */
+function RowsLoading() {
+  return (
+    <div aria-busy="true" className="space-y-2 px-3.5 pb-3.5 pt-1">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="h-6 rounded-md bg-press [animation:skeleton-breathe_1.8s_ease-in-out_400ms_infinite]" />
+      ))}
+    </div>
+  )
+}
 
 // TableEmbedView renders a live, interactive view of a referenced table inside
 // a doc. It fetches the table bundle by id and renders the grid; edits go
@@ -26,7 +45,7 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
     undefined,
     // The referenced table may have been deleted or be inaccessible; render a
     // friendly fallback below instead of firing the global error toast.
-    { suppressErrorToast: true } as never,
+    OWN_ERRORS,
   )
   const bundle = data?.data
 
@@ -78,11 +97,7 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
         bodyClassName="relative"
       >
         {isLoading ? (
-          <div aria-busy="true" className="space-y-2 px-3.5 pb-3.5 pt-1">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-6 rounded-md bg-press [animation:skeleton-breathe_1.8s_ease-in-out_400ms_infinite]" />
-            ))}
-          </div>
+          <RowsLoading />
         ) : gone || (!isError && !bundle?.table) ? (
           <EmbedGone
             message="This table was deleted or you lost access."
@@ -92,13 +107,15 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
           <EmbedGone message="Couldn't load this table right now." onRemove={() => mutate()} removeLabel="Retry" />
         ) : (
           <div className="max-h-[360px] overflow-auto border-t border-line [mask-image:linear-gradient(to_bottom,#000_calc(100%-24px),transparent)] pb-6">
-            <DataTableGrid
-              tableId={tableId}
-              fields={bundle?.fields || []}
-              rows={bundle?.rows || []}
-              canManage={!!bundle?.can_manage}
-              onChange={mutate}
-            />
+            <React.Suspense fallback={<RowsLoading />}>
+              <DataTableGrid
+                tableId={tableId}
+                fields={bundle?.fields || []}
+                rows={bundle?.rows || []}
+                canManage={!!bundle?.can_manage}
+                onChange={mutate}
+              />
+            </React.Suspense>
           </div>
         )}
       </EmbedCard>

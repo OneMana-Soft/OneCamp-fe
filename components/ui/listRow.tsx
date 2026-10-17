@@ -4,6 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatCount } from "@/lib/utils/helpers/formatCount"
 import { useTouchFlash } from "@/hooks/useTouchFlash"
+import { ix } from "@/lib/ui/interactive"
 
 /**
  * ListRow — Notion-style list row primitive.
@@ -19,6 +20,10 @@ import { useTouchFlash } from "@/hooks/useTouchFlash"
  *  - meta: right-aligned metadata (timestamp, etc.)
  *  - trailing: right-aligned indicators (badge, call indicator, etc.)
  *  - children: free-form below subtitle (used by activity preview)
+ *
+ * States are the interaction layer's (a row): hover, press and selected tint
+ * in the accent, selected adds the 2px bar and keeps the title's weight, so
+ * the title never re-truncates (app/interaction.css).
  *
  * Touch behavior:
  *  - Includes a CSS-only press-flash via `useTouchFlash` for "tap registered"
@@ -101,7 +106,7 @@ export const ListRow = React.forwardRef<HTMLDivElement, ListRowProps>(
         return (
             <div
                 ref={ref}
-                data-selected={selected || undefined}
+                {...ix("row", { selected })}
                 data-pressed={pressed || undefined}
                 // The row press (design v3, mobile F2): --press at once, held
                 // 150ms past a quick tap (useTouchFlash), out in 180ms.
@@ -110,16 +115,7 @@ export const ListRow = React.forwardRef<HTMLDivElement, ListRowProps>(
                 onTouchEnd={compose(onTouchEnd, bind.onTouchEnd)}
                 onTouchCancel={compose(onTouchCancel, bind.onTouchCancel)}
                 className={cn(
-                    "group relative flex items-center rounded-md cursor-pointer select-none",
-                    "transition-colors duration-150 ease-out",
-                    "hover:bg-accent/60",
-                    // Touch press-flash: lasting feedback via data-pressed,
-                    // in --press (ink at 7%), never a grey slab.
-                    "data-[pressed=true]:bg-press",
-                    // Pointer active fallback (mouse / desktop).
-                    "active:bg-press",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                    selected && "bg-accent text-accent-foreground",
+                    "group relative flex items-center rounded-md select-none",
                     d.row,
                     d.gap,
                     className,
@@ -136,10 +132,8 @@ export const ListRow = React.forwardRef<HTMLDivElement, ListRowProps>(
                     <div className="flex items-center gap-2">
                         <div
                             className={cn(
-                                "flex-1 min-w-0 truncate text-sm leading-tight",
-                                emphasize || selected
-                                    ? "font-semibold text-foreground"
-                                    : "font-medium text-foreground",
+                                "flex-1 min-w-0 truncate text-sm leading-tight text-foreground",
+                                emphasize ? "font-semibold" : "font-medium",
                             )}
                         >
                             {title}
@@ -193,7 +187,7 @@ export function UnreadBadge({ count, className }: { count: number; className?: s
                 // Flat: an unread pill sits in the row, it doesn't hover over it.
                 // text-3xs is the named 10px token; the fixed h-[18px] makes the
                 // token's line-height irrelevant here, so this is a pure rename.
-                "bg-primary px-1 text-2xs font-semibold text-primary-foreground",
+                "bg-primary px-1 text-2xs font-semibold tabular-nums text-primary-foreground",
                 className,
             )}
         >

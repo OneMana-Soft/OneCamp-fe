@@ -8,6 +8,7 @@ import { shortDate } from "@/lib/utils/date/shortDate"
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DateField } from "@/components/ui/date-field"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
@@ -56,7 +57,7 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
     <span data-timer-live="" className="inline-flex h-7 items-center gap-2 rounded-md bg-brand-muted pl-2 pr-0.5 text-brand-text">
       <span aria-hidden="true" className="size-2 rounded-full bg-brand" style={{ animation: "work-pulse 1.6s ease-in-out infinite" }} />
       <span className="text-ui-sm font-[510] tabular-nums" aria-label={`Timer running, ${formatClock(elapsed)}`}>{formatClock(elapsed)}</span>
-      <Button size="icon" variant="ghost" className="size-6 text-brand-text hover:bg-brand/10 hover:text-brand-text" aria-label="Stop the timer" disabled={busy} onClick={() => act(() => stopTimer(taskUUID), "Couldn't stop the timer")}>
+      <Button size="icon" variant="ghost" className="size-6 text-brand-text hover:text-brand-text" aria-label="Stop the timer" disabled={busy} onClick={() => act(() => stopTimer(taskUUID), "Couldn't stop the timer")}>
         <Square className="size-3 fill-current" />
       </Button>
     </span>
@@ -125,7 +126,7 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
                   </span>
                   {!e.billable && <span className="rounded bg-muted px-1.5 text-2xs text-muted-foreground">not billable</span>}
                   {e.mine && e.ended_at && (
-                    <span className="flex shrink-0 gap-0.5 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
+                    <span className="flex shrink-0 gap-0.5 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto" data-touch-group="">
                       <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Change this time" onClick={() => setEditing(e)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -175,7 +176,7 @@ function SpanForm({ entry, onSave, onCancel }: { entry?: TimeEntryView; onSave: 
       <div className="grid grid-cols-2 gap-2">
         <div className="grid gap-1">
           <Label htmlFor={`${id}-day`} className="text-2xs text-muted-foreground">Day</Label>
-          <Input id={`${id}-day`} type="date" value={day} max={localDay(new Date())} onChange={(e) => setDay(e.target.value)} className="h-8" required />
+          <DateField id={`${id}-day`} value={day} max={localDay(new Date())} onChange={setDay} className="h-8" required />
         </div>
         <div className="grid gap-1">
           <Label htmlFor={`${id}-dur`} className="text-2xs text-muted-foreground">How long</Label>

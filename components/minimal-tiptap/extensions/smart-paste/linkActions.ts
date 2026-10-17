@@ -20,7 +20,7 @@ export function chooseLink(editor: Editor, choice: LinkChoice | undefined) {
 }
 
 /** Turns the link text at from..to into a mention, a bookmark or an embed of href. */
-export function convertLink(editor: Editor, from: number, to: number, href: string, choice: Exclude<LinkChoice, "link">) {
+function convertLink(editor: Editor, from: number, to: number, href: string, choice: Exclude<LinkChoice, "link">) {
   const { state } = editor
   const { schema } = state
   const tr = state.tr

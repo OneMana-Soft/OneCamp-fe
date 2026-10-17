@@ -8,6 +8,8 @@ import { cleanup, render } from "@testing-library/react"
 // else reads the models they may pick for themselves.
 
 const asked = vi.hoisted(() => ({ urls: [] as string[], admin: false }))
+// Every channel, as the pickers read it (useEveryChannel).
+vi.mock("@/components/admin/useEveryChannel", () => ({ useEveryChannel: () => ({ channels: [], isLoading: false, isError: false }) }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     if (url) asked.urls.push(url)

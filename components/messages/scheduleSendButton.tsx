@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarClock } from "@/lib/icons"
 import { SEND_LATER_MAX_LEAD_MS, schedulePresets, sendLaterProblem, toLocalInputValue, type SchedulePreset } from "@/lib/messages/schedulePresets"
+import { ix } from "@/lib/ui/interactive"
 
 /** A list of moments plus any time typed in, inside the send-later window. */
 export function SchedulePicker({
@@ -37,7 +38,8 @@ export function SchedulePicker({
           type="button"
           disabled={busy}
           onClick={() => onPick(p.at)}
-          className="rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:opacity-50"
+          {...ix("item")}
+          className="rounded-md px-2.5 py-1.5 text-left text-sm"
         >
           {p.label}
         </button>

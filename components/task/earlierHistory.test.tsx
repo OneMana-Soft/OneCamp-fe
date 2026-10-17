@@ -65,4 +65,23 @@ describe("a task's earlier history", () => {
     view.rerender(<History task="u" newest={[line(9)]} hasMore={false} />)
     expect(shown()).toEqual(["a-9"])
   })
+
+  // The request says the failure itself (the API client's read toast); the
+  // button stays, to try again, and nothing is left unhandled.
+  it("keeps the button for another try when a page fails, with nothing left unhandled", async () => {
+    h.get.mockRejectedValueOnce(Object.assign(new Error("Request failed with status code 500"), { response: { status: 500 } }))
+    const unhandled: unknown[] = []
+    const note = (e: unknown) => unhandled.push(e)
+    process.on("unhandledRejection", note)
+    try {
+      render(<History task="t" newest={[line(5), line(6)]} hasMore />)
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Show earlier history" })))
+      await act(() => new Promise((r) => setTimeout(r, 0)))
+    } finally {
+      process.off("unhandledRejection", note)
+    }
+    expect(unhandled).toEqual([])
+    expect(shown()).toEqual(["a-5", "a-6"])
+    expect(screen.getByRole("button", { name: "Show earlier history" })).toBeEnabled()
+  })
 })

@@ -1,8 +1,6 @@
 import { versionElements } from "./materialize"
 import type { SliceOptions } from "./slices"
 
-export type { SliceOptions } from "./slices"
-
 export interface RenderStats {
   blocks: number
   ms: number

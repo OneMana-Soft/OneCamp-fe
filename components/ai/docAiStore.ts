@@ -115,7 +115,7 @@ export function setPanelPin(editor: Editor, pinId: string) {
 // What the bar hands the panel when ⌘⏎ continues there: the action, the words
 // typed, and the answer so far, which the panel goes on from instead of asking
 // again. Taken once.
-export interface PanelHandoff {
+interface PanelHandoff {
   action?: DocAIActionId
   prompt?: string
   text?: string

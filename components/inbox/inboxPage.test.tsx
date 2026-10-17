@@ -55,10 +55,16 @@ describe("Mail's frame (I1)", () => {
     fireEvent.keyDown(window, { key: "j" })
     fireEvent.keyDown(window, { key: "j" })
     const rows = document.querySelectorAll("[data-inbox-row]")
-    expect(rows[1].hasAttribute("data-selected")).toBe(true)
+    // The keyboard's place is a ring of its own, never the open thread's
+    // selected look (SH-30): nothing is open yet.
+    expect(rows[1].querySelector("[data-kbd-cursor]")).toBeTruthy()
+    expect(rows[1].hasAttribute("data-selected")).toBe(false)
     fireEvent.keyDown(window, { key: "Enter" })
     await act(async () => {})
     expect(screen.getByRole("button", { name: /c@d\.test/ }).getAttribute("aria-current")).toBe("true")
+    // Open, it is selected, and the ring has gone.
+    expect(rows[1].hasAttribute("data-selected")).toBe(true)
+    expect(rows[1].querySelector("[data-kbd-cursor]")).toBeNull()
     fireEvent.keyDown(window, { key: "Escape" })
     expect(screen.getByText("Pick a conversation")).toBeTruthy()
   })

@@ -16,10 +16,10 @@ import type { RootState } from "@/store/store"
 import { useEffect, useState } from "react"
 import { usePost } from "@/hooks/usePost"
 import { getNextNotification } from "@/lib/utils/getNextNotification"
+import { useChannelNotification } from "@/hooks/useConversationNotification"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import {
     ChannelInfoInterfaceResp,
-    ChannelNotificationInterface,
     NotificationType,
 } from "@/types/channel"
 import { openChannelDetails } from "@/components/channel/details/openChannelDetails"
@@ -47,25 +47,11 @@ export function ChannelOptionsDrawer({
         `${channelId ? GetEndpointUrl.ChannelBasicInfo + "/" + channelId : ""}`,
     )
 
-    const [channelNotification, setChannelNotificationType] = useState<string>(
-        NotificationType.NotificationAll,
-    )
-    const postNotification = usePost()
-
-    useEffect(() => {
-        if (channelInfo.data?.channel_info.notification_type) {
-            setChannelNotificationType(channelInfo.data?.channel_info.notification_type)
-        }
-    }, [channelInfo.data?.channel_info])
-
-    const updateNotification = async () => {
-        const nextNotification = getNextNotification(channelNotification)
-        await postNotification.makeRequest<ChannelNotificationInterface>({
-            payload: { channel_id: channelId, notification_type: nextNotification },
-            apiEndpoint: PostEndpointUrl.UpdateChannelNotification,
-        })
-        setChannelNotificationType(nextNotification)
-    }
+    // A tap moves to the next level, through the one write the header and
+    // Details use: shown at once, the sidebar told, a refusal said and undone.
+    const notification = useChannelNotification(channelId, channelInfo.data?.channel_info.notification_type, channelInfo.data?.channel_info.ch_name)
+    const channelNotification = notification.level
+    const updateNotification = () => notification.choose(getNextNotification(channelNotification))
 
     const dispatch = useDispatch()
     const router = useRouter()

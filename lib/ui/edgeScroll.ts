@@ -3,7 +3,8 @@
  * edge scrolls it, 48px from the edge under a pointer and 64px under a finger,
  * the speed ramping from 0 at the zone's inner side to 18px a frame at the
  * edge, on both axes, the innermost scroller first. One helper for every drag:
- * lib/ui/dnd.ts (@dnd-kit), the doc's blocks (blockDrag.ts) and the calendar.
+ * lib/ui/dnd.ts (@dnd-kit), the doc's blocks (blockDrag.ts), the calendar and
+ * a project timeline's bars.
  * No @dnd-kit import, so a custom engine pulls nothing in with it.
  */
 export const EDGE_SCROLL = { zone: { pointer: 48, touch: 64 }, maxSpeed: 18 } as const
@@ -39,6 +40,13 @@ export function scrollersAt(x: number, y: number, skip?: (el: Element) => boolea
 
 const boxOf = (el: Element): EdgeBox => (el === document.scrollingElement ? { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight } : el.getBoundingClientRect())
 
+export interface EdgeOptions {
+  /** How far in from each side the zone starts: a column drawn over the scroller's edge (a timeline's names). */
+  inset?: Partial<EdgeBox>
+  /** The one way it scrolls, for a drag that moves one way only (a timeline's bar, by days). */
+  axis?: "x" | "y"
+}
+
 /**
  * Keeps scrolling, once a frame, while a dragged pointer rests in an edge
  * zone. With `scroller`, that one only (null: none); with no argument, the
@@ -46,7 +54,7 @@ const boxOf = (el: Element): EdgeBox => (el === document.scrollingElement ? { to
  * that way. `onScrolled` runs after each step that moved, so an engine reads
  * again what lies under a still pointer.
  */
-export function edgeScroller(scroller?: Element | null, onScrolled?: () => void, skip?: (el: Element) => boolean) {
+export function edgeScroller(scroller?: Element | null, onScrolled?: () => void, skip?: (el: Element) => boolean, { inset, axis }: EdgeOptions = {}) {
   let at: { x: number; y: number; touch: boolean; under?: Element[] } | null = null
   let frame = 0
   const step = () => {
@@ -54,7 +62,11 @@ export function edgeScroller(scroller?: Element | null, onScrolled?: () => void,
     if (!at) return
     const list = scroller !== undefined ? (scroller ? [scroller] : []) : (at.under ??= scrollersAt(at.x, at.y, skip))
     for (const el of list) {
-      const { dx, dy } = edgeSpeed(boxOf(el), at.x, at.y, at.touch)
+      const b = boxOf(el)
+      const box = inset ? { top: b.top + (inset.top ?? 0), right: b.right - (inset.right ?? 0), bottom: b.bottom - (inset.bottom ?? 0), left: b.left + (inset.left ?? 0) } : b
+      const speed = edgeSpeed(box, at.x, at.y, at.touch)
+      const dx = axis === "y" ? 0 : speed.dx
+      const dy = axis === "x" ? 0 : speed.dy
       if (!dx && !dy) continue
       const left = el.scrollLeft
       const top = el.scrollTop

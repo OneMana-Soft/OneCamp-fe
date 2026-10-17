@@ -12,9 +12,6 @@ const state = { loading: false, error: false }
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => ({ data: undefined, isLoading: state.loading, isError: state.error, mutate: vi.fn() }),
 }))
-vi.mock("@/hooks/useApi", () => ({
-  useApi: () => ({ data: undefined, isLoading: state.loading, isError: state.error, mutate: vi.fn() }),
-}))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async () => []), isSubmitting: false }) }))
 
 const { default: store } = await import("@/store/store")

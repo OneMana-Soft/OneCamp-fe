@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.stubEnv("NEXT_PUBLIC_PRODUCT_SITE", "https://site.example.test")
-import { cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { useState } from "react"
 
 // The workspace menu's places sit on tiles in their hue, as in the More menu.
 
@@ -10,7 +11,13 @@ let admin = true
 let caps: string[] = []
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_is_admin: admin } } }) }))
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: (c: string) => caps.includes(c) }) }))
-vi.mock("@/components/invite/MemberInviteDialog", () => ({ MemberInviteDialog: () => null }))
+let invite: { open: boolean; onOpenChange: (o: boolean) => void } | null = null
+vi.mock("@/components/invite/MemberInviteDialog", () => ({
+  MemberInviteDialog: (p: { open: boolean; onOpenChange: (o: boolean) => void }) => {
+    invite = p
+    return p.open ? <div data-testid="invite-dialog" /> : null
+  },
+}))
 
 import { OrgDrawer } from "./orgDrawer"
 import { destinationHue } from "@/lib/destinationHue"
@@ -49,5 +56,22 @@ describe("the workspace menu", () => {
     render(<OrgDrawer drawerOpenState={true} setOpenState={() => {}} />)
     expect(screen.queryByRole("button", { name: /^Admin/ })).toBeNull()
     expect(screen.queryByRole("button", { name: /^Invite people/ })).toBeNull()
+  })
+
+  // The UI manager unmounts the sheet when it closes (UnifiedUIManager), and
+  // the invite dialog lived inside it: the row opened the dialog and closed
+  // the sheet in one go, so on a phone "Invite people" did nothing at all.
+  it("hands over to the invite dialog, and closes only once that is done", () => {
+    caps = ["invitation.create"]
+    function AsTheUIManagerMountsIt() {
+      const [open, setOpen] = useState(true)
+      return open ? <OrgDrawer drawerOpenState={open} setOpenState={setOpen} /> : null
+    }
+    render(<AsTheUIManagerMountsIt />)
+    fireEvent.click(screen.getByRole("button", { name: /^Invite people/ }))
+    expect(screen.getByTestId("invite-dialog")).toBeTruthy()
+    act(() => invite!.onOpenChange(false))
+    expect(screen.queryByTestId("invite-dialog")).toBeNull()
+    expect(document.querySelector("[data-phone-sheet]")).toBeNull()
   })
 })

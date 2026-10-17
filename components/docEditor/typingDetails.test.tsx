@@ -49,7 +49,6 @@ async function docEditor(html: string) {
     const e = useDocEditor({
       collaboration: { enabled: true, documentId: "d", username: "Sam Rivera", userId: "u-sam", hue: "moss" },
       provider,
-      providerSynced: true,
     })
     editor = e as unknown as Editor | null
     return e ? <EditorContent editor={e} className="minimal-tiptap-editor doc-editor" /> : null

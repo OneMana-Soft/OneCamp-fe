@@ -29,7 +29,7 @@ export type DocAIActionId =
   | "ask"
   | "action_items"
 
-export interface DocAIActionDef {
+interface DocAIActionDef {
   id: DocAIActionId
   label: string
   kind: DocAIKind
@@ -93,7 +93,7 @@ export const DOC_AI_LANGUAGES = [
 ] as const
 
 /** Where the bar was opened, as far as its offer depends on it. */
-export interface DocAIPlace {
+interface DocAIPlace {
   /** Text or blocks are selected. */
   hasSelection: boolean
   /**

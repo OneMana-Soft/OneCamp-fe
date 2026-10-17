@@ -198,7 +198,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                                 className={
                                     "h-8 gap-1.5 " +
                                     (destructive
-                                        ? "bg-warning text-white hover:bg-warning/90 focus-visible:ring-warning/50"
+                                        ? "bg-warning text-white focus-visible:ring-warning/50"
                                         : "")
                                 }
                             >

@@ -9,7 +9,7 @@ import { useDocBus } from '@/components/docEditor/registry/commandBus'
 import { usePresence } from '@/components/docEditor/presence/store'
 
 /** How often "Edited just now" is worked out again while someone keeps typing. */
-export const LOCAL_EDIT_REFRESH_MS = 15_000
+const LOCAL_EDIT_REFRESH_MS = 15_000
 
 /**
  * When this tab last changed the doc: set on an edit typed here (not one a

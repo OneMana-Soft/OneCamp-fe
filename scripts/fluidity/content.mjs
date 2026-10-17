@@ -1,27 +1,36 @@
 #!/usr/bin/env node
-// The content area's fluidity (design v3, content wave): the four things in
-// docs, tables, the calendar and boards that must never get slower.
+// The content area's fluidity (design v3, content wave): what in docs,
+// tables, the calendar, the booking page and boards must never get slower.
 //
 //   pnpm next build && pnpm next start -p 3171
 //   node scripts/fluidity/content.mjs --base http://localhost:3171 --label after --out /tmp/flu-content
 //
-// Options: --runs 3 (medians), --cpu 4 (CPU slowdown), --only doc,table,calendar,board
+// Options: --runs 3 (medians), --cpu 4 (CPU slowdown), --only doc,table,calendar,board,booking,
+//          --budgets <file> (default: calendar-budgets.json beside this file)
 //
 //   doc       type a sentence into the Q4 launch plan: React renders per key
 //             and per-key latency (wave 2: 17 renders per key).
 //   table     the Launch budget grown to 1,000 rows in the page (its bundle
 //             answered locally with copies of its rows), scrolled down and
 //             across: frames per second and slow frames (wave 2: 59 fps).
-//   calendar  switch Week, Month, Day, Week: input to next paint, long tasks
-//             and renders per switch.
+//   calendar  Home → Calendar in the app until its first item is drawn; switch
+//             Week, Month, Day, Week; J five times; open an event's card:
+//             input to next paint, long tasks and renders.
+//   booking   the public booking page (/book/sam-rivera, signed out, at a
+//             phone's 390 × 844) until its first bookable day is drawn.
 //   board     pan a board with the wheel: frames per second. The demo has no
 //             boards, so a board's metadata is answered locally (it is never
 //             created); the canvas is empty but its chrome is the real one.
 //
+// The calendar's and the booking page's numbers are held to
+// calendar-budgets.json (calendar programme A0, CAL13, G-CAL-PERF): the run
+// exits non-zero when an enforced one is over its max.
+//
 // NOTHING IS WRITTEN TO THE SHARED DEMO: lib.mjs aborts every write except
 // the demo sign-in, and the collab socket never carries an edit.
-import { mkdirSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { launch, demoContext, enterDemo, mark, since, keyStats, median, FE, BE } from "./lib.mjs"
 
 const args = process.argv.slice(2)
@@ -36,7 +45,8 @@ const LABEL = opt("label", "run")
 const OUT = opt("out", "/tmp/fluidity-content")
 const RUNS = Number(opt("runs", 3))
 const CPU = Number(opt("cpu", 4))
-const ONLY = opt("only", "") ? String(opt("only")).split(",") : ["doc", "table", "calendar", "board"]
+const ONLY = opt("only", "") ? String(opt("only")).split(",") : ["doc", "table", "calendar", "board", "booking"]
+const BUDGETS = JSON.parse(readFileSync(opt("budgets", join(dirname(fileURLToPath(import.meta.url)), "calendar-budgets.json")), "utf8"))
 mkdirSync(OUT, { recursive: true })
 
 const SENTENCE = "Pilot customers get the checklist the Friday before."
@@ -188,14 +198,52 @@ async function runOnce(browser) {
   }
 
   if (ONLY.includes("calendar")) try {
-    await go(page, FE + "/app/calendar")
-    await page.waitForTimeout(4000)
+    // Home → Calendar in the app, by G then K (the sidebar keeps Calendar
+    // behind More): from the keys until the week draws its first item, or
+    // says it is free.
+    await go(page, FE + "/app/home")
+    await page.getByText(/Good (morning|afternoon|evening)/).first().waitFor({ timeout: 60000 })
+    await page.waitForTimeout(1500)
+    const reached = await page.evaluate(
+      (drawn) =>
+        new Promise((resolve) => {
+          const t0 = performance.now()
+          for (const key of ["g", "k"]) document.body.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
+          const tick = () => {
+            if (document.querySelector(drawn)) resolve(Math.round(performance.now() - t0))
+            else if (performance.now() - t0 > 30000) resolve(null)
+            else requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        }),
+      "[data-calendar] [data-hue-block], [data-calendar] [data-calendar-blank], [data-calendar] [data-agenda] li",
+    )
+    rows.push({ step: "calendar: Home → Calendar", ready: reached, error: reached === null ? "nothing drawn in 30 s" : undefined })
+    await page.waitForTimeout(3000)
     // Whatever the switcher is made of (buttons, radios or tabs), by its label.
     const view = (name) => page.locator("button, [role=radio], [role=tab]").filter({ hasText: new RegExp(`^\\s*${name}\\s*$`, "i") }).first()
     for (const name of ["Week", "Month", "Day", "Week"]) {
       const { m, error } = await measureStep(page, () => view(name).click({ timeout: 10000 }))
       rows.push({ step: `calendar: switch to ${name}`, error, inp: m.inp, longMs: m.longMs, renders: m.renders, commits: m.commits, top: m.topApp ?? m.top, loafTop: m.loafTop })
     }
+    // The next period, five times by its key, then back to today.
+    const next = await measureStep(page, async () => {
+      for (let i = 0; i < 5; i++) {
+        await page.keyboard.press("j")
+        await page.waitForTimeout(300)
+      }
+    })
+    const k = keyStats(next.m, 5)
+    rows.push({ step: "calendar: next week (J ×5)", error: next.error, keyP50: k.p50, keyP95: k.p95, longMs: next.m.longMs, renders: next.m.renders })
+    await page.keyboard.press("t")
+    await page.waitForTimeout(1500)
+    // An event's card, from the click until it is drawn.
+    const card = await measureStep(page, async () => {
+      await page.locator('[data-calendar] [data-hue-block="event"]').first().click({ timeout: 10000 })
+      await page.locator("[data-event-popover]").waitFor({ timeout: 10000 })
+    })
+    rows.push({ step: "calendar: open an event's card", error: card.error, inp: card.m.inp, longMs: card.m.longMs, renders: card.m.renders })
+    await page.keyboard.press("Escape")
   } catch (e) {
     await fail(page, "calendar", e, rows)
   }
@@ -244,6 +292,34 @@ async function runOnce(browser) {
   }
 
   await ctx.close()
+
+  // The public booking page as an outsider opens it: signed out, a phone's
+  // width, until its first bookable day is drawn (from the navigation's start).
+  if (ONLY.includes("booking")) {
+    const phone = await demoContext(browser, { base: BASE, viewport: { width: 390, height: 844 } })
+    const bp = await phone.newPage()
+    try {
+      if (CPU > 1) await (await phone.newCDPSession(bp)).send("Emulation.setCPUThrottlingRate", { rate: CPU })
+      await bp.goto(FE + "/book/sam-rivera", { waitUntil: "commit", timeout: 60000 })
+      const first = await bp.evaluate(
+        (drawn) =>
+          new Promise((resolve) => {
+            const tick = () => {
+              if (document.querySelector(drawn)) resolve(Math.round(performance.now()))
+              else if (performance.now() > 60000) resolve(null)
+              else requestAnimationFrame(tick)
+            }
+            tick()
+          }),
+        "[data-day][data-available]",
+      )
+      const m = await since(bp, { t: 0, commits: 0, renders: 0, byName: {}, selfMs: {}, origins: {} })
+      rows.push({ step: "booking: first bookable day", ready: first, longMs: m.longMs, error: first === null ? "no bookable day in 60 s" : undefined, scriptKB: Math.round(phone.__guard.scriptGzip / 1024) })
+    } catch (e) {
+      await fail(bp, "booking", e, rows)
+    }
+    await phone.close()
+  }
   return rows
 }
 
@@ -260,7 +336,7 @@ for (let r = 1; r <= RUNS; r++) {
 await browser.close()
 
 const steps = [...new Set(runs.flatMap((r) => r.map((s) => s.step)))]
-const cols = ["rendersPerKey", "keyP50", "keyP95", "fps", "slowFrames", "worstFrame", "inp", "longMs", "renders"]
+const cols = ["ready", "rendersPerKey", "keyP50", "keyP95", "fps", "slowFrames", "worstFrame", "inp", "longMs", "renders", "scriptKB"]
 const table = steps.map((step) => {
   const got = runs.map((r) => r.find((s) => s.step === step)).filter(Boolean)
   const row = { step, ok: `${got.filter((s) => !s.error).length}/${got.length}` }
@@ -270,9 +346,51 @@ const table = steps.map((step) => {
   return row
 })
 writeFileSync(join(OUT, `content-${LABEL}.json`), JSON.stringify({ label: LABEL, base: BASE, cpu: CPU, runs, table }, null, 2))
-console.log(`\n| step | ok | renders/key | key p50/p95 | fps | slow frames | worst ms | INP ms | long ms | renders |`)
-console.log(`|---|---|---|---|---|---|---|---|---|---|`)
+console.log(`\n| step | ok | ready ms | renders/key | key p50/p95 | fps | slow frames | worst ms | INP ms | long ms | renders |`)
+console.log(`|---|---|---|---|---|---|---|---|---|---|---|`)
 for (const r of table) {
   const keys = r.keyP50 != null ? `${r.keyP50}/${r.keyP95}` : "-"
-  console.log(`| ${r.step} | ${r.ok} | ${r.rendersPerKey ?? "-"} | ${keys} | ${r.fps ?? "-"} | ${r.slowFrames ?? "-"} | ${r.worstFrame ?? "-"} | ${r.inp ?? "-"} | ${r.longMs ?? "-"} | ${r.renders ?? "-"} |${r.error ? ` ${r.error}` : ""}`)
+  console.log(`| ${r.step} | ${r.ok} | ${r.ready ?? "-"} | ${r.rendersPerKey ?? "-"} | ${keys} | ${r.fps ?? "-"} | ${r.slowFrames ?? "-"} | ${r.worstFrame ?? "-"} | ${r.inp ?? "-"} | ${r.longMs ?? "-"} | ${r.renders ?? "-"} |${r.error ? ` ${r.error}` : ""}`)
+}
+
+// The calendar's and the booking page's budgets (calendar-budgets.json).
+// Each metric is the median over the runs; a step that failed in every run
+// has no value and is reported, never passed.
+const perRun = (pick) => median(runs.map(pick).filter((v) => typeof v === "number"))
+const stepOf = (r, step) => r.find((s) => s.step === step && !s.error)
+const M = {
+  homeToCalendarMs: perRun((r) => stepOf(r, "calendar: Home → Calendar")?.ready),
+  // The slowest of the run's four switches: their p95.
+  viewSwitchP95Ms: perRun((r) => {
+    const inps = r.filter((s) => s.step.startsWith("calendar: switch to") && !s.error).map((s) => s.inp)
+    return inps.length ? Math.max(...inps) : undefined
+  }),
+  nextPeriodP95Ms: perRun((r) => stepOf(r, "calendar: next week (J ×5)")?.keyP95),
+  popCardMs: perRun((r) => stepOf(r, "calendar: open an event's card")?.inp),
+  bookingFirstDayMs: perRun((r) => stepOf(r, "booking: first bookable day")?.ready),
+  bookingScriptKB: perRun((r) => stepOf(r, "booking: first bookable day")?.scriptKB),
+}
+const checks = []
+let missed = 0
+for (const [metric, b] of Object.entries(BUDGETS.budgets)) {
+  if (!ONLY.includes(b.scenario)) continue
+  const at = b[`cpu${CPU}`] ?? b
+  if (at.max === undefined) continue
+  const value = M[metric] ?? null
+  const ok = value === null ? null : value <= at.max
+  const enforced = b.enforce !== false
+  if (enforced && ok !== true) missed++
+  checks.push({ metric, value, max: at.max, target: at.target ?? null, owner: b.owner ?? "", ok, enforced })
+}
+if (checks.length) {
+  console.log(`\n${"budget".padEnd(20)} ${"value".padStart(7)} ${"max".padStart(7)} ${"target".padStart(7)}  owner verdict`)
+  for (const c of checks) {
+    const verdict = c.ok === null ? "no value" : c.ok ? "ok" : c.enforced ? "MISSED" : "over (report only)"
+    console.log(`${c.metric.padEnd(20)} ${String(c.value).padStart(7)} ${String(c.max).padStart(7)} ${String(c.target ?? "").padStart(7)}  ${c.owner.padEnd(5)} ${verdict}`)
+  }
+  writeFileSync(join(OUT, `content-${LABEL}-budgets.json`), JSON.stringify({ cpu: CPU, metrics: M, checks }, null, 2))
+  if (missed) {
+    console.log(`${missed} budget(s) missed or not measured`)
+    process.exit(1)
+  }
 }

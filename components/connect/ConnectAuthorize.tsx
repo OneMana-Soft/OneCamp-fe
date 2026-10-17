@@ -36,6 +36,7 @@ import {
 } from "@/services/connectService"
 import { isConnectRequestId, rememberPendingConnect } from "@/lib/pendingConnect"
 import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 
 /** Errors the backend sends here instead of to an unverified client address. */
 const ERRORS: Record<string, string> = {
@@ -56,14 +57,6 @@ type Phase =
   | { kind: "error"; message: string }
   | { kind: "ready"; view: ConsentView }
   | { kind: "leaving"; to: string; host: string; connected: boolean; client: string }
-
-function status(e: unknown): number | undefined {
-  return (e as { response?: { status?: number } })?.response?.status
-}
-
-function message(e: unknown, fallback: string): string {
-  return (e as { response?: { data?: { msg?: string } } })?.response?.data?.msg || fallback
-}
 
 /** The destination's host, for "Returning you to …". */
 function hostOf(url: string): string {
@@ -172,8 +165,8 @@ export function ConnectAuthorize() {
       setScopes(view.scopes)
       setPhase({ kind: "ready", view })
     } catch (e) {
-      if (status(e) === 401) setPhase({ kind: "signin" })
-      else setPhase({ kind: "error", message: message(e, "This sign-in couldn't be loaded. Start again from your agent.") })
+      if (apiErrorStatus(e) === 401) setPhase({ kind: "signin" })
+      else setPhase({ kind: "error", message: apiErrorMessage(e, "This sign-in couldn't be loaded. Start again from your agent.") })
     }
   }, [error, requestId])
 
@@ -201,8 +194,8 @@ export function ConnectAuthorize() {
       const res = await approveConsent(requestId, { agent_id: agentId, scopes })
       setPhase({ kind: "leaving", to: res.redirect, host: hostOf(res.redirect), connected: true, client: phase.view.client_name })
     } catch (e) {
-      if (status(e) === 410) setPhase({ kind: "error", message: message(e, "This sign-in has expired.") })
-      else setActionError(message(e, "It couldn't be connected. Try again."))
+      if (apiErrorStatus(e) === 410) setPhase({ kind: "error", message: apiErrorMessage(e, "This sign-in has expired.") })
+      else setActionError(apiErrorMessage(e, "It couldn't be connected. Try again."))
     } finally {
       setBusy(false)
     }
@@ -215,7 +208,7 @@ export function ConnectAuthorize() {
       const to = await denyConsent(requestId)
       setPhase({ kind: "leaving", to, host: hostOf(to), connected: false, client: phase.view.client_name })
     } catch (e) {
-      setPhase({ kind: "error", message: message(e, "This sign-in has expired.") })
+      setPhase({ kind: "error", message: apiErrorMessage(e, "This sign-in has expired.") })
     } finally {
       setBusy(false)
     }

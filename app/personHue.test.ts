@@ -50,6 +50,8 @@ const NON_PERSON_HUE = new Set([
   "components/home/TodayAgenda.tsx", // events
   "components/admin/AdminTeamList.tsx", // teams
   "components/table/TableGlyph.tsx", // tables
+  "lib/placeHue.ts", // channels, through the one hue function for a place (D13)
+  "lib/docLook.ts", // docs (D13)
   "components/table/DataTableCalendar.tsx", // tables
   "components/table/DataTableChart.tsx", // tables
   "components/table/DataTableBoard.tsx", // tables

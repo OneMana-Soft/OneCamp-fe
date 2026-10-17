@@ -60,7 +60,6 @@ export function GuestDocViewer({ documentName, tokenFetcher, labelledBy }: Guest
       ? { enabled: true, documentId: documentName, username: "Guest", userId: "guest" }
       : undefined,
     provider: provider || undefined,
-    providerSynced: synced,
     editorClassName: "focus:outline-none",
   })
 

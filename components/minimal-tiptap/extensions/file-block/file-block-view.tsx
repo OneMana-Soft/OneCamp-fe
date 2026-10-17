@@ -7,11 +7,13 @@ import { cn } from "@/lib/utils/helpers/cn"
 import axiosInstance from "@/lib/axiosInstance"
 import { formatUploadBytes } from "@/lib/utils/uploadLimit"
 import { docFileOf, viewableFileUrl } from "@/lib/docFiles"
+import { isComposingKey } from "@/lib/keys/ime"
 import { fileHref } from "@/lib/codec/mediaLink"
 import { FileGlyph } from "@/components/fileIcon/fileTypeIcon"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
 import { imageUploadsOf, UPLOAD_GIVE_UP_MS, uploadStartedAt } from "../image/uploads"
 import { useImageUpload } from "../image/components/image-placeholder"
+import { ix } from "@/lib/ui/interactive"
 
 /** A PDF is shown in the doc up to this size; a bigger one opens on its own. */
 const INLINE_PDF_BYTES = 40 << 20
@@ -282,9 +284,10 @@ function Caption({ value, editable, label, onChange }: { value: unknown; editabl
       defaultValue={text}
       onBlur={(e) => e.target.value !== text && onChange(e.target.value)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+        if (e.key === "Enter" && !isComposingKey(e.nativeEvent)) (e.target as HTMLInputElement).blur()
       }}
-      className="mt-1.5 w-full select-text bg-transparent text-center text-meta text-ink-3 outline-none placeholder:text-ink-3 focus:text-ink"
+      {...ix("field")}
+      className="mt-1.5 w-full select-text rounded-sm bg-transparent text-center text-meta text-ink-3 placeholder:text-ink-3 focus:text-ink"
     />
   )
 }

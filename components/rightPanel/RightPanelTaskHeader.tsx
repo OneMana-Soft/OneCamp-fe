@@ -201,7 +201,7 @@ export function RightPanelTaskHeader({
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={onDeleteTask} className="text-danger-ink focus:bg-destructive/10 focus:text-danger-ink">
+                            <DropdownMenuItem variant="destructive" onClick={onDeleteTask} className="text-danger-ink">
                                 <Trash className="mr-2 h-4 w-4" />
                                 Delete task
                             </DropdownMenuItem>

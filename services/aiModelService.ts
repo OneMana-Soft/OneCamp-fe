@@ -722,23 +722,25 @@ export async function getAuthorizedModels(config?: AxiosRequestConfig): Promise<
   return res.data?.data ?? []
 }
 
-export async function authorizeModel(providerId: string, model: string, label = ""): Promise<AuthorizedModel> {
-  const res = await axiosInstance.post(PostEndpointUrl.AuthorizeAIModel, {
-    provider_id: providerId,
-    model,
-    label,
-  })
+export async function authorizeModel(providerId: string, model: string, label = "", config?: AxiosRequestConfig): Promise<AuthorizedModel> {
+  const res = await axiosInstance.post(
+    PostEndpointUrl.AuthorizeAIModel,
+    {
+      provider_id: providerId,
+      model,
+      label,
+    },
+    config,
+  )
   return res.data?.data
 }
 
-export async function setAuthorizedModelEnabled(id: string, enabled: boolean): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.SetAIAuthorizedModelEnabled}/${encodeURIComponent(id)}/enabled`, {
-    enabled,
-  })
+export async function setAuthorizedModelEnabled(id: string, enabled: boolean, config?: AxiosRequestConfig): Promise<void> {
+  await axiosInstance.post(`${PostEndpointUrl.SetAIAuthorizedModelEnabled}/${encodeURIComponent(id)}/enabled`, { enabled }, config)
 }
 
-export async function revokeAuthorizedModel(id: string): Promise<void> {
-  await axiosInstance.delete(`${PostEndpointUrl.RevokeAIAuthorizedModel}/${encodeURIComponent(id)}`)
+export async function revokeAuthorizedModel(id: string, config?: AxiosRequestConfig): Promise<void> {
+  await axiosInstance.delete(`${PostEndpointUrl.RevokeAIAuthorizedModel}/${encodeURIComponent(id)}`, config)
 }
 
 /** What a provider says about a model's own limits. 0 means the provider did not report
@@ -758,9 +760,10 @@ interface DiscoveredModelLimits {
  * because a gateway's answer can be stale or describe a different model than it routes to,
  * and re-sizing prompts is a decision a person should make.
  */
-export async function discoverAuthorizedModelLimits(id: string): Promise<DiscoveredModelLimits> {
+export async function discoverAuthorizedModelLimits(id: string, config?: AxiosRequestConfig): Promise<DiscoveredModelLimits> {
   const res = await axiosInstance.get(
     `${GetEndpointUrl.DiscoverAIModelLimits}/${encodeURIComponent(id)}/discover-limits`,
+    config,
   )
   return res.data?.data ?? { context_window_tokens: 0, max_output_tokens: 0 }
 }
@@ -775,10 +778,12 @@ export async function discoverAuthorizedModelLimits(id: string): Promise<Discove
 export async function setAuthorizedModelLimits(
   id: string,
   limits: { context_window_tokens?: number; max_output_tokens?: number },
+  config?: AxiosRequestConfig,
 ): Promise<void> {
   await axiosInstance.post(
     `${PostEndpointUrl.SetAIAuthorizedModelLimits}/${encodeURIComponent(id)}/limits`,
     limits,
+    config,
   )
 }
 

@@ -11,6 +11,7 @@ import { AlertCircle, AlignCenter, AlignLeft, Copy, Crop, Download, Link2, Maxim
 import { FloatingBar, FloatingBarButton, FloatingBarDivider } from '@/components/ui/FloatingBar'
 import { toast } from '@/hooks/use-toast'
 import { useMediaFetch } from '@/hooks/useFetch'
+import { isComposingKey } from '@/lib/keys/ime'
 import { GetMediaURLRes } from '@/types/file'
 import { useGuestReader } from '@/components/minimal-tiptap/guestReader'
 import { busFor } from '@/components/docEditor/registry/commandBus'
@@ -19,6 +20,7 @@ import { isSafeHref } from '@/lib/utils/safeHref'
 import { imageUploadsOf, isImagePlaceholder } from '../uploads'
 import { cropBox } from '../crop'
 import { ImagePlaceholder, useImageUpload } from './image-placeholder'
+import { ix } from "@/lib/ui/interactive"
 
 const MAX_HEIGHT = 600
 const MIN_HEIGHT = 120
@@ -484,13 +486,14 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
             defaultValue={node.attrs.caption || ''}
             onBlur={(e) => e.target.value !== (node.attrs.caption || '') && updateAttributes({ caption: e.target.value || null })}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && !isComposingKey(e.nativeEvent)) {
                 e.preventDefault()
                 const at = pos()
                 editor.chain().focus(at == null ? undefined : at + node.nodeSize).createParagraphNear().run()
               }
             }}
-            className="mt-1.5 w-full border-none bg-transparent text-center text-meta text-ink-3 outline-none transition-colors placeholder:text-ink-3 focus:text-ink"
+            {...ix("field")}
+            className="mt-1.5 w-full rounded-sm border-none bg-transparent text-center text-meta text-ink-3 placeholder:text-ink-3 focus:text-ink"
           />
         ) : null}
         {!editor.isEditable && node.attrs.caption ? <p className="mt-1.5 w-full text-center text-meta text-ink-3">{node.attrs.caption}</p> : null}

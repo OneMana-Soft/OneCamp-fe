@@ -67,6 +67,7 @@ export const ChannelEmpty = memo(function ChannelEmpty({ channelId, start = fals
     return (
         <ConversationEmpty
             kind="channel"
+            channelId={channelId}
             placement={start ? "start" : "fill"}
             faces={faces}
             title={name ? `This is the start of #${name}` : "This is the start of the channel"}

@@ -52,8 +52,10 @@ export function loadFailure(error: unknown): LoadFailure {
  *
  * A failed read waits a beat before its toast, for the screen to draw what it
  * draws for the failure. Every error state drawn in place of what failed calls
- * useSaysLoadFailure while it is on screen: then the toast stays quiet, and one
- * raised a moment before an error state that came late is taken back.
+ * useSaysLoadFailure while it is on screen: then that read's toast stays quiet
+ * (the read that failed within a beat of its drawing; any other read's still
+ * says itself), and one raised a moment before an error state that came late
+ * is taken back.
  */
 
 /** How long a failed read waits for an error state to say it. */
@@ -61,18 +63,44 @@ export const READ_FAILURE_BEAT_MS = 400
 /** How long after a read's toast an error state that arrives late takes it back. */
 const LATE_MS = 4000
 
-let saying = 0
-let lastToast: { dismiss: () => void; at: number } | null = null
+/**
+ * An error state on screen, and the reads it says: the ones that failed
+ * within a beat of its drawing (its own, which it was drawn for). It keeps
+ * those reads quiet while it is shown, a retry's failure too, and no others:
+ * one error state on screen once kept every failed read's toast quiet,
+ * whatever had failed (a 500 from another card said nothing at all).
+ */
+interface Saying {
+  at: number
+  reads: Set<string>
+}
+const sayings = new Set<Saying>()
+/** Reads that failed lately, for an error state drawn just after its read failed. */
+let lately: { read: string; at: number }[] = []
+let lastToast: { dismiss: () => void; at: number; read: string } | null = null
+
+/** A failed read's name: its method and address, or "" for an error that names none. */
+function readOf(error: unknown): string {
+  const config = (error as AxiosError)?.config
+  return config?.url ? `${(config.method || "get").toLowerCase()} ${config.url}` : ""
+}
 
 /** Called by every error state drawn in place of what failed to load, while it is on screen. */
 export function useSaysLoadFailure(on: boolean = true): void {
   useEffect(() => {
     if (!on) return
-    saying++
-    if (lastToast && Date.now() - lastToast.at < LATE_MS) lastToast.dismiss()
+    const now = Date.now()
+    const saying: Saying = { at: now, reads: new Set(lately.filter((f) => now - f.at <= READ_FAILURE_BEAT_MS).map((f) => f.read)) }
+    // A toast raised a moment before an error state that came late is taken
+    // back, and the read it said is the error state's.
+    if (lastToast && now - lastToast.at < LATE_MS) {
+      lastToast.dismiss()
+      saying.reads.add(lastToast.read)
+    }
     lastToast = null
+    sayings.add(saying)
     return () => {
-      saying--
+      sayings.delete(saying)
     }
   }, [on])
 }
@@ -96,9 +124,15 @@ export function tellReadFailure(error: unknown): void {
   const res = (error as AxiosError<{ msg?: unknown; code?: unknown }>)?.response
   if (!res || res.status === 401) return
   const copy = errorToastCopy(res.status, res.data?.msg, res.data?.code)
+  // A read with no address is its own: only an error state drawn with it says it.
+  const read = readOf(error) || `unnamed ${Math.random()}`
+  const at = Date.now()
+  lately = [...lately.filter((f) => at - f.at <= READ_FAILURE_BEAT_MS), { read, at }]
+  // An error state drawn just before it failed is drawn for it too.
+  for (const saying of sayings) if (at - saying.at <= READ_FAILURE_BEAT_MS) saying.reads.add(read)
   setTimeout(() => {
-    if (saying > 0 || shownRecently(copy)) return
+    if ([...sayings].some((s) => s.reads.has(read)) || shownRecently(copy)) return
     const shown = toast({ variant: "destructive", ...copy })
-    lastToast = { dismiss: shown.dismiss, at: Date.now() }
+    lastToast = { dismiss: shown.dismiss, at: Date.now(), read }
   }, READ_FAILURE_BEAT_MS)
 }

@@ -16,7 +16,7 @@ import type { DocTab } from "@/lib/utils/docTab"
 import type { DocList, DocListItem, DocListSort, DocSpace } from "@/types/docGraph"
 
 /** A page of a list: enough rows to fill a screen of cards. */
-export const DOC_LIST_PAGE = 30
+const DOC_LIST_PAGE = 30
 
 export interface DocListQuery {
   sort?: DocListSort

@@ -12,7 +12,9 @@ import { parseCsv, parseDelimited } from "./tablePaste"
 // row), a pasted 3×4 TSV is a table, cells keep their colour and widths, and
 // another person's change is never "repaired" by this tab (I6).
 
-beforeAll(() => loadBlocks("doc", ALL_EDITIONS), 30_000)
+// As for a doc whose saved copy holds a table: its editing is here before its
+// editors are made (registry/onDemand.ts; a doc without one: tableOnDemand.test.ts).
+beforeAll(() => loadBlocks("doc", ALL_EDITIONS, "<table>"), 30_000)
 let restoreRects = () => {}
 beforeAll(() => {
   // jsdom lays nothing out: ProseMirror measures ranges as it scrolls the caret into view.
@@ -42,7 +44,7 @@ function docEditor(content: string | JSONContent = "<p></p>") {
   return editor
 }
 
-const KEY_CODES: Record<string, number> = { Tab: 9, Backspace: 8 }
+const KEY_CODES: Record<string, number> = { Tab: 9, Backspace: 8, Delete: 46 }
 
 /** A key as the browser sends it. */
 function press(editor: Editor, combo: string) {
@@ -124,16 +126,20 @@ describe("a table's cells", () => {
 
   // Editing used to be added the first time a doc showed a table, and adding
   // plugins to an open editor makes every plugin view again (an open menu
-  // closed, collaboration drew the whole doc again).
-  it("have their editing from when the doc's editor is made: a table added changes none of its plugins", () => {
+  // closed, collaboration drew the whole doc again). The editor is made with
+  // its stand-ins, which take it on (registry/onDemand.ts).
+  it("have their editing from when the doc's editor is made: a table added changes none of its plugins", async () => {
+    const { columnResizingPluginKey } = await import("@tiptap/pm/tables")
     const e = docEditor()
     const plugins = e.state.plugins
-    expect(plugins.some((p) => (p as unknown as { key: string }).key.startsWith("tableColumnResizing"))).toBe(true)
+    expect(plugins.filter((p) => (p as unknown as { key: string }).key.startsWith("onDemand:simpleTableEditing")).length).toBe(3)
     const spy = vi.spyOn(e, "registerPlugin")
     insertSimpleTable(e, { from: 1, to: 1 })
     expect(table(e)).toBeTruthy()
     expect(spy).not.toHaveBeenCalled()
     expect(e.state.plugins).toBe(plugins)
+    // Its column resizing reads its state, through its own key.
+    expect(columnResizingPluginKey.getState(e.state)).toEqual(expect.objectContaining({ activeHandle: -1 }))
   })
 
   it("are coloured, headed and added to from the table's commands", async () => {
@@ -294,5 +300,45 @@ describe("Turn into database", () => {
     vi.doUnmock("@/services/tableService")
     vi.doUnmock("@/lib/axiosInstance")
     vi.doUnmock("@/components/docEditor/registry/commandBus")
+  })
+})
+
+// Review, 16 Oct 2026: ⌫ or Delete with every cell of a table selected was to
+// take the table away, as in Notion and as the block menu's Delete does
+// (tableEditing.ts). It emptied the cells instead: Tiptap's own ⌫ and table
+// editing's, which empty a cell selection, ran before the keys that take the
+// whole table, on live beta as well.
+describe("a table, every cell of it selected", () => {
+  /** A cell selection from the first table's nth cell to its mth. */
+  async function select(e: Editor, from: number, to: number | "last") {
+    const { CellSelection } = await import("@tiptap/pm/tables")
+    const cells: number[] = []
+    e.state.doc.descendants((n, pos) => {
+      if (n.type.name === "tableCell" || n.type.name === "tableHeader") {
+        cells.push(pos)
+        return false
+      }
+      return true
+    })
+    e.view.dispatch(e.state.tr.setSelection(CellSelection.create(e.state.doc, cells[from], cells[to === "last" ? cells.length - 1 : to])))
+  }
+  const grid2 = "<table><tbody><tr><td><p>a</p></td><td><p>b</p></td></tr><tr><td><p>c</p></td><td><p>d</p></td></tr></tbody></table><p>after</p>"
+
+  it("goes with ⌫ or Delete, and the doc keeps what's around it", async () => {
+    for (const key of ["Backspace", "Delete"]) {
+      const e = docEditor(grid2)
+      await select(e, 0, "last")
+      expect(press(e, key).defaultPrevented).toBe(true)
+      expect(table(e), key).toBeUndefined()
+      expect(e.getText()).toContain("after")
+    }
+  })
+
+  it("over some of its cells, empties them and keeps the table", async () => {
+    const e = docEditor(grid2)
+    await select(e, 0, 1)
+    press(e, "Backspace")
+    expect(table(e)).toBeTruthy()
+    expect(e.state.doc.textContent).toBe("cdafter")
   })
 })

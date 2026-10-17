@@ -1,10 +1,7 @@
 import { Extension } from "@tiptap/core"
-import { PluginKey } from "@tiptap/pm/state"
 import Suggestion from "@tiptap/suggestion"
 import { SlashCommandItem, slashCommandSuggestion, CHAT_COMMANDS } from "./slashCommand"
 import { inCode } from "../suggestion-popup"
-
-const SlashCommandPluginKey = new PluginKey("slash-command")
 
 /**
  * The chat composer's commands (/remind, /poll, an app's own) are its

@@ -20,7 +20,7 @@ import { blocksWithIds } from "@/components/minimal-tiptap/extensions/block-comm
 /** The API's way in: append blocks to a doc's end (router/docsBlocks.go). */
 export const APPEND_BLOCKS_URL = APPEND_BLOCKS_PATH
 
-export interface StagedBlockMove {
+interface StagedBlockMove {
   /** How many blocks (the dialog's title: "Move 3 blocks to…"). */
   count: number
   moveTo(targetDocId: string): Promise<void>

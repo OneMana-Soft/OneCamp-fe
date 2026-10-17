@@ -20,6 +20,8 @@ import { highlightRuns } from "@/lib/search/highlight"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { agoOrDate, fullDateTime } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
+import { docHue, rememberDocIcon } from "@/lib/docLook"
 import type { DocCrumb, DocListItem } from "@/types/docGraph"
 import type { DocSearchItem } from "@/types/docHome"
 import { app_doc_path } from "@/types/paths"
@@ -60,6 +62,8 @@ export interface DocRowProps {
 }
 
 export function DocRow({ doc, when = "edited", canEdit = false, passages }: DocRowProps) {
+  // Its icon, for the lists that name a doc without it (lib/docLook).
+  rememberDocIcon(doc.doc_uuid, doc.doc_icon)
   const title = titleOf(doc.doc_title)
   const where = pathLabel(doc.path)
   const time = whenOf(doc as DocListItem, when)
@@ -95,16 +99,17 @@ export function DocRow({ doc, when = "edited", canEdit = false, passages }: DocR
             pressed.current = false
           }
         }}
+        // A row of the interaction layer, tinting in the doc's own hue (D13).
+        {...ix("row", { hue: docHue(doc.doc_uuid, doc.doc_icon) ?? undefined })}
         className={cn(
-          "flex min-w-0 items-center gap-2.5 rounded-lg px-2 text-ink outline-none transition-colors duration-[140ms] ease-[var(--ease-out)]",
-          "hover:bg-hover hover:duration-0 focus-visible:ring-2 focus-visible:ring-brand active:bg-press",
+          "flex min-w-0 items-center gap-2.5 rounded-lg px-2 text-ink",
           // A wide screen's row is one 36 px line; a phone's two lines at 56 px.
           passages?.length ? "py-2 sm:min-h-9" : "h-14 sm:h-9",
           // The long press is ours (the row's menu), not the browser's link callout.
           "pr-10 [-webkit-touch-callout:none] sm:pr-10",
         )}
       >
-        <DocIcon icon={doc.doc_icon} size={16} className="self-start mt-[3px] sm:mt-0 sm:self-center" />
+        <DocIcon icon={doc.doc_icon} id={doc.doc_uuid} size={16} className="self-start mt-[3px] sm:mt-0 sm:self-center" />
         <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-center sm:gap-2">
           <span className={cn("min-w-0 truncate text-ui font-[450]", !doc.doc_title?.trim() && "text-ink-3")}>
             {titleMark ? <Marked passage={titleMark} /> : title}

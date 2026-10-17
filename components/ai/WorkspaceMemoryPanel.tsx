@@ -58,7 +58,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DateField } from "@/components/task/taskDateField"
+import { DateProperty } from "@/components/task/taskDateField"
 import {
   Sparkles,
   Check,
@@ -80,8 +80,8 @@ import {
   Bell,
 } from "@/lib/icons"
 import { ToastAction } from "@/components/ui/toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
-import axios from "axios"
 import { withAI } from "@/components/common/withFeature"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { ErrorState } from "@/components/ui/error-state"
@@ -124,14 +124,6 @@ function sourceOriginLabel(it: MemoryItem): string {
   }
 }
 
-// errMessage safely extracts a human-readable message from an unknown error.
-const errMessage = (e: unknown): string => {
-  if (axios.isAxiosError(e)) {
-    return e.response?.data?.msg || e.response?.data?.message || e.message
-  }
-  if (e instanceof Error) return e.message
-  return "Something went wrong"
-}
 
 type TabValue = MemoryKind | "all"
 
@@ -394,7 +386,7 @@ function WorkspaceMemoryPanel({
           setItems((cur) =>
             cur.some((i) => i.id === id) ? cur : [...cur, item],
           )
-          toast({ title: "Action failed", description: errMessage(e), variant: "destructive" })
+          toast({ title: "Action failed", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         }
       }
 
@@ -440,7 +432,7 @@ function WorkspaceMemoryPanel({
       toast({ title: "Reopened" })
     } catch (e: unknown) {
       setItems((cur) => (cur.some((i) => i.id === item.id) ? cur : [...cur, item]))
-      toast({ title: "Couldn't reopen", description: errMessage(e), variant: "destructive" })
+      toast({ title: "Couldn't reopen", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusyId(null)
     }
@@ -459,7 +451,7 @@ function WorkspaceMemoryPanel({
         toast({ title: "Couldn't create task", description: res?.message, variant: "destructive" })
       }
     } catch (e: unknown) {
-      toast({ title: "Couldn't create task", description: errMessage(e), variant: "destructive" })
+      toast({ title: "Couldn't create task", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusyId(null)
     }
@@ -479,7 +471,7 @@ function WorkspaceMemoryPanel({
         toast({ title: "Couldn't set reminder", description: res?.message, variant: "destructive" })
       }
     } catch (e: unknown) {
-      toast({ title: "Couldn't set reminder", description: errMessage(e), variant: "destructive" })
+      toast({ title: "Couldn't set reminder", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusyId(null)
     }
@@ -500,7 +492,7 @@ function WorkspaceMemoryPanel({
     } catch (e: unknown) {
       // Roll back on failure.
       setItems((cur) => cur.map((i) => (i.id === id ? { ...i, due_at: prevDue } : i)))
-      toast({ title: "Couldn't update due date", description: errMessage(e), variant: "destructive" })
+      toast({ title: "Couldn't update due date", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusyId(null)
     }
@@ -617,6 +609,7 @@ function WorkspaceMemoryPanel({
       <div className="flex-shrink-0 px-4 sm:px-8 border-b border-border/60">
         <div
           className="flex gap-1 -mb-px overflow-x-auto no-scrollbar"
+          data-edge-fade=""
           role="tablist"
           aria-label="Filter memory by kind"
         >
@@ -729,7 +722,7 @@ function MemoryRow({
   const isClosed = statusView !== "open"
   const BacklinkIcon = backlink?.Icon ?? Hash
 
-  // Parsed Date for the picker (DateField works in Date objects; the API
+  // Parsed Date for the picker (DateProperty works in Date objects; the API
   // speaks YYYY-MM-DD). Local-time midnight so the calendar highlights the
   // intended day regardless of timezone.
   const dueDateObj = React.useMemo(() => {
@@ -835,10 +828,10 @@ function MemoryRow({
             : "opacity-100 sm:opacity-0 pointer-events-none sm:group-hover:opacity-100 group-hover:pointer-events-auto sm:group-focus-within:opacity-100 focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
         )}
       >
-        {/* Due-date picker — open commitments only. Reuses the task DateField
-            (Popover on desktop, Drawer on mobile, with Clear). */}
+        {/* Due-date picker — open commitments only. The task's DateProperty: the one
+            date picker (a popover, a sheet on a phone, with Clear). */}
         {!isClosed && item.kind === "commitment" && (
-          <DateField
+          <DateProperty
             isAdmin
             compact
             label={item.due_at ? "Due" : "Set due"}
@@ -854,7 +847,7 @@ function MemoryRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 px-2 text-muted-foreground hover:text-foreground hover:bg-accent"
+            className="h-7 gap-1 px-2 text-muted-foreground hover:text-foreground"
             disabled={busy}
             onClick={onReopen}
             title="Reopen"
@@ -866,9 +859,10 @@ function MemoryRow({
         ) : (
           // Open view: the primary action is Resolve.
           <Button
+            data-tone="success"
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 px-2 text-success-ink hover:text-success-ink hover:bg-success/10"
+            className="h-7 gap-1 px-2 text-success-ink hover:text-success-ink"
             disabled={busy}
             onClick={onResolve}
             title="Resolve"
@@ -921,7 +915,7 @@ function MemoryRow({
                     <span className="text-muted-foreground">No projects available</span>
                   </DropdownMenuItem>
                 )}
-                {/* Set due date — commitments only. Rendered as a DateField
+                {/* Set due date — commitments only. Rendered as a DateProperty
                     in the action row (below), not here, since a date picker
                     can't work inside a Radix dropdown. */}
                 <DropdownMenuSeparator />
@@ -946,7 +940,7 @@ function MemoryRow({
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem onClick={onDelete} className="text-danger-ink focus:text-danger-ink">
+            <DropdownMenuItem variant="destructive" onClick={onDelete} className="text-danger-ink">
               <Trash2 className="h-4 w-4" />
               Delete
             </DropdownMenuItem>

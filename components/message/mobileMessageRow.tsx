@@ -42,8 +42,6 @@ import { clockTime } from "@/lib/utils/date/clock"
 
 /** How long a touch rests before the row shows it is pressed: a scroll never flashes it. */
 export const PRESS_DELAY_MS = 60
-/** How long a hold takes to open the action sheet. */
-export const LONG_PRESS_MS = 500
 
 export interface MobileMessageRowProps {
     message: BaseMessage

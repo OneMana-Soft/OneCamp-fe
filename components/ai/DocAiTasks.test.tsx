@@ -10,7 +10,6 @@ const make = vi.fn()
 vi.mock("@/lib/ai/docAIApi", () => ({
   findDocTasks: (...a: unknown[]) => find(...a),
   makeDocTasks: (...a: unknown[]) => make(...a),
-  messageOf: (e: { response?: { data?: { msg?: string } } }, fallback: string) => e?.response?.data?.msg || fallback,
 }))
 const projects = { data: { data: [{ project_uuid: "p1", project_name: "Launch" }, { project_uuid: "p2", project_name: "Ops" }] } as unknown }
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => projects }))

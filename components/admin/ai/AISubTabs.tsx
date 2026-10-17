@@ -4,6 +4,7 @@ import * as React from "react"
 import { useLayoutEffect, useRef } from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 import { AI_SUBTABS, type AISubTab } from "@/components/admin/ai/aiTabs"
+import { ix, withLabel } from "@/lib/ui/interactive"
 
 /**
  * The tab bar under AI & agents' header (DESIGN_V3 tabs, admin §A15): 40px,
@@ -51,10 +52,10 @@ export function AISubTabs({
   return (
     <TabsPrimitive.Root value={value} onValueChange={(v) => onValueChange(v as AISubTab)} className="min-w-0" data-ai-subtabs="">
       <div className="ai-tabs-bar">
-        <TabsPrimitive.List ref={listRef} aria-label="AI & agents" className="ai-tabs-list no-scrollbar">
+        <TabsPrimitive.List ref={listRef} aria-label="AI & agents" data-edge-fade="" className="ai-tabs-list no-scrollbar">
           {AI_SUBTABS.map((t) => (
-            <TabsPrimitive.Trigger key={t.value} value={t.value} className="ai-tab" data-ai-subtab={t.value}>
-              {t.label}
+            <TabsPrimitive.Trigger key={t.value} value={t.value} className="ai-tab" data-ai-subtab={t.value} data-touch-target="" {...ix("tab")}>
+              {withLabel(t.label)}
             </TabsPrimitive.Trigger>
           ))}
           <span ref={inkRef} aria-hidden="true" data-ai-tab-ink="" className="ai-tab-ink" />
@@ -68,7 +69,7 @@ export function AISubTabs({
 /** One sub-page's body, mounted only while its tab is chosen. */
 export function AISubTabPanel({ value, children }: { value: AISubTab; children: React.ReactNode }) {
   return (
-    <TabsPrimitive.Content value={value} className="mt-8 outline-none" data-ai-panel={value}>
+    <TabsPrimitive.Content value={value} className="mt-8" data-ai-panel={value}>
       {children}
     </TabsPrimitive.Content>
   )

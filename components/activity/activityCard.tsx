@@ -151,8 +151,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, entry, unr
             title={sentence}
             second={preview}
             meta={time || undefined}
+            // Opens through the link stretched over it: a row of the interaction layer (SH-31).
+            opens={!!href}
             className={cn(
-                href ? "cursor-pointer hover:bg-hover" : "cursor-default",
                 separated && "before:pointer-events-none before:absolute before:left-14 before:right-4 before:top-0 before:h-px before:bg-line hover:before:opacity-0",
             )}
             tools={

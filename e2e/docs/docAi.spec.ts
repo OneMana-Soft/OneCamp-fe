@@ -65,10 +65,16 @@ async function askAI(tab: DocTab) {
   await expect(tab.page.getByRole("dialog", { name: "Ask AI" }).getByRole("combobox")).toBeFocused()
 }
 
-/** Selects the caret's line, once the editor has taken the selection (its bar shows). */
+/**
+ * Selects the caret's line, once the editor has taken the selection (its bar
+ * shows): from its end back to its start. Home put a caret at the doc's start,
+ * which ProseMirror reads, for 200 ms after the editor takes the focus, as the
+ * browser's own reset on focus, and puts back: when a click below the text had
+ * just taken the focus, Home was undone and Shift+End selected nothing.
+ */
 async function selectLine(tab: DocTab) {
-  await tab.page.keyboard.press("Home")
-  await tab.page.keyboard.press("Shift+End")
+  await tab.page.keyboard.press("End")
+  await tab.page.keyboard.press("Shift+Home")
   await expect(selectionBar(tab.page)).toBeVisible()
 }
 
@@ -149,12 +155,15 @@ test("a rewrite's changes are struck and inserted, Discard changes nothing, and 
   await expect(sam.body.locator(".oc-proposal-ins")).toHaveCount(3)
   await expect(priya.body.locator(".oc-proposal-ins, .oc-proposal-del")).toHaveCount(0)
 
-  // Discard: nothing in either tab changed, and nothing was recorded.
+  // Discard: nothing in either tab changed, nothing was recorded, and the
+  // text has the focus again (it comes back on the next frame; until then a
+  // click below the text takes it).
   await reviewBar(sam.page).press("Escape")
   await expect(sam.body.locator(".oc-proposal-ins, .oc-proposal-del")).toHaveCount(0)
   await expect(sam.body).toContainText(line)
   await expect(priya.body).toContainText(line)
   expect(applied).toHaveLength(0)
+  await expect(sam.body).toBeFocused()
 
   // Again, taking the first two changes and rejecting the third.
   await sam.body.click()

@@ -105,7 +105,7 @@ const RECENT_KEY = 'onecamp-doc-colours'
 /** The selection bar's old store (one text colour as a CSS variable), read once and let go. */
 export const LEGACY_LAST_KEY = 'onecamp-doc-last-colour'
 /** How many "Last used" the grid shows. */
-export const RECENT_MAX = 3
+const RECENT_MAX = 3
 
 function readRecent(): string[] {
   try {

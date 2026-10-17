@@ -71,6 +71,17 @@ describe("AI & agents' sub-pages", () => {
     expect(rule).not.toMatch(/transition:[^;]*\b(left|width)\b/)
   })
 
+  // ST-40 (D8): the chosen tab turned 510 and pushed the tabs after it along.
+  it("keeps every tab's width when one is chosen: tabs of the interaction layer, their words reserving 510", () => {
+    render(<AIAgentsSection />)
+    for (const tab of screen.getAllByRole("tab")) {
+      expect(tab.getAttribute("data-interactive")).toBe("tab")
+      expect(tab.querySelector("[data-label]")?.getAttribute("data-label")).toBe(tab.textContent)
+    }
+    const css = readFileSync(join(process.cwd(), "app/styles/admin/ai.css"), "utf8")
+    expect(css).not.toMatch(/\.ai-tab\[data-state="active"\] \{[^}]*font-weight/)
+  })
+
   it("holds the chosen tab in the URL", async () => {
     render(<AIAgentsSection />)
     const tab = screen.getByRole("tab", { name: "Governance" })

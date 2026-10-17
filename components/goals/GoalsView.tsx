@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { localDay } from "@/lib/utils/timeZone"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
+import { ix } from "@/lib/ui/interactive"
 import { MenuCheck } from "@/components/ui/menuCheck"
 
 /** The goals table's columns (work.md W42): ring, title and line, owner, pace, health. */
@@ -136,7 +137,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
         {shown.map(({ goal, depth }) => (
           <li key={goal.id} className="border-b border-line">
             {/* A goal on a phone (W42): 64 px, the ring at 32 and the title and health on line 1. */}
-            <Link href={href(goal)} className="flex h-16 items-center gap-3 outline-none active:bg-press focus-visible:bg-hover" style={{ paddingLeft: depth * 16 }}>
+            <Link href={href(goal)} {...ix("row")} className="flex h-16 items-center gap-3" style={{ paddingLeft: depth * 16 }}>
               <GoalRing goal={goal} size={32} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-3">
@@ -205,7 +206,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
               <GoalRing goal={goal} />
             </span>
             <div className="min-w-0">
-              <Link href={href(goal)} className="block truncate text-sm font-[510] text-foreground outline-none hover:underline focus-visible:underline">
+              <Link href={href(goal)} className="block truncate rounded-sm text-sm font-[510] text-foreground hover:underline">
                 {goal.title}
               </Link>
               <Line goal={goal} today={today} className="block truncate" />
@@ -226,7 +227,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
   if (status === "closed") chips.push({ key: "status", text: "Closed goals", clear: () => setStatus("open") })
   if (mine) chips.push({ key: "owner", text: "Owner: me", clear: () => setMine(false) })
   const menuRow = (on: boolean, label: ReactNode, onClick: () => void, role: "menuitemradio" | "menuitemcheckbox" = "menuitemradio") => (
-    <button type="button" role={role} aria-checked={on} onClick={onClick} className="flex h-[30px] w-full items-center justify-between gap-2 rounded-md px-2 text-left text-sm text-foreground outline-none hover:bg-press focus-visible:bg-press">
+    <button type="button" role={role} aria-checked={on} onClick={onClick} {...ix("item")} className="flex h-[30px] w-full items-center justify-between gap-2 rounded-md px-2 text-left text-sm text-foreground">
       <span className="flex items-center gap-1.5">{label}</span>
       <MenuCheck checked={on} className="text-ink-2" />
     </button>

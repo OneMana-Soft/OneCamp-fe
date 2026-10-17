@@ -114,3 +114,20 @@ describe("the picker", () => {
     expect(screen.getAllByRole("option")).toHaveLength(10)
   })
 })
+
+// Review, 15 Oct 2026: finding a template in Japanese, the Enter that picks
+// the word used the highlighted template (lib/keys/ime.ts).
+describe("the picker's finder, typed through an input method", () => {
+  it("uses nothing on the Enter that picks a word; a plain Enter uses the one chosen", async () => {
+    applyTemplate.mockResolvedValue({ persisted: true })
+    render(<TemplatePicker mode={{ kind: "apply", docId: "doc-9" }} onClose={vi.fn()} />)
+    const find = screen.getByRole("combobox", { name: "Find a template" })
+    fireEvent.keyDown(find, { key: "Enter", isComposing: true })
+    fireEvent.keyDown(find, { key: "Enter", keyCode: 229 })
+    fireEvent.keyDown(find, { key: "ArrowDown", isComposing: true })
+    expect(screen.getByRole("option", { name: /Meeting notes/ })).toHaveAttribute("aria-selected", "true")
+    expect(applyTemplate).not.toHaveBeenCalled()
+    fireEvent.keyDown(find, { key: "Enter" })
+    await waitFor(() => expect(applyTemplate).toHaveBeenCalledWith("doc-9", "b5d0c000-0000-4000-8000-000000000001"))
+  })
+})

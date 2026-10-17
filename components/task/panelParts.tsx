@@ -6,7 +6,7 @@ import { ChevronDown } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { prefersReducedMotion } from "@/lib/celebrate"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
-import { DateField } from "@/components/task/taskDateField"
+import { DateProperty } from "@/components/task/taskDateField"
 import { DueLabel } from "@/components/task/DueLabel"
 
 /*
@@ -72,9 +72,9 @@ export function DatesProperty({
     <div className={propertyRow()} data-property="dates">
       <span className={propertyLabel}>Dates</span>
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <DateField bare isAdmin={isAdmin} label="Start date" emptyText={due ? "Start" : "Add dates"} value={start} onSelect={onStart} onClear={() => onStart(undefined)} />
+        <DateProperty bare isAdmin={isAdmin} label="Start date" emptyText={due ? "Start" : "Add dates"} value={start} onSelect={onStart} onClear={() => onStart(undefined)} />
         {(start || due) && <span className="text-ink-4" aria-hidden>→</span>}
-        {(start || due) && <DateField bare isAdmin={isAdmin} label="Due date" emptyText="Due" value={due} onSelect={onDue} onClear={() => onDue(undefined)} />}
+        {(start || due) && <DateProperty bare isAdmin={isAdmin} label="Due date" emptyText="Due" value={due} onSelect={onDue} onClear={() => onDue(undefined)} />}
         {due && !done && <DueLabel date={due} variant="panel" className="ml-1" />}
       </div>
     </div>

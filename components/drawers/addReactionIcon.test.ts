@@ -21,8 +21,4 @@ describe("the add-reaction icon in long-press drawers", () => {
     expect(src).not.toMatch(/addEmoji/)
     if (/Pick another reaction|onAddEmoji|onAddReaction/.test(src)) expect(src).toMatch(/<SmilePlus\b/)
   })
-
-  it("is gone from the status button too", () => {
-    expect(readFileSync(join(DIR, "..", "navigationBar", "userStatusNav.tsx"), "utf8")).not.toMatch(/addEmoji/)
-  })
 })

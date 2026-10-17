@@ -79,7 +79,6 @@ const SocialComposeDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) 
       setTopic(initialTopic)
       setPosts(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialTopic])
 
   const toggle = (key: string) =>

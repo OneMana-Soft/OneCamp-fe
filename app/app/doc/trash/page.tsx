@@ -12,12 +12,11 @@ import { Virtuoso } from "react-virtuoso"
 
 import { RestoreRow } from "@/components/doc/RestoreRow"
 import { DocRowsSkeleton } from "@/components/doc/docListResult"
-import { usePagedList, type ListPage } from "@/components/doc/usePagedList"
+import { PagedListFooter, usePagedList, type ListPage } from "@/components/doc/usePagedList"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SpotDocs } from "@/components/ui/graphics"
-import { ChevronLeft, Loader2 } from "@/lib/icons"
-import { SaysLoadFailure } from "@/lib/http/loadFailure"
+import { ChevronLeft } from "@/lib/icons"
 import { DocGraphEndpoint, type Envelope } from "@/services/docGraphService"
 import type { DocTrash, DocTrashItem } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
@@ -64,24 +63,7 @@ export default function DocTrashPage() {
           }}
           components={{
             Header: () => <div className="h-3" />,
-            Footer: () => (
-              <div className="flex w-full justify-center py-4">
-                {list.moreFailed ? (
-                  <span role="alert" className="flex items-center gap-2 text-ui-sm text-ink-3">
-                    <SaysLoadFailure />
-                    Couldn&apos;t load more of the trash.
-                    <button type="button" onClick={list.retryMore} className="font-medium text-ink-2 underline-offset-2 hover:underline">
-                      Try again
-                    </button>
-                  </span>
-                ) : list.hasMore ? (
-                  <span role="status" className="flex items-center gap-2 text-ui-sm text-ink-3">
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                    Loading…
-                  </span>
-                ) : null}
-              </div>
-            ),
+            Footer: () => <PagedListFooter what="of the trash" failed={list.moreFailed} loading={list.hasMore} onRetry={list.retryMore} />,
           }}
           itemContent={(_, t) => (
             <div className="mx-auto max-w-[1040px] px-4 sm:px-8">

@@ -37,7 +37,10 @@ describe("new webhook", () => {
     const incoming = screen.getByRole("radio", { name: "Incoming" })
     expect(group.contains(incoming)).toBe(true)
     expect(incoming.getAttribute("data-state")).toBe("checked")
-    expect(incoming.className).toContain("data-[state=checked]:bg-raised")
+    // The house segmented control: a tab of the interaction layer in its well,
+    // which raises the chosen one (app/interaction.css, [data-segmented]).
+    expect(incoming.closest("[data-segmented]")).not.toBeNull()
+    expect(incoming.getAttribute("data-interactive")).toBe("tab")
     expect(incoming.className).not.toMatch(/(^|\s)bg-background(\s|$)/)
   })
 

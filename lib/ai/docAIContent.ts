@@ -100,7 +100,7 @@ export function writePlace(state: EditorState, from: number, to: number): { from
  * editor's block ids have nothing to add when they go in: an id added after a
  * change takes that change out of ⌘Z, the way the live doc's undo reads it.
  */
-export function withBlockIds(state: EditorState, blocks: JSONContent[]): JSONContent[] {
+function withBlockIds(state: EditorState, blocks: JSONContent[]): JSONContent[] {
   const give = (node: JSONContent): JSONContent => {
     const type = node.type ? state.schema.nodes[node.type] : undefined
     const out: JSONContent = { ...node }

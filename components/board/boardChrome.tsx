@@ -123,7 +123,7 @@ export function BoardName({
             setEditing(false)
           }
         }}
-        className="h-7 w-[220px] rounded-lg bg-raised px-1.5 text-ui font-medium text-ink shadow-e1 outline-none focus:ring-1 focus:ring-brand/50"
+        className="h-7 w-[220px] rounded-lg bg-raised px-1.5 text-ui font-medium text-ink shadow-e1 outline-none focus:focus-halo"
       />
     )
   }

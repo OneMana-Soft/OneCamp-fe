@@ -18,7 +18,7 @@ import { VersionReason } from "@/components/dialog/resourceListParts"
 import { Credits } from "./Credits"
 import { attrValue, byDay, creditsOf, reasonOf, refusalWords, versionTime, type DocVersion, type VersionList } from "./versions"
 
-export interface VersionRailProps {
+interface VersionRailProps {
   list: VersionList | undefined
   loading: boolean
   failed: unknown

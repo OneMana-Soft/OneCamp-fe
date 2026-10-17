@@ -145,7 +145,7 @@ function AdminAdminRow({ admin, isSubmitting, currentUserUUID, onOpenProfile, on
             // around it, and the reason is also its accessible description.
             <Tooltip>
               <TooltipTrigger asChild>
-                <span tabIndex={0} aria-label={blocked} data-remove-blocked="" className="block rounded-md outline-none">
+                <span tabIndex={0} aria-label={blocked} data-remove-blocked="" className="block rounded-md">
                   <DropdownMenuItem disabled variant="destructive">
                     <UserMinus aria-hidden="true" />
                     Remove as admin

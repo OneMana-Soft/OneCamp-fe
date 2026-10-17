@@ -73,7 +73,10 @@ const ModelLimitsEditor: React.FC<{
   const detect = async () => {
     setDetecting(true)
     try {
-      const found = await discoverAuthorizedModelLimits(model.id)
+      // Each failure below is said once, by its own toast, in the server's
+      // words: the request's own toast stays quiet. Both showed, one of them
+      // reading "Request failed with status code 400".
+      const found = await discoverAuthorizedModelLimits(model.id, OWN_ERRORS)
       if (found.context_window_tokens > 0) setWindow(String(found.context_window_tokens))
       if (found.max_output_tokens > 0) setOutput(String(found.max_output_tokens))
       if (found.context_window_tokens > 0 || found.max_output_tokens > 0) {
@@ -86,8 +89,7 @@ const ModelLimitsEditor: React.FC<{
         toast({ title: "Nothing to detect", description: found.note || "This provider did not report limits." })
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Could not reach the provider"
-      toast({ title: "Detection failed", description: msg, variant: "destructive" })
+      toast({ title: "Couldn't detect the limits", description: apiErrorMessage(e, "The provider couldn't be reached."), variant: "destructive" })
     } finally {
       setDetecting(false)
     }
@@ -115,7 +117,7 @@ const ModelLimitsEditor: React.FC<{
     }
     setSaving(true)
     try {
-      await setAuthorizedModelLimits(model.id, { context_window_tokens: w, max_output_tokens: o })
+      await setAuthorizedModelLimits(model.id, { context_window_tokens: w, max_output_tokens: o }, OWN_ERRORS)
       onSaved({ context_window_tokens: w, max_output_tokens: o })
       onClose()
       toast({
@@ -126,8 +128,7 @@ const ModelLimitsEditor: React.FC<{
             : `${model.label || model.model} now uses a ${formatTokens(w)} context window.`,
       })
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to save limits"
-      toast({ title: "Error", description: msg, variant: "destructive" })
+      toast({ title: "Couldn't save the limits", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -226,14 +227,13 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
     }
     setBusy(true)
     try {
-      await authorizeModel(providerId, model, label.trim())
+      await authorizeModel(providerId, model, label.trim(), OWN_ERRORS)
       setModelName("")
       setLabel("")
       await load()
       toast({ title: "Model authorised", description: `${model} is now available to members` })
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to authorise model"
-      toast({ title: "Error", description: msg, variant: "destructive" })
+      toast({ title: "Couldn't authorise the model", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -242,10 +242,10 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
   const handleToggle = async (m: AuthorizedModel, enabled: boolean) => {
     setBusy(true)
     try {
-      await setAuthorizedModelEnabled(m.id, enabled)
+      await setAuthorizedModelEnabled(m.id, enabled, OWN_ERRORS)
       setModels((list) => list.map((x) => (x.id === m.id ? { ...x, enabled } : x)))
-    } catch {
-      toast({ title: "Error", description: "Failed to update model", variant: "destructive" })
+    } catch (e) {
+      toast({ title: enabled ? "Couldn't turn the model on" : "Couldn't turn the model off", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -254,11 +254,11 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
   const handleRevoke = async (m: AuthorizedModel) => {
     setBusy(true)
     try {
-      await revokeAuthorizedModel(m.id)
+      await revokeAuthorizedModel(m.id, OWN_ERRORS)
       setModels((list) => list.filter((x) => x.id !== m.id))
       toast({ title: "Model revoked", description: `${m.label || m.model} is no longer selectable` })
-    } catch {
-      toast({ title: "Error", description: "Failed to revoke model", variant: "destructive" })
+    } catch (e) {
+      toast({ title: "Couldn't revoke the model", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }

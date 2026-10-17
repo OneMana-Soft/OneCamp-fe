@@ -127,14 +127,6 @@ export type PaletteScope = "people" | "channels" | "commands" | "ask"
 
 const PREFIX_SCOPE: Record<string, PaletteScope> = { "@": "people", "#": "channels", ">": "commands", "?": "ask" }
 
-/** The words each scope's chip carries. */
-export const PALETTE_SCOPE_LABEL: Record<PaletteScope, string> = {
-  people: "People",
-  channels: "Channels",
-  commands: "Commands",
-  ask: "Ask AI",
-}
-
 /**
  * Splits a recognised prefix off the field: "@maya" is people and "maya",
  * "?" with anything after it is a question for the AI. A prefix becomes a

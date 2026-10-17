@@ -16,7 +16,8 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ActiveUsersBar, type ActiveUser } from "@/components/docEditor/ActiveUsersBar"
-import { SaveDot, type SaveState } from "@/components/docEditor/SaveDot"
+import { SaveDot } from "@/components/docEditor/SaveDot"
+import { useDocSaveDot, type DocSaveSource } from "@/components/docEditor/docSaveState"
 import { readingLine, useDocCounts } from "@/components/docEditor/docCounts"
 import { keyLabel } from "@/components/docEditor/shortcuts"
 import { useModKey } from "@/hooks/useModKey"
@@ -47,12 +48,8 @@ export interface DocHeaderProps {
   canEdit: boolean
   canShare: boolean
   scrolled: boolean
-  saveState: SaveState
-  savedAt?: Date | null
-  /** How many of this tab's changes wait to be stored (A4's useSaveProgress), said when offline. */
-  waiting?: number
-  live: boolean
-  onRetrySave?: () => void
+  /** What the save dot follows: the dot reads the saves itself (DocSaveDot). */
+  save: DocSaveSource
   users: ActiveUser[]
   commentCount: number
   onComments: () => void
@@ -63,8 +60,19 @@ export interface DocHeaderProps {
   editor: Editor | null
 }
 
+/**
+ * The save dot, reading the doc's saves itself. They change as often as a key
+ * is typed, so only the dot renders again for them: when the page read them,
+ * the page, this header and everything in it rendered two to four times a key
+ * (about 340 components a key in a 12-block doc, I20).
+ */
+function DocSaveDot({ source }: { source: DocSaveSource }) {
+  const { state, savedAt, waiting } = useDocSaveDot(source)
+  return <SaveDot state={state} savedAt={savedAt} live={source.live} waiting={waiting} />
+}
+
 export function DocHeader(props: DocHeaderProps) {
-  const { doc, canEdit, canShare, scrolled, saveState, savedAt, waiting, live, onRetrySave, users, commentCount, onComments, onShare } = props
+  const { doc, canEdit, canShare, scrolled, save, users, commentCount, onComments, onShare } = props
   return (
     <header
       data-doc-header=""
@@ -76,7 +84,7 @@ export function DocHeader(props: DocHeaderProps) {
       )}
     >
       <SlotOutlet slot="crumbs" gate={props.gate} docId={doc.doc_uuid} editor={props.editor} />
-      <SaveDot state={saveState} savedAt={savedAt} live={live} waiting={waiting} onRetry={onRetrySave} />
+      <DocSaveDot source={save} />
       {!canEdit && (
         <span className="tag ml-1 bg-hover text-ink-2" data-read-only="">
           Read only

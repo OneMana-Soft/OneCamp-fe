@@ -38,7 +38,7 @@ export interface DocAIProgress {
   of: number
 }
 
-export interface DocAIStreamHandlers {
+interface DocAIStreamHandlers {
   onModel?(model: DocAIModel): void
   onProgress?(progress: DocAIProgress): void
   /** The answer so far, after each piece. */
@@ -46,7 +46,7 @@ export interface DocAIStreamHandlers {
   onNotice?(notice: string): void
 }
 
-export interface DocAIResult {
+interface DocAIResult {
   /** The whole answer, cleaned. */
   text: string
   model: DocAIModel | null

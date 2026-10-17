@@ -10,6 +10,7 @@ import { displayNameOf } from "@/lib/personName";
 import { IntentLink } from "@/components/navigationBar/desktop/IntentLink";
 import { DocRowMenu } from "@/components/docTree/DocRowMenu";
 import { DocIcon } from "@/components/docEditor/DocIcon";
+import { docHue, rememberDocIcon } from "@/lib/docLook";
 import { pathLabel, titleOf, whenOf } from "@/components/doc/docRows";
 import type { DocListItem } from "@/types/docGraph";
 
@@ -32,14 +33,16 @@ function firstName(u?: { user_full_name?: string; user_name?: string } | null): 
 }
 
 /**
- * A doc in the list (content.md D02): its first lines as a page on the
- * sunken ground, then the title (two lines, balanced) and who owns it and
- * when it changed, with a lock or a globe for who can open it. No border and
- * no hue: a doc has none, the colour comes from the person. A card on e1 that
- * rises to e2 under the pointer while its page lifts 2 px; its "⋯" (star,
- * duplicate, the trash) shows on hover and focus. On a phone it is a 64 px
- * row with the doc's icon on a 40 px tile, since two cards at 175 px were
- * unreadable (a page drawn that small was a blank white box).
+ * A doc in the list (content.md D02): its first lines as a page on a ground
+ * in the doc's own hue, then the title (two lines, balanced) and who owns it
+ * and when it changed, with a lock or a globe for who can open it. No border.
+ * The hue is the doc's (INTERACTION_SPEC D13, lib/docLook docHue: its glyph's
+ * colour, else its id's): the docs home was rows of identical grey cards (0%
+ * colour, PG2-09). A card on e1 that rises to e2 under the pointer while its
+ * page lifts 2 px; its "⋯" (star, duplicate, the trash) shows on hover and
+ * focus. On a phone it is a 64 px row with the doc's icon on a 40 px tile in
+ * its hue, since two cards at 175 px were unreadable (a page drawn that small
+ * was a blank white box).
  *
  * A link, so it opens from the keyboard and in a new tab, and the doc is
  * fetched ahead on intent (A2's prefetch, through IntentLink).
@@ -52,12 +55,16 @@ export const DocCard: React.FC<DocCardProps> = ({ doc, href, className, index, w
     const isPrivate = !!doc.doc_private;
     const Access = isPrivate ? Lock : Globe;
     const where = pathLabel(doc.path);
+    const hue = docHue(doc.doc_uuid, doc.doc_icon);
+    // Its icon, for the lists that name a doc without it (lib/docLook).
+    rememberDocIcon(doc.doc_uuid, doc.doc_icon);
 
     return (
         <div className={cn("group/card relative", className)}>
             <IntentLink
                 href={href}
                 data-doc-card=""
+                data-hue={hue ?? undefined}
                 aria-label={[title, where && `in ${where}`, time.short && `${when === "viewed" ? "opened" : "edited"} ${time.short}`, isPrivate ? "private" : "shared", levelLabel("level" in doc ? doc.level : undefined).toLowerCase()].filter(Boolean).join(", ")}
                 style={index !== undefined ? ({ "--i": index } as React.CSSProperties) : undefined}
                 className={cn(
@@ -72,11 +79,11 @@ export const DocCard: React.FC<DocCardProps> = ({ doc, href, className, index, w
                 )}
             >
                 {/* The page; on a phone, the doc's icon */}
-                <div className="relative shrink-0 overflow-hidden max-sm:flex max-sm:size-10 max-sm:items-center max-sm:justify-center max-sm:rounded-lg max-sm:bg-sunken sm:h-44">
+                <div className={cn("relative shrink-0 overflow-hidden max-sm:flex max-sm:size-10 max-sm:items-center max-sm:justify-center max-sm:rounded-lg sm:h-44", hue ? "max-sm:bg-hue-tint" : "max-sm:bg-sunken")}>
                     <div className="h-full max-sm:hidden">
-                        <DocPreview content={doc.doc_snippet || ""} title={doc.doc_title} />
+                        <DocPreview content={doc.doc_snippet || ""} title={doc.doc_title} icon={<DocIcon icon={doc.doc_icon} id={doc.doc_uuid} size={40} />} tinted={!!hue} />
                     </div>
-                    <DocIcon icon={doc.doc_icon} size={20} className="sm:hidden" />
+                    <DocIcon icon={doc.doc_icon} id={doc.doc_uuid} size={20} className="sm:hidden" />
                 </div>
 
                 {/* The title, who and when */}

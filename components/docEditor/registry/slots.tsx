@@ -49,7 +49,7 @@ class Contained extends React.Component<{ id: string; children: React.ReactNode 
 }
 
 /** One contribution, loaded on first draw. */
-export function Contribution({ contribution, ...props }: { contribution: SlotContribution } & SlotProps) {
+function Contribution({ contribution, ...props }: { contribution: SlotContribution } & SlotProps) {
   if (!contribution.load) return null
   const C = lazyOf<SlotProps>(contribution.load)
   return (

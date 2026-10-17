@@ -56,9 +56,9 @@ describe("a doc's meta events", () => {
       return null
     }
     render(<Tab />)
-    const sent = Date.now()
     emitDocMeta({ kind: "doc.renamed", doc_uuid: DOC, at: new Date().toISOString(), data: { title: "Launch plan" } })
-    expect(Date.now() - sent).toBeLessThan(1000)
+    // At once: the caches hold the new title as the event is handed over, with
+    // nothing waited for and nothing read (never a bound on the clock).
     expect((cache.get(docInfoKey(DOC))?.data as { data: { doc_title: string } }).data.doc_title).toBe("Launch plan")
     expect((cache.get("/doc/children?parent=root")?.data as { data: { doc_title: string }[] }).data[0].doc_title).toBe("Launch plan")
     // Only the doc's own caches: a key that is neither a doc's nor names it is left.

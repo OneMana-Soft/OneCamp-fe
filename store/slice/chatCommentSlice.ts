@@ -5,7 +5,6 @@ import {ExtendedComments} from "@/store/slice/channelCommentSlice";
 import {CommentInfoInterface} from "@/types/comment";
 import {UserProfileDataInterface} from "@/types/user";
 import {GroupedReaction} from "@/types/reaction";
-import {applyReplyEdit} from "@/lib/chat/replyEdit";
 
 
 interface ChatCommentInputState {
@@ -251,7 +250,8 @@ export const chatCommentSlice = createSlice({
             if (state.chatComments[chatId]) {
                 state.chatComments[chatId] = state.chatComments[chatId].map((comment) => {
                     if(comment.comment_uuid == commentId){
-                        applyReplyEdit(comment, htmlText, updatedAt)
+                        if (updatedAt !== undefined) comment.comment_updated_at = updatedAt ?? undefined
+                        comment.comment_text = htmlText
                     }
                     return comment
                 })

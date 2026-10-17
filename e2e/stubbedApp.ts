@@ -35,10 +35,24 @@ function statusOf(answer: unknown): { status: number; json: unknown } {
 }
 
 /**
+ * The app shell's own reads, made on every signed-in page (its sidebar, its
+ * header, the settings it keeps), answered with nothing, as the fluidity fake
+ * (scripts/fluidity/fakeApp.mjs) answers them. Left to the 404, each failed
+ * into a "Not found · Not in this test" toast at some moment of a test, and a
+ * toast is a Radix layer: one that came while a table cell's picker was open
+ * was the top layer, and took the Escape meant for the picker (cellTargets, on
+ * a loaded machine). A test that needs one of them answers it itself.
+ */
+const SHELL_READS: Array<[RegExp, unknown]> = [
+  [/\/task\/time\/running$/, { msg: "ok", data: null }],
+  [/\/(user\/notificationPreferences|user\/sidebarNav|user\/botKinds|config\/mqttConfig|config\/client|auth\/providers|me\/capabilities|later|doc\/children)$/, { msg: "ok", data: {} }],
+]
+
+/**
  * Answers the app's API calls: `answers` by path prefix (the longest that
  * matches; withStatus for one that isn't a 200; a function of the URL for one
- * that depends on its query), the profile, and 404 for everything else (never
- * 401: that signs the browser out).
+ * that depends on its query), the profile, the shell's own reads, and 404 for
+ * everything else (never 401: that signs the browser out).
  */
 export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answers = {}) {
   const app = new URL(String(testInfo.project.use.baseURL || "http://localhost:3001"))
@@ -67,6 +81,8 @@ export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answe
         return status === 0 ? route.abort("failed") : route.fulfill({ status, headers, json })
       }
       if (/\/user\/profile$/.test(path)) return route.fulfill({ status: 200, headers, json: { msg: "ok", data: SAM } })
+      const shell = request.method() === "GET" ? SHELL_READS.find(([re]) => re.test(path)) : undefined
+      if (shell) return route.fulfill({ status: 200, headers, json: shell[1] })
       return route.fulfill({ status: 404, headers, json: { msg: "Not in this test" } })
     },
   )

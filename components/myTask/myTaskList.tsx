@@ -1,6 +1,6 @@
 "use client"
 
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import { useLayoutOnce } from "@/components/task/useLayoutOnce";
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
@@ -28,6 +28,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
 import { Search } from "@/lib/icons"
 import { PHONE_PAGE_SIZE } from "@/lib/tasks/grouping"
+import { hasPageAfter } from "@/lib/http/pageCount"
 
 interface getURLPramInput {
     sortQuery?: sortInterface[]
@@ -78,14 +79,6 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
 
     const taskFiltersAndSorts =
         useSelector((state: RootState) => state.taskFilter.myTaskSortingAndFilter) || EMPTY_SORT_FILTER
-
-    const fetchMyTaskParam = useMemo(() => ({
-        pageIndex,
-        pageSize,
-        searchText: searchQuery,
-        sortQuery: taskFiltersAndSorts.sort,
-        filterQuery: taskFiltersAndSorts.filters,
-    }), [pageIndex, pageSize, searchQuery, taskFiltersAndSorts.sort, taskFiltersAndSorts.filters]);
 
     const taskListState =
         useSelector((state: RootState) => state.taskFilter.myTaskList) || ([] as TaskInfoInterface[])
@@ -274,7 +267,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     return (
         <VirtualInfiniteScroll
             onLoadMore={handleLoadMore}
-            hasMore={(userInfo.data?.pageCount || 0) > pageIndex}
+            hasMore={hasPageAfter(pageIndex, userInfo.data?.pageCount)}
             items={taskListState || []}
             renderItem={handleRenderIndex}
             isLoading={userInfo.isLoading}

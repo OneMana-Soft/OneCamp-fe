@@ -228,7 +228,7 @@ export const PHONE_BAR_GROUPS = ["marks", "style", "blocks", "nest", "history", 
  * The same, with text selected: what a selection is for comes first (QA
  * DSA-24: Ask AI was 16th of 18, off the screen until the bar scrolled).
  */
-export const PHONE_BAR_SELECTION_GROUPS = ["ai", "comment", "marks", "style", "blocks", "nest", "history", "insert", "block"]
+const PHONE_BAR_SELECTION_GROUPS = ["ai", "comment", "marks", "style", "blocks", "nest", "history", "insert", "block"]
 
 /** The phone bar's order for this selection. Pure. */
 export function phoneBarGroups(selectionEmpty: boolean): string[] {

@@ -3,7 +3,7 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useDispatch } from "react-redux";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { Bot, BellOff, ChevronDown, Columns2, Hash, Lock, MoreHorizontal, Plus } from "@/lib/icons";
+import { Bot, BellOff, ChevronDown, Columns2, Hash, MoreHorizontal, Plus } from "@/lib/icons";
 import { openInSplit } from "@/store/slice/splitSlice";
 import { paneFromHref } from "@/lib/split";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -16,6 +16,10 @@ import { rowSignal, sectionSignal } from "@/lib/nav/sidebarSignal";
 import { useHeldOrder } from "@/lib/nav/heldOrder";
 import { useMedia } from "@/context/MediaQueryContext";
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile";
+import { placeHue, type PlaceHue } from "@/lib/placeHue";
+import { ix } from "@/lib/ui/interactive";
+import { DocIcon } from "@/components/docEditor/DocIcon";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { AgentAvatar, BotAvatar } from "@/components/ui/graphics";
 import { BotTag } from "@/components/ui/botTag";
@@ -31,8 +35,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  * One row for every kind of place: 30px, r8, padding 0 8, a 16px glyph, the
  * label at x = 40 (8 sidebar pad + 8 row pad + 16 glyph + 8 gap), 14px ink-2.
  * The current place is the raised chip (.nav-active: raised at e-sel, ink at
- * 510, its icon in the accent) and it never slides between rows. Channel and
- * doc glyphs are ink-3; only projects (tiles) and people (avatars) carry hue.
+ * 510, its icon in the accent) and it never slides between rows. Every place
+ * carries its identity hue (INTERACTION_SPEC D13): a project its tile, a
+ * person their avatar, a channel its tint tile, a doc its glyph.
  * An unread channel is bold with no number; only a DM's count or a mention
  * of you ("@2") earns the filled brand badge, so a glance answers "does
  * anyone need me?" (lib/nav/sidebarSignal).
@@ -100,6 +105,31 @@ function GroupFaces({ people }: { people: NonNullable<DesktopChildrenNavType["us
   );
 }
 
+/** A face's hue: a person's own (the one their avatar wears), an agent's, none for any other bot. */
+function faceHue(p: DesktopChildrenNavType["userProfile"], botKinds?: Record<string, string>): PlaceHue | undefined {
+  if (!p) return undefined;
+  if (p.is_bot) return isAIBot(botKinds?.[p.user_uuid] ?? p.user_bot_kind) ? placeHue("agent") : undefined;
+  return placeHue("person", null, { person: p });
+}
+
+/**
+ * A place's 16px glyph and the hue its row tints in, for the sidebar's rows
+ * and the collapsed rail alike (D13): a project its tile, a person their face,
+ * a group two faces, a channel its tint tile, a doc its glyph. The row is a
+ * nav row of the interaction layer in that hue (SH-01): hover and press tint
+ * in it, where they were grey.
+ */
+export function placeLook(ch: DesktopChildrenNavType, botKinds?: Record<string, string>): { glyph: ReactNode; hue?: PlaceHue } {
+  if (ch.project_uuid) return { glyph: <ProjectTile id={ch.project_uuid} />, hue: placeHue("project", ch.project_uuid) };
+  if (ch.userParticipants && ch.userParticipants.length > 1) return { glyph: <GroupFaces people={ch.userParticipants} /> };
+  if (ch.userProfile) return { glyph: <Face item={ch} botKinds={botKinds} />, hue: faceHue(ch.userProfile, botKinds) };
+  if (ch.kind === "channel") return { glyph: <ChannelTile id={ch.hue_id} isPrivate={ch.isPrivate} />, hue: placeHue("channel", ch.hue_id) };
+  // A starred doc carries its icon, so its glyph and hue are the tree's (db2 F7).
+  if (ch.kind === "doc") return { glyph: <DocIcon id={ch.hue_id} icon={ch.doc_icon} />, hue: placeHue("doc", ch.hue_id, { icon: ch.doc_icon }) };
+  const Icon = ch.icon ?? Hash;
+  return { glyph: <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> };
+}
+
 export const SideNavLink = memo(({ ch }: { ch: DesktopChildrenNavType }) => {
   const { isMobile } = useMedia();
   const isActive = ch.variant === "sidebarActive";
@@ -109,21 +139,14 @@ export const SideNavLink = memo(({ ch }: { ch: DesktopChildrenNavType }) => {
   const botKinds = useBotKindMap();
   // Channels, chats, docs and projects can open beside the page (split view).
   const pane = !isMobile ? paneFromHref(String(ch.path || "")) : null;
-
-  let glyph: ReactNode = null;
-  if (ch.project_uuid) glyph = <ProjectTile id={ch.project_uuid} />;
-  else if (ch.userParticipants && ch.userParticipants.length > 1) glyph = <GroupFaces people={ch.userParticipants} />;
-  else if (ch.userProfile) glyph = <Face item={ch} botKinds={botKinds} />;
-  else {
-    const Icon = ch.isPrivate ? Lock : ch.icon ?? Hash;
-    glyph = <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />;
-  }
+  const { glyph, hue } = placeLook(ch, botKinds);
 
   return (
     <div className="group/row relative">
       <IntentLink
         href={`${ch.path}`}
         scroll={false}
+        {...ix("nav", { hue })}
         aria-current={isActive ? "page" : undefined}
         data-unread={signal.unread ? "true" : undefined}
         data-muted={ch.muted ? "true" : undefined}
@@ -147,6 +170,7 @@ export const SideNavLink = memo(({ ch }: { ch: DesktopChildrenNavType }) => {
           onClick={() => dispatch(openInSplit(pane))}
           aria-label={`Open ${ch.title} side by side`}
           title="Open side by side (Alt + click)"
+          {...ix("icon")}
           className="shell-split-btn"
         >
           <Columns2 className="h-3.5 w-3.5" />
@@ -169,6 +193,8 @@ const PrimaryRow = memo(({ link, inboxPulse }: { link: DesktopNavType; inboxPuls
     <IntentLink
       href={`${link.path}`}
       scroll={false}
+      // Each place tints in its own hue under the pointer (destinationHue), as its tile does in More.
+      {...ix("nav", { hue: destinationHue(String(link.path || "").split("?")[0]) })}
       aria-current={isActive ? "page" : undefined}
       data-fade={fade ? "true" : undefined}
       className={cn("shell-row", isActive ? "nav-active" : "nav-idle")}
@@ -227,7 +253,8 @@ function MoreRow({ links }: { links: DesktopNavType[] }) {
         type="button"
         aria-label={current ? `More, on ${current.title}` : "More"}
         data-fade={fade ? "true" : undefined}
-        className={cn("shell-row w-full text-left data-[state=open]:bg-press", current ? "nav-active" : "nav-idle !text-ink-3")}
+        {...ix("nav")}
+        className={cn("shell-row w-full text-left", current ? "nav-active" : "nav-idle !text-ink-3")}
       >
         <MoreHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">More</span>
@@ -287,8 +314,15 @@ export function SidebarSection({ title, open: openProp, setOpen, onAdd, addLabel
   const signal = sectionSignal(rows);
   const capped = !!cap && !showAll && rows.length > cap;
   const visible = capped ? rows.slice(0, cap) : rows;
-  // The current place is never hidden behind "Show more".
-  const hiddenActive = capped ? rows.slice(cap).find((r) => r.variant === "sidebarActive") : undefined;
+  // The current place, and any row that asks for you, is never hidden behind
+  // "Show more": one that is bold, or wears a badge (a DM's count, or "@" for
+  // mentions of you, a muted channel's too: lib/nav/sidebarSignal).
+  const asks = (r: DesktopChildrenNavType) => {
+    const s = rowSignal(r);
+    return s.unread || !!s.badge;
+  };
+  const kept = capped ? rows.slice(cap).filter((r) => r.variant === "sidebarActive" || asks(r)) : [];
+  const more = rows.length - visible.length - kept.length;
   const label = (
     <>
       <span className="truncate">{title}</span>
@@ -303,7 +337,7 @@ export function SidebarSection({ title, open: openProp, setOpen, onAdd, addLabel
         {href ? (
           <>
             <IntentLink href={href} className="shell-sect-btn">{label}</IntentLink>
-            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? `Hide ${title.toLowerCase()}` : `Show ${title.toLowerCase()}`} className="shell-icon-btn shell-sect-plus" data-size="24">
+            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? `Hide ${title.toLowerCase()}` : `Show ${title.toLowerCase()}`} {...ix("icon")} className="shell-icon-btn shell-sect-plus" data-size="24">
               <ChevronDown className={cn("h-3.5 w-3.5", !open && "-rotate-90")} aria-hidden="true" />
             </button>
           </>
@@ -315,7 +349,7 @@ export function SidebarSection({ title, open: openProp, setOpen, onAdd, addLabel
         {onAdd && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" onClick={onAdd} aria-label={addLabel ?? `Add ${title.toLowerCase()}`} className="shell-icon-btn shell-sect-plus" data-size="24">
+              <button type="button" onClick={onAdd} aria-label={addLabel ?? `Add ${title.toLowerCase()}`} {...ix("icon")} className="shell-icon-btn shell-sect-plus" data-size="24">
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </TooltipTrigger>
@@ -326,18 +360,18 @@ export function SidebarSection({ title, open: openProp, setOpen, onAdd, addLabel
       {open && (
         <div className="shell-sect-rows flex flex-col gap-px" data-instant={lastInputWasPointer() ? undefined : "true"} {...holdOrder}>
           {rows.length === 0 && invite ? (
-            <button type="button" onClick={invite.onClick} className="shell-row nav-idle w-full text-left !text-ink-3">
+            <button type="button" onClick={invite.onClick} {...ix("nav")} className="shell-row nav-idle w-full text-left !text-ink-3">
               <span className="shell-invite-tile" aria-hidden="true"><Plus /></span>
               <span className="truncate">{invite.label}</span>
             </button>
           ) : (
             <>
               {visible.map((r) => <SideNavLink key={r.path} ch={r} />)}
-              {hiddenActive && <SideNavLink key={hiddenActive.path} ch={hiddenActive} />}
-              {!!cap && rows.length > cap && (
-                <button type="button" onClick={() => setShowAll(!showAll)} className="shell-row nav-idle w-full text-left !text-2xs !font-medium !text-ink-3">
+              {kept.map((r) => <SideNavLink key={r.path} ch={r} />)}
+              {!!cap && rows.length > cap && (showAll || more > 0) && (
+                <button type="button" onClick={() => setShowAll(!showAll)} {...ix("nav")} className="shell-row nav-idle w-full text-left !text-2xs !font-medium !text-ink-3">
                   <span className="w-4 shrink-0" aria-hidden="true" />
-                  {showAll ? "Show fewer" : `Show ${rows.length - cap} more`}
+                  {showAll ? "Show fewer" : `Show ${more} more`}
                 </button>
               )}
             </>

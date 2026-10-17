@@ -25,7 +25,7 @@ import { isRemote } from "../block-id/blockId"
  */
 
 /** The narrowest a column may be dragged to, in percent of its row. */
-export const MIN_WIDTH = 10
+const MIN_WIDTH = 10
 
 /** A width from HTML: a whole percent, or null (an equal share). */
 export function parseWidth(raw: string | null | undefined): number | null {

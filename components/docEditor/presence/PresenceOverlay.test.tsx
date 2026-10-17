@@ -4,8 +4,9 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { Editor } from "@tiptap/core"
 
 // Live presence over a doc's editor (B8): what this tab says about itself in
-// awareness (idle, its edits, where it looks only while followed), and Follow
-// and Jump by awareness client. Where things are on the page is the browser's
+// awareness (idle, where it looks only while followed), and Follow and Jump by
+// awareness client. Its edits, and the presence store, are
+// presenceFromTheStart.test.ts's. Where things are on the page is the browser's
 // (the e2e two-people specs); here the editor's geometry is a stand-in.
 
 const live = vi.hoisted(() => ({
@@ -29,7 +30,6 @@ vi.mock("./live", () => ({
 
 import PresenceOverlay from "./PresenceOverlay"
 import { createDocCommandBus, DocBusContext } from "@/components/docEditor/registry/commandBus"
-import { usePresence } from "./store"
 import { usePresenceControl, type PresenceControl } from "./control"
 
 type State = Record<string, unknown>
@@ -61,9 +61,9 @@ let editor: Editor
 const bus = createDocCommandBus("doc-1")
 const maya = { user: { id: "u-maya", name: "Maya Chen" } }
 
-let seen: { control?: PresenceControl; people?: unknown } = {}
+let seen: { control?: PresenceControl } = {}
 function Probe() {
-  seen = { control: usePresenceControl(bus.key), people: usePresence("doc-1")?.people }
+  seen = { control: usePresenceControl(bus.key) }
   return null
 }
 
@@ -108,23 +108,6 @@ describe("what this tab says about itself", () => {
     expect(local().idle).toBe(true)
     fireEvent.keyDown(window, { key: "a" })
     expect(local().idle).toBe(false)
-  })
-
-  it("says it edited, at most every 10 seconds, and never for an edit that came from another tab", () => {
-    vi.useFakeTimers()
-    mount()
-    const edit = (remote = false) => updates.forEach((u) => u({ transaction: { docChanged: true, getMeta: () => (remote ? { isChangeOrigin: true } : undefined) } }))
-    edit(true)
-    expect(local().edited).toBeUndefined()
-    edit()
-    const first = local().edited
-    expect(typeof first).toBe("number")
-    act(() => vi.advanceTimersByTime(5_000))
-    edit()
-    expect(local().edited).toBe(first)
-    act(() => vi.advanceTimersByTime(6_000))
-    edit()
-    expect(local().edited).not.toBe(first)
   })
 
   it("says where it is looking only while someone follows it", () => {
@@ -189,21 +172,5 @@ describe("jumping to someone", () => {
     act(() => awareness.put(6, { user: { id: "u-sam", name: "Sam Rivera" }, mode: "viewing", view: { at: "x", dy: 4 } }))
     expect(live.showView).toHaveBeenCalledWith(editor, live.scroller, { at: "x", dy: 4 })
     expect(local().following).toBeNull()
-  })
-})
-
-describe("the store", () => {
-  it("holds who is here while the editor is, and forgets it after", async () => {
-    awareness.states.set(5, { ...maya, mode: "editing" })
-    const view = mount()
-    await act(frame)
-    expect(Object.keys(seen.people as object).sort()).toEqual(["u-maya", "u-me"])
-    view.unmount()
-    render(
-      <DocBusContext.Provider value={bus}>
-        <Probe />
-      </DocBusContext.Provider>,
-    )
-    expect(seen.people).toBeUndefined()
   })
 })

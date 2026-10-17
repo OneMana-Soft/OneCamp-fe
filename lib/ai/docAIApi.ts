@@ -5,6 +5,7 @@
  */
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import type { DocAIActionId, DocAIModel } from "@/lib/ai/docAIActions"
 
 export const DOC_AI_PATHS = {
@@ -17,12 +18,6 @@ export const DOC_AI_PATHS = {
   agentEdits: "/doc/ai/agent-edits",
   revert: "/doc/ai/agent-edits/revert",
 } as const
-
-/** A server's answer as words for a person: its msg, or ours. */
-export function messageOf(error: unknown, fallback: string): string {
-  const msg = (error as { response?: { data?: { msg?: unknown } } })?.response?.data?.msg
-  return typeof msg === "string" && msg.trim() ? msg : fallback
-}
 
 export async function getDocAIModel(): Promise<DocAIModel | null> {
   const res = await axiosInstance.get(DOC_AI_PATHS.model, OWN_ERRORS)
@@ -42,7 +37,7 @@ export async function getDocAIStarters(docId: string): Promise<DocProject | null
 }
 
 /** An accepted AI edit, as the record keeps it: never its text. */
-export interface AppliedEdit {
+interface AppliedEdit {
   doc_uuid: string
   action: DocAIActionId
   model: string
@@ -92,7 +87,7 @@ export interface DocTask {
   quote?: string
 }
 
-export interface DocTasksFound {
+interface DocTasksFound {
   enabled: boolean
   tasks: DocTask[]
   note?: string
@@ -137,7 +132,7 @@ export async function getAgentEdits(docId: string): Promise<AgentEdit[]> {
 }
 
 /** The answer to a revert: done, or edited since (ask first), or a reason. */
-export type RevertAnswer = { ok: true; reverted: number } | { ok: false; editedSince: boolean; message: string }
+type RevertAnswer = { ok: true; reverted: number } | { ok: false; editedSince: boolean; message: string }
 
 export async function revertAgentEdit(docId: string, which: { edit_id?: string; run_id?: string }, force = false): Promise<RevertAnswer> {
   try {
@@ -148,7 +143,7 @@ export async function revertAgentEdit(docId: string, which: { edit_id?: string; 
     return {
       ok: false,
       editedSince: data?.status === 409 && !!data.data?.edited_since,
-      message: messageOf(e, "The revert couldn't be made just now. Try again in a moment."),
+      message: apiErrorMessage(e, "The revert couldn't be made just now. Try again in a moment."),
     }
   }
 }

@@ -71,7 +71,10 @@ describe("agent collaboration", () => {
     await screen.findByRole("radiogroup", { name: /How far a chain can go/ })
     const two = screen.getByRole("radio", { name: "2" })
     expect(two.getAttribute("aria-checked")).toBe("true")
-    expect(two.className).toContain("data-[state=checked]:bg-raised")
+    // The house segmented control: a tab of the interaction layer in its well,
+    // which raises the chosen one (app/interaction.css, [data-segmented]).
+    expect(two.closest("[data-segmented]")).not.toBeNull()
+    expect(two.getAttribute("data-interactive")).toBe("tab")
   })
 
   // The Models section and this one each fetched /admin/ai/config.

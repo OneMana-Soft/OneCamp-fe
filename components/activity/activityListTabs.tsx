@@ -122,11 +122,15 @@ export function ActivityListTabs() {
         }
     }, [selectedTab, pathname, router, searchParams])
 
+    // The badge clears as the Inbox opens, and again each time its first page
+    // answers while it's open: a notice that arrives now counts on the badge
+    // (the realtime handler can't tell that the Inbox is open), then is read
+    // in here and seen, so the badge said 1 beside the open Inbox.
     useEffect(() => {
         dispatch(setTotalUnreadActivityCount({ count: 0 }))
         // The sidenav cache carries this number too (services/unreadCache.ts).
         clearActivityUnread()
-    }, [dispatch])
+    }, [dispatch, firstPage])
 
     // What the Inbox shows is seen. Reading the feed marks nothing on the
     // server (Home reads it too), so the Inbox says so: once its first page

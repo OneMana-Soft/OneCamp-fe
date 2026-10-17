@@ -6,15 +6,15 @@
 // dead link stops it). A guest has no account, so their name lives in this
 // browser, per link.
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { Loader2, Send } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tile } from "@/components/ui/graphics/Tile"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { hueFor } from "@/lib/campHue"
+import { isComposingKey } from "@/lib/keys/ime"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { GuestChannelMessage } from "@/services/guestService"
 import { format } from "date-fns"
@@ -35,15 +35,6 @@ export const GUEST_HUE = hueFor(process.env.NEXT_PUBLIC_APP_URL || "onecamp")
 /** The thin band of the workspace's hue across the top of a guest page. */
 export function GuestBand({ className }: { className?: string }) {
   return <div aria-hidden="true" data-guest-band="" className={cn(HUE_CLASS[GUEST_HUE], "h-1 w-full shrink-0 bg-hue", className)} />
-}
-
-/** A guest page's type icon (doc, board, table, channel, project, call), on a tile in the workspace's hue. */
-export function GuestTypeTile({ children }: { children: ReactNode }) {
-  return (
-    <Tile hue={GUEST_HUE} size="sm">
-      {children}
-    </Tile>
-  )
 }
 
 /** How much of a guest's name the server keeps (business/Guest maxGuestNameLen). */
@@ -232,7 +223,8 @@ export function GuestComposer({ placeholder, onSend, name, onRename, quiet = fal
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // An input method's Enter picks its word: it never sends.
+            if (e.key === "Enter" && !e.shiftKey && !isComposingKey(e.nativeEvent)) {
               e.preventDefault()
               void send()
             }
@@ -334,10 +326,6 @@ export function GuestPageSkeleton({ label, shape = "page" }: { label: string; sh
       )}
     </div>
   )
-}
-
-export function GuestLoading() {
-  return <GuestPageSkeleton label="Opening the link…" />
 }
 
 /**

@@ -15,16 +15,13 @@ import {
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {usePost} from "@/hooks/usePost";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {PostEndpointUrl} from "@/services/endPoints";
 import {Switch} from "@/components/ui/switch";
 import { AlertCircle, CheckCircle, Loader2, Lock } from "@/lib/icons";
 import { Tile } from "@/components/ui/graphics/Tile";
-import {useEffect, useMemo, useState} from "react";
-import {useFetch} from "@/hooks/useFetch";
-import {
-    ChannelInfoInterface,
-    ChannelNameExistsInterface
-} from "@/types/channel";
+import {useMemo} from "react";
+import { useChannelNameCheck } from "@/hooks/useChannelNameCheck";
+import {ChannelInfoInterface} from "@/types/channel";
 import {app_channel_path} from "@/types/paths";
 import { channelSlug, isValidName, nameSchema } from "@/lib/validation/names";
 import {useRouter} from "next/navigation";
@@ -79,29 +76,14 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
     const router = useRouter()
 
     const { makeRequest, isSubmitting } = usePost();
-    const [channelNameToCheck, setChannelNameToCheck] = useState<string | null>(null);
-
-    const { data: isChannelNameAvailable, isLoading: isCheckingAvailability } = useFetch<ChannelNameExistsInterface>(
-        channelNameToCheck ? `${GetEndpointUrl.CheckChannelNameAvailability}?ch_name=${encodeURIComponent(channelNameToCheck)}` : ''
-    );
 
     const ch_name = watch("channel_name");
     const nameSyntaxValid = useMemo(() => isValidName("workspace", ch_name), [ch_name]);
 
     // Checked a moment after typing stops, only for a name that could be one.
-    useEffect(() => {
-        if (!ch_name?.trim() || !nameSyntaxValid) {
-            setChannelNameToCheck(null);
-            return;
-        }
-        const t = setTimeout(() => setChannelNameToCheck(ch_name.trim()), 450);
-        return () => clearTimeout(t);
-    }, [ch_name, nameSyntaxValid]);
-
-    const checkedCurrentName = !!ch_name && channelNameToCheck === ch_name.trim();
-    const nameTaken = checkedCurrentName && isChannelNameAvailable?.exists === true;
-    const nameAvailable = checkedCurrentName && isChannelNameAvailable?.exists === false;
-    const waitingForCheck = !!ch_name?.trim() && nameSyntaxValid && (isCheckingAvailability || !checkedCurrentName);
+    const { taken: nameTaken, free: nameAvailable, checking: waitingForCheck } = useChannelNameCheck(
+        nameSyntaxValid ? ch_name.trim() : "",
+    );
 
     // Handle form submission
     const onSubmit = (data: CreateChannelFormValues) => {
@@ -110,7 +92,6 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
             apiEndpoint: PostEndpointUrl.CreateChannel,
         }).then((res)=> {
 
-            setChannelNameToCheck(null)
             if(res) {
                 router.push(app_channel_path +'/'+res.ch_uuid);
 
@@ -131,7 +112,6 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
     // Close the dialog
     const closeModal = () => {
         reset();
-        setChannelNameToCheck(null);
         setOpenState(false);
     };
 

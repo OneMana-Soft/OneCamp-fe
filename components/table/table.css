@@ -26,8 +26,10 @@
 .v3-grid tbody tr[data-marked] > * {
   background-color: color-mix(in oklab, var(--camp-sun-tint) 70%, var(--sheet));
 }
-.v3-grid tbody tr:hover > * {
-  background-color: color-mix(in oklab, var(--sheet), var(--ink) 4%);
+@media (hover: hover) {
+  .v3-grid tbody tr:hover > * {
+    background-color: color-mix(in oklab, var(--sheet), var(--ink) 4%);
+  }
 }
 .v3-grid tbody tr[data-selected="true"] > * {
   background-color: color-mix(in oklab, var(--sheet), var(--ink) 5.5%);

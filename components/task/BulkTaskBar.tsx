@@ -17,12 +17,12 @@ import { useSelectedIds } from "@/hooks/useListSelection"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useBulkTaskUpdate, type BulkResult } from "@/hooks/useBulkTaskUpdate"
 import { useDeleteTasks } from "@/hooks/useDeleteTasks"
-import { DatePickerPanel } from "@/components/task/taskDateField"
+import { DatePanel } from "@/components/ui/date-field-panels"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { priorities } from "@/types/table"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { MAX_TAG_LENGTH, splitTags, tagTone } from "@/lib/tags"
-import { notDone, tagState, tasksCount, type BulkChange } from "@/lib/bulkTasks"
+import { notDone, tagState, tasksCount, whyNotDone, type BulkChange } from "@/lib/bulkTasks"
 import type { ListField } from "@/lib/listKeys"
 import type { SelectionStore } from "@/lib/listSelection"
 import type { StatusOption } from "@/lib/taskStatus"
@@ -161,17 +161,17 @@ export function BulkTaskBar({
                     />
                   )}
                   {field === "due" && (
-                    <DatePickerPanel
-                      label="Due date"
-                      isAdmin
-                      onSelect={(d) =>
-                        run(
-                          { field: "due", value: d ? d.toISOString() : "" },
-                          d ? `Set ${tasksCount(editable.length)} due ${shortDate(d)}` : `Took the due date off ${tasksCount(editable.length)}`,
-                        )
-                      }
-                      onClose={() => onPicker(null)}
-                      closeOnPick
+                    // The one date picker (components/ui/date-field-panels), as every date the app asks for.
+                    <DatePanel
+                      clearable
+                      onPick={(d) => {
+                        run({ field: "due", value: d.toISOString() }, `Set ${tasksCount(editable.length)} due ${shortDate(d)}`)
+                        onPicker(null)
+                      }}
+                      onClear={() => {
+                        run({ field: "due", value: "" }, `Took the due date off ${tasksCount(editable.length)}`)
+                        onPicker(null)
+                      }}
                     />
                   )}
                   {field === "tags" && <TagList projectId={project} tasks={editable} onPick={(tag, add) => run({ field: "tags", tag, add }, add ? `Tagged ${tasksCount(editable.length)} “${tag}”` : `Took “${tag}” off ${tasksCount(editable.length)}`)} />}
@@ -213,7 +213,7 @@ function report(r: BulkResult, done: string) {
     toast({
       variant: "destructive",
       title: notDone(r.failed, r.changed, "changed"),
-      description: "You may no longer be an admin of their project, or they were removed. The list shows them as they are.",
+      description: whyNotDone(r.error),
     })
     return
   }

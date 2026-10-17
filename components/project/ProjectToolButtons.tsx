@@ -188,7 +188,15 @@ export function ProjectActionsMenu({
         router.push(app_project_path)
       },
     })
-  const restoreIt = () => restore(projectId, { name: projectName, done: () => void appMutate(GetEndpointUrl.SelfProfile) })
+  // The page reads "archived" from the project's own answer: read it again.
+  const restoreIt = () =>
+    restore(projectId, {
+      name: projectName,
+      done: () => {
+        void appMutate(GetEndpointUrl.SelfProfile)
+        void appMutate(`${GetEndpointUrl.GetProjectInfo}/${projectId}`)
+      },
+    })
   if (!allowed && !extra?.length) return null
   // Sharing with a client is a word in the header bar (design v3, work.md
   // W16); the time button is the clock beside it; the rest is one menu.
@@ -277,7 +285,7 @@ export function ProjectActionsMenu({
                   Restore project
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onSelect={archiveIt} className="text-danger-ink focus:bg-destructive/10 focus:text-danger-ink">
+                <DropdownMenuItem onSelect={archiveIt} variant="destructive">
                   <Archive className="h-4 w-4" />
                   Archive project…
                 </DropdownMenuItem>

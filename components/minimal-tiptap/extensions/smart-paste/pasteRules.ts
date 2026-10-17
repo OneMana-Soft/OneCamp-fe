@@ -59,7 +59,7 @@ const NAMED: Record<string, string> = {
 }
 
 /** A CSS colour as hue (degrees), saturation and lightness (0 to 1), or null when it isn't a plain colour. */
-export function hslOf(css: string): [number, number, number] | null {
+function hslOf(css: string): [number, number, number] | null {
   let c = css.trim().toLowerCase()
   if (NAMED[c]) c = NAMED[c]
   let r: number, g: number, b: number

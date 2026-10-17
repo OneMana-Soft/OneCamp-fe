@@ -211,10 +211,11 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
                 <div className="flex items-center gap-2 text-sm text-danger-ink mt-2 pl-11">
                     <span>{error}</span>
                     <Button
+                        data-tone="danger"
                         variant="outline"
                         size="xs"
                         onClick={handleCatchMeUp}
-                        className="border-destructive/30 text-danger-ink hover:bg-destructive/10"
+                        className="border-destructive/30 text-danger-ink"
                     >
                         Retry
                     </Button>

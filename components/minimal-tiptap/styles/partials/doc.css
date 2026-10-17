@@ -184,8 +184,10 @@
   place-items: center;
   transition: background-color var(--duration-press) var(--ease-out), box-shadow var(--duration-press) var(--ease-out);
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"]:hover {
-  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+@media (hover: hover) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"]:hover {
+    box-shadow: inset 0 0 0 1.5px var(--ink-3);
+  }
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"]:focus-visible {
   outline: 2px solid var(--brand);
@@ -272,8 +274,10 @@
   text-decoration-color: color-mix(in oklab, var(--brand) 35%, transparent);
   transition: text-decoration-color var(--duration-hover) var(--ease-out);
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror a.link:hover {
-  text-decoration-color: var(--brand);
+@media (hover: hover) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror a.link:hover {
+    text-decoration-color: var(--brand);
+  }
 }
 
 /* Inline code: JetBrains Mono 13.5/20 on sunken with an inset line, r4. */
@@ -459,9 +463,11 @@
   cursor: pointer;
   transition: background-color var(--duration-hover) var(--ease-out), color var(--duration-hover) var(--ease-out);
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-chevron:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror .toggle-chevron:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror .toggle-chevron:focus-visible {
   outline: 2px solid var(--brand);
@@ -508,8 +514,10 @@
   cursor: text;
   transition: color var(--duration-hover) var(--ease-out);
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror .toggle-empty:hover {
-  color: var(--ink-2);
+@media (hover: hover) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror .toggle-empty:hover {
+    color: var(--ink-2);
+  }
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror .toggle-empty:focus-visible {
   outline: 2px solid var(--brand);
@@ -590,9 +598,11 @@
   white-space: nowrap;
   transition: background-color var(--duration-hover) var(--ease-out), color var(--duration-hover) var(--ease-out);
 }
-.minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-item:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-item:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 .minimal-tiptap-editor.doc-editor .ProseMirror .doc-toc-item:focus-visible {
   outline: 2px solid var(--brand);
@@ -654,11 +664,17 @@
   padding: 0;
   list-style: none;
 }
-.doc-outline:hover .doc-outline-panel,
 .doc-outline:focus-within .doc-outline-panel {
   opacity: 1;
   transform: none;
   pointer-events: auto;
+}
+@media (hover: hover) {
+  .doc-outline:hover .doc-outline-panel {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
 }
 .doc-outline-item {
   display: block;
@@ -674,9 +690,11 @@
   white-space: nowrap;
   transition: background-color var(--duration-hover) var(--ease-out), color var(--duration-hover) var(--ease-out);
 }
-.doc-outline-item:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .doc-outline-item:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 .doc-outline-item:focus-visible {
   outline: 2px solid var(--brand);

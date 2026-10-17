@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { clockHour, clockRange, clockTime, readsTwelveHour } from "./clock"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+// Today is TEST_TODAY wherever the code under test reads the time.
+pinTestClock()
 
 const us = { locale: "en-US" }
 const gb = { locale: "en-GB" }
@@ -94,5 +98,23 @@ describe("clockRange", () => {
   })
   it("names both ends of a span past midnight, never the dates", () => {
     expect(clockRange(new Date(2026, 9, 12, 23, 0), new Date(2026, 9, 13, 0, 0), us)).toBe("11:00\u00a0PM – 12:00\u00a0AM")
+  })
+  // PTC-9: a day-long event from another zone read "09:30 – 09:30".
+  it("names each end's day for a span of a day or more", () => {
+    expect(clockRange(new Date(2026, 9, 15, 9, 30), new Date(2026, 9, 16, 9, 30), gb)).toBe("Thu\u00a009:30 – Fri\u00a009:30")
+    expect(clockRange(new Date(2026, 9, 12, 23, 0), new Date(2026, 9, 13, 1, 0), gb)).toBe("23:00 – 01:00")
+  })
+  // From the review (rvClockDst): the rule measured a day as 24 hours, so a day
+  // the clocks go forward on (23 hours) read "09:30 – 09:30" again. A day is
+  // a day on the wall clock where the span is read.
+  it("names each end's day on a day the clocks change, as on any other", () => {
+    const london = { timeZone: "Europe/London", locale: "en-GB", hour12: false }
+    expect(clockRange(new Date("2026-10-15T08:30:00Z"), new Date("2026-10-16T08:30:00Z"), london)).toBe("Thu\u00a009:30 – Fri\u00a009:30")
+    // 09:30 GMT on Sat 28 March to 09:30 BST on Sun 29 March: 23 hours.
+    expect(clockRange(new Date("2026-03-28T09:30:00Z"), new Date("2026-03-29T08:30:00Z"), london)).toBe("Sat\u00a009:30 – Sun\u00a009:30")
+    // 09:30 BST on Sat 24 October to 09:30 GMT on Sun 25 October: 25 hours.
+    expect(clockRange(new Date("2026-10-24T08:30:00Z"), new Date("2026-10-25T09:30:00Z"), london)).toBe("Sat\u00a009:30 – Sun\u00a009:30")
+    // 24 hours by the watch, 23 on the wall: it ends before the hour it began at, and says so.
+    expect(clockRange(new Date("2026-10-24T09:30:00Z"), new Date("2026-10-25T09:30:00Z"), london)).toBe("10:30 – 09:30")
   })
 })

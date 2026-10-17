@@ -4,7 +4,6 @@ import {FilePreview} from "@/store/slice/channelSlice";
 import {CommentInfoInterface} from "@/types/comment";
 import {GroupedReaction} from "@/types/reaction";
 import {UserProfileDataInterface} from "@/types/user";
-import {applyReplyEdit} from "@/lib/chat/replyEdit";
 
 interface createOrUpdateCommentBody {
     body: string
@@ -246,7 +245,8 @@ const channelCommentSlice = createSlice({
             const { postId, commentUUID, htmlText, updatedAt } = action.payload;
             state.postComments[postId] = state.postComments[postId]?.map((comment)=> {
                 if(comment.comment_uuid == commentUUID) {
-                    applyReplyEdit(comment, htmlText, updatedAt)
+                    if (updatedAt !== undefined) comment.comment_updated_at = updatedAt ?? undefined
+                    comment.comment_text = htmlText
                 }
                 return comment
             })

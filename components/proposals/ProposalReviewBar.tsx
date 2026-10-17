@@ -26,6 +26,7 @@ import {
   markDecided,
   proposalsOf,
 } from "@/components/minimal-tiptap/extensions/proposals"
+import { ix } from "@/lib/ui/interactive"
 
 export interface ProposalReviewBarProps {
   editor: Editor | null
@@ -242,7 +243,8 @@ export function ProposalReviewBar(props: ProposalReviewBarProps) {
             onChange={(e) => setRefine(e.target.value)}
             placeholder="Ask for a change, like “make it warmer”"
             aria-label="Refine the proposed change"
-            className="h-7 w-full rounded-md bg-transparent px-2 text-xs outline-none placeholder:text-faint-foreground"
+            {...ix("field")}
+            className="h-7 w-full rounded-md bg-transparent px-2 text-xs placeholder:text-faint-foreground"
           />
         </form>
       )}

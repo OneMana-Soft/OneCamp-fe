@@ -3,31 +3,23 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 
-// Design v3 (§3.10): default (the accent, an inner highlight, 8% darker on
-// hover), secondary and outline (raised, e1 to e2), ghost, subtle,
-// destructive (danger ink; danger 8% on hover), link. Sizes xs 24 to xl 46;
-// icon 32, 28, 24. Press settles half a pixel in 90ms; focus is a 2px accent
-// outline 2px off; aria-busy dims it and blocks a second press.
-const FOCUS =
-  "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-
+// Design v3 (§3.10). States are the interaction layer's (app/interaction.css);
+// aria-busy dims it and blocks a second press.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium transition-[color,background-color,box-shadow,opacity,translate] duration-[140ms] ease-out active:translate-y-[0.5px] active:duration-[90ms] focus-visible:outline-none " + FOCUS + " disabled:pointer-events-none disabled:opacity-50 aria-busy:pointer-events-none aria-busy:opacity-70 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium disabled:pointer-events-none aria-busy:pointer-events-none aria-busy:opacity-70 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
           // A kbd hint inside it (New task C) is 16px on an 18% white fill.
-          "bg-brand text-brand-foreground shadow-primary hover:bg-[color-mix(in_oklab,var(--brand)_92%,black)] [&_.kbd]:h-4 [&_.kbd]:min-w-4 [&_.kbd]:bg-white/[0.18] [&_.kbd]:text-current [&_.kbd]:shadow-none",
-        destructive:
-          "bg-raised text-danger-ink shadow-e1 hover:bg-[color-mix(in_oklab,var(--destructive)_8%,var(--raised))]",
-        outline:
-          "bg-raised text-foreground shadow-e1 hover:shadow-e2 active:bg-[color-mix(in_oklab,var(--ink)_7%,var(--raised))]",
-        secondary:
-          "bg-raised text-foreground shadow-e1 hover:shadow-e2 active:bg-[color-mix(in_oklab,var(--ink)_7%,var(--raised))]",
-        ghost: "text-muted-foreground hover:bg-hover hover:text-foreground active:bg-press [&_svg]:text-faint-foreground hover:[&_svg]:text-foreground",
-        subtle: "bg-hover text-foreground hover:bg-press active:bg-press",
+          "bg-brand text-brand-foreground shadow-primary [&_.kbd]:h-4 [&_.kbd]:min-w-4 [&_.kbd]:bg-white/[0.18] [&_.kbd]:text-current [&_.kbd]:shadow-none",
+        destructive: "bg-raised text-danger-ink shadow-e1",
+        outline: "bg-raised text-foreground shadow-e1 hover:shadow-e2",
+        secondary: "bg-raised text-foreground shadow-e1 hover:shadow-e2",
+        ghost: "text-muted-foreground hover:text-foreground [&_svg]:text-faint-foreground hover:[&_svg]:text-foreground",
+        subtle: "bg-hover text-foreground",
         link: "text-brand-text underline-offset-[3px] decoration-1 hover:underline",
         // The current place: .nav-active itself (globals.css), the raised chip
         // at e-sel, so a Button and a nav link cannot drift.
@@ -57,11 +49,15 @@ interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean
+  /** With `disabled`: why, in a tip, and the button stays focusable (aria-disabled). */
+  disabledReason?: string
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, disabled, disabledReason, onClick, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
+    const reason = disabled ? disabledReason : undefined
+    const inert = !!reason || props["aria-disabled"] === true || props["aria-disabled"] === "true"
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
@@ -71,6 +67,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         data-press={size?.startsWith("icon") ? "icon" : "control"}
         // A finger's target is 44px whatever the size (app/phone.css F3).
         data-touch-target=""
+        {...ix(size?.startsWith("icon") ? "icon" : variant === "link" ? "link" : variant === "sidebarActive" ? "nav" : "button", {
+          tone: variant === "destructive" ? "danger" : !variant || variant === "default" ? "primary" : undefined,
+          disabledReason: reason,
+        })}
+        disabled={reason ? undefined : disabled}
+        onClick={
+          inert
+            ? (e: React.MouseEvent<HTMLButtonElement>) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }
+            : onClick
+        }
         {...props}
       />
     )

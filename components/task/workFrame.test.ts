@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest"
  * to build its own, and a switch moved the first row by up to 180px.
  */
 const TABS: Record<string, { toolbar: boolean; states: boolean }> = {
-  "components/task/taskTableToolbar.tsx": { toolbar: true, states: false },
   "components/project/projectTaskTable.tsx": { toolbar: false, states: true },
   "components/myTask/myTaskTable.tsx": { toolbar: false, states: true },
   // The board shares the list's toolbar (WorkToolbar draws the band: PTC-6).

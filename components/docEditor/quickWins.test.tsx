@@ -58,7 +58,7 @@ async function docEditor(html: string, extra?: (e: Editor) => React.ReactNode) {
   providers.push(provider)
   let editor: Editor | null = null
   function Doc() {
-    const e = useDocEditor({ collaboration: { enabled: true, documentId: "d", username: "Sam Rivera", userId: "u-sam" }, provider, providerSynced: true, labelledBy: "t" })
+    const e = useDocEditor({ collaboration: { enabled: true, documentId: "d", username: "Sam Rivera", userId: "u-sam" }, provider, labelledBy: "t" })
     editor = e as unknown as Editor | null
     return e ? (<><EditorContent editor={e} className="minimal-tiptap-editor doc-editor" />{extra?.(e as unknown as Editor)}</>) : null
   }

@@ -49,7 +49,7 @@ export interface TreeAdapter<N extends TreeNode, D = unknown> {
   move(move: TreeMove): Promise<void>
 }
 
-export interface UseTreeOptions {
+interface UseTreeOptions {
   /** Remember which rows are open in this browser, under this key. */
   storageKey?: string
   /** How many rows a level shows before "Show more". */
@@ -61,7 +61,7 @@ export interface UseTreeOptions {
 const isStringList = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === "string")
 
 /** The most a level asks for once "Show more" is chosen. */
-export const TREE_ALL = 500
+const TREE_ALL = 500
 
 export function useTree<N extends TreeNode, D = unknown>(adapter: TreeAdapter<N, D>, options: UseTreeOptions = {}) {
   const pageSize = options.pageSize ?? 50

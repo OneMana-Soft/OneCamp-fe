@@ -32,6 +32,7 @@ import { AppearanceControl } from "@/components/navigationBar/appearanceControl"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
 import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModality"
 import { clockTime } from "@/lib/utils/date/clock"
+import { ix } from "@/lib/ui/interactive"
 
 /** The person's own status: the emoji and words, unless it has expired. */
 function useOwnStatus(userUUID: string | undefined) {
@@ -198,7 +199,7 @@ export function SidebarFoot() {
         </button>
       ) : (
         <ProfileMenu>
-          <button type="button" aria-label="Open the profile menu" className="shell-icon-btn">
+          <button type="button" aria-label="Open the profile menu" {...ix("icon")} className="shell-icon-btn">
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           </button>
         </ProfileMenu>
@@ -259,7 +260,8 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
             {/* The status as a field: a click opens it to edit, × clears it. */}
             <div className="mx-1 mb-1.5 flex h-8 items-center gap-2 rounded-md bg-sunken pl-2 pr-1 shell-field-ring [@media(pointer:coarse)]:h-11">
               <Menu.Item
-                className="flex min-w-0 flex-1 cursor-default items-center gap-2 rounded-sm text-xs outline-none data-[highlighted]:text-ink"
+                {...ix("item")}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-xs data-[highlighted]:text-ink"
                 onSelect={() => dispatch(openUI({ key: "userStatusUpdate", data: { userUUID: "" } }))}
               >
                 {status ? (
@@ -273,7 +275,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
               </Menu.Item>
               {status && (
                 <Menu.Item asChild onSelect={(e) => { e.preventDefault(); clearStatus() }}>
-                  <button type="button" aria-label="Clear status" className="grid size-6 place-items-center rounded-[6px] text-ink-3 outline-none data-[highlighted]:bg-press data-[highlighted]:text-ink">
+                  <button type="button" aria-label="Clear status" {...ix("item")} className="grid size-6 place-items-center rounded-[6px] text-ink-3 data-[highlighted]:text-ink">
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 </Menu.Item>
@@ -349,7 +351,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
             <AppearanceControl
               more={
                 <Menu.Item asChild onSelect={() => router.push("/app/settings/profile#profile-appearance")}>
-                  <button type="button" data-more-colours="" className="shrink-0 rounded-sm text-meta text-ink-3 outline-none hover:text-foreground focus-visible:text-foreground data-[highlighted]:text-foreground">
+                  <button type="button" data-more-colours="" {...ix("item")} className="shrink-0 rounded-sm px-1 text-meta text-ink-3 hover:text-foreground data-[highlighted]:text-foreground">
                     More colours
                   </button>
                 </Menu.Item>

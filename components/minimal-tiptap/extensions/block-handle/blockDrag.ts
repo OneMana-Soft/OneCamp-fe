@@ -10,6 +10,7 @@ import { runsOf } from "../block-commands/commands"
 import { COLUMN_LIST, MAX_INDENT } from "../block-commands/nodes"
 import { clearEffect, reducedMotion, showEffect } from "../block-commands/effects"
 import { besideAllowed, dropTransaction, landedRanges, type Drop } from "./dropTarget"
+import { edgeScroller } from "@/lib/ui/edgeScroll"
 
 /**
  * DRAGGING BLOCKS (B1; editor.md P0-2, small-details V4, V5, S10; content.md
@@ -240,6 +241,7 @@ export function runBlockDrag({ view, dragged, startX, startY, blockLeft, onEnd }
   let x = startX
   let y = startY
   let alt = false
+  let touch = false
   let tilt = 0
   let target: Target | null = null
   let frame = 0
@@ -269,7 +271,7 @@ export function runBlockDrag({ view, dragged, startX, startY, blockLeft, onEnd }
       line.style.height = `${Math.max(24, l.bottom - l.top)}px`
       line.style.transform = `translate3d(${Math.round(l.x - 1)}px, ${Math.round(l.top)}px, 0)`
     }
-    autoScroll()
+    edge.follow(x, y, touch)
   }
 
   /** The dragged blocks where they are now (a collaborator's edit moves them): found again by id, once per doc. */
@@ -282,28 +284,17 @@ export function runBlockDrag({ view, dragged, startX, startY, blockLeft, onEnd }
     return seen.blocks
   }
 
-  let scrolling = 0
-  const autoScroll = () => {
-    if (!scroller || scrolling) return
-    const r = scroller.getBoundingClientRect()
-    const zone = r.height * 0.1
-    const speed = y < r.top + zone ? -Math.ceil(((r.top + zone - y) / zone) * 16) : y > r.bottom - zone ? Math.ceil(((y - (r.bottom - zone)) / zone) * 16) : 0
-    if (!speed) return
-    scrolling = requestAnimationFrame(() => {
-      scrolling = 0
-      if (ended) return
-      scroller.scrollTop += speed
-      schedule()
-    })
-  }
-
   const schedule = () => {
     if (!frame && !ended) frame = requestAnimationFrame(place)
   }
+  // Near the pane's edge the doc scrolls (lib/ui/edgeScroll, INTERACTION_SPEC
+  // §2.5), and the line is placed again under the still pointer.
+  const edge = edgeScroller(scroller, schedule)
 
   const move = (e: PointerEvent) => {
     x = e.clientX
     y = e.clientY
+    touch = e.pointerType === "touch"
     alt = e.altKey
     // Tilted the way the pointer first goes, a mouse only (as the board's cards).
     if (!tilt && !reduce && e.pointerType === "mouse" && Math.abs(x - startX) > 2) tilt = x > startX ? 1.5 : -1.5
@@ -314,7 +305,7 @@ export function runBlockDrag({ view, dragged, startX, startY, blockLeft, onEnd }
     if (ended) return
     ended = true
     cancelAnimationFrame(frame)
-    cancelAnimationFrame(scrolling)
+    edge.stop()
     window.removeEventListener("pointermove", move, true)
     window.removeEventListener("pointerup", up, true)
     window.removeEventListener("pointercancel", cancel, true)

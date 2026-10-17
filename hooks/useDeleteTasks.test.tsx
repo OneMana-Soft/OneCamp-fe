@@ -5,7 +5,7 @@ import type { TaskInfoInterface } from "@/types/task"
 
 const h = vi.hoisted(() => ({
   bulk: vi.fn(),
-  toasts: [] as Array<{ title?: string; variant?: string; action?: unknown }>,
+  toasts: [] as Array<{ title?: string; description?: string; variant?: string; action?: unknown }>,
 }))
 vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => h.bulk }))
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: { title?: string }) => (h.toasts.push(t), { id: "t", dismiss: () => {}, update: () => {} }) }))
@@ -40,7 +40,11 @@ describe("deleting tasks", () => {
     await act(async () => {
       fireEvent.click(undo.getByText("Undo"))
     })
-    expect(h.bulk).toHaveBeenLastCalledWith([retro], { field: "restore" })
+    // The task as it is now, in the trash (deleteTasksUndo.test runs the real restore).
+    const [[back], change] = h.bulk.mock.lastCall as [TaskInfoInterface[], unknown]
+    expect(change).toEqual({ field: "restore" })
+    expect(back).toMatchObject({ task_uuid: "t1", task_name: "Book the launch retro" })
+    expect(back.task_deleted_at).toBeTruthy()
     expect(h.toasts.at(-1)?.title).toBe("Brought back “Book the launch retro”")
   })
 
@@ -58,5 +62,15 @@ describe("deleting tasks", () => {
     await act(() => result.current([retro, copy]))
     expect(h.toasts).toHaveLength(1)
     expect(h.toasts[0]).toMatchObject({ variant: "destructive", title: "None of the 2 tasks were deleted" })
+  })
+
+  // Why, through the one helper (lib/utils/apiError): it said "You may no
+  // longer be an admin of their project" for every refusal, a dropped
+  // connection and a server fault too.
+  it("says why a delete was refused, as the server or the connection says it", async () => {
+    h.bulk.mockResolvedValueOnce({ changed: 0, failed: 1, unchanged: 0, done: [], error: { message: "Network Error" } })
+    const { result } = renderHook(() => useDeleteTasks())
+    await act(() => result.current([retro]))
+    expect(h.toasts[0]).toMatchObject({ title: "The task wasn't deleted", description: "The server could not be reached. Check your connection and try again in a moment." })
   })
 })

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type ElementHandle, type Page } from "@playwright/test"
 
 import { SAM, stubBackend } from "./stubbedApp"
 
@@ -37,7 +37,7 @@ function listAnswers(tasks: ReturnType<typeof task>[], sizes: number[] = []) {
       const page = tasks.slice(index * size, index * size + size)
       return {
         msg: "ok",
-        // The server leaves an empty page's list out (a phone asks once past the end).
+        // The server leaves an empty page's list out.
         data: { ...project, project_task_count: tasks.length, ...(page.length ? { project_tasks: page } : {}) },
         pageCount: Math.max(1, Math.ceil(tasks.length / size)),
       }
@@ -50,16 +50,57 @@ function listAnswers(tasks: ReturnType<typeof task>[], sizes: number[] = []) {
 }
 
 /** Every group header the list draws from its top to its foot, sorted: a long
- * group puts the next one out of a virtual list's sight. */
+ * group puts the next one out of a virtual list's sight. The list moves a
+ * screen at a time from its top, and each screen is read once its rows are
+ * drawn. A scroll shows on the browser's next frame: the wheel's jump to the
+ * top was read before it showed, and the next wheel went on down in the same
+ * frame, so the top was never drawn and the group there never read. */
 async function everyHeader(page: Page, header: string) {
+  const rows = `${header}, [data-phone-task-row]`
+  // The list's scroller, the nearest of a row's ancestors that scrolls, found
+  // in one step: a row found in one call could be gone by the next, as the
+  // list draws its rows again, and a row out of the page has no scroller.
+  const list = (await page.waitForFunction(
+    (rows) => {
+      let el = document.querySelector(rows)?.parentElement
+      while (el && !/auto|scroll/.test(getComputedStyle(el).overflowY)) el = el.parentElement
+      return el
+    },
+    rows,
+    { timeout: 10_000 },
+  )) as ElementHandle<HTMLElement>
   const seen = new Set<string>()
-  await page.mouse.wheel(0, -100_000)
-  for (let i = 0; i < 40; i++) {
+  for (let top = 0, screen = 0; screen < 200; screen++) {
+    await list.evaluate((el, y) => el.scrollTo(0, y), top)
+    // The wait ends on drawnScreen's answer, never on its false.
+    const at = (await (await page.waitForFunction(drawnScreen, { list, rows }, { polling: "raf", timeout: 10_000 })).jsonValue()) as Screen
     for (const h of await counts(page, header)) seen.add(h)
-    await page.mouse.wheel(0, 400)
-    await page.waitForTimeout(100)
+    if (at.foot) break
+    top = at.top + at.height
   }
   return [...seen].sort()
+}
+
+type Screen = { top: number; height: number; foot: boolean }
+
+/** Where the list is once its rows cover its screen edge to edge, to its last
+ * row at the foot; false until then. A row not drawn yet leaves a gap, and so
+ * does one placed by a guess at its size before it was measured. */
+function drawnScreen({ list, rows }: { list: HTMLElement; rows: string }): Screen | false {
+  const box = list.getBoundingClientRect()
+  // The rows end where the list's content does, less the room it leaves under them.
+  const end = Math.min(box.bottom, box.top - list.scrollTop + list.scrollHeight - parseFloat(getComputedStyle(list).paddingBottom))
+  const shown = [...list.querySelectorAll(rows)]
+    .map((r) => r.getBoundingClientRect())
+    .filter((r) => r.bottom > box.top && r.top < end)
+    .sort((a, b) => a.top - b.top)
+  let reach = box.top
+  for (const r of shown) {
+    if (r.top > reach + 1) return false
+    reach = Math.max(reach, r.bottom)
+  }
+  if (reach < end - 1) return false
+  return { top: list.scrollTop, height: list.clientHeight, foot: list.scrollTop + list.clientHeight >= list.scrollHeight - 1 }
 }
 
 /** Each group header as "<name> <count>". */
@@ -102,7 +143,10 @@ test.describe("on a phone", () => {
     await stubBackend(page, testInfo, listAnswers(tasks, sizes))
     await page.goto(`/app/project/${P}?tab=list`, { waitUntil: "domcontentloaded", timeout: 120_000 })
     const header = "[data-phone-group]"
-    await expect.poll(() => sizes.length, { timeout: 60_000 }).toBeGreaterThan(0)
+    // Ready once the list has drawn its first page. A cold start (the server
+    // reading the route, the app booting) is this wait's; the checks below
+    // each wait only for what the list does.
+    await expect(page.locator(header).first()).toBeVisible({ timeout: 60_000 })
     // The first page's groups, those in sight: each says what it has so far.
     const firstPage = new Map([["In progress", "3+"], ["To do", `${sizes[0] - 3}+`]])
     await expect
@@ -111,7 +155,7 @@ test.describe("on a phone", () => {
           const shown = await counts(page, header)
           return shown.length > 0 && shown.every((h) => firstPage.get(h.replace(/ \S+$/, "")) === h.split(" ").pop())
         },
-        { timeout: 60_000 },
+        { timeout: 10_000 },
       )
       .toBe(true)
     // Down to the list's foot until the last page has come.
@@ -122,10 +166,10 @@ test.describe("on a phone", () => {
           await page.mouse.wheel(0, 4000)
           return page.getByText(/^Task 120$/).count()
         },
-        { timeout: 60_000, intervals: [600] },
+        { timeout: 30_000, intervals: [600] },
       )
       .toBe(1)
     // Every group says its whole count, wherever it sits in the list.
-    await expect.poll(() => everyHeader(page, header), { timeout: 45_000 }).toEqual(["In progress 3", "To do 117"])
+    await expect.poll(() => everyHeader(page, header), { timeout: 20_000 }).toEqual(["In progress 3", "To do 117"])
   })
 })

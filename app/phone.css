@@ -42,18 +42,21 @@
 }
 
 /* F2. THE PRESS RESPONSE. Three, by what is pressed, on touch screens only
-   (a mouse has hover). A row fills with --press at once and fades out over
-   180ms; a control dips to .96 (an icon button .92) in 90ms and springs back
-   in 220ms; a card dips to .985. Nothing pressed while disabled. Unlayered,
-   so it outranks a component's own transition utilities: each rule lists
-   every property those utilities transitioned, plus scale. */
+   (a mouse has hover). A row fills at once and fades out over 180ms: a row
+   of the interaction layer in its tint at the press alpha (app/interaction.css),
+   any other in --press. A control dips to .96 (an icon button .92) in 90ms and
+   springs back in 220ms; a card dips to .985. Nothing pressed while disabled.
+   Unlayered, so it outranks a component's own transition utilities: each rule
+   lists every property those utilities transitioned, plus scale. */
 @media (pointer: coarse) {
   [data-press="row"] {
-    transition: background-color 180ms var(--ease-out), color 140ms var(--ease-out);
+    transition: background-color 180ms var(--ease-out), color 140ms var(--ease-out), --ix-a 180ms var(--ease-out);
   }
-  [data-press="row"]:active:not(:disabled, [aria-disabled="true"], [data-disabled]) {
-    background-color: var(--press);
+  [data-press="row"]:active:not(:disabled, [aria-disabled="true"], [data-disabled=""], [data-disabled="true"]) {
     transition-duration: 0ms;
+  }
+  [data-press="row"]:not([data-interactive]):active:not(:disabled, [aria-disabled="true"], [data-disabled=""], [data-disabled="true"]) {
+    background-color: var(--press);
   }
 }
 @media (pointer: coarse) and (prefers-reduced-motion: no-preference) {
@@ -65,22 +68,23 @@
       background-color 140ms var(--ease-out),
       box-shadow 140ms var(--ease-out),
       opacity 140ms var(--ease-out),
+      --ix-a 140ms var(--ease-out),
       scale 220ms var(--ease-spring);
   }
   [data-press="control"]:active:not(:disabled, [aria-disabled="true"], [aria-busy="true"]) {
     scale: 0.96;
-    transition-duration: 140ms, 140ms, 140ms, 140ms, 90ms;
+    transition-duration: 140ms, 140ms, 140ms, 140ms, 0ms, 90ms;
     transition-timing-function: var(--ease-out);
   }
   [data-press="icon"]:active:not(:disabled, [aria-disabled="true"]) {
     scale: 0.92;
-    transition-duration: 140ms, 140ms, 140ms, 140ms, 90ms;
+    transition-duration: 140ms, 140ms, 140ms, 140ms, 0ms, 90ms;
     transition-timing-function: var(--ease-out);
   }
   [data-press="card"]:active:not([aria-disabled="true"]) {
     scale: 0.985;
     box-shadow: var(--e1);
-    transition-duration: 140ms, 140ms, 140ms, 140ms, 90ms;
+    transition-duration: 140ms, 140ms, 140ms, 140ms, 0ms, 90ms;
     transition-timing-function: var(--ease-out);
   }
 }
@@ -118,6 +122,31 @@
   }
   :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
     min-height: var(--m-hit);
+  }
+}
+
+/* F3b. SMALL CONTROLS SIDE BY SIDE: A TOUCH GROUP. A control's reach (F3)
+   runs 8px past a 28px control's edges, so two set closer than 16px overlap,
+   and the later in the page takes the earlier's taps: on the booking page's
+   month arrows a tap 23-27px into Previous went to Next (REVIEW-FE-SHELL).
+   Every row of small controls is a touch group (data-touch-group, its value
+   the controls' size, 28 when empty): under a finger its controls stand 44px
+   less their size apart, so their reaches meet and never cover a neighbour's
+   own box. One rule, not a gap per screen; app/touchGroups.test.ts finds a
+   row of small controls without it, and e2e/touchTargets.spec.ts taps one.
+   Unlayered, so it wins over the row's own gap utility. */
+@media (pointer: coarse) {
+  [data-touch-group] {
+    gap: calc(var(--m-hit) - 28px);
+  }
+  [data-touch-group="32"] {
+    gap: calc(var(--m-hit) - 32px);
+  }
+  [data-touch-group="24"] {
+    gap: calc(var(--m-hit) - 24px);
+  }
+  [data-touch-group="20"] {
+    gap: calc(var(--m-hit) - 20px);
   }
 }
 

@@ -56,11 +56,13 @@ describe("chat headers stay consistent", () => {
     }
   })
 
-  it("gives a channel no hue: a monochrome # (a lock when private), no hued tile", () => {
+  // INTERACTION_SPEC D13: a channel wears its own hue, as the one tile the
+  // sidebar and the list draw (a lock inside when private), never a grey #.
+  it("draws the channel as its tile in its own hue, a lock when private", () => {
     const h = headerOf(channel)
     expect(h).not.toContain("IdentityMark")
-    expect(h).toMatch(/<Hash className='size-\[18px\] shrink-0 text-ink-3'/)
-    expect(h).toContain("<Lock")
+    expect(h).toMatch(/<ChannelTile id=\{channelId\} isPrivate=\{!!channelInfo\.data\?\.channel_info\.ch_private\} size=\{20\} \/>/)
+    expect(h).not.toMatch(/<Hash\b/)
   })
 
   it("makes the channel's name and topic one button: its details", () => {

@@ -39,7 +39,6 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen"
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor"
 import { ChannelEmpty } from "@/components/message/emptyConversations"
-import { hueFor } from "@/lib/campHue"
 import { messageSummary } from "@/lib/chat/messageSummary"
 
 interface ChannelMessagesProps {

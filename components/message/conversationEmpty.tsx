@@ -6,7 +6,7 @@ import { Spark } from "@/components/ui/graphics/motifs"
 import { ChatFace } from "@/components/message/chatFace"
 import { SpotWelcome } from "@/components/ui/graphics/spots"
 import { cn } from "@/lib/utils/helpers/cn"
-import type { CampHue } from "@/lib/campHue"
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
 
 export interface EmptyFace {
     uuid: string
@@ -29,8 +29,8 @@ interface ConversationEmptyProps {
     /** The channel's members (people and agents) on the orbit, or the person, or the group. */
     faces?: EmptyFace[]
     chips?: StarterChip[]
-    /** @deprecated a conversation has no hue of its own any more (C58). */
-    hue?: CampHue
+    /** A channel's id: its orbit centres on the channel's tile, in its hue (INTERACTION_SPEC D13). */
+    channelId?: string
     /**
      * "fill" (the default): the whole empty list, sat just above the composer.
      * "start": the head of a history that has messages, above the first of
@@ -44,12 +44,12 @@ const ORBIT_ANGLES = [-150, -60, 20, 110, 200]
 
 /**
  * The orbit (design v3 chat, C58; DESIGN_V3 §3.13): a tint disc, one dashed
- * orbit, the channel's # in a raised tile at the centre, its real members on
+ * orbit, the channel's tile in its hue raised at the centre (D13), its real members on
  * the orbit as 22px faces (agents as their squares), two hue dots and one
  * accent spark. On first sight the faces travel 24 degrees to rest and the
  * spark twinkles once; reduced motion keeps it still.
  */
-function Orbit({ faces, size = 120 }: { faces: EmptyFace[]; size?: number }) {
+function Orbit({ faces, channelId, size = 120 }: { faces: EmptyFace[]; channelId?: string; size?: number }) {
     const r = size * 0.4
     return (
         <div aria-hidden="true" data-orbit="" className="relative shrink-0" style={{ width: size, height: size }}>
@@ -57,9 +57,15 @@ function Orbit({ faces, size = 120 }: { faces: EmptyFace[]; size?: number }) {
             <svg className="absolute inset-0 text-line-3" viewBox="0 0 120 120" fill="none">
                 <circle cx="60" cy="60" r="48" stroke="currentColor" strokeWidth="1.25" strokeDasharray="1.5 5" strokeLinecap="round" />
             </svg>
-            <span className="absolute left-1/2 top-1/2 flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl bg-raised text-ink-2 shadow-e2">
-                <Hash className="size-[18px]" />
-            </span>
+            {channelId ? (
+                <span className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 rounded-[10px] shadow-e2">
+                    <ChannelTile id={channelId} size={36} />
+                </span>
+            ) : (
+                <span className="absolute left-1/2 top-1/2 flex size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl bg-raised text-ink-2 shadow-e2">
+                    <Hash className="size-[18px]" />
+                </span>
+            )}
             {faces.slice(0, 5).map((f, i) => {
                 const a = ORBIT_ANGLES[i]
                 return (
@@ -93,7 +99,7 @@ function Orbit({ faces, size = 120 }: { faces: EmptyFace[]; size?: number }) {
  * group its three faces. Then the starter chips, so the first move is one
  * click. No hue from the conversation's id: a channel has no hue.
  */
-export function ConversationEmpty({ kind = "channel", title, description, faces = [], chips = [], placement = "fill" }: ConversationEmptyProps) {
+export function ConversationEmpty({ kind = "channel", title, description, faces = [], chips = [], channelId, placement = "fill" }: ConversationEmptyProps) {
     return (
         <div
             className={cn("flex flex-col px-5", placement === "fill" ? "h-full justify-end pb-6" : "pb-3 pt-10")}
@@ -101,7 +107,7 @@ export function ConversationEmpty({ kind = "channel", title, description, faces 
             data-empty-kind={kind}
         >
             {kind === "channel" ? (
-                faces.length > 0 ? <Orbit faces={faces} /> : <SpotWelcome size={96} className="-ml-1" />
+                faces.length > 0 ? <Orbit faces={faces} channelId={channelId} /> : <SpotWelcome size={96} className="-ml-1" />
             ) : kind === "group" ? (
                 <span aria-hidden="true" className="relative flex h-12 w-[88px]">
                     {faces.slice(0, 3).map((f, i) => (

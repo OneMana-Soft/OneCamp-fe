@@ -45,6 +45,10 @@ describe("New channel", () => {
     const create = () => screen.getByRole("button", { name: "Create channel" }) as HTMLButtonElement
     expect(create().disabled).toBe(true)
     fireEvent.change(screen.getByLabelText("Channel name"), { target: { value: "launch-week" } })
+    // Until typing stops and the answer is in, it says it is checking, and waits.
+    expect(screen.getByText("Checking #launch-week…")).toBeTruthy()
+    expect(fetched.some((u) => u.includes("ch_name="))).toBe(false)
+    expect(create().disabled).toBe(true)
     await act(async () => void vi.advanceTimersByTime(500))
     expect(fetched.some((u) => u.includes("ch_name=launch-week"))).toBe(true)
     expect(screen.getByText("#launch-week is free")).toBeTruthy()

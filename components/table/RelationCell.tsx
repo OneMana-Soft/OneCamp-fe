@@ -195,7 +195,7 @@ export function RelationCell({
           >
             <RefGlyph item={ref} />
             {href ? (
-              <Link href={href} className="truncate outline-none focus-visible:underline" title={`Open ${ref.label}`}>
+              <Link href={href} className="truncate rounded-sm" title={`Open ${ref.label}`}>
                 {ref.label}
               </Link>
             ) : (

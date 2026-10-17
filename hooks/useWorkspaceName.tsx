@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react"
 import useSWRImmutable from "swr/immutable"
+import { signInAnswer } from "@/lib/auth/signInAnswer"
 import { namedWorkspace, workspaceName, WORKSPACE_NAME_MAX, WORKSPACE_NAME_STORE_KEY } from "@/lib/workspaceName"
 
 /**
@@ -11,7 +12,8 @@ import { namedWorkspace, workspaceName, WORKSPACE_NAME_MAX, WORKSPACE_NAME_STORE
  * rebuild of the web app; else the build's; else OneCamp. Never re-cased.
  *
  * The server says it in GET /auth/providers, the sign-in page's own answer,
- * which needs no session: one answer for every page, asked once per load.
+ * which needs no session: one answer for every page and for the sign-in
+ * page's ways in, asked once per load (lib/auth/signInAnswer).
  * Until it answers, the name it gave last time in this browser, which the
  * boot screen (lib/appBoot) also shows before any code has run.
  */
@@ -25,18 +27,11 @@ const SERVER_NAME_KEY = "workspace-name:auth/providers"
  * this). Keeps what it hears for the next open.
  */
 async function serverName(): Promise<string | null> {
-  try {
-    const base = process.env.NEXT_PUBLIC_BACKEND_URL
-    if (!base) return null
-    const res = await fetch(new URL("auth/providers", base), { credentials: "omit", cache: "no-store" })
-    if (!res.ok) return null
-    const name = ((await res.json()) as { workspace_name?: unknown } | null)?.workspace_name
-    if (typeof name !== "string") return null
-    keep(name.trim().slice(0, WORKSPACE_NAME_MAX))
-    return name
-  } catch {
-    return null
-  }
+  if (!process.env.NEXT_PUBLIC_BACKEND_URL) return null
+  const name = (await signInAnswer())?.workspace_name
+  if (typeof name !== "string") return null
+  keep(name.trim().slice(0, WORKSPACE_NAME_MAX))
+  return name
 }
 
 /** The last name the server gave, kept in this browser; "" when none is. */

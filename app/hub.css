@@ -269,23 +269,10 @@
     .hub-row[data-density="two-line"] { min-height: 60px; }
     .hub-row[data-density="feed"] { min-height: 72px; }
   }
-  .hub-row[data-interactive]:hover,
-  .hub-row[data-interactive]:focus-within {
-    background: var(--hover);
-  }
-  .hub-row[data-interactive]:active {
-    background: var(--press);
-    transform: scale(0.995);
-  }
-  .hub-row:focus-visible {
-    box-shadow: inset 0 0 0 2px var(--brand);
-  }
-  .hub-row[data-selected] {
-    background: color-mix(in oklab, var(--brand-muted) 75%, transparent);
-    box-shadow: inset 2px 0 0 var(--brand);
-  }
+  /* A row that opens something is a row of the interaction layer
+     (data-interactive="row", app/interaction.css): its hover, press, focus
+     ring, selected tint and bar, and its disabled look come from there. */
   .hub-row[data-disabled] {
-    color: var(--ink-3);
     pointer-events: none;
   }
   /* Separators: none in compact; in two-line and feed a hairline inset to the
@@ -300,11 +287,15 @@
     background: var(--line);
     pointer-events: none;
   }
-  .hub-row:hover::before,
-  .hub-row:hover + .hub-row::before,
   .hub-row[data-selected]::before,
   .hub-row[data-selected] + .hub-row::before {
     opacity: 0;
+  }
+  @media (hover: hover) {
+    .hub-row:hover::before,
+    .hub-row:hover + .hub-row::before {
+      opacity: 0;
+    }
   }
   .hub-row-gutter {
     display: flex;
@@ -349,8 +340,13 @@
     padding-top: 2px;
     align-self: start;
   }
-  .hub-row[data-has-tools]:is(:hover, :focus-within) .hub-row-meta {
+  .hub-row[data-has-tools]:focus-within .hub-row-meta {
     opacity: 0;
+  }
+  @media (hover: hover) {
+    .hub-row[data-has-tools]:hover .hub-row-meta {
+      opacity: 0;
+    }
   }
   /* The hover toolbar: a pop surface on e3, pinned to the row's right edge. */
   .hub-row-tools {
@@ -369,10 +365,17 @@
     transition: opacity var(--duration-pop) var(--ease-out), transform var(--duration-pop) var(--ease-out);
     z-index: 2;
   }
-  .hub-row:is(:hover, :focus-within) .hub-row-tools {
+  .hub-row:focus-within .hub-row-tools {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(-50%);
+  }
+  @media (hover: hover) {
+    .hub-row:hover .hub-row-tools {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(-50%);
+    }
   }
   /* Where nothing can hover (interaction audit SH-31, SH-32, 15 Oct 2026),
      the toolbar was simply gone: on a phone the inbox, Later and search had
@@ -484,9 +487,13 @@
     box-shadow: var(--e1);
   }
   /* A source chip lit from its marker (or hovered): e2 plus an agent ring. */
-  .hub-lit,
-  .hub-lit-hover:not(:disabled):hover {
+  .hub-lit {
     box-shadow: var(--e2), 0 0 0 1px color-mix(in oklab, var(--agent) 40%, transparent);
+  }
+  @media (hover: hover) {
+    .hub-lit-hover:not(:disabled):hover {
+      box-shadow: var(--e2), 0 0 0 1px color-mix(in oklab, var(--agent) 40%, transparent);
+    }
   }
   /* The one hued top edge v3 allows a card: the AI answer's, in the agent gradient. */
   .hub-agent-edge {
@@ -528,7 +535,7 @@
     transition: box-shadow var(--duration-hover) var(--ease-out);
   }
   .hub-field:focus-within {
-    box-shadow: var(--e1), 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--e1), var(--ix-halo);
   }
 }
 

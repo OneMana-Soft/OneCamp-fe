@@ -66,7 +66,7 @@ export const TABLE = [...SIMPLE_TABLE, TablePaste, SelectionWatch]
 export const MATH = [InlineMath, BlockMath, MathKeys]
 
 /** "/" Word count: the doc's count stays at the bottom, on this device. */
-export async function showWordCount(editor: Editor) {
+async function showWordCount(editor: Editor) {
   const { setDocCount, mountCount } = await import("@/components/docEditor/SelectionCount")
   setDocCount(true)
   // Shown at once, before anything is selected.

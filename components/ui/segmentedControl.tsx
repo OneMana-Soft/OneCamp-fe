@@ -8,15 +8,18 @@
 // chosen option is the raised surface at e-sel, and it SLIDES: one thumb
 // element under the options, moved by transform over 220ms on the spring, so
 // no layout property animates (motionCost.test.ts). Under reduced motion the
-// global rule makes it jump. 36px on a phone, where it is a touch target.
-// Radio semantics (Radix), so arrow keys move the choice and a screen reader
-// says "1 of 3".
+// global rule makes it jump. 32px on a phone, with a 44px tap (app/phone.css
+// F3). Radio semantics (Radix), so arrow keys move the choice and a screen
+// reader says "1 of 3". Each option is a tab of the interaction layer: a
+// tinted hover, the focus ring, and a label that keeps its width when it
+// turns 510; before the thumb is measured the layer raises the choice itself.
 
 import * as React from "react"
 import { useLayoutEffect, useRef } from "react"
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix, withLabel } from "@/lib/ui/interactive"
 
 export interface SegmentOption<T extends string> {
   value: T
@@ -29,14 +32,8 @@ export interface SegmentOption<T extends string> {
 
 export const segmentedWell = "relative inline-flex max-w-full flex-wrap gap-0.5 rounded-md bg-press p-0.5"
 
-export const segmentedItem = cn(
-  "relative z-[1] inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 text-xs text-muted-foreground transition-colors md:h-6",
-  "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:pointer-events-none disabled:opacity-50",
-  "data-[state=checked]:font-medium data-[state=checked]:text-foreground",
-  // Before the thumb is measured (first paint, a test), the choice draws its
-  // own raised surface; the thumb takes over once it is in place.
-  "group-data-[thumb=off]/seg:data-[state=checked]:bg-raised group-data-[thumb=off]/seg:data-[state=checked]:shadow-sel",
-)
+export const segmentedItem =
+  "relative z-[1] inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 text-xs text-muted-foreground md:h-6 hover:text-foreground data-[state=checked]:text-foreground"
 
 export function SegmentedControl<T extends string>({
   value,
@@ -117,9 +114,9 @@ export function SegmentedControl<T extends string>({
         className="pointer-events-none absolute left-0 top-0 rounded-sm bg-raised opacity-0 shadow-sel transition-transform duration-[220ms] ease-[var(--ease-spring)]"
       />
       {options.map(({ value: v, label, icon: Icon, disabled: off, title }) => (
-        <RadioGroupPrimitive.Item key={v} value={v} disabled={off} title={title} className={cn(segmentedItem, itemClassName)} data-touch-target="">
+        <RadioGroupPrimitive.Item key={v} value={v} disabled={off} title={title} className={cn(segmentedItem, itemClassName)} data-touch-target="" {...ix("tab")}>
           {Icon && <Icon className="size-3.5" aria-hidden="true" />}
-          {label}
+          {withLabel(label)}
         </RadioGroupPrimitive.Item>
       ))}
     </RadioGroupPrimitive.Root>

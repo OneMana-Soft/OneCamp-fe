@@ -62,7 +62,7 @@ export type DocAccessLevel = 'none' | 'view' | 'comment' | 'edit' | 'full'
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'synced' | 'offline'
 
 /** What the server decided for this connection. */
-export interface SessionAccess {
+interface SessionAccess {
   level: DocAccessLevel
   canEdit: boolean
   locked: boolean
@@ -93,7 +93,7 @@ export interface PresenceUser {
   mode?: 'editing' | 'viewing'
 }
 
-export interface SessionSnapshot {
+interface SessionSnapshot {
   provider: HocuspocusProvider | null
   status: SessionStatus
   synced: boolean
@@ -120,7 +120,7 @@ export interface SessionSnapshot {
 
 type KeepEdits = () => { html: string; text: string } | null
 
-export interface SessionOptions {
+interface SessionOptions {
   /**
    * Fetches the token for each (re)connect. Default: the member's own
    * (/auth/token). The guest viewers pass one that trades a share link.
@@ -162,7 +162,7 @@ export const SESSION_TIMING = {
 /** At most this many sessions stay live with nobody looking. */
 export const MAX_IDLE_SESSIONS = 4
 /** At most this many fresh copies a minute: a server that kept asking would spin the page. */
-export const MAX_RELOADS_PER_MINUTE = 3
+const MAX_RELOADS_PER_MINUTE = 3
 
 const DEV = process.env.NODE_ENV !== 'production'
 const log = (...args: unknown[]) => {
@@ -176,14 +176,14 @@ const FINAL: ReadonlySet<string> = new Set(['forbidden', 'not-found', 'gone'])
 // The server's messages
 // ---------------------------------------------------------------------------
 
-export type ServerMessage =
+type ServerMessage =
   | { type: 'session'; access: SessionAccess; lineage: string | null; schemaVersion: string | null }
   | { type: 'persisted'; at: number; lineage?: string | null }
   | { type: 'epoch-changed' }
   | { type: 'schema-outdated' }
 
 /** A stateless message from the server, or null for one this tab does not act on. */
-export function parseServerMessage(payload: string): ServerMessage | null {
+function parseServerMessage(payload: string): ServerMessage | null {
   let m: Record<string, unknown> | null = null
   try {
     m = JSON.parse(payload)
@@ -218,7 +218,7 @@ export function parseServerMessage(payload: string): ServerMessage | null {
  * HTML with its epoch in the `meta` map (collaboration-service lineage.js).
  * Null for a doc built before that, or never rebuilt.
  */
-export function epochIn(doc: Y.Doc | null | undefined): string | null {
+function epochIn(doc: Y.Doc | null | undefined): string | null {
   if (!doc) return null
   const v = doc.getMap('meta').get('epoch')
   return typeof v === 'string' ? v : null
@@ -230,7 +230,7 @@ export function epochIn(doc: Y.Doc | null | undefined): string | null {
 
 type OpenEvent = Parameters<HocuspocusProvider['onOpen']>[0]
 
-export class SessionProvider extends HocuspocusProvider {
+class SessionProvider extends HocuspocusProvider {
   /** Compare lineages before a returning copy syncs (docs; not boards). */
   checksLineage = true
   /** The lineage of the copy this Y.Doc holds; undefined until it first synced. */
@@ -346,7 +346,7 @@ const INITIAL: SessionSnapshot = {
 }
 
 /** The snapshot of no session: nothing connected. */
-export const NO_SESSION: SessionSnapshot = { ...INITIAL, status: 'disconnected' }
+const NO_SESSION: SessionSnapshot = { ...INITIAL, status: 'disconnected' }
 
 /** Whether two presence lists name the same people, the same way, in order. */
 export function samePeople(a: PresenceUser[], b: PresenceUser[]): boolean {
@@ -869,7 +869,7 @@ export function resetCollabSessionsForTests(): void {
 const noSubscribe = () => () => {}
 const noSnapshot = () => NO_SESSION
 
-export interface UseCollabSession extends SessionSnapshot {
+interface UseCollabSession extends SessionSnapshot {
   session: CollabSession | null
   retry(): void
   dismissRecovered(): void

@@ -24,7 +24,7 @@ const ALLOWED = new Set([
   "components/goals/GoalPage.tsx",
   "components/goals/GoalsView.tsx",
   "components/project/ProjectHeaderLine.tsx",
-  "components/task/cyclesButton.tsx",
+  "components/task/cyclesSwitcher.tsx",
   "components/guest/GuestReview.tsx",
   "app/f/[token]/page.tsx",
   "app/f/[token]/IntakeForm.tsx",

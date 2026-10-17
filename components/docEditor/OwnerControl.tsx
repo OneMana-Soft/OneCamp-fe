@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { Crown, Search, ShieldAlert } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,7 +25,6 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { setFacts } from "./chrome/pageFacts"
 import { useDoc } from "./chrome/useDoc"
 
-const QUIET = { suppressErrorToast: true } as never
 
 /** People the search finds as it is typed, newest answer only. */
 function usePeople(query: string) {
@@ -57,7 +57,7 @@ function usePeople(query: string) {
  */
 export default function OwnerControl({ docId, onClose }: { docId: string; onClose(): void }) {
   const doc = useDoc(docId)
-  const access = useFetch<{ data?: DocAccess }>(docAccessKey(docId), undefined, undefined, QUIET).data?.data
+  const access = useFetch<{ data?: DocAccess }>(docAccessKey(docId), undefined, undefined, OWN_ERRORS).data?.data
   const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data
   const [query, setQuery] = React.useState("")
   const people = usePeople(query)

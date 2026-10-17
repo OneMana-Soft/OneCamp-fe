@@ -201,8 +201,8 @@ const ImportCard: React.FC = () => {
   // canonical useMqtt subscription wired in `mqttProvider`. The
   // SlackImportCard / ImportCard read the same job-list SWR key, so
   // when MQTT publishes a progress event the provider's broadcast
-  // handler triggers a `mutate` of GetSlackImportJobs / GetImportJobs
-  // and our polling fallback short-circuits. We don't need a
+  // handler makes those keys stale (lib/importLive) and our polling
+  // fallback short-circuits. We don't need a
   // per-card MQTT subscription here.
 
   const connection = useMemo(

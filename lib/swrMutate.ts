@@ -28,6 +28,11 @@ export function bindAppMutate(m: ScopedMutator | null, cache: Cache | null = nul
 export const appMutate: ScopedMutator = ((...args: Parameters<ScopedMutator>) =>
   (bound ?? globalMutate)(...args)) as ScopedMutator
 
+/** What the app's cache holds for a key now, if anything: for code outside a component that only reads it. */
+export function cachedData<T>(key: string): T | undefined {
+  return boundCache?.get(key)?.data as T | undefined
+}
+
 /**
  * Corrects what cached responses say, for a change the server already has (a
  * conversation read, say), without asking for them again. update must return

@@ -18,7 +18,6 @@ import {CommentsList} from "@/components/rightPanel/commentsList";
 import { ThreadEmpty } from "@/components/rightPanel/threadEmpty";
 import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
-import {cn} from "@/lib/utils/helpers/cn";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {openUI} from "@/store/slice/uiSlice";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
@@ -144,6 +143,9 @@ export const ChannelComments = () => {
             .then(() => {
                 dispatch(removePostByPostId({postId, channelId: rightPanelState.data.channelUUID}))
             })
+            // A refusal is said by its request (usePost's toast), and the message
+            // stays: it leaves only once the server has deleted it.
+            .catch(() => {})
 
     }
 
@@ -169,6 +171,9 @@ export const ChannelComments = () => {
 
 
             })
+            // A refusal is said by its request (usePost's toast), and the message
+            // stays: it leaves only once the server has deleted it.
+            .catch(() => {})
 
     }
 

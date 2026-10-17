@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/hooks/use-toast", () => ({ toast: () => ({ id: "1", dismiss: () => {}, update: () => {} }), useToast: () => ({ toast: () => {} }) }))
 
-const { default: axiosInstance, onGuestPage } = await import("@/lib/axiosInstance")
+const { default: axiosInstance, onVisitorPage } = await import("@/lib/axiosInstance")
 
 function answer401() {
   const previous = axiosInstance.defaults.adapter
@@ -33,10 +33,10 @@ afterEach(() => {
 
 describe("a 401 on a guest page", () => {
   it("knows a guest page from the app's", () => {
-    expect(onGuestPage("/guest/d/abc123")).toBe(true)
-    expect(onGuestPage("/guest/t/xyz")).toBe(true)
-    expect(onGuestPage("/app/doc/abc123")).toBe(false)
-    expect(onGuestPage("/")).toBe(false)
+    expect(onVisitorPage("/guest/d/abc123")).toBe(true)
+    expect(onVisitorPage("/guest/t/xyz")).toBe(true)
+    expect(onVisitorPage("/app/doc/abc123")).toBe(false)
+    expect(onVisitorPage("/")).toBe(false)
   })
 
   it("neither refreshes a session nor signs the guest out", async () => {

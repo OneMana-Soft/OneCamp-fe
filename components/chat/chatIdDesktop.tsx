@@ -8,8 +8,7 @@ import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import { HeldNotificationsBar } from "@/components/messages/heldNotificationsBar";
-import {NotificationType} from "@/types/channel";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {GetEndpointUrl} from "@/services/endPoints";
 import { HEADER_ICON, HuddleBanner, HuddleButton, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
 import { ChatFace } from "@/components/message/chatFace";
 import { Spark } from "@/components/ui/graphics/motifs";
@@ -21,7 +20,7 @@ import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
 import { SendHorizontal, Clapperboard, Sparkles, } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
-import {usePost} from "@/hooks/usePost";
+import { useChatNotification } from "@/hooks/useConversationNotification";
 import {memo, useCallback, useEffect, useRef, useState} from "react";
 import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
 import type { Content } from "@tiptap/react";
@@ -33,7 +32,6 @@ import {openUI} from "@/store/slice/uiSlice";
 
 import {ChatMessageList} from "@/components/chat/chatMessageList";
 import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
-import {ChatNotificationInterface} from "@/types/chat";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
 import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {createOrUpdateChatBody, clearChatReplyTarget} from "@/store/slice/chatSlice";
@@ -57,10 +55,10 @@ import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number}) => {
     const dispatch = useDispatch()
-    const postNotification  = usePost()
     const otherUserInfo  = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-    const [chatNotification, setChatNotificationType] = useState<string>(NotificationType.NotificationAll)
+    // A DM's level: one write for its header and a phone's sheet (hooks/useConversationNotification).
+    const notification = useChatNotification(chatId, otherUserInfo.data?.data?.notification_type)
 
     const chatCallHref = `${app_chat_call}/${chatId}`;
     // A call opens beside the conversation, so it stays in view.
@@ -76,7 +74,6 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
     useEffect(() => {
 
         if(otherUserInfo.data?.data) {
-            setChatNotificationType(otherUserInfo.data?.data.notification_type || NotificationType.NotificationAll)
             // Reducer ignores empty/undefined payloads — see
             // userSlice.updateUserEmojiStatus. Profile responses omit
             // user_emoji_statuses when there is no active status, and
@@ -95,13 +92,6 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
     if(!otherUserInfo.data?.data && !otherUserInfo.isLoading) return
 
 
-    // One click chooses a level (C04); nothing cycles any more.
-    const updateNotification = async (next: string) => {
-        const before = chatNotification
-        setChatNotificationType(next)
-        const res = await postNotification.makeRequest<ChatNotificationInterface>({payload:{to_user_id: chatId, notification_type: next}, apiEndpoint: PostEndpointUrl.UpdateChatNotification}).catch(() => undefined)
-        if (res === undefined) setChatNotificationType(before)
-    }
 
     // One rule for where they are, as the phone's header says it (lib/presence, QA F-18).
     const presence = presenceOf(userStatusState, otherUserInfo.data?.data);
@@ -170,7 +160,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                             </FeatureGate>
-                            <NotificationSubmenu value={chatNotification} onChange={updateNotification} busy={postNotification.isSubmitting} />
+                            <NotificationSubmenu value={notification.level} onChange={notification.choose} busy={notification.busy} />
                             <DropdownMenuItem asChild>
                                 <Link href={chatRecordingHref}><Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings</Link>
                             </DropdownMenuItem>

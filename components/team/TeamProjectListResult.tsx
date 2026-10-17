@@ -44,7 +44,7 @@ export const TeamProjectListResult = ({
                     <Link
                         key={project.project_uuid}
                         href={`${app_project_path}/${project.project_uuid}`}
-                        className="block focus:outline-none"
+                        className="block rounded-md focus-visible:-outline-offset-2"
                         onClick={(e) => handleClick(e, project)}
                     >
                         <TeamProjectInfoMobile

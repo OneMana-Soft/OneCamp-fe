@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 vi.mock("@/components/message/chatFace", () => ({ ChatFace: ({ size }: { size: number }) => <span style={{ width: size }} /> }))
 const { ConversationEmpty } = await import("./conversationEmpty")
+const { hueFor } = await import("@/lib/campHue")
 
 // Design v3 chat, C58: an empty channel orbits its real members around its
 // #; a DM shows the other person's face; starter chips make the first move
@@ -45,7 +46,17 @@ describe("an empty conversation", () => {
     expect(container.querySelector("[data-orbit]")).toBeTruthy()
   })
 
-  it("takes no hue from the conversation's id", () => {
+  // INTERACTION_SPEC D13 (superseding C58 for channels): a channel's orbit
+  // centres on its tile, in the channel's own hue, as its sidebar row and its
+  // header show it. A DM or a group still takes no hue from its id: its colour
+  // is the faces in it.
+  it("centres a channel's orbit on its tile, in the channel's hue", () => {
+    const { container } = render(<ConversationEmpty kind="channel" channelId="c0de0000-0000-4000-8000-000000000003" faces={faces} title="This is the start of #launch" />)
+    const tile = container.querySelector("[data-orbit] [data-channel-tile]")!
+    expect(tile.getAttribute("data-hue")).toBe(hueFor("c0de0000-0000-4000-8000-000000000003"))
+  })
+
+  it("takes no hue from a DM's or a group's id", () => {
     const src = readFileSync("components/message/emptyConversations.tsx", "utf8") + readFileSync("components/message/conversationEmpty.tsx", "utf8")
     expect(src).not.toMatch(/hueFor\(/)
   })

@@ -46,12 +46,61 @@ const DrawerPortal = DrawerPrimitive.Portal
 
 const DrawerClose = DrawerPrimitive.Close
 
+/** What a close may run past its animation's own time before it is reported for it. */
+const CLOSE_GRACE_MS = 250
+
+const seconds = (v: string) => (v.trim().endsWith("ms") ? parseFloat(v) / 1000 : parseFloat(v)) || 0
+
+/**
+ * Radix keeps a closing sheet and its scrim in the page until their close
+ * animation reports its end, and Chrome reports nothing when one is
+ * interrupted (it fires no animationcancel). The scrim then stayed over the
+ * page and took every tap after it (docs C1: Escape on the date sheet, under
+ * load). So once a close has had its animation's time and a little more,
+ * its end is reported here: Escape, a swipe and a tap outside all close
+ * through this one path.
+ */
+function useCloseSettles<T extends HTMLElement>(forwarded: React.ForwardedRef<T>) {
+  const [node, setNode] = React.useState<T | null>(null)
+  React.useEffect(() => {
+    if (!node) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const watch = () => {
+      clearTimeout(timer)
+      if (node.getAttribute("data-state") !== "closed") return
+      const style = getComputedStyle(node)
+      const ms = (seconds(style.animationDuration) + seconds(style.animationDelay)) * 1000 + CLOSE_GRACE_MS
+      timer = setTimeout(() => {
+        if (!node.isConnected || node.getAttribute("data-state") !== "closed") return
+        const end = new Event("animationend")
+        Object.defineProperty(end, "animationName", { value: getComputedStyle(node).animationName.split(",")[0].trim() })
+        node.dispatchEvent(end)
+      }, ms)
+    }
+    const observer = new MutationObserver(watch)
+    observer.observe(node, { attributes: true, attributeFilter: ["data-state"] })
+    watch()
+    return () => {
+      observer.disconnect()
+      clearTimeout(timer)
+    }
+  }, [node])
+  return React.useCallback(
+    (el: T | null) => {
+      setNode(el)
+      if (typeof forwarded === "function") forwarded(el)
+      else if (forwarded) forwarded.current = el
+    },
+    [forwarded],
+  )
+}
+
 const DrawerOverlay = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
-    ref={ref}
+    ref={useCloseSettles(ref)}
     data-v3-scrim=""
     className={cn("fixed inset-0 z-[var(--z-modal-backdrop)] bg-[rgb(10_11_14/0.32)] dark:bg-[rgb(0_0_0/0.55)]", className)}
     {...props}
@@ -73,14 +122,21 @@ const DrawerContent = React.forwardRef<
     overlayClassName?: string
     /** The grabber's look. */
     handleClassName?: string
+    /**
+     * Drawn on the sheet itself, outside its scrolling body: something that
+     * floats over the sheet's edge (the long-press sheet's message preview,
+     * above it), which the body's overflow would clip.
+     */
+    above?: React.ReactNode
   }
->(({ className, children, overlayClassName, handleClassName, ...props }, ref) => {
+>(({ className, children, overlayClassName, handleClassName, above, ...props }, ref) => {
   const detent = React.useContext(DetentContext)
+  const settles = useCloseSettles(ref)
   return (
     <DrawerPortal>
       <DrawerOverlay className={overlayClassName} />
       <DrawerPrimitive.Content
-        ref={ref}
+        ref={settles}
         data-v3-sheet=""
         data-detent={detent}
         className={cn(
@@ -119,6 +175,7 @@ const DrawerContent = React.forwardRef<
         )}
         {...props}
       >
+        {above}
         {/* The grabber, on a sheet that can be dragged taller or away: 36x5 in
             line-3, 6px from the top. It stays put; the content below it
             scrolls. A drawer whose own body already scrolls keeps doing so and

@@ -327,7 +327,7 @@
      defaults means every bare `transition` and `transition-colors` takes the
      hover timing without a per-file edit. ease-standard is kept as a name for
      the out-curve, so everything that already asked for it moves too. */
-  --default-transition-duration: 140ms;
+  --default-transition-duration: 120ms;
   --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -939,10 +939,10 @@
 }
 
 /* The focus halo of a field that is always focused while it shows (design
-   v3, §3.10): a 1px accent ring at 50% and a 3px halo at 12%, as a focused
-   input. The composer, the edit-in-place box. */
+   v3, §3.10; INTERACTION_SPEC D5): the accent's 1px ring and a 4px halo, as
+   a focused input. The composer, the edit-in-place box. */
 @utility focus-halo {
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  box-shadow: var(--ix-halo);
 }
 
 /* The conversation's composer (design v3 chat, C38): the raised surface at
@@ -952,7 +952,7 @@
   box-shadow: var(--e2);
   transition: box-shadow 140ms var(--ease-out);
   &:focus-within {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent), 0 4px 12px -4px rgb(16 18 26 / 0.1);
+    box-shadow: var(--ix-halo), 0 4px 12px -4px rgb(16 18 26 / 0.1);
   }
 }
 
@@ -1132,11 +1132,12 @@
   box-shadow: 0 0 0 1px var(--line-2);
 }
 
-/* FIELDS (design v3, §3.10): the raised surface at e1, no border. Focus is a
-   1px accent ring at 50% and a 3px halo at 12%; invalid is the same in
-   danger. Shared by Input, Textarea and the Select trigger, so a field and a
-   select beside it can never drift apart. Composes with the ring utilities
-   rather than replacing them, because the halo IS the box-shadow. */
+/* FIELDS (design v3, §3.10): the raised surface at e1, no border. Focus is
+   the accent's 1px ring and a 4px halo at 18% (22% in dark), which clears
+   3:1 where the old 50% ring didn't (INTERACTION_SPEC D5); invalid is the
+   same in danger. Shared by Input, Textarea and the Select trigger, so a
+   field and a select beside it can never drift apart. Composes with the ring
+   utilities rather than replacing them, because the halo IS the box-shadow. */
 @layer components {
   /* A class in the components layer rather than a utility, so a caller's own
      utilities win: an inline-edited title that says bg-transparent and
@@ -1150,16 +1151,18 @@
     &::placeholder {
       color: var(--ink-3);
     }
-    &:hover:not(:disabled):not(:focus-visible) {
-      box-shadow: 0 0 0 1px var(--line-3), 0 1px 2px rgb(16 18 26 / 0.05);
+    @media (hover: hover) {
+      &:hover:not(:disabled):not(:focus-visible) {
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 25%, var(--line-3)), 0 1px 2px rgb(16 18 26 / 0.05);
+      }
     }
     &:focus-visible,
     &[data-state="open"] {
       outline: none;
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+      box-shadow: var(--ix-halo);
     }
     &[aria-invalid="true"] {
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--destructive) 12%, transparent);
+      box-shadow: var(--ix-halo-danger);
     }
     &:disabled {
       cursor: not-allowed;
@@ -1235,14 +1238,14 @@
 @utility focus-halo {
   &:focus,
   &:focus-visible {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
   }
 }
 @utility ring-line {
   box-shadow: inset 0 0 0 1px var(--line);
 }
 @utility ring-cursor {
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 45%, transparent);
+  box-shadow: inset 0 0 0 2px var(--brand);
 }
 @utility tag {
   display: inline-flex;
@@ -1344,7 +1347,7 @@ body {
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
 
   ::selection {
@@ -1435,11 +1438,6 @@ body {
     [data-wrapper] {
       @apply min-[1800px]:border-t;
     }
-  }
-
-  a:active,
-  button:active {
-    @apply opacity-60 md:opacity-100;
   }
 
   /* Display sizes (28px and up) take Inter's display cut outright, opsz 32:
@@ -1595,7 +1593,7 @@ body {
       opacity: 1;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
+  @media (hover: hover) and (prefers-reduced-motion: reduce) {
     &:hover {
       translate: none;
     }
@@ -1742,8 +1740,11 @@ body {
     background: rgba(0, 0, 0, 0.5);
   }
 
+  /* Thin everywhere (INTERACTION_SPEC D15, PG2-03): Chrome 121+ ignores
+     ::-webkit-scrollbar on anything that sets scrollbar-color, so without a
+     width it drew its own bar, arrows and all. */
   * {
-    /*scrollbar-width: thin !important;*/
+    scrollbar-width: thin;
     scrollbar-color: var(--scroll-bar-color) var(--scroll-bar-bg-color);
   }
 
@@ -1836,8 +1837,10 @@ body {
     border: none;
   }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in oklab, var(--scroll-bar-color) 80%, white);
+  @media (hover: hover) {
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: color-mix(in oklab, var(--scroll-bar-color) 80%, white);
+    }
   }
 }
 
@@ -1960,35 +1963,42 @@ html[data-media-collapsed="true"] [data-message-media] {
   }
 
   /* Navigation on the frame. The current place is a RAISED CHIP (the raised
-     surface at e-sel, as Arc's selected tab): its label in ink at 510 and its
-     icon in the accent, filled where Lucide's shape has an inside. No bar and
-     no tint: the peach row and its orange bar are retired. Hover is the alpha
-     hover, so it reads on the frame and on the glow alike. */
+     surface at e-sel, as Arc's selected tab): its label in ink and its icon
+     in the accent, filled where Lucide's shape has an inside. No bar and no
+     tint: the peach row and its orange bar are retired. Hover is the alpha
+     hover, so it reads on the frame and on the glow alike. The label keeps
+     its weight (INTERACTION_SPEC D8): it fills the row, so a heavier one had
+     no width to reserve and only moved the ellipsis; the chip is the cue. */
   .nav-active {
     position: relative;
     background: var(--raised);
     box-shadow: var(--e-sel);
     color: var(--ink);
-    font-weight: 510;
   }
-  .nav-active svg.lucide {
+  /* A row's own icon takes these; an identity mark inside it (a project's or
+     a channel's tile, a doc's glyph) keeps its own colours (D13). */
+  .nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) {
     color: var(--brand);
   }
-  .nav-active :is(svg.lucide-house, svg.lucide-inbox, svg.lucide-bell, svg.lucide-bookmark, svg.lucide-message-square, svg.lucide-calendar, svg.lucide-folder, svg.lucide-file-text) {
+  .nav-active :is(svg.lucide-house, svg.lucide-inbox, svg.lucide-bell, svg.lucide-bookmark, svg.lucide-message-square, svg.lucide-calendar, svg.lucide-folder, svg.lucide-file-text):not([data-doc-icon]) {
     fill: color-mix(in oklab, var(--brand) 20%, transparent);
   }
   .nav-idle {
     color: var(--ink-2);
   }
-  .nav-idle svg.lucide {
+  .nav-idle svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) {
     color: var(--ink-3);
   }
-  .nav-idle:hover {
-    background: var(--hover);
-    color: var(--ink);
-  }
-  .nav-idle:hover svg.lucide {
-    color: var(--ink);
+  /* Hover and press tint in the row's own hue (data-hue): the interaction
+     layer draws them on every nav row (data-interactive="nav", SH-01); the
+     label and its icon go to ink. */
+  @media (hover: hover) {
+    .nav-idle:hover {
+      color: var(--ink);
+    }
+    .nav-idle:hover svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) {
+      color: var(--ink);
+    }
   }
 }
 
@@ -2134,9 +2144,11 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   .shell-hover {
     transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
   }
-  .shell-hover:hover {
-    background: var(--hover);
-    transition-duration: 0ms;
+  @media (hover: hover) {
+    .shell-hover:hover {
+      background: var(--hover);
+      transition-duration: 0ms;
+    }
   }
   .shell-hover:active,
   .shell-hover[data-state="open"] {
@@ -2158,7 +2170,9 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     color: var(--ink-3);
     transition: transform 180ms var(--ease-out), color 140ms var(--ease-out);
   }
-  .shell-ws:hover .shell-chevron { color: var(--ink); }
+  @media (hover: hover) {
+    .shell-ws:hover .shell-chevron { color: var(--ink); }
+  }
   .shell-ws[data-state="open"] .shell-chevron { transform: rotate(180deg); }
   .shell-mark {
     width: 26px;
@@ -2200,7 +2214,9 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     transition: box-shadow 140ms var(--ease-out), color 140ms var(--ease-out), transform 90ms cubic-bezier(.22, 1, .36, 1);
   }
   :root:not(.dark) .shell-pill { background: rgba(255, 255, 255, 0.7); }
-  .shell-pill:hover { box-shadow: var(--e2); color: var(--ink-2); }
+  @media (hover: hover) {
+    .shell-pill:hover { box-shadow: var(--e2); color: var(--ink-2); }
+  }
   .shell-pill:active,
   .shell-pill[data-open="true"] {
     background-image: linear-gradient(var(--press), var(--press));
@@ -2219,7 +2235,9 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     color: var(--agent);
     transition: background-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
   }
-  .shell-ai:hover { background: var(--agent-muted); transition-duration: 0ms; }
+  @media (hover: hover) {
+    .shell-ai:hover { background: var(--agent-muted); transition-duration: 0ms; }
+  }
   .shell-ai[aria-pressed="true"] {
     background: var(--agent-muted);
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--agent) 30%, transparent);
@@ -2237,22 +2255,15 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     font-size: 14px;
     min-width: 0;
   }
-  .shell-row:active:not(.nav-active) { background: var(--press); }
-  .shell-row.nav-idle {
-    transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
-  }
-  .shell-row.nav-idle:hover { transition-duration: 0ms; }
-  .shell-row[data-unread="true"]:not(.nav-active) { color: var(--ink); font-weight: 590; }
+  .shell-row[data-unread="true"] { color: var(--ink); font-weight: 590; }
   .shell-row[data-muted="true"] { color: var(--ink-3); font-weight: 400; }
   .shell-row[aria-disabled="true"] { color: var(--ink-4); cursor: not-allowed; }
   /* The current place appears in place (it never slides), with a 120ms fade
      when a pointer chose it. */
   .shell-row.nav-active[data-fade="true"] { animation: shell-fade-in 120ms var(--ease-out) both; }
-  .shell-row:focus-visible,
   .shell-ws:focus-visible,
   .shell-pill:focus-visible,
   .shell-ai:focus-visible,
-  .shell-icon-btn:focus-visible,
   .shell-sect-btn:focus-visible,
   .shell-foot-btn:focus-visible {
     outline: 2px solid var(--brand);
@@ -2325,10 +2336,14 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     text-align: left;
     transition: color 140ms var(--ease-out);
   }
-  .shell-sect-btn:hover { color: var(--ink); transition-duration: 0ms; }
+  @media (hover: hover) {
+    .shell-sect-btn:hover { color: var(--ink); transition-duration: 0ms; }
+  }
   .shell-sect .shell-sect-plus { opacity: 0; transition: opacity 140ms var(--ease-out); }
-  .shell-side:hover .shell-sect .shell-sect-plus,
   .shell-sect:focus-within .shell-sect-plus { opacity: 1; }
+  @media (hover: hover) {
+    .shell-side:hover .shell-sect .shell-sect-plus { opacity: 1; }
+  }
   @media (hover: none) {
     .shell-sect .shell-sect-plus { opacity: 1; }
   }
@@ -2366,8 +2381,12 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     opacity: 0;
     transition: opacity 140ms var(--ease-out);
   }
-  .group\/row:hover .shell-split-btn,
-  .shell-split-btn:focus-visible { opacity: 1; }
+  /* Keyboard focus on its row shows it too, as the pointer does (SH-06). */
+  .shell-split-btn:focus-visible,
+  .group\/row:focus-within .shell-split-btn { opacity: 1; }
+  @media (hover: hover) {
+    .group\/row:hover .shell-split-btn { opacity: 1; }
+  }
   /* Split view is a pointer's (mobile T3): under a finger the button went on
      every row at once, a column of icons that covered an agent's tag. */
   @media (hover: none) { .shell-split-btn { display: none; } }
@@ -2387,7 +2406,9 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     --fade-end: 0px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-end)), transparent 100%);
   }
-  .shell-scroll:hover { scrollbar-color: var(--line-3) transparent; }
+  @media (hover: hover) {
+    .shell-scroll:hover { scrollbar-color: var(--line-3) transparent; }
+  }
   .shell-scroll[data-more-above="true"] { --fade-top: 12px; }
   .shell-scroll[data-more-below="true"] { --fade-end: 12px; }
 
@@ -2411,8 +2432,10 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     opacity: 0;
     transition: opacity 140ms var(--ease-out);
   }
-  .shell-seam:hover > i,
   .shell-seam:focus-visible > i { opacity: 1; }
+  @media (hover: hover) {
+    .shell-seam:hover > i { opacity: 1; }
+  }
   .shell-seam[data-dragging="true"] > i,
   .shell-seam[data-panel-group-direction][data-resize-handle-state="drag"] > i {
     opacity: 1;
@@ -2519,13 +2542,18 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     display: grid;
     place-items: center;
     color: var(--ink-3);
-    transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), opacity 140ms var(--ease-out);
+    transition: opacity 140ms var(--ease-out);
   }
-  .shell-icon-btn:hover { background: var(--hover); color: var(--ink); transition-duration: 0ms; }
+  /* Hover, press and focus are the interaction layer's (data-interactive="icon"). */
+  @media (hover: hover) {
+    .shell-icon-btn:hover { color: var(--ink); }
+  }
   .shell-icon-btn[data-size="24"] { width: 24px; height: 24px; border-radius: 6px; }
   .shell-reveal { opacity: 0; }
-  .shell-side:hover .shell-reveal,
   .shell-reveal:focus-visible { opacity: 1; }
+  @media (hover: hover) {
+    .shell-side:hover .shell-reveal { opacity: 1; }
+  }
   @media (hover: none) { .shell-reveal { opacity: 1; } }
 
   /* Menus in the shell (M1, M2, More): 264px, r12, e3, 4px in, 30px items. */
@@ -2787,7 +2815,7 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     box-shadow: inset 2px 0 0 var(--brand);
     color: var(--ink);
   }
-  .tablet-list .nav-active svg.lucide { color: var(--brand); }
+  .tablet-list .nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) { color: var(--brand); }
   .tablet-list[data-tablet-list="overlay"] {
     position: fixed;
     z-index: calc(var(--z-fixed) + 1);
@@ -3030,10 +3058,14 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     opacity: 0;
     transition: opacity 140ms var(--ease-out);
   }
-  .toast-root:hover .toast-close,
   .toast-root:focus-within .toast-close,
   .toast-close:focus-visible {
     opacity: 1;
+  }
+  @media (hover: hover) {
+    .toast-root:hover .toast-close {
+      opacity: 1;
+    }
   }
 
   /* How long an action toast has left: a 2px line that shrinks to nothing,
@@ -3652,8 +3684,10 @@ padding: 0;
   height: 48px;
   font-size: 15px;
 }
+/* The highlighted row (cmdk's data-selected) is the interaction layer's menu
+   item: a press-strength tint in the hue of what it opens (data-hue, SH-24),
+   where it was the grey --press, and the 2px bar in that hue's mark. */
 .palette-row[data-selected="true"] {
-  background: var(--press);
   color: var(--ink);
 }
 .palette-row[data-selected="true"]::before {
@@ -3664,9 +3698,11 @@ padding: 0;
   bottom: 10px;
   width: 2px;
   border-radius: 2px;
-  background: var(--brand);
+  background: var(--ix-mark, var(--brand));
 }
-.palette-row svg.lucide {
+/* A kind's glyph is ink-3; an identity mark (a project's or a channel's tile,
+   a doc's glyph) keeps its own colours (D13). */
+.palette-row svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) {
   color: var(--ink-3);
 }
 .palette-mark {
@@ -3680,7 +3716,7 @@ padding: 0;
   max-width: 34%;
 }
 /* A hit's tile from the search helpers is 24px; in the palette every mark is 20. */
-.palette-mark > [data-hue] {
+.palette-mark > span[data-hue] {
   width: 20px;
   height: 20px;
   border-radius: 6px;
@@ -3804,9 +3840,11 @@ padding: 0;
   color: var(--ink-2);
   transition: box-shadow var(--t-hover, 140ms) var(--ease-out);
 }
-button.palette-source:hover {
-  box-shadow: var(--e2);
-  color: var(--ink);
+@media (hover: hover) {
+  button.palette-source:hover {
+    box-shadow: var(--e2);
+    color: var(--ink);
+  }
 }
 button.palette-source:focus-visible {
   outline: 2px solid var(--brand);

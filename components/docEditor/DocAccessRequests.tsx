@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 
 import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
@@ -20,7 +21,7 @@ const WANTS: Record<DocAccessRequest["level_wanted"], string> = { view: "view", 
  */
 export function DocAccessRequests({ docId, className }: { docId: string; className?: string }) {
     const key = docId ? accessRequestsKey(docId) : ""
-    const list = useFetch<{ data?: Requests }>(key, undefined, undefined, { suppressErrorToast: true } as never)
+    const list = useFetch<{ data?: Requests }>(key, undefined, undefined, OWN_ERRORS)
     const [busy, setBusy] = React.useState<string | null>(null)
     const [answered, setAnswered] = React.useState<Record<string, string>>({})
     const open = (list.data?.data?.incoming ?? []).filter((r) => r.doc_uuid === docId && r.status === "pending" && !answered[r.id])

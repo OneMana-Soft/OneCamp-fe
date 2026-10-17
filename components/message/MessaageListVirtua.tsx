@@ -12,6 +12,7 @@ import { changedAtStart } from "@/components/message/listShift";
 import { rowMeta } from "@/components/message/rowMeta";
 import { followAfterScroll, READER_INPUT_MS } from "@/components/message/followEnd";
 import { prefersReducedMotion } from "@/lib/celebrate";
+import { ix } from "@/lib/ui/interactive"
 import { ErrorState } from "@/components/ui/error-state";
 
 interface MessageRowProps<T> extends RowMeta {
@@ -634,7 +635,8 @@ function DayPill({ label, floating = false, loading = false, days = [], onJump }
                             role="menuitem"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => { onJump?.(d.index); setOpen(false) }}
-                            className="flex h-[30px] w-full items-center rounded-md px-2 text-left text-ui-sm text-ink hover:bg-press focus-visible:bg-press focus-visible:outline-none"
+                            {...ix("item")}
+                            className="flex h-[30px] w-full items-center rounded-md px-2 text-left text-ui-sm text-ink"
                         >
                             {d.label}
                         </button>

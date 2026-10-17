@@ -105,6 +105,9 @@ import { countMention, mentionCounts } from "@/lib/mentionedOften"
 import { MqttMessageType } from "@/services/mqttService"
 import ProjectPickerDialog from "./ProjectPickerDialog"
 import { pinTestClock } from "@/lib/testing/testClock"
+import { bindAppMutate } from "@/lib/swrMutate"
+import { docInfoKey } from "@/lib/docCache"
+import type { Cache, ScopedMutator } from "swr"
 
 pinTestClock()
 
@@ -155,7 +158,7 @@ async function docEditor(html = "<p></p>", { guest = false, freshReads = false }
   providers.push(provider)
   let editor: Editor | null = null
   function Doc() {
-    const e = useDocEditor({ collaboration: { enabled: true, documentId: DOC, username: "Sam Rivera", userId: "u-sam" }, provider, providerSynced: true })
+    const e = useDocEditor({ collaboration: { enabled: true, documentId: DOC, username: "Sam Rivera", userId: "u-sam" }, provider })
     useDocCommandBus(DOC, e as unknown as Editor | null)
     editor = e as unknown as Editor | null
     return e ? <EditorContent editor={e} /> : null
@@ -199,9 +202,61 @@ describe("pages in a doc", () => {
     await act(async () => page.run(editor, { from: 1, to: 6 }))
     await vi.waitFor(() => expect(editor.getJSON().content?.find((n) => n.type === "subpage")?.attrs?.docId).toBe(NEW_PAGE), { timeout: 3000 })
     const { createDoc } = await import("@/services/docGraphService")
-    expect(createDoc).toHaveBeenCalledWith({ parent_uuid: DOC })
+    // Private: nothing here says what this doc is (see below).
+    expect(createDoc).toHaveBeenCalledWith({ parent_uuid: DOC, doc_private: true })
     // Opened once its block is drawn: its title is ready to type.
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith(`/app/doc/${NEW_PAGE}?new=1`), { timeout: 3000 })
+  })
+
+  // Review, 16 Oct 2026 (P1): "/page" and "[["'s New page asked for a
+  // subpage with parent_uuid alone. A server without nested pages (v2.72)
+  // reads only doc_title and doc_private, and made it at the top, open to the
+  // whole workspace, though this doc was private. Each is sent as private as
+  // this doc, as its page knows it (its info, in the app's cache), and as
+  // private when nothing says.
+  describe("a page made in this doc, by / or [[", () => {
+    const cached = new Map<string, { data?: unknown }>()
+    beforeEach(() => bindAppMutate(vi.fn() as unknown as ScopedMutator, cached as unknown as Cache))
+    afterEach(() => {
+      bindAppMutate(null)
+      cached.clear()
+    })
+    const thisDocIs = (priv: boolean) => cached.set(docInfoKey(DOC), { data: { msg: "ok", data: { doc_uuid: DOC, doc_private: priv } } })
+
+    it("is as private as this doc: /page", async () => {
+      const { createDoc } = await import("@/services/docGraphService")
+      for (const priv of [false, true]) {
+        thisDocIs(priv)
+        vi.mocked(createDoc).mockClear()
+        const editor = await docEditor("<p>/page</p>")
+        const page = blockById("connectedSlash")!.slash!.find((s) => s.id === "page")!
+        await act(async () => page.run(editor, { from: 1, to: 6 }))
+        await vi.waitFor(() => expect(createDoc).toHaveBeenCalledWith({ parent_uuid: DOC, doc_private: priv }), { timeout: 3000 })
+        cleanup()
+      }
+    })
+
+    it("is as private as this doc: [['s New page, named as typed", async () => {
+      const { createDoc } = await import("@/services/docGraphService")
+      for (const priv of [false, true]) {
+        thisDocIs(priv)
+        vi.mocked(createDoc).mockClear()
+        const editor = await docEditor("<p></p>")
+        await act(async () => {
+          for (const ch of "[[Launch") {
+            const { from, to } = editor.state.selection
+            const insert = () => editor.state.tr.insertText(ch, from, to)
+            if (!editor.view.someProp("handleTextInput", (f) => f(editor.view, from, to, ch, insert))) editor.view.dispatch(insert())
+          }
+        })
+        await vi.waitFor(() => expect(document.querySelector("[data-page-link-list]")?.textContent).toContain("New page"), { timeout: 3000 })
+        // The pages found, then New page.
+        press(editor, "ArrowDown")
+        press(editor, "Enter")
+        await vi.waitFor(() => expect(createDoc).toHaveBeenCalledWith({ doc_title: "Launch", parent_uuid: DOC, doc_private: priv }), { timeout: 3000 })
+        cleanup()
+      }
+    })
   })
 
   it("shows a page's title as it is now, and never the title of one the reader can't open", async () => {

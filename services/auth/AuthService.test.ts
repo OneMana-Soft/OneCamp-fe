@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import AuthService, { PROBE_TIMEOUT_MS } from "@/services/auth/AuthService"
+import AuthService from "@/services/auth/AuthService"
+import { PROBE_TIMEOUT_MS } from "@/lib/auth/probe"
 
 // The questions the signed-out pages ask before they can draw anything: is
 // somebody signed in, which ways in are on, does this server need an admin.

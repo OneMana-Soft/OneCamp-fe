@@ -94,6 +94,7 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                                 postId: mqttPostInfo.data.post_uuid,
                                 channelId: mqttPostInfo.data.post_channel_uuid,
                                 htmlText: mqttPostInfo.data.post_html_text,
+                                updatedAt: new Date().toISOString(),
                             }),
                         )
                         break
@@ -332,6 +333,7 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                                 commentUUID: mqttPostCommentCount.data.comment_uuid,
                                 htmlText: mqttPostCommentCount.data.body_text,
                                 postId: mqttPostCommentCount.data.post_id,
+                                updatedAt: new Date().toISOString(),
                             })
                         )
 
