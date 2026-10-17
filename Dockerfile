@@ -13,6 +13,9 @@ WORKDIR /app
 # script is approved, which an unattended server build cannot answer.
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 COPY package.json pnpm-lock.yaml ./
+# The patches pnpm applies as it installs (package.json's pnpm.patchedDependencies:
+# Radix's toast). Without them the install stops, so the image never builds.
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 COPY . .
 ARG ONECAMP_DOMAIN
