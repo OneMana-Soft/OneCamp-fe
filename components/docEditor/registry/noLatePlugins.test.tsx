@@ -26,15 +26,6 @@ vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/app/doc/late-1", useSearchParams: () => new URLSearchParams() }))
 vi.mock("@/hooks/useClientConfig", async (orig) => ({ ...(await orig<typeof import("@/hooks/useClientConfig")>()), useAIAvailable: () => true }))
-// The real bubble menu, its view attached, all but tippy's floating layer,
-// whose default export doesn't come through under vitest.
-vi.mock("@tiptap/extension-bubble-menu", async (original) => {
-  const real = await original<typeof import("@tiptap/extension-bubble-menu")>()
-  class BubbleMenuView extends real.BubbleMenuView {
-    createTooltip() {}
-  }
-  return { ...real, BubbleMenuView }
-})
 
 const { loadBlocks } = await import("@/components/docEditor/registry/factory")
 const { slotFor } = await import("@/components/docEditor/registry/registry")
