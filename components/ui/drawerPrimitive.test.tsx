@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, SheetCancel, SheetGroup, type SheetDetent } from "./drawer"
@@ -92,7 +92,23 @@ describe("detents", () => {
     render(<Sheet detent="large" />)
     expect(sheet().className).toContain("h-[92dvh]")
     expect(wrapper.style.transform, "the page behind did not step back").toMatch(/scale\(/)
-    cleanup()
+    // The body's style as written: jsdom's style.background still reads
+    // "black" once vaul has taken the background away.
+    const bodyStyle = () => document.body.getAttribute("style") ?? ""
+    expect(bodyStyle()).toContain("background: black")
+    // As the sheet goes, vaul gives the body its own background back at the end
+    // of its 0.5 s close, on a timer: run here, in the test's own time. Left to
+    // itself it outlived the file when the file's last tests were quick, and
+    // fired with the environment gone: "document is not defined" (public
+    // main's CI, under load).
+    vi.useFakeTimers()
+    try {
+      cleanup()
+      vi.advanceTimersByTime(500)
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(bodyStyle(), "the page's own background, back after the close").not.toContain("background")
     wrapper.removeAttribute("style")
     render(<Sheet detent="medium" />)
     expect(wrapper.style.transform, "a medium sheet scaled the page").toBe("")
