@@ -115,29 +115,40 @@ test("reads a 5,000-block version, and compares it with the one before, without 
   test.setTimeout(240_000)
   const relay = new CollabRelay()
   const tab = await openDocWith(browser, testInfo, relay, SAM, { id: DOC }, answers(bigVersion(5000, true), bigVersion(5000, false)))
-  // The frames the page paints, and its long tasks (for the numbers only).
+  // The page's long tasks, where they start and how long they run, and the
+  // frames it paints (those for the numbers only).
   await tab.page.evaluate(() => {
-    const w = window as unknown as { __frames: number[]; __long: number[] }
+    const w = window as unknown as { __frames: number[]; __tasks: Array<[number, number]> }
     w.__frames = []
-    w.__long = []
+    w.__tasks = []
     const paint = () => {
       w.__frames.push(performance.now())
       requestAnimationFrame(paint)
     }
     requestAnimationFrame(paint)
     new PerformanceObserver((l) => {
-      for (const e of l.getEntries()) w.__long.push(Math.round(e.duration))
+      for (const e of l.getEntries()) w.__tasks.push([e.startTime, e.duration])
     }).observe({ type: "longtask" })
   })
-  const longTasks = () => tab.page.evaluate(() => (window as unknown as { __long: number[] }).__long.splice(0))
-  /** From one of the page's marks to another: how long, and how many frames it painted meanwhile. */
+  /**
+   * From one of the page's marks to another: how long it took, the longest
+   * task inside it and the share of the whole that task held, and the frames
+   * painted meanwhile.
+   */
   const between = (start: string, end: string) =>
     tab.page.evaluate(([s, e]) => {
       const a = performance.getEntriesByName(s).pop()?.startTime
       const b = performance.getEntriesByName(e).pop()?.startTime
       if (a === undefined || b === undefined) return null
-      const frames = (window as unknown as { __frames: number[] }).__frames.filter((t) => t > a && t < b).length
-      return { ms: Math.round(b - a), frames }
+      const w = window as unknown as { __frames: number[]; __tasks: Array<[number, number]> }
+      let longest = 0
+      for (const [at, ms] of w.__tasks) longest = Math.max(longest, Math.min(at + ms, b) - Math.max(at, a))
+      return {
+        ms: Math.round(b - a),
+        longestTaskMs: Math.round(longest),
+        held: Number((longest / Math.max(b - a, 1)).toFixed(3)),
+        frames: w.__frames.filter((t) => t > a && t < b).length,
+      }
     }, [start, end])
 
   const opened = Date.now()
@@ -148,24 +159,25 @@ test("reads a 5,000-block version, and compares it with the one before, without 
   const firstScreenMs = Date.now() - opened
   await expect.poll(() => between("history-render-start", "history-render-end"), { timeout: 120_000 }).not.toBeNull()
   const render = (await between("history-render-start", "history-render-end"))!
-  const renderLong = await longTasks()
 
   await sheet.getByRole("switch", { name: "Show changes" }).click()
   await expect(sheet.locator("[data-diff-summary]")).toContainText("since the version before", { timeout: 120_000 })
   const diff = (await between("history-diff-start", "history-diff-end"))!
-  const diffLong = await longTasks()
   const marked = await sheet.locator(".history-preview [data-history-change]").count()
 
-  const numbers = { blocks: 5000, firstScreenMs, renderMs: render.ms, renderFrames: render.frames, renderLongTasks: renderLong, diffMs: diff.ms, diffFrames: diff.frames, diffLongTasks: diffLong, marked }
+  const numbers = { blocks: 5000, firstScreenMs, render, diff, marked }
   testInfo.annotations.push({ type: "history-5000", description: JSON.stringify(numbers) })
   console.log("history-5000", JSON.stringify(numbers))
   expect(marked).toBeGreaterThan(100)
-  // Drawn and compared in slices, the page goes on painting. Unsliced, either
-  // is one task, and not a frame comes until it ends: that is what this
-  // holds, by the frames painted, not by how long a task took. A busy machine
-  // stretched a slice past any bound in time (3 s at load 70, on 16 Oct), but
-  // it paints more frames, not fewer: the work takes longer.
-  expect(render.frames, "frames painted while the version was drawn").toBeGreaterThanOrEqual(5)
-  expect(diff.frames, "frames painted while its changes were worked out").toBeGreaterThanOrEqual(5)
+  // Drawn and compared in slices, no one task holds the page for long.
+  // Unsliced, either is one task from its start to its end. So this holds the
+  // longest task as a share of the work, measured in the same run, never a
+  // time or a count of its own: a busy machine stretched a slice past a
+  // second-long bound (3 s at load 70, 16 Oct), and a quick draw painted 4
+  // frames where 5 were asked for (load 38, 17 Oct), the page not held at
+  // all. Sliced, the longest task held at most 22% of a draw, quick or
+  // slow, six at once or one; unsliced, all of it, every time.
+  expect(render.held, "the share of the drawing that one task held").toBeLessThanOrEqual(0.5)
+  expect(diff.held, "the share of working out the changes that one task held").toBeLessThanOrEqual(0.5)
   await tab.close()
 })
