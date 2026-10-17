@@ -8,8 +8,9 @@ import { openDocWith } from "./docWith"
 // toast is not one. Radix made every toast a layer, so a toast that came up
 // in a dialog (Saved a version, Link copied) was the top layer: Esc closed
 // the toast and left the dialog open. Now a toast takes Esc only when it has
-// focus, or when nothing else is open (components/ui/toastEscape.test.tsx has
-// the rest of the rule).
+// focus, or when nothing else is open, and one press does one thing: with the
+// right panel open, the panel closes first and the toast on the next press
+// (components/ui/toastEscape.test.tsx has the rest of the rule).
 
 const DOC = "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b"
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
@@ -58,6 +59,32 @@ test("Esc closes the dialog a toast came up in, then the toast; a toast with foc
   await expect(toast).toHaveAttribute("data-state", "open")
 
   await toast.focus()
+  await page.keyboard.press("Escape")
+  await expect(toast).toHaveCount(0)
+  await tab.close()
+})
+
+test("with the right panel open, Esc closes the panel, and the toast on the next press", async ({ browser }, testInfo) => {
+  const relay = new CollabRelay()
+  const tab = await openDocWith(browser, testInfo, relay, SAM, { id: DOC })
+  const page = tab.page
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"])
+  await page.getByRole("button", { name: /^Comments, / }).click()
+  const panel = page.locator("[data-doc-comments]")
+  await expect(panel).toBeVisible({ timeout: 30_000 })
+
+  // As above: from here only Esc closes the toast.
+  await page.clock.install()
+  await page.clock.pauseAt(Date.now() + 200)
+  await page.getByRole("button", { name: "More doc actions" }).click()
+  await page.getByRole("menuitem", { name: "Copy link" }).click()
+  const toast = page.locator(".toast-root", { hasText: "Link copied" })
+  await expect(toast).toHaveAttribute("data-state", "open")
+  await expect(page.getByRole("menu")).toHaveCount(0)
+
+  await page.keyboard.press("Escape")
+  await expect(panel).toHaveCount(0)
+  await expect(toast).toHaveAttribute("data-state", "open")
   await page.keyboard.press("Escape")
   await expect(toast).toHaveCount(0)
   await tab.close()

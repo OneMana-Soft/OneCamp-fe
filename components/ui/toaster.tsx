@@ -50,17 +50,25 @@ function usePaused() {
 }
 
 /**
- * Esc closes the front toast when nothing else wants the key. A dialog, a
- * sheet, a menu or a popover open under a toast closes first: Esc takes the
- * innermost layer first (interaction spec, rule 7), and a toast is not one.
- * Radix made every toast a layer, so a toast that came while a dialog was
- * open (Link copied, Saved a version) was the top one and took the dialog's
- * Esc; patches/@radix-ui__react-toast@1.2.15.patch takes toasts out of the
- * layers, and this is the rest of it. A toast with focus closes itself, in
- * Radix's own keydown on the toast.
+ * Esc closes the front toast when nothing else wants the key, and one press
+ * does one thing (interaction spec, rule 7: the innermost layer first). A
+ * dialog, a sheet, a menu or a popover open under a toast closes first, and
+ * so does the right panel: the toast waits for the next Esc. Radix made every
+ * toast a layer, so a toast that came while a dialog was open (Link copied,
+ * Saved a version) was the top one and took the dialog's Esc;
+ * patches/@radix-ui__react-toast@1.2.15.patch takes toasts out of the layers,
+ * and this is the rest of it. A toast with focus closes itself, in Radix's
+ * own keydown on the toast.
  *
- * On the window in the bubble phase, after the document: every layer has had
- * the key, and one that used it marked it (escapeBelongsToLayer).
+ * Whatever uses an Esc marks it defaultPrevented (escapeBelongsToLayer reads
+ * that, and sees a layer still in the page): the layers, on the document, and
+ * the right panel, on the window in the bubble phase. The panel's listener
+ * comes and goes as it opens and closes, so registration order says nothing
+ * about who hears a press first. So the toast's turn is lined up afresh on
+ * every press: before anything hears an Esc (the window, capturing), `decide`
+ * is added again to the window's bubble listeners, and a listener added then
+ * is the last one that press reaches. No timer: the decision is made inside
+ * the press, so a page with its clock stopped (the e2e tests) decides too.
  */
 function useEscapeClosesFrontToast(frontId: string | undefined) {
   const { dismiss } = useToast()
@@ -69,14 +77,24 @@ function useEscapeClosesFrontToast(frontId: string | undefined) {
     front.current = frontId
   })
   React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.isComposing || !front.current) return
+    const decide = (event: KeyboardEvent) => {
+      window.removeEventListener("keydown", decide)
+      const id = front.current
+      if (event.key !== "Escape" || event.isComposing || !id) return
       if ((event.target as Element | null)?.closest?.(".toast-root")) return
       if (escapeBelongsToLayer(event)) return
-      dismiss(front.current)
+      dismiss(id)
     }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
+    const lineUp = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      window.removeEventListener("keydown", decide)
+      window.addEventListener("keydown", decide)
+    }
+    window.addEventListener("keydown", lineUp, true)
+    return () => {
+      window.removeEventListener("keydown", lineUp, true)
+      window.removeEventListener("keydown", decide)
+    }
   }, [dismiss])
 }
 
