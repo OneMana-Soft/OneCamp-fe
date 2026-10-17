@@ -6,18 +6,19 @@
  * column at the end (the + under or beside the table, and Tab in its last
  * cell); the row and column handles, with their menus (TableMenu.tsx);
  * and the table's actions for the block menu, the palette and the phone's
- * bar (tableActions.ts). Its own chunk, fetched with the doc's blocks: the doc
- * page's editor is made with it (technical/register.ts). It used to be added
- * the first time a doc showed a table, and adding plugins to an open editor
- * makes every plugin view again (an open menu closes, a flash is lost).
+ * bar (tableActions.ts). Its own chunk, on demand (technical/register.ts,
+ * registry/onDemand.ts): the doc page's editor is made with stand-ins for its
+ * plugins and fetches it the first time the doc holds a table (a doc whose
+ * saved copy holds one waits for it before it is built). It is never added to
+ * an open editor: that makes every plugin view again (an open menu closes, a
+ * flash is lost).
  *
  * prosemirror-tables repairs a table a change left uneven. It does so only
  * for this tab's own changes, never another person's (I6): two tabs repairing
  * the same table at once would each add the missing cells.
  */
 
-import { Extension, type Editor } from "@tiptap/core"
-import { keymap } from "@tiptap/pm/keymap"
+import type { Editor } from "@tiptap/core"
 import { TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state"
 import {
   CellSelection,
@@ -31,6 +32,7 @@ import {
   type TableRect,
 } from "@tiptap/pm/tables"
 import { isRemote } from "@/components/minimal-tiptap/extensions/block-id/blockId"
+import type { OnDemandChunk } from "@/components/docEditor/registry/onDemand"
 import { glyph } from "@/components/docEditor/technical/glyphs"
 import { CELL_MIN_WIDTH, type TableViewParts } from "./simpleTable"
 import { registerTableActions } from "./tableActions"
@@ -49,42 +51,36 @@ function allCellsSelected(state: EditorState): boolean {
   return cells.size === new Set(map.map).size
 }
 
-/** What a table's view asks of its editor's table editing (simpleTable.ts editingOf). */
+/** What a table's view and keys ask of their editor's table editing (simpleTable.ts, through registry/onDemand.ts). */
 export interface TableEditingApi {
   decorate(parts: TableViewParts): () => void
   addAtEnd(editor: Editor, tablePos: number | undefined, side: "row" | "column"): void
+  /** ⌫ or Delete with every cell of a table selected: the table goes, as the block menu's Delete takes it. */
+  deleteWholeTable(editor: Editor): boolean
 }
 
 /**
- * A doc page's table editing, from when its editor is made. Last of its
- * plugins, as when it was added on a table's first showing: every other
- * plugin's keys and paste go first. Its storage is what a table's view draws
- * and does with it.
+ * A doc page's table editing: its two plugins, which the stand-ins its
+ * editor is made with take on once the doc holds a table (the block declares
+ * two, and the DOM events they hear: technical/register.ts). Last of the
+ * editor's plugins (the block's priority): every other plugin's keys and paste
+ * go first. Its api is what a table's view and keys do with it; the keys that
+ * take a whole table away are the table's own (simpleTable.ts TableKeys), as
+ * they must run before anything empties the cells instead.
  */
-export const TableEditing = Extension.create<Record<string, never>, TableEditingApi>({
-  name: "simpleTableEditing",
-  priority: 1,
-
-  addStorage: () => ({ decorate, addAtEnd }),
-
-  addProseMirrorPlugins() {
+export const tableEditingChunk: OnDemandChunk<TableEditingApi> = {
+  plugins: () => {
     const editingPlugin = tableEditing({ allowTableNodeSelection: false })
     const repair = editingPlugin.spec.appendTransaction
     editingPlugin.spec.appendTransaction = (trs: readonly Transaction[], before: EditorState, after: EditorState) =>
       trs.some(isRemote) ? null : repair?.call(editingPlugin, trs, before, after)
-    return [
-      columnResizing({ handleWidth: 6, cellMinWidth: 48, defaultCellMinWidth: CELL_MIN_WIDTH, View: null }),
-      editingPlugin,
-      keymap({
-        Backspace: (state, dispatch) => allCellsSelected(state) && deleteTable(state, dispatch),
-        Delete: (state, dispatch) => allCellsSelected(state) && deleteTable(state, dispatch),
-      }),
-    ]
+    return [columnResizing({ handleWidth: 6, cellMinWidth: 48, defaultCellMinWidth: CELL_MIN_WIDTH, View: null }), editingPlugin]
   },
-})
+  api: { decorate, addAtEnd, deleteWholeTable: (editor) => allCellsSelected(editor.state) && deleteTable(editor.state, editor.view.dispatch) },
+}
 
 /** The table holding a position, as prosemirror-tables' commands take it. */
-export function rectOf(state: EditorState, tablePos: number): TableRect | null {
+function rectOf(state: EditorState, tablePos: number): TableRect | null {
   const table = state.doc.nodeAt(tablePos)
   if (!table || table.type.name !== "table") return null
   const map = TableMap.get(table)
@@ -110,7 +106,7 @@ export function addAtEnd(editor: Editor, tablePos: number | undefined, side: "ro
 }
 
 /** Where a cell's element sits in its table: its row and column, and the table's position. */
-export function cellIndex(editor: Editor, cell: Element): { row: number; col: number; tablePos: number } | null {
+function cellIndex(editor: Editor, cell: Element): { row: number; col: number; tablePos: number } | null {
   let pos: number
   try {
     pos = editor.view.posAtDOM(cell, 0)
@@ -126,7 +122,7 @@ export function cellIndex(editor: Editor, cell: Element): { row: number; col: nu
 }
 
 /** Selects a whole row or column (what its menu then acts on). */
-export function selectLine(editor: Editor, tablePos: number, kind: "row" | "column", index: number) {
+function selectLine(editor: Editor, tablePos: number, kind: "row" | "column", index: number) {
   const rect = rectOf(editor.state, tablePos)
   if (!rect) return
   const { map, tableStart } = rect

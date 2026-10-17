@@ -19,7 +19,7 @@ import type { PresenceUser } from './types'
 const isAgent = (user: PresenceUser) => user.kind === 'agent' || user.isAgent === true || user.is_agent === true
 
 /** The class that colours a collaborator: their identity hue, or the agent tint (caret-agent). */
-export function collaboratorHueClass(user: PresenceUser): string {
+function collaboratorHueClass(user: PresenceUser): string {
   return isAgent(user) ? 'caret-agent' : HUE_CLASS[collaboratorHue(user)]
 }
 

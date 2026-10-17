@@ -11,7 +11,7 @@ import { patchCached } from "@/lib/swrMutate"
 // The path lives here until the integrator moves it into services/endPoints.ts
 // (an append-only file, edited at merge).
 
-export const FOLLOWS_URL = "/follows"
+const FOLLOWS_URL = "/follows"
 
 export type FollowMode = "all" | "mentions" | "none"
 

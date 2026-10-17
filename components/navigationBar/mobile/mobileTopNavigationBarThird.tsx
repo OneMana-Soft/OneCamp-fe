@@ -1,7 +1,7 @@
 "use client"
 
 import { PhoneHuddleButton, WhileConversationThere } from "@/components/navigationBar/mobile/phoneConversationTitle";
-import {usePathname, useRouter} from "next/navigation";
+import {usePathname} from "next/navigation";
 import {useDispatch, useSelector} from "react-redux";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
@@ -42,7 +42,6 @@ export function MobileTopNavigationBarThird() {
 
     const fwdMsgSendClicked = useSelector((state: RootState) => state.fwdMsg.fwdMsgInputInputState.mobileViewSendClicked);
 
-    const router = useRouter();
     const { pausedUntil, focusUntil } = usePauseNotifications();
     const openMenu = () => dispatch(openUI({ key: 'userProfileDrawer' }));
 

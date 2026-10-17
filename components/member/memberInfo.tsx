@@ -143,7 +143,9 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                         : "text-muted-foreground hover:text-foreground",
                                 )}
                                 onClick={handleCrownClick}
-                                disabled={!isAdmin || blockedUUID}
+                                // Focusable and still saying what it does: a
+                                // disabled button never shows its tooltip.
+                                aria-disabled={!isAdmin || !!blockedUUID}
                                 aria-label={
                                     userInfo.user_is_admin ? "Remove admin role" : "Make admin"
                                 }
@@ -165,9 +167,10 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
+                                    data-tone="danger"
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
+                                    className="h-8 w-8 text-muted-foreground hover:text-danger-ink"
                                     onClick={handleLogOutClick}
                                     // One's own row leaves; anyone else's takes them off.
                                     aria-label={isSelf ? "Leave" : "Remove member"}

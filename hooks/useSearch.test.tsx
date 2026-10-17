@@ -21,7 +21,8 @@ vi.mock("@/lib/axiosInstance", () => ({
       }),
   },
 }))
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }))
+const { push } = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }))
 
 import { useSearch } from "./useSearch"
 
@@ -29,6 +30,7 @@ afterEach(() => {
   cleanup()
   pending.clear()
   failing.clear()
+  push.mockClear()
 })
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -91,5 +93,22 @@ describe("a search that fails", () => {
     expect(result.current.resultsFor).toBe("")
     expect(result.current.isLoading).toBe(false)
     expect(result.current.hasMore).toBe(false)
+  })
+})
+
+describe("Enter in the search field", () => {
+  // QA F-15: a search from a conversation's header searches that conversation,
+  // and the page says so with a chip. Enter in its field opened the whole
+  // workspace's search for the same words, with the conversation dropped.
+  it("keeps a search narrowed to one conversation narrowed", () => {
+    const { result } = renderHook(() => useSearch({ initialQuery: "launch", debounceMs: 0, within: { kind: "channel", id: "c1" } }), { wrapper })
+    act(() => result.current.handleSearchSubmit())
+    expect(push).toHaveBeenLastCalledWith("/app/search?query=launch&channel=c1")
+  })
+
+  it("searches everywhere when the search is everywhere", () => {
+    const { result } = renderHook(() => useSearch({ initialQuery: " launch ", debounceMs: 0 }), { wrapper })
+    act(() => result.current.handleSearchSubmit())
+    expect(push).toHaveBeenLastCalledWith("/app/search?query=launch")
   })
 })

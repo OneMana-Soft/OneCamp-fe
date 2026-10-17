@@ -148,7 +148,7 @@ function mapAll(tr: Transaction, prev: AnchorsState, state: EditorState): Anchor
   }
 }
 
-export interface AnchorDecorationsOptions {
+interface AnchorDecorationsOptions {
   /** Where each thread drawn is now, after every change that moves one. */
   onResolve?: (resolved: ReadonlyMap<string, ResolvedAnchor>) => void
 }

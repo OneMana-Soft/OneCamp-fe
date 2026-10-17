@@ -65,3 +65,25 @@ describe("a live post in a channel you aren't looking at", () => {
     expect(bumped()).toEqual({ ch_uuid: "ch-launch", mentionsMe: false })
   })
 })
+
+// An edit that arrives live is one: it says "(edited)" at once, as your own does.
+describe("a live edit", () => {
+  it("of a post or a reply is held with the time it arrived", () => {
+    dispatched.length = 0
+    const before = Date.now()
+    const { result } = renderHook(() => usePostMessageHandlers({ userUuid: "me" }))
+    result.current.handlePostMessage(JSON.stringify({
+      type: 0,
+      data: { type: MqttActionType.Update, post_uuid: "p9", post_channel_uuid: "ch-launch", post_html_text: "<p>fixed</p>", user_uuid: "maya" },
+    }))
+    result.current.handlePostCommentMessage(JSON.stringify({
+      type: 0,
+      data: { type: MqttActionType.Update, comment_uuid: "c1", post_id: "p9", body_text: "<p>fixed</p>", user_uuid: "maya" },
+    }))
+    const times = dispatched
+      .filter((a) => /updatePostByPostId|updateChannelCommentByCommentUUID/.test(a.type))
+      .map((a) => Date.parse((a.payload as { updatedAt: string }).updatedAt))
+    expect(times).toHaveLength(2)
+    for (const t of times) expect(t).toBeGreaterThanOrEqual(before)
+  })
+})

@@ -1,7 +1,11 @@
-import { format } from "date-fns"
+import { localDay } from "@/lib/utils/timeZone"
 
-/** A day as the app keys it: "2026-10-14", on the reader's own calendar. */
-export const dayKey = (d: Date) => format(d, "yyyy-MM-dd")
+/**
+ * A day as the app keys it: "2026-10-14", on the reader's own calendar. The
+ * calendar's and the editor's name for localDay, the one way the app writes a
+ * local day.
+ */
+export const dayKey: (d: Date) => string = localDay
 
 /**
  * The week starts on Monday (content.md C05: the default in India, and where

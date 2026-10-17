@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast"
 import { useDocBus } from "@/components/docEditor/registry/commandBus"
 import { useTitle, type TitleStore } from "@/components/docEditor/docTitleStore"
 import { cn } from "@/lib/utils/helpers/cn"
+import { rememberDocIcon } from "@/lib/docLook"
 import { setDocLook } from "@/services/docChromeService"
 import type { DocInfoInterface } from "@/types/doc"
 import { DocIconPicker } from "../DocIconPicker"
@@ -96,6 +97,10 @@ export default function TitleBand({
   const [picker, setPicker] = React.useState<"icon" | "cover" | null>(null)
   const icon = doc?.doc_icon
   const cover = doc?.doc_cover_key
+  // The open doc's icon, as it changes too, for the lists that name it without it (lib/docLook).
+  React.useEffect(() => {
+    if (doc) rememberDocIcon(docId, icon)
+  }, [doc, docId, icon])
   // Changing the look follows the lock: a soft lock holds it too, until lifted.
   const lock = facts.lock || doc?.doc_lock_level || ""
   const held = lock === "soft" && !facts.unlockedForMe

@@ -8,7 +8,7 @@ import { previewDocMove } from "@/services/docGraphService"
 import type { DocMovePreview, DocMoveTarget } from "@/types/docGraph"
 
 /** What to do before a move. */
-export type MovePlan =
+type MovePlan =
   /** Nobody's access changes, or the server can't say: move at once, with this access. */
   | { ask: false; access: "keep" | "adopt" }
   /** The move changes who can open the page: ask first, with the preview. */

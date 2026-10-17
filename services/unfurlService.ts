@@ -9,9 +9,9 @@ import axiosInstance from "@/lib/axiosInstance"
 // The paths live here until the integrator moves them into
 // services/endPoints.ts (append-only, edited at merge).
 
-export const UNFURL_URL = "/unfurl"
-export const UNFURL_EMBEDS_URL = "/unfurl/embeds"
-export const UNFURL_STORE_URL = "/unfurl/store"
+const UNFURL_URL = "/unfurl"
+const UNFURL_EMBEDS_URL = "/unfurl/embeds"
+const UNFURL_STORE_URL = "/unfurl/store"
 
 /** A link's preview, as the server read it. */
 export interface LinkCard {
@@ -54,7 +54,7 @@ export async function adminEmbedHosts(): Promise<string[] | null> {
 }
 
 /** A picture kept with a doc. */
-export interface StoredPicture {
+interface StoredPicture {
   object_uuid: string
   file_name: string
   content_type: string
@@ -62,7 +62,7 @@ export interface StoredPicture {
 }
 
 /** Why a picture wasn't kept, in the server's words (what happened and what to do). */
-export class NotStored extends Error {
+class NotStored extends Error {
   constructor(
     message: string,
     readonly reason: string,

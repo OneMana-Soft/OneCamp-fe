@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { pinTestClock } from "@/lib/testing/testClock"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { Cycle } from "@/lib/tasks/cycles"
@@ -28,7 +28,14 @@ vi.mock("@/components/task/cycleBurndownDialog", () => ({ CycleBurndownDialog: (
 const celebrateRing = vi.fn((_el: Element | null | undefined) => 10)
 vi.mock("@/lib/celebrate", () => ({ celebrateRing: (el: Element | null | undefined) => celebrateRing(el) }))
 
-const { CyclesButton, timeLeft } = await import("@/components/task/cyclesButton")
+const { CyclesButton, warmSwitcher } = await import("@/components/task/cyclesButton")
+const { timeLeft } = await import("@/lib/tasks/cycles")
+
+// The switcher's body is a chunk of its own, which the chip loads on pointer
+// or focus; here it is in before the first click, as it is by a person's.
+beforeAll(async () => {
+  await warmSwitcher()
+})
 
 afterEach(() => {
   cleanup()
@@ -53,7 +60,9 @@ describe("deleting a cycle", () => {
     expect(ask.textContent).toContain("Its 5 tasks stay in the project, in no cycle.")
     expect(ask.textContent).toContain("Its burndown is deleted with it, and this can't be undone.")
     const confirm = screen.getByRole("button", { name: "Delete cycle" })
-    expect(confirm.className).toMatch(/destructive/)
+    // Danger ink, and the interaction layer's danger tint under the cursor.
+    expect(confirm.className).toContain("text-danger-ink")
+    expect(confirm.getAttribute("data-tone")).toBe("danger")
   })
 
   it("deletes only when confirmed, and Cancel leaves it", async () => {

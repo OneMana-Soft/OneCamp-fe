@@ -1,6 +1,8 @@
 import React from "react";
-import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
-import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance";
+import axios, {AxiosResponse} from "axios";
+import type { UnknownAction } from "@reduxjs/toolkit";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
+import { postUpload, type UploadTarget } from "@/lib/upload";
 import {useDispatch, useStore} from "react-redux";
 import type {RootState} from "@/store/store";
 import {
@@ -11,7 +13,6 @@ import {UploadFileInterfaceRes} from "@/types/file";
 import {useToast} from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/utils/apiError";
 import {useState} from "react";
-import { PostFileUploadURL} from "@/services/endPoints";
 import {
     addTaskInfoPreviewFiles,
     addTaskInfoUploadedFiles, deleteTaskInfoPreviewFiles,
@@ -42,11 +43,6 @@ import {
     updateChatPreviewFilesUUID
 } from "@/store/slice/chatSlice";
 import {
-    addFwdMsgPreviewFiles, addFwdMsgUploadedFiles, deleteFwdMsgPreviewFiles,
-    updateFwdMsgPreviewFiles,
-    updateFwdMsgPreviewFilesUUID
-} from "@/store/slice/fwdMessageSlice";
-import {
     addChannelCommentMsgPreviewFiles,
     addChannelCommentMsgUploadedFiles, deleteChannelCommentMsgPreviewFiles,
     updateChannelCommentMsgPreviewFiles, updateChannelCommentMsgPreviewFilesUUID
@@ -67,127 +63,105 @@ import {
     updateGroupChatPreviewFilesUUID
 } from "@/store/slice/groupChatSlice";
 
+/** An action creator of a slice's, whatever its payload: each kind below names five. */
+type Act = (payload: never) => UnknownAction
 
-interface UploadJson {
-    src_key: "project" | "channel" | "public" | "chat" | "grpChat" | "doc"
-    src_value?:  string
-    channel_uuids?: string[]
-    chat_uuids?: string[]
-    // A group not on the server yet: its people's ids, which make its id (generateGroupChatId).
-    participants?: string[]
+/**
+ * One kind of upload whose files show as cards while they go up (a message's,
+ * a comment's, a task's, a project's), called with the ids in `A`: where a
+ * file goes (lib/upload's target), the key its slice keeps the cards under,
+ * and the slice's actions for a card (made, its progress, its file's id, the
+ * file kept for what is sent, taken away). Eleven copies of one loop did
+ * this, each naming its slice by hand.
+ */
+interface UploadKind<A extends unknown[]> {
+    to: (state: RootState, ...args: A) => UploadTarget
+    under: (...args: A) => Record<string, string>
+    add: Act; progress: Act; uuid: Act; uploaded: Act; remove: Act
+    /** A failed file keeps its card, which says so and offers Retry (content.md F04); otherwise the card goes. */
+    failed?: Act
+    /** What the slice calls a new card. */
+    card: "fileUploaded" | "filesUploaded"
+    /** The card holds the file itself, for Retry. */
+    keepsFile?: boolean
 }
 
+const kind = <A extends unknown[]>(k: UploadKind<A>) => k
 
+const toProject = (projectId: string): UploadTarget => ({ src_key: "project", src_value: projectId })
 
-
-
-const uploadFileToProject = (file: File, projectUUID: string, config: AxiosRequestConfig ={}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const jd:UploadJson = {
-        src_key: "project",
-        src_value: projectUUID,
-    }
-    const jsonData = JSON.stringify(jd);
-    formData.append('jsonData', jsonData);
-
-    return axiosInstance.post(PostFileUploadURL.UploadFile, formData, config).then((res) => res);
+const UPLOADS = {
+    createTask: kind<[projectId: string]>({
+        to: (_, projectId) => toProject(projectId),
+        under: (projectId) => ({ projectUUID: projectId }),
+        add: addCreateTaskDialogPreviewFiles, progress: updateCreateTaskDialogPreviewFiles, uuid: updateCreateTaskDialogPreviewFilesUUID,
+        uploaded: addCreateTaskDialogUploadedFiles, remove: deleteCreateTaskDialogPreviewFiles, card: "fileUploaded",
+    }),
+    project: kind<[projectId: string]>({
+        to: (_, projectId) => toProject(projectId),
+        under: (projectId) => ({ projectUUID: projectId }),
+        add: addProjectAttachmentPreviewFiles, progress: updateProjectAttachmentPreviewFiles, uuid: updateProjectAttachmentPreviewFilesUUID,
+        uploaded: addProjectAttachmentUploadedFiles, remove: deleteProjectAttachmentPreviewFiles, failed: markProjectAttachmentPreviewFailed,
+        card: "fileUploaded", keepsFile: true,
+    }),
+    task: kind<[taskId: string, projectId: string]>({
+        to: (_, _taskId, projectId) => toProject(projectId),
+        under: (taskId) => ({ taskUUID: taskId }),
+        add: addTaskInfoPreviewFiles, progress: updateTaskInfoPreviewFiles, uuid: updateTaskInfoPreviewFilesUUID,
+        uploaded: addTaskInfoUploadedFiles, remove: deleteTaskInfoPreviewFiles, card: "fileUploaded",
+    }),
+    taskComment: kind<[projectId: string, taskId: string]>({
+        to: (_, projectId) => toProject(projectId),
+        under: (_projectId, taskId) => ({ taskUUID: taskId }),
+        add: addTaskCommentPreviewFiles, progress: updateTaskCommentPreviewFiles, uuid: updateTaskCommentPreviewFilesUUID,
+        uploaded: addTaskCommentUploadedFiles, remove: deleteTaskCommentPreviewFiles, card: "fileUploaded",
+    }),
+    channel: kind<[channelId: string]>({
+        to: (_, channelId) => ({ src_key: "channel", src_value: channelId }),
+        under: (channelId) => ({ channelId }),
+        add: addChannelPreviewFiles, progress: updateChannelPreviewFiles, uuid: updateChannelPreviewFilesUUID,
+        uploaded: addChannelUploadedFiles, remove: deleteChannelPreviewFiles, card: "filesUploaded",
+    }),
+    channelComment: kind<[channelId: string, threadId: string]>({
+        to: (_, channelId) => ({ src_key: "channel", src_value: channelId }),
+        under: (_channelId, threadId) => ({ threadId }),
+        add: addChannelCommentMsgPreviewFiles, progress: updateChannelCommentMsgPreviewFiles, uuid: updateChannelCommentMsgPreviewFilesUUID,
+        uploaded: addChannelCommentMsgUploadedFiles, remove: deleteChannelCommentMsgPreviewFiles, card: "filesUploaded",
+    }),
+    // A file goes only to a group the server can tell the uploader is in. A group made here whose first
+    // message hasn't gone yet isn't on the server, so the upload names its people (groupNotYetOnServer).
+    groupChat: kind<[grpId: string]>({
+        to: (state, grpId) => {
+            const people = groupNotYetOnServer(state.groupChat, grpId)?.participants.map((p) => p.user_uuid)
+            return { src_key: "grpChat", src_value: grpId, ...(people?.length ? { participants: people } : {}) }
+        },
+        under: (grpId) => ({ grpId }),
+        add: addGroupChatPreviewFiles, progress: updateGroupChatPreviewFiles, uuid: updateGroupChatPreviewFilesUUID,
+        uploaded: addGroupChatUploadedFiles, remove: deleteGroupChatPreviewFiles, card: "filesUploaded",
+    }),
+    groupChatComment: kind<[grpId: string, threadId: string]>({
+        to: (_, grpId) => ({ src_key: "grpChat", src_value: grpId }),
+        under: (_grpId, threadId) => ({ threadId }),
+        add: addChatCommentPreviewFiles, progress: updateChatCommentPreviewFiles, uuid: updateChatCommentPreviewFilesUUID,
+        uploaded: addChatCommentUploadedFiles, remove: deleteChatCommentPreviewFiles, card: "fileUploaded",
+    }),
+    chat: kind<[chatUUID: string, grpId: string]>({
+        to: (_, _chatUUID, grpId) => ({ src_key: "chat", src_value: grpId }),
+        under: (chatUUID) => ({ chatUUID }),
+        add: addChatPreviewFiles, progress: updateChatPreviewFiles, uuid: updateChatPreviewFilesUUID,
+        uploaded: addChatUploadedFiles, remove: deleteChatPreviewFiles, card: "filesUploaded",
+    }),
+    chatComment: kind<[chatMessageUUID: string, grpId: string]>({
+        to: (_, _chatMessageUUID, grpId) => ({ src_key: "chat", src_value: grpId }),
+        under: (chatMessageUUID) => ({ threadId: chatMessageUUID }),
+        add: addChatCommentPreviewFiles, progress: updateChatCommentPreviewFiles, uuid: updateChatCommentPreviewFilesUUID,
+        uploaded: addChatCommentUploadedFiles, remove: deleteChatCommentPreviewFiles, card: "fileUploaded",
+    }),
 }
 
-const uploadFileToPublic = (file: File, config: AxiosRequestConfig ={}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const jd:UploadJson = {
-        src_key: "public",
-    }
-    const jsonData = JSON.stringify(jd);
-    formData.append('jsonData', jsonData);
-
-    return axiosInstance.post(PostFileUploadURL.UploadFile, formData, config).then((res) => res);
-}
-
-const uploadFileToChannel = (file: File, channelUUID: string, config: AxiosRequestConfig ={}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const jd:UploadJson = {
-        src_key: "channel",
-        src_value: channelUUID
-    }
-
-    const jsonData = JSON.stringify(jd);
-    formData.append('jsonData', jsonData);
-
-    return axiosInstance.post(PostFileUploadURL.UploadFile, formData, config).then((res) => res);
-}
-
-const uploadFileToDoc = (file: File, docUUID: string, config: AxiosRequestConfig ={}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const jd:UploadJson = {
-        src_key: "doc",
-        src_value: docUUID
-    }
-
-    const jsonData = JSON.stringify(jd);
-    formData.append('jsonData', jsonData);
-
-    return axiosInstance.post(PostFileUploadURL.UploadFile, formData, config).then((res) => res);
-}
-
-
-// A file goes only to a group the server can tell the uploader is in. A group made here whose first
-// message hasn't gone yet isn't on the server, so the upload names its people (groupNotYetOnServer).
-const uploadFileToGroupChat = (file: File, grpId: string, config: AxiosRequestConfig ={}, people?: string[]) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const jd:UploadJson = {
-        src_key: "grpChat",
-        src_value: grpId,
-        ...(people?.length ? { participants: people } : {}),
-    }
-
-    const jsonData = JSON.stringify(jd);
-    formData.append('jsonData', jsonData);
-
-    return axiosInstance.post(PostFileUploadURL.UploadFile, formData, config).then((res) => res);
-}
-
-
-const uploadFileToChat = (file: File, grpId: string, config: AxiosRequestConfig ={}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const jd:UploadJson = {
-        src_key: "chat",
-        src_value: grpId
-    }
-
-    const jsonData = JSON.stringify(jd);
-    formData.append('jsonData', jsonData);
-
-    return axiosInstance.post(PostFileUploadURL.UploadFile, formData, config).then((res) => res);
-}
-
-const uploadFileToChannelsAndChats = (file: File, chatUUIDs: string[], channelUUIDs: string[], config: AxiosRequestConfig ={}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const jd:UploadJson = {
-        src_key: "chat",
-        channel_uuids: channelUUIDs,
-        chat_uuids: chatUUIDs
-    }
-
-    const jsonData = JSON.stringify(jd);
-    formData.append('jsonData', jsonData);
-
-    return axiosInstance.post(PostFileUploadURL.UploadFile, formData, config).then((res) => res);
-}
+type Uploads = typeof UPLOADS
+/** What an upload of `K` is called with, after its files. */
+type UploadArgs<K extends keyof Uploads> = Uploads[K] extends UploadKind<infer A> ? A : never
 
 export const useUploadFile = () => {
 
@@ -229,11 +203,20 @@ export const useUploadFile = () => {
         [clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb, toast],
     )
 
-
-    const makeRequestToUploadToCreateTask = async (files: FileList, projectId: string) => {
-
+    /**
+     * Sends each file where an upload of `kind` goes, with a card for it in
+     * that kind's slice: its progress, then its id and the file kept for what
+     * is sent. A file that fails is named in a toast, with why in the server's
+     * words, and its card goes (or stays, saying so, where the kind keeps it).
+     * A cancelled file just goes: it raised "Couldn't upload" as well,
+     * everywhere but a project's files.
+     */
+    const upload = React.useCallback(async <K extends keyof Uploads>(kind: K, files: FileList | File[], ...args: UploadArgs<K>) => {
+        const k = UPLOADS[kind] as unknown as UploadKind<UploadArgs<K>>
+        const under = k.under(...args)
+        // Every slice's action takes the same payload, under the kind's own key.
+        const put = (act: Act, payload: object) => dispatch(act({ ...payload, ...under } as never))
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -244,84 +227,59 @@ export const useUploadFile = () => {
             const currentDate = new Date().toISOString();
             const attachmentType = getAttachmentType(file.name)
 
-            dispatch(
-                addCreateTaskDialogPreviewFiles({
-                    fileUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType: attachmentType
-                    },
-                    projectUUID: projectId,
-                })
-            );
+            put(k.add, {
+                [k.card]: {
+                    key: uniqueNum,
+                    fileName: file.name,
+                    progress: 0,
+                    cancelSource: cancelToken,
+                    attachmentType,
+                    ...(k.keepsFile ? { file, size: file.size } : {}),
+                },
+            });
 
             setIsSubmitting(true)
 
-            const config: AxiosRequestConfig = {
+            const uploadPromise = postUpload(file, k.to(store.getState(), ...args), {
                 cancelToken: cancelToken.token,
                 onUploadProgress: (progressEvent) => {
                     const progress = Math.round(
                         (progressEvent.loaded / (progressEvent.total || 100)) * 100
                     );
-
-                    dispatch(
-                        updateCreateTaskDialogPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            projectUUID: projectId,
-                        })
-                    );
+                    put(k.progress, { progress, key: uniqueNum });
                 },
-            };
-
-            const uploadPromise = uploadFileToProject(
-                file,
-                projectId,
-                config
-            )
+            })
                 .then((res) => {
                     const uploadMediaRes: UploadFileInterfaceRes = res.data;
 
-                    dispatch(updateCreateTaskDialogPreviewFilesUUID({
-                        projectUUID: projectId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
+                    put(k.uuid, { key: uniqueNum, uuid: uploadMediaRes.object_uuid })
 
-                    dispatch(
-                        addCreateTaskDialogUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            projectUUID: projectId,
-                        })
-                    );
+                    put(k.uploaded, {
+                        filesUploaded: {
+                            attachment_file_name: file.name,
+                            attachment_obj_key: uniqueNum,
+                            attachment_uuid: uploadMediaRes.object_uuid,
+                            attachment_size: file.size,
+                            attachment_created_at: currentDate,
+                            attachment_type: attachmentType,
+                            attachment_duration: mediaInfo.duration,
+                            attachment_height: mediaInfo.height,
+                            attachment_width: mediaInfo.width,
+                            attachment_raw_type: file.type
+                        },
+                    });
                     return res;
                 })
                 .catch((error) => {
-                    dispatch(
-                        deleteCreateTaskDialogPreviewFiles({
-                            key: uniqueNum,
-                            projectUUID: projectId,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
+                    const cancelled = axios.isCancel(error)
+                    put(k.failed && !cancelled ? k.failed : k.remove, { key: uniqueNum })
+                    if (!cancelled) {
+                        toast({
+                            title: `Couldn't upload ${file.name}`,
+                            description: apiErrorMessage(error, "Try again in a moment."),
+                            variant: 'destructive'
+                        });
+                    }
                     throw error; // Re-throw to be caught by Promise.allSettled
                 });
 
@@ -331,1130 +289,12 @@ export const useUploadFile = () => {
         // Wait for all uploads to complete (success or failure)
         try {
             await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
+        } finally {
             setIsSubmitting(false)
         }
+    }, [dispatch, store, toast])
 
-        return
-    }
-
-
-    const makeRequestToUploadToProject = async (files: FileList | File[], projectId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString(); // Added i to prevent duplicate keys
-            const mediaInfo = await getMediaDimensions(file);
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addProjectAttachmentPreviewFiles({
-                    fileUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType: attachmentType,
-                        file,
-                        size: file.size
-                    },
-                    projectUUID: projectId,
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateProjectAttachmentPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            projectUUID: projectId,
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToProject(
-                    file,
-                    projectId,
-                    config
-                )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateProjectAttachmentPreviewFilesUUID({
-                        projectUUID: projectId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addProjectAttachmentUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            projectUUID: projectId,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    // A cancelled upload just goes; a failed one stays on its card,
-                    // which says so and offers Retry (content.md F04).
-                    dispatch(
-                        axios.isCancel(error)
-                            ? deleteProjectAttachmentPreviewFiles({ key: uniqueNum, projectUUID: projectId })
-                            : markProjectAttachmentPreviewFailed({ key: uniqueNum, projectUUID: projectId })
-                    )
-                    if (axios.isCancel(error)) throw error
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-
-    const makeRequestToUploadToTask = async (files: FileList, taskId: string, projectId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString(); // Added i to prevent duplicate keys
-            const mediaInfo = await getMediaDimensions(file);
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addTaskInfoPreviewFiles({
-                    fileUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType: attachmentType
-                    },
-                    taskUUID: taskId,
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateTaskInfoPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            taskUUID: taskId,
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToProject(
-                file,
-                projectId,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateTaskInfoPreviewFilesUUID({
-                        taskUUID: taskId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addTaskInfoUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            taskUUID: taskId,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteTaskInfoPreviewFiles({
-                            key: uniqueNum,
-                            taskUUID: taskId,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-    const makeRequestToUploadToTaskComment = async (files: FileList, projectId: string, taskId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString(); // Added i to prevent duplicate keys
-            const mediaInfo = await getMediaDimensions(file);
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addTaskCommentPreviewFiles({
-                    fileUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType: attachmentType
-                    },
-                    taskUUID: taskId,
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateTaskCommentPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            taskUUID: taskId,
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToProject(
-                file,
-                projectId,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateTaskCommentPreviewFilesUUID({
-                        taskUUID: taskId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addTaskCommentUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            taskUUID: taskId,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteTaskCommentPreviewFiles({
-                            key: uniqueNum,
-                            taskUUID: taskId,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-    const makeRequestToUploadToChannelComment = async (files: FileList, channelId: string, threadId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString(); // Added i to prevent duplicate keys
-            const mediaInfo = await getMediaDimensions(file);
-
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addChannelCommentMsgPreviewFiles({
-                    filesUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType: attachmentType
-                    },
-                    threadId
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateChannelCommentMsgPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            threadId
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToChannel(
-                file,
-                channelId,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateChannelCommentMsgPreviewFilesUUID({
-                        threadId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addChannelCommentMsgUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            threadId,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteChannelCommentMsgPreviewFiles({
-                            key: uniqueNum,
-                            threadId,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-    const makeRequestToUploadToGroupChatComment = async (files: FileList, grpId: string, threadId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString(); // Added i to prevent duplicate keys
-            const mediaInfo = await getMediaDimensions(file);
-
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addChatCommentPreviewFiles({
-                    fileUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType: attachmentType
-                    },
-                    threadId
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateChatCommentPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            threadId
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToGroupChat(
-                file,
-                grpId,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateChatCommentPreviewFilesUUID({
-                        threadId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addChatCommentUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            threadId,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteChatCommentPreviewFiles({
-                            key: uniqueNum,
-                            threadId,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-    const makeRequestToUploadToChatComment = async (files: FileList, chatMessageUUID: string, grpId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString(); // Added i to prevent duplicate keys
-            const mediaInfo = await getMediaDimensions(file);
-
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addChatCommentPreviewFiles({
-                    fileUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType: attachmentType
-                    },
-                    threadId: chatMessageUUID
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateChatCommentPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            threadId: chatMessageUUID
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToChat(
-                file,
-                grpId,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateChatCommentPreviewFilesUUID({
-                        threadId: chatMessageUUID,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addChatCommentUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            threadId: chatMessageUUID,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteChatCommentPreviewFiles({
-                            key: uniqueNum,
-                            threadId: chatMessageUUID,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-    const makeRequestToUploadToChannel = async (files: FileList, channelId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString() // Added i to prevent duplicate keys
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-
-            const mediaInfo = await getMediaDimensions(file);
-
-
-            dispatch(
-                addChannelPreviewFiles({
-                    filesUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType
-                    },
-                    channelId
-                })
-            );
-
-            setIsSubmitting(true)
-
-
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateChannelPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            channelId
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToChannel(
-                file,
-                channelId,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-
-                    dispatch(updateChannelPreviewFilesUUID({
-                        channelId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addChannelUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width,
-                                attachment_raw_type: file.type
-                            },
-                            channelId,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteChannelPreviewFiles({
-                            key: uniqueNum,
-                            channelId,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-    const makeRequestToUploadToChatAndChannels = async (files: FileList, chatUUIDs: string[], channelUUIDs: string[]) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString() // Added i to prevent duplicate keys
-            const mediaInfo = await getMediaDimensions(file);
-
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addFwdMsgPreviewFiles({
-                    filesUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType
-                    },
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateFwdMsgPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToChannelsAndChats(
-                file,
-                chatUUIDs,
-                channelUUIDs,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateFwdMsgPreviewFilesUUID({
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addFwdMsgUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_height: mediaInfo.height,
-                                attachment_width: mediaInfo.width
-                            },
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteFwdMsgPreviewFiles({
-                            key: uniqueNum,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-    const makeRequestToUploadToGroupChat = async (files: FileList,  grpId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString() // Added i to prevent duplicate keys
-
-            const mediaInfo = await getMediaDimensions(file);
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addGroupChatPreviewFiles({
-                    filesUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType
-                    },
-                    grpId
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateGroupChatPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            grpId
-                        })
-                    );
-                },
-            };
-
-            const notYetOnServer = groupNotYetOnServer(store.getState().groupChat, grpId)
-            const uploadPromise = uploadFileToGroupChat(
-                file,
-                grpId,
-                config,
-                notYetOnServer?.participants.map((p) => p.user_uuid),
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateGroupChatPreviewFilesUUID({
-                        grpId,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addGroupChatUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_width: mediaInfo.width,
-                                attachment_height: mediaInfo.height,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_raw_type: file.type
-                            },
-                            grpId,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteGroupChatPreviewFiles({
-                            key: uniqueNum,
-                            grpId,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-
-    const makeRequestToUploadToChat = async (files: FileList, chatUUID: string, grpId: string) => {
-
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const cancelToken = axios.CancelToken.source();
-            const uniqueNum = (Date.now() + i).toString() // Added i to prevent duplicate keys
-
-            const mediaInfo = await getMediaDimensions(file);
-
-            const currentDate = new Date().toISOString();
-            const attachmentType = getAttachmentType(file.name)
-
-            dispatch(
-                addChatPreviewFiles({
-                    filesUploaded: {
-                        key: uniqueNum,
-                        fileName: file.name,
-                        progress: 0,
-                        cancelSource: cancelToken,
-                        attachmentType
-                    },
-                    chatUUID
-                })
-            );
-
-            setIsSubmitting(true)
-
-            const config: AxiosRequestConfig = {
-                cancelToken: cancelToken.token,
-                onUploadProgress: (progressEvent) => {
-                    const progress = Math.round(
-                        (progressEvent.loaded / (progressEvent.total || 100)) * 100
-                    );
-
-                    dispatch(
-                        updateChatPreviewFiles({
-                            progress: progress,
-                            key: uniqueNum,
-                            chatUUID
-                        })
-                    );
-                },
-            };
-
-            const uploadPromise = uploadFileToChat(
-                file,
-                grpId,
-                config
-            )
-                .then((res) => {
-                    const uploadMediaRes: UploadFileInterfaceRes = res.data;
-
-                    dispatch(updateChatPreviewFilesUUID({
-                        chatUUID,
-                        key: uniqueNum,
-                        uuid: uploadMediaRes.object_uuid,
-                    }))
-
-                    dispatch(
-                        addChatUploadedFiles({
-                            filesUploaded: {
-                                attachment_file_name: file.name,
-                                attachment_obj_key: uniqueNum,
-                                attachment_uuid: uploadMediaRes.object_uuid,
-                                attachment_size: file.size,
-                                attachment_created_at: currentDate,
-                                attachment_type: attachmentType,
-                                attachment_width: mediaInfo.width,
-                                attachment_height: mediaInfo.height,
-                                attachment_duration: mediaInfo.duration,
-                                attachment_raw_type: file.type
-                            },
-                            chatUUID,
-                        })
-                    );
-                    return res;
-                })
-                .catch((error) => {
-                    dispatch(
-                        deleteChatPreviewFiles({
-                            key: uniqueNum,
-                            chatUUID,
-                        })
-                    );
-
-                    toast({
-                        title: `Couldn't upload ${file.name}`,
-                        description: apiErrorMessage(error, "Try again in a moment."),
-                        variant: 'destructive'
-                    });
-                    throw error; // Re-throw to be caught by Promise.allSettled
-                });
-
-            uploadPromises.push(uploadPromise);
-        }
-
-        // Wait for all uploads to complete (success or failure)
-        try {
-            await Promise.allSettled(uploadPromises);
-        } catch (error) {
-            console.error("Error in upload batch:", error);
-        }finally {
-            setIsSubmitting(false)
-        }
-
-        return
-    }
-
-    const makeRequestToUploadToPublic = async (files: FileList): Promise<UploadFileInterfaceRes[]> => {
+    const makeRequestToUploadToPublic = React.useCallback(async (files: FileList): Promise<UploadFileInterfaceRes[]> => {
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
 
         for (let i = 0; i < files.length; i++) {
@@ -1462,7 +302,7 @@ export const useUploadFile = () => {
 
             setIsSubmitting(true); // Note: This sets true for every file—consider moving it outside the loop if unintended.
 
-            const uploadPromise = uploadFileToPublic(file)
+            const uploadPromise = postUpload(file, { src_key: "public" })
                 .catch((error) => {
                     toast({
                         title: `Couldn't upload ${file.name}`,
@@ -1489,7 +329,7 @@ export const useUploadFile = () => {
         setIsSubmitting(false); // Moved to after processing (no finally needed now)
 
         return successfulResponses; // Return array of UploadFileInterfaceRes
-    };
+    }, [toast]);
 
     /**
      * One image for a doc, with its progress and a way to abandon it: the
@@ -1498,7 +338,7 @@ export const useUploadFile = () => {
      */
     const uploadImageToDoc = React.useCallback(
         async (file: File, docUUID: string, options: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {}) => {
-            const res = await uploadFileToDoc(file, docUUID, {
+            const res = await postUpload(file, { src_key: "doc", src_value: docUUID }, {
                 // The picture or file says it failed, with Try again: no toast as well.
                 ...OWN_ERRORS,
                 signal: options.signal,
@@ -1511,52 +351,23 @@ export const useUploadFile = () => {
         [],
     )
 
-    const makeRequestToUploadToDoc = async (files: FileList | File[], docUUID: string) => {
-        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
-        const fileList = Array.isArray(files) ? files : Array.from(files);
 
-        for (let i = 0; i < fileList.length; i++) {
-            const file = fileList[i];
-            setIsSubmitting(true)
-
-            const uploadPromise = uploadFileToDoc(
-                file,
-                docUUID,
-            )
-            uploadPromises.push(uploadPromise);
-        }
-
-        try {
-            const results = await Promise.allSettled(uploadPromises);
-            const successfulResp = results.filter((r): r is PromiseFulfilledResult<AxiosResponse<UploadFileInterfaceRes>> => r.status === 'fulfilled')
-                .map(r => r.value.data);
-            return successfulResp;
-        } catch (error) {
-            console.error("Error in doc upload batch:", error);
-            return [];
-        } finally {
-            setIsSubmitting(false)
-        }
-    }
-
-
+    // Each kind under the name its callers use.
     return React.useMemo(() => ({
-        makeRequestToUploadToChannel,
-        makeRequestToUploadToDoc,
+        makeRequestToUploadToChannel: (files: FileList, channelId: string) => upload("channel", files, channelId),
         uploadImageToDoc,
-        makeRequestToUploadToGroupChatComment,
-        makeRequestToUploadToGroupChat,
+        makeRequestToUploadToGroupChatComment: (files: FileList, grpId: string, threadId: string) => upload("groupChatComment", files, grpId, threadId),
+        makeRequestToUploadToGroupChat: (files: FileList, grpId: string) => upload("groupChat", files, grpId),
         makeRequestToUploadToPublic,
-        makeRequestToUploadToCreateTask,
-        makeRequestToUploadToChannelComment,
-        makeRequestToUploadToProject,
-        makeRequestToUploadToTask,
-        makeRequestToUploadToTaskComment,
-        makeRequestToUploadToChatComment,
-        makeRequestToUploadToChat,
-        makeRequestToUploadToChatAndChannels,
+        makeRequestToUploadToCreateTask: (files: FileList, projectId: string) => upload("createTask", files, projectId),
+        makeRequestToUploadToChannelComment: (files: FileList, channelId: string, threadId: string) => upload("channelComment", files, channelId, threadId),
+        makeRequestToUploadToProject: (files: FileList | File[], projectId: string) => upload("project", files, projectId),
+        makeRequestToUploadToTask: (files: FileList, taskId: string, projectId: string) => upload("task", files, taskId, projectId),
+        makeRequestToUploadToTaskComment: (files: FileList, projectId: string, taskId: string) => upload("taskComment", files, projectId, taskId),
+        makeRequestToUploadToChatComment: (files: FileList, chatMessageUUID: string, grpId: string) => upload("chatComment", files, chatMessageUUID, grpId),
+        makeRequestToUploadToChat: (files: FileList, chatUUID: string, grpId: string) => upload("chat", files, chatUUID, grpId),
         validateFiles,
         uploadLimitMB: clientConfig.upload_limit_mb,
         isSubmitting
-    }), [isSubmitting, validateFiles, clientConfig.upload_limit_mb, uploadImageToDoc]);
+    }), [upload, makeRequestToUploadToPublic, uploadImageToDoc, validateFiles, clientConfig.upload_limit_mb, isSubmitting]);
 }

@@ -1,4 +1,3 @@
-import { editedAtAfter } from "@/lib/chat/replyEdit";
 import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import { createSlice } from "@reduxjs/toolkit";
 import {CancelTokenSource} from "axios";
@@ -179,7 +178,6 @@ interface UpdatePostByPostId {
     channelId: string
     postId: string
     htmlText: string
-    /** A revert's (F-07); null: never edited. */
     updatedAt?: string | null
 }
 
@@ -507,8 +505,7 @@ const channelSlice = createSlice({
             if (!state.channelPosts[channelId]) return
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
                 if(postId == post.post_uuid) {
-                    // "(edited)" shows at once (C27), or as it was again.
-                    post.post_updated_at = editedAtAfter(post.post_updated_at, post.post_text, htmlText, updatedAt)
+                    if (updatedAt !== undefined) post.post_updated_at = updatedAt ?? undefined
                     post.post_text = htmlText
                     post.post_live_at = Date.now()
                 }

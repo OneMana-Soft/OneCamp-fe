@@ -6,9 +6,10 @@
  * (named by its header row, if it has one), and the doc embeds that table
  * where the simple one was.
  *
- * Who can see it follows the doc: a table made from a private doc is private
- * (D-5), so nothing in it reaches people the doc wasn't shared with. Sharing
- * it with the doc's people is C3's (N16).
+ * Who can see it follows the doc, by the rule "/table"'s new table follows
+ * too (docEditor/tableForDoc.ts): a table made from a private doc, or one whose
+ * info doesn't say, is private (D-5), so nothing in it reaches people the doc
+ * wasn't shared with. Sharing it with the doc's people is C3's (N16).
  *
  * The rows are written through the table API, one request each, and the doc
  * changes only once they all are. If the table was edited meanwhile, or a
@@ -19,10 +20,10 @@ import type { Editor } from "@tiptap/core"
 import type { Node as PMNode } from "@tiptap/pm/model"
 import { TableMap } from "@tiptap/pm/tables"
 import axiosInstance from "@/lib/axiosInstance"
-import { GetEndpointUrl } from "@/services/endPoints"
 import { createField, createRow, createTable, deleteTable, tableFieldsKey, updateField, type TableField } from "@/services/tableService"
 import { toast } from "@/hooks/use-toast"
 import { busFor } from "@/components/docEditor/registry/commandBus"
+import { tableForDoc } from "@/components/docEditor/tableForDoc"
 
 /** The table as text, a row of cells each; a merged cell's text in its first place only. */
 export function gridOf(table: PMNode): { header: string[] | null; rows: string[][] } {
@@ -59,13 +60,6 @@ export function columnNames(header: string[] | null, width: number): string[] {
   })
 }
 
-/** The doc's title and whether it's private, as the doc's page knows them. */
-async function docOf(docId: string): Promise<{ title: string; private: boolean }> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetDocInfo}/${docId}`)
-  const doc = res.data?.data as { doc_title?: string; doc_private?: boolean } | undefined
-  return { title: doc?.doc_title?.trim() || "", private: doc?.doc_private !== false }
-}
-
 /** Runs work n at a time, in order of starting. */
 async function inBatches<T>(items: T[], n: number, work: (item: T, i: number) => Promise<unknown>) {
   for (let i = 0; i < items.length; i += n) await Promise.all(items.slice(i, i + n).map((item, j) => work(item, i + j)))
@@ -100,8 +94,8 @@ export async function turnIntoDatabase(editor: Editor, pos: number): Promise<voi
   const progress = toast({ title: "Turning the table into a database…", tone: "loading" })
   let tableId: string | null = null
   try {
-    const doc = await docOf(docId)
-    const table = await createTable({ name: doc.title ? `${doc.title} table` : "Untitled table", visibility: doc.private ? "private" : "workspace" })
+    const doc = await tableForDoc(docId)
+    const table = await createTable({ name: doc.title ? `${doc.title} table` : "Untitled table", visibility: doc.visibility })
     tableId = table.id
     const res = await axiosInstance.get(tableFieldsKey(table.id))
     const seeded = ((res.data?.data ?? []) as TableField[]).sort((a, b) => a.position - b.position)
@@ -123,7 +117,10 @@ export async function turnIntoDatabase(editor: Editor, pos: number): Promise<voi
     progress.update({
       id: progress.id,
       title: "Turned into a database",
-      description: doc.private ? "It's private, like this doc. Share it from the table to let others see it." : "Everyone in the workspace can see it, as they can this doc.",
+      description:
+        doc.visibility === "private"
+          ? "It's private, like this doc. To let others see it, show it to the workspace from the table's menu."
+          : "Everyone in the workspace can see it, as they can this doc.",
       tone: "success",
       duration: 6000,
     })

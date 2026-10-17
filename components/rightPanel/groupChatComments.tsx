@@ -14,7 +14,6 @@ import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {CommentsList} from "@/components/rightPanel/commentsList";
 import { ThreadEmpty } from "@/components/rightPanel/threadEmpty";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
-import {cn} from "@/lib/utils/helpers/cn";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { SendHorizontal } from "@/lib/icons";
 import {usePost} from "@/hooks/usePost";
@@ -144,6 +143,9 @@ export const GroupChatComments = () => {
                     fallbackMessage: fallback,
                 }))
             })
+            // A refusal is said by its request (usePost's toast), and the message
+            // stays: it leaves only once the server has deleted it.
+            .catch(() => {})
 
     }
 
@@ -167,6 +169,9 @@ export const GroupChatComments = () => {
                 dispatch(updateGroupChatMessageReplyDecrement({messageId: rightPanelState.data.chatMessageUUID, grpId: rightPanelState.data.groupUUID, comment: {comment_uuid: commentUUID, comment_text: '', comment_by: {user_uuid: '', user_name: '', user_profile_object_key: ''}, comment_created_at: new Date().toISOString()}}))
 
             })
+            // A refusal is said by its request (usePost's toast), and the message
+            // stays: it leaves only once the server has deleted it.
+            .catch(() => {})
 
     }
 

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field"
 import {usePost} from "@/hooks/usePost";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
@@ -257,7 +258,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <div className="flex items-center gap-2">
                       <Label htmlFor="projectStart">Starts on</Label>
-                      <Input id="projectStart" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 w-auto" required />
+                      <DateField id="projectStart" value={startDate} onChange={setStartDate} className="h-8 w-auto" required />
                     </div>
                     <label className="flex items-center gap-2 text-sm">
                       <Checkbox checked={skipWeekends} onCheckedChange={(v) => setSkipWeekends(v === true)} />

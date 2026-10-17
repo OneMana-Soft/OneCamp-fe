@@ -2,6 +2,7 @@
 
 // B3's schema and keys; the rest loads with a doc's editor (blocks.ts).
 
+import { TABLE_EDITING } from "@/components/docEditor/technical/onDemandIds"
 import { Search } from "@/lib/icons"
 import { blockById, registerAction, registerBlock } from "@/components/docEditor/registry/registry"
 import { DOC_EDITORS, ORDER } from "@/components/minimal-tiptap/blocks/kinds"
@@ -41,15 +42,24 @@ registerBlock({
 })
 
 // Editing a table (cell selection, column widths, the row and column
-// handles), on the doc page's editor from when it is made: never added while
-// the doc is open (registry/factory.ts). Its own chunk, fetched with the
-// doc's blocks; the guest's page, which only reads, has none.
+// handles), on demand: the doc page's editor is made with its stand-ins and
+// fetches it the moment the doc holds a table, its own or another person's;
+// a doc whose saved copy holds one waits for it. Never added while the doc is
+// open (registry/onDemand.ts). The guest's page, which only reads, has none.
 registerBlock({
-  id: "simpleTableEditing",
+  id: TABLE_EDITING,
   editors: ["doc"],
   edition: "both",
   schema: [],
-  load: () => import("@/components/minimal-tiptap/extensions/simple-table/tableEditing").then((m) => [m.TableEditing]),
+  onDemand: {
+    nodes: ["table"],
+    saved: /<table[\s>]/i,
+    // prosemirror-tables' columnResizing and tableEditing.
+    plugins: 2,
+    events: ["mousedown", "mousemove", "mouseleave"],
+    priority: 1,
+    load: () => import("@/components/minimal-tiptap/extensions/simple-table/tableEditing").then((m) => m.tableEditingChunk),
+  },
 })
 
 registerBlock({

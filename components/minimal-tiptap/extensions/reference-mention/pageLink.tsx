@@ -7,6 +7,7 @@ import { Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from "@
 import { CommandList, CommandTile, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { DocIcon } from "@/components/docEditor/DocIcon"
 import { busFor } from "@/components/docEditor/registry/commandBus"
+import { subpagePrivate } from "@/lib/docCache"
 import { Plus } from "@/lib/icons"
 import { chipAllowed, suggestionPopup, type SuggestionListExtras } from "../suggestion-popup"
 import { trackPos } from "../smart-paste/smartPaste"
@@ -37,7 +38,7 @@ async function linkNewPage(editor: Editor, at: number, title: string) {
   const place = trackPos(editor, at)
   try {
     const { createDoc } = await import("@/services/docGraphService")
-    const page = await createDoc({ doc_title: title, parent_uuid: docId })
+    const page = await createDoc({ doc_title: title, parent_uuid: docId, doc_private: subpagePrivate(docId) })
     const pos = place.pos()
     if (pos !== null && !editor.isDestroyed) insertPage(editor, pos, page.doc_uuid)
   } catch {

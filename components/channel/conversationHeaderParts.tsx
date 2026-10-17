@@ -24,10 +24,6 @@ export const NOTIFICATION_CHOICES: { value: string; label: string }[] = [
     { value: NotificationType.NotificationBlock, label: "Nothing (muted)" },
 ]
 
-export function notificationLabel(value: string): string {
-    return NOTIFICATION_CHOICES.find((c) => c.value === value)?.label ?? "Everything"
-}
-
 /**
  * Notifications as a menu (C04), never a bell that changes the level each time
  * it is clicked: three radio items, one click to choose. A submenu of More and

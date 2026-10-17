@@ -74,4 +74,29 @@ describe("the channel's name in Details", () => {
     expect(asked).not.toContain("a")
     expect(onRename).not.toHaveBeenCalled()
   })
+
+  // Review, 15 Oct 2026: typing a name in Japanese, the Enter that picks the
+  // word saved the rename and closed the field, and the Escape that drops the
+  // word threw the whole rename away (lib/keys/ime.ts). Safari's Enter says
+  // keyCode 229 and not isComposing.
+  it("leaves an input method's Enter and Escape to it", async () => {
+    vi.useFakeTimers()
+    const onRename = vi.fn(async () => true)
+    render(<ChannelNameRow name="launch" canRename onRename={onRename} />)
+    fireEvent.click(screen.getByRole("button", { name: "Rename channel" }))
+    type("ローンチ")
+    expect(screen.getByText("#ローンチ is free.")).toBeTruthy()
+    const box = screen.getByLabelText("Name")
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter", isComposing: true })
+      fireEvent.keyDown(box, { key: "Enter", keyCode: 229 })
+      fireEvent.keyDown(box, { key: "Escape", isComposing: true })
+    })
+    expect(onRename).not.toHaveBeenCalled()
+    expect(screen.getByLabelText("Name")).toBe(box)
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" })
+    })
+    expect(onRename).toHaveBeenCalledWith("ローンチ")
+  })
 })

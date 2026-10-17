@@ -11,8 +11,8 @@ import {
     DrawerTitle,
 } from "@/components/ui/drawer"
 import { useDispatch } from "react-redux"
-import { useEffect, useState } from "react"
-import { usePost } from "@/hooks/usePost"
+import { useEffect } from "react"
+import { useGroupNotification } from "@/hooks/useConversationNotification"
 import { getNextNotification } from "@/lib/utils/getNextNotification"
 import { NotificationType } from "@/types/channel"
 import { NotificationBell } from "@/components/Notification/notificationBell"
@@ -21,9 +21,8 @@ import { useRouter } from "next/navigation"
 import { app_grp_call } from "@/types/paths"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { RawUserDMInterface } from "@/types/user"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
 import { updateChatCallStatus } from "@/store/slice/chatSlice"
-import { GrpChatNotificationInterface } from "@/types/chat"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
@@ -47,26 +46,14 @@ export function GroupChatOptionsDrawer({
         `${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`,
     )
 
-    const [grpNotification, setGrpNotificationType] = useState<string>(
-        NotificationType.NotificationAll,
-    )
-    const postNotification = usePost()
-
-    const updateNotification = async () => {
-        const nextNotification = getNextNotification(grpNotification)
-        await postNotification.makeRequest<GrpChatNotificationInterface>({
-            payload: { grp_id: grpId, notification_type: nextNotification },
-            apiEndpoint: PostEndpointUrl.UpdateGroupChatNotification,
-        })
-        setGrpNotificationType(nextNotification)
-    }
+    // The header's write: shown at once, a refusal taken back and said, never
+    // left unhandled (hooks/useConversationNotification).
+    const notification = useGroupNotification(grpId, dmParticipantsInfo.data?.data?.dm_notification_type)
+    const grpNotification = notification.level
+    const updateNotification = () => notification.choose(getNextNotification(grpNotification))
 
     useEffect(() => {
         if (dmParticipantsInfo.data?.data) {
-            setGrpNotificationType(
-                dmParticipantsInfo.data?.data?.dm_notification_type ||
-                    NotificationType.NotificationAll,
-            )
             dispatch(
                 updateChatCallStatus({
                     grpId,
@@ -103,7 +90,7 @@ export function GroupChatOptionsDrawer({
                         trailing={
                             <NotificationBell
                                 notificationType={grpNotification}
-                                isLoading={postNotification.isSubmitting}
+                                isLoading={notification.busy}
                                 onNotCLick={updateNotification}
                             />
                         }

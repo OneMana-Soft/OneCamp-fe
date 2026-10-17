@@ -86,9 +86,13 @@
     box-shadow: inset 0 -1px 0 var(--line);
     transition: background-color 140ms var(--ease-out);
   }
-  .people-row:hover,
   .people-row:focus-within {
     background: var(--hover);
+  }
+  @media (hover: hover) {
+    .people-row:hover {
+      background: var(--hover);
+    }
   }
   .people-meta {
     font-size: 12.5px;
@@ -353,7 +357,7 @@
     cursor: text;
   }
   .invite-field:focus-within {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
   }
   .invite-field[data-over="true"] {
     box-shadow: 0 0 0 1px var(--camp-sun), 0 0 0 3px color-mix(in oklab, var(--camp-sun) 18%, transparent);
@@ -450,8 +454,10 @@
     border-radius: 8px;
     transition: background-color 140ms var(--ease-out);
   }
-  .audit-row-head:hover {
-    background: var(--hover);
+  @media (hover: hover) {
+    .audit-row-head:hover {
+      background: var(--hover);
+    }
   }
   .audit-time {
     font-size: 12.5px;

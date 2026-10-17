@@ -10,12 +10,12 @@ const hoisted = vi.hoisted(() => ({
   confirm: vi.fn(),
   restored: vi.fn(),
   push: vi.fn(),
-  toasts: [] as { title?: string }[],
+  toasts: [] as { title?: string; description?: string }[],
 }))
 
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: hoisted.page ? { data: hoisted.page } : undefined, isError: hoisted.error }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => hoisted.confirm }))
-vi.mock("@/hooks/use-toast", () => ({ toast: (t: { title?: string }) => hoisted.toasts.push(t) }))
+vi.mock("@/hooks/use-toast", () => ({ toast: (t: { title?: string; description?: string }) => hoisted.toasts.push(t) }))
 vi.mock("@/services/docGraphService", () => ({ restoreDoc: hoisted.restore, purgeDoc: hoisted.purge }))
 vi.mock("@/lib/docCache", () => ({ docRestored: hoisted.restored }))
 
@@ -39,7 +39,7 @@ beforeEach(() => {
   hoisted.page = page
   hoisted.error = undefined
   hoisted.restore.mockReset().mockResolvedValue({ restored: 3 })
-  hoisted.purge.mockReset().mockResolvedValue(3)
+  hoisted.purge.mockReset().mockResolvedValue({ purged: 3, kept: 0 })
   hoisted.confirm.mockReset()
   hoisted.toasts.length = 0
   provideNavigate(hoisted.push)
@@ -77,6 +77,21 @@ describe("a doc in the trash (E2)", () => {
     await act(async () => asked.onConfirm())
     expect(hoisted.purge).toHaveBeenCalledWith("t1", { ownErrors: true })
     expect(hoisted.push).toHaveBeenCalledWith("/app/doc")
+    expect(hoisted.toasts.at(-1)).toEqual({ title: "Deleted for good", description: undefined })
+  })
+
+  // Only what the person has full access to goes for good (the owner's rule,
+  // 15 Oct 2026): the question says so before, and the answer says what stayed.
+  it("says the pages it hasn't full access to stay in the trash", async () => {
+    hoisted.purge.mockResolvedValue({ purged: 1, kept: 2 })
+    render(<TrashedBanner docId="t1" canRestore onRestored={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Delete for good" }))
+    const asked = hoisted.confirm.mock.calls[0][0]
+    expect(asked.description).toBe(
+      "“Old plan” and the 2 pages deleted with it go for good, apart from any you don't have full access to, which stay in the trash. Nobody can bring back what goes.",
+    )
+    await act(async () => asked.onConfirm())
+    expect(hoisted.toasts.at(-1)).toEqual({ title: "Deleted for good", description: "2 pages you don't have full access to stay in the trash." })
   })
 
   it("offers a viewer neither, and says who can", () => {

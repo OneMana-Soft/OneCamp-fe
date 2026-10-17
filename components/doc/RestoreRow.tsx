@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation"
 
 import { DocIcon } from "@/components/docEditor/DocIcon"
 import { titleOf } from "@/components/doc/docRows"
+import { pagesLeftInTrash, purgeWarning } from "@/components/docTree/docActions"
 import { Button } from "@/components/ui/button"
 import { ToastAction } from "@/components/ui/toast"
 import { toast } from "@/hooks/use-toast"
@@ -76,17 +77,14 @@ export function RestoreRow({ id, title, icon, at, verb, by, subpages = 0, purgeA
   const purge = () =>
     confirm({
       title: `Delete “${name}” for good?`,
-      description:
-        subpages > 0
-          ? `It and the ${subpages} ${subpages === 1 ? "page" : "pages"} deleted with it can't be brought back afterwards.`
-          : "It can't be brought back afterwards.",
+      description: purgeWarning(`“${name}”`, subpages),
       confirmText: "Delete for good",
       destructive: true,
       onConfirm: async () => {
         setBusy("purge")
         try {
-          await purgeDoc(id)
-          toast({ title: `Deleted “${name}” for good` })
+          const res = await purgeDoc(id)
+          toast({ title: `Deleted “${name}” for good`, description: pagesLeftInTrash(res.kept) })
         } catch {
           // The app's error toast has said why.
         } finally {
@@ -97,7 +95,7 @@ export function RestoreRow({ id, title, icon, at, verb, by, subpages = 0, purgeA
 
   return (
     <div data-restore-row={id} className="flex min-h-14 items-center gap-2.5 rounded-lg px-2 py-2 sm:min-h-12">
-      <DocIcon icon={icon} size={16} />
+      <DocIcon icon={icon} id={id} size={16} />
       <div className="min-w-0 flex-1">
         <p className={title.trim() ? "truncate text-ui font-[450] text-ink" : "truncate text-ui font-[450] text-ink-3"}>
           {name}

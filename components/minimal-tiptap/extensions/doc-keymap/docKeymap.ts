@@ -1,7 +1,6 @@
 "use client"
 
 import { Extension, type Editor } from "@tiptap/core"
-import type { Node as PMNode } from "@tiptap/pm/model"
 import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState } from "@tiptap/pm/state"
 import { Decoration, DecorationSet } from "@tiptap/pm/view"
 
@@ -16,9 +15,10 @@ import { docInputRules } from "./docInputRules"
  *
  *   ⌘⌥4–8      turn into a to-do, bullet, numbered or toggle list, or code
  *              (⌘⌥C, Tiptap's own, still makes code; ⌘⇧7/8/9 still lists)
- *   ⌘⌥T        open every toggle, or close them all when all are open
- *   ⌘↩         check or uncheck the to-do, open or close the toggle; never a
- *              line break (⇧↩ is the line break)
+ *   ⌘⌥T        the toggles' (collapsible/collapsible.ts): every toggle open,
+ *              or all closed, for this viewer
+ *   ⌘↩         check or uncheck the to-do (a toggle's own opens or closes it,
+ *              collapsible.ts); never a line break (⇧↩ is the line break)
  *   Tab ⇧Tab   nest and un-nest a list item; in code, indent and outdent the
  *              lines. Focus never leaves the text on Tab; Escape then Tab
  *              does (the way out for the keyboard, WCAG 2.1.2)
@@ -40,50 +40,21 @@ import { docInputRules } from "./docInputRules"
  * "To-do") while the caret is in it.
  */
 
-export { DEFAULT_SCROLL_MARGIN, docKeymapOf, type DocKeymapStorage } from "./storage"
+export { docKeymapOf } from "./storage"
 import { DEFAULT_SCROLL_MARGIN, type DocKeymapStorage } from "./storage"
 
 const INDENT = "  "
 const LIST_ITEMS = ["taskItem", "listItem"]
 
-/** ⌘↩: the to-do checked or unchecked, the toggle opened or closed. */
+/**
+ * ⌘↩: the to-do checked or unchecked. A toggle's ⌘↩ is its own, and each
+ * viewer's (collapsible.ts, ahead of this keymap): a toggle inside a to-do
+ * leaves the to-do alone.
+ */
 export function modifyBlock(editor: Editor): boolean {
   const at = ancestor(editor, ["taskItem", "collapsible"])
-  if (!at) return true
-  const { state } = editor
-  if (at.node.type.name === "taskItem") {
-    editor.view.dispatch(state.tr.setNodeMarkup(at.pos, undefined, { ...at.node.attrs, checked: !at.node.attrs.checked }))
-    return true
-  }
-  const open = !at.node.attrs.open
-  const tr = state.tr.setNodeMarkup(at.pos, undefined, { ...at.node.attrs, open })
-  // Closed with the caret inside: the toggle itself is selected (the caret
-  // can't sit in hidden text), and ⌘↩ opens it again. Opened from there: the
-  // caret goes in.
-  if (!open) tr.setSelection(NodeSelection.create(tr.doc, at.pos))
-  else if (state.selection instanceof NodeSelection) tr.setSelection(TextSelection.near(tr.doc.resolve(at.pos + 1)))
-  editor.view.dispatch(tr)
-  return true
-}
-
-/** ⌘⌥T: every toggle opened, or all closed when all are open already. */
-export function toggleAllToggles(editor: Editor): boolean {
-  const { state } = editor
-  const toggles: { node: PMNode; pos: number }[] = []
-  state.doc.descendants((node, pos) => {
-    if (node.type.name === "collapsible") toggles.push({ node, pos })
-  })
-  if (!toggles.length) return true
-  const open = toggles.some((t) => !t.node.attrs.open)
-  const tr = state.tr
-  for (const t of toggles) if (t.node.attrs.open !== open) tr.setNodeMarkup(t.pos, undefined, { ...t.node.attrs, open })
-  if (!open) {
-    // The caret can't stay in text that's now hidden: it goes to the
-    // outermost toggle holding it.
-    const outer = toggles.find((t) => t.pos < state.selection.from && state.selection.from < t.pos + t.node.nodeSize)
-    if (outer) tr.setSelection(NodeSelection.create(tr.doc, outer.pos))
-  }
-  editor.view.dispatch(tr)
+  if (at?.node.type.name !== "taskItem") return true
+  editor.view.dispatch(editor.state.tr.setNodeMarkup(at.pos, undefined, { ...at.node.attrs, checked: !at.node.attrs.checked }))
   return true
 }
 
@@ -342,7 +313,6 @@ export const DocKeymap = Extension.create<Record<string, never>, DocKeymapStorag
     const turnKeys = Object.fromEntries(Object.entries(TURN_INTO_KEYS).map(([key, { command }]) => [key, () => turnInto(editor, command)]))
     return {
       ...turnKeys,
-      "Mod-Alt-t": () => toggleAllToggles(editor),
       "Mod-Enter": () => (suggestionMenuOpen(editor) ? false : modifyBlock(editor)),
       Enter: () => newlineKeepingIndent(editor),
       Tab: () => tab(editor, storage, 1),

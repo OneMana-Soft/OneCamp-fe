@@ -365,13 +365,15 @@
   animation: content-caret-flag calc(var(--content-caret-flag-duration) + var(--content-caret-flag-hold) + var(--content-caret-flag-out)) var(--content-caret-flag-ease) both;
 }
 
-.minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret:hover .collaboration-cursor__label {
-  animation: none;
-  opacity: 1;
-}
-.minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret:hover::after {
-  animation: none;
-  opacity: 0;
+@media (hover: hover) {
+  .minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret:hover .collaboration-cursor__label {
+    animation: none;
+    opacity: 1;
+  }
+  .minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret:hover::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 /* An agent is the agent tint, never a person's hue (its avatar is the agent
@@ -474,9 +476,11 @@
   cursor: pointer;
   transition: background-color 40ms linear, color 40ms linear;
 }
-.block-handle-btn:hover {
-  background: var(--hover);
-  color: var(--ink-2);
+@media (hover: hover) {
+  .block-handle-btn:hover {
+    background: var(--hover);
+    color: var(--ink-2);
+  }
 }
 .block-handle-btn:active {
   background: var(--press);
@@ -779,9 +783,13 @@ html.block-dragging-copy * {
   background: transparent;
   transition: background-color var(--duration-hover) var(--ease-out);
 }
-.doc-column-grip:hover::before,
 [data-type="column"][data-resizing] > .doc-column-grip::before {
   background: var(--line-3);
+}
+@media (hover: hover) {
+  .doc-column-grip:hover::before {
+    background: var(--line-3);
+  }
 }
 [data-type="column"]:last-child > .doc-column-grip,
 .ProseMirror:not([contenteditable="true"]) .doc-column-grip {
@@ -929,9 +937,11 @@ html.block-dragging-copy * {
   -webkit-box-decoration-break: clone;
   transition: background-color var(--duration-hover, 120ms) var(--ease-out);
 }
-:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"]:hover,
-.chat-mention:hover {
-  background-color: var(--press);
+@media (hover: hover) {
+  :is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"]:hover,
+  .chat-mention:hover {
+    background-color: var(--press);
+  }
 }
 :is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-person::before,
 .chat-mention.mention-person::before {
@@ -959,18 +969,22 @@ span[data-type="mention"][data-hue="lake"] { --mention-dot: var(--camp-lake); }
 .dark .chat-mention.mention-me {
   background-color: color-mix(in oklab, var(--brand) 18%, transparent);
 }
-:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-me:hover,
-.chat-mention.mention-me:hover {
-  background-color: color-mix(in oklab, var(--brand) 22%, transparent);
+@media (hover: hover) {
+  :is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-me:hover,
+  .chat-mention.mention-me:hover {
+    background-color: color-mix(in oklab, var(--brand) 22%, transparent);
+  }
 }
 :is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-agent,
 .chat-mention.mention-agent {
   background-color: var(--agent-muted);
   color: var(--agent-ink);
 }
-:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-agent:hover,
-.chat-mention.mention-agent:hover {
-  background-color: color-mix(in oklab, var(--agent) 16%, var(--agent-muted));
+@media (hover: hover) {
+  :is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-agent:hover,
+  .chat-mention.mention-agent:hover {
+    background-color: color-mix(in oklab, var(--agent) 16%, var(--agent-muted));
+  }
 }
 .mention-spark {
   display: inline-block;

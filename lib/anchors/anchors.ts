@@ -37,7 +37,7 @@ export interface YBinding {
 }
 
 /** The quote a thread keeps is cut at this many characters. */
-export const MAX_QUOTE = 10000
+const MAX_QUOTE = 10000
 
 /** The binding of an editor's state, or null when it isn't collaborative (or not yet). */
 export function bindingOf(state: EditorState): YBinding | null {

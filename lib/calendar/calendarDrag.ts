@@ -48,6 +48,19 @@ export function resizeRange(startMin: number, endMin: number, edge: "top" | "bot
   return { startMin, endMin: clamp(Math.max(roundSnap(pointerMin), startMin + SNAP_MINUTES)) }
 }
 
+/**
+ * A move by the keyboard on an event (INTERACTION_SPEC §4, the calendar event
+ * row; D12): Alt+↑/↓ moves it a snap earlier or later, Alt+←/→ a day,
+ * Alt+Shift+↑/↓ moves its end. Null for any other key. Pure.
+ */
+export function keyNudge(e: Pick<KeyboardEvent, "key" | "altKey" | "shiftKey" | "ctrlKey" | "metaKey">): { minutes: number; days: number; end: boolean } | null {
+  if (!e.altKey || e.ctrlKey || e.metaKey) return null
+  const minutes = e.key === "ArrowUp" ? -SNAP_MINUTES : e.key === "ArrowDown" ? SNAP_MINUTES : 0
+  if (minutes) return { minutes, days: 0, end: e.shiftKey }
+  const days = e.shiftKey ? 0 : e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0
+  return days ? { minutes: 0, days, end: false } : null
+}
+
 /** "45 min", "1 h", "1 h 30". */
 export function durationLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} min`

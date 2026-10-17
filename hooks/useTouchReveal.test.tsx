@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { useTouchReveal } from "./useTouchReveal"
+import { installPointerEvent } from "@/lib/testing/pointerEvent"
 
 // A message's toolbar shows on hover; an iPad cannot hover. A tap on the
 // message shows it, a tap elsewhere hides it, and a mouse keeps hover.
@@ -16,17 +17,7 @@ function Row() {
   )
 }
 
-// jsdom has no PointerEvent; a MouseEvent that says which pointer it was.
-class TestPointerEvent extends MouseEvent {
-  pointerType: string
-  constructor(type: string, init: PointerEventInit = {}) {
-    super(type, init)
-    this.pointerType = init.pointerType ?? ""
-  }
-}
-beforeAll(() => {
-  if (!("PointerEvent" in window)) Object.defineProperty(window, "PointerEvent", { configurable: true, value: TestPointerEvent })
-})
+beforeAll(installPointerEvent)
 
 const up = (el: Element, pointerType: string) => fireEvent.pointerUp(el, { pointerType })
 

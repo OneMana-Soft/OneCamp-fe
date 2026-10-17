@@ -27,7 +27,7 @@ import { parseFieldInput } from "@/lib/tasks/fieldInput"
 import { inlineSelect, inlineValue } from "@/lib/ui/fieldRow"
 import { InlineEdit } from "@/components/task/inlineEdit"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
-import { DateField } from "@/components/task/taskDateField"
+import { DateProperty } from "@/components/task/taskDateField"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { dayDate, localDay } from "@/lib/utils/timeZone"
@@ -166,7 +166,7 @@ function TaskFieldRow({
   if (field.type === "date") {
     // The same control as the task's Start and Due dates: "8 Oct", and a calendar.
     return (
-      <DateField
+      <DateProperty
         isAdmin={canEdit}
         label={field.name}
         value={typeof value === "string" ? dayDate(value) : undefined}

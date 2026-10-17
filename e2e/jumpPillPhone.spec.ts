@@ -41,7 +41,11 @@ test("on a phone, Jump to latest hangs 12px above the composer", async ({ page }
   for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -900)
   const pill = page.locator("[data-jump-pill]")
   await expect(pill).toBeVisible({ timeout: 15_000 })
-  await page.waitForTimeout(400)
+  // Measured once it has settled: its row placed by the card's measured top
+  // (until then the row's own bottom-3 holds it), and its pill-in, which lifts
+  // it 8px as it fades in, over.
+  await expect(page.locator("[data-jump-row]")).toHaveAttribute("style", /bottom:/)
+  await expect.poll(() => pill.evaluate((el) => el.getAnimations().some((a) => a.playState === "running"))).toBe(false)
   const pillBox = await pill.boundingBox()
   const cardBox = await card.boundingBox()
   const gap = cardBox!.y - (pillBox!.y + pillBox!.height)

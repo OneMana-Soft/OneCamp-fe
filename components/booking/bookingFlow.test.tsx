@@ -102,6 +102,22 @@ describe("the month", () => {
     expect(times.className).toMatch(/sm:border-t/)
     expect(times.querySelector("ul")?.className).toMatch(/max-\[1047px\]:grid-cols-3/)
   })
+
+  // Under a finger every button reaches 8px past its 28px box (app/phone.css
+  // F3), and the later one is on top. 2px apart, Next month's reach covered
+  // the right 6px of Previous month: a tap there (Chromium, touch emulation)
+  // went to the next month. 16px apart, the two reaches only meet.
+  it("keeps the month arrows' reaches apart under a finger", async () => {
+    await open()
+    const pair = screen.getByRole("button", { name: "Previous month" }).parentElement!
+    expect(pair).toBe(screen.getByRole("button", { name: "Next month" }).parentElement)
+    // The one rule for a row of small controls: a touch group stands them 44px
+    // less their size apart under a finger (app/phone.css F3b); a row spaced
+    // by a coarse gap of its own would do the same.
+    const grouped = pair.getAttribute("data-touch-group")
+    const coarseGap = /(?:^|\s)pointer-coarse:gap-(\d+(?:\.\d+)?)(?:\s|$)/.exec(pair.className)
+    expect(grouped === "" || Number(coarseGap?.[1] ?? 0) * 4 >= 16).toBe(true)
+  })
 })
 
 describe("a time", () => {
@@ -293,5 +309,46 @@ describe("too many requests", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "j@example.com" } })
     await act(async () => fireEvent.click(document.querySelector("[data-book-button]")!))
     expect(screen.getByRole("alert").textContent).toContain("Too many bookings from here. Try again later.")
+  })
+})
+
+// PTC-10: a phone hid the page's description and the consent line under Book.
+describe("on a phone", () => {
+  it("keeps the page's description, three lines and then More, and the consent line", async () => {
+    getBookingPage.mockResolvedValue({ ok: true, data: { ...PAGE, description: "Thirty minutes to see if OneCamp fits your team.\nBring your questions.\nWe'll look at your workflow.\nAnd your tools." } })
+    await toForm()
+    const text = screen.getByText(/Thirty minutes to see/)
+    expect(text.className).toContain("line-clamp-3")
+    expect(text.parentElement!.className).not.toContain("hidden")
+    expect(screen.getByRole("button", { name: "More" })).toBeTruthy()
+    expect(screen.getByText("By booking you agree to receive emails about this meeting.").className).not.toContain("hidden")
+  })
+})
+
+// PTC-51: a sun dot on a day meant "fewer than four times" and said nothing.
+describe("a day with few times left", () => {
+  it("is explained under the month", async () => {
+    await open()
+    expect(document.querySelector("[data-few-left]")?.textContent).toBe("Only a few times left")
+  })
+
+  it("isn't, when every day has plenty", async () => {
+    const plenty = ["09:00", "09:30", "10:00", "10:30"].map((t) => ({ start: `2026-10-12T${t}:00Z`, end: `2026-10-12T${t}:00Z` }))
+    getBookingPage.mockResolvedValue({ ok: true, data: { ...PAGE, slots: plenty } })
+    await open()
+    expect(document.querySelector("[data-few-left]")).toBeNull()
+  })
+})
+
+// S1: a calendar the server couldn't check refuses the booking as a retry, in its words.
+describe("a calendar that couldn't be checked", () => {
+  it("asks to try again, and keeps what was typed", async () => {
+    bookSlot.mockResolvedValue({ ok: false, status: 503, msg: "Couldn't check the calendar. Try again in a moment." })
+    await toForm()
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Jordan" } })
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "j@example.com" } })
+    await act(async () => fireEvent.click(document.querySelector("[data-book-button]")!))
+    expect(screen.getByRole("alert").textContent).toContain("Couldn't check the calendar. Try again in a moment. Your details are kept.")
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Jordan")
   })
 })

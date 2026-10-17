@@ -94,4 +94,30 @@ describe.each([
         }
         expect((store.getState().ui as unknown as { confirmAlert: { isOpen: boolean } }).confirmAlert.isOpen).toBe(false)
     })
+
+    it("keeps the message and a reply when the server refuses, with nothing left unhandled", async () => {
+        answers[ROOT] = { data: { data: root } }
+        store.dispatch(openRightPanel(panel))
+        render(<Provider store={store}>{view}</Provider>)
+        // usePost says the refusal itself, then throws it on to its caller.
+        makeRequest.mockRejectedValue(new Error("403"))
+        const unhandled: unknown[] = []
+        const note = (e: unknown) => unhandled.push(e)
+        process.on("unhandledRejection", note)
+        try {
+            await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete the message" })))
+            await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete the reply" })))
+            await act(() => new Promise((r) => setTimeout(r, 0)))
+        } finally {
+            process.off("unhandledRejection", note)
+            makeRequest.mockImplementation(async () => ({}))
+        }
+        expect(unhandled).toEqual([])
+        expect(makeRequest.mock.calls.map(([o]) => o.apiEndpoint)).toEqual(endpoints)
+        // Nothing was taken away: no tombstone keeps the message out.
+        const { channel, chat, groupChat } = store.getState()
+        for (const map of [channel.deletedPosts, chat.deletedChats, groupChat.deletedChats]) {
+            expect(Object.values(map ?? {}).some((bucket) => ROOT in (bucket as object))).toBe(false)
+        }
+    })
 })

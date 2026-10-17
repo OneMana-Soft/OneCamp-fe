@@ -1,7 +1,5 @@
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Input } from "@/components/ui/input"
-import { Search } from "@/lib/icons"
 
 /**
  * The frame every tab of a task view draws in: a project's List, Board,
@@ -36,9 +34,6 @@ import { Search } from "@/lib/icons"
  */
 export const workToolbar = "flex min-h-11 shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-4 py-2"
 
-/** The body: 16px under the toolbar on every tab. */
-export const workBody = "mt-4"
-
 /**
  * Where an empty or failed tab says so, in place of its rows: under the
  * toolbar, centred across the body, at the top of it. Give it an EmptyState or
@@ -49,32 +44,6 @@ export function WorkState({ children, className }: { children: React.ReactNode; 
   return (
     <div data-work-state="" className={cn("flex justify-center", className)}>
       {children}
-    </div>
-  )
-}
-
-/**
- * A search in a toolbar row: a 32px field with its magnifier, the height of
- * the controls beside it. SearchField is a list's own row (52px with its
- * padding), which made a toolbar that held it taller than its neighbours'.
- */
-export function ToolbarSearch({
-  value,
-  onChange,
-  placeholder,
-  label,
-  className,
-}: {
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-  label: string
-  className?: string
-}) {
-  return (
-    <div className={cn("relative w-56", className)}>
-      <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      <Input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} className="h-8 pl-8" />
     </div>
   )
 }

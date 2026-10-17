@@ -1,0 +1,529 @@
+/* THE INTERACTION LAYER (design/interaction/INTERACTION_SPEC.md §9).
+   One state language for every component: hover, pressed, selected, focus,
+   disabled and drag look the same wherever they appear. A component opts in
+   with attributes (lib/ui/interactive.ts: ix(kind, { hue, selected,
+   disabledReason })) and deletes its own state classes; app/interaction.test.ts
+   holds the rules.
+
+   - A tint is the accent, or the object's hue (data-hue), at a low alpha laid
+     over the element's own surface as a background image, so a raised button
+     keeps its surface and tints on top of it. --ix-a, the alpha, is a
+     registered property, so the tint fades on its own transition.
+   - Selected is read from ARIA and always carries a cue that isn't colour: a
+     bar on rows, a ring on controls and cards, the knob on a segment, the
+     rule under a tab, a check in a menu.
+   - Focus is the accent ring, outside on controls, inset on rows.
+
+   Plain CSS like phone.css, imported after globals.css and before phone.css
+   (app/layout.tsx), so the phone's own press still wins on touch. Defaults
+   sit in @layer components, under every utility; the reduced-motion rule is
+   unlayered. A cue rides in Tailwind's composed box-shadow
+   (--tw-inset-ring-shadow), so it adds to a control's own elevation instead
+   of replacing it. */
+
+@property --ix-a {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+@property --ix-fade-s {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --ix-fade-e {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes ix-fade-s {
+  from { --ix-fade-s: 0px; }
+  to { --ix-fade-s: 24px; }
+}
+@keyframes ix-fade-e {
+  from { --ix-fade-e: 24px; }
+  to { --ix-fade-e: 0px; }
+}
+
+:root {
+  --ix-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ix-spring: cubic-bezier(0.3, 1.35, 0.5, 1);
+  --ix-colour: 120ms;
+  --ix-press: 90ms;
+  --ix-lift: 160ms;
+  --ix-settle: 200ms;
+  --ix-pop: 180ms;
+  --ix-panel: 240ms;
+  --ix-tip-delay: 400ms;
+  --ix-hover-a: 6%;
+  --ix-hover-quiet-a: 4%;
+  --ix-press-a: 10%;
+  --ix-sel-a: 12%;
+  --ix-sel-hover-a: 15%;
+  --ix-drop-a: 8%;
+  --ix-halo-a: 18%;
+  --ix-ring: 2px;
+  --ix-ring-offset: 2px;
+  --ix-bar: 2px;
+  --ix-press-scale: 0.98;
+  --ix-lift-scale: 1.02;
+  --ix-lift-tilt: 1.5deg;
+  --ix-disabled: 0.5;
+  --ix-edge: 48px;
+}
+.dark {
+  --ix-hover-a: 7%;
+  --ix-hover-quiet-a: 5%;
+  --ix-press-a: 11%;
+  --ix-sel-a: 14%;
+  --ix-sel-hover-a: 17%;
+  --ix-drop-a: 10%;
+  --ix-halo-a: 22%;
+}
+@media (pointer: coarse) {
+  :root {
+    --ix-edge: 64px;
+  }
+}
+/* THE FIELD HALO (§2.4, D5): the accent's 1px ring and a 4px halo at 18%
+   (22% in dark), which clears 3:1 where the old 50% ring didn't; an invalid
+   field's is the same in danger. On body, so
+   the accent is the theme's (a var() in a custom property resolves where it
+   is declared: on :root it would never see the theme). */
+body {
+  --ix-halo: 0 0 0 1px var(--brand), 0 0 0 4px color-mix(in srgb, var(--brand) var(--ix-halo-a), transparent);
+  --ix-halo-danger: 0 0 0 1px var(--destructive), 0 0 0 4px color-mix(in srgb, var(--destructive) var(--ix-halo-a), transparent);
+}
+
+@layer base {
+  /* ANY ELEMENT CAN WEAR A HUE (§2.2, D13): data-hue makes a camp hue the
+     current one, as a hue-* class does (bg-hue-tint, text-hue...), and hands
+     it to the layer: an interactive element, or one inside a hued one, tints
+     in it. Declared on the element, so the var() resolves against the theme
+     there. The mark is the avatar's deep stop in light (the strong cut of
+     sun, moss and lake fails 3:1 on its own tint) and the strong cut in dark. */
+  [data-hue="sun"] { --hue: var(--camp-sun); --hue-tint: var(--camp-sun-tint); --hue-ink: var(--camp-sun-ink); --hue-a1: var(--camp-sun-a1); --hue-a2: var(--camp-sun-a2); --ix-hue: var(--camp-sun); --ix-hue-mark: var(--camp-sun-a2); }
+  [data-hue="moss"] { --hue: var(--camp-moss); --hue-tint: var(--camp-moss-tint); --hue-ink: var(--camp-moss-ink); --hue-a1: var(--camp-moss-a1); --hue-a2: var(--camp-moss-a2); --ix-hue: var(--camp-moss); --ix-hue-mark: var(--camp-moss-a2); }
+  [data-hue="lake"] { --hue: var(--camp-lake); --hue-tint: var(--camp-lake-tint); --hue-ink: var(--camp-lake-ink); --hue-a1: var(--camp-lake-a1); --hue-a2: var(--camp-lake-a2); --ix-hue: var(--camp-lake); --ix-hue-mark: var(--camp-lake-a2); }
+  [data-hue="sky"] { --hue: var(--camp-sky); --hue-tint: var(--camp-sky-tint); --hue-ink: var(--camp-sky-ink); --hue-a1: var(--camp-sky-a1); --hue-a2: var(--camp-sky-a2); --ix-hue: var(--camp-sky); --ix-hue-mark: var(--camp-sky-a2); }
+  [data-hue="dusk"] { --hue: var(--camp-dusk); --hue-tint: var(--camp-dusk-tint); --hue-ink: var(--camp-dusk-ink); --hue-a1: var(--camp-dusk-a1); --hue-a2: var(--camp-dusk-a2); --ix-hue: var(--camp-dusk); --ix-hue-mark: var(--camp-dusk-a2); }
+  [data-hue="berry"] { --hue: var(--camp-berry); --hue-tint: var(--camp-berry-tint); --hue-ink: var(--camp-berry-ink); --hue-a1: var(--camp-berry-a1); --hue-a2: var(--camp-berry-a2); --ix-hue: var(--camp-berry); --ix-hue-mark: var(--camp-berry-a2); }
+  [data-hue="agent"] { --hue: var(--agent); --hue-tint: var(--agent-muted); --hue-ink: var(--agent-ink); --hue-a1: var(--agent-a1); --hue-a2: var(--agent-a2); --ix-hue: var(--agent); --ix-hue-mark: var(--agent-a2); }
+  .dark [data-hue="sun"] { --ix-hue-mark: var(--camp-sun); }
+  .dark [data-hue="moss"] { --ix-hue-mark: var(--camp-moss); }
+  .dark [data-hue="lake"] { --ix-hue-mark: var(--camp-lake); }
+  .dark [data-hue="sky"] { --ix-hue-mark: var(--camp-sky); }
+  .dark [data-hue="dusk"] { --ix-hue-mark: var(--camp-dusk); }
+  .dark [data-hue="berry"] { --ix-hue-mark: var(--camp-berry); }
+  .dark [data-hue="agent"] { --ix-hue-mark: var(--agent); }
+
+  /* FOCUS, for anything that draws none of its own (§2.4, UI-21): the accent
+     ring 2px off the element. It replaced the browser's own outline at half
+     the accent, about 2:1. An outline, so forced-colours mode keeps it. */
+  :focus-visible {
+    outline: var(--ix-ring) solid var(--ring);
+    outline-offset: var(--ix-ring-offset);
+  }
+  /* A tab's panel, reached by Tab from its tabs, rings inside its own edge. */
+  [role="tabpanel"]:focus-visible {
+    outline-offset: calc(var(--ix-ring) * -1);
+  }
+
+  /* DIGITS LINE UP (§8): timestamps, counts, badges, kbd and table cells take
+     tabular figures wherever they sit, by the type step that carries them
+     (meta and micro), so a column of times or counts never jitters. */
+  :where(time, kbd, td, th, .kbd, [role="gridcell"], [role="columnheader"], .text-meta, .text-2xs, .text-micro, .text-3xs, [data-count]) {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  [data-interactive] {
+    --ix-tint: var(--ix-hue, var(--brand));
+    --ix-mark: var(--ix-hue-mark, var(--brand));
+    transition:
+      --ix-a var(--ix-colour) var(--ix-ease),
+      color var(--ix-colour) var(--ix-ease),
+      box-shadow var(--ix-colour) var(--ix-ease),
+      scale var(--ix-settle) var(--ix-ease),
+      translate var(--ix-lift) var(--ix-ease);
+  }
+  /* The tint itself, on the kinds that tint: cards only when selected; a
+     field rings, a link underlines, an avatar rings, a block shows its
+     handle and a toggle draws a halo instead. */
+  [data-interactive]:not([data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"], [data-interactive="block"], [data-interactive="toggle"]) {
+    background-image: linear-gradient(color-mix(in srgb, var(--ix-tint) var(--ix-a), transparent) 0 0);
+  }
+  [data-interactive]:not([data-interactive="field"], [data-interactive="block"], [data-interactive="cell"]) {
+    cursor: pointer;
+  }
+  /* A tone a state takes when it isn't the accent: danger for a destructive
+     control, success for one that restores or resolves, white for a control
+     over a photo or a video, and a darker shade of itself for the primary
+     button. */
+  [data-interactive][data-tone="danger"] {
+    --ix-tint: var(--destructive);
+    --ix-mark: var(--danger-ink);
+    --ix-hover-a: 8%;
+    --ix-press-a: 12%;
+  }
+  [data-interactive][data-tone="success"] {
+    --ix-tint: var(--success);
+    --ix-mark: var(--success-ink);
+  }
+  [data-interactive][data-tone="light"] {
+    --ix-tint: #fff;
+    --ix-mark: #fff;
+    --ix-hover-a: 16%;
+    --ix-press-a: 24%;
+  }
+  [data-interactive][data-tone="primary"] {
+    --ix-tint: #000;
+    --ix-hover-a: 8%;
+    --ix-press-a: 14%;
+  }
+
+  /* HOVER, where a pointer can hover, and never on the outer of two nested
+     interactive things. Dense lists tint at once and fade out. */
+  @media (hover: hover) {
+    [data-interactive]:hover:not([data-interactive="card"], [data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"], [data-interactive="block"], [data-interactive="toggle"], [data-interactive="cell"], [data-interactive="item"], [aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"]):not(:has([data-interactive]:hover)) {
+      --ix-a: var(--ix-hover-a);
+    }
+    :is([data-interactive="message"], [data-interactive="row"][data-quiet]):hover:not([aria-disabled="true"]):not(:has([data-interactive]:hover)) {
+      --ix-a: var(--ix-hover-quiet-a);
+    }
+    /* The current tab or place doesn't tint under the pointer: it is already there. */
+    :is([data-interactive="tab"], [data-interactive="nav"]):is([data-state="active"], [aria-selected="true"], [aria-current="page"], [data-state="checked"], [aria-checked="true"]):hover {
+      --ix-a: 0%;
+    }
+    /* A menu row the pointer is on is highlighted, as the keyboard's is;
+       a list whose one pill slides to the row (CommandList) draws it there. */
+    [data-interactive="item"]:hover:not([aria-disabled="true"], [data-disabled=""], [data-disabled="true"], :disabled) {
+      --ix-a: var(--ix-press-a);
+    }
+    [data-menu-cursor] ~ [data-interactive="item"]:hover {
+      --ix-a: 0%;
+    }
+    :is([data-interactive="row"], [data-interactive="nav"], [data-interactive="tree"], [data-interactive="item"]):hover {
+      transition-duration: 0ms;
+    }
+  }
+
+  /* SELECTED: the tint plus a cue that isn't colour (below). A menu item, a
+     place, a tab and a toggle draw their own selected form. */
+  [data-interactive]:is([aria-selected="true"], [aria-current="page"], [aria-current="true"], [aria-pressed="true"], [aria-checked="true"], [data-state="on"], [data-selected="true"]):not([data-interactive="item"], [data-interactive="nav"], [data-interactive="tab"], [data-interactive="toggle"], [data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"]) {
+    --ix-a: var(--ix-sel-a);
+  }
+  [data-interactive="card"]:is([aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], [aria-current="true"], [aria-current="page"], [data-selected="true"]) {
+    --ix-a: calc(var(--ix-sel-a) / 2);
+  }
+  @media (hover: hover) {
+    [data-interactive]:is([aria-selected="true"], [aria-current="page"], [aria-current="true"], [aria-pressed="true"], [aria-checked="true"], [data-state="on"], [data-selected="true"]):not([data-interactive="item"], [data-interactive="nav"], [data-interactive="tab"], [data-interactive="toggle"], [data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"], [data-interactive="card"], [aria-disabled="true"], :disabled):hover {
+      --ix-a: var(--ix-sel-hover-a);
+    }
+  }
+  /* A finger's press that holds a beat after a quick tap (useTouchFlash). */
+  [data-interactive][data-pressed="true"]:not([aria-disabled="true"]) {
+    --ix-a: var(--ix-press-a);
+  }
+  /* A menu's highlight is its hover and its keyboard focus at once (§2.4);
+     an open menu's trigger reads as engaged. */
+  [data-interactive="item"]:is([data-highlighted], [data-selected="true"], [data-state="open"]):not([aria-disabled="true"], [data-disabled=""], [data-disabled="true"]),
+  [data-interactive]:is([data-interactive="button"], [data-interactive="icon"], [data-interactive="chip"], [data-interactive="row"], [data-interactive="nav"])[data-state="open"] {
+    --ix-a: var(--ix-press-a);
+  }
+
+  /* A list whose highlight is one pill sliding between its rows (CommandList's
+     menu-cursor) tints the pill instead. */
+  [data-menu-cursor] {
+    background-color: color-mix(in srgb, var(--brand) var(--ix-press-a), transparent);
+  }
+
+  /* The cues. Rows: a bar on the leading edge. Controls, chips and cards: a
+     1.5px ring in the mark. */
+  :is([data-interactive="row"], [data-interactive="tree"], [data-interactive="message"]):is([aria-selected="true"], [aria-current="page"], [aria-current="true"], [data-selected="true"]) {
+    --tw-inset-ring-shadow: inset var(--ix-bar) 0 0 0 var(--ix-mark);
+    box-shadow: var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+  }
+  :is([data-interactive="button"], [data-interactive="icon"], [data-interactive="chip"], [data-interactive="card"], [data-interactive="event"]):is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"], [data-state="on"], [data-selected="true"]) {
+    --tw-inset-ring-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ix-mark) 60%, transparent);
+    box-shadow: var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+  }
+  /* A selected control's icon takes the mark: the one place the layer
+     outranks a component's own icon colour. */
+  :is([data-interactive="tab"], [data-interactive="nav"], [data-interactive="icon"], [data-interactive="button"], [data-interactive="chip"]):is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-pressed="true"], [data-state="on"], [aria-checked="true"], [data-state="checked"]) svg.lucide {
+    color: var(--ix-mark) !important;
+  }
+  /* A segment's knob: the raised surface in its well (data-segmented),
+     unless a thumb slides under it (SegmentedControl). */
+  [data-segmented]:not([data-thumb="on"]) > [data-interactive="tab"]:is([data-state="active"], [aria-selected="true"], [data-state="checked"], [aria-checked="true"]) {
+    background-color: var(--raised);
+    box-shadow: var(--e1);
+  }
+  [data-segmented][data-thumb="off"] > [data-interactive="tab"]:is([data-state="checked"], [aria-checked="true"]) {
+    box-shadow: var(--e-sel);
+  }
+
+  /* WEIGHT NEVER MOVES LAYOUT (D8). A label reserves its selected weight
+     with an invisible copy of itself, so a tab that turns 510 when chosen
+     takes no more room than it had. Mentions carry their own data-label
+     (data-type), and are left alone. */
+  :where([data-interactive] [data-label]:not([data-type])) {
+    display: inline-block;
+  }
+  [data-interactive] [data-label]:not([data-type])::after {
+    content: attr(data-label);
+    content: attr(data-label) / "";
+    display: block;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    pointer-events: none;
+    user-select: none;
+    font-weight: 510;
+  }
+  [data-interactive="tab"]:is([data-state="active"], [aria-selected="true"], [data-state="checked"], [aria-checked="true"]) [data-label]:not([data-type]) {
+    font-weight: 510;
+  }
+
+  /* PRESSED: a deeper tint at once; controls and chips also settle to .98
+     (a finger gets phone.css's .96). A selected thing keeps its own tint. */
+  [data-interactive]:active:not([data-interactive="toggle"], [data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"], [data-interactive="block"], [aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"], [aria-selected="true"], [aria-current="page"], [aria-pressed="true"], [data-state="on"], [data-selected="true"]) {
+    --ix-a: var(--ix-press-a);
+    transition-duration: 0ms;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :is([data-interactive="button"], [data-interactive="icon"], [data-interactive="chip"]):active:not([aria-disabled="true"], :disabled, [aria-busy="true"]) {
+      scale: var(--ix-press-scale);
+      transition-duration: var(--ix-press);
+    }
+    [data-interactive="card"]:active:not([aria-disabled="true"]) {
+      scale: 0.99;
+      transition-duration: var(--ix-press);
+    }
+    [data-interactive="avatar"]:active {
+      scale: 0.96;
+      transition-duration: var(--ix-press);
+    }
+  }
+
+  /* A TOGGLE (a switch, a box, a radio) draws a halo round itself under the
+     pointer and a deeper one while pressed; its checked look is its own. */
+  [data-interactive="toggle"] {
+    box-shadow: var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow, 0 0 #0000);
+  }
+  @media (hover: hover) {
+    [data-interactive="toggle"]:hover:not([aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"]) {
+      --tw-ring-offset-shadow: 0 0 0 4px color-mix(in srgb, var(--ix-tint) var(--ix-hover-a), transparent);
+    }
+  }
+  [data-interactive="toggle"]:active:not([aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"]) {
+    --tw-ring-offset-shadow: 0 0 0 4px color-mix(in srgb, var(--ix-tint) var(--ix-press-a), transparent);
+  }
+
+  /* FOCUS: the accent ring, outside for controls, inset for things that run
+     edge to edge (a scroller would clip an outside ring); a menu's highlight
+     is its focus. */
+  [data-interactive]:focus-visible {
+    outline: var(--ix-ring) solid var(--ring);
+    outline-offset: var(--ix-ring-offset);
+  }
+  :is([data-interactive="row"], [data-interactive="nav"], [data-interactive="tree"], [data-interactive="cell"], [data-interactive="message"], [data-interactive="block"], [data-interactive="event"], [data-interactive="tab"]):focus-visible {
+    outline-offset: calc(var(--ix-ring) * -1);
+  }
+  [data-segmented] > [data-interactive="tab"]:focus-visible {
+    outline-offset: var(--ix-ring-offset);
+  }
+  [data-interactive="item"]:focus-visible {
+    outline: none;
+    --ix-a: var(--ix-press-a);
+  }
+  /* A FIELD that edits in place (a title, a caption, a bare box): a ring of
+     a quarter of the accent under the pointer, and with focus the halo (D5),
+     which clears 3:1 where the old 50% ring didn't. */
+  @media (hover: hover) {
+    [data-interactive="field"]:hover:not(:focus, :disabled, [aria-disabled="true"]) {
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 25%, var(--line-3));
+    }
+  }
+  [data-interactive="field"]:is(:focus, :focus-visible) {
+    outline: none;
+    box-shadow: var(--ix-halo);
+  }
+
+  /* DISABLED: half strength and the not-allowed cursor; with a reason, still
+     focusable (aria-disabled) and saying why. data-disabled is read by its
+     value everywhere in the layer: Radix writes it empty, but cmdk writes
+     "true" or "false" on every item, so its presence alone drew every palette,
+     picker and mention row at half strength with no highlight. */
+  [data-interactive]:is([aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"]) {
+    opacity: var(--ix-disabled);
+    cursor: not-allowed;
+  }
+  :where([data-disabled-reason]) {
+    position: relative;
+  }
+  [data-disabled-reason]::after {
+    content: attr(data-disabled-reason);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 6px);
+    z-index: 60;
+    width: max-content;
+    max-width: 240px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--tooltip-bg);
+    color: #fff;
+    font: 510 12px/16px var(--font-sans);
+    letter-spacing: 0;
+    text-align: center;
+    text-wrap: balance;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    translate: -50% 4px;
+    transition: opacity var(--ix-pop) var(--ix-ease), translate var(--ix-pop) var(--ix-ease);
+  }
+  @media (hover: hover) {
+    [data-disabled-reason]:hover::after {
+      opacity: 1;
+      translate: -50% 0;
+      transition-delay: var(--ix-tip-delay);
+    }
+  }
+  [data-disabled-reason]:focus-visible::after {
+    opacity: 1;
+    translate: -50% 0;
+  }
+
+  /* REVEAL (§6.5, §7.2): a row or card with tools (data-reveal) shows them
+     (data-tools) under the pointer and with focus inside it. On touch they
+     are always there, or, in a dense list (data-reveal="tap"), on the row a
+     finger revealed (data-revealed, hooks/useTouchReveal; HubRow keeps its
+     own). They overlay or sit in room kept for them, and take no clicks
+     while hidden. A tool's open menu keeps them out. */
+  [data-reveal] [data-tools] {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--ix-colour) var(--ix-ease);
+  }
+  [data-reveal]:is(:focus-within, [data-revealed]) [data-tools],
+  [data-reveal] [data-tools]:is([data-state="open"], :has([data-state="open"])) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  @media (hover: hover) {
+    [data-reveal]:hover [data-tools] {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+  @media (hover: none) {
+    [data-reveal]:not([data-reveal="tap"]) [data-tools] {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  /* AN EDGE WITH MORE PAST IT FADES (data-edge-fade): a row that scrolls
+     sideways fades 24px at each end it can still scroll to, so a cut-off tab
+     reads as more to come, not a clipped word ("Attachm"). Its own scroll
+     drives the fade, with no script: a row that fits has no timeline and
+     doesn't fade, and a browser without scroll timelines clips as before.
+     It is every tab and chip strip's one behaviour (15 Oct 2026: a phone's
+     project tabs ended in a bare "G"): a scrolled strip comes to rest on a
+     whole tab, clear of the fade, and scrolling a chosen tab into view
+     (scrollIntoView) stops 24px short of the edge for the same reason. */
+  [data-edge-fade] {
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 24px;
+  }
+  [data-edge-fade] > :not([aria-hidden="true"]) {
+    scroll-snap-align: start;
+  }
+  @supports (animation-timeline: scroll()) {
+    [data-edge-fade] {
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
+      mask-image: linear-gradient(to right, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
+      animation: ix-fade-s linear both, ix-fade-e linear both;
+      animation-timeline: scroll(self inline);
+      animation-range: 0 24px, calc(100% - 24px) 100%;
+    }
+  }
+
+  /* DRAG (§5): the handle, the lifted thing, the slot it left, the place it
+     will land, and the document's cursor while it moves (lib/ui/dnd.ts). */
+  [data-drag-handle] {
+    cursor: grab;
+    touch-action: none;
+  }
+  html[data-dragging],
+  html[data-dragging] * {
+    cursor: grabbing !important;
+    user-select: none;
+  }
+  html[data-dragging="invalid"],
+  html[data-dragging="invalid"] * {
+    cursor: not-allowed !important;
+  }
+  [data-drag-state="lifted"] {
+    box-shadow: var(--e3);
+  }
+  html[data-dragging="invalid"] [data-drag-state="lifted"] {
+    opacity: 0.7;
+  }
+  [data-drag-state="placeholder"] {
+    outline: 1.5px dashed var(--line-3);
+    outline-offset: -1.5px;
+    background-color: color-mix(in srgb, var(--ix-tint, var(--brand)) 4%, transparent);
+    box-shadow: none;
+  }
+  [data-drag-state="placeholder"] > * {
+    visibility: hidden;
+  }
+  [data-drop="valid"] {
+    background-image: linear-gradient(color-mix(in srgb, var(--ix-tint, var(--brand)) var(--ix-drop-a), transparent) 0 0);
+    outline: 1.5px dashed color-mix(in srgb, var(--ix-tint, var(--brand)) 55%, transparent);
+    outline-offset: -1.5px;
+  }
+  [data-drop-line] {
+    position: absolute;
+    height: 2px;
+    inset-inline: 4px;
+    border-radius: 1px;
+    background: var(--brand);
+    pointer-events: none;
+  }
+  [data-drop-line]::before {
+    content: "";
+    position: absolute;
+    left: -4px;
+    top: -2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 2px var(--brand);
+    background: var(--sheet);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    [data-drag-state="lifted"] {
+      scale: var(--ix-lift-scale);
+      transition: scale var(--ix-lift) var(--ix-spring), rotate var(--ix-lift) var(--ix-spring), box-shadow var(--ix-lift) var(--ix-ease);
+    }
+    [data-interactive="card"][data-drag-state="lifted"] {
+      rotate: var(--ix-lift-tilt);
+    }
+  }
+}
+
+/* Reduced motion: colour changes at once. The layer's transforms (press,
+   lift, tilt) are already written for no-preference only. */
+@media (prefers-reduced-motion: reduce) {
+  [data-interactive],
+  [data-tools],
+  [data-drag-state],
+  [data-disabled-reason]::after {
+    transition-duration: 0ms;
+  }
+}

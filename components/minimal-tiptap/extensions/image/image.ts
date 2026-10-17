@@ -5,9 +5,7 @@ import type { ImageOptions } from '@tiptap/extension-image'
 import { Image as TiptapImage } from '@tiptap/extension-image'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { filterFiles, randomId, type FileError, type FileValidationOptions } from '../../utils'
-import { ReplaceStep } from '@tiptap/pm/transform'
-import type { Attrs } from '@tiptap/pm/model'
+import { filterFiles, type FileError, type FileValidationOptions } from '../../utils'
 import { TextSelection } from '@tiptap/pm/state'
 import { findImageById, ImageUploads, placeholderContent, runImageUpload, startImageUploads, type ImageUploadFn } from './uploads'
 
@@ -29,17 +27,9 @@ const dataAttr = (key: string) => ({
   renderHTML: (a: Record<string, unknown>) => (a[key] ? { [`data-${key}`]: a[key] } : {}),
 })
 
-export type UploadReturnType =
-  | string
-  | {
-      id: string | number
-      src: string
-    }
-
 interface CustomImageOptions extends ImageOptions, Omit<FileValidationOptions, 'allowBase64'> {
   /** Uploads a file and returns its address; given progress and an abort signal (uploads.ts). */
   uploadFn?: ImageUploadFn
-  onImageRemoved?: (props: Attrs) => void
   onValidationError?: (errors: FileError[]) => void
 }
 
@@ -50,9 +40,6 @@ interface ImageStorage {
 
 declare module '@tiptap/react' {
   interface Commands<ReturnType> {
-    setImages: {
-      setImages: (attrs: { src: string | File; alt?: string; title?: string }[]) => ReturnType
-    }
     toggleImage: {
       toggleImage: () => ReturnType
     }
@@ -61,8 +48,6 @@ declare module '@tiptap/react' {
       insertImageFiles: (files: File[], pos?: number) => ReturnType
       /** Tries a failed upload again. */
       retryImageUpload: (id: string) => ReturnType
-      /** Takes the image with this id out of the document (and drops its upload). */
-      removeImageById: (id: string) => ReturnType
     }
   }
 }
@@ -122,42 +107,6 @@ export const Image = TiptapImage.extend<CustomImageOptions, ImageStorage>({
 
   addCommands() {
     return {
-      setImages:
-        attrs =>
-        ({ commands }) => {
-          const [validImages, errors] = filterFiles(attrs, {
-            allowedMimeTypes: this.options.allowedMimeTypes,
-            maxFileSize: this.options.maxFileSize,
-            allowBase64: this.options.allowBase64
-          })
-
-          if (errors.length > 0 && this.options.onValidationError) {
-            this.options.onValidationError(errors)
-          }
-
-          if (validImages.length > 0) {
-            // Files go in as placeholders and upload (never as blob: addresses).
-            const files = validImages.map(image => image.src).filter((f): f is File => f instanceof File)
-            const placed = files.length > 0 && commands.insertImageFiles(files)
-            const linked = validImages.filter(image => !(image.src instanceof File))
-            if (!linked.length) return placed
-            return commands.insertContent(
-              linked.map(image => ({
-                type: this.type.name,
-                attrs: {
-                  id: randomId(),
-                  src: image.src,
-                  alt: image.alt,
-                  title: image.title,
-                  fileName: null
-                }
-              }))
-            )
-          }
-
-          return false
-        },
-
       insertImageFiles:
         (files, pos) =>
         ({ tr, dispatch, commands, editor }) => {
@@ -195,16 +144,6 @@ export const Image = TiptapImage.extend<CustomImageOptions, ImageStorage>({
           return true
         },
 
-      removeImageById:
-        id =>
-        ({ tr, dispatch }) => {
-          const at = findImageById(tr.doc, id)
-          this.storage.uploads.remove(id)
-          if (!at) return false
-          if (dispatch) tr.delete(at.pos, at.pos + at.node.nodeSize)
-          return true
-        },
-
       toggleImage:
         () =>
         ({ editor }) => {
@@ -237,22 +176,6 @@ export const Image = TiptapImage.extend<CustomImageOptions, ImageStorage>({
           return true
         }
     }
-  },
-
-  onTransaction({ transaction }) {
-    transaction.steps.forEach(step => {
-      if (step instanceof ReplaceStep && step.slice.size === 0) {
-        const deletedPages = transaction.before.content.cut(step.from, step.to)
-
-        deletedPages.forEach(node => {
-          if (node.type.name === 'image') {
-            // (A placeholder's preview is the upload's to free, uploads.ts:
-            // the image may come back with an undo.)
-            this.options.onImageRemoved?.(node.attrs)
-          }
-        })
-      }
-    })
   },
 
   addNodeView() {

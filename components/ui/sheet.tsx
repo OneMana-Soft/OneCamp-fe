@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 
 const Sheet = SheetPrimitive.Root
 
@@ -89,10 +90,9 @@ const SheetContent = React.forwardRef<
         className={cn(
           // A 28px ghost icon button, on the 52px header's centre line.
           "absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-md",
-          "text-faint-foreground hover:text-foreground hover:bg-hover active:bg-press transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-          "disabled:pointer-events-none",
+          "text-faint-foreground hover:text-foreground disabled:pointer-events-none",
         )}
+        {...ix("icon")}
       >
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>

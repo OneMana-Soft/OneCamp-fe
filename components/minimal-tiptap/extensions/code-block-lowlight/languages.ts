@@ -8,7 +8,7 @@
  * (grammars.ts). Mermaid has no grammar: its block draws the diagram.
  */
 
-export interface CodeLanguage {
+interface CodeLanguage {
   /** What the block stores, and the grammar's name. */
   id: string
   /** What people read: "C#", "Plain text". */
@@ -21,7 +21,7 @@ export interface CodeLanguage {
 export const MERMAID = "mermaid"
 
 /** No highlighting at all. */
-export const PLAIN = "plaintext"
+const PLAIN = "plaintext"
 
 export const CODE_LANGUAGES: CodeLanguage[] = [
   { id: PLAIN, label: "Plain text", aliases: ["text", "txt", "none"] },

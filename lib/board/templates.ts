@@ -29,11 +29,6 @@ export const STICKY_COLOURS: Record<StickyColour, { fill: string; edge: string; 
   grey: { fill: "#F5F6F7", edge: "#D3D5DA", ink: "#14161A" },
 }
 
-/** A note's paper colour. */
-export const STICKY_FILL: Record<StickyColour, string> = Object.fromEntries(
-  Object.entries(STICKY_COLOURS).map(([k, v]) => [k, v.fill]),
-) as Record<StickyColour, string>
-
 /** The subset of Excalidraw's element skeleton the templates use. */
 export type Skeleton =
   | {

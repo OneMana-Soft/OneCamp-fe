@@ -9,7 +9,7 @@ import type { CodecRule } from '@/lib/codec/types'
 import { createCodec } from '@/lib/codec'
 
 /** The page's look: the doc's measure and type scale, light and dark, and clean print. */
-export const PAGE_STYLE = `:root { color-scheme: light dark; --ink: #1f2328; --ink-2: #59636e; --line: #d8dee4; --tint: #f6f8fa; --link: #0b62c4; }
+const PAGE_STYLE = `:root { color-scheme: light dark; --ink: #1f2328; --ink-2: #59636e; --line: #d8dee4; --tint: #f6f8fa; --link: #0b62c4; }
 @media (prefers-color-scheme: dark) { :root { --ink: #e6edf3; --ink-2: #9198a1; --line: #3d444d; --tint: #151b23; --link: #4493f8; } }
 body { margin: 0; background: Canvas; color: var(--ink); font: 16px/26px system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; }

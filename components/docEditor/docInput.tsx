@@ -17,6 +17,7 @@ import { celebrate } from '@/lib/celebrate'
 import { DOC_EDITOR_CLASS, useDocEditor } from '@/components/docEditor/useDocEditor'
 import { ImageNotUploadable, type ImageUploadOptions } from '@/components/minimal-tiptap/extensions/image/uploads'
 import { TableEmbedPickerDialog } from '@/components/docEditor/TableEmbedPickerDialog'
+import { tableForDoc } from '@/components/docEditor/tableForDoc'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
 import { useDispatch, useSelector } from "react-redux"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
@@ -166,7 +167,6 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             onUpdate: onChange,
             uploadFn,
             provider,
-            providerSynced,
             collaboration,
             labelledBy: titleStore ? titleId : undefined,
             ...props,
@@ -258,6 +258,8 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         // when another reader opens the doc, the embed fetches the table AS THAT
         // USER, so the table's own permissions are enforced server-side (a private
         // table simply shows an "unavailable" placeholder to others, never leaks).
+        // A new table is as private as the doc (tableForDoc): it was made for the
+        // whole workspace, so a private doc's new table reached everyone.
         const [embedTableOpen, setEmbedTableOpen] = React.useState(false)
         const [creatingTable, setCreatingTable] = React.useState(false)
         useDocCommand(bus, 'openDialog', ({ id }) => {
@@ -276,7 +278,8 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             try {
                 // Loaded here, not with the doc: only making a table needs it.
                 const { createTable } = await import('@/services/tableService')
-                const t = await createTable({ name: "Untitled table", visibility: "workspace" })
+                const { visibility } = docId ? await tableForDoc(docId) : { visibility: 'private' as const }
+                const t = await createTable({ name: "Untitled table", visibility })
                 editor.chain().focus().setTableEmbed({ tableId: t.id }).run()
                 setEmbedTableOpen(false)
             } catch {
@@ -284,7 +287,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             } finally {
                 setCreatingTable(false)
             }
-        }, [editor, creatingTable])
+        }, [editor, creatingTable, docId])
 
         const canEdit = props.editable !== false
         // A reader's selection gets a bar too, with only what they may do

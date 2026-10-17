@@ -7,7 +7,7 @@ import { useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import {NotificationType} from "@/types/channel";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {GetEndpointUrl} from "@/services/endPoints";
 import { HEADER_ICON, HuddleBanner, HuddleButton, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
 import { ChatFace } from "@/components/message/chatFace";
 import { WithTooltip } from "@/components/common/withTooltip";
@@ -22,8 +22,8 @@ import {cn} from "@/lib/utils/helpers/cn";
 import { SendHorizontal, Users, Clapperboard } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
-import {usePost} from "@/hooks/usePost";
-import {memo, useEffect, useState} from "react";
+import { useGroupNotification } from "@/hooks/useConversationNotification";
+import {memo, useCallback, useEffect, useState} from "react";
 import type { Content } from "@tiptap/react";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
@@ -34,7 +34,6 @@ import {
     RawUserDMInterface,
 
 } from "@/types/user";
-import { GrpChatNotificationInterface} from "@/types/chat";
 import {createOrUpdateGroupChatBody, clearGroupChatReplyTarget, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
@@ -57,9 +56,9 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     const dispatch = useDispatch()
     const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
 
-    const postNotification  = usePost()
     const dmParticipantsInfo  = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
-    const [chatNotification, setChatNotificationType] = useState<string>(NotificationType.NotificationAll)
+    // A group's level: one write for its header and a phone's sheet (hooks/useConversationNotification).
+    const notification = useGroupNotification(grpId, dmParticipantsInfo.data?.data?.dm_notification_type)
 
     const chatCallActive = useSelector((state: RootState) => state.chat.chatCallStatus[grpId]?.active || false);
 
@@ -69,7 +68,6 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     useEffect(() => {
 
         if(dmParticipantsInfo.data?.data) {
-            setChatNotificationType(dmParticipantsInfo.data?.data?.dm_notification_type || NotificationType.NotificationAll)
             dispatch(updateChatCallStatus({grpId: grpId, callStatus: !!dmParticipantsInfo.data?.data?.dm_call_active}))
 
         }
@@ -119,13 +117,6 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     //         }
     // }
 
-    // One click chooses a level (C04); nothing cycles any more.
-    const updateNotification = async (next: string) => {
-        const before = chatNotification
-        setChatNotificationType(next)
-        const res = await postNotification.makeRequest<GrpChatNotificationInterface>({payload:{grp_id: grpId, notification_type: next}, apiEndpoint: PostEndpointUrl.UpdateGroupChatNotification}).catch(() => undefined)
-        if (res === undefined) setChatNotificationType(before)
-    }
 
     const participants = grpChatCreatedLocally.participants || dmParticipantsInfo.data?.data?.dm_participants || []
 
@@ -171,7 +162,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         </WithTooltip>
                         <DropdownMenuContent align="end" className="pop-surface w-64 p-1">
                             {dmParticipantsInfo.data?.data && (
-                                <NotificationSubmenu value={chatNotification} onChange={updateNotification} busy={postNotification.isSubmitting} />
+                                <NotificationSubmenu value={notification.level} onChange={notification.choose} busy={notification.busy} />
                             )}
                             <DropdownMenuItem onClick={() => router.push(`/app/chat/group/${grpId}/recording`)}>
                                 <Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings

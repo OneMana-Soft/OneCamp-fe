@@ -35,7 +35,6 @@ import { useStableCallback } from "@/hooks/useStableCallback"
 import { useToast } from "@/hooks/use-toast";
 import { GroupEmpty } from "@/components/message/emptyConversations";
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor";
-import { hueFor } from "@/lib/campHue";
 import { messageSummary } from "@/lib/chat/messageSummary";
 
 

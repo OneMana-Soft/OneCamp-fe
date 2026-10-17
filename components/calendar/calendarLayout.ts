@@ -1,5 +1,6 @@
 import { addDays, endOfDay, endOfMonth, endOfWeek, parseISO, startOfDay, startOfMonth, startOfWeek } from "date-fns"
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay"
+import { clockRange, clockTime } from "@/lib/utils/date/clock"
 import { dayKey, WEEK_STARTS_ON } from "@/lib/utils/date/days"
 
 /**
@@ -65,9 +66,14 @@ export function lastDayOf(p: Placed): Date {
   return startOfDay(p.end)
 }
 
-/** Every day from `from` to `to` (inclusive) with the items on it, by dayKey. */
+/**
+ * Every day from `from` to `to` (inclusive) with the items on it, by dayKey,
+ * in the order the day reads (PTC-3): what has no time of its own there first
+ * (all day, a task due, an event running on from an earlier day), then by when
+ * each starts, then by name. They came in the order the server sent them.
+ */
 export function itemsByDay<T extends DatedItem>(placed: readonly Placed<T>[], from: Date, to: Date): Map<string, T[]> {
-  const map = new Map<string, T[]>()
+  const days = new Map<string, { day: Date; list: Placed<T>[] }>()
   const first = startOfDay(from)
   const last = startOfDay(to)
   for (const p of placed) {
@@ -76,10 +82,16 @@ export function itemsByDay<T extends DatedItem>(placed: readonly Placed<T>[], fr
     const stop = end > last ? last : end
     for (; day <= stop; day = addDays(day, 1)) {
       const k = dayKey(day)
-      const list = map.get(k)
-      if (list) list.push(p.item)
-      else map.set(k, [p.item])
+      const on = days.get(k)
+      if (on) on.list.push(p)
+      else days.set(k, { day, list: [p] })
     }
+  }
+  const map = new Map<string, T[]>()
+  for (const [k, { day, list }] of days) {
+    const untimed = (p: Placed<T>) => UNTIMED.has(daySpan(p.item, p.start, p.end, day).kind)
+    list.sort((a, b) => Number(untimed(b)) - Number(untimed(a)) || a.start.getTime() - b.start.getTime() || a.item.event_title.localeCompare(b.item.event_title))
+    map.set(k, list.map((p) => p.item))
   }
   return map
 }
@@ -156,3 +168,53 @@ export function allDayItem(item: { event_all_day?: boolean }, start: Date, end: 
   return !!item.event_all_day || isAllDay(start, end)
 }
 
+/**
+ * How an item sits on one day: all day, a task's due day, its own times, or a
+ * timed event's first or last day when it runs on into another (and all day
+ * on the days between).
+ */
+export type DaySpan = { kind: "allDay" } | { kind: "due" } | { kind: "timed"; from: Date; to: Date } | { kind: "from"; from: Date } | { kind: "until"; to: Date }
+
+/** The spans with no start of their own that day: a day lists them first. */
+const UNTIMED = new Set<DaySpan["kind"]>(["allDay", "due", "until"])
+
+/**
+ * The one rule for what an item's time reads on a day (PTC-9), which the
+ * agenda, the day's list, the month's "+N more" and the week's all-day rail
+ * share. A day-long event made in another zone ("Launch day", midnight to
+ * midnight in New York, so 09:30 to 09:30 in India) reads "From 09:30" on its
+ * first day and "Until 09:30" on its second, never "09:30 – 09:30". Pure.
+ */
+export function daySpan(item: Pick<DatedItem, "isTask" | "event_all_day">, start: Date, end: Date, day: Date): DaySpan {
+  if (item.isTask) return { kind: "due" }
+  if (allDayItem(item, start, end)) return { kind: "allDay" }
+  const dayStart = startOfDay(day)
+  const startsHere = start >= dayStart
+  const endsHere = end <= addDays(dayStart, 1)
+  if (startsHere && endsHere) return { kind: "timed", from: start, to: end }
+  if (startsHere) return { kind: "from", from: start }
+  if (endsHere) return { kind: "until", to: end }
+  return { kind: "allDay" }
+}
+
+/** A day span in words: "All day", "Due", "9:30 – 10:00 AM", "From 9:30 AM", "Until 9:30 AM". Pure. */
+export function daySpanWords(span: DaySpan): string {
+  switch (span.kind) {
+    case "allDay":
+      return "All day"
+    case "due":
+      return "Due"
+    case "timed":
+      return clockRange(span.from, span.to)
+    case "from":
+      return `From ${clockTime(span.from)}`
+    case "until":
+      return `Until ${clockTime(span.to)}`
+  }
+}
+
+/** An item's time in a one-line list of a day (the day's list, the month's "+N more"): when it starts there, else its span in words. Pure. */
+export function dayListTime(item: DatedItem, day: Date): string {
+  const span = daySpan(item, parseISO(item.event_start_time), parseISO(item.event_end_time), day)
+  return span.kind === "timed" ? clockTime(span.from) : daySpanWords(span)
+}

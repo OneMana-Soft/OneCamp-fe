@@ -77,6 +77,30 @@ describe("Later", () => {
     expect(dismissed).toHaveBeenCalled()
   })
 
+  // The request says a refused Undo itself (the request layer's toast), and
+  // nothing is left unhandled: the toast's button discarded the promise.
+  it("leaves nothing unhandled when the server refuses the Undo", async () => {
+    done.mockImplementation(async (...args: unknown[]) => {
+      if (args[1] === false) throw Object.assign(new Error("Request failed with status code 500"), { response: { status: 500 } })
+    })
+    const unhandled: unknown[] = []
+    const note = (e: unknown) => unhandled.push(e)
+    process.on("unhandledRejection", note)
+    try {
+      mount("open")
+      fireEvent.click(screen.getAllByRole("button", { name: "Mark done" })[0])
+      render(lastToast!.action!)
+      await act(async () => {
+        fireEvent.click(screen.getByText("Undo"))
+      })
+      await act(() => new Promise((r) => setTimeout(r, 0)))
+    } finally {
+      process.off("unhandledRejection", note)
+    }
+    expect(done).toHaveBeenCalledWith("a", false)
+    expect(unhandled).toEqual([])
+  })
+
   it("keeps a row back when the refusal arrives while it is still on its way out", async () => {
     vi.useFakeTimers()
     const motion = await import("@/lib/celebrate")

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
+import { isComposingKey } from "@/lib/keys/ime"
 import { Button } from "@/components/ui/button"
 import { takeLinkFocus } from "./hosts"
 
@@ -73,7 +74,7 @@ export function LinkField({
             setProblem(null)
           }}
           onKeyDown={(e) => {
-            if (e.key === "Escape") onEscape?.()
+            if (e.key === "Escape" && !isComposingKey(e.nativeEvent)) onEscape?.()
           }}
           className="h-9 min-w-0 flex-1 select-text rounded-lg bg-raised px-3 text-ui-sm text-ink shadow-e1 outline-none placeholder:text-ink-3 focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11"
         />

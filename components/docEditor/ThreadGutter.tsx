@@ -53,6 +53,9 @@ export interface GutterMark {
     quote: string
 }
 
+/** Whether a thread gets a marker: open, and on the doc's words rather than the page. */
+const markable = (t: ThreadView | undefined): t is ThreadView => !!t && t.status === "open" && !onPage(t)
+
 /**
  * The markers for the threads found in the doc, one per line, top to bottom,
  * moved down where two would touch. tops is where each thread's words start,
@@ -62,7 +65,7 @@ export function marksFor(tops: ReadonlyMap<string, number>, threads: ReadonlyMap
     const rows: GutterMark[] = []
     for (const [id, top] of tops) {
         const t = threads.get(id)
-        if (!t || t.status !== "open" || onPage(t)) continue
+        if (!markable(t)) continue
         const row = rows.find((m) => Math.abs(m.top - top) < MARK / 2)
         if (row) {
             row.ids.push(id)
@@ -106,12 +109,19 @@ function Gutter({ docId, editor }: { docId: string; editor: Editor }) {
         const el = box.current
         const found = editor.isDestroyed ? undefined : anchorDecorationsKey.getState(editor.state)
         if (!el || !found) return
+        const todo: [string, number][] = []
+        for (const [id, r] of found.resolved) if (r.state === "attached" && markable(threads.get(id))) todo.push([id, r.from])
+        // Nothing to place, nothing to read: a doc with no open thread on its
+        // words reads no layout as it is typed in (I20).
+        if (!todo.length) {
+            setMarks((prev) => (prev.length ? [] : prev))
+            return
+        }
         const top0 = el.getBoundingClientRect().top
         const tops = new Map<string, number>()
-        for (const [id, r] of found.resolved) {
-            if (r.state !== "attached" || !threads.has(id)) continue
+        for (const [id, from] of todo) {
             try {
-                const at = editor.view.coordsAtPos(r.from)
+                const at = editor.view.coordsAtPos(from)
                 tops.set(id, Math.round((at.top + at.bottom) / 2 - top0 - MARK / 2))
             } catch {
                 // Not drawn yet: placed on the next pass.

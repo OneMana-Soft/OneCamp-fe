@@ -10,16 +10,14 @@ import {
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
-import { useEffect, useState } from "react"
-import { usePost } from "@/hooks/usePost"
+import { useChatNotification } from "@/hooks/useConversationNotification"
 import { getNextNotification } from "@/lib/utils/getNextNotification"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
 import { NotificationType } from "@/types/channel"
 import { NotificationBell } from "@/components/Notification/notificationBell"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useRouter } from "next/navigation"
 import { app_chat_call } from "@/types/paths"
-import { ChatNotificationInterface } from "@/types/chat"
 import { UserProfileInterface } from "@/types/user"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { FeatureGate } from "@/components/common/withFeature"
@@ -39,31 +37,15 @@ export function ChatOptionsDrawer({
 }: ChatOptionsDrawerProps) {
     const router = useRouter()
 
-    const [chatNotification, setChatNotificationType] = useState<string>(
-        NotificationType.NotificationAll,
-    )
-    const postNotification = usePost()
-
     const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(
         `${GetEndpointUrl.SelfProfile}/${chatId}`,
     )
 
-    const updateNotification = async () => {
-        const nextNotification = getNextNotification(chatNotification)
-        await postNotification.makeRequest<ChatNotificationInterface>({
-            payload: { to_user_id: chatId, notification_type: nextNotification },
-            apiEndpoint: PostEndpointUrl.UpdateChatNotification,
-        })
-        setChatNotificationType(nextNotification)
-    }
-
-    useEffect(() => {
-        if (otherUserInfo.data?.data) {
-            setChatNotificationType(
-                otherUserInfo.data?.data.notification_type || NotificationType.NotificationAll,
-            )
-        }
-    }, [otherUserInfo.data?.data])
+    // The header's write: shown at once, a refusal taken back and said, never
+    // left unhandled (hooks/useConversationNotification).
+    const notification = useChatNotification(chatId, otherUserInfo.data?.data?.notification_type)
+    const chatNotification = notification.level
+    const updateNotification = () => notification.choose(getNextNotification(chatNotification))
 
     const closeDrawer = () => setOpenState(false)
 
@@ -92,7 +74,7 @@ export function ChatOptionsDrawer({
                         trailing={
                             <NotificationBell
                                 notificationType={chatNotification}
-                                isLoading={postNotification.isSubmitting}
+                                isLoading={notification.busy}
                                 onNotCLick={updateNotification}
                             />
                         }

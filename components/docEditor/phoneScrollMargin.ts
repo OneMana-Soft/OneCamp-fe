@@ -5,7 +5,7 @@ import type { Editor } from "@tiptap/react"
 import { DEFAULT_SCROLL_MARGIN, docKeymapOf } from "@/components/minimal-tiptap/extensions/doc-keymap/storage"
 
 /** Room kept between the caret and the top of the phone's bar. */
-export const CARET_CLEARANCE = 12
+const CARET_CLEARANCE = 12
 
 /**
  * The caret kept above the phone's bar (small-details M8). The bar floats over

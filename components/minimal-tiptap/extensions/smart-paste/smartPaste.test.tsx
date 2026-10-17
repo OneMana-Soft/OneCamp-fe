@@ -41,7 +41,7 @@ async function mountDoc(): Promise<Editor> {
   providers.push(provider)
   let editor: Editor | null = null
   function Doc() {
-    const e = useDocEditor({ collaboration: { enabled: true, documentId: "doc-1", username: "Sam", userId: "sam" }, provider, providerSynced: true })
+    const e = useDocEditor({ collaboration: { enabled: true, documentId: "doc-1", username: "Sam", userId: "sam" }, provider })
     editor = e as unknown as Editor | null
     return e ? <EditorContent editor={e} /> : null
   }

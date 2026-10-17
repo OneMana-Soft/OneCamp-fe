@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { act, renderHook } from "@testing-library/react"
+import { act, cleanup, render, renderHook } from "@testing-library/react"
 import * as Y from "yjs"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 
-import { holdsMine, parsePersisted, useSaveProgress, useSlowSave } from "@/components/docEditor/docSaveState"
+import { holdsMine, parsePersisted, useSaveProgress, useSlowSave, type SaveProgress } from "@/components/docEditor/docSaveState"
 import { saveDotCopy } from "@/components/docEditor/SaveDot"
 import { pinTestClock } from "@/lib/testing/testClock"
 
@@ -123,9 +123,49 @@ describe("useSaveProgress", () => {
     expect(result.current.pending).toBe(false)
   })
 
+  // Review, 15 Oct 2026: every update, send and acknowledgement set a new
+  // reading, the same or not, and the doc's page rendered again for each: two
+  // to four times a key, about 340 components a key in a 12-block doc.
+  it("hands back the same reading, and renders nothing, when an event changes nothing it says", () => {
+    const { provider, doc, type } = fakeProvider()
+    // What the reading's reader draws: it renders only when the reading changes.
+    let drawn = 0
+    const Drawn = ({ progress }: { progress: SaveProgress }) => {
+      drawn++
+      return <span>{progress.waiting}</span>
+    }
+    let reading: SaveProgress | null = null
+    const Reader = () => {
+      reading = useSaveProgress(provider as unknown as HocuspocusProvider)
+      return <Drawn progress={reading} />
+    }
+    render(<Reader />)
+    act(() => provider.emit("stateless", { payload: persisted(doc) }))
+    act(() => type("a"))
+    const typed = reading
+    const before = drawn
+    // The key's change is sent, then acknowledged: still not stored, still one change.
+    act(() => provider.emit("unsyncedChanges", { number: 1 }))
+    act(() => provider.emit("unsyncedChanges", { number: 0 }))
+    expect(reading).toBe(typed)
+    expect(drawn).toBe(before)
+    cleanup()
+    const { result } = renderHook(() => useSaveProgress(provider as unknown as HocuspocusProvider))
+    act(() => type("b"))
+    // The same store said twice keeps its time, as the same Date.
+    act(() => provider.emit("stateless", { payload: persisted(doc, Date.parse("2026-10-12T09:42:00.000Z")) }))
+    const stored = result.current
+    expect(stored.persistedAt?.toISOString()).toBe("2026-10-12T09:42:00.000Z")
+    act(() => provider.emit("stateless", { payload: persisted(doc, Date.parse("2026-10-12T09:42:00.000Z")) }))
+    expect(result.current).toBe(stored)
+    expect(result.current.persistedAt).toBe(stored.persistedAt)
+  })
+})
+
+describe("useSlowSave", () => {
   it("the dot breathes only once a save has waited", async () => {
     const { provider, doc, type } = fakeProvider()
-    const { result } = renderHook(() => useSlowSave(provider as unknown as HocuspocusProvider, 20))
+    const { result } = renderHook(() => useSlowSave(useSaveProgress(provider as unknown as HocuspocusProvider).pending, 20))
     act(() => provider.emit("stateless", { payload: persisted(doc) }))
     act(() => type("a"))
     expect(result.current).toBe(false)

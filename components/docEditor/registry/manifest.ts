@@ -33,7 +33,7 @@ export function bareContext(kind: EditorKind, gate: EditionGate = ALL_EDITIONS):
 }
 
 /** The schema an editor of this kind is built with, its lazy blocks loaded first. */
-export async function schemaFor(kind: EditorKind, gate: EditionGate = ALL_EDITIONS) {
+async function schemaFor(kind: EditorKind, gate: EditionGate = ALL_EDITIONS) {
   await loadBlocks(kind, gate)
   return getSchema(extensionsFor(bareContext(kind, gate)))
 }

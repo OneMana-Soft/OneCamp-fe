@@ -127,7 +127,7 @@ export function FormulaEditor({
       {/* The text as typed, coloured underneath a transparent box: fields as
           pills, functions sky, text moss, numbers sun (the camp ink cuts, so it
           reads the same in both themes). The box keeps the caret and the keys. */}
-      <div className="relative rounded-lg bg-raised shadow-e1 focus-within:ring-1 focus-within:ring-brand/50">
+      <div className="relative rounded-lg bg-raised shadow-e1 focus-within:focus-halo">
         <div
           ref={backdrop}
           aria-hidden="true"

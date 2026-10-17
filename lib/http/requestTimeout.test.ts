@@ -40,6 +40,19 @@ describe("what waits as long as its work takes", () => {
     }
   })
 
+  // The server answers these when the work ends: an agent's run (the
+  // builder's Run), its evaluation, one scenario's, the admin's governance
+  // drill and a mail thread's summary all run the model before they answer,
+  // and were cut off at 30 seconds with "didn't answer in time".
+  it("a run or a summary the server answers when it ends, but never a read", () => {
+    for (const url of [`${PostEndpointUrl.RunAgent}/a1/run`, `${GetEndpointUrl.GetAgents}/a1/eval/run`, `${GetEndpointUrl.GetAgents}/eval/scenarios/s1/run`, "/admin/governance-drill/run", "/connectors/gmail/threads/t1/summary"]) {
+      expect(waitsAsLongAsItTakes({ url, method: "post" }), url).toBe(true)
+    }
+    for (const url of [`${GetEndpointUrl.GetAgents}/a1/runs`, `${GetEndpointUrl.GetAgents}/a1/eval/summary`, `${GetEndpointUrl.GetAgents}/eval/summary`]) {
+      expect(waitsAsLongAsItTakes({ url, method: "get" }), url).toBe(false)
+    }
+  })
+
   // A route the model, an import, an export or a restore answers, added
   // later, is never cut short: every endpoint named for one is matched. A
   // value several names share is a prefix the caller builds on (its

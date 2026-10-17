@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch } from "react-redux"
+import { localDay } from "@/lib/utils/timeZone"
 import * as Menu from "@radix-ui/react-dropdown-menu"
 import { ChevronsUpDown, CircleHelp, Gift, PanelLeft, Pin, Settings, Shield, SquarePen, UserPlus } from "@/lib/icons"
 import { openUI } from "@/store/slice/uiSlice"
@@ -11,6 +12,7 @@ import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModali
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_INVITATION_CREATE } from "@/services/capabilityService"
 import { useWorkspaceName } from "@/hooks/useWorkspaceName"
+import { ix } from "@/lib/ui/interactive"
 
 /** The host people reach this workspace at, for the menu's second line. */
 function workspaceHost(): string {
@@ -35,7 +37,7 @@ const MARK_DRAWN_KEY = "onecamp:mark-drawn"
  */
 function firstOpenToday(): boolean {
   try {
-    const today = new Date().toLocaleDateString("en-CA")
+    const today = localDay()
     if (localStorage.getItem(MARK_DRAWN_KEY) === today) return false
     localStorage.setItem(MARK_DRAWN_KEY, today)
     return true
@@ -116,7 +118,7 @@ export function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps
       {onPin ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" onClick={onPin} aria-label="Keep the sidebar open" className="shell-icon-btn" data-size="24">
+            <button type="button" onClick={onPin} aria-label="Keep the sidebar open" {...ix("icon")} className="shell-icon-btn" data-size="24">
               <Pin className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </TooltipTrigger>
@@ -129,7 +131,7 @@ export function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps
               type="button"
               onClick={onCollapse}
               aria-label="Collapse sidebar"
-              className="shell-icon-btn shell-reveal"
+              {...ix("icon")} className="shell-icon-btn shell-reveal"
               data-size="24"
             >
               <PanelLeft className="h-3.5 w-3.5" aria-hidden="true" />
@@ -146,7 +148,7 @@ export function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps
             type="button"
             onClick={() => dispatch(openUI({ key: "createChatMessage" }))}
             aria-label="New message"
-            className="shell-icon-btn"
+            {...ix("icon")} className="shell-icon-btn"
           >
             <SquarePen className="h-4 w-4" aria-hidden="true" />
           </button>

@@ -18,6 +18,8 @@ export interface BulkResult {
   unchanged: number
   /** The tasks saved, for an Undo. */
   done: TaskInfoInterface[]
+  /** The first refusal (lib/bulkTasks whyNotDone). */
+  error?: unknown
 }
 
 /** Requests at a time: enough to be quick, few enough to leave the server room. */
@@ -54,7 +56,8 @@ export function useBulkTaskUpdate(listProjectId?: string) {
       // A task open in the panel shows its new status, assignee or tags too.
       const opened = new Set(work.map((w) => `${GetEndpointUrl.GetTaskInfo}/${w.task.task_uuid}`))
       void appMutate((key) => typeof key === "string" && opened.has(key))
-      return { changed: saved.length, failed: refused.length, unchanged: tasks.length - work.length, done: saved.map((w) => w.task) }
+      const error = results.find((r): r is PromiseRejectedResult => r.status === "rejected")?.reason
+      return { changed: saved.length, failed: refused.length, unchanged: tasks.length - work.length, done: saved.map((w) => w.task), error }
     },
     [listProjectId, optimisticUpdateTask, optimisticDeleteTask, revalidateTaskKeys],
   )

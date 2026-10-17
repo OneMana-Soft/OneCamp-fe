@@ -44,7 +44,7 @@ function reach(entry: string) {
 
 describe('the import walker', () => {
   it('sees a static import, and passes over a dynamic one', () => {
-    expect(reach('components/minimal-tiptap/extensions/code-block-lowlight/code-block-lowlight.ts').packages).toContain('lowlight')
+    expect(reach('components/minimal-tiptap/extensions/code-block-lowlight/highlighter.ts').packages).toContain('lowlight')
     expect(reach('components/minimal-tiptap/extensions/code-block-lowlight/lazyCodeBlock.ts').packages).not.toContain('lowlight')
   })
 })
@@ -72,5 +72,18 @@ describe.each([
     // The doc keymap's storage accessor (doc-keymap/storage.ts) is the one part a shared bubble reads.
     const docOnly = /extensions\/(callout|collapsible|table-embed|block-handle|click-to-create-block)\/|doc-keymap\/(docKeymap|docInputRules)|clipboard-markdown\/clipboardMarkdown|blocks\/docOnly/
     expect(files.filter((f) => docOnly.test(f))).toEqual([])
+  })
+})
+
+// A doc's own blocks load with its first editor; an embedded table's grid
+// (DataTableGrid, its cells, menus and virtual rows, about 38 KB gzip) loads
+// with the first table a doc embeds (table-embed-view.tsx), so a doc with
+// none never carries it (routeKbOverHome, scripts/fluidity/doc-budgets.json).
+describe("a doc's own blocks", () => {
+  const { files, packages } = reach("components/minimal-tiptap/blocks/docOnly.ts")
+  it("carry the table embed's view, and none of the grid it draws", () => {
+    expect(files).toContain("components/minimal-tiptap/extensions/table-embed/components/table-embed-view.tsx")
+    expect(files.filter((f) => /components\/table\/(DataTableGrid|gridCells|ColumnMenu|RelationCell|FormulaEditor|LinkSettings|TableViewFrame)/.test(f))).toEqual([])
+    expect(packages.filter((p) => /^@tanstack\/(react-)?virtual/.test(p))).toEqual([])
   })
 })

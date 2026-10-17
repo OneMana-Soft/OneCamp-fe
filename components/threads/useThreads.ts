@@ -45,6 +45,7 @@ import threadsSlice, {
 } from '@/store/slice/threadsSlice'
 import { injectSlice } from '@/store/store'
 import * as api from './threadsApi'
+import { apiErrorMessage } from '@/lib/utils/apiError'
 import { onDocMeta } from '@/lib/docMeta/bus'
 import { onDocCommentEvent } from '@/lib/docComments/events'
 import type { UserProfileDataInterface } from '@/types/user'
@@ -60,10 +61,9 @@ type Root = { threads?: ThreadsState }
 type GetState = () => Root
 
 /** What the server said, for the person, or a plain fallback. */
-export function messageOf(e: unknown): string {
-  const msg = (e as { response?: { data?: { msg?: unknown } } })?.response?.data?.msg
-  return typeof msg === 'string' && msg ? msg : 'Something went wrong. Try again in a moment.'
-}
+
+/** What a failed read or write of threads says when the server gave no reason of its own. */
+export const THREADS_TROUBLE = 'Something went wrong. Try again in a moment.'
 
 const statusOf = (e: unknown) => (e as { response?: { status?: number } })?.response?.status
 
@@ -90,7 +90,7 @@ async function readList(res: ThreadResource, dispatch: Dispatch, getState: GetSt
     const list = await api.listThreads(res)
     if (newest.get(key) === mine) dispatch(threadsLoaded({ key, threads: list, requestedAt, changesSeen }))
   } catch (e) {
-    if (newest.get(key) === mine) dispatch(threadsFailed({ key, error: messageOf(e) }))
+    if (newest.get(key) === mine) dispatch(threadsFailed({ key, error: apiErrorMessage(e, THREADS_TROUBLE) }))
   }
 }
 
@@ -234,7 +234,7 @@ export function useThreads(resource: ThreadResource | null) {
     try {
       return await write()
     } catch (e) {
-      throw new Error(messageOf(e))
+      throw new Error(apiErrorMessage(e, THREADS_TROUBLE))
     }
   }, [])
 

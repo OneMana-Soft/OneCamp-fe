@@ -16,7 +16,7 @@ import type { HocuspocusProvider } from "@hocuspocus/provider"
  * (an update not applied by the provider itself) since the count last
  * reached zero.
  */
-export function createUnsyncedEditsTracker(provider: HocuspocusProvider) {
+function createUnsyncedEditsTracker(provider: HocuspocusProvider) {
   let changedHere = false
   const onUpdate = (_update: Uint8Array, origin: unknown) => {
     // The provider applies what the server sends with itself as the origin;

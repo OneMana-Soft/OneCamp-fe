@@ -49,7 +49,7 @@ export function useConversationMissing(kind: ConversationKind, id: string): Conv
   return { missing: thing ? undefined : "gone", retry, retrying }
 }
 
-export interface ConversationMissing {
+interface ConversationMissing {
   /** Why it can't be shown; undefined while it is there or loading. */
   missing?: LoadFailure
   /** Reads it again, for Try again on a failed read. */

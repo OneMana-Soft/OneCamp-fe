@@ -84,8 +84,6 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
 
   const { rows, stickyRowIndexes } = useMemo(() => {
     const categories = ALL_REACTION_CATEGORIES.map((categoryId) => {
-      // Don't show custom reactions if they are disabled
-      if (!showCustomReactions && categoryId === 'custom') return
       // If we are searching, only show the `search` category
       if (query) return categoryId === 'frequent' ? { id: 'search', reactions: reactionSearchResults } : undefined
       if (categoryId === 'frequent') return { id: 'frequent', reactions: frequentlyUsedReactions }
@@ -127,7 +125,6 @@ export function DesktopReactionPicker({ showCustomReactions, onReactionSelect }:
     query,
     reactionSearchResults,
     frequentlyUsedReactions,
-    showCustomReactions,
     reactionsData?.categories,
     reactionsData?.reactions
   ])

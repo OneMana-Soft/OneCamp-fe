@@ -212,24 +212,25 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="icon" onClick={() => skip(-10)} className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label="Skip back 10 seconds">
+                            <Button data-tone="light" variant="ghost" size="icon" onClick={() => skip(-10)} className="text-white rounded-full h-8 w-8" aria-label="Skip back 10 seconds">
                                 <SkipBack className="h-4 w-4" />
                             </Button>
 
                             <Button
+                                data-tone="light"
                                 variant="ghost"
                                 size="icon"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     togglePlay()
                                 }}
-                                className="text-white hover:bg-white/20 rounded-full h-10 w-10"
+                                className="text-white rounded-full h-10 w-10"
                                 aria-label={isPlaying ? "Pause" : "Play"}
                             >
                                 {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
                             </Button>
 
-                            <Button variant="ghost" size="icon" onClick={() => skip(10)} className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label="Skip forward 10 seconds">
+                            <Button data-tone="light" variant="ghost" size="icon" onClick={() => skip(10)} className="text-white rounded-full h-8 w-8" aria-label="Skip forward 10 seconds">
                                 <SkipForward className="h-4 w-4" />
                             </Button>
 
@@ -240,7 +241,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
 
                         <div className="flex items-center space-x-2">
                             <div className="flex items-center space-x-2 group">
-                                <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}>
+                                <Button data-tone="light" variant="ghost" size="icon" onClick={toggleMute} className="text-white rounded-full h-8 w-8" aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}>
                                     {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                                 </Button>
 
@@ -258,27 +259,27 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label="Playback settings">
+                                    <Button data-tone="light" variant="ghost" size="icon" className="text-white rounded-full h-8 w-8" aria-label="Playback settings">
                                         <Settings className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="bg-black/90 border-white/10 text-white backdrop-blur-xl">
-                                    <DropdownMenuItem onClick={() => changePlaybackRate(0.5)} className="focus:bg-white/20 focus:text-white cursor-pointer">
+                                    <DropdownMenuItem data-tone="light" onClick={() => changePlaybackRate(0.5)} className="focus:text-white cursor-pointer">
                                         {playbackRate === 0.5 ? "✓ " : ""}0.5x
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => changePlaybackRate(1)} className="focus:bg-white/20 focus:text-white cursor-pointer">
+                                    <DropdownMenuItem data-tone="light" onClick={() => changePlaybackRate(1)} className="focus:text-white cursor-pointer">
                                         {playbackRate === 1 ? "✓ " : ""}1x (Normal)
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => changePlaybackRate(1.5)} className="focus:bg-white/20 focus:text-white cursor-pointer">
+                                    <DropdownMenuItem data-tone="light" onClick={() => changePlaybackRate(1.5)} className="focus:text-white cursor-pointer">
                                         {playbackRate === 1.5 ? "✓ " : ""}1.5x
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => changePlaybackRate(2)} className="focus:bg-white/20 focus:text-white cursor-pointer">
+                                    <DropdownMenuItem data-tone="light" onClick={() => changePlaybackRate(2)} className="focus:text-white cursor-pointer">
                                         {playbackRate === 2 ? "✓ " : ""}2x
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+                            <Button data-tone="light" variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white rounded-full h-8 w-8" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
                                 {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                             </Button>
                         </div>

@@ -23,10 +23,3 @@ export const homeGlyph = "flex w-6 shrink-0 justify-center"
 
 /** Between the glyph column and the text: 12px. */
 export const homeGap = "gap-3"
-
-/**
- * For text that sits under a title which follows a glyph (a card's one line of
- * explanation): the inset plus the glyph and the gap, so it starts where the
- * title does.
- */
-export const homeTextInset = "pl-[3.25rem] pr-4 md:pl-[3.5rem] md:pr-5"

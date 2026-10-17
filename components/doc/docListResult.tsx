@@ -8,6 +8,7 @@ import { DocCard } from "@/components/doc/docCard"
 import { DocRow } from "@/components/doc/docRows"
 import { COLUMN, DocGridSkeleton, DocRowsSkeleton, GRID } from "@/components/doc/docSkeletons"
 import { useCreateDoc } from "@/components/doc/useCreateDoc"
+import { PagedListFooter } from "@/components/doc/usePagedList"
 import { ArrowRight, Loader2, Plus } from "@/lib/icons"
 import { SpotDocs, SpotInbox, SpotSearch, Tile } from "@/components/ui/graphics"
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,6 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { QUICK_DOC_TEMPLATES, templateGlyph } from "@/lib/docTemplates"
 import { cn } from "@/lib/utils/helpers/cn"
-import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import type { DocTab } from "@/lib/utils/docTab"
 import type { DocListItem } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
@@ -29,7 +29,7 @@ export { DocGridSkeleton, DocRowsSkeleton }
 
 export type DocsView = "grid" | "list"
 
-export interface DocListResultProps {
+interface DocListResultProps {
     items: DocListItem[]
     view: DocsView
     tab: DocTab
@@ -116,24 +116,7 @@ export function DocListResult({
         )
     }
 
-    const footer = () => (
-        <div className="flex w-full justify-center py-4">
-            {moreFailed ? (
-                <span className="flex items-center gap-2 text-ui-sm text-ink-3" role="alert">
-                    <SaysLoadFailure />
-                    Couldn&apos;t load more docs.
-                    <button type="button" onClick={onRetryMore} className="font-medium text-ink-2 underline-offset-2 hover:underline">
-                        Try again
-                    </button>
-                </span>
-            ) : hasMore || isLoading ? (
-                <span className="flex items-center gap-2 text-ui-sm text-ink-3" role="status">
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                    Loading…
-                </span>
-            ) : null}
-        </div>
-    )
+    const footer = () => <PagedListFooter what="docs" failed={!!moreFailed} loading={!!(hasMore || isLoading)} onRetry={() => onRetryMore?.()} />
     const more = () => {
         if (hasMore && !isLoading && !moreFailed) onLoadMore?.()
     }

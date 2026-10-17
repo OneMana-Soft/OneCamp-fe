@@ -22,6 +22,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useFetch } from "@/hooks/useFetch";
+import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -40,7 +41,6 @@ import {
     Sparkles,
     ArrowDown,
 } from "@/lib/icons";
-import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel";
 import { ProjectInfoInterface } from "@/types/project";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 import { TaskMoveFilterFields, ANY_MOVE, type TaskMoveFilter } from "@/components/task/TaskMoveFilterFields";
@@ -161,8 +161,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
     const [drafting, setDrafting] = useState(false);
     const [draftNote, setDraftNote] = useState<string | null>(null);
 
-    const { data: channelsData } = useFetch<ChannelInfoListInterfaceResp>(GetEndpointUrl.GetAllActiveChannelList);
-    const channels: ChannelInfoInterface[] = channelsData?.channels_list || [];
+    // Every channel, not the list's first page of 20 (useEveryChannel).
+    const { channels } = useEveryChannel();
 
     const { data: projectData } = useFetch<{ data: ProjectInfoInterface[] }>(GetEndpointUrl.projectListByAdminUID);
     const projects: ProjectInfoInterface[] = (projectData?.data || []).filter(

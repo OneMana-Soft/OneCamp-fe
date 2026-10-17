@@ -123,7 +123,7 @@ export function DocAccessoryBar({
       className="fixed inset-x-0 z-[var(--z-sticky)] border-t border-line bg-raised"
     >
       {turnOpen ? (
-        <div className="flex h-11 items-center gap-1 overflow-x-auto px-2 no-scrollbar">
+        <div className="flex h-11 items-center gap-1 overflow-x-auto px-2 no-scrollbar" data-edge-fade="">
           {BLOCK_TYPES.map((b) => {
             const Icon = b.icon
             return (
@@ -144,7 +144,7 @@ export function DocAccessoryBar({
           })}
         </div>
       ) : (
-        <div className="flex h-11 items-center gap-1 overflow-x-auto px-2 no-scrollbar [mask-image:linear-gradient(90deg,#000_calc(100%-8px),transparent)]">
+        <div className="flex h-11 items-center gap-1 overflow-x-auto px-2 no-scrollbar" data-edge-fade="">
           <button type="button" aria-label="Turn into" aria-expanded={turnOpen} onMouseDown={keep} onClick={() => setTurnOpen(true)} className={btn()}>
             <Type />
             <ChevronDown className="!size-3" />

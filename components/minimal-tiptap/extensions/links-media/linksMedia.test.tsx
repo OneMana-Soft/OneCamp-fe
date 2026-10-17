@@ -72,7 +72,6 @@ async function mountDoc(opts: { editable?: boolean; guest?: boolean; uploadFn?: 
     const e = useDocEditor({
       collaboration: { enabled: true, documentId: "doc-1", username: "Sam", userId: "sam" },
       provider,
-      providerSynced: true,
       editable: opts.editable !== false,
       guest: opts.guest,
       uploadFn: opts.uploadFn,

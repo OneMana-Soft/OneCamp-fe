@@ -9,7 +9,7 @@ import { diffRuns, wordsOf } from "@/lib/proposals/core"
 /** A stretch of the new text that was added, or old text removed at an offset of the new. */
 export type WordChange = { kind: "ins"; from: number; to: number } | { kind: "del"; at: number; text: string }
 
-export interface WordDiff {
+interface WordDiff {
   changes: WordChange[]
   wordsAdded: number
   wordsRemoved: number

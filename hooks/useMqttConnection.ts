@@ -543,7 +543,7 @@ export const useMqttConnection = ({
                 port = urlObj.port ? parseInt(urlObj.port) : (urlObj.protocol === "wss:" ? 443 : 80)
                 path = urlObj.pathname + urlObj.search
                 protocol = urlObj.protocol.replace(":", "") as any
-            } catch (e) {
+            } catch {
                 // Ignore URL parsing errors
             }
 
@@ -618,7 +618,7 @@ export const useMqttConnection = ({
                         handleError(err)
                     })
 
-                    client.on("connect", (connack: any) => {
+                    client.on("connect", () => {
                         // A new connection subscribes to everything afresh, so
                         // tries at refused topics start over.
                         retries.reset()

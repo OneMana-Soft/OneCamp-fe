@@ -13,7 +13,6 @@ export interface ChannelInfoInterface {
     ch_about: string,
     ch_call_active: boolean,
     unread_post_count : number
-    /** The sidebar's "@2". */
     unread_mention_count?: number
     ch_created_at: string
     ch_is_admin? : boolean
@@ -68,12 +67,3 @@ export interface ChannelMemberUpdateInterface {
     channel_id: string,
     user_id: string
 }
-
-export interface GetChannelCallInterface {
-    channel_uuid: string,
-    audio_enabled?: boolean,
-    video_enabled?: boolean,
-}
-
-
-

@@ -39,4 +39,3 @@ if (!_env.success) {
   }
 }
 
-const env = _env.success ? _env.data : {} as z.infer<typeof envSchema>;

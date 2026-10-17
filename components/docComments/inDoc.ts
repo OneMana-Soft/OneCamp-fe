@@ -18,7 +18,7 @@ export function docEditor(docId: string): Editor | null {
 }
 
 /** Where a thread's words are now, as the doc's highlights found them. */
-export function placeIn(editor: Editor | null, threadId: string): ResolvedAnchor | undefined {
+function placeIn(editor: Editor | null, threadId: string): ResolvedAnchor | undefined {
     return editor ? anchorDecorationsKey.getState(editor.state)?.resolved.get(threadId) : undefined
 }
 
@@ -26,7 +26,7 @@ const smooth = () =>
     typeof window !== "undefined" && typeof window.matchMedia === "function" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
 /** Scrolls the doc to a position, the words there in the middle of the view. */
-export function scrollDocTo(editor: Editor, pos: number) {
+function scrollDocTo(editor: Editor, pos: number) {
     try {
         const { node } = editor.view.domAtPos(pos)
         const el = node.nodeType === 1 ? (node as HTMLElement) : node.parentElement

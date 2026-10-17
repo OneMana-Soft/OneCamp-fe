@@ -20,7 +20,7 @@ const REFRESH_TIMEOUT_MS = 15_000
 const LOCK_NAME = "onecamp:session-refresh"
 
 /** The asking tab's clock (lib/auth/sessionRefresh), passed in so a refresh always moves the clock that asked. */
-export interface RefreshClock {
+interface RefreshClock {
   /** The issue time the tab knew when it asked. */
   knew: number
   /** The issue time some tab last kept, or null. */

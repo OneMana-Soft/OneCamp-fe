@@ -3,8 +3,9 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { isComposingKey } from "@/lib/keys/ime"
 import { webHref } from "@/lib/codec/mediaLink"
-import { setAt, takePendingImage } from "./blockActions"
+import { takePendingImage } from "./blockActions"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
 
 /**
@@ -30,7 +31,7 @@ export default function ImageTextDialog({ onClose }: { docId: string; onClose():
       setProblem("Give a link that starts with http:// or https://.")
       return
     }
-    setAt(target.editor, target.pos, "image", alt ? { alt: next } : { href: next })
+    target.save(alt ? { alt: next } : { href: next }, alt ? "alt text" : "link")
     onClose()
   }
 
@@ -70,7 +71,7 @@ export default function ImageTextDialog({ onClose }: { docId: string; onClose():
             rows={3}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && !isComposingKey(e.nativeEvent)) {
                 e.preventDefault()
                 save(value.trim() || null)
               }

@@ -58,7 +58,7 @@ export const DAY_FIRST = 3
 export function CalendarMonthNav({ month, onMonth }: { month: Date; onMonth: (m: Date) => void }) {
   // The Calendar's own order and pieces: the month, back and forward, Today.
   return (
-    <div className="flex items-center gap-1" data-calendar-month-nav="">
+    <div className="flex items-center gap-1" data-calendar-month-nav="" data-touch-group="">
       <span className="mr-1 text-ui-sm font-semibold text-ink tabular-nums" aria-live="polite">
         {format(month, "MMMM yyyy")}
       </span>

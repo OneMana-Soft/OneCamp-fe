@@ -8,16 +8,15 @@ import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { openChannelDetails } from "@/components/channel/details/openChannelDetails";
 import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
-import {
-    ChannelInfoInterfaceResp,
-    ChannelJoinInterface,
-    ChannelNotificationInterface,
-    NotificationType} from "@/types/channel";
+import { ChannelInfoInterfaceResp } from "@/types/channel";
+import { useChannelNotification } from "@/hooks/useConversationNotification";
+import { useJoinChannel } from "@/hooks/useJoinChannel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
 import CommandSurface from "@/components/command/CommandSurface";
-import { Hash, Info, Lock, Search, SendHorizontal, Star, Clapperboard, Megaphone, MoreHorizontal, MessageSquare, FileArchive } from "@/lib/icons";
+import { Info, Search, SendHorizontal, Star, Clapperboard, Megaphone, MoreHorizontal, MessageSquare, FileArchive } from "@/lib/icons";
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile";
 import { HEADER_ICON, HuddleBanner, HuddleButton, MemberStack, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
 import { displayNameOf } from "@/lib/personName";
 import {Button} from "@/components/ui/button";
@@ -30,14 +29,13 @@ import type { Content } from "@tiptap/react";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import {openUI} from "@/store/slice/uiSlice";
-import { setUserChannelNotificationType, toggleUserChannelFavorite } from "@/store/slice/userSlice";
+import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
 import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
 import {
     
     updateChannelInputText, MessageInputState, clearChannelReplyTarget
 } from "@/store/slice/channelSlice";
 
-import {GenericResponse} from "@/types/genericRes";
 import {ChannelMessageList} from "@/components/channel/channelMessageList";
 import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
 import { ComposerNotice } from "@/components/channel/composerNotice";
@@ -60,11 +58,8 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
     const [handleSend, welcomeSent] = useWelcomeSend(send)
     const dispatch = useDispatch()
     const postFav  = usePost()
-    const postNotification  = usePost()
-    const postJoinChannel = usePost()
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}`:'')
     const [isFavorite, setFavorite] = useState<boolean>(false)
-    const [channelNotification, setChannelNotificationType] = useState<string>(NotificationType.NotificationAll)
 
     // Only the name: the sidebar's channel list changes whenever any channel's
     // unread count does, and this header has no use for that.
@@ -72,6 +67,10 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
     // Fallback to API response when channel isn't in sidebar state yet
     // (e.g. direct navigation from notification/bookmark)
     const channelDisplayName = sidebarName || channelInfo.data?.channel_info?.ch_name || "channel";
+    // One click chooses a level (C04); nothing cycles any more.
+    const notification = useChannelNotification(channelId, channelInfo.data?.channel_info?.notification_type, channelDisplayName);
+    // A refused join is said, never left unhandled (hooks/useJoinChannel).
+    const joining = useJoinChannel(channelId, () => { void channelInfo.mutate() }, channelDisplayName);
     const memberCount = channelInfo.data?.channel_info?.ch_member_count ?? 0;
 
     const channelCallActive = useSelector((state: RootState) => state.channel.channelCallStatus[channelId]?.active || false)
@@ -81,11 +80,6 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
         if (channelInfo.data?.channel_info) {
             setFavorite(!!channelInfo.data.channel_info.ch_is_user_fav)
         }
-
-        if(channelInfo.data?.channel_info.notification_type) {
-            setChannelNotificationType(channelInfo.data?.channel_info.notification_type)
-        }
-
 
     }, [channelInfo.data?.channel_info])
 
@@ -123,22 +117,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
         }
     }
 
-    const joinChannel = async () => {
-        await postJoinChannel.makeRequest<ChannelJoinInterface>({apiEndpoint: PostEndpointUrl.JoinChannel, payload: {channel_uuid: channelId}, onSuccess : ()=>{
-            channelInfo.mutate()
-            }})
-    }
 
-
-    // One click chooses a level (C04); nothing cycles any more.
-    const updateNotification = async (next: string) => {
-        const before = channelNotification
-        setChannelNotificationType(next)
-        const res = await postNotification.makeRequest<ChannelNotificationInterface, GenericResponse >({payload:{channel_id: channelId, notification_type: next}, apiEndpoint: PostEndpointUrl.UpdateChannelNotification}).catch(() => undefined)
-        if (res === undefined) setChannelNotificationType(before)
-        // The sidebar shows the channel muted, or not, at once.
-        else dispatch(setUserChannelNotificationType({ channelUUID: channelId, notificationType: next }))
-    }
 
     // One Details sheet (C49): the name, the stack and More › Details open it.
     const openDetails = () => dispatch(openChannelDetails(channelId))
@@ -161,8 +140,8 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
             return (
                 <JoinChannelPrompt
                     channelName={channelDisplayName === "channel" ? "" : channelDisplayName}
-                    onJoin={joinChannel}
-                    joining={postJoinChannel.isSubmitting}
+                    onJoin={joining.join}
+                    joining={joining.joining}
                     className="py-4"
                 />
             )
@@ -218,9 +197,8 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                     onClick={openDetails}
                     className='-ml-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
                 >
-                    {channelInfo.data?.channel_info.ch_private
-                        ? <Lock className='size-4 shrink-0 text-ink-3' aria-hidden='true' />
-                        : <Hash className='size-[18px] shrink-0 text-ink-3' aria-hidden='true' />}
+                    {/* The channel's tile in its hue (D13), as the sidebar and the list draw it. */}
+                    <ChannelTile id={channelId} isPrivate={!!channelInfo.data?.channel_info.ch_private} size={20} />
                     <span key={channelId} data-header-title='' className='min-w-[4ch] truncate text-heading text-ink animate-fade-in'>{channelDisplayName}</span>
                     {isFavorite && <Star className='size-3.5 shrink-0 fill-camp-sun text-camp-sun' aria-label='Favourite' />}
                     {archived && (
@@ -259,7 +237,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                             </DropdownMenuTrigger>
                         </WithTooltip>
                         <DropdownMenuContent align="end" className="pop-surface w-64 p-1">
-                            <NotificationSubmenu value={channelNotification} onChange={updateNotification} busy={postNotification.isSubmitting} />
+                            <NotificationSubmenu value={notification.level} onChange={notification.choose} busy={notification.busy} />
                             <DropdownMenuItem onClick={toggleFavourite}>
                                 <Star className={isFavorite ? "fill-camp-sun text-camp-sun" : "text-ink-3"} aria-hidden="true" /> {isFavorite ? "Remove from favourites" : "Favourite"}
                             </DropdownMenuItem>

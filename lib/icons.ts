@@ -20,12 +20,12 @@
 // ─── Navigation ─────────────────────────────────────────────
 // Chat, design v3 (11 Oct 2026): the huddle, the bridge relay's arrows, a
 // reply's connector, Record's stop, and the archive and remind actions.
-export { Headphones, ArrowDownToLine, AlarmClock, Archive, Square, CornerUpLeft, CornerDownRight, Cpu, Hand } from "lucide-react";
+export { Headphones, ArrowDownToLine, AlarmClock, Archive, Square, CornerUpLeft, Cpu, Hand } from "lucide-react";
 export { ArrowLeftRight, Columns2 } from "lucide-react";
 // Docs: the four-column row in "/" (B1).
 export { Columns4 } from "lucide-react";
 // A project's timeline tab, and its Unscheduled list.
-export { ChartGantt, CalendarOff, CirclePlus } from "lucide-react";
+export { ChartGantt, CalendarOff } from "lucide-react";
 // Goals: the view, a goal's page and its link from a project.
 export { Target } from "lucide-react";
 // Docs (B2): colour, the fourth heading, the table of contents, and callout icons.
@@ -34,18 +34,18 @@ export { Focus } from "lucide-react";
 // Calls: the captions toggle (hub, 10 Oct 2026).
 export { Captions, CaptionsOff } from "lucide-react";
 // The calendar: time off (away) and an event's place (content v3).
-export { Plane, MapPin } from "lucide-react";
+export { Plane } from "lucide-react";
 // The green room's speaker row (hub v3) uses Headphones, exported above.
 // Single sign-on on the sign-in page: the organisation's own way in.
 export { Building2 } from "lucide-react";
 // The v3 shell (11 Oct 2026): compose, the workspace menu, More, the foot.
-export { Gauge, SquarePen, PanelLeft, Gift, Server, MonitorDown, CircleHelp } from "lucide-react";
+export { Gauge, SquarePen, PanelLeft, Gift, Server, CircleHelp } from "lucide-react";
 // The work area (design v3): a project tile's glyphs, the timer, the list's Display menu and a grip.
-export { Box, Heart, ListFilter, Columns3 } from "lucide-react"; // Timer and Square: exported with the boards and the chat icons
+export { Box, Heart, Columns3 } from "lucide-react"; // Timer and Square: exported with the boards and the chat icons
 // Design v3, admin and settings (11 Oct 2026): the settings nav and its search.
 export { FileCheck2, KeyRound, ScrollText, Users2, UserX, Webhook, CornerDownLeft } from "lucide-react"; // Archive: with the chat icons
 // v3 admin slice: people (members, invitations, audit, evidence).
-export { UserMinus, ShieldX, ShieldPlus, CalendarRange, Ban, PlayCircle } from "lucide-react";
+export { UserMinus, ShieldX, ShieldPlus, PlayCircle } from "lucide-react";
 
 // v3 admin slice: config (general, security, email, import, integrations, health).
 export { HardDrive } from "lucide-react";
@@ -89,8 +89,6 @@ export {
   User,
   CircleUser,
   Search,
-  PanelLeftClose,
-  PanelLeftOpen,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -102,8 +100,6 @@ export {
   ArrowRightToLine,
   Kanban,
   Repeat,
-  CalendarCheck,
-  CalendarX,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -214,7 +210,6 @@ export {
   Route,
   Network,
   Smartphone,
-  Command,
   Eraser,
   Activity,
 } from "lucide-react";
@@ -341,4 +336,4 @@ export { Library, Timer, Vote } from "lucide-react";
 // A doc image whose upload never finished (its placeholder, image/uploads.ts).
 export { ImageOff } from "lucide-react";
 // The doc's technical blocks (B3): the simple table, equations, find and replace, the word count. Replace is exported with B4's image icons above.
-export { Table2, TableCellsMerge, TableCellsSplit, PanelTop, Radical, ReplaceAll, CaseSensitive, WholeWord, LetterText, WrapText, PaintBucket } from "lucide-react";
+export { Table2, TableCellsMerge, TableCellsSplit, PanelTop, Radical, ReplaceAll, CaseSensitive, WholeWord, LetterText, WrapText } from "lucide-react";

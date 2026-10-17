@@ -53,22 +53,25 @@ onSessionRefreshed(() => {
 let isLoggingOut = false;
 
 /**
- * The guest pages (/guest/d|t|b|c|m|p/<token>): someone outside the workspace,
- * with no session at all, reading what a link shares. A 401 there is expected,
- * never a session that ran out, so it must not sign the browser out and send
- * it to the sign-in page: that took a guest off the doc they were reading,
- * whenever a node view asked the API for something, and four minutes in on
- * any guest page, when the refresh timer below found no session to refresh.
+ * The pages for someone outside the workspace, with no session at all: what a
+ * guest link shares (/guest/d|t|b|c|m|p/<token>), a booking page and a booked
+ * meeting (/book/<slug>, /booking/<token>), an intake form (/f/<token>) and
+ * unsubscribing. A 401 there is expected, never a session that ran out, so
+ * nothing there refreshes a session or signs the browser out and sends it to
+ * the sign-in page. That took a guest off the doc they were reading whenever a
+ * node view asked the API for something, and, four minutes in, the refresh
+ * timer below took a visitor off any of these pages, since every page loads
+ * this client (the root layout's theme sync reaches it).
  */
-export function onGuestPage(pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''): boolean {
-    return /^\/guest\//.test(pathname);
+export function onVisitorPage(pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''): boolean {
+    return /^\/(guest|book|booking|f|unsubscribe)(\/|$)/.test(pathname);
 }
 
 // Proactive refresh that fails closed: if the refresh token itself is dead
 // (user idle past the refresh TTL), tear the session down. Safe to call from
 // fire-and-forget contexts (timer / visibility) — performLogout is guarded.
 const proactiveRefresh = () => {
-    if (isLoggingOut || onGuestPage()) return;
+    if (isLoggingOut || onVisitorPage()) return;
     if (!sessionIsStale()) return;
     refreshSession().catch(async (err) => {
         if (axios.isAxiosError(err) && err.response?.status === 401) {
@@ -161,9 +164,7 @@ const axiosInstance = axios.create({
  */
 
 axiosInstance.interceptors.request.use(async req => {
-    if (req.timeout === axiosInstance.defaults.timeout && waitsAsLongAsItTakes(req)) {
-        req.timeout = 0
-    }
+    if (req.timeout === axiosInstance.defaults.timeout && waitsAsLongAsItTakes(req)) req.timeout = 0
 
     // Block all requests if we're in the middle of logging out
     if (isLoggingOut) {
@@ -178,9 +179,10 @@ axiosInstance.interceptors.request.use(async req => {
     // in-flight refresh, so a post-idle burst rides one fresh cookie instead
     // of each 401-ing. A failure here is swallowed — the request proceeds and
     // the reactive 401 path below remains the authoritative backstop.
-    // `skipAuthRefresh` lets internal/auth calls opt out.
+    // `skipAuthRefresh` lets internal/auth calls opt out; a visitor's page has
+    // no session to refresh.
     // @ts-ignore
-    if (!req.skipAuthRefresh && sessionIsStale()) {
+    if (!req.skipAuthRefresh && !onVisitorPage() && sessionIsStale()) {
         try {
             await refreshSession();
         } catch {
@@ -269,7 +271,7 @@ axiosInstance.interceptors.response.use(
             }
         }
 
-        if (error.response && error.response.status === 401 && !originalRequest._retry && !onGuestPage()) {
+        if (error.response && error.response.status === 401 && !originalRequest._retry && !onVisitorPage()) {
             // Mark retry immediately to prevent duplicate refresh from this request
             originalRequest._retry = true;
             try {

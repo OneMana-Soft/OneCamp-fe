@@ -31,18 +31,24 @@ const PLUS_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" st
 const GRIP_SVG = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><circle cx="4.5" cy="3" r="1.25" fill="currentColor"/><circle cx="4.5" cy="7" r="1.25" fill="currentColor"/><circle cx="4.5" cy="11" r="1.25" fill="currentColor"/><circle cx="9.5" cy="3" r="1.25" fill="currentColor"/><circle cx="9.5" cy="7" r="1.25" fill="currentColor"/><circle cx="9.5" cy="11" r="1.25" fill="currentColor"/></svg>`
 
 /** The handle's size: two 24 px buttons 2 px apart. */
-export const HANDLE_WIDTH = 50
+const HANDLE_WIDTH = 50
 const BUTTON = 24
 
-/** Where a list's marker sits outside its item (the list's 24 px inset). */
-const MARKER: Record<string, number> = { listItem: 24 }
+/**
+ * What sits outside a block on its start side, for the handle to clear: a
+ * list's marker (the list's 24 px inset), and a table's row grip (9 px out
+ * from its edge, 18 wide: simple-table/tableEditing.ts), which the handle,
+ * at a table's first line since it takes the table from inside its cells,
+ * would otherwise touch.
+ */
+const MARKER: Record<string, number> = { listItem: 24, table: 12 }
 
 /**
  * Where the handle goes for a block: centred on its first line, 4 px clear of
  * its start (and of a list item's marker), kept inside the doc's pane. A
  * right-to-left block has it on its right. Pure.
  */
-export function handleSpot(
+function handleSpot(
   box: { left: number; right: number },
   line: { top: number; bottom: number },
   pane: { left: number; right: number } | null,
@@ -329,7 +335,7 @@ class HandleView {
   }
 }
 
-export const blockHandleKey = new PluginKey<{ remote: boolean }>("blockHandle")
+const blockHandleKey = new PluginKey<{ remote: boolean }>("blockHandle")
 
 export const BlockHandle = Extension.create({
   name: "blockHandle",

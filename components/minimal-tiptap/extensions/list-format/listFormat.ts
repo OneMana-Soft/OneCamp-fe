@@ -17,7 +17,7 @@ declare module '@tiptap/core' {
 export type ListFormat = '1' | 'a' | 'i'
 
 /** A list with no format of its own counts by its depth among numbered lists: 1, then a, then i, then again. */
-export const DEPTH_FORMATS: ListFormat[] = ['1', 'a', 'i']
+const DEPTH_FORMATS: ListFormat[] = ['1', 'a', 'i']
 
 const isFormat = (v: unknown): v is ListFormat => v === '1' || v === 'a' || v === 'i'
 

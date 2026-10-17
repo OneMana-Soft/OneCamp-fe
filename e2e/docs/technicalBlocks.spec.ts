@@ -5,7 +5,9 @@ import { CollabRelay } from "./collabRelay"
 import { PRIYA, openDocAs } from "./twoPeople"
 
 // The doc's technical blocks in two browsers (docs programme B3): a simple
-// table one person makes and fills is the other's too, an equation typed in
+// table one person makes and fills is the other's too, with its handles, cell
+// selection and column resizing in a copy that had no table (its editor
+// fetches table editing when the table arrives), an equation typed in
 // one tab is drawn by KaTeX in the other, a code block's language reaches
 // both (and its colours outlast the other's typing elsewhere), and Replace
 // all changes every match for everyone, in one undo.
@@ -40,6 +42,35 @@ test("a simple table one person makes and fills is the other's too", async ({ br
   await expect.poll(() => textOf(priya.body.locator("th").nth(0)), { timeout: 15_000 }).toBe("Step")
   await expect.poll(() => textOf(priya.body.locator("th").nth(1))).toBe("Owner")
   await expect(priya.body.locator("tr")).toHaveCount(3)
+
+  // Priya's copy had no table: her editor fetched table editing when Sam's
+  // arrived (registry/onDemand.ts), so it works there without a reload. A
+  // body cell's handles show under the pointer, a drag from one cell to the
+  // next selects both, and the first column's right edge resizes it, for both.
+  const cells = priya.body.locator("td")
+  const a = (await cells.nth(0).boundingBox())!
+  const b = (await cells.nth(1).boundingBox())!
+  await expect(priya.page.locator(".doc-table-grip-row")).toHaveCount(1, { timeout: 15_000 })
+  await priya.page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
+  await expect(priya.page.locator(".doc-table-grip-row")).toBeVisible()
+  await priya.page.mouse.down()
+  await priya.page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 5 })
+  await priya.page.mouse.up()
+  await expect(priya.body.locator(".selectedCell")).toHaveCount(2)
+  // The first column's right edge, reached from inside its cell: while the
+  // pointer was in the cell beside, that cell's block handle lay over the
+  // edge, so it waits for the edge to be the cell's again.
+  const edge = { x: a.x + a.width - 2, y: a.y + a.height / 2 }
+  await priya.page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
+  await expect.poll(() => priya.page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("td") != null, edge)).toBe(true)
+  await priya.page.mouse.move(edge.x, edge.y, { steps: 3 })
+  // Its resize handle, down every row.
+  await expect(priya.body.locator(".column-resize-handle")).toHaveCount(3)
+  await priya.page.mouse.down()
+  await priya.page.mouse.move(a.x + a.width + 80, a.y + a.height / 2, { steps: 5 })
+  await priya.page.mouse.up()
+  await expect.poll(async () => (await cells.nth(0).boundingBox())!.width).toBeGreaterThan(a.width + 40)
+  await expect(sam.body.locator("col").first()).toHaveAttribute("style", /width: \d+px/, { timeout: 15_000 })
 
   // + under the table adds a row, for both.
   await sam.body.locator("table").hover()

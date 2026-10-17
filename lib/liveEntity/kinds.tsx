@@ -50,13 +50,13 @@ export interface ProjectChipData {
   can_edit: boolean
 }
 
-export interface PersonChipData {
+interface PersonChipData {
   name: string
   avatar_key?: string | null
   is_bot?: boolean
 }
 
-export interface DateChipData {
+interface DateChipData {
   date: string
 }
 

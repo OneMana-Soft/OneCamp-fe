@@ -14,14 +14,14 @@ import type { TreeNodeJSON } from "@/types/docGraph"
 // 28 px rows, "+" to add a page inside and "⋯" for its menu. Served from
 // memory through the real SWR cache; nothing reaches a server.
 
-const levels: Record<string, { nodes: TreeNodeJSON[]; hidden?: number }> = {}
+const levels: Record<string, { nodes: TreeNodeJSON[]; hidden?: number; count?: number }> = {}
 // Answers that aren't a tree level (a doc's info, the sidebar's profile), as the server sends them.
 const raw: Record<string, unknown> = {}
 const get = vi.fn(async (url: string) => {
   if (url in raw) return { data: raw[url] }
   const a = levels[url]
   if (!a) throw new Error(`no answer for ${url}`)
-  return { data: { data: { parent: "", nodes: structuredClone(a.nodes), hidden: a.hidden ?? 0, count: a.nodes.length } } }
+  return { data: { data: { parent: "", nodes: structuredClone(a.nodes), hidden: a.hidden ?? 0, count: a.count ?? a.nodes.length } } }
 })
 // What the server's move preview answers (POST /doc/move/preview): nobody's
 // access changes unless a test says otherwise, or a refusal to throw.
@@ -51,7 +51,14 @@ vi.mock("@/hooks/use-toast", () => ({ toast: (t: unknown) => toasts(t) }))
 import { DocTree, hiddenLabel, docIdOfPath } from "./DocTree"
 import DocsTreeGroups from "./DocsTreeGroups"
 
-const page = (uuid: string, title: string, has_children = false, can_edit = true): TreeNodeJSON => ({ kind: "doc", uuid, title, has_children, can_edit })
+const page = (uuid: string, title: string, has_children = false, can_edit = true, priv?: boolean): TreeNodeJSON => ({
+  kind: "doc",
+  uuid,
+  title,
+  has_children,
+  can_edit,
+  ...(priv === undefined ? {} : { private: priv }),
+})
 
 function renderWith(ui: React.ReactNode) {
   const store = configureStore({ reducer: { users: userSlice.reducer } })
@@ -68,10 +75,10 @@ function renderWith(ui: React.ReactNode) {
 
 beforeEach(() => {
   for (const k of Object.keys(levels)) delete levels[k]
-  levels["/doc/children?space=workspace&limit=8"] = { nodes: [page("plans-0001", "Plans", true), page("notes-0001", ""), page("theirs-001", "Board minutes", false, false)] }
+  levels["/doc/children?space=workspace&limit=8"] = { nodes: [page("plans-0001", "Plans", true, true, false), page("notes-0001", ""), page("theirs-001", "Board minutes", false, false)] }
   levels["/doc/children?parent=plans-0001&limit=8"] = { nodes: [page("q4-000001", "Q4 launch")], hidden: 2 }
   levels["/doc/children?space=shared&limit=8"] = { nodes: [] }
-  levels["/doc/children?space=private&limit=8"] = { nodes: [page("mine-0001", "My notes")] }
+  levels["/doc/children?space=private&limit=8"] = { nodes: [page("mine-0001", "My notes", false, true, true)] }
   get.mockClear()
   post.mockClear()
   push.mockClear()
@@ -142,8 +149,27 @@ describe("a space's page tree", () => {
     renderWith(<DocTree space="workspace" label="Workspace pages" />)
     await screen.findByRole("treeitem", { name: "Plans" })
     fireEvent.click(screen.getByRole("button", { name: "Add a page inside Plans" }))
-    await waitFor(() => expect(post).toHaveBeenCalledWith("/doc/createDoc", { doc_title: "", parent_uuid: "plans-0001" }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/doc/createDoc", { doc_title: "", parent_uuid: "plans-0001", doc_private: false }))
     await waitFor(() => expect(push).toHaveBeenCalledWith("/app/doc/new-page?new=1"))
+  })
+
+  // Review, 16 Oct 2026 (P1): a subpage was asked for with parent_uuid alone.
+  // A server without nested pages (v2.72) reads only doc_title and
+  // doc_private, and made it at the top, open to the whole workspace, though
+  // its parent was private. It's always sent with its parent's privacy now
+  // (the server since makes a subpage as private as its parent whatever it's
+  // told), and as private when the row doesn't say.
+  it("sends a page added inside a private page as private, and one inside a page whose privacy it doesn't know too", async () => {
+    renderWith(<DocTree space="private" label="Private pages" />)
+    await screen.findByRole("treeitem", { name: "My notes" })
+    fireEvent.click(screen.getByRole("button", { name: "Add a page inside My notes" }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/doc/createDoc", { doc_title: "", parent_uuid: "mine-0001", doc_private: true }))
+    cleanup()
+    post.mockClear()
+    renderWith(<DocTree space="workspace" label="Workspace pages" />)
+    await screen.findByRole("treeitem", { name: "Untitled" })
+    fireEvent.click(screen.getByRole("button", { name: "Add a page inside Untitled" }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/doc/createDoc", { doc_title: "", parent_uuid: "notes-0001", doc_private: true }))
   })
 
   it("offers no + and no Rename or trash on a page the viewer can't change", async () => {

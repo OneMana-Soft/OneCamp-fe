@@ -5,6 +5,7 @@ import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 import { Circle } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 
 const RadioGroup = React.forwardRef<
   React.ElementRef<typeof RadioGroupPrimitive.Root>,
@@ -28,15 +29,17 @@ const RadioGroupItem = React.forwardRef<
     <RadioGroupPrimitive.Item
       ref={ref}
       className={cn(
-        // The same edge, target and ring as Checkbox: an unchecked radio is a neutral
-        // circle (an orange ring on every option spent the accent on choices
-        // nobody had made), it turns accent when picked, and its press target
-        // reaches 24px.
-        "relative aspect-square h-4 w-4 rounded-full border border-faint-foreground text-primary transition-colors after:absolute after:-inset-1 hover:border-muted-foreground data-[state=checked]:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:cursor-not-allowed disabled:opacity-50",
+        // The same edge, target and press as Checkbox: an inset ring, never a
+        // border; an unchecked radio is a neutral circle (an orange ring on
+        // every option spent the accent on choices nobody had made), it turns
+        // accent when picked, and its press target reaches 24px. Its hover
+        // halo, focus ring and disabled look are the interaction layer's.
+        "relative aspect-square size-4 rounded-full text-primary ring-[1.5px] ring-inset ring-faint-foreground transition-spring after:absolute after:-inset-1 hover:ring-muted-foreground motion-safe:active:scale-90 active:duration-[90ms] data-[state=checked]:ring-primary",
         className
       )}
       // A finger's target is 44px (app/phone.css F3); the ::after is a mouse's.
       data-touch-target=""
+      {...ix("toggle")}
       {...props}
     >
       <RadioGroupPrimitive.Indicator className="flex h-full w-full items-center justify-center">

@@ -99,7 +99,7 @@ function FormList({ projectId, forms, loading, onEdit, onChanged }: { projectId:
           {forms.map((f) => (
             <li key={f.id} className="rounded-md border">
               <div className="flex items-center gap-2 p-3">
-              <button type="button" onClick={() => onEdit(f)} className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:underline">
+              <button type="button" onClick={() => onEdit(f)} className="min-w-0 flex-1 rounded-sm text-left">
                 <span className="block truncate text-sm font-medium">
                   {f.title}
                   {!f.active && <span className="ml-2 text-xs font-normal text-muted-foreground">Off</span>}
@@ -214,7 +214,7 @@ function FormEditor({ projectId, form, onBack, onSaved }: { projectId: string; f
                 onChange={(e) => setField(i, { options: e.target.value.split("\n") })}
               />
             )}
-            <div className="flex items-center gap-1 text-xs">
+            <div className="flex items-center gap-1 text-xs" data-touch-group="">
               <label className="mr-auto flex items-center gap-2">
                 <Switch checked={q.required} onCheckedChange={(v) => setField(i, { required: v })} aria-label={`Question ${i + 1} required`} />
                 Required

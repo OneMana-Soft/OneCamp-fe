@@ -34,7 +34,7 @@ import {
 import type { EditProposal, EphemeralProposal, ProposalHunk } from './types'
 
 /** A shared doc's Yjs side, as the editor's sync plugin holds it. */
-export interface YBinding {
+interface YBinding {
   ydoc: Y.Doc
   fragment: Y.XmlFragment
   mapping: YMapping
@@ -110,7 +110,7 @@ export function proposeReplacement(
 }
 
 /** proposalFor is the proposal that turns the target's blocks into `proposed`. */
-export function proposalFor(state: EditorState, target: Range, base: PMNode[], proposed: PMNode[]): Tracked | null {
+function proposalFor(state: EditorState, target: Range, base: PMNode[], proposed: PMNode[]): Tracked | null {
   let hunks = diffBlocks(base, proposed)
   if (hunks.length === 0) return null
   const binding = yBindingOf(state)

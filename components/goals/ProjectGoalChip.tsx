@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useProjectGoals } from "@/hooks/useGoals"
 import { Target } from "@/lib/icons"
-import { percent } from "@/lib/goals"
+import { percent } from "@/lib/goalPercent"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { cn } from "@/lib/utils/helpers/cn"
 

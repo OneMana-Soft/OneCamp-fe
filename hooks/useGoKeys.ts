@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { armGo, disarmGo, goArmed, goTarget, isTyping } from "@/lib/goKeys"
+import { armGo, disarmGo, goArmed, goTarget, isTyping, pageTakesG } from "@/lib/goKeys"
 
 /** G then a letter goes to a page (lib/goKeys); never while typing. */
 export function useGoKeys(enabled: boolean) {
@@ -11,8 +11,8 @@ export function useGoKeys(enabled: boolean) {
     if (!enabled) return
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || isTyping(e.target as Element | null)) return
-      // A whiteboard's own keys are single letters, wherever its focus sits.
-      if (/^\/app\/board\/./.test(window.location.pathname)) return
+      // A whiteboard's tools and the calendar's Go to take G, wherever their focus sits.
+      if (pageTakesG(window.location.pathname)) return
       const now = Date.now()
       if (goArmed(now)) {
         disarmGo()

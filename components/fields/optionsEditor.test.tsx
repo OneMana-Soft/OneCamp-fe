@@ -108,6 +108,48 @@ describe("a choice field's options", () => {
     expect(onChange).toHaveBeenLastCalledWith([saved[1], saved[0]], [])
   })
 
+  // TB-15: the grip is the pointer's; a keyboard moves the option from its name.
+  it("moves an option a place with Alt+↑ or Alt+↓ on its name, keeping the focus there and saying where it went", () => {
+    vi.useFakeTimers()
+    try {
+      const onChange = vi.fn()
+      render(<Editor onChange={onChange} />)
+      const said = () => {
+        act(() => void vi.advanceTimersByTime(100))
+        return document.querySelector("[data-announce]")?.textContent
+      }
+      const todo = screen.getAllByRole("textbox", { name: "Option name" })[0]
+      expect(todo.getAttribute("aria-keyshortcuts")).toBe("Alt+ArrowUp Alt+ArrowDown")
+      todo.focus()
+      fireEvent.keyDown(todo, { key: "ArrowDown", altKey: true })
+      expect(names()).toEqual(["Done", "Todo"])
+      expect(onChange).toHaveBeenLastCalledWith([saved[1], saved[0]], [])
+      expect(document.activeElement).toBe(todo)
+      expect(said()).toBe("Moved Todo to position 2 of 2.")
+      fireEvent.keyDown(todo, { key: "ArrowDown", altKey: true })
+      expect(said()).toBe("Todo is last already.")
+      fireEvent.keyDown(todo, { key: "ArrowUp" })
+      expect(onChange).toHaveBeenCalledTimes(1)
+      fireEvent.keyDown(todo, { key: "ArrowUp", altKey: true })
+      expect(names()).toEqual(["Todo", "Done"])
+      expect(document.activeElement).toBe(todo)
+      expect(said()).toBe("Moved Todo to position 1 of 2.")
+    } finally {
+      document.querySelectorAll("[data-announce]").forEach((n) => n.remove())
+      vi.useRealTimers()
+    }
+  })
+
+  it("leaves the order alone where the caller doesn't let it change", () => {
+    const onChange = vi.fn()
+    render(<OptionsEditor<Opt> options={saved} make={(label) => ({ label })} onChange={onChange} />)
+    const todo = screen.getAllByRole("textbox", { name: "Option name" })[0]
+    expect(todo.getAttribute("aria-keyshortcuts")).toBeNull()
+    fireEvent.keyDown(todo, { key: "ArrowDown", altKey: true })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(document.querySelector("[draggable]")).toBeNull()
+  })
+
   it("colours an option from the palette, its button saying which option it colours", async () => {
     const onChange = vi.fn()
     render(<Editor onChange={onChange} />)

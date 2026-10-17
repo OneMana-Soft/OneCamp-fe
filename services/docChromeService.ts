@@ -1,5 +1,6 @@
-// A doc's page chrome (docs programme B6): its look, what links to it, a doc in
-// the trash as its page shows it, and an editor's invites. Calls for the
+// A doc's page chrome (docs programme B6): its look, a doc in the trash as its
+// page shows it, and an editor's invites. (What links to it is read by
+// components/entityLink/LinkedFromSection, on the doc's first load.) Calls for the
 // backend's controllers/Doc/docChromeController.go. Loaded with the pieces
 // that use it, never with the doc's first load, so the endpoints live here and
 // not in services/endPoints.ts.
@@ -17,18 +18,16 @@ import { PostEndpointUrl } from "@/services/endPoints"
 import type { DocInfoResponse } from "@/types/doc"
 import type { UserProfileDataInterface } from "@/types/user"
 import type { DocAccessChange, DocAccessExplanation } from "@/types/docAccess"
-import type { DocBacklinks, DocLookChange, DocPageFields, TrashedDocPage } from "@/types/docChrome"
+import type { DocLookChange, DocPageFields } from "@/types/docChrome"
 
-export const DocChromeEndpoint = {
+const DocChromeEndpoint = {
   Look: "/doc/look",
-  Backlinks: "/doc/backlinks",
   Trashed: "/doc/trashed",
   Invite: "/doc/access/invite",
 } as const
 
 const unwrap = <T>(res: { data?: { data?: T } }): T => res.data?.data as T
 
-export const backlinksKey = (docId: string) => `${DocChromeEndpoint.Backlinks}/${docId}`
 export const trashedKey = (docId: string) => `${DocChromeEndpoint.Trashed}/${docId}`
 
 /** A look change as the doc's own answer holds it: "" takes a field away. Pure. */
@@ -51,7 +50,7 @@ export function lookFields(change: Omit<DocLookChange, "doc_uuid">): { set: Part
 }
 
 /** Puts a look change into the doc's cached answer, so every view of it shows it at once. */
-export function patchDocLook(docId: string, change: Omit<DocLookChange, "doc_uuid">) {
+function patchDocLook(docId: string, change: Omit<DocLookChange, "doc_uuid">) {
   const { set, drop } = lookFields(change)
   patchCached<DocInfoResponse>(docInfoKey(docId), (answer) => {
     if (!answer?.data) return answer
@@ -73,14 +72,6 @@ export async function setDocLook(change: DocLookChange): Promise<void> {
   }
   // The tree, the lists and the breadcrumbs show the icon too.
   if (change.icon !== undefined) refreshDocGraph()
-}
-
-export async function getBacklinks(docId: string): Promise<DocBacklinks> {
-  return unwrap(await axiosInstance.get(backlinksKey(docId)))
-}
-
-export async function getTrashedDoc(docId: string): Promise<TrashedDocPage> {
-  return unwrap(await axiosInstance.get(trashedKey(docId)))
 }
 
 /** A doc a search found. */

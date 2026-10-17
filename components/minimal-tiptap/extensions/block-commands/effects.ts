@@ -9,7 +9,7 @@ import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
  * that lasts a second is fine.
  */
 
-export const blockEffectsKey = new PluginKey<DecorationSet>("blockEffects")
+const blockEffectsKey = new PluginKey<DecorationSet>("blockEffects")
 
 interface EffectMeta {
   remove?: string

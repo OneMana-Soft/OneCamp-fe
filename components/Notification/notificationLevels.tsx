@@ -13,7 +13,7 @@ import {
 import { NotificationType } from "@/types/channel"
 
 /** What a person hears about from a project: each level, in the words its menu uses. */
-export const NOTIFICATION_LEVELS = [
+const NOTIFICATION_LEVELS = [
   { value: NotificationType.NotificationAll, label: "All activity", detail: "New tasks, changes and comments" },
   { value: NotificationType.NotificationMention, label: "Mentions only", detail: "When someone mentions you" },
   { value: NotificationType.NotificationBlock, label: "Muted", detail: "Nothing, until you change it" },

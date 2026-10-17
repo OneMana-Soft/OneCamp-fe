@@ -1,13 +1,14 @@
 "use client";
 
 import { displayNameOf } from "@/lib/personName"
+import { OWN_ERRORS } from "@/lib/axiosInstance";
 import {useMedia} from "@/context/MediaQueryContext";
 import MinimalTiptapDocInput from "@/components/docEditor/docInput";
 import {ActiveUsersBar} from "@/components/docEditor/ActiveUsersBar";
 import { DocHeader, DocShortcutsDialog } from "@/components/docEditor/DocHeader";
 import { ConnectionPill } from "@/components/docEditor/ConnectionPill";
 import { RecoveredEditsBanner } from "@/components/docEditor/RecoveredEditsBanner";
-import { docSaveState, useSaveProgress, useSlowSave } from "@/components/docEditor/docSaveState";
+import type { DocSaveSource } from "@/components/docEditor/docSaveState";
 import { useLeaveGuard } from "@/components/docEditor/leaveGuard";
 import { hasPendingImageUploads } from "@/components/minimal-tiptap/extensions/image/uploads";
 import type { Editor } from "@tiptap/react";
@@ -24,7 +25,6 @@ import { LoadFailureState } from "@/components/ui/load-failure-state";
 import {Button} from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotError } from "@/components/ui/graphics";
-import Link from "next/link";
 import {useDispatch, useSelector} from "react-redux";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {openUI} from "@/store/slice/uiSlice";
@@ -81,7 +81,7 @@ export function DocView({ docId }: { docId: string }) {
         docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '',
         undefined,
         undefined,
-        { suppressErrorToast: true } as never,
+        OWN_ERRORS,
     );
     const docInfo = docInfoHelper?.data;
 
@@ -354,19 +354,15 @@ export function DocView({ docId }: { docId: string }) {
         saveTitle(titleStore.get());
     }, [saveTitle, titleStore]);
 
-    // The save dot's state (D12): a live doc's from its socket; a reader's
-    // copy has nothing to save.
-    const slowSave = useSlowSave(collaborationConfig?.enabled ? provider : null);
-    // Where this tab's edits stand (A4): when the server last stored the doc,
-    // and how many changes wait, for the dot's words. The session's provider.
-    const progress = useSaveProgress(collaborationConfig?.enabled ? provider : null);
-    const saveState = docSaveState({
-        live: !!collaborationConfig?.enabled,
-        collabStatus,
-        synced: collabSynced,
-        everSynced,
-        slowSave,
-    });
+    // What the save dot (D12) follows: a live doc's socket; a reader's copy
+    // has nothing to save. The dot reads where this tab's edits stand itself
+    // (DocHeader's DocSaveDot): that changes with every key, and when this page
+    // read it, the page and all it draws rendered again two to four times a key.
+    const savesLive = !!collaborationConfig?.enabled;
+    const saveSource = React.useMemo<DocSaveSource>(
+        () => ({ provider: savesLive ? provider : null, live: savesLive, collabStatus, synced: collabSynced, everSynced }),
+        [savesLive, provider, collabStatus, collabSynced, everSynced],
+    );
     const connectionProblem = !collaborationConfig?.enabled
         ? null
         : collabStatus === 'offline'
@@ -526,10 +522,7 @@ export function DocView({ docId }: { docId: string }) {
                     canEdit={hasEditAccess}
                     canShare={canShare}
                     scrolled={scrolled}
-                    saveState={saveState}
-                    savedAt={progress.persistedAt}
-                    waiting={progress.waiting}
-                    live={!!collaborationConfig?.enabled}
+                    save={saveSource}
                     users={awarenessUsers}
                     commentCount={docCommentCount || 0}
                     onComments={handleCommentClick}

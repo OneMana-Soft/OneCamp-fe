@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { X } from "@/lib/icons"
 import { hueFor, type CampHue } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 
 /**
@@ -47,7 +48,9 @@ export function Chip({
           type="button"
           onClick={onRemove}
           aria-label={removeLabel}
-          className="-mr-1 inline-flex size-4 items-center justify-center rounded-xs text-faint-foreground hover:bg-press hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+          {...ix("icon")}
+          data-touch-target=""
+          className="-mr-1 inline-flex size-4 items-center justify-center rounded-xs text-faint-foreground hover:text-foreground"
         >
           <X className="size-3" />
         </button>

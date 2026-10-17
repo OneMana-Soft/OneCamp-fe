@@ -14,7 +14,6 @@ import {ChannelTypingBar} from "@/components/typingIndicator/typingIndicatorBar"
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import { ConversationLoadError } from "@/components/message/conversationError";
 import {useSearchParams} from "next/navigation";
-import {useMedia} from "@/context/MediaQueryContext";
 import { dataToSeed } from "@/lib/swrMutate";
 import { pageEdgeQuery } from "@/lib/chat/pageEdge";
 import { useOlderPages } from "@/hooks/useOlderPages";
@@ -34,7 +33,6 @@ const EMPTY_POSTS: PostsRes[] = []
 // message. On a phone that re-render cost up to 300 ms a key.
 export const ChannelMessageList = memo(function ChannelMessageList({channelId, postId: propPostId, isAdmin, unreadOnOpen}: ChannelMessageListProps) {
 
-    const { isMobile } = useMedia();
     const searchParams = useLinkSearchParams(useSearchParams());
     const postId = propPostId || searchParams?.get('postId') || undefined;
     const latestKey = postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId

@@ -1,6 +1,6 @@
 import { USER_STATUS_ONLINE } from "@/types/user"
 
-export type Presence = "active" | "away" | "offline"
+type Presence = "active" | "away" | "offline"
 
 /** A person's live state as the store keeps it (useUserInfoState): deviceConnected is -1 until it has loaded. */
 interface LiveState {

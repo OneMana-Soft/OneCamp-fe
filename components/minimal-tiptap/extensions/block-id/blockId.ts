@@ -48,7 +48,7 @@ export const BLOCK_ID_ATTR = "blockId"
 /** The node types that are never blocks for this purpose. */
 const NOT_BLOCKS = new Set(["doc", "text"])
 
-export const blockIdKey = new PluginKey("blockId")
+const blockIdKey = new PluginKey("blockId")
 
 /** A new id: a random UUID, from getRandomValues (randomUUID needs a secure context). */
 export function newBlockId(): string {
@@ -61,7 +61,7 @@ export function newBlockId(): string {
 }
 
 /** The node extensions that are blocks: not inline, not the doc. */
-export function blockTypesOf(extensions: AnyExtension[]): string[] {
+function blockTypesOf(extensions: AnyExtension[]): string[] {
   return extensions
     .filter((e) => e.type === "node" && !NOT_BLOCKS.has(e.name))
     .filter((e) => {

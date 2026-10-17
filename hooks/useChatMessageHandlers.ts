@@ -164,12 +164,14 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                 messageId: mqttChatInfo.data.chat_uuid,
                                 grpId: grpId,
                                 htmlText: mqttChatInfo.data.chat_html_text,
+                                updatedAt: new Date().toISOString(),
                             }));
                         } else {
                             dispatch(updateChatByChatId({
                                 chatId: dmId,
                                 messageId: mqttChatInfo.data.chat_uuid,
                                 htmlText: mqttChatInfo.data.chat_html_text,
+                                updatedAt: new Date().toISOString(),
                             }));
                         }
                         // Sync sidebar preview if the edited message is the latest
@@ -501,6 +503,7 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                 commentId: mqttChatComment.data.comment_uuid,
                                 htmlText: mqttChatComment.data.body_text,
                                 chatId: mqttChatComment.data.message_id,
+                                updatedAt: new Date().toISOString(),
                             }),
                         )
 

@@ -3,6 +3,7 @@
 import type { Editor } from "@tiptap/core"
 import type { Node as PMNode } from "@tiptap/pm/model"
 
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { randomId } from "../../utils"
 
 /**
@@ -37,6 +38,8 @@ export interface ImageUpload {
   /** 0 to 1. */
   progress: number
   status: ImageUploadStatus
+  /** Why it failed, as the server said it (refusalOf); none when the server wasn't reached. */
+  message?: string
 }
 
 export interface ImageUploadOptions {
@@ -117,7 +120,7 @@ export class ImageUploads {
     return upload
   }
 
-  update(id: string, patch: Partial<Pick<ImageUpload, "progress" | "status">>) {
+  update(id: string, patch: Partial<Pick<ImageUpload, "progress" | "status" | "message">>) {
     const current = this.uploads.get(id)
     if (!current) return
     this.uploads.set(id, { ...current, ...patch })
@@ -196,7 +199,7 @@ export async function runImageUpload(editor: Editor, uploadId: string, uploadFn:
   const uploads = imageUploadsOf(editor, type)
   const upload = uploads?.get(uploadId)
   if (!uploads || !upload) return
-  uploads.update(uploadId, { status: "uploading", progress: 0 })
+  uploads.update(uploadId, { status: "uploading", progress: 0, message: undefined })
   const signal = uploads.attempt(uploadId)
   try {
     const src = addressOf(
@@ -230,8 +233,18 @@ export async function runImageUpload(editor: Editor, uploadId: string, uploadFn:
       uploads.remove(uploadId)
       return
     }
-    uploads.update(uploadId, { status: "failed" })
+    uploads.update(uploadId, { status: "failed", message: refusalOf(error) })
   }
+}
+
+/**
+ * Why the server refused an upload, in words for the person (lib/utils/apiError):
+ * a file it won't take, no right to add it, no room. Undefined when no answer
+ * came (the connection) or the fault is this app's own, whose words aren't
+ * theirs. The doc's upload raises no toast (OWN_ERRORS): the picture says it.
+ */
+export function refusalOf(error: unknown): string | undefined {
+  return apiErrorStatus(error) ? apiErrorMessage(error) || undefined : undefined
 }
 
 /** The placeholder node for one upload: an image with no address yet. */

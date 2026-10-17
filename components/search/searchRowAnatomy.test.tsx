@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { SearchResult } from "@/services/searchService"
+import { hueFor } from "@/lib/campHue"
+import { personHue } from "@/lib/utils/getAvatarColor"
 
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
 
@@ -45,13 +47,27 @@ describe("a search result's anatomy", () => {
     expect(lead(HITS.user).getAttribute("data-search-lead")).toBe("person")
   })
 
-  it("gives a channel and a doc no hue", () => {
-    for (const r of [HITS.channel, HITS.doc]) {
-      const el = lead(r)
-      expect(el.className).toContain("text-ink-3")
-      expect(el.className).not.toMatch(/hue|avatar-person|tint/)
-      cleanup()
-    }
+  // INTERACTION_SPEC D13: a channel leads with its tile and a doc with its
+  // glyph, each in its own hue, and the row tints in it. Both were ink-3.
+  it("gives a channel and a doc their own hues, on the lead and the row", () => {
+    const channel = lead(HITS.channel)
+    expect(channel.querySelector("[data-channel-tile]")?.getAttribute("data-hue")).toBe(hueFor("e1cf"))
+    expect(channel.closest("[data-hub-row]")?.getAttribute("data-hue")).toBe(hueFor("e1cf"))
+    cleanup()
+    const doc = lead(HITS.doc)
+    expect(doc.querySelector("[data-doc-icon]")?.getAttribute("data-hue")).toBe(hueFor("9879"))
+    expect(doc.closest("[data-hub-row]")?.getAttribute("data-hue")).toBe(hueFor("9879"))
+  })
+
+  it("keeps a board in an ink-3 glyph and the accent, and a person's row in their own hue", () => {
+    const board = lead({ type: "board", board: { board_uuid: "b1", board_name: "Launch wall" } } as SearchResult)
+    expect(board.className).toContain("text-ink-3")
+    expect(board.closest("[data-hub-row]")?.hasAttribute("data-hue")).toBe(false)
+    cleanup()
+    expect(lead(HITS.user).closest("[data-hub-row]")?.getAttribute("data-hue")).toBe(personHue(HITS.user.user))
+    cleanup()
+    // A message's row, in its author's.
+    expect(lead(HITS.post).closest("[data-hub-row]")?.getAttribute("data-hue")).toBe(personHue("Sam Rivera"))
   })
 
   it("says where a message is and who wrote it", () => {

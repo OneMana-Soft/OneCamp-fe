@@ -26,7 +26,7 @@ export interface LoadedImage {
   height: number
 }
 
-export interface DocxOptions {
+interface DocxOptions {
   /** The web app's origin, for links to channels, docs and tasks. */
   appURL?: string
   /** Fetches a picture for the file; by default with the person's session when it is the API's. */

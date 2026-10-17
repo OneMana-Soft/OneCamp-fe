@@ -32,7 +32,7 @@ describe("the docs page", () => {
     expect(card).toMatch(/max-sm:h-16/)
     expect(card).toMatch(/data-doc-card/)
     // A page drawn 40 px wide was a blank white box.
-    expect(card).toMatch(/<DocIcon icon=\{doc\.doc_icon\} size=\{20\} className="sm:hidden" \/>/)
+    expect(card).toMatch(/<DocIcon icon=\{doc\.doc_icon\} id=\{doc\.doc_uuid\} size=\{20\} className="sm:hidden" \/>/)
     expect(card).not.toMatch(/compact/)
   })
 

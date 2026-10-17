@@ -286,7 +286,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
           <div className="flex flex-wrap gap-1.5 px-4 pb-3 pt-3">
             <Popover open={picker === "date"} onOpenChange={(o) => setPicker(o ? "date" : null)}>
               <PopoverAnchor asChild>
-                <button type="button" className={chip} onClick={() => setPicker("date")}>
+                <button type="button" className={chip} onClick={() => setPicker("date")} data-touch-target="">
                   <CalendarIcon aria-hidden="true" />
                   {dateLabel}
                 </button>
@@ -310,7 +310,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
             {!allDay ? (
               <Popover open={picker === "time"} onOpenChange={(o) => setPicker(o ? "time" : null)}>
                 <PopoverAnchor asChild>
-                  <button type="button" className={cn(chip, "tabular-nums")} onClick={() => setPicker("time")}>
+                  <button type="button" className={cn(chip, "tabular-nums")} onClick={() => setPicker("time")} data-touch-target="">
                     <Clock aria-hidden="true" />
                     {timeLabel}
                   </button>
@@ -332,7 +332,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
             ) : null}
             <Popover open={picker === "guests"} onOpenChange={(o) => setPicker(o ? "guests" : null)}>
               <PopoverAnchor asChild>
-                <button type="button" className={chip} onClick={() => setPicker("guests")}>
+                <button type="button" className={chip} onClick={() => setPicker("guests")} data-touch-target="">
                   <UserPlus aria-hidden="true" />
                   {guests.length ? `${guests.slice(0, 2).map((g) => g.name.split(" ")[0]).join(", ")}${guests.length > 2 ? ` +${guests.length - 2}` : ""}` : "Add guests"}
                 </button>
@@ -349,6 +349,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
               type="button"
               aria-pressed={isFocus}
               onClick={() => setFocus((f) => !f)}
+              data-touch-target=""
               className={cn(chip, isFocus && "focus-hatch text-ink ring-ink-3")}
             >
               <Moon aria-hidden="true" />

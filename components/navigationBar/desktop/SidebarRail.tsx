@@ -1,15 +1,16 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Hash, Lock, MessageCircle, MoreHorizontal, PanelLeft, Search } from "@/lib/icons"
+import { Hash, MessageCircle, MoreHorizontal, PanelLeft, Search } from "@/lib/icons"
 import { IntentLink } from "@/components/navigationBar/desktop/IntentLink"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { WorkspaceMark, WorkspaceMenu } from "@/components/navigationBar/desktop/SidebarHeader"
-import { MorePopover } from "@/components/navigationBar/desktop/desktopSideNavigationBar"
-import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { MorePopover, placeLook } from "@/components/navigationBar/desktop/desktopSideNavigationBar"
 import { ProfileMenu, SelfAvatar } from "@/components/navigationBar/desktop/SidebarFoot"
 import { openPalette } from "@/lib/ui/palette"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
+import type { CampHue } from "@/lib/campHue"
 import type { DesktopChildrenNavType, DesktopNavType } from "@/types/nav"
 import { rowSignal, type SidebarSignal } from "@/lib/nav/sidebarSignal"
 import { app_channel_path, app_chat_path } from "@/types/paths"
@@ -22,6 +23,7 @@ export function RailItem({
   badge,
   spoken,
   dot,
+  hue,
   children,
 }: {
   href: string
@@ -31,6 +33,8 @@ export function RailItem({
   /** What a screen reader hears after the title, when the badge alone wouldn't say it ("@2"). */
   spoken?: string
   dot?: boolean
+  /** The place's hue (D13): its row tints in it. */
+  hue?: CampHue | "agent"
   children: ReactNode
 }) {
   return (
@@ -39,6 +43,7 @@ export function RailItem({
         <IntentLink
           href={href}
           scroll={false}
+          {...ix("nav", { hue })}
           aria-current={active ? "page" : undefined}
           aria-label={spoken ? `${title}${spoken}` : badge ? `${title}, ${badge}` : dot ? `${title}, unread` : title}
           className={cn("shell-rail-item", active ? "nav-active" : "nav-idle")}
@@ -165,7 +170,7 @@ export function SidebarRail({
           <>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" data-palette-trigger="" onClick={() => openPalette({ mode: "search" })} aria-label="Search or ask" className="shell-rail-item nav-idle">
+            <button type="button" data-palette-trigger="" onClick={() => openPalette({ mode: "search" })} aria-label="Search or ask" {...ix("nav")} className="shell-rail-item nav-idle">
               <Search className="h-4 w-4" aria-hidden="true" />
             </button>
           </TooltipTrigger>
@@ -192,7 +197,8 @@ export function SidebarRail({
             <button
               type="button"
               aria-label={more.some((l) => l.variant === "sidebarActive") ? `More, on ${more.find((l) => l.variant === "sidebarActive")!.title}` : "More"}
-              className={cn("shell-rail-item data-[state=open]:bg-press", more.some((l) => l.variant === "sidebarActive") ? "nav-active" : "nav-idle")}
+              {...ix("nav")}
+              className={cn("shell-rail-item", more.some((l) => l.variant === "sidebarActive") ? "nav-active" : "nav-idle")}
             >
               <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -202,9 +208,10 @@ export function SidebarRail({
         <div className="flex min-h-0 flex-col items-center gap-0.5 overflow-hidden">
           {places.slice(0, 6).map((p) => {
             const signal = rowSignal(p)
+            const look = placeLook(p)
             return (
-              <RailItem key={p.path} href={p.path} title={p.title} active={p.variant === "sidebarActive"} badge={signal.badge} spoken={signal.spoken} dot={signal.unread}>
-                {p.project_uuid ? <ProjectTile id={p.project_uuid} /> : p.icon ? <p.icon className="h-4 w-4" aria-hidden="true" /> : p.isPrivate ? <Lock className="h-4 w-4" aria-hidden="true" /> : <Hash className="h-4 w-4" aria-hidden="true" />}
+              <RailItem key={p.path} href={p.path} title={p.title} active={p.variant === "sidebarActive"} badge={signal.badge} spoken={signal.spoken} dot={signal.unread} hue={look.hue}>
+                {look.glyph}
               </RailItem>
             )
           })}
@@ -214,7 +221,7 @@ export function SidebarRail({
         <span className="flex-1" />
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" onClick={onExpand} aria-label="Expand sidebar" className="shell-rail-item nav-idle mb-1">
+            <button type="button" onClick={onExpand} aria-label="Expand sidebar" {...ix("nav")} className="shell-rail-item nav-idle mb-1">
               <PanelLeft className="h-4 w-4" aria-hidden="true" />
             </button>
           </TooltipTrigger>

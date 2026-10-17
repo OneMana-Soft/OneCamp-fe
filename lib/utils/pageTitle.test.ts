@@ -45,4 +45,10 @@ describe("pageTitle", () => {
     expect(pageTitle("/app/home", {}, 3)).toBe("(3) Home · OneCamp")
     expect(pageTitle("/app/home", {}, 250)).toBe("(99+) Home · OneCamp")
   })
+
+  // PTC-38: the booking pages' tab said "Calendar".
+  it("titles a page of its own under a section by itself", () => {
+    expect(pageTitle("/app/calendar/booking")).toBe("Booking pages · OneCamp")
+    expect(pageTitle("/app/calendar")).toBe("Calendar · OneCamp")
+  })
 })

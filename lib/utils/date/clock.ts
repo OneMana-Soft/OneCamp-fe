@@ -50,7 +50,9 @@ const WALL = /^([01]?\d|2[0-3]):([0-5]\d)$/
  * written as it is, in no zone.
  */
 function read(value: Moment, o: ClockOptions): [Date, ClockOptions] {
-  if (value instanceof Date) return [value, o]
+  // Any Date, not only this realm's: instanceof misses one made before a
+  // test pinned the clock (a mocked Date class) or in another frame.
+  if (typeof value === "object") return [value, o]
   if (typeof value === "number") return [new Date(value < 1e11 ? value * 1000 : value), o]
   const wall = WALL.exec(value.trim())
   if (wall) return [new Date(2000, 0, 1, Number(wall[1]), Number(wall[2])), { ...o, timeZone: undefined }]
@@ -161,15 +163,47 @@ export function clockHour(value: Moment, options: ClockOptions = {}): string {
  * A span of time, its day period said once where the locale shares it: "9:30 –
  * 10:15 AM", "11:30 AM – 12:30 PM", "09:30–10:15". A span that crosses
  * midnight names both ends in full ("11:00 PM – 12:00 AM"), never the dates
- * Intl adds.
+ * Intl adds. A span of a day or more on the wall clock says each end's day
+ * ("Thu 09:30 – Fri 09:30"): its two clocks alone could read the same (PTC-9),
+ * on a day the clocks change as on any other.
  */
 export function clockRange(start: Moment, end: Moment, options: ClockOptions = {}): string {
   const [a, o] = read(start, options)
   const [b] = read(end, options)
   if (!valid(a) || !valid(b)) return ""
   const day = formatter("day", o)
-  if (b < a || day.format(a) !== day.format(b)) return `${clockTime(a, o)} – ${clockTime(b, o)}`
+  if (b < a || day.format(a) !== day.format(b)) {
+    // A day or more on the wall clock: 23 hours on a day the clocks go forward.
+    if (b > a && wallClock(b, o) - wallClock(a, o) >= DAY_MS) return `${weekday(a, o)}${NBSP}${clockTime(a, o)} – ${weekday(b, o)}${NBSP}${clockTime(b, o)}`
+    return `${clockTime(a, o)} – ${clockTime(b, o)}`
+  }
   return tidy(formatter("time", o).formatRange(a, b))
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+const WALL_CLOCK: Intl.DateTimeFormatOptions = { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23" }
+
+/** A moment's wall clock in the zone it is read in, on a clock with no zone (milliseconds), where every day is 24 hours long. */
+function wallClock(d: Date, o: ClockOptions): number {
+  let parts: Intl.DateTimeFormatPart[]
+  try {
+    parts = dateTimeFormat("en-US", { ...WALL_CLOCK, timeZone: o.timeZone }).formatToParts(d)
+  } catch {
+    // A zone the runtime doesn't know: the device's own clock, as clockTime falls back.
+    parts = dateTimeFormat("en-US", WALL_CLOCK).formatToParts(d)
+  }
+  const n = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value ?? 0)
+  return Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"))
+}
+
+/** A moment's day of the week in the app's words ("Thu", as dates are written), in the zone it is read in. */
+function weekday(d: Date, o: ClockOptions): string {
+  try {
+    return dateTimeFormat("en-GB", { weekday: "short", timeZone: o.timeZone }).format(d)
+  } catch {
+    // A zone the runtime doesn't know: the device's own day, as clockTime falls back.
+    return dateTimeFormat("en-GB", { weekday: "short" }).format(d)
+  }
 }
 
 /**

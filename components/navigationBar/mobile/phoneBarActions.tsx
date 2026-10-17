@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 
 /** The phone top bar's trailing slot, marked in mobileTopNavigationBar.tsx. */
-export const PHONE_BAR_END = "data-phone-bar-end"
+const PHONE_BAR_END = "data-phone-bar-end"
 
 /**
  * A page's own controls, in the phone's top bar (design v3, mobile C2): one

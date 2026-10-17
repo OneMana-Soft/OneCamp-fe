@@ -1,3 +1,4 @@
+import { readFileSync } from "fs"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import { SectionTabs } from "@/components/ui/sectionTabs"
@@ -8,14 +9,11 @@ const TABS = ["Tasks", "Board", "Timeline", "Updates", "Attachments"].map((label
 
 describe("a row of tabs wider than its room", () => {
   it("fades the edge with more tabs past it, so the row says it scrolls", () => {
-    const sw = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(420)
-    const cw = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(360)
     render(<SectionTabs tabs={TABS} value="tasks" onValueChange={() => {}} />)
-    const list = screen.getByRole("tablist")
-    expect(list.hasAttribute("data-more-end")).toBe(true)
-    expect(list.className).toContain("mask-image")
-    sw.mockRestore()
-    cw.mockRestore()
+    expect(screen.getByRole("tablist").hasAttribute("data-edge-fade")).toBe(true)
+    // The layer's fade, driven by the row's own scroll (app/interaction.css).
+    const css = readFileSync("app/interaction.css", "utf8").replace(/\s+/g, " ")
+    expect(css).toMatch(/@supports \(animation-timeline: scroll\(\)\) \{ \[data-edge-fade\] \{[^}]*animation-timeline: scroll\(self inline\);/)
   })
 
   it("scrolls the chosen tab into view", () => {

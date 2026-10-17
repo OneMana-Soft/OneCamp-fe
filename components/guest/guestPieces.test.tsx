@@ -1,6 +1,7 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { GuestComposer, GuestMessageView, GuestNameForm } from "./guestUi"
+import { GuestGateComposer } from "./guestChannel"
 import { PublicGone } from "./publicStates"
 
 const pointer = (fine: boolean) => {
@@ -49,5 +50,27 @@ describe("the pieces every guest page shares", () => {
     screen.getByRole("heading", { name: "This shared channel doesn't exist or was deleted" })
     const spot = document.querySelector("[data-empty-illustration]")!
     expect(spot).toHaveAttribute("aria-hidden", "true")
+  })
+
+  // Review, 15 Oct 2026: a client typing in Japanese, Chinese or Korean sent
+  // the team half a word on the Enter that picks it (lib/keys/ime.ts), on a
+  // task's comments and in a shared channel. Safari's Enter says keyCode 229
+  // and not isComposing.
+  it.each([
+    ["a task's comments", "Reply", (onSend: (t: string) => Promise<string | null>) => <GuestComposer placeholder="Reply" onSend={onSend} name="Jordan" />],
+    ["a shared channel", "Message #acme", (onSend: (t: string) => Promise<string | null>) => <GuestGateComposer name="Jordan" onName={() => {}} placeholder="Message #acme" onSend={onSend} />],
+  ])("leaves an input method's Enter to it in %s", async (_where, label, composer) => {
+    const onSend = vi.fn<(text: string) => Promise<string | null>>(async () => null)
+    render(composer(onSend))
+    const box = screen.getByRole("textbox", { name: label })
+    fireEvent.change(box, { target: { value: "よろしく" } })
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true })
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 })
+    expect(onSend).not.toHaveBeenCalled()
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" })
+    })
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect(onSend).toHaveBeenCalledWith("よろしく")
   })
 })

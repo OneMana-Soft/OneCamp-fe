@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { MadeWithOneCamp, madeWithHref, type PublicSurface } from "@/components/public/MadeWithOneCamp"
+import { MadeWithOneCamp, type PublicSurface } from "@/components/public/MadeWithOneCamp"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -172,5 +172,3 @@ export function PaperCard({
     </div>
   )
 }
-
-export { madeWithHref }

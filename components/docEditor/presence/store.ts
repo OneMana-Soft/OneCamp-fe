@@ -1,6 +1,7 @@
 /**
  * Who is in a doc, by awareness client (B8), for the stack and the meta line.
- * PresenceOverlay fills it; the doc's page loads this file, so it stays small.
+ * fromTheStart.ts fills it, from each doc editor's first moment; the doc's
+ * page loads this file, so it stays small.
  */
 import * as React from "react"
 

@@ -84,6 +84,31 @@ describe("edgeScroller", () => {
     expect(el.scrollTop).toBe(2)
   })
 
+  // A project timeline's bar (REVIEW-FE-SHELL db2): it moves by days, so its
+  // drag scrolls sideways only, and its names sit over the scroller's left edge.
+  it("starts its zone past a column drawn over the edge, and scrolls the one way it is told", () => {
+    const el = scroller(1000)
+    let left = 200
+    Object.defineProperty(el, "scrollLeft", { get: () => left, set: (v: number) => (left = Math.max(0, v)) })
+    const s = edgeScroller(el, undefined, undefined, { inset: { left: 160 }, axis: "x" })
+    // In the middle: still. Just past the names (100 to 260): back a step,
+    // less than at the edge; over the names, past the edge: back at full speed.
+    s.follow(400, 250)
+    run()
+    expect(left).toBe(200)
+    s.follow(300, 250)
+    run()
+    expect(left).toBe(200 - 3)
+    s.follow(240, 250)
+    run()
+    expect(left).toBe(200 - 3 - EDGE_SCROLL.maxSpeed)
+    // At the bottom edge too, but sideways only: nothing goes down.
+    s.follow(499, 399)
+    run()
+    expect(el.scrollTop).toBe(0)
+    s.stop()
+  })
+
   it("scrolls nothing when there is no scroller", () => {
     const s = edgeScroller(null)
     s.follow(300, 399)
@@ -108,5 +133,14 @@ describe("scrollersAt", () => {
     }
     document.elementsFromPoint = () => [ghost, card, col, board, document.body, document.documentElement]
     expect(scrollersAt(10, 10, (el) => el === ghost)).toEqual([col, board])
+  })
+})
+
+describe("one edge scroll", () => {
+  it("is the one a project timeline's bar drag uses: no frame loop of its own", async () => {
+    const { readFileSync } = await import("node:fs")
+    const src = readFileSync("components/project/timeline/ProjectTimeline.tsx", "utf8")
+    expect(src).toMatch(/edgeScroller\(el, measure, undefined, \{ inset: \{ left: nameWidth \}, axis: "x" \}\)/)
+    expect(src).not.toMatch(/EDGE_STEP|requestAnimationFrame\(edgeScroll\)/)
   })
 })

@@ -6,7 +6,7 @@ import { useDispatch } from "react-redux"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch"
 import { useDebounce } from "@/hooks/useDebounce"
 import { fetchSearchPage, GlobalSearchGet, SearchResult } from "@/services/searchService"
-import { withinParam, type SearchWithin } from "@/lib/search/within"
+import { searchWithinHref, withinParam, type SearchWithin } from "@/lib/search/within"
 import { openUI } from "@/store/slice/uiSlice"
 import type {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
@@ -18,7 +18,6 @@ const NO_RESULTS: SearchResult[] = []
 interface UseSearchProps {
     initialQuery?: string;
     debounceMs?: number;
-    syncWithUrl?: boolean;
     /** One conversation to search in (QA F-15); everything when unset. */
     within?: SearchWithin | null;
 }
@@ -26,7 +25,6 @@ interface UseSearchProps {
 export const useSearch = ({ 
     initialQuery = "", 
     debounceMs = 300,
-    syncWithUrl = false,
     within = null,
 }: UseSearchProps = {}) => {
     const [inputValue, setInputValue] = useState(initialQuery)
@@ -126,13 +124,15 @@ export const useSearch = ({
         setOpen(false)
     }, [])
 
+    // A search narrowed to one conversation stays narrowed (QA F-15): Enter
+    // in its field opened the whole workspace's search for the same words.
     const handleSearchSubmit = useCallback((query?: string) => {
-        const searchQuery = query || inputValue
-        if (searchQuery.trim().length >= 2) {
+        const searchQuery = (query || inputValue).trim()
+        if (searchQuery.length >= 2) {
             setOpen(false)
-            router.push(`/app/search?query=${encodeURIComponent(searchQuery.trim())}`)
+            router.push(within ? searchWithinHref(within, searchQuery) : `/app/search?query=${encodeURIComponent(searchQuery)}`)
         }
-    }, [inputValue, router])
+    }, [inputValue, router, within])
 
     // One mapping for where a hit opens (resultPath), as the page's links and
     // the palette's rows use: this switch spelled it out a second time, and

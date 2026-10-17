@@ -9,7 +9,7 @@ import { slicer, type SliceOptions, type SliceStats } from "./slices"
  * <div> before sanitising, so a block the sanitiser drops (an embed it doesn't
  * allow) leaves a placeholder and every index still names the same block.
  */
-export function materializeGroup(blocks: RawBlock[]): HTMLElement[] {
+function materializeGroup(blocks: RawBlock[]): HTMLElement[] {
   const template = document.createElement("template")
   template.innerHTML = snapshotHtml(blocks.map((b) => `<div>${carryBlockIds(b.html)}</div>`).join(""))
   const wrappers = Array.from(template.content.children)
@@ -41,7 +41,7 @@ const MAX_GROUP = 80
  * `onGroup` sees each group as it is made. The first `firstBlocks` go in the
  * first slice whatever they cost, so the first screen paints at once.
  */
-export async function materialize(
+async function materialize(
   html: string,
   opts: SliceOptions & { firstBlocks?: number; onGroup?: (els: HTMLElement[]) => void } = {},
 ): Promise<{ elements: HTMLElement[]; stats: SliceStats }> {

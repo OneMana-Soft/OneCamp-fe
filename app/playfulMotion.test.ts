@@ -62,8 +62,10 @@ describe("the motion tokens", () => {
     }
   })
 
-  it("gives every bare transition the hover timing on the out-curve", () => {
-    expect(theme).toMatch(/--default-transition-duration:\s*140ms;/)
+  // A bare transition is a colour change: the interaction layer's 120ms
+  // (INTERACTION_SPEC §2.1, --ix-colour).
+  it("gives every bare transition the layer's colour timing on the out-curve", () => {
+    expect(theme).toMatch(/--default-transition-duration:\s*120ms;/)
     expect(theme).toMatch(/--default-transition-timing-function:\s*cubic-bezier\(0\.22, 1, 0\.36, 1\);/)
     expect(block("@utility transition-modal {")).toMatch(/transition-duration:\s*240ms;[\s\S]*var\(--ease-in-out\)/)
   })

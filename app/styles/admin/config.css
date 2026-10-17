@@ -57,7 +57,7 @@
     inset: -1.5px;
     border-radius: inherit;
     pointer-events: none;
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 4px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
     opacity: 0;
     transition: opacity 140ms var(--ease-out);
   }

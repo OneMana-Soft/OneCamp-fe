@@ -30,7 +30,8 @@ export const LISTS = ["bulletList", "orderedList", "taskList"]
 
 export const isBlock = (node: PMNode) => !node.isInline && !NOT_BLOCKS.has(node.type.name)
 
-const inTable = (node: PMNode) => !!(node.type.spec as { tableRole?: string }).tableRole
+const roleOf = (node: PMNode) => (node.type.spec as { tableRole?: string }).tableRole
+const inTable = (node: PMNode) => !!roleOf(node)
 
 const inBlockGroup = (node: PMNode) => (node.type.spec.group ?? "").split(" ").includes("block")
 
@@ -52,20 +53,22 @@ export function blockOfResolved($pos: ResolvedPos): BlockRef | null {
   let depth = $pos.depth
   while (depth > 0 && !isBlock($pos.node(depth))) depth--
   if (depth === 0) return null
-  // A table's cells and rows: the table is the block.
+  // A table's cells and rows: the table is the block. The outermost node with
+  // a table role is the table itself (the simple table's is "table"), or, for
+  // a table that names none, the parent of its rows. (It stopped a level short
+  // of a table that names its role, and took the line in the cell.)
   for (let d = 1; d <= depth; d++) {
-    if (inTable($pos.node(d))) {
-      let t = d
-      while (t > 1 && inTable($pos.node(t - 1))) t--
-      if (t > 1) return { pos: $pos.before(t - 1), node: $pos.node(t - 1) }
-    }
+    if (!inTable($pos.node(d))) continue
+    const t = roleOf($pos.node(d)) === "table" ? d : d - 1
+    if (t >= 1) return { pos: $pos.before(t), node: $pos.node(t) }
+    break
   }
   while (depth > 1 && $pos.index(depth - 1) === 0 && ownsFirstLine($pos.node(depth - 1), $pos.node(depth))) depth--
   return { pos: $pos.before(depth), node: $pos.node(depth) }
 }
 
 /** The block a node position names (the node there), when it is one. */
-export function blockAtNode(doc: PMNode, pos: number): BlockRef | null {
+function blockAtNode(doc: PMNode, pos: number): BlockRef | null {
   const node = doc.nodeAt(pos)
   if (!node || !isBlock(node)) return null
   return { pos, node }
@@ -85,7 +88,7 @@ export function blockAtPoint(doc: PMNode, hit: { pos: number; inside: number }):
 }
 
 /** A block's place among its siblings. */
-export interface Place {
+interface Place {
   parent: PMNode
   /** The parent's content start. */
   parentStart: number

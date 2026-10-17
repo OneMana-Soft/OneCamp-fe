@@ -391,7 +391,8 @@ function SealRow({
     )
 }
 
-export default function AdminAuditLog() {
+/** pageSize: entries read at a time (PAGE); a test reads the log a few at a time. */
+export default function AdminAuditLog({ pageSize = PAGE }: { pageSize?: number } = {}) {
     const [entries, setEntries] = useState<AuditEntry[]>([])
     const [loading, setLoading] = useState(true)
     // A failed read is not an empty log: said as such, with Try again.
@@ -426,13 +427,13 @@ export default function AdminAuditLog() {
         setLoading(true)
         setFailed(false)
         setFailure(undefined)
-        getAdminAuditLog(cat === ALL ? undefined : cat, PAGE, 0, unattended ? UNATTENDED : undefined)
+        getAdminAuditLog(cat === ALL ? undefined : cat, pageSize, 0, unattended ? UNATTENDED : undefined)
             .then((page) => {
                 const before = seen.current
                 setFresh(before ? new Set(page.entries.filter((e) => !before.has(e.id)).map((e) => e.id)) : new Set())
                 seen.current = new Set(page.entries.map((e) => e.id))
                 setEntries(page.entries)
-                setHasOlder(page.entries.length === PAGE)
+                setHasOlder(page.entries.length === pageSize)
                 // Only replace the filter list when the server sent one, so a
                 // partial response never removes a filter mid-session.
                 if (page.categories.length > 0) setCategories(page.categories)
@@ -447,18 +448,18 @@ export default function AdminAuditLog() {
             .finally(() => setLoading(false))
     }
 
-    // The next fifty, after the ones shown. The log only grows, and with export
+    // The next page, after the ones shown. The log only grows, and with export
     // locked on the free plan this is the only way to reach anything older.
     const loadOlder = () => {
         setLoadingOlder(true)
         // Said by the toast below, once: the request's own stays quiet.
-        getAdminAuditLog(filter === ALL ? undefined : filter, PAGE, entries.length, unattendedOnly ? UNATTENDED : undefined, OWN_ERRORS)
+        getAdminAuditLog(filter === ALL ? undefined : filter, pageSize, entries.length, unattendedOnly ? UNATTENDED : undefined, OWN_ERRORS)
             .then((page) => {
                 setEntries((prev) => {
                     const ids = new Set(prev.map((e) => e.id))
                     return [...prev, ...page.entries.filter((e) => !ids.has(e.id))]
                 })
-                setHasOlder(page.entries.length === PAGE)
+                setHasOlder(page.entries.length === pageSize)
             })
             .catch((e) => {
                 toast({ title: "Couldn't load older entries", description: apiErrorMessage(e, "Try again in a moment."), tone: "error" })

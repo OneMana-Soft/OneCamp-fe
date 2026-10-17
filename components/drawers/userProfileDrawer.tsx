@@ -29,7 +29,6 @@ import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
-import { useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import type { RootState } from "@/store/store"
@@ -52,6 +51,7 @@ import {
     DrawerTitle,
 } from "@/components/ui/drawer"
 import { WorkspaceName } from "@/hooks/useWorkspaceName"
+import { useSheetHandoff } from "@/components/drawers/sheetHandoff"
 
 interface ProfileDrawerProps {
     drawerOpenState: boolean
@@ -108,18 +108,9 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const { can } = useCapabilities()
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const isAdmin = !!selfProfile.data?.data.user_is_admin
-    // What the sheet hands over to: the pause sheet or the invite dialog. The
-    // sheet hides while it shows and closes once it is done, and stays mounted
-    // throughout: the UI manager unmounts this sheet when it closes, so a
-    // dialog opened from it and then closed along with it never appeared, and
-    // "Pause notifications…" and "Invite people" did nothing on a phone.
-    const [handoff, setHandoff] = useState<null | "pause" | "invite">(null)
-    const handTo = (layer: "pause" | "invite") => setHandoff(layer)
-    const handBack = (open: boolean) => {
-        if (open) return
-        setHandoff(null)
-        setOpenState(false)
-    }
+    // What the sheet hands over to: the pause sheet or the invite dialog
+    // (components/drawers/sheetHandoff).
+    const { handoff, handTo, handBack, sheetOpen, onSheetOpenChange } = useSheetHandoff<"pause" | "invite">(() => setOpenState(false))
     const { pausedUntil, focusUntil } = usePauseNotifications()
     const { startFocus, starting } = useStartFocus()
     const me = selfProfile.data?.data
@@ -145,7 +136,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
 
     return (
         <>
-        <Drawer detent="large" onOpenChange={(o) => !o && !handoff && closeDrawer()} open={drawerOpenState && !handoff}>
+        <Drawer detent="large" onOpenChange={onSheetOpenChange} open={sheetOpen(drawerOpenState)}>
             <DrawerContent {...phoneSheet}>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle>

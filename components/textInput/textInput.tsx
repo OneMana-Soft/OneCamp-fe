@@ -293,7 +293,7 @@ const ComposerActions = React.memo(function ComposerActions({
                       // Empty, Send is the press overlay (the subtle variant,
                       // which carries no primary ring); with words, the primary.
                       variant={nothingToSend ? "subtle" : "default"}
-                      className={cn("h-8 w-8 transition-colors", nothingToSend && "bg-press text-faint-foreground hover:bg-press")}
+                      className={cn("h-8 w-8 transition-colors", nothingToSend && "bg-press text-faint-foreground")}
                       onClick={onSend}
                   >
                       <ButtonIcon className="h-4 w-4" />

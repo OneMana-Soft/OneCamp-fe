@@ -4,8 +4,11 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 // The desktop project header folds its tools into one "⋯" menu. Every action
 // it used to show as an icon must still be reachable, by name.
 
-const dispatched: Array<{ type: string; payload?: { key?: string; data?: { title?: string; description?: string; confirmText?: string; destructive?: boolean } } }> = []
+const dispatched: Array<{ type: string; payload?: { key?: string; data?: { title?: string; description?: string; confirmText?: string; destructive?: boolean; onConfirm?: () => unknown } } }> = []
 vi.mock("react-redux", () => ({ useDispatch: () => (a: (typeof dispatched)[number]) => void dispatched.push(a), useSelector: () => undefined }))
+// The cache keys read again after a change, as the app's mutate is asked.
+const reread: unknown[] = []
+vi.mock("@/lib/swrMutate", () => ({ appMutate: (key: unknown) => (reread.push(key), Promise.resolve()) }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(() => Promise.resolve({})), isSubmitting: false }) }))
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(""),
@@ -19,6 +22,7 @@ vi.mock("@/components/project/ProjectShareDialog", () => ({ ProjectShareDialog: 
 vi.mock("@/components/projectTemplates/SaveAsTemplateDialog", () => ({ SaveAsTemplateDialog: shown("template") }))
 
 const { ProjectActionsMenu } = await import("@/components/project/ProjectToolButtons")
+const { GetEndpointUrl } = await import("@/services/endPoints")
 
 afterEach(cleanup)
 
@@ -77,6 +81,20 @@ describe("the project header's actions", () => {
     expect(screen.queryByRole("menuitem", { name: "Archive project…" })).toBeNull()
     fireEvent.click(screen.getByRole("menuitem", { name: "Restore project" }))
     expect(dispatched.find((a) => a.payload?.key === "confirmAlert")?.payload?.data).toMatchObject({ title: "Restore project", confirmText: "Restore project" })
+  })
+
+  // The page reads its archived state from the project's own answer: once
+  // restored, that answer is read again, or the menu went on offering
+  // Restore project for a project that was back.
+  it("reads the project again once it is restored", async () => {
+    dispatched.length = 0
+    reread.length = 0
+    render(<ProjectActionsMenu projectId="q4-1" projectName="Q4 launch" isAdmin isMember archived onRename={() => {}} onMembers={() => {}} />)
+    openMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Restore project" }))
+    const asked = dispatched.find((a) => a.payload?.key === "confirmAlert")?.payload?.data
+    await asked?.onConfirm?.()
+    expect(reread).toContain(`${GetEndpointUrl.GetProjectInfo}/q4-1`)
   })
 
   it("offers no archive to a member who isn't an admin", () => {

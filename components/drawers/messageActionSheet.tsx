@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Drawer as DrawerPrimitive } from "vaul"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { useRouter } from "next/navigation"
 import {
     AlarmClock,
@@ -92,9 +92,10 @@ function Tile({ icon: Icon, label, onClick, active }: { icon: React.ComponentTyp
     )
 }
 
-function Row({ icon: Icon, label, onClick, danger, busy }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; danger?: boolean; busy?: boolean }) {
+function Row({ icon: Icon, label, onClick, danger, busy, buttonRef }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; danger?: boolean; busy?: boolean; buttonRef?: React.Ref<HTMLButtonElement> }) {
     return (
         <button
+            ref={buttonRef}
             type="button"
             onClick={onClick}
             className={cn(
@@ -112,12 +113,13 @@ function Row({ icon: Icon, label, onClick, danger, busy }: { icon: React.Compone
 /**
  * The phone's long-press sheet (design v3 chat, C61). The pressed message is
  * lifted above the sheet as a copy on the raised surface (iMessage's
- * pattern), so you see what you act on; the sheet is the raised surface at
- * e4 with 20px top corners and a 36×5 handle: six recent reactions at 44px
- * and a "+", three 72px tiles (Reply in thread, Reply with quote, Save), then
- * 48px rows. Edit and Delete are yours only; Delete is in danger ink. The
- * overlay is black at 32% with no blur. A light buzz marks the threshold
- * where the phone has one. Reduced motion: it simply appears.
+ * pattern), so you see what you act on; the sheet is the shared one
+ * (components/ui/drawer: the pop step at e4, 20px top corners, the 36×5
+ * grabber and its one scrim, 32% ink with no blur): six recent reactions at
+ * 44px and a "+", three 72px tiles (Reply in thread, Reply with quote, Save),
+ * then 48px rows. Edit and Delete are yours only; Delete is in danger ink. A
+ * light buzz marks the threshold where the phone has one. Reduced motion: it
+ * simply appears.
  */
 export function MessageActionSheet({
     open,
@@ -143,6 +145,17 @@ export function MessageActionSheet({
     const [translation, setTranslation] = React.useState<string | null>(null)
     // Delete asks here, in the sheet, as a computer's More menu does (SD-5).
     const [confirmingDelete, setConfirmingDelete] = React.useState(false)
+    // The question takes the asking row's place, so the focus goes with it:
+    // to its Cancel, and back to the row when it's cancelled. Left on the
+    // removed row, a keyboard or a screen reader lost its place in the sheet.
+    const cancelDeleteRef = React.useRef<HTMLButtonElement>(null)
+    const deleteRowRef = React.useRef<HTMLButtonElement>(null)
+    const askedDelete = React.useRef(false)
+    React.useEffect(() => {
+        if (confirmingDelete) cancelDeleteRef.current?.focus()
+        else if (askedDelete.current && open) deleteRowRef.current?.focus()
+        askedDelete.current = confirmingDelete
+    }, [confirmingDelete, open])
     const saved = useSavedEntry(laterTarget?.itemType ?? "post", laterTarget?.itemId ?? "")
     const { save, remove } = useLaterActions()
 
@@ -190,102 +203,101 @@ export function MessageActionSheet({
     }
 
     return (
-        <DrawerPrimitive.Root open={open} onOpenChange={onOpenChange} shouldScaleBackground={false}>
-            <DrawerPrimitive.Portal>
-                <DrawerPrimitive.Overlay className="fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/[0.32]" />
-                <DrawerPrimitive.Content
-                    data-message-sheet=""
-                    aria-describedby={undefined}
-                    className="fixed inset-x-0 bottom-0 z-[var(--z-modal)] flex max-h-[80dvh] flex-col rounded-t-[20px] bg-raised pb-[env(safe-area-inset-bottom)] shadow-e4 outline-none"
-                >
-                    <DrawerPrimitive.Title className="sr-only">Message actions</DrawerPrimitive.Title>
-                    {preview && (
-                        <div data-sheet-preview="" className="pointer-events-none absolute inset-x-3 bottom-full mb-3 animate-preview-lift rounded-2xl bg-raised p-3 shadow-e3">
-                            <div className="flex items-start gap-2.5">
-                                <ChatFace name={preview.name} profileKey={preview.profileKey} userUUID={preview.userUUID} isBot={preview.isBot} size={32} />
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex h-5 items-center gap-2">
-                                        <span className="truncate text-ui font-semibold text-ink">{preview.name}</span>
-                                        <span className="shrink-0 text-meta tabular-nums text-ink-3">{clockTime(preview.createdAt)}</span>
-                                    </div>
-                                    <p className="line-clamp-4 whitespace-pre-line text-body text-ink">{htmlToPreviewText(preview.html)}</p>
+        // The shared sheet (components/ui/drawer): its one scrim, which leaves the
+        // page when a close is interrupted (the long-press sheet's own could
+        // stay over it and take every tap), its grabber and its motion.
+        <Drawer open={open} onOpenChange={onOpenChange} detent="medium" shouldScaleBackground={false}>
+            <DrawerContent
+                data-message-sheet=""
+                aria-describedby={undefined}
+                className="max-h-[80dvh]"
+                above={preview && (
+                    <div data-sheet-preview="" className="pointer-events-none absolute inset-x-3 bottom-full mb-3 animate-preview-lift rounded-2xl bg-raised p-3 shadow-e3">
+                        <div className="flex items-start gap-2.5">
+                            <ChatFace name={preview.name} profileKey={preview.profileKey} userUUID={preview.userUUID} isBot={preview.isBot} size={32} />
+                            <div className="min-w-0 flex-1">
+                                <div className="flex h-5 items-center gap-2">
+                                    <span className="truncate text-ui font-semibold text-ink">{preview.name}</span>
+                                    <span className="shrink-0 text-meta tabular-nums text-ink-3">{clockTime(preview.createdAt)}</span>
                                 </div>
+                                <p className="line-clamp-4 whitespace-pre-line text-body text-ink">{htmlToPreviewText(preview.html)}</p>
                             </div>
+                        </div>
+                    </div>
+                )}
+            >
+                <DrawerTitle className="sr-only">Message actions</DrawerTitle>
+                <div className="flex flex-col gap-4 px-4 pb-4 pt-3">
+                    <div className="flex items-center justify-between">
+                        {emojis.map((e) => (
+                            <button
+                                key={e.id}
+                                type="button"
+                                aria-label={`React with ${e.label}`}
+                                onClick={then(() => {
+                                    noteReaction(e)
+                                    handleEmojiClick(e.id)
+                                })}
+                                className="flex size-11 items-center justify-center rounded-xl text-2xl transition-transform active:scale-95 focus-visible:outline-2 focus-visible:outline-ring"
+                            >
+                                {e.native}
+                            </button>
+                        ))}
+                        <button
+                            type="button"
+                            aria-label="Pick another reaction"
+                            onClick={() => onAddEmoji()}
+                            className="flex size-11 items-center justify-center rounded-xl bg-sunken text-ink-2 focus-visible:outline-2 focus-visible:outline-ring"
+                        >
+                            <SmilePlus className="size-5" />
+                        </button>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <Tile icon={MessageSquareText} label="Thread" onClick={then(() => router.push(threadPath))} />
+                        {onReply && <Tile icon={Reply} label="Quote" onClick={then(onReply)} />}
+                        {laterTarget && <Tile icon={saved ? BookmarkCheck : Bookmark} label={saved ? "Saved" : "Save"} active={!!saved} onClick={toggleSave} />}
+                    </div>
+
+                    <div className="flex flex-col">
+                        <Row icon={Copy} label="Copy text" onClick={then(copyText)} />
+                        <Row
+                            icon={Link}
+                            label="Copy link"
+                            onClick={then(() => copyToClipboard.copy(`${window.location.protocol}//${window.location.host}${threadPath}`, "copied link"))}
+                        />
+                        {makeTask && <Row icon={ListTodo} label="Make a task" onClick={then(makeTask, 150)} />}
+                        {laterTarget && !saved && <Row icon={AlarmClock} label="Remind me tomorrow morning" onClick={remindTomorrow} />}
+                        {forwardPath && <Row icon={Forward} label="Forward" onClick={then(() => router.push(forwardPath))} />}
+                        {!!(messageText || "").trim() && (
+                            <Row icon={Languages} label={translating ? "Translating…" : translation ? "Translate again" : "Translate"} busy={translating} onClick={translate} />
+                        )}
+                        {isOwner && <Row icon={Pencil} label="Edit message" onClick={then(editMessage)} />}
+                        {(isOwner || isAdmin) &&
+                            (confirmingDelete ? (
+                                <DeleteConfirm className="py-3">
+                                    <Button ref={cancelDeleteRef} size="lg" variant="ghost" onClick={() => setConfirmingDelete(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button size="lg" variant="destructive" onClick={then(deleteMessage, 100)}>
+                                        Delete
+                                    </Button>
+                                </DeleteConfirm>
+                            ) : (
+                                <Row icon={Trash2} label="Delete message" danger onClick={() => setConfirmingDelete(true)} buttonRef={deleteRowRef} />
+                            ))}
+                    </div>
+
+                    {translation && (
+                        <div className="rounded-[10px] bg-sunken px-3 py-2">
+                            <p className="mb-0.5 flex items-center gap-1.5 text-meta font-medium text-ink-3">
+                                <Languages className="size-3" /> Translated
+                            </p>
+                            <p className="whitespace-pre-line text-body text-ink">{translation}</p>
                         </div>
                     )}
-                    <div aria-hidden="true" className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-line-3" />
-                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-3">
-                        <div className="flex items-center justify-between">
-                            {emojis.map((e) => (
-                                <button
-                                    key={e.id}
-                                    type="button"
-                                    aria-label={`React with ${e.label}`}
-                                    onClick={then(() => {
-                                        noteReaction(e)
-                                        handleEmojiClick(e.id)
-                                    })}
-                                    className="flex size-11 items-center justify-center rounded-xl text-2xl transition-transform active:scale-95 focus-visible:outline-2 focus-visible:outline-ring"
-                                >
-                                    {e.native}
-                                </button>
-                            ))}
-                            <button
-                                type="button"
-                                aria-label="Pick another reaction"
-                                onClick={() => onAddEmoji()}
-                                className="flex size-11 items-center justify-center rounded-xl bg-sunken text-ink-2 focus-visible:outline-2 focus-visible:outline-ring"
-                            >
-                                <SmilePlus className="size-5" />
-                            </button>
-                        </div>
-
-                        <div className="flex gap-2">
-                            <Tile icon={MessageSquareText} label="Thread" onClick={then(() => router.push(threadPath))} />
-                            {onReply && <Tile icon={Reply} label="Quote" onClick={then(onReply)} />}
-                            {laterTarget && <Tile icon={saved ? BookmarkCheck : Bookmark} label={saved ? "Saved" : "Save"} active={!!saved} onClick={toggleSave} />}
-                        </div>
-
-                        <div className="flex flex-col">
-                            <Row icon={Copy} label="Copy text" onClick={then(copyText)} />
-                            <Row
-                                icon={Link}
-                                label="Copy link"
-                                onClick={then(() => copyToClipboard.copy(`${window.location.protocol}//${window.location.host}${threadPath}`, "copied link"))}
-                            />
-                            {makeTask && <Row icon={ListTodo} label="Make a task" onClick={then(makeTask, 150)} />}
-                            {laterTarget && !saved && <Row icon={AlarmClock} label="Remind me tomorrow morning" onClick={remindTomorrow} />}
-                            {forwardPath && <Row icon={Forward} label="Forward" onClick={then(() => router.push(forwardPath))} />}
-                            {!!(messageText || "").trim() && (
-                                <Row icon={Languages} label={translating ? "Translating…" : translation ? "Translate again" : "Translate"} busy={translating} onClick={translate} />
-                            )}
-                            {isOwner && <Row icon={Pencil} label="Edit message" onClick={then(editMessage)} />}
-                            {(isOwner || isAdmin) &&
-                                (confirmingDelete ? (
-                                    <DeleteConfirm className="py-3">
-                                        <Button size="lg" variant="ghost" onClick={() => setConfirmingDelete(false)}>
-                                            Cancel
-                                        </Button>
-                                        <Button size="lg" variant="destructive" onClick={then(deleteMessage, 100)}>
-                                            Delete
-                                        </Button>
-                                    </DeleteConfirm>
-                                ) : (
-                                    <Row icon={Trash2} label="Delete message" danger onClick={() => setConfirmingDelete(true)} />
-                                ))}
-                        </div>
-
-                        {translation && (
-                            <div className="rounded-[10px] bg-sunken px-3 py-2">
-                                <p className="mb-0.5 flex items-center gap-1.5 text-meta font-medium text-ink-3">
-                                    <Languages className="size-3" /> Translated
-                                </p>
-                                <p className="whitespace-pre-line text-body text-ink">{translation}</p>
-                            </div>
-                        )}
-                    </div>
-                </DrawerPrimitive.Content>
-            </DrawerPrimitive.Portal>
-        </DrawerPrimitive.Root>
+                </div>
+            </DrawerContent>
+        </Drawer>
     )
 }

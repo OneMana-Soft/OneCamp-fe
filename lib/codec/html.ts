@@ -15,7 +15,7 @@
 
 import { CMark, CNode, attrBool, attrInt, attrString, firstNonEmpty, node, setAttr, trimSpace } from './doc'
 import { escapeAttr, escapeText } from './htmlEscape'
-import { CELL_COLOURS, MARK_SPECS, NodeSpec, Schema, SHIPPED, specOf } from './schema'
+import { CELL_COLOURS, NodeSpec, Schema, SHIPPED, specOf } from './schema'
 import { isInlineNode, markEq, normalize } from './normalize'
 import { isSafeHref } from '@/lib/utils/safeHref'
 import { contentClasses } from '@/lib/contentClasses'
@@ -352,7 +352,7 @@ function markClose(m: CMark): string {
 // Reading
 // ---------------------------------------------------------------------------
 
-export interface HTMLOptions {
+interface HTMLOptions {
   /** HTML from outside the editor, read as untrusted. */
   foreign?: boolean
   schema?: Schema
@@ -1035,5 +1035,3 @@ function stripTrailingSpace(n: CNode) {
   if (trimmed === '') n.content = content.slice(0, -1)
   else last.text = trimmed
 }
-
-export { MARK_SPECS }

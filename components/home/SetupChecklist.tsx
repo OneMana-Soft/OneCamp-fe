@@ -388,7 +388,7 @@ function StepRow({ step, isNext, onSkip }: { step: OnboardingStep; isNext: boole
                 />
             </span>
             {/* The whole card is the link: an overlay stretched from the title. */}
-            <Link href={step.href} className="outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']">
+            <Link href={step.href} className="outline-none after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring">
                 <span className="block text-ui font-medium">{step.title}</span>
                 <span className="mt-0.5 block text-meta text-ink-3">{step.detail}</span>
                 {isNext ? (

@@ -16,7 +16,9 @@ import { useEffect, useRef } from "react"
  */
 export function escapeBelongsToLayer(event: KeyboardEvent, doc: Document = document): boolean {
   if (event.defaultPrevented) return true
-  if (doc.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return true
+  // A sheet that leaves Escape to its own content (the right panel over the
+  // page, components/ui/overlaySheet) is no layer over itself.
+  if (doc.querySelector('[role="dialog"]:not([data-overlay-sheet="own-escape"]), [role="alertdialog"], [role="menu"], [role="listbox"]')) return true
   if (doc.querySelector('.tippy-box[data-state="visible"]')) return true
   for (const layer of Array.from(doc.querySelectorAll("[data-radix-popper-content-wrapper]"))) {
     if (!layer.querySelector('[role="tooltip"]')) return true

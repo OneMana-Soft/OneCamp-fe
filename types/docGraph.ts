@@ -153,7 +153,14 @@ export interface DocList {
 /** POST /doc/createDoc. A title may be empty: "Untitled" is only a placeholder. */
 export interface DocCreateRequest {
   doc_title?: string
-  doc_private?: boolean
+  /**
+   * Always sent, for a subpage too (its parent's: lib/docCache subpagePrivate).
+   * A server without nested pages (v2.72) reads only this and the title, and
+   * makes a doc it isn't told is private at the top, open to the whole
+   * workspace. The server since makes a subpage as private as its parent,
+   * whatever this says.
+   */
+  doc_private: boolean
   parent_uuid?: string
   space?: DocSpace
   template_id?: string
@@ -187,6 +194,14 @@ export interface DocTrash {
 export interface DocDeleteResult {
   batch_id: string
   count: number
+  /** Pages under it that stayed because the person can't open them: they moved up to its parent. */
+  kept?: number
+}
+
+export interface DocPurgeResult {
+  purged: number
+  /** Pages deleted with it that stayed in the trash because the person hasn't full access to them. */
+  kept?: number
 }
 
 export interface DocRestoreResult {

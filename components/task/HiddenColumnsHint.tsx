@@ -1,7 +1,7 @@
 "use client"
 
 /** A column a board hides: its status's name, and how many tasks it holds when known. */
-export interface HiddenColumn {
+interface HiddenColumn {
   value: string
   label: string
   count?: number

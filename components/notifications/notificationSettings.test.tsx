@@ -115,21 +115,23 @@ describe("one save model: instant", () => {
     await act(async () => answer({}))
   })
 
-  it("saves the quiet-hours times 600ms after the last keystroke", async () => {
-    vi.useFakeTimers()
-    try {
-      post.mockResolvedValue({})
-      state.fetch = answered({ quiet_hours_enabled: true, quiet_hours_start: "22:00", quiet_hours_end: "07:00", quiet_hours_tz: "Asia/Kolkata" })
-      render(<NotificationPreferencesCard />)
-      fireEvent.change(screen.getByLabelText("From"), { target: { value: "21:00" } })
-      fireEvent.change(screen.getByLabelText("From"), { target: { value: "21:30" } })
-      expect(post).not.toHaveBeenCalled()
-      await act(async () => void vi.advanceTimersByTime(600))
-      expect(post).toHaveBeenCalledTimes(1)
-      expect(post.mock.calls[0][1]).toEqual({ quiet_hours_start: "21:30" })
-    } finally {
-      vi.useRealTimers()
+  it("saves the quiet-hours times 600ms after the last pick", { timeout: 20000 }, async () => {
+    post.mockResolvedValue({})
+    state.fetch = answered({ quiet_hours_enabled: true, quiet_hours_start: "22:00", quiet_hours_end: "07:00", quiet_hours_tz: "Asia/Kolkata" })
+    render(<NotificationPreferencesCard />)
+    // The time field (components/ui/date-field): open it, type a time, Enter.
+    const pick = async (time: string) => {
+      fireEvent.click(screen.getByLabelText("From"))
+      // The panel is its own chunk, loaded on first open.
+      const box = await screen.findByLabelText("Type a time", {}, { timeout: 8000 })
+      fireEvent.change(box, { target: { value: time } })
+      fireEvent.keyDown(box, { key: "Enter" })
     }
+    await pick("21:00")
+    await pick("21:30")
+    expect(post).not.toHaveBeenCalled()
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1), { timeout: 2000 })
+    expect(post.mock.calls[0][1]).toEqual({ quiet_hours_start: "21:30" })
   })
 })
 
@@ -178,8 +180,8 @@ describe("the digest and quiet hours", () => {
   it("reveals the time range and the 24-hour bar when quiet hours are on", () => {
     state.fetch = answered({ quiet_hours_enabled: true, quiet_hours_start: "22:00", quiet_hours_end: "07:00", quiet_hours_tz: "Asia/Kolkata" })
     render(<NotificationPreferencesCard />)
-    expect(screen.getByLabelText("From")).toHaveValue("22:00")
-    expect(screen.getByLabelText("Until")).toHaveValue("07:00")
+    expect(screen.getByLabelText("From")).toHaveTextContent(/22:00|10:00\s?pm/i)
+    expect(screen.getByLabelText("Until")).toHaveTextContent(/07:00|7:00\s?am/i)
     expect(screen.getByLabelText("Time zone")).toHaveValue("Asia/Kolkata")
     const bar = document.querySelector("[data-quiet-bar]")!
     // 22:00 to 07:00 runs past midnight: two pieces, and a tick for now.

@@ -57,7 +57,7 @@ export function saveDotCopy(state: SaveState, savedAt?: Date | null, live?: bool
   }
 }
 
-export function SaveDot({ state, savedAt, live, waiting, onRetry, className }: SaveDotProps) {
+function SaveDotView({ state, savedAt, live, waiting, onRetry, className }: SaveDotProps) {
   // "saving" shows only after it has lasted; until then the dot keeps what it
   // showed before (usually saved).
   const [shown, setShown] = React.useState<SaveState>(state === "saving" ? "saved" : state)
@@ -130,3 +130,6 @@ export function SaveDot({ state, savedAt, live, waiting, onRetry, className }: S
     </Tooltip>
   )
 }
+
+/** Renders only when what it shows changes: the doc's dot is drawn by a host that renders on every key (DocHeader's DocSaveDot). */
+export const SaveDot = React.memo(SaveDotView)

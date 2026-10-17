@@ -13,10 +13,22 @@ describe("apiErrorMessage", () => {
     )
   })
 
-  it("falls back to the transport message when there is no envelope", () => {
-    // A network failure never reaches a handler, so there is nothing to read msg from. A
-    // transport message axios has no words for is still shown as it is.
-    expect(apiErrorMessage({ message: "timeout of 30000ms exceeded" }, "fallback")).toBe("timeout of 30000ms exceeded")
+  // Decision, 16 Oct 2026 (the owner's, delegated): nobody sees raw server text or transport
+  // jargon. A request that got no answer never reaches a handler, so there is no msg to read, and
+  // axios's own words ("timeout of 30000ms exceeded") reached people as they were: it says what
+  // happened in plain words now. An Error the app threw itself still says its own words.
+  it("says a request that got no answer in plain words, never axios's", () => {
+    const timedOut = { isAxiosError: true, code: "ECONNABORTED", message: "timeout of 30000ms exceeded" }
+    expect(apiErrorMessage(timedOut, "fallback")).toBe("The server took too long to answer. Try again in a moment.")
+    expect(apiErrorMessage({ isAxiosError: true, code: "ERR_NETWORK", message: "Network Error" }, "fallback")).toBe(
+      "The server could not be reached. Check your connection and try again in a moment.",
+    )
+    expect(apiErrorMessage({ isAxiosError: true, code: "ECONNRESET", message: "socket hang up" }, "fallback")).toBe(
+      "Couldn't reach the server. Try again.",
+    )
+    expect(apiErrorMessage(new Error("The call server didn't answer. Try again."), "fallback")).toBe(
+      "The call server didn't answer. Try again.",
+    )
   })
 
   it("falls back to the caller's text when nothing useful was said", () => {

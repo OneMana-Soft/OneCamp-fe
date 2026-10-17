@@ -75,7 +75,6 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
     }, [drawerOpenState, taskFiltersAndSorts])
 
     const {
-        control,
         handleSubmit,
         formState: { errors },
         watch,

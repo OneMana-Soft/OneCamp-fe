@@ -21,6 +21,14 @@ const dispatched: unknown[] = []
 vi.mock("react-redux", () => ({ useDispatch: () => (a: unknown) => dispatched.push(a) }))
 const toasts: unknown[] = []
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: (t: unknown) => toasts.push(t) }) }))
+// The date field has its own tests (components/ui/dateField.test.tsx); here it
+// is a box that types a day.
+vi.mock("@/components/ui/date-field", () => ({
+  DateField: ({ id, value, onChange }: { id?: string; value: string; onChange: (v: string) => void }) => (
+    <input id={id} value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
+}))
+
 // The picker has its own tests; here it is a stand-in that chooses a template.
 vi.mock("@/components/projectTemplates/TemplatePicker", () => ({
   TemplatePicker: ({ value, onChange, onChosen }: { value: string; onChange: (id: string) => void; onChosen: (t: unknown) => void }) => (

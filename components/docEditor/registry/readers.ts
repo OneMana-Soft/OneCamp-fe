@@ -14,7 +14,7 @@ import { chordGlyphs } from './shortcuts'
 import type { ActionContext, EditorKind, SlashEntry, Surface, SurfaceAction, TurnIntoEntry } from './types'
 
 /** The "/" menu's sections, in the order an unfiltered menu shows them. */
-export const SLASH_SECTIONS = ['Commands', 'Recent', 'Basic', 'Media and embeds', 'AI', 'Format']
+const SLASH_SECTIONS = ['Commands', 'Recent', 'Basic', 'Media and embeds', 'AI', 'Format']
 
 const sectionRank = (s: string) => {
   const i = SLASH_SECTIONS.indexOf(s)
@@ -22,7 +22,7 @@ const sectionRank = (s: string) => {
 }
 
 /** A "/" item with the tint its tile wears, for the menu. */
-export type SlashItem = SlashCommandItem & { tint?: string }
+type SlashItem = SlashCommandItem & { tint?: string }
 
 /** The editor kind whose "/" a kind shows: the guest's page has the doc's (it never types). */
 const slashKind = (kind: EditorKind): EditorKind => (kind === 'guest' ? 'doc' : kind)
@@ -118,7 +118,7 @@ export interface ShownAction {
 }
 
 /** A surface's group of actions, in order. */
-export interface ActionGroup {
+interface ActionGroup {
   group: string
   actions: ShownAction[]
 }
@@ -193,18 +193,4 @@ export function snapshotClassesFor(kind: EditorKind, gate: EditionGate): Array<[
     for (const rule of spec.snapshotClasses ?? []) out.push(rule)
   }
   return out
-}
-
-/** The node names of the blocks that break out of the reading column. */
-export function wideBlocksFor(kind: EditorKind, gate: EditionGate): string[] {
-  return blocksFor(kind, gate)
-    .filter((s) => s.wide)
-    .flatMap((s) => s.schema.filter((e) => e.kind === 'node').map((e) => e.name))
-}
-
-/** The node and mark names typography leaves alone (code). */
-export function typographyExclusionsFor(kind: EditorKind, gate: EditionGate): string[] {
-  return blocksFor(kind, gate)
-    .filter((s) => s.excludesTypography)
-    .flatMap((s) => s.schema.map((e) => e.name))
 }

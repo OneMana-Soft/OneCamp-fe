@@ -9,6 +9,7 @@ import { PostEndpointUrl } from "@/services/endPoints"
 import { statusPatch, type StatusOption } from "@/lib/taskStatus"
 import { MAX_TAGS, joinTags, splitTags } from "@/lib/tags"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import type { TaskInfoInterface } from "@/types/task"
 import type { UserProfileDataInterface } from "@/types/user"
 
@@ -96,3 +97,6 @@ export function notDone(failed: number, done: number, what: string): string {
   if (done > 0) return `${failed} of ${failed + done} tasks ${failed === 1 ? "wasn't" : "weren't"} ${what}`
   return failed === 1 ? `The task wasn't ${what}` : `None of the ${failed} tasks were ${what}`
 }
+
+/** Why, from the first refusal, in the server's or the connection's words. */
+export const whyNotDone = (error: unknown) => apiErrorMessage(error, "The list shows them as they are.")

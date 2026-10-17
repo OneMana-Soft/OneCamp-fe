@@ -7,6 +7,7 @@ import { SWRConfig } from "swr"
 
 import { useNamedWorkspace, useWorkspaceName, WorkspaceName } from "./useWorkspaceName"
 import { WORKSPACE_NAME_STORE_KEY } from "@/lib/workspaceName"
+import AuthService from "@/services/auth/AuthService"
 
 // Design review PG1-01, coordinator, 15 Oct 2026: every page names the
 // workspace from the server first (ORG_NAME), so renaming a self-hosted
@@ -54,6 +55,19 @@ describe("the workspace's name", () => {
     expect(localStorage.getItem(WORKSPACE_NAME_STORE_KEY)).toBe("kestrel studio")
     const { container } = render(<WorkspaceName />, { wrapper: fresh })
     await waitFor(() => expect(container.textContent).toBe("kestrel studio"))
+  })
+
+  it("comes in the same request as the sign-in page's ways in: one a load", async () => {
+    // The sign-in and sign-up pages read the ways in (getEnabledProviders) as
+    // the page reads the name, and each asked GET /auth/providers for itself.
+    const fetch = answers({ status: "success", providers: { email: true, google: true }, workspace_name: "kestrel studio" })
+    const { result } = renderHook(() => useWorkspaceName(), { wrapper: fresh })
+    const ways = await AuthService.getEnabledProviders()
+    await waitFor(() => expect(result.current).toBe("kestrel studio"))
+    expect(ways).toMatchObject({ email: true, google: true, github: false })
+    // And a page opened later in the same load asks nothing.
+    expect(await AuthService.getEnabledProviders()).toEqual(ways)
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it("is the build's when the server names none, and OneCamp when neither does", async () => {

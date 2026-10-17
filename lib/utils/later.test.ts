@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { messageLink, reminderChoices, reminderLabel, reminderPill, toLocalInput } from "./later"
+import { messageLink, reminderChoices, reminderLabel, reminderPill } from "./later"
 
 // Local-time constructors: the choices are about the person's own clock.
 const d = (y: number, m: number, day: number, h = 0, min = 0) => new Date(y, m - 1, day, h, min)
@@ -64,12 +64,6 @@ describe("messageLink", () => {
   })
   it("gives nothing when it cannot say where the message is", () => {
     expect(messageLink({ postUUID: "p1" })).toBeNull()
-  })
-})
-
-describe("toLocalInput", () => {
-  it("formats for datetime-local in local time", () => {
-    expect(toLocalInput(d(2026, 1, 5, 7, 3))).toBe("2026-01-05T07:03")
   })
 })
 

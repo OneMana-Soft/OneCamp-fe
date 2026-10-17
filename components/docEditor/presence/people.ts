@@ -26,7 +26,7 @@ export type AwarenessState = Record<string, unknown> & {
 }
 
 /** What this tab remembers about each client between changes. */
-export interface Seen {
+interface Seen {
   /** When the client last did something this tab saw: its caret moved, it edited, it scrolled while followed. */
   active: Map<number, number>
   /** Its last `edited`, to tell a new edit from the same one said again. */
@@ -38,7 +38,7 @@ export interface Seen {
 export const newSeen = (): Seen => ({ active: new Map(), edited: new Map(), moved: new Map() })
 
 /** The id a person goes by in the stack: their user id, as the session reads it (lib/collabSession). */
-export const personId = (s: AwarenessState): string | null => (s.user?.name ? String(s.user.id || s.user.name) : null)
+const personId = (s: AwarenessState): string | null => (s.user?.name ? String(s.user.id || s.user.name) : null)
 
 /**
  * Notes what changed since the last look (`now` is this tab's clock), and
@@ -73,7 +73,7 @@ export function look(states: Map<number, AwarenessState>, self: number, seen: Se
 }
 
 /** People, by id: each with their clients (the one active last first), their mode, and whether every tab of theirs is idle. */
-export function peopleOf(states: Map<number, AwarenessState>, seen: Seen): Record<string, PresencePerson> {
+function peopleOf(states: Map<number, AwarenessState>, seen: Seen): Record<string, PresencePerson> {
   const out: Record<string, PresencePerson> = {}
   for (const [client, s] of states) {
     const id = personId(s)

@@ -83,6 +83,21 @@ describe("saving a correction", () => {
     }))
   })
 
+  // The server stamps every update it's sent as an edit and broadcasts it, so
+  // saving words that didn't change marked the message "(edited)" for everyone:
+  // live, as the broadcast came back, and after a reload.
+  it("sends nothing for a correction that changes nothing", async () => {
+    makeRequest.mockResolvedValue({ msg: "ok" })
+    const { result } = renderHook(() => useSaveEdit(), { wrapper })
+    let saved: boolean | undefined
+    await act(async () => {
+      saved = await result.current({ kind: "dm", chatId: "u2", id: "m1" }, "<p>hi</p><p></p>")
+    })
+    expect(saved).toBe(true)
+    expect(makeRequest).not.toHaveBeenCalled()
+    expect(dm()).toMatchObject({ chat_body_text: "<p>hi</p>", chat_updated_at: "2026-10-14T09:05:00Z" })
+  })
+
   it("sends nothing for a correction that leaves nothing", async () => {
     const { result } = renderHook(() => useSaveEdit(), { wrapper })
     let saved: boolean | undefined

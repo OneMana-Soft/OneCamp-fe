@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import Link from "next/link"
 import { Loader2, RotateCcw, Trash2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ import { displayNameOf } from "@/lib/personName"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
 import { purgeDoc, restoreDoc } from "@/services/docGraphService"
+import { pagesLeftInTrash, purgeWarning } from "@/components/docTree/docActions"
 import { trashedKey } from "@/services/docChromeService"
 import type { TrashedDocPage } from "@/types/docChrome"
 import { DOC_EDITOR_CLASS } from "./useDocEditor"
@@ -27,7 +29,6 @@ import { navigate } from "./chrome/pageFacts"
 import "./chrome/look.css"
 import CoverArt from "./chrome/CoverArt"
 
-const QUIET = { suppressErrorToast: true } as never
 
 /**
  * A doc in the trash, for someone it was there for (E2): a banner that says
@@ -36,7 +37,7 @@ const QUIET = { suppressErrorToast: true } as never
  * only. It answers the server's 410, in the place the old DocDeleted page had.
  */
 export function TrashedBanner({ docId, canRestore, onRestored }: { docId: string; canRestore: boolean; onRestored: () => void }) {
-  const page = useFetch<{ data?: TrashedDocPage }>(trashedKey(docId), undefined, undefined, QUIET)
+  const page = useFetch<{ data?: TrashedDocPage }>(trashedKey(docId), undefined, undefined, OWN_ERRORS)
   const doc = page.data?.data
   const confirm = useConfirm()
   const [busy, setBusy] = React.useState<"restore" | "purge" | null>(null)
@@ -59,8 +60,8 @@ export function TrashedBanner({ docId, canRestore, onRestored }: { docId: string
   const purge = async () => {
     setBusy("purge")
     try {
-      await purgeDoc(docId, { ownErrors: true })
-      toast({ title: "Deleted for good" })
+      const res = await purgeDoc(docId, { ownErrors: true })
+      toast({ title: "Deleted for good", description: pagesLeftInTrash(res.kept) })
       navigate("/app/doc")
     } catch (e) {
       toast({ title: "It's still in the trash", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
@@ -71,9 +72,7 @@ export function TrashedBanner({ docId, canRestore, onRestored }: { docId: string
   const askPurge = () =>
     confirm({
       title: "Delete this doc for good?",
-      description: doc?.subpages
-        ? `“${doc.doc_title || "Untitled"}” and the ${doc.subpages} ${doc.subpages === 1 ? "page" : "pages"} deleted with it go for good. Nobody can bring them back.`
-        : `“${doc?.doc_title || "Untitled"}” goes for good. Nobody can bring it back.`,
+      description: purgeWarning(`“${doc?.doc_title || "Untitled"}”`, doc?.subpages),
       confirmText: "Delete for good",
       destructive: true,
       onConfirm: () => void purge(),
@@ -148,7 +147,7 @@ export function TrashedBanner({ docId, canRestore, onRestored }: { docId: string
             <div className={cn("px-5 md:px-8", cover ? "pt-4" : "pt-8 md:pt-14")}>
               {doc?.doc_icon ? (
                 <span className="doc-page-icon">
-                  <DocIcon icon={doc.doc_icon} size={64} />
+                  <DocIcon icon={doc.doc_icon} id={docId} size={64} />
                 </span>
               ) : null}
               <h1 className="doc-title m-0 text-ink">{doc ? doc.doc_title || "Untitled" : ""}</h1>

@@ -21,6 +21,7 @@ import type { Editor } from "@tiptap/core"
 import type { Node as PMNode } from "@tiptap/pm/model"
 import type { Decoration, NodeView, ViewMutationRecord } from "@tiptap/pm/view"
 import { toast } from "@/hooks/use-toast"
+import { isComposingKey } from "@/lib/keys/ime"
 import { glyph, type GlyphName } from "@/components/docEditor/technical/glyphs"
 import { languageLabel, MERMAID } from "./languages"
 
@@ -280,6 +281,8 @@ export class CodeBlockView implements NodeView {
       this.render(true)
     }
     input.addEventListener("keydown", (e) => {
+      // An input method's Enter picks its word, and its Escape drops the word being made.
+      if (isComposingKey(e)) return
       if (e.key === "Enter") {
         e.preventDefault()
         finish(true)

@@ -42,7 +42,7 @@ export function UserComboboxItem({
         <CommandItem
             value={personSearchValue(userName, { fullName: userFullName, handle: userHandle, email: userEmail, id: userUuid })}
             onSelect={() => onSelect(userUuid)}
-            className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
+            className="cursor-pointer p-2 rounded-lg m-1 gap-3 transition-colors duration-200"
             {...menuCheckState(isSelected)}
         >
             <Avatar className="h-8 w-8 border border-border/50 flex-shrink-0">

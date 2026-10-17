@@ -1,16 +1,7 @@
 import { withCsrfHeader } from "@/lib/utils/csrf";
 import { refreshSession } from "@/lib/auth/sessionRefresh";
-
-/**
- * How long a signed-out page waits for the server to answer a question it asks
- * before it can draw (is somebody signed in, which ways in are on, does this
- * server need an admin) before it goes on as if the answer were "no".
- *
- * Those questions had no limit, so an API that accepted the connection and then
- * hung left the sign-in page blank for good. Eight seconds is far past a slow
- * answer and short enough that the person is still there when the page shows.
- */
-export const PROBE_TIMEOUT_MS = 8_000;
+import { within } from "@/lib/auth/probe";
+import { signInAnswer } from "@/lib/auth/signInAnswer";
 
 /**
  * What a sign-in page says when its request never reached the workspace. It
@@ -19,30 +10,6 @@ export const PROBE_TIMEOUT_MS = 8_000;
  * couldn't be reached): the browser's words, not what happened or what to do.
  */
 const UNREACHABLE = "Couldn't reach this workspace. Check your connection and try again.";
-
-/**
- * Runs `work` with a signal, and stops waiting for it after `ms`.
- *
- * The request is aborted, so a browser lets go of the connection, AND raced, so
- * work that ignores its signal (a body that never finishes, a stub in a test)
- * still stops being waited for. Rejects when the time is up; callers catch that
- * as they catch a failed request.
- */
-async function within<T>(work: (signal: AbortSignal) => Promise<T>, ms = PROBE_TIMEOUT_MS): Promise<T> {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeUp = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-            controller.abort();
-            reject(new Error(`no answer within ${ms}ms`));
-        }, ms);
-    });
-    try {
-        return await Promise.race([work(controller.signal), timeUp]);
-    } finally {
-        clearTimeout(timer);
-    }
-}
 
 /**
  * The three outcomes of a password submission.
@@ -555,6 +522,8 @@ class AuthService {
      * Fetch the runtime list of enabled auth providers from the backend.
      * Used by the login page so toggling a provider doesn't require a FE redeploy.
      * Falls back to build-time NEXT_PUBLIC_AUTH_* flags on network failure.
+     * Read from the sign-in answer, which the workspace's name shares
+     * (lib/auth/signInAnswer): one request a load.
      */
     static async getEnabledProviders(): Promise<{
         email: boolean;
@@ -565,29 +534,19 @@ class AuthService {
         ldap: boolean;
         demo: boolean;
     } | null> {
-        try {
-            return await within(async (signal) => {
-                const res = await fetch(
-                    `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/providers`,
-                    { credentials: 'include', signal }
-                );
-                if (!res.ok) return null;
-                const data = await res.json();
-                const p = data?.providers || {};
-                return {
-                    email: !!p.email,
-                    google: !!p.google,
-                    github: !!p.github,
-                    oidc: !!p.oidc,
-                    saml: !!p.saml,
-                    ldap: !!p.ldap,
-                    demo: !!p.demo,
-                };
-            });
-        } catch {
-            // No answer, or none in time: the page uses the build's own list.
-            return null;
-        }
+        const answer = await signInAnswer();
+        // No answer, or none in time: the page uses the build's own list.
+        if (!answer) return null;
+        const p = answer.providers || {};
+        return {
+            email: !!p.email,
+            google: !!p.google,
+            github: !!p.github,
+            oidc: !!p.oidc,
+            saml: !!p.saml,
+            ldap: !!p.ldap,
+            demo: !!p.demo,
+        };
     }
 }
 

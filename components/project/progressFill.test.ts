@@ -9,6 +9,7 @@ const root = join(__dirname, "../..")
 const FILES = [
   "components/goals/GoalProgress.tsx",
   "components/task/cyclesButton.tsx",
+  "components/task/cyclesSwitcher.tsx",
   "components/project/ProjectsOverview.tsx",
   "app/guest/p/[token]/page.tsx",
 ]

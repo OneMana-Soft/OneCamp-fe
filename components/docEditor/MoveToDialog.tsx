@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { ArrowLeft, ArrowRightToLine, Loader2, Search } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +9,7 @@ import { ToastAction } from "@/components/ui/toast"
 import { toast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
 import { cn } from "@/lib/utils/helpers/cn"
+import { isComposingKey } from "@/lib/keys/ime"
 import { ancestorsKey, listKey, moveDoc, type Envelope } from "@/services/docGraphService"
 import { searchDocs, type FoundDoc } from "@/services/docChromeService"
 import { moveReason, planMove } from "@/lib/docMove"
@@ -21,7 +23,6 @@ import { takeStagedDrop, type StagedDrop } from "./chrome/stagedDrop"
 import { takeStagedMove, type StagedMove } from "./chrome/stagedMove"
 import { useDoc } from "./chrome/useDoc"
 
-const QUIET = { suppressErrorToast: true } as never
 
 /** Where something can go: a page, or for a page the top of Docs. */
 interface Target {
@@ -90,8 +91,8 @@ export default function MoveToDialog({ docId: openDocId, onClose }: { docId: str
   const [drop] = React.useState<StagedDrop | null>(() => (staged ? null : takeStagedDrop(openDocId)))
   const docId = drop?.page.uuid ?? openDocId
   const doc = useDoc(docId)
-  const above = useFetch<Envelope<DocAncestors>>(staged ? "" : ancestorsKey(docId), undefined, undefined, QUIET).data?.data
-  const recent = useFetch<Envelope<DocList>>(listKey("recent", { limit: 12 }), undefined, undefined, QUIET).data?.data
+  const above = useFetch<Envelope<DocAncestors>>(staged ? "" : ancestorsKey(docId), undefined, undefined, OWN_ERRORS).data?.data
+  const recent = useFetch<Envelope<DocList>>(listKey("recent", { limit: 12 }), undefined, undefined, OWN_ERRORS).data?.data
   const [query, setQuery] = React.useState("")
   const found = useFoundDocs(query)
   const [active, setActive] = React.useState(0)
@@ -256,6 +257,8 @@ export default function MoveToDialog({ docId: openDocId, onClose }: { docId: str
           aria-activedescendant={options[active] ? `${listId}-${active}` : undefined}
           className="h-9 pl-8"
           onKeyDown={(e) => {
+            // An input method's Enter picks its word: it never moves the page.
+            if (isComposingKey(e.nativeEvent)) return
             if (e.key === "ArrowDown" && options.length) {
               e.preventDefault()
               setActive((i) => (i + 1) % options.length)
@@ -284,7 +287,7 @@ export default function MoveToDialog({ docId: openDocId, onClose }: { docId: str
               data-doc-move-target={o.uuid ?? "top"}
               className={cn("flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5", i === active && "bg-hover")}
             >
-              {o.uuid ? <DocIcon icon={o.icon} size={18} /> : <ArrowRightToLine aria-hidden="true" className="size-[18px] text-ink-3" />}
+              {o.uuid ? <DocIcon icon={o.icon} id={o.uuid} size={18} /> : <ArrowRightToLine aria-hidden="true" className="size-[18px] text-ink-3" />}
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-ui text-ink">{o.title}</span>
                 {o.path ? <span className="truncate text-meta text-ink-3">{o.path}</span> : null}

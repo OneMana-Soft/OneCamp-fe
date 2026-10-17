@@ -16,6 +16,7 @@ import { hueFor } from "@/lib/campHue"
 import { celebrateTask } from "@/lib/celebrate"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DateField } from "@/components/ui/date-field"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -174,11 +175,19 @@ function Question({ field, value, onChange }: { field: FormField; value: unknown
           <span className="flex flex-1 items-baseline justify-between gap-2">{field.label}{field.required && <RequiredWord />}</span>
         </label>
       )
+    case "date":
+      return (
+        <div className="grid gap-1.5">
+          {label}
+          <DateField id={id} value={str} onChange={onChange} required={field.required} />
+        </div>
+      )
     default: {
       // A number is typed as text in the person's own signs ("1,5" in de-DE),
       // which the form reads and sends as typed: a browser number input
-      // rewrote it in the browser's locale, or emptied it.
-      const type = field.type === "email" ? "email" : field.type === "date" ? "date" : "text"
+      // rewrote it in the browser's locale, or emptied it. A date is the
+      // app's own DateField (above), never a browser's date box.
+      const type = field.type === "email" ? "email" : "text"
       return (
         <div className="grid gap-1.5">
           {label}

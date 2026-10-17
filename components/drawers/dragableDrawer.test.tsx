@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render } from "@testing-library/react"
 import DraggableDrawer from "./dragableDrawer"
+import { PointerEventForTests, installPointerEvent } from "@/lib/testing/pointerEvent"
 
 // The phone's composer sheet tweened its height for 200ms with Motion on
 // every change, laying the page out on every frame: on each new line typed,
@@ -10,37 +11,19 @@ import DraggableDrawer from "./dragableDrawer"
 
 afterEach(() => cleanup())
 
-// jsdom has no PointerEvent; Motion's drag reads the pointer's page point.
-class TestPointerEvent extends MouseEvent {
-  pointerType: string
-  isPrimary: boolean
-  constructor(type: string, init: PointerEventInit = {}) {
-    super(type, init)
-    this.pointerType = init.pointerType ?? "touch"
-    this.isPrimary = init.isPrimary ?? true
-  }
-  get pageX() {
-    return this.clientX
-  }
-  get pageY() {
-    return this.clientY
-  }
-}
-beforeAll(() => {
-  if (!("PointerEvent" in window)) Object.defineProperty(window, "PointerEvent", { configurable: true, value: TestPointerEvent })
-})
+beforeAll(installPointerEvent)
 const frames = () => act(() => new Promise((r) => setTimeout(r, 60)))
 
 /** A finger on the handle at y, moved to each y in turn, then lifted. */
 async function drag(handle: Element, from: number, to: number[]) {
   fireEvent.pointerDown(handle, { pointerType: "touch", isPrimary: true, clientX: 200, clientY: from, button: 0 })
   for (const y of to) {
-    window.dispatchEvent(new TestPointerEvent("pointermove", { pointerType: "touch", clientX: 200, clientY: y }))
+    window.dispatchEvent(new PointerEventForTests("pointermove", { pointerType: "touch", clientX: 200, clientY: y }))
     await frames()
   }
 }
 const lift = async (y: number) => {
-  window.dispatchEvent(new TestPointerEvent("pointerup", { pointerType: "touch", clientX: 200, clientY: y }))
+  window.dispatchEvent(new PointerEventForTests("pointerup", { pointerType: "touch", clientX: 200, clientY: y }))
   await frames()
 }
 

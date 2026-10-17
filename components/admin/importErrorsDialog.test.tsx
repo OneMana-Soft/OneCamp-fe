@@ -66,7 +66,10 @@ describe("how an import's error log reads", () => {
     getImportErrors.mockResolvedValue([row(1, "fatal")])
     render(<ImportErrorsDialog jobId="j1" open onOpenChange={() => {}} />)
     await screen.findByText("File 1 was over the size cap and was left out.")
-    expect(screen.getByRole("radio", { name: "All" }).className).toContain("data-[state=checked]:bg-raised")
+    // The shared segmented control: a tab of the interaction layer in its well.
+    const all = screen.getByRole("radio", { name: "All" })
+    expect(all.closest("[data-segmented]")).not.toBeNull()
+    expect(all.getAttribute("data-interactive")).toBe("tab")
     const fatal = screen.getByText("Fatal", { selector: "[data-status-word]" })
     expect(fatal.getAttribute("data-status-word")).toBe("danger")
     expect(fatal.className).not.toMatch(/border|bg-destructive/)

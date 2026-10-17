@@ -48,6 +48,11 @@ const SECTIONS: Record<string, string> = {
   meet: "Meeting",
 }
 
+/** Pages under a section that are titled for themselves, not as the section: the booking pages aren't the calendar (PTC-38). */
+const SUBPAGES: Record<string, string> = {
+  "calendar/booking": "Booking pages",
+}
+
 /** What the page is beyond its address: an admin page's ?tab=, or a name it gives itself (the 404). */
 export interface TitleWhere {
   tab?: string | null
@@ -60,8 +65,9 @@ export function pageTitle(pathname: string, lookups: TitleLookups = {}, unread =
   // seg[0] is "app"; seg[1] the section; seg[2] an id, or "group" for a group DM.
   const section = seg[1] || ""
   const id = seg[2] || ""
-  let label = SECTIONS[section] || ""
-  if (id) {
+  const subpage = SUBPAGES[`${section}/${id}`]
+  let label = subpage || SECTIONS[section] || ""
+  if (id && !subpage) {
     const named: Record<string, string | undefined> = {
       channel: lookups.channels?.[id] && `#${lookups.channels[id]}`,
       project: lookups.projects?.[id],

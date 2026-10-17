@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+// The interaction layer (INTERACTION_SPEC.md §9): hover, press, selected,
+// focus and drag for every component that opts in. Before the phone layer,
+// so a finger's own press still wins.
+import "./interaction.css";
 // The phone layer (design v3, mobile.md): after globals, so it outranks the
 // shell's phone block at equal specificity.
 import "./phone.css";

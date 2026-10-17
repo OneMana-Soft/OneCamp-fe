@@ -15,6 +15,7 @@ vi.mock("@/hooks/useWorkload", () => ({
 }))
 
 import { ProjectsWorkload } from "@/components/project/ProjectsWorkload"
+import { personHue } from "@/lib/utils/getAvatarColor"
 
 const person = (id: string): WorkloadPerson => ({ user_uuid: id, user_name: id, capacity: 4, capacity_set: true, hours: 40, hours_set: false, can_edit_capacity: false, project_uuids: ["p1"] })
 // Tasks running across this week only: from today to today.
@@ -68,6 +69,30 @@ describe("workload cells", () => {
     const room = container.querySelectorAll("[data-capacity-fill]")
     for (const f of room) if (!over.contains(f)) expect((f as HTMLElement).style.background).not.toContain("--destructive")
     expect(container.querySelector("[data-workload-summary='over']")!.textContent).toContain("jonas is over capacity this week (5 of 4)")
+  })
+
+  // INTERACTION_SPEC D13 (PG2-08): two greys on a grey well read as
+  // skeletons. Room and full take the person's own hue, from their row, and a
+  // week tints in it under the pointer (the interaction layer).
+  it("fills room and full in the person's own hue, the one their avatar wears", () => {
+    data = {
+      people: [person("maya"), person("jonas")],
+      tasks: [task("a", "maya"), ...["b", "c", "d", "e"].map((id) => task(id, "jonas"))],
+      undated: [],
+      default_capacity: 5,
+      default_hours: 40,
+      truncated: false,
+    }
+    const { container } = render(<ProjectsWorkload projects={projects} />)
+    for (const who of ["maya", "jonas"]) {
+      const row = container.querySelector<HTMLElement>(`tr[data-row-key="${who}"]`)!
+      expect(row.dataset.hue).toBe(personHue({ user_uuid: who, user_name: who }))
+      expect(row.querySelector('[data-load] ')?.closest("[data-interactive]")?.getAttribute("data-interactive")).toBe("button")
+    }
+    const room = container.querySelector<HTMLElement>("[data-load='room'] [data-capacity-fill]")!
+    expect(room.style.background).toContain("var(--hue-a1")
+    const full = container.querySelector<HTMLElement>("[data-load='full'] [data-capacity-fill]")!
+    expect(full.style.background).toContain("var(--hue-a2")
   })
 
   it("marks this week's header and draws no box round the grid", () => {

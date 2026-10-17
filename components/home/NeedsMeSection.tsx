@@ -28,7 +28,6 @@ import { HubRow, HubRowSkeleton, HubSectionHeader, HubToolButton } from "@/compo
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
-import { Spark } from "@/components/ui/graphics/motifs"
 import { ArrowUpRight, Check, Loader2, Send, Shield } from "@/lib/icons"
 import { celebrateOnce } from "@/lib/celebrate"
 import { useResolve } from "@/lib/hub/motion"
@@ -387,7 +386,7 @@ export function NeedsMeSection({
                     lead={lead(item)}
                     title={
                       item.href && item.kind !== "agent" ? (
-                        <Link href={item.href} className="outline-none hover:underline hover:underline-offset-[3px]">
+                        <Link href={item.href} className="rounded-sm hover:underline hover:underline-offset-[3px]">
                           {item.title}
                         </Link>
                       ) : (
@@ -408,7 +407,7 @@ export function NeedsMeSection({
                       </span>
                     ) : null}
                     {replying === item.id ? (
-                      <span className="hub-pop mt-2 flex min-h-[72px] flex-col rounded-lg bg-raised p-2.5 shadow-e2">
+                      <span className="hub-pop composer-card mt-2 flex min-h-[72px] flex-col rounded-lg bg-raised p-2.5">
                         <textarea
                           autoFocus
                           value={draft}
@@ -455,7 +454,7 @@ export function NeedsMeSection({
               data-flip-key="more"
               className="hub-row w-full text-left"
               data-density="compact"
-              data-interactive=""
+              data-interactive="row"
             >
               <span />
               <span className="hub-row-lead" />
@@ -470,14 +469,5 @@ export function NeedsMeSection({
         {said}
       </span>
     </section>
-  )
-}
-
-/** The agent square with a spark, 24px: the lead of an agent's row and the while-away line. */
-export function AgentMark({ size = 24 }: { size?: number }) {
-  return (
-    <span className="grid shrink-0 place-items-center rounded-[32%] text-white avatar-agent" style={{ width: size, height: size }} aria-hidden>
-      <Spark className="size-[55%]" />
-    </span>
   )
 }

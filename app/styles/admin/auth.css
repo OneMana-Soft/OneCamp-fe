@@ -110,7 +110,9 @@
     min-height: 44px;
     border-radius: 4px;
   }
-  .auth-trust a:hover { color: var(--ink); }
+  @media (hover: hover) {
+    .auth-trust a:hover { color: var(--ink); }
+  }
   @media (min-width: 768px) {
     .auth-trust a { min-height: 0; }
   }
@@ -357,7 +359,9 @@
     place-items: center;
     color: var(--ink-3);
   }
-  .auth-eye:hover { color: var(--ink); background: var(--hover); }
+  @media (hover: hover) {
+    .auth-eye:hover { color: var(--ink); background: var(--hover); }
+  }
   .auth-eye:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
   .auth-eye svg { grid-area: 1 / 1; width: 16px; height: 16px; transition: opacity 140ms var(--ease-out); }
   .auth-eye[aria-pressed="true"] .auth-eye-show,
@@ -531,10 +535,10 @@
     transition: box-shadow 140ms var(--ease-out);
   }
   .auth-otp-cell[data-active] {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
   }
   .auth-otp[data-invalid] .auth-otp-cell {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--destructive) 12%, transparent);
+    box-shadow: var(--ix-halo-danger);
   }
   .auth-otp[data-invalid][data-shake] { animation: auth-shake-lg 300ms var(--ease-out); }
   .auth-otp-digit { display: block; animation: auth-digit 160ms var(--ease-spring) both; }
@@ -748,7 +752,9 @@
     border-radius: 3px;
     background: var(--brand);
   }
-  .auth-swatch:hover .auth-swatch-face { transform: translateY(-2px); box-shadow: var(--e2); }
+  @media (hover: hover) {
+    .auth-swatch:hover .auth-swatch-face { transform: translateY(-2px); box-shadow: var(--e2); }
+  }
   .auth-swatch:focus-visible { outline: none; }
   .auth-swatch:focus-visible .auth-swatch-face,
   .auth-swatch[aria-checked="true"] .auth-swatch-face { outline: 2px solid var(--brand); outline-offset: 3px; }
@@ -782,7 +788,7 @@
     cursor: text;
   }
   .auth-chipfield:focus-within {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
   }
   .auth-chipfield input {
     flex: 1;
@@ -824,7 +830,9 @@
     place-items: center;
     color: var(--ink-3);
   }
-  .auth-emailchip button:hover { color: var(--ink); background: var(--press); }
+  @media (hover: hover) {
+    .auth-emailchip button:hover { color: var(--ink); background: var(--press); }
+  }
   .auth-emailchip svg { width: 12px; height: 12px; }
 
   /* ── The new member's welcome card (E5) ───────────────────────────────── */

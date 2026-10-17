@@ -24,7 +24,7 @@ export interface RemotePicture {
 }
 
 /** This tab's pictures on their way from a link, by the image's id. */
-export class RemotePictures {
+class RemotePictures {
   private items = new Map<string, RemotePicture>()
   private listeners = new Map<string, Set<() => void>>()
 

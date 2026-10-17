@@ -6,32 +6,27 @@ import {
     ReactionCategoryType,
     ReactionsCategory,
     ReactionsData,
-    SyncCustomReactionResp
 } from '@/types/reaction'
 
 import { useEmojiMartData } from '@/hooks/reactions/useEmojiMartData'
-import {useFetch} from "@/hooks/useFetch";
 
+/**
+ * The emoji the pickers offer: emoji-mart's, by its categories. A workspace's
+ * own emoji aren't among them: there is no store of them, and the "Custom"
+ * group asked for them with an empty address, so it never loaded.
+ */
 export function useReactionsData(): ReactionsData | null {
     const { data: emojiMartData } = useEmojiMartData()
-    const  customReactions = useFetch<SyncCustomReactionResp>("")
 
     const aliases = useMemo(() => emojiMartData?.aliases ?? {}, [emojiMartData?.aliases])
 
     const categories: ReactionsCategory[] = useMemo(
-        () => [
-            ...(emojiMartData?.categories ?? []).map((category) => ({
+        () =>
+            (emojiMartData?.categories ?? []).map((category) => ({
                 id: category.id as unknown as ReactionCategoryType,
                 reactionIds: category.emojis
             })),
-            {
-                id: 'custom' as unknown as ReactionCategoryType,
-                reactionIds: customReactions.data?.data
-                    .sort((a, b) => a.name.localeCompare(b.name)) // Sort alphabetically by name
-                    .map((reaction) => reaction.id) || []
-            }
-        ],
-        [emojiMartData?.categories, customReactions]
+        [emojiMartData?.categories]
     )
     const { reactions, emoticons } = useMemo(() => {
         const reactions: ReactionsData['reactions'] = {}
@@ -49,23 +44,8 @@ export function useReactionsData(): ReactionsData | null {
             emoji.emoticons?.forEach((emoticon) => (emoticons[emoticon] = emoji.id))
         })
 
-        customReactions.data?.data.forEach((reaction) => {
-            reactions[reaction.id] = {
-                id: reaction.id,
-                name: reaction.name,
-                keywords: [],
-                emoticons: [],
-                skins: [
-                    {
-                        file_url: reaction.file_url,
-                        created_at: reaction.created_at
-                    }
-                ]
-            }
-        })
-
         return { reactions, emoticons }
-    }, [emojiMartData?.emojis, customReactions])
+    }, [emojiMartData?.emojis])
 
     if (!emojiMartData) return null
 

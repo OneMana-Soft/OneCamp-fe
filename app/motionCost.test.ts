@@ -38,6 +38,11 @@ const LAYOUT =
 // Keyframes allowed a property the compositor doesn't run, with the reason it
 // is cheap anyway.
 const KEYFRAME_EXCEPTIONS: Record<string, string> = {
+  // A row that scrolls sideways fades the edge with more past it
+  // (app/interaction.css, data-edge-fade): its own scroll drives the two
+  // lengths of the mask, not time, and only the mask repaints.
+  "ix-fade-s": "--ix-fade-s",
+  "ix-fade-e": "--ix-fade-e",
   // A 20 px sweep on the AI's "still writing" mark, while it streams: one
   // small element repaints, nothing moves.
   "text-shimmer": "background-position",

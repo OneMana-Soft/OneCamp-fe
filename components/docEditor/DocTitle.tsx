@@ -154,7 +154,7 @@ export const DocTitle = React.memo(function DocTitle({ store, titleRef, id, edit
             <div className={cn("relative", cover && !icon && "pt-4", padded)} data-doc-title-head="">
                 {icon && (
                     <span className="doc-page-icon" data-doc-page-icon="">
-                        <DocIcon icon={icon} size={64} />
+                        <DocIcon icon={icon} id={bus.docId} size={64} />
                     </span>
                 )}
                 <div aria-hidden="true" className={editable ? "h-7" : "max-sm:h-7"} />

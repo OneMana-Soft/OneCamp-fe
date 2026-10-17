@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { GO_KEYS, goTarget, isTyping } from "./goKeys"
+import { GO_KEYS, goTarget, isTyping, pageTakesG } from "./goKeys"
 
 describe("go keys", () => {
   it("map a letter to a page, and nothing else", () => {
@@ -24,5 +24,12 @@ describe("go keys", () => {
     board.append(canvas)
     document.body.append(board)
     expect(isTyping(canvas)).toBe(true)
+  })
+  it("give way on the pages whose own keys take G", () => {
+    expect(pageTakesG("/app/calendar")).toBe(true)
+    expect(pageTakesG("/app/board/b1")).toBe(true)
+    expect(pageTakesG("/app/calendar/booking")).toBe(false)
+    expect(pageTakesG("/app/board")).toBe(false)
+    expect(pageTakesG("/app/home")).toBe(false)
   })
 })

@@ -24,11 +24,6 @@ interface UpdateSettingsRequest {
     resend_api_key?: string
 }
 
-export async function getWorkspaceSettings(): Promise<WorkspaceSettings | null> {
-    const res = await axiosInstance.get(GetEndpointUrl.GetWorkspaceSettings)
-    return (res.data as { data?: WorkspaceSettings })?.data ?? null
-}
-
 /** The SWR key every reader of the workspace's settings shares. */
 export const WORKSPACE_SETTINGS_KEY = GetEndpointUrl.GetWorkspaceSettings
 

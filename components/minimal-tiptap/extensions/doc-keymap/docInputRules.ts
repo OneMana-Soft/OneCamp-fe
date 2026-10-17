@@ -18,13 +18,13 @@ import { isSafeHref } from "@/lib/utils/safeHref"
  */
 
 /** `"` then a space at the start of a line. The smart-quote rule has made the `"` a `“` by then. */
-export const QUOTE_RULE = /^\s*["“”]\s$/
+const QUOTE_RULE = /^\s*["“”]\s$/
 
 /** `~text~`: one tilde each side, text that starts and ends with a letter, not a space. */
 export const STRIKE_RULE = /(?:^|\s)(~([^~\s](?:[^~]*[^~\s])?)~)$/
 
 /** Three backticks at the start of a line. */
-export const CODE_BLOCK_RULE = /^```$/
+const CODE_BLOCK_RULE = /^```$/
 
 /** `[text](address)`, not an image's `![alt](src)`. */
 export const LINK_RULE = /(?<!!)\[([^\]\n]+)\]\(([^()\s]+)\)$/

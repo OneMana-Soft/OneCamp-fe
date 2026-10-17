@@ -19,13 +19,14 @@ import type { ChannelInfoInterfaceResp } from "@/types/channel"
 import { app_channel_call, app_chat_call } from "@/types/paths"
 import { type RawUserDMInterface, type UserProfileInterface } from "@/types/user"
 import { ChannelGuestTag } from "@/components/channel/channelGuestTag"
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
 import { useConversationMissing } from "@/hooks/useConversationMissing"
 import type { ConversationKind } from "@/lib/mqtt/conversationAccess"
 
 /**
  * The phone's conversation bar title (design v3 chat, C62), one component for
- * a channel, a DM and a group: a centred 17/22 590 title ("#" in ink-3 before
- * a channel's name, a group's 24px stack before its names) and a 12px ink-3
+ * a channel, a DM and a group: a centred 17/22 590 title (a channel's tile in
+ * its hue before its name, D13; a group's 24px stack before its names) and a 12px ink-3
  * line under it ("4 members · 1 agent", a person's status, "3 people").
  * Tapping it opens the conversation's details. The bar itself is the shell's
  * (52px on the sheet, its hairline once the list scrolls).
@@ -63,7 +64,7 @@ function ChannelTitle({ id }: { id: string }) {
             onClick={() => dispatch(openChannelDetails(id))}
             title={
                 <>
-                    <span aria-hidden="true" className="text-ink-3">#</span>
+                    <ChannelTile id={id} isPrivate={!!ch?.ch_private} size={20} />
                     <span className="truncate">{name}</span>
                     {ch?.has_guest_access && <ChannelGuestTag />}
                 </>

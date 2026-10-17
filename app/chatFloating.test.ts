@@ -32,8 +32,10 @@ describe("the floating material in a conversation", () => {
   it("selects a list's row on the press overlay, never the canvas colour", () => {
     for (const f of ["components/ui/CommandList.tsx"]) {
       const src = readFileSync(f, "utf8")
-      expect(src, f).toContain("bg-press")
+      // The one sliding highlight, tinted by the interaction layer at its press alpha.
+      expect(src, f).toContain("data-menu-cursor")
       expect(src, f).not.toMatch(/"bg-accent text-accent-foreground"/)
     }
+    expect(readFileSync("app/interaction.css", "utf8")).toMatch(/\[data-menu-cursor\] \{\s*background-color: color-mix\(in srgb, var\(--brand\) var\(--ix-press-a\), transparent\);/)
   })
 })

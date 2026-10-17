@@ -9,6 +9,9 @@ const people = vi.hoisted(() => ({
   users: undefined as unknown,
   self: undefined as unknown,
 }))
+// Every channel, as the pickers read it (useEveryChannel).
+const everyChannel = vi.hoisted(() => ({ channels: [] as { ch_uuid: string; ch_name: string }[] }))
+vi.mock("@/components/admin/useEveryChannel", () => ({ useEveryChannel: () => ({ channels: everyChannel.channels, isLoading: false, isError: false }) }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) =>
     url.includes("getAllUsersList")
@@ -36,6 +39,7 @@ afterEach(() => {
   people.users = undefined
   people.self = undefined
   toggleState.fail = false
+  everyChannel.channels = []
 })
 
 const reducedMotion = (on: boolean) =>
@@ -165,6 +169,17 @@ describe("workflows", () => {
     for (const t of sentence.querySelectorAll("[data-token]")) expect(t.closest("[data-neutral-chip]")).toBeTruthy()
     expect(row.querySelector(".hue-moss")).toBeNull()
     expect(sentence.querySelector(".text-ink-3")?.textContent).toContain("→")
+  })
+
+  // The channel list answers 20 a page, and the names were read from its
+  // first page: a workflow on the 21st channel had none. Every channel is
+  // read now (useEveryChannel), as the webhook pickers read them.
+  it("names a workflow's channel when it is past the list's first 20", () => {
+    everyChannel.channels = Array.from({ length: 21 }, (_, i) => ({ ch_uuid: `c${i + 1}`, ch_name: `team-${i + 1}` }))
+    fetchState.value = { data: { data: [{ ...wf, trigger_type: "message_posted", channel_id: "c21" }] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<WorkflowsCard />)
+    const row = screen.getByRole("switch", { name: "Run Bug triage" }).closest("[data-workflow-row]") as HTMLElement
+    expect(row.querySelector('[data-token="trigger"]')?.textContent).toContain("team-21")
   })
 
   it("keeps Edit, Save as a template and Delete behind the row's ⋯", () => {

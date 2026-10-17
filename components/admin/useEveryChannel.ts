@@ -4,6 +4,7 @@ import type { AxiosRequestConfig } from "axios"
 import useSWR from "swr"
 
 import axiosInstance from "@/lib/axiosInstance"
+import { readEveryByIndex } from "@/lib/http/pageIndex"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 
@@ -20,22 +21,13 @@ export const EVERY_CHANNEL_PAGES_MAX = 50
 
 type Page = ChannelInfoListInterfaceResp & { pageCount?: number }
 
-/** Every page of the list, each channel once, by name. */
+/** Every page of the list (lib/http/pageIndex), each channel once, by name. */
 export async function readEveryChannel(get: (url: string) => Promise<Page>): Promise<ChannelInfoInterface[]> {
-  const seen = new Set<string>()
-  const out: ChannelInfoInterface[] = []
-  for (let page = 0; page < EVERY_CHANNEL_PAGES_MAX; page++) {
-    const res = await get(`${GetEndpointUrl.GetAllActiveChannelList}?pageIndex=${page}&pageSize=${EVERY_CHANNEL_PAGE_SIZE}`)
-    const list = res?.channels_list ?? []
-    for (const ch of list) {
-      if (!ch?.ch_uuid || seen.has(ch.ch_uuid)) continue
-      seen.add(ch.ch_uuid)
-      out.push(ch)
-    }
-    const pages = typeof res?.pageCount === "number" ? res.pageCount : undefined
-    if (list.length < EVERY_CHANNEL_PAGE_SIZE || (pages !== undefined && page + 1 >= pages)) break
-  }
-  return out.sort((a, b) => (a.ch_name ?? "").localeCompare(b.ch_name ?? "", undefined, { sensitivity: "base" }))
+  const { items } = await readEveryByIndex(
+    async (pageIndex, pageSize) => (await get(`${GetEndpointUrl.GetAllActiveChannelList}?pageIndex=${pageIndex}&pageSize=${pageSize}`))?.channels_list ?? [],
+    { pageSize: EVERY_CHANNEL_PAGE_SIZE, maxPages: EVERY_CHANNEL_PAGES_MAX, key: (ch) => ch?.ch_uuid },
+  )
+  return items.sort((a, b) => (a.ch_name ?? "").localeCompare(b.ch_name ?? "", undefined, { sensitivity: "base" }))
 }
 
 /**

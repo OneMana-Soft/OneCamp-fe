@@ -3,7 +3,7 @@
 import { toast } from "@/hooks/use-toast"
 
 /** The doc's address in the app, to share with someone who can open it. */
-export function docLink(docId: string): string {
+function docLink(docId: string): string {
   return `${window.location.origin}/app/doc/${docId}`
 }
 

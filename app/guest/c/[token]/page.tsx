@@ -20,7 +20,7 @@ import {
   useGuestPoll,
 } from "@/components/guest/guestUi"
 import { publicTrouble, sendFailedText, type PublicTrouble } from "@/services/publicApi"
-import { GuestChannelActions, GuestChannelRow, GuestDayDivider, GuestGateComposer, PHONE_HIT } from "@/components/guest/guestChannel"
+import { GuestChannelActions, GuestChannelRow, GuestDayDivider, GuestGateComposer } from "@/components/guest/guestChannel"
 import { PublicFrame } from "@/components/guest/PublicFrame"
 import { PublicGone } from "@/components/guest/publicStates"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
@@ -146,8 +146,8 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
               {hasMore && (
                 <div className="mb-4 text-center">
-                  {/* A 28px ghost pill, centred. */}
-                  <Button variant="ghost" size="sm" className={`relative rounded-[14px] px-3 ${PHONE_HIT}`} onClick={loadOlder} disabled={loadingMore}>
+                  {/* A 28px ghost pill, centred; a Button, so a finger's 44px target (app/phone.css F3). */}
+                  <Button variant="ghost" size="sm" className="rounded-[14px] px-3" onClick={loadOlder} disabled={loadingMore}>
                     {loadingMore ? "Loading…" : "Load earlier"}
                   </Button>
                   {olderFailed && (
@@ -160,7 +160,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
                 {byDay(messages, (m) => (
                   <li key={m.id}>
                     <GuestChannelRow author={m.author} text={m.text} createdAt={m.created_at} own={!!name && m.author === name}>
-                      <button type="button" onClick={() => setThread(m.id)} className={`relative mt-1 flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 after:absolute after:-inset-x-1 after:-inset-y-3.5 after:content-[''] sm:after:hidden`}>
+                      <button type="button" data-touch-target="" onClick={() => setThread(m.id)} className="mt-1 flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
                         <MessageSquare className="h-3 w-3" aria-hidden />
                         {m.reply_count > 0 ? `${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}` : canPost ? "Reply" : "Open"}
                       </button>

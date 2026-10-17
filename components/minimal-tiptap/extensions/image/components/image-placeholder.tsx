@@ -88,9 +88,9 @@ export function ImagePlaceholder({ editor, node, selected, deleteNode }: NodeVie
           <img src={upload.preview} alt="" className={cn("mx-auto block max-h-[600px] max-w-full object-contain", failed ? "opacity-30" : "opacity-60")} />
           {failed ? (
             <div role="group" aria-label={`${name} didn't upload`} className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-              <p className="flex items-center gap-1.5 text-ui-sm font-medium text-ink">
+              <p role="alert" className="flex items-center gap-1.5 text-ui-sm font-medium text-ink">
                 <AlertCircle className="size-4 text-danger-ink" aria-hidden="true" />
-                Couldn&apos;t upload {name}. Check your connection and try again.
+                Couldn&apos;t upload {name}. {upload.message ?? "Check your connection and try again."}
               </p>
               <div className="flex gap-2">
                 <button

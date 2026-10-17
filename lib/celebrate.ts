@@ -14,6 +14,7 @@
  */
 import { CAMP_HUES } from "@/lib/campHue"
 import { feedback, type FeedbackKind } from "@/lib/ui/feedback"
+import { localDay } from "@/lib/utils/timeZone"
 
 /** A four-point spark, the motif's (components/ui/graphics/Spark). */
 const SPARK = "M5 0Q5.6 4.4 10 5Q5.6 5.6 5 10Q4.4 5.6 0 5Q4.4 4.4 5 0Z"
@@ -137,7 +138,7 @@ export function celebrateOnce(
   { daily = true, now = new Date(), ...opts }: CelebrateOptions & { daily?: boolean; now?: Date } = {},
 ): number {
   if (!el || prefersReducedMotion()) return 0
-  const storageKey = daily ? `celebrated:${key}:${dayStamp(now)}` : `celebrated:${key}`
+  const storageKey = daily ? `celebrated:${key}:${localDay(now)}` : `celebrated:${key}`
   try {
     if (window.localStorage.getItem(storageKey)) return 0
     window.localStorage.setItem(storageKey, "1")
@@ -145,12 +146,6 @@ export function celebrateOnce(
     return 0
   }
   return celebrate(el, opts)
-}
-
-/** yyyy-mm-dd in the device's own day. */
-function dayStamp(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 /*

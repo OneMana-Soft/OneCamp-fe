@@ -15,7 +15,7 @@ import { calendarRoute } from "@/lib/calendar/route"
 export const UNOPENED_PLACE = "a page you can't open"
 
 /** How a notice reads: who, what they did, where, and a line under it. */
-export interface NoticeWords {
+interface NoticeWords {
   actor: UserProfileDataInterface | undefined
   verb: string
   place: string

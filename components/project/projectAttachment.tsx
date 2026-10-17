@@ -97,6 +97,7 @@ export default function ProjectAttachment({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
+                            variant="destructive"
                             // Asked first: it goes for everyone on the project.
                             onClick={() =>
                                 confirm({
@@ -107,7 +108,7 @@ export default function ProjectAttachment({
                                     onConfirm: () => handleRemoveAttachment(attachmentInfo.attachment_uuid || ""),
                                 })
                             }
-                            className="cursor-pointer text-danger-ink focus:text-danger-ink focus:bg-destructive/10"
+                            className="cursor-pointer text-danger-ink"
                         >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete

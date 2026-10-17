@@ -176,6 +176,24 @@ describe("the channel's Details sheet", () => {
     expect((screen.getByLabelText("Description") as HTMLInputElement).value).toBe("Plan the Q1 launch")
   })
 
+  // Review, 15 Oct 2026: typing a description in Japanese, the Enter that
+  // picks the word saved half a sentence and closed the editor, and the
+  // Escape that drops the word closed it on what was typed (lib/keys/ime.ts).
+  it("leaves an input method's Enter and Escape to it in the description", async () => {
+    admin = true
+    sheet()
+    fireEvent.click(screen.getByRole("button", { name: "Edit description" }))
+    const box = screen.getByLabelText("Description")
+    fireEvent.change(box, { target: { value: "四半期の" } })
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true })
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 })
+    fireEvent.keyDown(box, { key: "Escape", isComposing: true })
+    expect(requestFor("Couldn't save the description")).toBeUndefined()
+    expect(screen.getByLabelText("Description")).toBe(box)
+    fireEvent.keyDown(box, { key: "Enter" })
+    await vi.waitFor(() => expect(requestFor("Couldn't save the description")?.payload).toEqual(expect.objectContaining({ channel_about: "四半期の" })))
+  })
+
   // Every setting said "Couldn't update channel", or "Something went wrong" (QA F-35).
   it("says what didn't happen in each setting's own words", async () => {
     admin = true

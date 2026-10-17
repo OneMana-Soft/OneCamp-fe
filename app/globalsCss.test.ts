@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest"
 // parsing whole, with no declaration loose at the top and every keyframe
 // made only of steps, and every --animate-* token naming a keyframe that
 // exists (integration of the v3 waves, 11 Oct).
-const SHEETS = ["app/globals.css", "app/themes.css", "app/content.css", "app/hub.css", "app/phone.css", "components/calendar/calendar.css"]
+const SHEETS = ["app/globals.css", "app/themes.css", "app/content.css", "app/hub.css", "app/interaction.css", "app/phone.css", "components/calendar/calendar.css"]
 const STEP = /^(from|to|\d+(\.\d+)?%)(\s*,\s*(from|to|\d+(\.\d+)?%))*$/
 
 function walk(nodes: ChildNode[] | undefined, fn: (n: ChildNode) => void) {

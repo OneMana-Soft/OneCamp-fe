@@ -85,7 +85,6 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     }, [drawerOpenState, taskFiltersAndSorts])
 
     const {
-        control,
         handleSubmit,
         formState: { errors },
         watch,

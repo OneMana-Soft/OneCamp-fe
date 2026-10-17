@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { fieldKeyDown } from "@/lib/keys/ime"
 
 import { ArrowUpRight, Check, Plus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -143,7 +144,7 @@ function AddRow({ value, onChange, onAdd, onCancel }: { value: string; onChange:
                 ref={ref}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                onKeyDown={(e) => {
+                onKeyDown={fieldKeyDown((e) => {
                     if (e.key === "Enter") {
                         e.preventDefault()
                         onAdd()
@@ -153,7 +154,7 @@ function AddRow({ value, onChange, onAdd, onCancel }: { value: string; onChange:
                         e.stopPropagation()
                         onCancel()
                     }
-                }}
+                })}
                 onBlur={() => {
                     if (!value.trim()) onCancel()
                 }}

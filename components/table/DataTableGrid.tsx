@@ -29,6 +29,7 @@ import { AddColumn, ColumnHeader, type ColumnCreateInput, type ColumnPage, type 
 import { useCellCommit, type CellCommit } from "@/lib/tables/useCellCommit"
 import { rowPx, type RowHeight, type SummaryFn } from "@/lib/tables/display"
 import { SUMMARY_LABEL, defaultSummary, summarize, summaryChoices } from "@/lib/tables/summary"
+import { ix } from "@/lib/ui/interactive"
 import { isComposingKey } from "@/lib/keys/ime"
 import { formatLocale } from "@/lib/tables/numberFormat"
 
@@ -111,8 +112,6 @@ export function columnWidth(f: TableField): number {
   }
 }
 
-/** The default (medium) row height. */
-export const GRID_ROW_HEIGHT = 40
 const HEADER_HEIGHT = 36
 const GUTTER = 44
 const ADD_COL = 48
@@ -657,7 +656,8 @@ export function DataTableGrid({
         onClick={handleAddRow}
         disabled={adding}
         data-new-row=""
-        className="flex h-9 w-full items-center gap-2 pl-3.5 text-ui text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:bg-hover focus-visible:outline-none"
+        {...ix("row")}
+        className="flex h-9 w-full items-center gap-2 pl-3.5 text-ui text-ink-3 hover:text-ink"
       >
         <Plus className="size-4" aria-hidden="true" /> New row
       </button>
@@ -700,7 +700,7 @@ function SummaryCell({ field, rows, frozen, fn, loaded, onPick }: { field: Table
       <span className="text-ink-3">{label}</span> <span className="tabular-nums text-ink-2">{result.value}</span>
     </>
   ) : (
-    <span className="text-ink-3 opacity-0 transition-opacity group-hover/sum:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Summarise</span>
+    <span className="text-ink-3 opacity-0 transition-opacity group-hover/sum:opacity-100 group-focus-within/sum:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Summarise</span>
   )
   return (
     <td data-frozen={frozen || undefined} className="group/sum h-8 border-t border-line bg-sheet p-0">

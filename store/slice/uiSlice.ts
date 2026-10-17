@@ -80,7 +80,6 @@ interface RootUIState {
   channelOptionsDrawer: SingleUIState;
   chatOptionsDrawer: SingleUIState;
   groupChatOptionsDrawer: SingleUIState;
-  channelInfoSheet: SingleUIState;
   docOptionsDrawer: SingleUIState;
   reactionPickerDrawer: SingleUIState;
   taskFilterDrawer: SingleUIState;
@@ -169,8 +168,7 @@ const initialState: RootUIState = {
   channelOptionsDrawer: { isOpen: false, data: { channelUUID: "" } },
   chatOptionsDrawer: { isOpen: false, data: { chatUUID: "" } },
   groupChatOptionsDrawer: { isOpen: false, data: { grpId: "" } },
-  channelInfoSheet: { isOpen: false, data: { channelUUID: "" } },
-  docOptionsDrawer: { isOpen: false, data: { docId: "", isOwner: false, deleteDoc: () => {} } },
+  docOptionsDrawer: { isOpen: false, data: { docId: "", isOwner: false } },
   teamOptionDrawer: { isOpen: false, data: {teamId: "", teamName: ""} },
   reactionPickerDrawer: { isOpen: false, data: null },
   taskFilterDrawer: { isOpen: false, data: null },

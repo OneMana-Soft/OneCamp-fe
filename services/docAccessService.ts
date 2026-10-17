@@ -29,7 +29,6 @@ export const DocAccessEndpoint = {
   Answer: "/doc/access/answer",
   Requests: "/doc/access/requests",
   Lock: "/doc/lock",
-  Recover: "/admin/docs/recover",
 } as const
 
 interface Envelope<T> {
@@ -77,15 +76,6 @@ export async function updateDocAccess(change: DocAccessChange): Promise<DocAcces
 export async function transferDoc(docId: string, toUserId: string): Promise<void> {
   try {
     await axiosInstance.post(DocAccessEndpoint.Transfer, { doc_uuid: docId, to_user_uuid: toUserId })
-  } finally {
-    refreshAccess(docId)
-  }
-}
-
-/** An admin takes over a doc, or hands it to someone, saying why. */
-export async function recoverDoc(docId: string, reason: string, toUserId?: string): Promise<void> {
-  try {
-    await axiosInstance.post(DocAccessEndpoint.Recover, { doc_uuid: docId, reason, to_user_uuid: toUserId })
   } finally {
     refreshAccess(docId)
   }

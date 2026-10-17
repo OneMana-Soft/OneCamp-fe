@@ -2,9 +2,9 @@ import {MobileChannelTextInput} from "@/components/textInput/mobileChannelTextIn
 import {ChannelMessageList} from "@/components/channel/channelMessageList";
 import { ComposerNotice } from "@/components/channel/composerNotice";
 import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
-import {ChannelInfoInterfaceResp, ChannelJoinInterface} from "@/types/channel";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {usePost} from "@/hooks/usePost";
+import {ChannelInfoInterfaceResp} from "@/types/channel";
+import {GetEndpointUrl} from "@/services/endPoints";
+import { useJoinChannel } from "@/hooks/useJoinChannel";
 import {useFetch} from "@/hooks/useFetch";
 import { FileArchive, Megaphone } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
@@ -24,19 +24,13 @@ export const ChannelIdMobile = ({channelId, handleSend: send, unreadCount, focus
     const channelInSidebar = userChannels.find(ch => ch.ch_uuid === channelId);
     const replyState = useSelector((state: RootState) => state.channel.channelInputState[channelId]);
 
-    const postJoinChannel = usePost()
-
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(`${GetEndpointUrl.ChannelBasicInfo}/${channelId}`)
 
     const channelDisplayName = channelInSidebar?.ch_name || channelInfo.data?.channel_info?.ch_name || "";
+    // A refused join is said, never left unhandled (hooks/useJoinChannel).
+    const joining = useJoinChannel(channelId, () => { void channelInfo.mutate() }, channelDisplayName);
 
 
-
-    const joinChannel = async () => {
-        await postJoinChannel.makeRequest<ChannelJoinInterface>({apiEndpoint: PostEndpointUrl.JoinChannel, payload: {channel_uuid: channelId}, onSuccess : ()=>{
-                channelInfo.mutate()
-            }})
-    }
 
     if(channelInfo.isLoading) {
         return <ChatSkeleton />
@@ -48,8 +42,8 @@ export const ChannelIdMobile = ({channelId, handleSend: send, unreadCount, focus
             return (
                 <JoinChannelPrompt
                     channelName={channelDisplayName}
-                    onJoin={joinChannel}
-                    joining={postJoinChannel.isSubmitting}
+                    onJoin={joining.join}
+                    joining={joining.joining}
                     // 16px above the screen's edge as well as the home bar: the
                     // button touched the bottom of the screen.
                     className="mt-12 pb-[calc(1rem+env(safe-area-inset-bottom))]"

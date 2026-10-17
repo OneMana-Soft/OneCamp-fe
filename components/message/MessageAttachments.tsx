@@ -178,8 +178,9 @@ function NonRenderableAttachment({ attachment, mediaGetUrl, onOpen }: NonRendera
             trailing={trailing}
         />
     )
-    // Shown with the pointer (always on a touch screen), and taking clicks only then.
-    const downloadGlyph = "flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 opacity-0 pointer-events-none transition-opacity duration-[140ms] group-hover:opacity-100 group-hover:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+    // Shown with the pointer and with keyboard focus in the card (always on a
+    // touch screen), and taking clicks only then.
+    const downloadGlyph = "flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 opacity-0 pointer-events-none transition-opacity duration-[140ms] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
 
     if (!opens) {
         return (

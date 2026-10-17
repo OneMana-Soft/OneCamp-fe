@@ -69,7 +69,6 @@ async function mountDoc(uploadFn: (file: File, options?: ImageUploadOptions) => 
     const e = useDocEditor({
       collaboration: { enabled: true, documentId: "doc-1", username: "Author", userId: "author" },
       provider,
-      providerSynced: true,
       uploadFn,
     })
     editor = e as unknown as Editor | null

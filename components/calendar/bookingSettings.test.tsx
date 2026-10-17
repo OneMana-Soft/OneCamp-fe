@@ -34,6 +34,15 @@ describe("the booking settings page", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Booking pages" })).toBeTruthy()
   })
 
+  // PTC-52: the arrow, the title and the card each began at another x.
+  it("lines its title, its line and its card up on one left edge, the arrow in the gutter", () => {
+    fetched = { isLoading: false, data: { data: [{ ...page, upcoming_bookings: 2 }] } }
+    render(<BookingSettings />)
+    expect(document.querySelector("[data-booking-header]")!.className).toContain("sm:-ml-9")
+    expect(screen.getByText(/Share a link and let people book time/).className).toContain("sm:pl-0")
+    expect(screen.getByText(/30 min · \/book\/sam-rivera · 2 upcoming/)).toBeTruthy()
+  })
+
   it("loads as its rows and says when there are none", () => {
     fetched = { isLoading: true }
     render(<BookingSettings />)

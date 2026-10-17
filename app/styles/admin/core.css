@@ -37,7 +37,7 @@
     inset: 0;
     border-radius: inherit;
     pointer-events: none;
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 4px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
     animation: set-flash 1200ms var(--ease-out) both;
   }
   @keyframes set-flash {
@@ -74,14 +74,18 @@
     cursor: pointer;
     transition: background-color 140ms var(--ease-out);
   }
-  .set-row[data-target="true"]:hover {
-    background: var(--hover);
+  @media (hover: hover) {
+    .set-row[data-target="true"]:hover {
+      background: var(--hover);
+    }
   }
   .set-row[data-disabled="true"] {
     cursor: default;
   }
-  .set-row[data-disabled="true"]:hover {
-    background: transparent;
+  @media (hover: hover) {
+    .set-row[data-disabled="true"]:hover {
+      background: transparent;
+    }
   }
   .set-row[data-shake="true"] {
     animation: set-shake 240ms var(--ease-in-out) both;
@@ -128,7 +132,7 @@
   /* A field drawn by a wrapper (a number with its unit, a chip input): the
      halo when the input inside has focus. */
   .field-surface:is([data-number-unit], [data-chip-field]):focus-within {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
   }
 
   /* ---------- The save dock (§1.3): only for multi-card forms ---------- */
@@ -200,7 +204,9 @@
     font-weight: 510;
     transition: background-color 140ms var(--ease-out);
   }
-  .snav-back:hover { background: var(--hover); }
+  @media (hover: hover) {
+    .snav-back:hover { background: var(--hover); }
+  }
   .snav-back svg { color: var(--ink-3); }
   .snav-search {
     margin: 6px 0 8px;
@@ -216,7 +222,7 @@
     transition: box-shadow 140ms var(--ease-out);
   }
   .snav-search:focus-within {
-    box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 50%, transparent), 0 0 0 3px color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow: var(--ix-halo);
   }
   .snav-search input {
     min-width: 0;
@@ -267,9 +273,14 @@
     transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
   }
   .snav-row svg { color: var(--ink-3); }
-  .snav-row:hover { background: var(--hover); color: var(--ink); }
-  .snav-row:hover svg { color: var(--ink); }
-  .snav-row[aria-current="page"] { color: var(--ink); font-weight: 510; background: transparent; }
+  @media (hover: hover) {
+    .snav-row:hover { background: var(--hover); color: var(--ink); }
+    .snav-row:hover svg { color: var(--ink); }
+  }
+  /* The current row keeps its weight (D8), as the sidebar's does: the label
+     fills the row, so a heavier one only moved the ellipsis; the chip, the
+     ink and the accent icon say where you are. */
+  .snav-row[aria-current="page"] { color: var(--ink); background: transparent; }
   .snav-row[aria-current="page"] svg { color: var(--brand); }
   /* With no chip measured yet (first paint, tests), the current row draws
      its own. */

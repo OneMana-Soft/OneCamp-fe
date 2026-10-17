@@ -11,7 +11,7 @@ import { isCampHue, type CampHue } from "@/lib/campHue"
  * where two tabs each laid it in (N37). The ids are fixed on both sides; a
  * workspace's own templates come from the gallery's list.
  */
-export interface BuiltinDocTemplate {
+interface BuiltinDocTemplate {
   id: string
   name: string
   description: string

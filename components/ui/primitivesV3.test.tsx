@@ -48,8 +48,11 @@ describe("Button", () => {
   })
 
   it("draws ghost in ink-2 and subtle on the hover overlay, danger on the raised surface in danger ink", () => {
-    expect(buttonVariants({ variant: "ghost" })).toMatch(/text-muted-foreground.*hover:bg-hover.*hover:text-foreground/)
-    expect(buttonVariants({ variant: "subtle" })).toMatch(/bg-hover.*hover:bg-press/)
+    // The fill under the cursor is the interaction layer's tint (app/interaction.css), not a class.
+    expect(buttonVariants({ variant: "ghost" })).toMatch(/text-muted-foreground.*hover:text-foreground/)
+    expect(buttonVariants({ variant: "ghost" })).not.toContain("hover:bg-")
+    expect(buttonVariants({ variant: "subtle" })).toContain("bg-hover")
+    expect(buttonVariants({ variant: "subtle" })).not.toContain("hover:bg-")
     const danger = buttonVariants({ variant: "destructive" })
     expect(danger).toContain("bg-raised")
     expect(danger).toContain("text-danger-ink")
@@ -69,9 +72,11 @@ describe("Button", () => {
     expect(buttonVariants()).toMatch(/\btext-xs\b.*\bfont-medium\b/)
   })
 
-  it("settles half a pixel when pressed, in 90ms", () => {
-    expect(buttonVariants()).toContain("active:translate-y-[0.5px]")
-    expect(buttonVariants()).toContain("active:duration-[90ms]")
+  it("presses as every control does: a deeper tint and .98, in 90ms (the interaction layer)", () => {
+    expect(buttonVariants()).not.toContain("active:")
+    const layer = readFileSync(join(__dirname, "../../app/interaction.css"), "utf8")
+    expect(layer).toMatch(/--ix-press: 90ms;/)
+    expect(layer).toMatch(/--ix-press-scale: 0\.98;/)
   })
 
   it("puts a kbd hint inside a primary on an 18% white fill", () => {
@@ -80,7 +85,7 @@ describe("Button", () => {
 })
 
 describe("fields", () => {
-  it("are the raised surface at e1 with a 1px accent ring and a 3px halo on focus, in danger when invalid", () => {
+  it("are the raised surface at e1 with the field halo on focus, in danger when invalid", () => {
     // A components-layer class, so a caller's utilities (bg-transparent,
     // shadow-none on an inline-edited title) win over it.
     const at = CSS.indexOf("  .field-surface {")
@@ -89,8 +94,9 @@ describe("fields", () => {
     expect(f).toMatch(/background-color: var\(--raised\);/)
     expect(f).toMatch(/box-shadow: var\(--e1\);/)
     expect(f).toMatch(/color: var\(--ink-3\);/)
-    expect(f).toMatch(/0 0 0 1px color-mix\(in oklab, var\(--brand\) 50%, transparent\), 0 0 0 3px color-mix\(in oklab, var\(--brand\) 12%, transparent\)/)
-    expect(f).toMatch(/\[aria-invalid="true"\][\s\S]*var\(--destructive\) 50%/)
+    // The accent's 1px ring and a 4px halo that clears 3:1 (D5, app/interaction.css --ix-halo).
+    expect(f).toMatch(/&:focus-visible,\s*&\[data-state="open"\] \{\s*outline: none;\s*box-shadow: var\(--ix-halo\);/)
+    expect(f).toMatch(/&\[aria-invalid="true"\] \{\s*box-shadow: var\(--ix-halo-danger\);/)
   })
 })
 
@@ -211,7 +217,10 @@ describe("tabs", () => {
     expect(underlineTabsList).toContain("h-10")
     expect(underlineTab).toMatch(/after:inset-x-2 .*after:h-0\.5 .*after:rounded-full/)
     expect(underlineTab).toContain("data-[state=active]:after:bg-foreground")
-    expect(underlineTab).toContain("data-[state=active]:font-medium")
+    // 510 on the open tab is the layer's, on a label that reserves the width (D8).
+    expect(underlineTab).not.toContain("font-medium")
+    const layer = readFileSync(join(__dirname, "../../app/interaction.css"), "utf8")
+    expect(layer).toMatch(/\[data-interactive="tab"\]:is\(\[data-state="active"\][^{]*\[data-label\]:not\(\[data-type\]\) \{\s*font-weight: 510;/)
     expect(underlineTab).toContain("[&_svg]:size-3.5")
   })
 })

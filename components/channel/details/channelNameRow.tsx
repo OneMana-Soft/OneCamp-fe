@@ -1,15 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Pencil } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DetailsRow as Row } from "@/components/channel/details/detailsParts"
-import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { useChannelNameCheck } from "@/hooks/useChannelNameCheck"
 import { channelSlug, nameProblem } from "@/lib/validation/names"
-import type { ChannelNameExistsInterface } from "@/types/channel"
+import { isComposingKey } from "@/lib/keys/ime"
 
 /**
  * The channel's name, first in Details › About (design v3 chat, C49), renamed
@@ -34,22 +33,8 @@ export function ChannelNameRow({ name, canRename, onRename }: {
     const changed = next !== name
     const problem = changed ? nameProblem("workspace", "Channel name", value) : ""
 
-    // Asked a moment after typing stops, and only for a name that could be one.
-    const [toCheck, setToCheck] = useState<string | null>(null)
-    useEffect(() => {
-        if (!editing || !changed || problem) {
-            setToCheck(null)
-            return
-        }
-        const t = setTimeout(() => setToCheck(next), 450)
-        return () => clearTimeout(t)
-    }, [editing, changed, problem, next])
-    const { data: check } = useFetch<ChannelNameExistsInterface>(
-        toCheck ? `${GetEndpointUrl.CheckChannelNameAvailability}?ch_name=${encodeURIComponent(toCheck)}` : "",
-    )
-    const checked = toCheck === next && !!check
-    const taken = checked && check.exists === true
-    const free = checked && check.exists === false
+    // Asked as New channel asks, and only for a new name that could be one.
+    const { taken, free } = useChannelNameCheck(editing && changed && !problem ? next : "")
 
     const start = () => {
         setValue(name)
@@ -93,6 +78,8 @@ export function ChannelNameRow({ name, canRename, onRename }: {
                 aria-describedby="channel-name-hint"
                 onChange={(e) => setValue(channelSlug(e.target.value))}
                 onKeyDown={(e) => {
+                    // An input method's Enter picks its word and its Escape drops it.
+                    if (isComposingKey(e.nativeEvent)) return
                     if (e.key === "Enter") { e.preventDefault(); void submit() }
                     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel() }
                 }}

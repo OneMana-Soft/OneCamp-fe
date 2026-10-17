@@ -15,6 +15,7 @@ import { formatLocale } from "@/lib/tables/numberFormat"
 import { optionsOf, type TableField } from "@/services/tableService"
 import { TableToolbar, TOUCH_ROW } from "@/components/table/TableViewFrame"
 import { FIELD_GLYPH } from "@/components/table/gridCells"
+import { ix } from "@/lib/ui/interactive"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 const MAX_SORTS = 3
@@ -61,7 +62,7 @@ export function RuleSelect({
           aria-controls={listId}
           aria-haspopup="listbox"
           className={cn(
-            "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-lg bg-raised px-2 text-ui-sm text-ink shadow-e1 outline-none transition-shadow hover:shadow-e2 focus-visible:ring-1 focus-visible:ring-brand/50 [&>svg:first-child]:size-3.5 [&>svg:first-child]:text-ink-3",
+            "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-lg bg-raised px-2 text-ui-sm text-ink shadow-e1 outline-none transition-shadow hover:shadow-e2 focus-visible:focus-halo [&>svg:first-child]:size-3.5 [&>svg:first-child]:text-ink-3",
             className,
           )}
         >
@@ -104,7 +105,8 @@ export function RuleSelect({
                 onChange(o.value)
                 setOpen(false)
               }}
-              className={cn("flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-ui text-ink outline-none hover:bg-press focus-visible:bg-press [&>svg]:size-3.5 [&>svg]:text-ink-3", TOUCH_ROW)}
+              {...ix("item")}
+              className={cn("flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-ui text-ink [&>svg]:size-3.5 [&>svg]:text-ink-3", TOUCH_ROW)}
             >
               {o.icon}
               <span className="min-w-0 flex-1 truncate">{o.label}</span>
@@ -127,7 +129,7 @@ const fieldOptions = (fields: TableField[]) =>
 function RuleChip({ children, onOpen, onRemove, removeLabel }: { children: React.ReactNode; onOpen: () => void; onRemove: () => void; removeLabel: string }) {
   return (
     <span data-rule-chip="" className="inline-flex h-6 max-w-[220px] items-center rounded-md bg-hover pl-2 text-ui-sm text-ink ring-1 ring-inset ring-line">
-      <button type="button" onClick={onOpen} className="min-w-0 truncate outline-none focus-visible:underline">
+      <button type="button" onClick={onOpen} className="min-w-0 truncate rounded-sm">
         {children}
       </button>
       <button type="button" aria-label={removeLabel} onClick={onRemove} className="ml-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md text-ink-3 hover:text-ink">
@@ -203,7 +205,7 @@ export function ViewRulesBar({
   const byId = (id: string) => fields.find((f) => f.id === id)
   const active = rules.sort.length + rules.filters.length > 0
   const count = rowsShownText(shown, held, total, !loading)
-  const link = "font-medium text-brand-text outline-none hover:underline focus-visible:underline"
+  const link = "rounded-sm font-medium text-brand-text hover:underline"
   return (
     <TableToolbar end={end}>
       <FilterMenu fields={fields} rules={rules} onChange={onChange} open={filterOpen} onOpenChange={setFilterOpen} />
@@ -407,7 +409,7 @@ function FilterMenu({
                     type={kind === "number" ? "number" : kind === "date" ? "date" : "text"}
                     value={rule.value ?? ""}
                     onChange={(e) => set(i, { ...rule, value: e.target.value })}
-                    className="h-7 min-w-0 flex-1 rounded-lg bg-raised px-2 text-ui-sm text-ink shadow-e1 outline-none focus:ring-1 focus:ring-brand/50"
+                    className="h-7 min-w-0 flex-1 rounded-lg bg-raised px-2 text-ui-sm text-ink shadow-e1 outline-none focus:focus-halo"
                   />
                 ))}
               {!op.needsValue && <span className="flex-1" />}

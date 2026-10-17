@@ -1,18 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { addDays, format, isSameDay, isWeekend, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ChevronDown, Plus } from "@/lib/icons";
 import { SpotCalendar } from "@/components/ui/graphics";
-import { HueBlock } from "@/components/calendar/HueBlock";
+import { HueBlock, dragPlaceholderClasses } from "@/components/calendar/HueBlock";
 import { NowLine, useMinute } from "@/components/calendar/NowLine";
 import { kindOf, type CalendarItemLike } from "@/components/calendar/calendarTones";
-import { atMinutes, clickRange, createRange, durationLabel, minutesAt, moveRange, resizeRange, DAY_MINUTES } from "@/lib/calendar/calendarDrag";
+import { atMinutes, clickRange, createRange, durationLabel, keyNudge, minutesAt, moveRange, resizeRange, DAY_MINUTES } from "@/lib/calendar/calendarDrag";
 import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
 import { clockHour, clockRange, clockTime } from "@/lib/utils/date/clock";
 import { placedByDates } from "@/lib/calendar/allDay";
+import { daySpan, daySpanWords } from "@/components/calendar/calendarLayout";
+import { onDragCancel } from "@/lib/ui/dragCancel";
+import { PRESS_LIFT, holdLifted, pressBecomes } from "@/lib/ui/pressLift";
+import { edgeScroller } from "@/lib/ui/edgeScroll";
+import { useStableCallback } from "@/hooks/useStableCallback";
 
 /** px per hour: 15 minutes is 14 px (content.md C07). */
 export const HOUR_HEIGHT = 56;
@@ -33,6 +38,8 @@ interface TimedItem extends CalendarItemLike {
   lenMin: number;
   col: number;
   cols: number;
+  /** How many columns it covers, from `col`: the free ones to its right as well. */
+  span: number;
   movable: boolean;
 }
 
@@ -41,6 +48,8 @@ interface AllDayItem extends CalendarItemLike {
   title: string;
   task_status?: string;
   done?: boolean;
+  /** A timed event that runs on into another day: "From 09:30" on its first, "Until 09:30" on its last (daySpan). */
+  when?: string;
 }
 
 /** A draft on the grid: the ghost a drag or click drew, while its quick-create card is open. */
@@ -66,6 +75,8 @@ interface WeekViewProps {
   onEventClick: (uuid: string, el: HTMLElement) => void;
   /** An event was double-clicked: open it in full. */
   onEventOpen?: (uuid: string) => void;
+  /** A finger held on an event and let go without moving: its menu (D16). Without it, a click. */
+  onEventMenu?: (uuid: string, el: HTMLElement) => void;
   onTaskClick: (uuid: string) => void;
   /** Commit a move or a resize (the existing update call). */
   onEventChange?: (uuid: string, start: Date, end: Date) => void;
@@ -85,14 +96,20 @@ interface WeekViewProps {
 }
 
 /**
- * Greedy overlap packing: assign each item a column within its overlap
- * cluster. Two columns split the width; three or more cascade (content.md C10).
+ * Overlapping events side by side, as calendars lay them out (PG2-30; it
+ * replaces content.md C10's cascade from three, whose blocks drew their
+ * titles over each other on a busy day). Events that overlap, directly or
+ * through others, share their day's width in columns: each takes the first
+ * column free when it starts (the longer first, at the same start), and
+ * stretches right over every column free for all its time. Sets `col`,
+ * `cols` and `span` on each item; no two overlapping items share a column.
  */
-export function packDay<T extends { topMin: number; endMin: number; col: number; cols: number }>(items: T[]): T[] {
-  const sorted = [...items].sort((a, b) => a.topMin - b.topMin || a.endMin - b.endMin);
+export function packDay<T extends { topMin: number; endMin: number; col: number; cols: number; span: number }>(items: T[]): T[] {
+  const sorted = [...items].sort((a, b) => a.topMin - b.topMin || b.endMin - a.endMin);
   const result: T[] = [];
   let cluster: T[] = [];
   let clusterEnd = -1;
+  const overlap = (a: T, b: T) => a.topMin < b.endMin && b.topMin < a.endMin;
 
   const flush = () => {
     if (cluster.length === 0) return;
@@ -106,6 +123,9 @@ export function packDay<T extends { topMin: number; endMin: number; col: number;
     const cols = colEnds.length;
     for (const it of cluster) {
       it.cols = cols;
+      let span = 1;
+      while (it.col + span < cols && !cluster.some((o) => o.col === it.col + span && overlap(o, it))) span++;
+      it.span = span;
       result.push(it);
     }
     cluster = [];
@@ -126,16 +146,40 @@ export function wallMinutes(d: Date): number {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-/** Where a block sits across its column: full, split in two, or cascaded by 12 px. Pure. */
-export function blockGeometry(col: number, cols: number): { left: string; width: string } {
+/**
+ * Where a block sits across its day: its columns' share of the width inside a
+ * 2 px margin, with a 2 px gap before the next column's block. Pure.
+ */
+export function blockGeometry(col: number, cols: number, span = 1): { left: string; width: string } {
   if (cols <= 1) return { left: "2px", width: "calc(100% - 4px)" };
-  if (cols === 2) return { left: col === 0 ? "2px" : "calc(50% + 1px)", width: "calc(50% - 3px)" };
-  return { left: `${2 + col * 12}px`, width: `calc(100% - ${4 + col * 12}px)` };
+  const share = (n: number) => `(100% - 4px) * ${n} / ${cols}`;
+  const last = col + span >= cols;
+  return { left: col === 0 ? "2px" : `calc(2px + ${share(col)})`, width: last ? `calc(${share(span)})` : `calc(${share(span)} - 2px)` };
 }
 
 type Drag =
   | { kind: "create"; day: number; pressMin: number; curMin: number; moved: boolean }
-  | { kind: "move" | "top" | "bottom"; uuid: string; day: number; startMin: number; endMin: number; pressMin: number; pressX: number; pressY: number; curDay: number; curStart: number; curEnd: number; active: boolean; el: HTMLElement };
+  | {
+      kind: "move" | "top" | "bottom";
+      uuid: string;
+      day: number;
+      startMin: number;
+      endMin: number;
+      pressMin: number;
+      pressX: number;
+      pressY: number;
+      curDay: number;
+      curStart: number;
+      curEnd: number;
+      /** Lifted: a mouse that travelled, a finger held (lib/ui/pressLift), or a grip. */
+      active: boolean;
+      /** A finger, held for PRESS_LIFT.hold. */
+      touch: boolean;
+      held: boolean;
+      /** Strayed past PRESS_LIFT.slop since the press: let go, it isn't a still hold. */
+      moved: boolean;
+      el: HTMLElement;
+    };
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -150,6 +194,7 @@ export function WeekView({
   draft,
   onEventClick,
   onEventOpen,
+  onEventMenu,
   onTaskClick,
   onEventChange,
   canMove,
@@ -195,7 +240,8 @@ export function WeekView({
 
         // A Google all-day event is in the rail on its dates, whatever its length.
         if (allDayEvent || spansFullDay || isMultiDay) {
-          allDay[di].push(base);
+          const span = daySpan({ event_all_day: allDayEvent }, start, end, day);
+          allDay[di].push(span.kind === "from" || span.kind === "until" ? { ...base, when: daySpanWords(span) } : base);
           return;
         }
 
@@ -217,6 +263,7 @@ export function WeekView({
           lenMin: endMin > topMin ? endMin - topMin : Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)),
           col: 0,
           cols: 1,
+          span: 1,
           movable: !!onEventChange && isSameDay(start, end) && (canMove ? canMove(base.uuid) : true),
         });
       });
@@ -264,10 +311,11 @@ export function WeekView({
   }, [days, events, tasks, showEvents, showTasks, onEventChange, canMove]);
 
   // On opening, the working day is in view: an hour before now when today is
-  // shown, else 8 am, or earlier for an earlier first event; with the hour's
-  // label clear of the top. Once more when the items first arrive (they
-  // usually come after the grid), never after that: moving to another
-  // period keeps the scroll, as a calendar does.
+  // shown, whatever came earlier that week (an event at 00:30 on Saturday
+  // opened this week at midnight: PTC-8); else 8 am, or earlier for an
+  // earlier first event; with the hour's label clear of the top. Once more
+  // when the items first arrive (they usually come after the grid), never
+  // after that: moving to another period keeps the scroll, as a calendar does.
   const firstMin = useMemo(() => Math.min(...timedByDay.flat().map((it) => it.topMin), DAY_MINUTES), [timedByDay]);
   const scrolledFor = useRef<"none" | "grid" | "items">("none");
   useEffect(() => {
@@ -278,7 +326,7 @@ export function WeekView({
     const t = new Date();
     const showsToday = days.some((d) => isSameDay(d, t));
     let hour = showsToday ? Math.max(0, Math.min(t.getHours() - 1, 16)) : 8;
-    if (hasItems && firstMin / 60 < hour) hour = Math.floor(firstMin / 60);
+    if (hasItems && !showsToday && firstMin / 60 < hour) hour = Math.floor(firstMin / 60);
     const top = Math.max(0, hour * HOUR_HEIGHT - 12);
     const smooth = scrolledFor.current === "grid" && !reducedMotion();
     if (el.scrollTo) el.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
@@ -315,18 +363,48 @@ export function WeekView({
     setDrag(d);
   };
 
+  // A live drag holds the pointer with the columns, a create as a move does,
+  // and ends without landing on Esc (the block goes back where it started),
+  // when the browser takes the pointer back (a scroll on a touch screen), or
+  // when the columns lose it without a pointerup. Nothing is sent.
+  useEffect(() => {
+    if (!drag) return;
+    return onDragCancel(() => {
+      clearTimeout(holdTimer.current);
+      if (dragRef.current) setD(null);
+    }, colsRef.current);
+    // Only (re)bind when a drag starts or ends.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!drag]);
+
   const onColumnPointerDown = (e: React.PointerEvent<HTMLDivElement>, day: number) => {
     if (e.button !== 0 || !onDraft) return;
-    e.currentTarget.setPointerCapture?.(e.pointerId);
+    colsRef.current?.setPointerCapture?.(e.pointerId);
     const m = minuteAt(e.clientY);
     setD({ kind: "create", day, pressMin: m, curMin: m, moved: false });
   };
 
-  const onBlockPointerDown = (e: React.PointerEvent<HTMLElement>, it: TimedItem, day: number, kind: "move" | "top" | "bottom") => {
+  // A block lifted from its slot holds the pointer: the page doesn't scroll
+  // under a finger, and no context menu opens until it lands.
+  const lifted = !!drag && drag.kind !== "create" && drag.active;
+  useEffect(() => (lifted ? holdLifted() : undefined), [lifted]);
+
+  /**
+   * A press on a block (INTERACTION_SPEC §5.1): a mouse lifts it after 5 px of
+   * travel, a finger after a 250 ms hold within 8 px (sooner, it is a scroll).
+   * Let go having changed nothing, it is a click; a finger held still opens
+   * the event's menu (D16).
+   */
+  const onBlockPointerDown = (e: React.PointerEvent<HTMLElement>, it: TimedItem, day: number, pressed: "move" | "top" | "bottom") => {
     e.stopPropagation();
     if (e.button !== 0 || !it.movable) return;
     colsRef.current?.setPointerCapture?.(e.pointerId);
     const el = e.currentTarget.closest<HTMLElement>("[data-hue-block]") ?? e.currentTarget;
+    const touch = e.pointerType === "touch";
+    // A 6 px grip is no target for a finger (CA-02): on a touch screen the
+    // grips aren't drawn, and a press near the block's edge is a press on the
+    // block. A finger changes an event's times in its card.
+    const kind = touch ? "move" : pressed;
     const d: Drag = {
       kind,
       uuid: it.uuid,
@@ -340,22 +418,81 @@ export function WeekView({
       curStart: it.topMin,
       curEnd: it.topMin + it.lenMin,
       active: kind !== "move",
+      touch,
+      held: false,
+      moved: false,
       el,
     };
     setD(d);
-    // Hold 150 ms (or travel 4 px) to lift a block; a quick press is a click.
-    if (kind === "move") {
-      clearTimeout(holdTimer.current);
+    clearTimeout(holdTimer.current);
+    if (touch && kind === "move") {
       holdTimer.current = setTimeout(() => {
         const cur = dragRef.current;
-        if (cur && cur.kind === "move" && !cur.active) setD({ ...cur, active: true });
-      }, 150);
+        if (cur && cur.kind === "move" && !cur.active) setD({ ...cur, held: true, active: true });
+      }, PRESS_LIFT.hold);
     }
   };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  /**
+   * The live drag at a pointer at (x, y): the range a create covers, or where
+   * a lifted block now sits. Null when the press isn't (or is no longer) a
+   * drag; else whether a finger holds it.
+   */
+  const place = (x: number, y: number): { touch: boolean } | null => {
     const d = dragRef.current;
-    if (!d) {
+    if (!d) return null;
+    const m = minuteAt(y);
+    if (d.kind === "create") {
+      if (Math.abs(m - d.pressMin) < 4 && !d.moved) return null;
+      setD({ ...d, curMin: m, moved: true });
+      return { touch: false };
+    }
+    if (!d.active) {
+      const now = pressBecomes({ x: d.pressX, y: d.pressY, touch: d.touch, held: d.held }, x, y);
+      if (now === "press") return null;
+      if (now === "scroll") {
+        // A finger that moved before its hold is scrolling the grid: the press is over.
+        clearTimeout(holdTimer.current);
+        setD(null);
+        return null;
+      }
+    }
+    const moved = d.moved || Math.hypot(x - d.pressX, y - d.pressY) > PRESS_LIFT.slop;
+    if (d.kind === "move") {
+      const r = moveRange(d.startMin, d.endMin, m - d.pressMin);
+      setD({ ...d, active: true, moved, curDay: columnAt(x), curStart: r.startMin, curEnd: r.endMin });
+    } else {
+      const r = resizeRange(d.startMin, d.endMin, d.kind, m);
+      setD({ ...d, active: true, moved, curStart: r.startMin, curEnd: r.endMin });
+    }
+    return { touch: d.touch };
+  };
+
+  // Near the grid's top or bottom edge a drag scrolls it (CA-03; the one
+  // edge scroll, lib/ui/edgeScroll: 48 px under a pointer, 64 px under a
+  // finger, up to 18 px a frame), and goes on from wherever the hours now
+  // lie under the still pointer.
+  const pointer = useRef<{ x: number; y: number } | null>(null);
+  const edge = useRef<ReturnType<typeof edgeScroller> | null>(null);
+  const placeAgain = useStableCallback(() => {
+    const p = pointer.current;
+    if (p) place(p.x, p.y);
+  });
+  useEffect(() => {
+    if (!drag) return;
+    const scroller = edgeScroller(scrollRef.current, placeAgain);
+    edge.current = scroller;
+    return () => {
+      scroller.stop();
+      edge.current = null;
+      pointer.current = null;
+    };
+    // Only (re)bind when a drag starts or ends.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!drag]);
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) {
       // The 15-minute band under the pointer, with its time.
       const target = e.target as HTMLElement;
       if (target.closest("[data-hue-block]")) return setHoverMin(null);
@@ -364,21 +501,12 @@ export function WeekView({
       if (hoverMin?.day !== day || hoverMin?.min !== min) setHoverMin({ day, min });
       return;
     }
-    const m = minuteAt(e.clientY);
-    if (d.kind === "create") {
-      if (Math.abs(m - d.pressMin) >= 4 || d.moved) setD({ ...d, curMin: m, moved: true });
-      return;
-    }
-    const travelled = Math.hypot(e.clientX - d.pressX, e.clientY - d.pressY) > 4;
-    const active = d.active || travelled;
-    if (!active) return;
-    if (d.kind === "move") {
-      const r = moveRange(d.startMin, d.endMin, m - d.pressMin);
-      setD({ ...d, active, curDay: columnAt(e.clientX), curStart: r.startMin, curEnd: r.endMin });
-    } else {
-      const r = resizeRange(d.startMin, d.endMin, d.kind, m);
-      setD({ ...d, active, curStart: r.startMin, curEnd: r.endMin });
-    }
+    const live = place(e.clientX, e.clientY);
+    if (!live) return;
+    pointer.current = { x: e.clientX, y: e.clientY };
+    // The grid scrolls by its hours only: a day that fits has nothing to scroll.
+    const grid = scrollRef.current;
+    if (grid && grid.scrollHeight > grid.clientHeight) edge.current?.follow(e.clientX, e.clientY, live.touch);
   };
 
   const onPointerUp = () => {
@@ -395,14 +523,54 @@ export function WeekView({
       } else onSlotClick?.(draftRange.start);
       return;
     }
-    if (!d.active) {
-      // A press without travel: a click.
-      onEventClick(d.uuid, d.el);
+    const changed = d.curStart !== d.startMin || d.curEnd !== d.endMin || d.curDay !== d.day;
+    if (changed) {
+      onEventChange?.(d.uuid, atMinutes(days[d.curDay], d.curStart), atMinutes(days[d.curDay], d.curEnd));
       return;
     }
-    const changed = d.curStart !== d.startMin || d.curEnd !== d.endMin || d.curDay !== d.day;
-    if (changed) onEventChange?.(d.uuid, atMinutes(days[d.curDay], d.curStart), atMinutes(days[d.curDay], d.curEnd));
+    // Nothing changed: a click opens the event (CA-01: held or not), and a
+    // finger held still opens its menu (D16).
+    if (d.touch && d.held && !d.moved && onEventMenu) onEventMenu(d.uuid, d.el);
+    else onEventClick(d.uuid, d.el);
   };
+
+  // The keyboard's move (Alt+↑↓ 15 minutes, Alt+←→ a day, Alt+Shift+↑↓ the
+  // end): sent as a drag's is, with its toast and Undo. The block is drawn
+  // again where it lands (another day's column is another element), so the
+  // focus follows it there.
+  const refocus = useRef<{ uuid: string; until: number } | null>(null);
+  const nudge = (e: React.KeyboardEvent, it: TimedItem, di: number) => {
+    const n = keyNudge(e);
+    if (!n || !onEventChange) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = it.topMin;
+    const end = it.topMin + it.lenMin;
+    const r = n.end ? resizeRange(start, end, "bottom", end + n.minutes) : moveRange(start, end, n.minutes);
+    if (!n.days && r.startMin === start && r.endMin === end) return;
+    const day = addDays(days[di], n.days);
+    // For a moment: the move is drawn at once, so the block is redrawn within it.
+    refocus.current = { uuid: it.uuid, until: Date.now() + 1500 };
+    onEventChange(it.uuid, atMinutes(day, r.startMin), atMinutes(day, r.endMin));
+  };
+  useLayoutEffect(() => {
+    const pending = refocus.current;
+    if (!pending) return;
+    if (Date.now() > pending.until) {
+      refocus.current = null;
+      return;
+    }
+    // Only where the redraw took the focus away: never from a dialog the move
+    // opened (a booked meeting asks first), and never from anything else.
+    const lost = !document.activeElement || document.activeElement === document.body;
+    const el = colsRef.current?.querySelector<HTMLElement>(`[data-event-uuid="${CSS.escape(pending.uuid)}"]`);
+    if (!lost) return;
+    // Past the days shown (the week's edge, or the day view's day), the block
+    // is gone: the keyboard stays in the calendar, on its grid. The toast says
+    // where the event went, with Undo.
+    (el ?? scrollRef.current)?.focus({ preventScroll: !el });
+    refocus.current = null;
+  });
 
   // What the ghost shows: a live create drag, or the draft held for its card.
   const ghost = (() => {
@@ -476,6 +644,7 @@ export function WeekView({
               <button
                 type="button"
                 aria-label={railOpen ? "Collapse all-day events" : "Expand all-day events"}
+                data-touch-target=""
                 aria-expanded={railOpen}
                 onClick={() => setRailOpen((o) => !o)}
                 className="absolute bottom-1 right-1.5 flex size-4 items-center justify-center rounded-sm text-ink-3 hover:bg-hover hover:text-ink"
@@ -500,9 +669,10 @@ export function WeekView({
                     variant="chip"
                     selected={selectedId === it.uuid}
                     onClick={(e) => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid, e.currentTarget))}
-                    aria-label={`${it.isTask ? "Task" : "Event"}: ${it.title}`}
+                    aria-label={`${it.isTask ? "Task" : "Event"}: ${it.title}${it.when ? `, ${it.when}` : ""}`}
                     className={cn("w-full", matches && !matches(it.title) && "opacity-25")}
                   >
+                    {it.when ? <span className="shrink-0 text-micro font-[450] tabular-nums opacity-75">{it.when}</span> : null}
                     <span className={cn("truncate", it.done && "line-through decoration-ink-4")}>{it.title}</span>
                   </HueBlock>
                 ))}
@@ -510,6 +680,7 @@ export function WeekView({
                   <button
                     type="button"
                     onClick={() => setRailOpen(true)}
+                    data-touch-target=""
                     className="h-5 self-start rounded-sm px-1.5 text-meta font-medium text-ink-2 hover:bg-hover hover:text-ink"
                   >
                     +{more}
@@ -522,7 +693,7 @@ export function WeekView({
 
         {/* Time grid */}
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <div ref={scrollRef} className="custom-scrollbar flex-1 overflow-y-auto overscroll-contain">
+          <div ref={scrollRef} tabIndex={-1} className="custom-scrollbar flex-1 overflow-y-auto overscroll-contain outline-none" data-time-grid-scroll="">
             <div className="relative flex" style={{ height: `${24 * HOUR_HEIGHT}px` }}>
               {/* Hour gutter: labels on the line, the first hidden. */}
               <div className="shrink-0" style={{ width: GUTTER }}>
@@ -540,10 +711,9 @@ export function WeekView({
               {/* Day columns */}
               <div
                 ref={colsRef}
-                className={cn("relative flex flex-1", moving && "cursor-grabbing")}
+                className={cn("relative flex flex-1", moving && (moving.kind === "move" ? "cursor-grabbing" : "cursor-ns-resize"))}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
-                onPointerCancel={() => setD(null)}
                 onPointerLeave={() => setHoverMin(null)}
               >
                 {days.map((day, di) => (
@@ -568,10 +738,11 @@ export function WeekView({
                     {!drag && hoverMin?.day === di && onDraft ? (
                       <div
                         aria-hidden="true"
-                        className="pointer-events-none absolute inset-x-0 z-[5] h-[14px] bg-hover"
+                        data-hover-band=""
+                        className="pointer-events-none absolute inset-x-0 z-[5] h-[14px] bg-brand/6"
                         style={{ transform: `translateY(${(hoverMin.min / 60) * HOUR_HEIGHT}px)` }}
                       >
-                        <span className="absolute left-1.5 top-0 text-micro font-medium leading-[14px] tabular-nums text-ink-2">{clockTime(atMinutes(day, hoverMin.min))}</span>
+                        <span className="absolute left-1.5 top-0 text-micro font-medium leading-[14px] tabular-nums text-brand-text">{clockTime(atMinutes(day, hoverMin.min))}</span>
                       </div>
                     ) : null}
 
@@ -584,7 +755,7 @@ export function WeekView({
                       if (isMoving && moving.curDay !== di) return <Origin key={it.uuid} it={it} />;
                       const top = (startMin / 60) * HOUR_HEIGHT;
                       const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT - 2, 14);
-                      const geo = isMoving ? { left: "2px", width: "calc(100% - 4px)" } : blockGeometry(it.col, it.cols);
+                      const geo = isMoving ? { left: "2px", width: "calc(100% - 4px)" } : blockGeometry(it.col, it.cols, it.span);
                       const past = it.end < now;
                       const live = it.start <= now && now < it.end;
                       const time = clockRange(it.start, it.end);
@@ -613,7 +784,9 @@ export function WeekView({
                               if (e.key === "Enter" || e.key === " ") {
                                 e.preventDefault();
                                 onEventClick(it.uuid, e.currentTarget as HTMLElement);
+                                return;
                               }
+                              if (it.movable) nudge(e, it, di);
                             }}
                             onDoubleClick={() => onEventOpen?.(it.uuid)}
                             style={{ top, height, left: geo.left, width: geo.width, ["--i" as string]: idx }}
@@ -623,7 +796,8 @@ export function WeekView({
                               it.cols > 1 && "outline outline-[1.5px] outline-sheet",
                               revealing && !isMoving && "content-event-in",
                               it.movable && "cursor-grab",
-                              isMoving && "calendar-lift",
+                              // A move lifts the block; a resize stretches it where it is (CA-02).
+                              isMoving && (moving.kind === "move" ? "calendar-lift" : "z-40 cursor-ns-resize"),
                               kindOf(it) === "focus" && live && "focus-running",
                               matches && !matches(it.title) && "opacity-25",
                             )}
@@ -651,15 +825,17 @@ export function WeekView({
                               <>
                                 <span
                                   aria-hidden="true"
+                                  data-resize-grip="top"
                                   onPointerDown={(e) => onBlockPointerDown(e, it, di, "top")}
-                                  className="absolute inset-x-0 top-0 flex h-1.5 cursor-ns-resize justify-center opacity-0 group-hover/hb:opacity-100 [@media(hover:none)]:opacity-100"
+                                  className="absolute inset-x-0 top-0 flex h-1.5 cursor-ns-resize justify-center opacity-0 group-hover/hb:opacity-100 [@media(hover:none)]:hidden"
                                 >
                                   <span className="mt-0.5 h-[3px] w-4 rounded-[2px] bg-hue-ink/40" />
                                 </span>
                                 <span
                                   aria-hidden="true"
+                                  data-resize-grip="bottom"
                                   onPointerDown={(e) => onBlockPointerDown(e, it, di, "bottom")}
-                                  className="absolute inset-x-0 bottom-0 flex h-1.5 cursor-ns-resize items-end justify-center opacity-0 group-hover/hb:opacity-100 [@media(hover:none)]:opacity-100"
+                                  className="absolute inset-x-0 bottom-0 flex h-1.5 cursor-ns-resize items-end justify-center opacity-0 group-hover/hb:opacity-100 [@media(hover:none)]:hidden"
                                 >
                                   <span className="mb-0.5 h-[3px] w-4 rounded-[2px] bg-hue-ink/40" />
                                 </span>
@@ -722,7 +898,7 @@ export function WeekView({
                 {onNewEvent ? (
                   <>
                     <span aria-hidden="true">·</span>
-                    <button type="button" onClick={onNewEvent} className="font-medium text-brand-text hover:underline">
+                    <button type="button" onClick={onNewEvent} data-touch-target="" className="font-medium text-brand-text hover:underline">
                       New event
                     </button>
                   </>
@@ -745,12 +921,12 @@ export function WeekView({
 function Origin({ it }: { it: TimedItem }) {
   const top = (it.topMin / 60) * HOUR_HEIGHT;
   const height = Math.max(((it.endMin - it.topMin) / 60) * HOUR_HEIGHT - 2, 14);
-  const geo = blockGeometry(it.col, it.cols);
+  const geo = blockGeometry(it.col, it.cols, it.span);
   return (
     <div
       aria-hidden="true"
       data-drag-origin=""
-      className="pointer-events-none absolute rounded-md border border-dashed border-ink-4"
+      className={cn("pointer-events-none absolute rounded-md", dragPlaceholderClasses(it))}
       style={{ top, height, left: geo.left, width: geo.width }}
     />
   );

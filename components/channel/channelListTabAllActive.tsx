@@ -12,7 +12,7 @@ import { ChannelListSkeleton, ChannelListState } from "@/components/channel/chan
 import { ErrorState } from "@/components/ui/error-state"
 
 /** How many channels a page of Discover holds. */
-export const DISCOVER_PAGE_SIZE = 20
+const DISCOVER_PAGE_SIZE = 20
 
 interface DiscoverPage {
     channels_list: ChannelInfoInterface[]
@@ -21,7 +21,7 @@ interface DiscoverPage {
 }
 
 /** The address of a page of Discover, for what is typed. */
-export function discoverURL(search: string, pageIndex: number): string {
+function discoverURL(search: string, pageIndex: number): string {
     const q = search.trim()
     return `${GetEndpointUrl.GetDiscoverChannelList}?pageIndex=${pageIndex}&pageSize=${DISCOVER_PAGE_SIZE}${q ? `&search=${encodeURIComponent(q)}` : ""}`
 }

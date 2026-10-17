@@ -374,7 +374,7 @@ const toInt = (v: unknown, def: number) => {
 }
 
 /** Tiptap's fromString: "300" is 300, "true" true. */
-export function fromString(s: string): unknown {
+function fromString(s: string): unknown {
   if (s === 'true') return true
   if (s === 'false') return false
   if (/^[+-]?(?:\d*\.)?\d+$/.test(s)) return Number(s)

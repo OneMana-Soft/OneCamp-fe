@@ -27,9 +27,6 @@
 /** Title of the disclosure the folded destinations live behind. */
 export const FOCUS_SECTION_TITLE = "More"
 
-/** Key the disclosure's open state is remembered under. */
-export const FOCUS_SECTION_KEY = "more"
-
 /**
  * Peer destinations that start folded behind {@link FOCUS_SECTION_TITLE}.
  *

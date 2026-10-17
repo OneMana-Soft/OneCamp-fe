@@ -5,6 +5,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { ChevronRight, Circle } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 import { MenuCheck } from "@/components/ui/menuCheck"
 
 const DropdownMenu = DropdownMenuPrimitive.Root
@@ -28,10 +29,11 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      "flex cursor-default gap-2 select-none items-center rounded-md px-2 py-1.5 text-sm outline-none focus:bg-highlight data-[state=open]:bg-highlight [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&>svg]:mr-0",
+      "flex gap-2 select-none items-center rounded-md px-2 py-1.5 text-sm [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 [&>svg]:mr-0",
       inset && "pl-8",
       className
     )}
+    {...ix("item")}
     {...props}
   >
     {children}
@@ -83,11 +85,12 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
 /**
  * A menu row. Keyboard, typeahead (type the first letters of a label) and
- * focus return are Radix's. Icons keep whatever colour the caller gives them.
+ * focus return are Radix's; states are the layer's. Icons keep whatever
+ * colour the caller gives them.
  *
  * variant="destructive" is the one red row in a menu (Delete, Remove), so
- * callers stop hand-writing text-danger-ink and getting a grey highlight
- * under red text. Optional: every existing call is unchanged.
+ * callers stop hand-writing text-danger-ink, with a danger highlight.
+ * Optional: every existing call is unchanged.
  */
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
@@ -104,11 +107,12 @@ const DropdownMenuItem = React.forwardRef<
       // which doubled the gap, so in one menu the words started 8px further
       // in after one icon than after another (the profile menu: 1241 and 1249)
       // and a radio item's words, at pl-8, matched neither.
-      "relative flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors focus:bg-highlight focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:mr-0",
-      variant === "destructive" && "text-danger-ink focus:bg-destructive/10 focus:text-danger-ink [&>svg]:text-danger-ink",
+      "relative flex select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:mr-0",
+      variant === "destructive" && "text-danger-ink [&>svg]:text-danger-ink",
       inset && "pl-8",
       className
     )}
+    {...ix("item", { tone: variant === "destructive" ? "danger" : undefined })}
     {...props}
   />
 ))
@@ -121,10 +125,11 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-highlight focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm",
       className
     )}
     checked={checked}
+    {...ix("item")}
     {...props}
   >
     <MenuCheck checked={checked ?? false} className="absolute left-2" />
@@ -141,9 +146,10 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-highlight focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm",
       className
     )}
+    {...ix("item")}
     {...props}
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
@@ -194,7 +200,7 @@ const DropdownMenuShortcut = ({
 }: React.HTMLAttributes<HTMLSpanElement>) => {
   return (
     <span
-      className={cn("ml-auto pl-4 text-xs text-muted-foreground", className)}
+      className={cn("ml-auto pl-4 text-xs tabular-nums text-muted-foreground", className)}
       {...props}
     />
   )

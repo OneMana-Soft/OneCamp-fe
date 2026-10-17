@@ -8,10 +8,10 @@
 import type { GlobalAttr } from './globalAttrs'
 
 /** The blocks Tab nests (the editor's extensions/block-commands/nodes.ts). */
-export const INDENT_NODES = ['blockquote', 'bulletList', 'callout', 'chartEmbed', 'codeBlock', 'collapsible', 'diffEmbed', 'heading', 'horizontalRule', 'image', 'orderedList', 'paragraph', 'poll', 'recordingEmbed', 'tableEmbed', 'taskList']
+const INDENT_NODES = ['blockquote', 'bulletList', 'callout', 'chartEmbed', 'codeBlock', 'collapsible', 'diffEmbed', 'heading', 'horizontalRule', 'image', 'orderedList', 'paragraph', 'poll', 'recordingEmbed', 'tableEmbed', 'taskList']
 
 /** The blocks with a direction of their own. */
-export const DIR_NODES = ['blockquote', 'bulletList', 'callout', 'collapsible', 'heading', 'orderedList', 'paragraph', 'taskList']
+const DIR_NODES = ['blockquote', 'bulletList', 'callout', 'collapsible', 'heading', 'orderedList', 'paragraph', 'taskList']
 
 const MAX_INDENT = 8
 

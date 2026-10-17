@@ -109,6 +109,8 @@ export function PhoneProfileCard() {
  * Admin on a phone (design v3, admin A1 and §1.1): the settings nav is its
  * own screen, the sections as grouped cards of 52px rows. A section opens
  * full screen with the platform's back. It replaced a native select 44px tall.
+ * A section the server's answer decides (its AI, its calls) holds its place
+ * while that answer loads, so the rows under it don't jump down when it comes.
  */
 export function SettingsPhoneList() {
   const places = useSettingsPlaces(true)
@@ -117,13 +119,17 @@ export function SettingsPhoneList() {
       <h1 className="sr-only">Admin</h1>
       <div className="space-y-6">
         {ADMIN_GROUPS.map((group) => {
-          const rows = places.filter((p) => p.place.group === group && !p.pending)
+          const rows = places.filter((p) => p.place.group === group)
           if (rows.length === 0) return null
           return (
             <PhoneSettingsGroup key={group} label={SETTINGS_GROUP_LABEL[group]}>
-              {rows.map(({ place }) => (
-                <PhoneSettingsRow key={place.key} href={place.href} label={place.label} icon={place.icon} hue={place.hue} />
-              ))}
+              {rows.map(({ place, pending }) =>
+                pending ? (
+                  <PhoneSettingsRowPending key={place.key} />
+                ) : (
+                  <PhoneSettingsRow key={place.key} href={place.href} label={place.label} icon={place.icon} hue={place.hue} />
+                ),
+              )}
             </PhoneSettingsGroup>
           )
         })}

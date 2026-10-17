@@ -118,7 +118,7 @@ describe("the elevation ladder", () => {
     expect(body).toMatch(/@media \(hover: hover\)/)
     expect(body).toMatch(/translate:\s*0 -1px;/)
     expect(body).not.toMatch(/-2px|-0\.5|translate-y/)
-    expect(body).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*&:hover\s*\{\s*translate:\s*none;/)
+    expect(body).toMatch(/@media \(hover: hover\) and \(prefers-reduced-motion: reduce\)\s*\{\s*&:hover\s*\{\s*translate:\s*none;/)
   })
 
   it("keeps menus, popovers and dialogs off the page: floating or modal", () => {

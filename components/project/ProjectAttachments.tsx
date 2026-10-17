@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { fieldKeyDown } from "@/lib/keys/ime"
 
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -150,13 +151,13 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                 {menu("Sort", sort, SORTS, setSort)}
                 <div className="ml-auto flex items-center gap-1">
                     {searching ? (
-                        <label className="flex h-7 w-56 items-center gap-1.5 rounded-md bg-raised px-2 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50">
+                        <label className="flex h-7 w-56 items-center gap-1.5 rounded-md bg-raised px-2 shadow-e1 focus-within:focus-halo">
                             <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
                             <input
                                 autoFocus
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
-                                onKeyDown={(e) => e.key === "Escape" && (setQuery(""), setSearching(false))}
+                                onKeyDown={fieldKeyDown((e) => e.key === "Escape" && (setQuery(""), setSearching(false)))}
                                 placeholder="Search files"
                                 aria-label="Search files"
                                 className="min-w-0 flex-1 bg-transparent text-ui-sm text-ink outline-none placeholder:text-ink-3"

@@ -20,14 +20,18 @@ afterEach(cleanup)
 const CSS = readFileSync(join(__dirname, "../../app/globals.css"), "utf8")
 
 describe("controls that carry state take the accent", () => {
-  // Design v3 (§3.10) moves the checked box to moss with a white check: a
-  // check is "done", which is moss everywhere (the status glyph), and the
-  // accent's share stays under 2% of a view. The switch keeps the accent.
-  it("fills a checked box with moss, and springs it back from a press", () => {
-    render(<Checkbox aria-label="Done" defaultChecked />)
+  // INTERACTION_SPEC D13 (15 Oct 2026): "on" is the theme accent on every
+  // control that carries it, from one token. A settings page drew green
+  // ticks beside orange switches; green reads as success, not on. (A task's
+  // done check is the status glyph's moss, a status, not a control's on.)
+  it("fills a checked box with the accent, from the switch's and the radio's token, and springs it back from a press", () => {
+    render(<Checkbox aria-label="Email me" defaultChecked />)
     const cls = screen.getByRole("checkbox").className
-    expect(cls).toContain("data-[state=checked]:bg-camp-moss")
-    expect(cls).toContain("data-[state=checked]:text-white")
+    expect(cls).toContain("data-[state=checked]:bg-primary")
+    expect(cls).toContain("data-[state=checked]:text-primary-foreground")
+    expect(cls).not.toMatch(/moss/)
+    const sw = readFileSync(join(__dirname, "switch.tsx"), "utf8")
+    expect(sw).toContain("data-[state=checked]:bg-primary")
     expect(cls).toContain("rounded-[5px]")
     expect(cls).toContain("transition-spring")
     expect(cls).toContain("active:scale-[0.88]")
@@ -40,7 +44,8 @@ describe("controls that carry state take the accent", () => {
       </RadioGroup>,
     )
     const radio = screen.getByRole("radio")
-    expect(radio.className).toContain("data-[state=checked]:border-primary")
+    // An inset ring, as Checkbox's edge, turned the accent when picked.
+    expect(radio.className).toContain("data-[state=checked]:ring-primary")
     expect(radio.querySelector("svg")!.getAttribute("class")).toContain("fill-primary")
   })
 
@@ -73,15 +78,17 @@ describe("the current place in the navigation", () => {
   }
 
   // Design v3 (§2a): the peach fill and its orange bar are retired. The
-  // current place is a raised chip at e-sel, its label ink at 510 and its
-  // icon in the accent.
-  it("is a raised chip at e-sel, with ink at 510 and the icon in the accent, and no bar", () => {
+  // current place is a raised chip at e-sel, its label ink and its icon in
+  // the accent. Its weight stays (INTERACTION_SPEC D8): the label fills the
+  // row, so a heavier one only moved the ellipsis.
+  it("is a raised chip at e-sel, with ink and the icon in the accent, one weight, and no bar", () => {
     const chip = rule(".nav-active")
     expect(chip).toMatch(/background:\s*var\(--raised\);/)
     expect(chip).toMatch(/box-shadow:\s*var\(--e-sel\);/)
     expect(chip).toMatch(/color:\s*var\(--ink\);/)
-    expect(chip).toMatch(/font-weight:\s*510;/)
-    expect(rule(".nav-active svg.lucide")).toMatch(/color:\s*var\(--brand\);/)
+    expect(chip).not.toMatch(/font-weight/)
+    // The row's own icon; an identity mark inside keeps its colours (D13, app/identityHue.test.ts).
+    expect(rule(".nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon])")).toMatch(/color:\s*var\(--brand\);/)
     expect(CSS).not.toMatch(/\.nav-active::before/)
   })
 

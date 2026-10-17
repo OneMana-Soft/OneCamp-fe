@@ -29,7 +29,10 @@ test("a phone opens an event two months out", async ({ page }, testInfo) => {
   await stubBackend(page, testInfo, answers())
   await page.goto(`/app/calendar/event/${EVENT}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
   await expect(page.getByRole("heading", { name: "Quarterly planning" })).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByRole("button", { name: "Delete event" })).toBeVisible()
+  // Named on a phone (PTC-53): Edit, and the rest in a labelled menu.
+  await expect(page.getByRole("button", { name: "Edit event" })).toBeVisible()
+  await page.getByRole("button", { name: "More actions" }).click()
+  await expect(page.getByRole("menuitem", { name: "Delete event" })).toBeVisible()
   await expect(page.getByText("This event isn't available")).toHaveCount(0)
 })
 

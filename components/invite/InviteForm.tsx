@@ -59,7 +59,7 @@ export function seatLine(sending: number, seatsLeft: number | undefined): string
 }
 
 /** What is wrong with the addresses that aren't email addresses, and what to do. Pure. */
-export function invalidLine(emails: string[]): string {
+function invalidLine(emails: string[]): string {
   if (emails.length === 1) return `“${emails[0]}” isn't an email address, so it won't be sent. Fix it or remove it.`
   return `${emails.length} of these aren't email addresses, so they won't be sent. Fix or remove them.`
 }

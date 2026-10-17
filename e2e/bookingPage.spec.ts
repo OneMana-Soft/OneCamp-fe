@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { stubBackend } from "./stubbedApp"
+import { overlapping, reachesIn } from "./touchReach"
 
 // The public booking page, signed out, against a stubbed server.
 //   CAL-BUG-20: it built about 1,800 date formatters on load, for two time
@@ -120,4 +121,30 @@ test("the confirmation says the invite was emailed, and keeps the cancel link", 
   await expect(page.locator("[data-cancel-link] a")).toHaveAttribute("href", /\/booking\/secret-token$/)
   await expect(page.getByRole("link", { name: "Add to calendar (.ics)" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Google Calendar" })).toBeVisible()
+})
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+
+  // REVIEW-FE-SHELL (15 Oct 2026): the month arrows sat 2px apart and each
+  // one's reach under a finger (app/phone.css F3) ran over the other's edge,
+  // so a tap 23-27px into Previous month went to Next month. A row of small
+  // controls is a touch group now (F3b), its controls far enough apart.
+  test("a tap on the edge of Previous month goes back a month", async ({ page }, testInfo) => {
+    test.setTimeout(120_000)
+    // Bookable for two months more, so Next has a month to go to whatever today is.
+    await stubBackend(page, testInfo, { [`/public/book/${SLUG}`]: { data: { ...PAGE(), bookable_until: new Date(Date.now() + 70 * 864e5).toISOString() } } })
+    await page.goto(`/book/${SLUG}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+    await expect(page.locator("[data-available]").first()).toBeVisible({ timeout: 30_000 })
+    const month = page.getByRole("region", { name: "Pick a day" })
+    expect(overlapping(await reachesIn(page, 'section[aria-label="Pick a day"] [data-touch-group]'))).toEqual([])
+    const heading = month.getByRole("heading", { level: 2 })
+    const first = (await heading.textContent())!.trim()
+    await month.getByRole("button", { name: "Next month" }).tap()
+    await expect(heading).not.toHaveText(first)
+    const previous = (await month.getByRole("button", { name: "Previous month" }).boundingBox())!
+    // 3px inside its right edge, where Next's reach used to cover it.
+    await page.touchscreen.tap(previous.x + previous.width - 3, previous.y + previous.height / 2)
+    await expect(heading).toHaveText(first)
+  })
 })

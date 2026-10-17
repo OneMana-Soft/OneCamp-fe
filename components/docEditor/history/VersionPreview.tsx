@@ -29,7 +29,7 @@ export interface Drawn {
   targets: HTMLElement[]
 }
 
-export interface VersionPreviewProps {
+interface VersionPreviewProps {
   versionId: string
   /** The version's body; undefined while it loads. */
   html: string | undefined

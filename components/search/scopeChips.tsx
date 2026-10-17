@@ -45,7 +45,7 @@ export function ScopeChips({
   }, [scopes, onChange])
 
   return (
-    <div className="-mx-4 overflow-x-auto px-4 [mask-image:linear-gradient(90deg,transparent,#000_16px,#000_calc(100%-16px),transparent)] md:mx-0 md:overflow-visible md:px-0 md:[mask-image:none]">
+    <div data-edge-fade="" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
       <div ref={row} role="tablist" aria-label="Show results from" data-scope-chips="" className="relative flex w-max gap-1.5">
         <span ref={knob} aria-hidden data-scope-knob="" className="pointer-events-none absolute left-0 top-0 h-[26px] origin-left rounded-[13px] bg-raised opacity-0 shadow-sel" />
         {scopes.map((s, i) => {

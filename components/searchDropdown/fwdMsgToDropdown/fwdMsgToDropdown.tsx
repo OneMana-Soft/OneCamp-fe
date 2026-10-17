@@ -1,6 +1,7 @@
 "use client"
 
-import { Hash, Users } from "@/lib/icons";
+import { Users } from "@/lib/icons";
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile";
 import { PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
 import type { ChannelAndUserListInterfaceReq, ChannelAndUserListInterfaceResp } from "@/types/user"
@@ -77,7 +78,7 @@ export function ForwardMessageDropdown({
                 ) : item.type === "groupChat" ? (
                     <Users className="h-4 w-4 text-muted-foreground" />
                 ) : (
-                    <Hash className="h-4 w-4 text-muted-foreground" />
+                    <ChannelTile id={item.channel_uuid} size={16} />
                 )}
                 <div className="flex flex-col">
                     <span className="text-sm font-semibold">{item.name}</span>

@@ -19,14 +19,15 @@ import { useClientConfig } from "@/hooks/useClientConfig"
 import { exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
 import { getAttachmentType } from "@/lib/utils/file/getAttachmentType"
 import { getMediaDimensions } from "@/lib/utils/file/getMediaDimensions"
-import { messageOf } from "@/components/threads/useThreads"
+import { THREADS_TROUBLE } from "@/components/threads/useThreads"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import type { AttachmentMediaReq, AttachmentType } from "@/types/attachment"
 import { uploadCommentFile } from "./docCommentApi"
 
 /** The most files one comment takes (the threads API refuses more). */
 export const MAX_FILES = 20
 
-export interface DraftFile {
+interface DraftFile {
     key: string
     name: string
     type: AttachmentType
@@ -104,7 +105,7 @@ export function useCommentDraft(docId: string, upload = uploadCommentFile) {
                         })
                     } catch (e) {
                         if (abort.signal.aborted) return
-                        update(gen, key, { error: messageOf(e) })
+                        update(gen, key, { error: apiErrorMessage(e, THREADS_TROUBLE) })
                     } finally {
                         aborts.current.delete(key)
                     }

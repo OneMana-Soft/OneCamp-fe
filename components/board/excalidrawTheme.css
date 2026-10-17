@@ -153,9 +153,11 @@
   color: var(--ink-2);
   transition: background-color var(--duration-hover) var(--ease-out), color var(--duration-hover) var(--ease-out);
 }
-.excalidraw.excalidraw .App-toolbar .ToolIcon__icon:hover {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .excalidraw.excalidraw .App-toolbar .ToolIcon__icon:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 /* The selected tool: a press fill, the icon in ink, and a 4 px brand dot
    under it. */
@@ -243,10 +245,12 @@
   color: var(--ink-2);
   box-shadow: none;
 }
-.excalidraw.excalidraw .zoom-actions .ToolIcon:hover .ToolIcon__icon,
-.excalidraw.excalidraw .undo-redo-buttons .ToolIcon:hover .ToolIcon__icon {
-  background: var(--hover);
-  color: var(--ink);
+@media (hover: hover) {
+  .excalidraw.excalidraw .zoom-actions .ToolIcon:hover .ToolIcon__icon,
+  .excalidraw.excalidraw .undo-redo-buttons .ToolIcon:hover .ToolIcon__icon {
+    background: var(--hover);
+    color: var(--ink);
+  }
 }
 .excalidraw.excalidraw .zoom-actions .ToolIcon__icon svg,
 .excalidraw.excalidraw .undo-redo-buttons .ToolIcon__icon svg {
@@ -264,8 +268,10 @@
   font: 510 12px/16px var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
-.excalidraw.excalidraw .zoom-actions .reset-zoom-button:hover {
-  background: var(--hover);
+@media (hover: hover) {
+  .excalidraw.excalidraw .zoom-actions .reset-zoom-button:hover {
+    background: var(--hover);
+  }
 }
 .excalidraw.excalidraw .ToolIcon_type_button[disabled] .ToolIcon__icon,
 .excalidraw.excalidraw .ToolIcon_type_button:disabled .ToolIcon__icon {
@@ -331,9 +337,11 @@
   font-family: var(--font-sans);
   font-size: 13px;
 }
-.excalidraw.excalidraw .dropdown-menu-item:hover,
-.excalidraw.excalidraw .context-menu-item:hover {
-  background: var(--press);
+@media (hover: hover) {
+  .excalidraw.excalidraw .dropdown-menu-item:hover,
+  .excalidraw.excalidraw .context-menu-item:hover {
+    background: var(--press);
+  }
 }
 .excalidraw.excalidraw .Modal__content {
   border-radius: 16px;

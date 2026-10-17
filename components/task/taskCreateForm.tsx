@@ -1,7 +1,7 @@
 import { displayNameOf } from "@/lib/personName"
 import React, { useEffect, useRef, useState } from "react";
 import { useModEnter } from "@/hooks/useModKey";
-import { useEdgeFade } from "@/hooks/useEdgeFade";
+import { fieldKeyDown } from "@/lib/keys/ime";
 import { ProjectInfoListRawInterface } from "@/types/project";
 import { UserProfileDataInterface } from "@/types/user";
 import { priorities } from "@/types/table";
@@ -90,9 +90,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const uploadFile = useUploadFile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveKeys = useModEnter();
-  // The chips scroll sideways on a phone; a cut-off one fades (PTC-28: "Due d").
-  const chipRowRef = useRef<HTMLDivElement>(null);
-  const chipFade = useEdgeFade(chipRowRef);
   const dispatch = useDispatch();
   const post = usePost();
   
@@ -471,8 +468,9 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
           )}
         />
 
-        {/* The property chips (W36): each opens its picker; keys S P A D L E. */}
-        <div ref={chipRowRef} {...chipFade} className="flex gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar sm:flex-wrap" data-create-chips="">
+        {/* The property chips (W36): each opens its picker; keys S P A D L E.
+            They scroll sideways on a phone; a cut-off one fades (PTC-28: "Due d"). */}
+        <div className="flex gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar sm:flex-wrap" data-create-chips="" data-edge-fade="">
           <Popover open={popOpenStatus} onOpenChange={setPopOpenStatus}>
             <PopoverTrigger asChild>
               <button type="button" className={cn(chip, status !== "todo" && "text-foreground")} aria-label={`Status: ${statusOption?.label ?? "To do"}`} aria-keyshortcuts="S">
@@ -627,13 +625,13 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                 id="task_estimate"
                 value={estimate}
                 onChange={(e) => setEstimate(e.target.value)}
-                onKeyDown={(e) => {
+                onKeyDown={fieldKeyDown((e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     e.stopPropagation();
                     setPopOpenEstimate(false);
                   }
-                }}
+                })}
                 placeholder="2h 30m"
                 autoComplete="off"
                 className="h-8 tabular-nums"
@@ -721,8 +719,9 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
 
         {/* The foot: attach and GitHub on the left; Create more and Create on the right. */}
         <div className="flex h-[52px] items-center gap-1 border-t border-line pl-3 pr-3">
-          {/* Files go to the project, so they wait for one. */}
-          <Button type="button" variant="ghost" size="icon" className="size-8 text-ink-3 hover:text-foreground" disabled={needsProject} title={pickProjectFirst ?? "Attach a file"} aria-label="Attach a file" onClick={() => fileInputRef.current?.click()}>
+          {/* Files go to the project, so they wait for one, and say so in
+              the layer's tip while the button keeps its focus (disabledReason). */}
+          <Button type="button" variant="ghost" size="icon" className="size-8 text-ink-3 hover:text-foreground" disabled={needsProject} disabledReason={pickProjectFirst} title={needsProject ? undefined : "Attach a file"} aria-label="Attach a file" onClick={() => fileInputRef.current?.click()}>
             <Paperclip className="size-4" aria-hidden />
           </Button>
           <Popover open={popOpenGitHub} onOpenChange={setPopOpenGitHub}>

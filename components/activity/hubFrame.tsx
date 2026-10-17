@@ -15,6 +15,7 @@ import type { LucideIcon } from "lucide-react"
 
 import { CountTick } from "@/components/ui/CountTick"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix, withLabel } from "@/lib/ui/interactive"
 
 const useIsoLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 
@@ -90,7 +91,7 @@ export function HubTabs({ tabs, value, onChange, label }: { tabs: HubTab[]; valu
   }
 
   return (
-    <div ref={list} role="tablist" aria-label={label} onKeyDown={onKey} className="no-scrollbar relative flex min-w-0 items-stretch overflow-x-auto">
+    <div ref={list} role="tablist" aria-label={label} onKeyDown={onKey} data-edge-fade="" className="no-scrollbar relative flex min-w-0 items-stretch overflow-x-auto">
       {tabs.map((t) => {
         const on = t.value === value
         return (
@@ -104,12 +105,16 @@ export function HubTabs({ tabs, value, onChange, label }: { tabs: HubTab[]; valu
             aria-selected={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(t.value)}
+            // A tab of the interaction layer: a tinted pill under the pointer,
+            // the layer's focus ring, and the chosen label's 510 reserved by
+            // its data-label, so choosing a tab moves no other (D8).
+            {...ix("tab")}
             className={cn(
-              "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 text-ui-sm transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand",
-              on ? "font-medium text-foreground" : "text-ink-2 hover:text-foreground",
+              "flex h-7 shrink-0 items-center gap-1.5 self-center whitespace-nowrap rounded-md px-2.5 text-ui-sm",
+              on ? "text-foreground" : "text-ink-2 hover:text-foreground",
             )}
           >
-            {t.label}
+            {withLabel(t.label)}
             {t.count ? (
               t.badge ? (
                 <span data-tab-badge="" className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand px-[5px] text-3xs font-semibold leading-none text-brand-foreground">

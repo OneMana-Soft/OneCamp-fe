@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { addDays, differenceInCalendarDays, format, isSameDay, isSameMonth, isWeekend, parseISO } from "date-fns";
 import { Plus } from "@/lib/icons";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SpotCalendar } from "@/components/ui/graphics";
 import { cn } from "@/lib/utils/helpers/cn";
-import { HueBlock } from "@/components/calendar/HueBlock";
+import { HueBlock, dragPlaceholderClasses, hueBlockClasses } from "@/components/calendar/HueBlock";
+import { DayOverflowPopover } from "@/components/calendar/dayOverflowPopover";
+import { onDragCancel } from "@/lib/ui/dragCancel";
+import { PRESS_LIFT, holdLifted, pressBecomes } from "@/lib/ui/pressLift";
 import { hueOf, kindOf } from "@/components/calendar/calendarTones";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
-import { allDayItem, dayKey, type DatedItem, type WeekBar } from "@/components/calendar/calendarLayout";
+import { dayKey, dayListTime, lastDayOf, placeItems, type DatedItem, type WeekBar } from "@/components/calendar/calendarLayout";
 import type { CalendarDraft } from "@/components/calendar/weekView";
 import { clockTime } from "@/lib/utils/date/clock";
 
@@ -38,6 +40,8 @@ interface MonthViewProps<T extends MonthItem> {
   now: Date;
   onItemClick: (item: T, el: HTMLElement) => void;
   onItemOpen?: (item: T) => void;
+  /** A finger held on an event and let go without moving: its menu (D16). Without it, a click. */
+  onItemMenu?: (item: T, el: HTMLElement) => void;
   onDraft?: (draft: CalendarDraft, anchor: HTMLElement | null) => void;
   /** Move an event by whole days (the existing update call). */
   onMoveDays?: (item: T, days: number) => void;
@@ -54,7 +58,21 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 type MonthDrag<T> =
   | { kind: "create"; from: Date; to: Date; el: HTMLElement }
-  | { kind: "move"; item: T; from: Date; over: Date; active: boolean; pressX: number; pressY: number; el: HTMLElement };
+  | {
+      kind: "move";
+      item: T;
+      from: Date;
+      over: Date;
+      /** Lifted: a mouse that travelled, or a finger held (lib/ui/pressLift). */
+      active: boolean;
+      pressX: number;
+      pressY: number;
+      touch: boolean;
+      held: boolean;
+      /** Strayed past PRESS_LIFT.slop since the press: let go, it isn't a still hold. */
+      moved: boolean;
+      el: HTMLElement;
+    };
 
 function dayFromPoint(x: number, y: number): Date | null {
   const el = document.elementFromPoint?.(x, y)?.closest<HTMLElement>("[data-month-day]");
@@ -68,6 +86,7 @@ export function MonthView<T extends MonthItem>({
   now,
   onItemClick,
   onItemOpen,
+  onItemMenu,
   onDraft,
   onMoveDays,
   canMove,
@@ -101,8 +120,18 @@ export function MonthView<T extends MonthItem>({
         if (day && !isSameDay(day, d.to)) set({ ...d, to: day });
         return;
       }
-      const active = d.active || Math.hypot(e.clientX - d.pressX, e.clientY - d.pressY) > 4;
-      if (active && (!d.active || (day && !isSameDay(day, d.over)))) set({ ...d, active, over: day ?? d.over });
+      if (!d.active) {
+        const now = pressBecomes({ x: d.pressX, y: d.pressY, touch: d.touch, held: d.held }, e.clientX, e.clientY);
+        if (now === "press") return;
+        if (now === "scroll") {
+          // A finger that moved before its hold is scrolling: the press is over.
+          clearTimeout(timer.current);
+          set(null);
+          return;
+        }
+      }
+      const moved = d.moved || Math.hypot(e.clientX - d.pressX, e.clientY - d.pressY) > PRESS_LIFT.slop;
+      if (!d.active || moved !== d.moved || (day && !isSameDay(day, d.over))) set({ ...d, active: true, moved, over: day ?? d.over });
     };
     const up = () => {
       clearTimeout(timer.current);
@@ -118,22 +147,38 @@ export function MonthView<T extends MonthItem>({
         } else onDraft?.({ start: a, end: addDays(b, 1), allDay: true }, d.el);
         return;
       }
-      if (!d.active) {
-        onItemClick(d.item, d.el);
+      const delta = d.active ? differenceInCalendarDays(d.over, d.from) : 0;
+      if (delta !== 0) {
+        onMoveDays?.(d.item, delta);
         return;
       }
-      const delta = differenceInCalendarDays(d.over, d.from);
-      if (delta !== 0) onMoveDays?.(d.item, delta);
+      // Nothing moved: a click opens the event (CA-09: held or not), and a
+      // finger held still opens its menu (D16).
+      if (d.touch && d.held && !d.moved && onItemMenu) onItemMenu(d.item, d.el);
+      else onItemClick(d.item, d.el);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up, { once: true });
+    // Esc puts the drag back, and a scroll that takes the pointer (touch)
+    // sends no pointerup: either ends it there, sending nothing, or the next
+    // tap anywhere would land it (CA-08, CA-09).
+    const stop = onDragCancel(() => {
+      clearTimeout(timer.current);
+      if (dragRef.current) set(null);
+    });
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      stop();
     };
     // Only (re)bind when a drag starts or ends.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!drag]);
+
+  // A lifted bar holds the pointer: the page doesn't scroll under a finger,
+  // and no context menu opens until it lands.
+  const lifted = drag?.kind === "move" && drag.active;
+  useEffect(() => (lifted ? holdLifted() : undefined), [lifted]);
 
   const inRange = (day: Date) => {
     if (drag?.kind !== "create" || isSameDay(drag.from, drag.to)) return false;
@@ -154,7 +199,7 @@ export function MonthView<T extends MonthItem>({
             {onNewEvent ? (
               <>
                 <span aria-hidden="true">·</span>
-                <button type="button" onClick={onNewEvent} className="font-medium text-brand-text hover:underline">
+                <button type="button" onClick={onNewEvent} data-touch-target="" className="font-medium text-brand-text hover:underline">
                   New event
                 </button>
               </>
@@ -221,6 +266,7 @@ export function MonthView<T extends MonthItem>({
                       <button
                         type="button"
                         aria-label={`New event on ${format(day, "EEEE d MMMM")}`}
+                        data-touch-target=""
                         onClick={(e) => {
                           const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0);
                           onDraft({ start, end: new Date(start.getTime() + 30 * 60_000) }, e.currentTarget.parentElement);
@@ -230,19 +276,41 @@ export function MonthView<T extends MonthItem>({
                         <Plus className="size-3.5" />
                       </button>
                     ) : null}
+                    {dropOn(day) && drag?.kind === "move" ? <LiftedBar item={drag.item} days={Math.min(daysOf(drag.item), 7 - i)} /> : null}
                     {hidden > 0 ? (
-                      <MorePopover
+                      <DayOverflowPopover
                         day={day}
-                        items={items}
                         hidden={hidden}
+                        today={isToday}
                         compact={compact}
-                        isToday={isToday}
-                        onItemClick={onItemClick}
-                        onNew={onDraft ? (el) => {
-                          const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0);
-                          onDraft({ start, end: new Date(start.getTime() + 30 * 60_000) }, el);
-                        } : undefined}
-                      />
+                        className="absolute bottom-1 left-1 z-20"
+                        add={
+                          onDraft
+                            ? {
+                                label: "New event",
+                                onAdd: (cell) => {
+                                  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0);
+                                  onDraft({ start, end: new Date(start.getTime() + 30 * 60_000) }, cell);
+                                },
+                              }
+                            : undefined
+                        }
+                      >
+                        {(done) =>
+                          items.map((item) => (
+                            <HueBlock
+                              key={item.event_uuid}
+                              item={item}
+                              variant="row"
+                              onClick={(e) => onItemClick(item, (done() ?? e.currentTarget) as HTMLElement)}
+                              className="w-full"
+                            >
+                              <span className="min-w-0 flex-1 truncate">{item.event_title}</span>
+                              {!item.isTask ? <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">{dayListTime(item, day)}</span> : null}
+                            </HueBlock>
+                          ))
+                        }
+                      </DayOverflowPopover>
                     ) : null}
                   </div>
                 );
@@ -303,12 +371,16 @@ export function MonthView<T extends MonthItem>({
                           if (e.button !== 0 || !movable) return;
                           const from = addDays(weekStart, bar.col);
                           const el = e.currentTarget as HTMLElement;
-                          set({ kind: "move", item, from, over: from, active: false, pressX: e.clientX, pressY: e.clientY, el });
+                          // A mouse lifts the bar after 5 px of travel, a finger after a 250 ms hold.
+                          const touch = e.pointerType === "touch";
+                          set({ kind: "move", item, from, over: from, active: false, pressX: e.clientX, pressY: e.clientY, touch, held: false, moved: false, el });
                           clearTimeout(timer.current);
-                          timer.current = setTimeout(() => {
-                            const cur = dragRef.current;
-                            if (cur?.kind === "move" && !cur.active) set({ ...cur, active: true });
-                          }, 150);
+                          if (touch) {
+                            timer.current = setTimeout(() => {
+                              const cur = dragRef.current;
+                              if (cur?.kind === "move" && !cur.active) set({ ...cur, held: true, active: true });
+                            }, PRESS_LIFT.hold);
+                          }
                         }}
                         onClick={(e) => {
                           if (e.detail === 0 || !movable) onItemClick(item, e.currentTarget as HTMLElement);
@@ -328,7 +400,8 @@ export function MonthView<T extends MonthItem>({
                           outside && "opacity-55",
                           revealing && "content-event-in",
                           movable && "cursor-grab",
-                          drag?.kind === "move" && drag.active && drag.item.event_uuid === item.event_uuid && "opacity-40",
+                          // Where it was, while it moves: the placeholder (CA-09).
+                          drag?.kind === "move" && drag.active && drag.item.event_uuid === item.event_uuid && dragPlaceholderClasses(item),
                           matches && !matches(item.event_title) && "opacity-25",
                         )}
                       >
@@ -353,84 +426,35 @@ export function MonthView<T extends MonthItem>({
 }
 
 
+/** How many days an item's bar covers. Pure. */
+function daysOf(item: DatedItem): number {
+  const [p] = placeItems([item]);
+  return p ? differenceInCalendarDays(lastDayOf(p), p.start) + 1 : 1;
+}
+
+/**
+ * The bar a drag carries (CA-09; INTERACTION_SPEC §5.1): drawn lifted (e3, no
+ * tilt) in the day it would land on, as many days long as the event, inside
+ * that week; where it was, its placeholder stays.
+ */
+function LiftedBar({ item, days }: { item: MonthItem; days: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      data-drag-ghost=""
+      className={cn("calendar-lift pointer-events-none absolute left-1 top-8 z-30 flex h-[22px] items-center gap-1 overflow-hidden rounded-md pl-[9px] pr-1.5 text-meta font-medium", hueBlockClasses(item))}
+      style={{ width: `calc(${days * 100}% - 8px)` }}
+    >
+      <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px] bg-hue" />
+      <span className="truncate leading-none">{item.event_title}</span>
+    </div>
+  );
+}
+
 /** Lights every segment of one item (a meeting across two weeks is two bars). */
 function light(from: HTMLElement, uuid: string, on: boolean) {
   from.closest("[data-month-grid]")?.querySelectorAll<HTMLElement>(`[data-event-uuid="${CSS.escape(uuid)}"]`).forEach((el) => {
     if (on) el.setAttribute("data-lit", "");
     else el.removeAttribute("data-lit");
   });
-}
-
-function MorePopover<T extends MonthItem>({
-  day,
-  items,
-  hidden,
-  compact,
-  isToday,
-  onItemClick,
-  onNew,
-}: {
-  day: Date;
-  items: T[];
-  hidden: number;
-  compact?: boolean;
-  isToday: boolean;
-  onItemClick: (item: T, el: HTMLElement) => void;
-  onNew?: (el: HTMLElement | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const cellRef = useRef<HTMLButtonElement>(null);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          ref={cellRef}
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          className="absolute bottom-1 left-1 z-20 h-5 rounded-sm px-1.5 text-meta font-medium text-ink-2 hover:bg-press hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        >
-          {compact ? `+${hidden}` : `+${hidden} more`}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="content-float w-[280px] rounded-xl bg-pop p-1 shadow-e3">
-        <div className="flex h-9 items-center gap-2 px-2">
-          <span className={cn("text-ui-sm font-semibold", isToday && "text-brand-text")}>{format(day, "EEE d MMM")}</span>
-          <span className="ml-auto text-meta tabular-nums text-ink-3">{items.length} items</span>
-        </div>
-        <div className="flex max-h-[300px] flex-col gap-0.5 overflow-y-auto">
-          {items.map((item) => (
-            <HueBlock
-              key={item.event_uuid}
-              item={item}
-              variant="row"
-              onClick={(e) => {
-                setOpen(false);
-                onItemClick(item, (cellRef.current ?? e.currentTarget) as HTMLElement);
-              }}
-              className="w-full"
-            >
-              <span className="min-w-0 flex-1 truncate">{item.event_title}</span>
-              {!item.isTask ? (
-                <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">
-                  {allDayItem(item, parseISO(item.event_start_time), parseISO(item.event_end_time)) ? "All day" : clockTime(parseISO(item.event_start_time))}
-                </span>
-              ) : null}
-            </HueBlock>
-          ))}
-        </div>
-        {onNew ? (
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onNew(cellRef.current?.parentElement ?? null);
-            }}
-            className="mt-1 flex h-8 w-full items-center gap-2 rounded-lg px-2 text-ui-sm font-medium text-ink-2 hover:bg-hover hover:text-ink"
-          >
-            <Plus className="size-4" /> New event
-          </button>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  );
 }

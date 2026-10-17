@@ -366,11 +366,14 @@ export default function InboxPage() {
             <HubRow
               key={t.id}
               as="li"
+              opens
               density="feed"
               leadSize={28}
               className="min-h-[72px] py-2.5"
               unread={t.unread}
-              selected={openId === t.id || (cursor === i && !openId)}
+              // The open thread is selected; the keyboard's place is a ring of its own (SH-30).
+              selected={openId === t.id}
+              cursor={cursor === i && openId !== t.id}
               data-inbox-row=""
               lead={<IdentityMark variant="avatar" size={28} id={avatarSeed(senderName(t.from))} label={senderName(t.from)} />}
               title={
@@ -476,7 +479,7 @@ export default function InboxPage() {
                     </button>
                   </p>
                 ) : null}
-                <div data-inbox-composer="" className="flex min-h-[76px] flex-col rounded-lg bg-raised p-3 shadow-e2">
+                <div data-inbox-composer="" className="composer-card flex min-h-[76px] flex-col rounded-lg bg-raised p-3">
                   <textarea
                     ref={replyRef}
                     value={reply}

@@ -8,14 +8,6 @@ import { type CampHue } from "@/lib/campHue"
  * follows light and dark. The light values stand in where there is no
  * document (server render, tests without styles).
  */
-const LIGHT_STRONG: Record<CampHue, string> = {
-  sun: "#B98200",
-  moss: "#2F9E5B",
-  lake: "#0E97A6",
-  sky: "#3B7DDD",
-  dusk: "#7B61D9",
-  berry: "#D9467C",
-}
 
 /** The avatar cut's first stop (design v3 §3.5), the colour a face starts from. */
 const LIGHT_A1: Record<CampHue, string> = {
@@ -31,11 +23,6 @@ function token(name: string, fallback: string): string {
   if (typeof document === "undefined") return fallback
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
   return v || fallback
-}
-
-/** A camp hue's strong cut, in the current theme. */
-export function campColour(hue: CampHue): string {
-  return token(`--camp-${hue}`, LIGHT_STRONG[hue])
 }
 
 /** A camp hue's avatar colour (a1), in the current theme. */

@@ -48,6 +48,8 @@ import { FIELD_GLYPH, FIELD_TYPES, fieldTypeLabel } from "@/components/table/gri
 import { CommandList, CommandTile, type CommandListItem } from "@/components/ui/CommandList"
 import { useToast } from "@/hooks/use-toast"
 import type { NumberFormat } from "@/lib/tables/cellFormat"
+import { ix } from "@/lib/ui/interactive"
+import { returnFocusOnlyForKeys } from "@/lib/ui/inputModality"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useAIAvailable } from "@/hooks/useClientConfig"
@@ -144,8 +146,9 @@ function MenuRow({
       data-menu-row=""
       disabled={disabled}
       onClick={onClick}
+      {...ix("item", { tone: danger ? "danger" : undefined })}
       className={cn(
-        "flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-left text-ui font-[450] text-ink outline-none transition-colors duration-[90ms] hover:bg-press focus-visible:bg-press disabled:pointer-events-none disabled:text-ink-4",
+        "flex h-8 w-full items-center gap-2.5 rounded-lg px-2 text-left text-ui font-[450] text-ink disabled:pointer-events-none",
         TOUCH_ROW,
         "[&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-ink-3",
         danger && "text-danger-ink [&>svg]:text-danger-ink",
@@ -522,10 +525,9 @@ export function ColumnHeader({
       aria-expanded={open}
       aria-label={`${field.name}, ${fieldTypeLabel(field.type)} column. Edit column`}
       title={computed && formulaText ? formulaText : undefined}
-      className={cn(
-        "group/col flex h-9 w-full items-center gap-1 px-3 text-ui-sm font-medium text-ink-2 outline-none transition-colors duration-[140ms] hover:bg-hover hover:text-ink focus-visible:bg-hover",
-        open && "bg-hover text-ink",
-      )}
+      {...ix("row")}
+      data-state={open ? "open" : "closed"}
+      className={cn("group/col flex h-9 w-full items-center gap-1 px-3 text-ui-sm font-medium text-ink-2 hover:text-ink", open && "text-ink")}
     >
       {label}
       <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity group-hover/col:opacity-100 group-focus-visible/col:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
@@ -572,7 +574,7 @@ export function ColumnHeader({
             align="start"
             sideOffset={4}
             className={cn("content-float rounded-xl p-1 shadow-e3", page === "formula" ? "w-[400px]" : page === "relation" || page === "rollup" ? "w-80" : "w-[280px]")}
-            onCloseAutoFocus={(e) => e.preventDefault()}
+            onCloseAutoFocus={returnFocusOnlyForKeys}
             onOpenAutoFocus={(e) => {
               // The name, when the menu opens on its main page.
               if (page !== "main") e.preventDefault()
@@ -606,7 +608,7 @@ export function ColumnHeader({
                       }}
                       aria-label="Column name"
                       maxLength={120}
-                      className="h-8 w-full rounded-lg bg-raised px-2.5 text-ui text-ink shadow-e1 outline-none focus:ring-1 focus:ring-brand/50"
+                      className="h-8 w-full rounded-lg bg-raised px-2.5 text-ui text-ink shadow-e1 outline-none focus:focus-halo"
                     />
                   </div>
                   <MenuRow icon={<Glyph />} label="Type" hint={fieldTypeLabel(field.type)} sub onClick={() => setPage("type")} />
@@ -908,7 +910,9 @@ export function AddColumn({
             aria-label="Add a column"
             title="Add column"
             onClick={() => setOpen((o) => !o)}
-            className="flex h-9 w-12 items-center justify-center text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:bg-hover focus-visible:outline-none"
+            {...ix("row")}
+            data-state={open ? "open" : "closed"}
+            className="flex h-9 w-12 items-center justify-center text-ink-3 hover:text-ink"
           >
             <Plus className="size-4" />
           </button>
@@ -936,7 +940,7 @@ export function AddColumn({
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Column name"
                 aria-label="Column name"
-                className="h-8 w-full rounded-lg bg-raised px-2.5 text-ui text-ink shadow-e1 outline-none focus:ring-1 focus:ring-brand/50"
+                className="h-8 w-full rounded-lg bg-raised px-2.5 text-ui text-ink shadow-e1 outline-none focus:focus-halo"
               />
               {step === "formula" && <FormulaEditor tableId={tableId} fields={fields} value={formula} onChange={setFormula} />}
               {step === "relation" && <RelationSettings tableId={tableId} draft={relation} onChange={setRelation} />}

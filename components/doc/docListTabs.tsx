@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { PanelLeft, Search, Trash2, X } from "@/lib/icons";
+import { isComposingKey } from "@/lib/keys/ime";
 import { DocListTabContent } from "@/components/doc/docListTabContent";
 import { DocGridSkeleton, DocRowsSkeleton, type DocsView } from "@/components/doc/docListResult";
 import { DocsToolbar, type OwnerChoice } from "@/components/doc/DocsToolbar";
@@ -260,7 +261,7 @@ function SearchPill({
     inputRef?: React.Ref<HTMLInputElement>;
 }) {
     return (
-        <label className={cn("group/search relative flex h-8 items-center gap-2 rounded-lg bg-raised px-2.5 text-ink-3 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50", className)}>
+        <label className={cn("group/search relative flex h-8 items-center gap-2 rounded-lg bg-raised px-2.5 text-ink-3 shadow-e1 focus-within:focus-halo", className)}>
             <Search className="size-3.5 shrink-0" aria-hidden="true" />
             <input
                 ref={inputRef}
@@ -268,7 +269,8 @@ function SearchPill({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 onKeyDown={(e) => {
-                    if (e.key === "Escape") {
+                    // An input method's Escape drops the word being made, not the search.
+                    if (e.key === "Escape" && !isComposingKey(e.nativeEvent)) {
                         onClear();
                         (e.target as HTMLInputElement).blur();
                     }

@@ -44,7 +44,7 @@ function context(kind: EditorKind, more: Partial<BlockContext> = {}): BlockConte
   return { ...bareContext(kind, ALL_EDITIONS), ...more }
 }
 
-/** What packages' specs load lazily (B3's tables and equations): theirs too, not built in. */
+/** What packages' specs load lazily or on demand (B3's tables and equations): theirs too, not built in. */
 const packageLoaded = new Set<string>()
 
 // Loading every editor kind's blocks is the slowest step here: under a loaded
@@ -52,6 +52,8 @@ const packageLoaded = new Set<string>()
 beforeAll(async () => {
   for (const kind of ['doc', 'guest', 'chat', 'task'] as const) await loadBlocks(kind, ALL_EDITIONS)
   for (const s of allBlocks()) {
+    // A package's plugins on demand (B3's table editing) come as one extension of its id's name.
+    if (s.order === undefined && s.onDemand) packageLoaded.add(s.id)
     if (s.order !== undefined || !s.load) continue
     // A loader gives extensions, or what makes each editor's: here, a doc's.
     const got = await s.load()

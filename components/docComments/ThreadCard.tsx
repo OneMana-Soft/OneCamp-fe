@@ -29,6 +29,7 @@ import { continuedFlags } from "@/lib/messageGrouping"
 import { openUI } from "@/store/slice/uiSlice"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 import { useToast } from "@/hooks/use-toast"
 import type { ResolvedAnchor } from "@/lib/anchors/types"
 import type { ThreadView } from "@/components/threads/types"
@@ -91,12 +92,16 @@ function IconAction({ label, onClick, children, busy }: { label: string; onClick
                 <button
                     type="button"
                     aria-label={label}
-                    disabled={busy}
+                    // Busy as Button is (aria-busy), not disabled: a button that
+                    // disables under the keyboard drops focus to the page.
+                    aria-busy={busy || undefined}
                     onClick={(e) => {
                         e.stopPropagation()
-                        onClick()
+                        if (!busy) onClick()
                     }}
-                    className="flex size-7 items-center justify-center rounded-md text-ink-3 transition-colors duration-[140ms] ease-out hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring disabled:opacity-50 [&_svg]:size-4"
+                    {...ix("icon")}
+                    data-touch-target=""
+                    className="flex size-7 items-center justify-center rounded-md text-ink-3 hover:text-ink aria-busy:pointer-events-none aria-busy:opacity-70 [&_svg]:size-4"
                 >
                     {children}
                 </button>

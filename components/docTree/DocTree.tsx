@@ -21,6 +21,7 @@ import { toast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { moveReason, planMove } from "@/lib/docMove"
+import { docHue } from "@/lib/docLook"
 import { Loader2, Plus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { docTreeAdapter, treeMoveTarget, type DocTreeRow } from "@/services/docGraphService"
@@ -102,7 +103,7 @@ export function DocTree({
 
   const addInside = React.useCallback(
     (row: DocTreeRow) => {
-      void create({ parentId: row.id, busyKey: `tree:${row.id}` }).then((id) => {
+      void create({ parentId: row.id, parentPrivate: row.node.private, busyKey: `tree:${row.id}` }).then((id) => {
         if (id) setOpen(row.id, true)
       })
     },
@@ -166,7 +167,8 @@ export function DocTree({
         placeholder="Untitled"
         hiddenLabel={hiddenLabel}
         emptyLabel="No pages inside"
-        icon={(row) => <DocIcon icon={row.node.icon} size={16} />}
+        icon={(row) => <DocIcon icon={row.node.icon} id={row.id} size={16} />}
+        hue={(row) => docHue(row.id, row.node.icon)}
         activeId={activeId}
         onOpen={(row) => {
           router.push(`${app_doc_path}/${row.id}`)

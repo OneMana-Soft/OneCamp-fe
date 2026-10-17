@@ -63,7 +63,7 @@ export const STATIC_SLICE_NAMES: readonly string[] = SLICES.map((s) => s.name)
 type AnyReducer = (state: unknown, action: unknown) => unknown
 
 /** What injectSlice takes: a slice (createSlice), or anything with its name and reducer. */
-export interface InjectableSlice {
+interface InjectableSlice {
     name: string
     // A slice's reducer takes its own state; the root reducer hands each its own.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

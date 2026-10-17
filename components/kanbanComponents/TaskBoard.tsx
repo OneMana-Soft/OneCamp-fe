@@ -34,6 +34,7 @@
  */
 
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { fieldKeyDown } from "@/lib/keys/ime"
 import { createPortal } from "react-dom"
 import {
     DndContext,
@@ -1174,7 +1175,7 @@ function QuickAdd({
                 value={name}
                 disabled={busy}
                 onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
+                onKeyDown={fieldKeyDown((e) => {
                     if (e.key === "Enter") {
                         e.preventDefault()
                         void submit()
@@ -1184,7 +1185,7 @@ function QuickAdd({
                         setOpen(false)
                         setName("")
                     }
-                }}
+                })}
                 onBlur={() => !name.trim() && setOpen(false)}
                 placeholder="Task name, then Enter"
                 aria-label="New task name"

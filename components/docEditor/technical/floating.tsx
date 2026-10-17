@@ -20,7 +20,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { cn } from "@/lib/utils/helpers/cn"
 
-export interface FloatingOptions {
+interface FloatingOptions {
   /** What the panel stands under, read again as the page scrolls. */
   anchor: () => DOMRect | null
   /** The panel's accessible name. */
@@ -34,14 +34,9 @@ export interface FloatingOptions {
   className?: string
 }
 
-export type Render = (close: () => void) => React.ReactNode
+type Render = (close: () => void) => React.ReactNode
 
 let open: { close(): void } | null = null
-
-/** Closes the panel that is open, if one is. */
-export function closeFloating() {
-  open?.close()
-}
 
 /** Opens a panel; the returned function closes it. */
 export function openFloating(render: Render, options: FloatingOptions): () => void {

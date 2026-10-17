@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { PhoneListSkeleton } from "@/components/task/phoneListSkeleton"
 import { PHONE_PAGE_SIZE, headedRows, type GroupHeaderRow } from "@/lib/tasks/grouping"
+import { hasPageAfter, pagesToCome } from "@/lib/http/pageCount"
 import type { StatusOption } from "@/lib/taskStatus"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { statusKindOf } from "@/components/task/taskStatusCell"
@@ -306,10 +307,26 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
     // "In progress 2 / To do 2"): the phone listed them in the server's order,
     // done tasks between open ones. A group's header is a row of its own.
     const { options: statusOpts } = useProjectStatuses(projectId)
-    // Pages still to come (0-based; or the next one loading): a group counts
-    // only what has arrived, and says so ("To do 4+"). Its bare count read as
-    // the whole and grew while the list scrolled (PROJ-BUG-2).
-    const more = projectInfo.isLoading || (projectInfo.data?.pageCount ?? 1) > pageIndex + 1
+    // Pages still to come: a group counts only what has arrived, and says so
+    // ("To do 4+"), until the last page's tasks are in the list. Its bare count
+    // read as the whole and grew while the list scrolled (PROJ-BUG-2). Neither
+    // loading nor the page count says it alone: the page wanted moves a render
+    // before its request starts (handleLoadMore), and an answer's tasks reach
+    // the list in the effect above, a render after it comes. The page asked
+    // for is the one the request's address names.
+    const answer = projectInfo.data
+    const inList = useMemo(() => {
+        if (!answer) return false
+        const ids = new Set(taskListState.map((t) => t.task_uuid))
+        return (answer.data.project_tasks ?? []).every((t) => ids.has(t.task_uuid))
+    }, [answer, taskListState])
+    const more = pagesToCome({
+        wanted: pageIndex,
+        asked: Number(new URLSearchParams(urlParams).get("pageIndex") ?? 0),
+        loading: projectInfo.isLoading,
+        inList,
+        pageCount: answer?.pageCount,
+    })
     const rows = useMemo<PhoneRow[]>(() => headedRows(taskListState || [], "status", statusOpts, more), [taskListState, statusOpts, more])
 
     const handleRenderIndex = useCallback((item: PhoneRow) => {
@@ -395,7 +412,7 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
             ) : (
             <VirtualInfiniteScroll
                 onLoadMore={handleLoadMore}
-                hasMore={(projectInfo.data?.pageCount || 0) > pageIndex}
+                hasMore={hasPageAfter(pageIndex, projectInfo.data?.pageCount)}
                 items={rows}
                 renderItem={handleRenderIndex}
                 isLoading={projectInfo.isLoading}
@@ -421,9 +438,10 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                             Link to GitHub
                         </Button>
                         <Button
+                            data-tone="danger"
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs gap-1.5 rounded-full text-danger-ink hover:text-danger-ink border-destructive/30 hover:bg-destructive/10"
+                            className="h-7 text-xs gap-1.5 rounded-full text-danger-ink hover:text-danger-ink border-destructive/30"
                             onClick={handleBulkUnlink}
                             disabled={bulkUnlinking}
                         >

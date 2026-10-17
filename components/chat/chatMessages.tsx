@@ -34,7 +34,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen";
 import { DmEmpty } from "@/components/message/emptyConversations";
 import { useUnreadAnchor } from "@/components/message/useUnreadAnchor";
-import { hueFor } from "@/lib/campHue";
 import { messageSummary } from "@/lib/chat/messageSummary";
 import { userDisplayName } from "@/lib/utils/userDisplayName";
 

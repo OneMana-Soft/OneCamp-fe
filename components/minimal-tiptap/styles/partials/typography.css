@@ -57,9 +57,11 @@
   @apply cursor-pointer text-primary underline underline-offset-4 decoration-primary/30 transition-colors;
 }
 
-.minimal-tiptap-editor .ProseMirror a.link:hover,
-.static-rich a[href]:hover {
-  @apply decoration-primary;
+@media (hover: hover) {
+  .minimal-tiptap-editor .ProseMirror a.link:hover,
+  .static-rich a[href]:hover {
+    @apply decoration-primary;
+  }
 }
 
 /* Text colours and highlights, by name (B2, N15): each hue's ink cut for

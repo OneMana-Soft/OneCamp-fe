@@ -40,7 +40,7 @@ import { onPage, quotesWords } from "./threadView"
 import { useDocThreads } from "./useDocThreads"
 
 /** The id the thread being written is drawn under, until it has one. */
-export const PENDING_ID = "pending"
+const PENDING_ID = "pending"
 
 /** How long typing pauses before a lost thread's words are looked for again. */
 const COUNT_AFTER_MS = 400

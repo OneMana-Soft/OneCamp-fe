@@ -2,8 +2,8 @@
 import { useTranslation } from "react-i18next";
 
 import { useFetch } from "@/hooks/useFetch"
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
-import {ProjectInfoRawInterface, ProjectNotificationInterface} from "@/types/project"
+import {GetEndpointUrl} from "@/services/endPoints"
+import {ProjectInfoRawInterface} from "@/types/project"
 import { FileText, List, Megaphone, Paperclip } from "@/lib/icons";
 import { TabLoading } from "@/components/task/TabLoading"
 import { lazyView } from "@/components/task/LazyView"
@@ -43,9 +43,7 @@ import { countAddress } from "@/lib/tasks/listAddress"
 import { useState, useEffect, useCallback, startTransition } from "react"
 import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
 import { NotificationLevelMenu } from "@/components/Notification/notificationLevels";
-import {NotificationType} from "@/types/channel";
-import { optimistic } from "@/lib/optimistic";
-import {usePost} from "@/hooks/usePost";
+import { useProjectNotification } from "@/hooks/useNotificationLevel";
 import { useProjectHue } from "@/lib/projectHue";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 
@@ -56,10 +54,8 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const { t } = useTranslation()
     const projectHue = useProjectHue(projectId)
     const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + "/" + projectId)
-    const [projectNotification, setProjectNotificationType] = useState<string>(NotificationType.NotificationAll)
 
     const dispatch = useDispatch()
-    const postNotification  = usePost()
     const isAdmin = !!projectInfo.data?.data.project_is_admin
     const isMember = !!projectInfo.data?.data.project_is_member
 
@@ -74,25 +70,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const seen = useSeenTabs(selectedTab)
     const tabInAddress = useTabInAddress()
 
-    useEffect(() => {
-
-        if(projectInfo.data?.data.notification_type) {
-            setProjectNotificationType(projectInfo.data?.data.notification_type)
-        }
-
-    }, [projectInfo.data?.data.project_is_member])
-
-    // A level is chosen from the bell's menu, shown at once and taken back
-    // if the server refuses it (PTC-26: one click cycled it).
-    const chooseNotification = (level: string) => {
-        const before = projectNotification
-        void optimistic({
-            key: `project:${projectId}:notify`,
-            apply: () => setProjectNotificationType(level),
-            revert: () => setProjectNotificationType(before),
-            commit: () => postNotification.makeRequest<ProjectNotificationInterface>({ payload: { project_id: projectId, notification_type: level }, apiEndpoint: PostEndpointUrl.UpdateProjectNotification }),
-        })
-    }
+    const notification = useProjectNotification(projectId, projectInfo.data?.data.notification_type)
 
     // The underline moves at once; the tab's content follows as a transition,
     // which a further click can interrupt.
@@ -160,7 +138,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                     {members.length > 0 && <span className="shrink-0 @max-[640px]:hidden"><MemberStack members={members} /></span>}
                     {(isMember || isAdmin) && (
                         <div className="flex items-center gap-0.5">
-                            <NotificationLevelMenu level={projectNotification} onChoose={chooseNotification} />
+                            <NotificationLevelMenu level={notification.level} onChoose={notification.choose} />
                             <ProjectActionsMenu
                                 projectId={projectId}
                                 projectName={project?.project_name}
@@ -212,13 +190,13 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                         crossfade as they change (120 ms, opacity). */}
                     <div className="min-h-0 flex-1 overflow-y-auto">
                         {/* Kept alive once seen: going back to a tab is instant. */}
-                        <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="mt-0 h-full outline-none data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
+                        <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="mt-0 h-full data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
                             <ProjectTaskTable projectId={projectId} onLayout={(l) => handleTabChange(l)} />
                         </KeptTab>
-                        <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="mt-0 h-full outline-none data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
+                        <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="mt-0 h-full data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
                             <Board.View fallback={<TabLoading kind="board" />} render={(m) => <m.ProjectTaskKanban projectId={projectId} className="px-5 pt-3" />} />
                         </KeptTab>
-                        <KeptTab value="timeline" selected={selectedTab === "timeline"} seen={seen.has("timeline")} className="mt-0 h-full outline-none data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
+                        <KeptTab value="timeline" selected={selectedTab === "timeline"} seen={seen.has("timeline")} className="mt-0 h-full data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
                             <Timeline.View
                                 fallback={<TabLoading kind="timeline" />}
                                 render={(m) => (
@@ -231,13 +209,13 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                 )}
                             />
                         </KeptTab>
-                        <TabsContent value="updates" className="mt-0 outline-none [animation:work-fade-in_120ms_var(--ease-out)]">
+                        <TabsContent value="updates" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
                             <Updates.View fallback={<TabLoading kind="list" />} render={(m) => <m.ProjectUpdates projectId={projectId} />} />
                         </TabsContent>
-                        <TabsContent value="attachments" className="mt-0 outline-none [animation:work-fade-in_120ms_var(--ease-out)]">
+                        <TabsContent value="attachments" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
                             <Files.View fallback={<TabLoading kind="list" />} render={(m) => <m.ProjectAttachments projectId={projectId} projectName={project?.project_name} canLink={isMember} />} />
                         </TabsContent>
-                        <TabsContent value="docs" className="mt-0 outline-none [animation:work-fade-in_120ms_var(--ease-out)]">
+                        <TabsContent value="docs" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
                             <Docs.View fallback={<TabLoading kind="list" />} render={(m) => <m.default space={`project:${projectId}` as const} name={project?.project_name} />} />
                         </TabsContent>
                     </div>

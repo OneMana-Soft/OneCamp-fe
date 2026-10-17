@@ -119,7 +119,7 @@ export function PostMessageLongPressDrawer({ drawerOpenState, copyTextToClipboar
                                 preSelectedEmojis.map(( e) => {
                                     return (
 
-                                        <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-muted/50 transition-colors" key={e.emojiId} aria-label={`React with ${e.emojiName}`} onClick={()=>{emojiClick(e.emojiId)}}>
+                                        <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 transition-colors" key={e.emojiId} aria-label={`React with ${e.emojiName}`} onClick={()=>{emojiClick(e.emojiId)}}>
                                             <span className="text-2xl">{e.emojiString}</span>
                                         </Button>
                                     )
@@ -130,7 +130,7 @@ export function PostMessageLongPressDrawer({ drawerOpenState, copyTextToClipboar
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="rounded-full h-12 w-12 hover:bg-muted/50 transition-colors"
+                                className="rounded-full h-12 w-12 transition-colors"
                                 aria-label="Pick another reaction"
                                 onClick={() => onAddEmoji()}
                             >

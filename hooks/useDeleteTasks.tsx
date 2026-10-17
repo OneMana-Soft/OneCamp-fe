@@ -4,7 +4,7 @@ import { useCallback } from "react"
 import { toast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { useBulkTaskUpdate, type BulkResult } from "@/hooks/useBulkTaskUpdate"
-import { notDone, tasksCount } from "@/lib/bulkTasks"
+import { notDone, tasksCount, whyNotDone } from "@/lib/bulkTasks"
 import type { TaskInfoInterface } from "@/types/task"
 
 /**
@@ -22,7 +22,7 @@ export function useDeleteTasks(listProjectId?: string) {
   const restore = useCallback(
     async (tasks: TaskInfoInterface[]) => {
       const r = await bulk(tasks, { field: "restore" })
-      if (r.failed > 0) toast({ variant: "destructive", title: notDone(r.failed, r.done.length, "brought back"), description: "The list shows them as they are." })
+      if (r.failed > 0) toast({ variant: "destructive", title: notDone(r.failed, r.done.length, "brought back"), description: whyNotDone(r.error) })
       else if (r.done.length > 0) toast({ title: `Brought back ${named(r.done)}` })
     },
     [bulk],
@@ -35,15 +35,18 @@ export function useDeleteTasks(listProjectId?: string) {
         toast({
           variant: "destructive",
           title: notDone(r.failed, r.done.length, "deleted"),
-          description: "You may no longer be an admin of their project. The list shows them as they are.",
+          description: whyNotDone(r.error),
         })
       }
       if (r.done.length > 0) {
-        const done = r.done
+        // Undo brings back what this delete put in the trash. As they were
+        // read before it, the tasks are live, and a restore passes over a
+        // live task (lib/bulkTasks): Undo sent nothing and said nothing.
+        const trashed = r.done.map((t) => ({ ...t, task_deleted_at: new Date().toISOString() }))
         toast({
-          title: `Deleted ${named(done)}`,
+          title: `Deleted ${named(trashed)}`,
           action: (
-            <ToastAction altText="Undo: bring it back" onClick={() => void restore(done)}>
+            <ToastAction altText="Undo: bring it back" onClick={() => void restore(trashed)}>
               Undo
             </ToastAction>
           ),

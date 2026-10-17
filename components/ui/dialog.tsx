@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 
 const Dialog = DialogPrimitive.Root
 
@@ -127,10 +128,9 @@ const DialogContent = React.forwardRef<
           className={cn(
             // A 28px ghost icon button 14px from the corner.
             "absolute right-3.5 top-3.5 inline-flex h-7 w-7 items-center justify-center rounded-md",
-            "text-faint-foreground hover:text-foreground hover:bg-hover active:bg-press transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-            "disabled:pointer-events-none",
+            "text-faint-foreground hover:text-foreground disabled:pointer-events-none",
           )}
+          {...ix("icon")}
         >
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>

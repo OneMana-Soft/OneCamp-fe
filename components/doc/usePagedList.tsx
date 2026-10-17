@@ -4,6 +4,8 @@ import * as React from "react"
 
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
+import { Loader2 } from "@/lib/icons"
 
 /** One page of a list, as read from its answer: its rows, the whole list's count, the next page's cursor. */
 export interface ListPage<T> {
@@ -32,7 +34,7 @@ function PageLoader<T, D>({ url, index, read, onPage }: { url: string; index: nu
 }
 
 /** Pages as one list: each row the first time it appears, in page order. Pure. */
-export function joinPages<T>(pages: Array<T[] | undefined>, idOf: (row: T) => string): T[] {
+function joinPages<T>(pages: Array<T[] | undefined>, idOf: (row: T) => string): T[] {
   const seen = new Set<string>()
   const out: T[] = []
   for (const page of pages) {
@@ -103,4 +105,31 @@ export function usePagedList<T, D>(keyOf: (cursor?: string) => string | null, re
     moreFailed,
     retryMore: () => last?.retry(),
   }
+}
+
+/**
+ * The foot of a list read a page at a time (the doc lists, a search, the
+ * trash): "Couldn't load more docs." with Try again when the next page
+ * failed, Loading… while one is on its way, and nothing at the end. The
+ * failure is said here, so no toast says it too (SaysLoadFailure).
+ */
+export function PagedListFooter({ what, failed, loading, onRetry }: { what: string; failed: boolean; loading: boolean; onRetry: () => void }) {
+  return (
+    <div className="flex w-full justify-center py-4">
+      {failed ? (
+        <span role="alert" className="flex items-center gap-2 text-ui-sm text-ink-3">
+          <SaysLoadFailure />
+          Couldn&apos;t load more {what}.
+          <button type="button" onClick={onRetry} className="font-medium text-ink-2 underline-offset-2 hover:underline">
+            Try again
+          </button>
+        </span>
+      ) : loading ? (
+        <span role="status" className="flex items-center gap-2 text-ui-sm text-ink-3">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Loading…
+        </span>
+      ) : null}
+    </div>
+  )
 }

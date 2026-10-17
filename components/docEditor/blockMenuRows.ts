@@ -36,7 +36,7 @@ export interface MenuRow {
   run(): void
 }
 
-export interface MenuRows {
+interface MenuRows {
   main: MenuRow[]
   turn: MenuRow[]
   dir: MenuRow[]
@@ -58,7 +58,7 @@ export function blocksOf(editor: Editor, request: BlockMenuRequest): BlockRef[] 
 }
 
 /** Blocks side by side, as ranges: what one text selection can hold. */
-export function sideBySide(blocks: BlockRef[]): Array<{ from: number; to: number }> {
+function sideBySide(blocks: BlockRef[]): Array<{ from: number; to: number }> {
   const out: Array<{ from: number; to: number }> = []
   for (const b of [...blocks].sort((x, y) => x.pos - y.pos)) {
     const last = out[out.length - 1]
@@ -69,7 +69,7 @@ export function sideBySide(blocks: BlockRef[]): Array<{ from: number; to: number
 }
 
 /** The blocks' ids in document order (ctx.state.blocks), when every one has its id. */
-export function idsOf(blocks: BlockRef[]): string[] | undefined {
+function idsOf(blocks: BlockRef[]): string[] | undefined {
   const ids = [...blocks].sort((a, b) => a.pos - b.pos).map((b) => b.node.attrs.blockId as unknown)
   return ids.length && ids.every((id) => typeof id === "string" && id !== "") ? (ids as string[]) : undefined
 }
@@ -80,7 +80,7 @@ export function idsOf(blocks: BlockRef[]): string[] | undefined {
  * "press" is the phone's sheet, where an action leaves the doc's focus, and
  * the keyboard, alone).
  */
-export function contextFor(editor: Editor, docId: string, gate: { ai: boolean }, blocks: BlockRef[], request: Pick<BlockMenuRequest, "anchor" | "via">): ActionContext {
+function contextFor(editor: Editor, docId: string, gate: { ai: boolean }, blocks: BlockRef[], request: Pick<BlockMenuRequest, "anchor" | "via">): ActionContext {
   const ids = idsOf(blocks)
   return {
     docId,

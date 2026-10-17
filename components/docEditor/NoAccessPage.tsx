@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import Link from "next/link"
-import { Check, Lock } from "@/lib/icons"
+import { Check } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useFetch } from "@/hooks/useFetch"
@@ -14,7 +15,6 @@ import { ChoiceCards, InlineError } from "./chrome/parts"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { LoadFailureState } from "@/components/ui/load-failure-state"
 
-const QUIET = { suppressErrorToast: true } as never
 type Wanted = DocAccessRequest["level_wanted"]
 const VERB: Record<Wanted, string> = { view: "view it", comment: "comment on it", edit: "edit it" }
 
@@ -47,7 +47,7 @@ export function NoAccessPage({ docId, onGranted, canRequest = true, admin = fals
     accessRequestsKey(docId),
     undefined,
     { refreshInterval: (latest?: { data?: DocAccessRequests }) => (latest?.data?.outgoing?.some((r) => r.doc_uuid === docId && r.status === "pending") ? RECHECK_MS : 0) },
-    QUIET,
+    OWN_ERRORS,
   )
   const mine = requests.data?.data?.outgoing?.find((r) => r.doc_uuid === docId)
   const [level, setLevel] = React.useState<Wanted>("view")

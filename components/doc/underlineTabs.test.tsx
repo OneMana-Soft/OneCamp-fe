@@ -2,7 +2,7 @@ import * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import { UnderlineTabs, edgeMask } from "./underlineTabs"
+import { UnderlineTabs } from "./underlineTabs"
 
 // The docs home's tabs (docs programme B5): one can be chosen or none (while
 // a search shows every doc), and a row of tabs wider than its column fades
@@ -35,10 +35,8 @@ describe("underline tabs", () => {
     expect(pick.mock.calls.map((c) => c[0])).toEqual(["recent", "archived"])
   })
 
-  it("fade only an edge with more tabs past it", () => {
-    expect(edgeMask(false, false)).toBeUndefined()
-    expect(edgeMask(false, true)).toBe("linear-gradient(to right, black, black calc(100% - 24px), transparent)")
-    expect(edgeMask(true, false)).toBe("linear-gradient(to right, transparent, black 24px, black)")
-    expect(edgeMask(true, true)).toBe("linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent)")
+  it("fade an edge with more tabs past it, as every tab strip does (data-edge-fade)", () => {
+    render(<UnderlineTabs tabs={TABS} value="recent" onValueChange={() => {}} label="Docs" />)
+    expect(screen.getByRole("tablist").hasAttribute("data-edge-fade")).toBe(true)
   })
 })

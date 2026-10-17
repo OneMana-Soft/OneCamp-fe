@@ -59,7 +59,6 @@ const UserProfileDrawer = dynamic(() => import("@/components/drawers/userProfile
 const ChannelOptionsDrawer = dynamic(() => import("@/components/drawers/channelOptionsDrawer").then(mod => mod.ChannelOptionsDrawer), { ssr: false });
 const ChatOptionsDrawer = dynamic(() => import("@/components/drawers/chatOptionsDrawer").then(mod => mod.ChatOptionsDrawer), { ssr: false });
 const GroupChatOptionsDrawer = dynamic(() => import("@/components/drawers/groupChatOptionsDrawer").then(mod => mod.GroupChatOptionsDrawer), { ssr: false });
-const ChannelMobileSheet = dynamic(() => import("@/components/sheets/channelMobileSheet").then(mod => mod.ChannelMobileSheet), { ssr: false });
 const DocOptionsDrawer = dynamic(() => import("@/components/drawers/docOptionsDrawer").then(mod => mod.DocOptionsDrawer), { ssr: false });
 const EmojiPickerDrawer = dynamic(() => import("@/components/drawers/emojiPickerDrawer").then(mod => mod.EmojiPickerDrawer), { ssr: false });
 const TaskFilterDrawer = dynamic(() => import("@/components/drawers/taskFilterDrawer").then(mod => mod.TaskFilterDrawer), { ssr: false });
@@ -551,19 +550,10 @@ export function UnifiedUIManager() {
         />
       )}
 
-      {ui.channelInfoSheet.isOpen && (
-        <ChannelMobileSheet
-          open={ui.channelInfoSheet.isOpen}
-          onOpenChange={() => dispatch(closeUI('channelInfoSheet'))}
-          channelId={ui.channelInfoSheet.data.channelUUID}
-        />
-      )}
-
       {ui.docOptionsDrawer.isOpen && (
         <DocOptionsDrawer
           drawerOpenState={ui.docOptionsDrawer.isOpen}
           setOpenState={() => dispatch(closeUI('docOptionsDrawer'))}
-          deleteMessage={ui.docOptionsDrawer.data.deleteDoc}
           docId={ui.docOptionsDrawer.data.docId}
           isOwner={ui.docOptionsDrawer.data.isOwner}
         />

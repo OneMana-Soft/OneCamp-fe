@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 import { healthOf } from "@/lib/projectUpdates"
 
 /**
@@ -64,7 +65,7 @@ export function HealthWord({
   const base = cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap", chip && "chip h-6", className)
   if (onClick && (chip || (none && canWrite))) {
     return (
-      <button type="button" data-health-word={h?.value ?? "none"} onClick={onClick} className={cn(base, "transition-colors hover:bg-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring")}>
+      <button type="button" data-health-word={h?.value ?? "none"} onClick={onClick} data-touch-target="" {...ix("chip")} className={base}>
         {body}
       </button>
     )

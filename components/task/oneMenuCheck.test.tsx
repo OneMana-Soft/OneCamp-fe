@@ -107,7 +107,7 @@ describe("no list draws a check of its own", () => {
       "components/minimal-tiptap/extensions/simple-table/TableMenu.tsx": 2,
       "components/searchDropdown/selectUserToMessageDropdown/selectUserToMessageDropdown.tsx": 1,
       "components/table/gridCells.tsx": 1,
-      "components/task/cyclesButton.tsx": 1,
+      "components/task/cyclesSwitcher.tsx": 1,
     }
     const counted: Record<string, number> = {}
     for (const f of [...sources("components"), ...sources("app")]) {
@@ -121,11 +121,7 @@ describe("no list draws a check of its own", () => {
 
   it("has the filter menus and pickers set the row's own check", () => {
     for (const f of [
-      "components/task/taskTableFieldFilter.tsx",
-      "components/task/taskTableFacetedStatusFilter.tsx",
-      "components/task/taskTableFacetedPriorityFilter.tsx",
-      "components/task/taskTableFacetedAssigneeFilter.tsx",
-      "components/task/taskTableFacetedProjectFilter.tsx",
+      "components/task/fieldFilterMenu.tsx",
       "components/task/taskKanbanColumnPriorityFilter.tsx",
       "components/task/taskKanbanProjectFilter.tsx",
       "components/tags/TagFilter.tsx",

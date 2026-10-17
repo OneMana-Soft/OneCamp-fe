@@ -2,7 +2,7 @@ import * as React from "react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 let pathname = "/app/home"
 vi.mock("next/navigation", () => ({ usePathname: () => pathname, useRouter: () => ({ push: vi.fn() }) }))
@@ -86,11 +86,25 @@ describe("the tablet's rail", () => {
     pathname = "/app/channel/c1"
     const onList = vi.fn()
     rail({ onList, listOpen: true })
-    const cell = screen.getByRole("button", { name: /Hide the channel list/ })
+    const cell = screen.getByRole("button", { name: /^Channels/ })
     expect(cell.getAttribute("aria-expanded")).toBe("true")
     expect(cell.getAttribute("aria-current")).toBe("page")
     fireEvent.click(cell)
     expect(onList).toHaveBeenCalled()
+  })
+
+  // A cell's name begins with the word drawn on it (WCAG 2.5.3, label in
+  // name): in a channel, Channels was named "Hide the channel list", so "tap
+  // Channels" by voice found nothing.
+  it("names every cell by the word on it first, so a voice reaches it", () => {
+    pathname = "/app/channel/c1"
+    rail({ onList: vi.fn(), listOpen: false })
+    const cells = [...document.querySelectorAll(".tablet-cell")]
+    expect(cells.length).toBe(8)
+    for (const cell of cells) {
+      const word = cell.querySelector(".tablet-label")?.textContent ?? ""
+      expect(cell.getAttribute("aria-label")?.startsWith(word), `${word}: ${cell.getAttribute("aria-label")}`).toBe(true)
+    }
   })
 
   it("keeps everything else behind More: Later and Projects first, never Calendar twice", () => {
@@ -115,11 +129,43 @@ describe("the tablet's channel list", () => {
   it("as an overlay closes on Esc and on its scrim", () => {
     const onClose = vi.fn()
     render(<TabletListPanel mode="overlay" onClose={onClose}><p>rows</p></TabletListPanel>)
-    expect(screen.getByRole("dialog", { name: "Channels" })).toBeTruthy()
-    fireEvent.keyDown(window, { key: "Escape" })
+    const sheet = screen.getByRole("dialog", { name: "Channels" })
+    // The shared sheet (components/ui/overlaySheet): focus is in it.
+    expect(sheet.contains(document.activeElement)).toBe(true)
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" })
     expect(onClose).toHaveBeenCalledTimes(1)
     fireEvent.click(document.querySelector(".shell-scrim")!)
-    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  // An iPad with a keyboard: the overlay took the focus as it opened, and
+  // when Esc, the scrim or a picked channel closed it, the focus fell to the
+  // page with the removed list, so a keyboard started again from the top.
+  it("as an overlay gives the focus back to what opened it once it closes", async () => {
+    function Rail() {
+      const [open, setOpen] = React.useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Show the channel list</button>
+          {open && (
+            <TabletListPanel mode="overlay" onClose={() => setOpen(false)}>
+              <p>rows</p>
+            </TabletListPanel>
+          )}
+        </>
+      )
+    }
+    render(<Rail />)
+    const opener = screen.getByRole("button", { name: "Show the channel list" })
+    opener.focus()
+    fireEvent.click(opener)
+    expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Channels" }))
+    // Pressed where a key goes, on what has the focus: the shared sheet hears
+    // it on the document, as a dialog does, not on the window.
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" })
+    expect(screen.queryByRole("dialog", { name: "Channels" })).toBeNull()
+    // A tick later: the sheet's focus scope gives it back as it unmounts.
+    await waitFor(() => expect(document.activeElement).toBe(opener))
   })
 
   it("docked, is a sheet of its own that can be hidden, with no scrim", () => {
@@ -158,7 +204,8 @@ describe("the shell under a finger", () => {
   it("opens the right panel over the page on a tablet and under 1100px, on a scrim that closes it", () => {
     const layout = readFileSync(join(root, "app/app/LayoutContent.tsx"), "utf8")
     const overlay = layout.slice(layout.indexOf("const panelOverlay = "), layout.indexOf("if (tablet) {"))
-    expect(overlay).toMatch(/className="shell-scrim"[^>]*onClick=\{\(\) => dispatch\(closeRightPanel\(\)\)\}/)
+    // The shared sheet over the page, its scrim closing it (components/ui/overlaySheet).
+    expect(overlay).toMatch(/<OverlaySheet[\s\S]*?onClose=\{\(\) => dispatch\(closeRightPanel\(\)\)\}/)
     expect(overlay).toMatch(/shell-panel-over/)
     // The tablet draws it over the page, never as a column.
     const tabletBranch = layout.slice(layout.indexOf("if (tablet) {"), layout.indexOf("// Split view: two views share"))

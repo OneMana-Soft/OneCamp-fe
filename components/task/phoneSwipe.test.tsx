@@ -7,20 +7,11 @@ vi.mock("@/lib/celebrate", () => ({ celebrateTask: () => 8, prefersReducedMotion
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import { TaskListTask } from "@/components/task/taskListTask"
+import { installPointerEvent } from "@/lib/testing/pointerEvent"
 
 afterEach(cleanup)
 
-// jsdom has no PointerEvent; a MouseEvent that carries pointerType stands in.
-if (typeof window.PointerEvent === "undefined") {
-  class FakePointerEvent extends MouseEvent {
-    pointerType: string
-    constructor(type: string, init: MouseEventInit & { pointerType?: string } = {}) {
-      super(type, init)
-      this.pointerType = init.pointerType ?? "mouse"
-    }
-  }
-  ;(window as unknown as { PointerEvent: unknown }).PointerEvent = FakePointerEvent
-}
+installPointerEvent()
 
 const task = { task_uuid: "t-1", task_name: "Book the launch retro", task_status: "todo", task_priority: "", task_label: "", task_due_date: "", task_comment_count: 0, task_sub_task_count: 0, task_project: { project_uuid: "p-1", project_name: "Q4 launch" } } as unknown as TaskInfoInterface
 

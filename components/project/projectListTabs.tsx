@@ -7,11 +7,7 @@ import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
 import { ProjectActionsMenu, type ProjectMenuExtra } from "@/components/project/ProjectToolButtons"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
-import { usePost } from "@/hooks/usePost"
-import { PostEndpointUrl } from "@/services/endPoints"
-import { optimistic } from "@/lib/optimistic"
-import { NotificationType } from "@/types/channel"
-import type { ProjectNotificationInterface } from "@/types/project"
+import { useProjectNotification } from "@/hooks/useNotificationLevel"
 import { Pencil, Users } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -71,22 +67,8 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
     // notifications, its name and its members, which the top bar's own
     // options sheet held while the bar had a second "⋯".
     const dispatch = useDispatch()
-    const postNotification = usePost()
-    const [notification, setNotification] = useState<string>(NotificationType.NotificationAll)
-    useEffect(() => {
-        if (info?.notification_type) setNotification(info.notification_type)
-    }, [info?.notification_type])
-    // A level is chosen from the menu's Notifications, shown at once and taken
-    // back if the server refuses it (PTC-26: one tap cycled it).
-    const chooseNotification = (level: string) => {
-        const before = notification
-        void optimistic({
-            key: `project:${projectId}:notify`,
-            apply: () => setNotification(level),
-            revert: () => setNotification(before),
-            commit: () => postNotification.makeRequest<ProjectNotificationInterface>({ payload: { project_id: projectId, notification_type: level }, apiEndpoint: PostEndpointUrl.UpdateProjectNotification }),
-        })
-    }
+    // Its Notifications: a level chosen, not cycled (hooks/useNotificationLevel).
+    const notification = useProjectNotification(projectId, info?.notification_type)
     const extra: ProjectMenuExtra[] = [
         ...(info?.project_is_admin
             ? [{ key: "rename", label: "Edit project name", Icon: Pencil, onSelect: () => dispatch(openUI({ key: "editProjectName", data: { projectUUID: projectId } })) }]
@@ -103,7 +85,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             <div className="grid shrink-0 grid-cols-[minmax(0,1fr)] gap-1.5 px-4 pt-3">
                 <div className="flex items-center gap-1">
                     <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 overflow-hidden" />
-                    <ProjectActionsMenu compact projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} archived={!isZeroEpoch(info?.project_deleted_at || "")} notifications={{ level: notification, onChoose: chooseNotification }} extra={extra} />
+                    <ProjectActionsMenu compact projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} archived={!isZeroEpoch(info?.project_deleted_at || "")} notifications={{ level: notification.level, onChoose: notification.choose }} extra={extra} />
                 </div>
                 {/* Each piece loads on its own, so each has its place from the
                     first paint: the chips in a row of their own. The goal's name
@@ -127,15 +109,15 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             onValueChange={(v) => setSelectedTab(v as Tab)}
             className="min-h-0 flex-1"
         >
-            <SectionTabsContent value="task" className="flex-1 min-h-0 outline-none flex flex-col">
+            <SectionTabsContent value="task" className="flex-1 min-h-0 flex flex-col">
                 <ProjectListTabContent selectedTab="task" projectId={projectId} />
             </SectionTabsContent>
-            <SectionTabsContent value="board" className="flex-1 min-h-0 outline-none">
+            <SectionTabsContent value="board" className="flex-1 min-h-0">
                 {/* No side padding: the board runs to the screen's edges and keeps its
                     own 16px margin, so the next column can peek in at the right. */}
                 <ProjectTaskKanban projectId={projectId} className="pt-3" />
             </SectionTabsContent>
-            <SectionTabsContent value="timeline" className="flex-1 min-h-0 outline-none">
+            <SectionTabsContent value="timeline" className="flex-1 min-h-0">
                 <ProjectTimeline
                     key={projectId}
                     compact
@@ -144,13 +126,13 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                     onOpenTask={(taskUUID) => router.push(`${app_task_path}/${taskUUID}`)}
                 />
             </SectionTabsContent>
-            <SectionTabsContent value="updates" className="flex-1 min-h-0 overflow-y-auto outline-none">
+            <SectionTabsContent value="updates" className="flex-1 min-h-0 overflow-y-auto">
                 <ProjectUpdates projectId={projectId} />
             </SectionTabsContent>
-            <SectionTabsContent value="attachment" className="flex-1 min-h-0 outline-none">
+            <SectionTabsContent value="attachment" className="flex-1 min-h-0">
                 <ProjectListTabContent selectedTab="attachment" projectId={projectId} />
             </SectionTabsContent>
-            <SectionTabsContent value="docs" className="flex-1 min-h-0 overflow-y-auto outline-none">
+            <SectionTabsContent value="docs" className="flex-1 min-h-0 overflow-y-auto">
                 <SpaceDocs space={`project:${projectId}` as const} name={info?.project_name} />
             </SectionTabsContent>
         </SectionTabs>

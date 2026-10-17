@@ -167,3 +167,19 @@ describe("Move to… (structure.md P0.5)", () => {
     expect(keepWording({ space: null, was: { kind: "team", uuid: "t", name: "Design", members: 4 } })).toBe("Its own people and teams keep it, and being in “Design” no longer opens it.")
   })
 })
+
+// Review, 15 Oct 2026: searching for a page in Japanese, the Enter that picks
+// the word moved the page to whichever result was highlighted (lib/keys/ime.ts).
+describe("Move to…'s search, typed through an input method", () => {
+  it("moves nothing on the Enter that picks a word; a plain Enter chooses", async () => {
+    hoisted.previewDocMove.mockResolvedValue({ available: true, can_adopt: true, lose: 0, gain: 0, pages: 0, summary: "" })
+    render(<MoveToDialog docId="m1" onClose={() => {}} />)
+    const search = screen.getByRole("combobox", { name: "Search for a page" })
+    await act(async () => void fireEvent.keyDown(search, { key: "Enter", isComposing: true }))
+    await act(async () => void fireEvent.keyDown(search, { key: "Enter", keyCode: 229 }))
+    expect(hoisted.moveDoc).not.toHaveBeenCalled()
+    expect(hoisted.previewDocMove).not.toHaveBeenCalled()
+    await act(async () => void fireEvent.keyDown(search, { key: "Enter" }))
+    expect(hoisted.moveDoc.mock.calls.length + hoisted.previewDocMove.mock.calls.length).toBeGreaterThan(0)
+  })
+})

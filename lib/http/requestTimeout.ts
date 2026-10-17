@@ -3,17 +3,18 @@ import type { AxiosRequestConfig } from "axios"
 /** How long a request waits for an answer (FE-F-10). */
 export const REQUEST_TIMEOUT_MS = 30_000
 
-const UNTIMED_ROUTES = [/\/ai\//, /\/ai[A-Z]/, /[/-]ai-/, /\/(generate|draft|query-plan)(\/|$)/, /\/(import|export|restore)/i, /\/(test|test-connection|check)(\/|$)/]
+/** Writes answered as their work ends: a run, an eval, a drill, a summary. */
+const RUNS_TO_THE_END = /\/(run|summary)$/
 
-const FILE_ANSWERS = ["blob", "arraybuffer", "stream", "document"]
+const UNTIMED_ROUTES = [/\/ai\/|\/ai[A-Z]|[/-]ai-/, /\/(generate|draft|query-plan|test|test-connection|check)(\/|$)/, /\/(import|export|restore)/i]
 
 /** No timeout for a file, followed progress, or a slow route. */
 export function waitsAsLongAsItTakes(c: AxiosRequestConfig): boolean {
   const d = c.data
-  if ((typeof FormData !== "undefined" && d instanceof FormData) || (typeof Blob !== "undefined" && d instanceof Blob) || d instanceof ArrayBuffer || ArrayBuffer.isView(d)) return true
-  if (FILE_ANSWERS.includes(c.responseType ?? "") || c.onUploadProgress || c.onDownloadProgress) return true
+  if (d instanceof FormData || d instanceof Blob || d instanceof ArrayBuffer || ArrayBuffer.isView(d)) return true
+  if (/^(blob|arraybuffer|stream|document)$/.test(c.responseType ?? "") || c.onUploadProgress || c.onDownloadProgress) return true
   const path = (c.url || "").split("?")[0]
-  return UNTIMED_ROUTES.some((r) => r.test(path))
+  return UNTIMED_ROUTES.some((r) => r.test(path)) || (RUNS_TO_THE_END.test(path) && (c.method ?? "get").toLowerCase() !== "get")
 }
 
-export const isTimeout = (e: { code?: string } | null | undefined) => e?.code === "ECONNABORTED" || e?.code === "ETIMEDOUT"
+export const isTimeout = (e?: { code?: string }) => e?.code === "ECONNABORTED" || e?.code === "ETIMEDOUT"

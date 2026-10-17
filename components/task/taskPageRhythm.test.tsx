@@ -31,7 +31,7 @@ vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: fa
 const { TaskTimeSection } = await import("@/components/task/taskTimeSection")
 const { inlineAffordance, inlineSelect } = await import("@/lib/ui/fieldRow")
 const { TaskEstimateField } = await import("@/components/task/taskEstimateField")
-const { DateField } = await import("@/components/task/taskDateField")
+const { DateProperty } = await import("@/components/task/taskDateField")
 const { TaskStatusPriorityControl } = await import("@/components/task/taskStatusPriorityControl")
 
 afterEach(cleanup)
@@ -68,7 +68,7 @@ describe("the task page's own controls under a finger (PTC-14)", () => {
   it("take a 44px target: the dates, status, priority, a typed value and the time row", () => {
     render(
       <>
-        <DateField bare isAdmin label="Due" value={new Date(2026, 9, 14)} onSelect={() => {}} />
+        <DateProperty bare isAdmin label="Due" value={new Date(2026, 9, 14)} onSelect={() => {}} />
         <TaskStatusPriorityControl isAdmin onSelectStatus={() => {}} onSelectPriority={() => {}} />
         <TaskEstimateField taskUUID="t" projectUUID="p" canEdit />
         <TaskTimeSection taskUUID="t" />

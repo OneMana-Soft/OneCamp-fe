@@ -203,19 +203,19 @@ const AdminPage = () => {
                 <AdminCardSkeleton />
               ) : (
               <>
-              <TabsContent value="teams" className="mt-0 outline-none">
+              <TabsContent value="teams" className="mt-0">
                 <TeamsCard />
               </TabsContent>
-              <TabsContent value="users" className="mt-0 outline-none">
+              <TabsContent value="users" className="mt-0">
                 <UserCard />
               </TabsContent>
-              <TabsContent value="admins" className="mt-0 outline-none">
+              <TabsContent value="admins" className="mt-0">
                 <AdminCard />
               </TabsContent>
-              <TabsContent value="invitations" className="mt-0 outline-none">
+              <TabsContent value="invitations" className="mt-0">
                 <InvitationCard />
               </TabsContent>
-              <TabsContent value="email-settings" className="mt-0 outline-none">
+              <TabsContent value="email-settings" className="mt-0">
                 {/* The key first: nothing below it sends until it is set. */}
                 <div className={ADMIN_SECTION_STACK}>
                   <EmailProviderCard />
@@ -229,7 +229,7 @@ const AdminPage = () => {
                   OWN sections. At 6 the gap between two top-level cards was tighter than the gap
                   between subsections inside one of them, which reads as though the cards belong
                   together. Separation has to grow with level, not shrink. */}
-              <TabsContent value="settings" className="mt-0 outline-none">
+              <TabsContent value="settings" className="mt-0">
                 {/* General was six unrelated cards. Access and provisioning moved to
                     Security, and the audit log with its retention policy to Audit
                     log, so each section answers one question. */}
@@ -240,14 +240,14 @@ const AdminPage = () => {
                   <PushNotificationsCard />
                 </div>
               </TabsContent>
-              <TabsContent value="security" className="mt-0 outline-none">
+              <TabsContent value="security" className="mt-0">
                 {/* Who may get in from outside, then how members are provisioned. */}
                 <div className={ADMIN_SECTION_STACK}>
                   <GuestAccessCard />
                   <ScimProvisioningCard />
                 </div>
               </TabsContent>
-              <TabsContent value="audit" className="mt-0 outline-none">
+              <TabsContent value="audit" className="mt-0">
                 {/* Retention beside the log, because it is the policy that explains
                     why an old entry has no content. */}
                 <div className={ADMIN_SECTION_STACK}>
@@ -258,43 +258,43 @@ const AdminPage = () => {
               {/* Its own tab rather than a card under Settings: this is a diagnostic, not a
                   setting, and the Settings tab's order is a deliberate progression that an
                   unrelated card in the middle of it would break. */}
-              <TabsContent value="health" className="mt-0 outline-none">
+              <TabsContent value="health" className="mt-0">
                 <div className={ADMIN_SECTION_STACK}>
                   <UpdatesCard />
                   <SystemCheckCard />
                 </div>
               </TabsContent>
-              <TabsContent value="permissions" className="mt-0 outline-none">
+              <TabsContent value="permissions" className="mt-0">
                 <PermissionsCard />
               </TabsContent>
               {callsAvailable && (
-              <TabsContent value="transcription" className="mt-0 outline-none">
+              <TabsContent value="transcription" className="mt-0">
                 <TranscriptionSettingsCard />
               </TabsContent>
               )}
-              <TabsContent value="webhooks" className="mt-0 outline-none">
+              <TabsContent value="webhooks" className="mt-0">
                 <WebhooksCard />
               </TabsContent>
-              <TabsContent value="workflows" className="mt-0 outline-none">
+              <TabsContent value="workflows" className="mt-0">
                 <WorkflowsCard />
               </TabsContent>
-              <TabsContent value="apps" className="mt-0 outline-none">
+              <TabsContent value="apps" className="mt-0">
                 <AppsCard />
               </TabsContent>
-              <TabsContent value="integrations" className="mt-0 outline-none">
+              <TabsContent value="integrations" className="mt-0">
                 <div className={ADMIN_SECTION_STACK}>
                   <SlackBridgeCard />
                   <GitHubIntegrationCard />
                   <OAuthConfigCard />
                 </div>
               </TabsContent>
-              <TabsContent value="external-users" className="mt-0 outline-none">
+              <TabsContent value="external-users" className="mt-0">
                 <ExternalUsersCard />
               </TabsContent>
-              <TabsContent value="archive" className="mt-0 outline-none">
+              <TabsContent value="archive" className="mt-0">
                 <ArchiveCard />
               </TabsContent>
-              <TabsContent value="import" className="mt-0 outline-none">
+              <TabsContent value="import" className="mt-0">
                 <div className={ADMIN_SECTION_STACK}>
                   {/* Slack first: chat history is the migration most teams arrive
                       with, and the other providers carry projects and tasks

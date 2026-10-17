@@ -1,17 +1,6 @@
 "use client"
 
 import type { Editor } from '@tiptap/react'
-import type { EditorView } from '@tiptap/pm/view'
-import type { EditorState } from '@tiptap/pm/state'
-
-export interface ShouldShowProps {
-  editor: Editor
-  view: EditorView
-  state: EditorState
-  oldState?: EditorState
-  from: number
-  to: number
-}
 
 export interface FormatAction {
   label: string

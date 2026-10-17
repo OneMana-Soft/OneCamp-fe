@@ -73,7 +73,7 @@ export function ProjectRing({ value, hue, size = 28, draw = false }: { value: nu
           />
         ) : null}
       </svg>
-      <b className="absolute inset-0 grid place-items-center text-micro font-semibold text-ink-2 opacity-0 transition-opacity group-hover/card:opacity-100 [@media(hover:none)]:opacity-0">{pct}%</b>
+      <b className="absolute inset-0 grid place-items-center text-micro font-semibold text-ink-2 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-visible/card:opacity-100 [@media(hover:none)]:opacity-0">{pct}%</b>
     </span>
   )
 }

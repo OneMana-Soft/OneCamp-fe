@@ -1,4 +1,3 @@
-import { editedAtAfter } from "@/lib/chat/replyEdit";
 import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import {createSlice} from "@reduxjs/toolkit";
 import {ExtendedScrollToBottom, FilePreview, ScrollToBottom} from "@/store/slice/channelSlice";
@@ -100,7 +99,6 @@ interface UpdateChatByChatId {
     messageId: string
     grpId: string
     htmlText: string
-    /** A revert's (F-07); null: never edited. */
     updatedAt?: string | null
 }
 
@@ -432,7 +430,7 @@ const groupChatSlice = createSlice({
             if (!state.chatMessages[grpId]) return
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
                 if(messageId == chat.chat_uuid) {
-                    chat.chat_updated_at = editedAtAfter(chat.chat_updated_at, chat.chat_body_text, htmlText, updatedAt)
+                    if (updatedAt !== undefined) chat.chat_updated_at = updatedAt ?? undefined
                     chat.chat_body_text = htmlText
                     chat.chat_live_at = Date.now()
                 }

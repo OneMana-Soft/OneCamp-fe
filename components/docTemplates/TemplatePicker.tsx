@@ -26,6 +26,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { BUILTIN_DOC_TEMPLATES, templateGlyph, templateHue } from "@/lib/docTemplates"
 import { Loader2, Search } from "@/lib/icons"
+import { isComposingKey } from "@/lib/keys/ime"
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -158,6 +159,8 @@ export default function TemplatePicker({ mode, onClose }: { mode: PickerMode; on
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // An input method's Enter picks its word: it never uses a template.
+    if (isComposingKey(e.nativeEvent)) return
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter") return
     if (!chosen) return
     e.preventDefault()
@@ -173,7 +176,7 @@ export default function TemplatePicker({ mode, onClose }: { mode: PickerMode; on
   const categories = categoriesOf(all)
 
   const finder = (
-    <label className="flex h-9 items-center gap-2 rounded-lg bg-raised px-2.5 text-ink-3 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50">
+    <label className="flex h-9 items-center gap-2 rounded-lg bg-raised px-2.5 text-ink-3 shadow-e1 focus-within:focus-halo">
       <Search className="size-3.5 shrink-0" aria-hidden="true" />
       <input
         autoFocus={!isMobile}

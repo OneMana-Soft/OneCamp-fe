@@ -8,11 +8,12 @@ import type { ActionContext } from "@/components/docEditor/registry/types"
 import { docFileOf, viewableFileUrl } from "@/lib/docFiles"
 import { isSafeHref } from "@/lib/utils/safeHref"
 import { exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
-import { ImageNotUploadable, findImageById, imageUploadsOf, type ImageUploadFn } from "../image/uploads"
+import { ImageNotUploadable, findImageById, imageUploadsOf, refusalOf, type ImageUploadFn } from "../image/uploads"
 import { docUploadOf, fileKindOf, pickFiles } from "../file-block/fileBlock"
 import { uploadLimitNow } from "../file-block/uploadLimit"
 import { fillPreview } from "../smart-paste/linkActions"
 import { trackPos } from "../smart-paste/smartPaste"
+import { blocksWithIds, type BlockAt } from "../block-commands/blockIds"
 import { blockAt } from "./contrib"
 
 export type BlockActionId = "replace" | "crop" | "alt" | "link" | "refresh" | "toBookmark" | "toEmbed" | "toLink" | "open" | "download"
@@ -20,8 +21,19 @@ export type BlockActionId = "replace" | "crop" | "alt" | "link" | "refresh" | "t
 /** The picture a dialog works on (crop, alt text, link), handed over by the action that opened it. */
 let pending: { editor: Editor; at: ReturnType<typeof trackPos>; mode: "alt" | "link" } | null = null
 
+/** The picture a crop or words dialog was opened for. */
+interface PendingImage {
+  /** The picture as the dialog opened on it: what the dialog shows first. */
+  node: PMNode
+  mode: "alt" | "link"
+  /** Sets attributes on the picture wherever it is now; when it's gone, says that this (what) wasn't saved. */
+  save(attrs: Record<string, unknown>, what: string): void
+  /** The dialog has closed. */
+  done(): void
+}
+
 /** The picture the crop or words dialog was opened for, if it is still there. */
-export function takePendingImage(): { editor: Editor; node: PMNode; pos: number; mode: "alt" | "link"; done(): void } | null {
+export function takePendingImage(): PendingImage | null {
   const p = pending
   pending = null
   if (!p) return null
@@ -31,15 +43,38 @@ export function takePendingImage(): { editor: Editor; node: PMNode; pos: number;
     p.at.stop()
     return null
   }
-  return { editor: p.editor, node, pos: pos!, mode: p.mode, done: p.at.stop }
+  const { editor, at } = p
+  return {
+    node,
+    mode: p.mode,
+    save(attrs, what) {
+      const now = pictureNow(editor, at.pos(), node)
+      if (!now) {
+        toast({ title: `Couldn't save the ${what}`, description: "The picture was deleted while you were editing it.", variant: "destructive" })
+        return
+      }
+      editor.view.dispatch(editor.state.tr.setNodeMarkup(now.pos, undefined, { ...now.node.attrs, ...attrs }))
+    },
+    done: at.stop,
+  }
 }
 
-/** Sets attributes on the node at a tracked position, if it is still the same kind. */
-export function setAt(editor: Editor, pos: number, type: string, attrs: Record<string, unknown>, history = true) {
-  const node = editor.state.doc.nodeAt(pos)
-  if (!node || node.type.name !== type) return
-  const tr = editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...attrs })
-  editor.view.dispatch(history ? tr : tr.setMeta("addToHistory", false))
+/**
+ * Where a picture is now, while its dialog was open. Another person's change
+ * comes in as the whole doc replaced (y-prosemirror), which no position
+ * survives, so it's found by its block id; one with no id yet is where its
+ * position was followed to.
+ */
+function pictureNow(editor: Editor, followed: number | null, was: PMNode): BlockAt | null {
+  const { doc } = editor.state
+  const id = was.attrs.blockId
+  let at: BlockAt | null = null
+  if (typeof id === "string" && id) at = blocksWithIds(doc, [id])[0] ?? null
+  else if (followed !== null) {
+    const node = doc.nodeAt(followed)
+    at = node ? { pos: followed, node } : null
+  }
+  return at?.node.type.name === "image" ? at : null
 }
 
 /** The block replaced by a paragraph holding its link. */
@@ -60,7 +95,7 @@ export async function replaceUpload(editor: Editor, id: string, type: "image" | 
   const uploads = imageUploadsOf(editor, type)
   const u = uploads?.get(id)
   if (!uploads || !u) return
-  uploads.update(id, { status: "uploading", progress: 0 })
+  uploads.update(id, { status: "uploading", progress: 0, message: undefined })
   const signal = uploads.attempt(id)
   try {
     const res = await upload(u.file, editor, { signal, onProgress: (f) => uploads.update(id, { progress: Math.max(0, Math.min(1, f)) }) })
@@ -75,7 +110,7 @@ export async function replaceUpload(editor: Editor, id: string, type: "image" | 
   } catch (e) {
     if (signal.aborted || editor.isDestroyed) return
     if (e instanceof ImageNotUploadable) uploads.remove(id)
-    else uploads.update(id, { status: "failed" })
+    else uploads.update(id, { status: "failed", message: refusalOf(e) })
   }
 }
 

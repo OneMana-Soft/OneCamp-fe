@@ -14,7 +14,7 @@ import type { MarketplaceTemplate } from "@/services/marketplaceService"
 import type { DocTemplatePayload } from "@/types/docHome"
 
 /** The docs home's endpoints. */
-export const DocHomeEndpoint = {
+const DocHomeEndpoint = {
   Search: "/doc/search",
   ApplyTemplate: "/doc/applyTemplate",
   SaveAsTemplate: "/doc/saveAsTemplate",
@@ -22,7 +22,7 @@ export const DocHomeEndpoint = {
 } as const
 
 /** The fewest letters a search is asked with (the server refuses fewer). */
-export const SEARCH_MIN_LETTERS = 2
+const SEARCH_MIN_LETTERS = 2
 
 /** One page of a search: what was typed (trimmed), whose docs, from where. */
 export function searchKey(q: string, opts: { owner?: string; cursor?: string; limit?: number } = {}): string {
@@ -58,7 +58,7 @@ export function docTemplatePayload(t: Pick<MarketplaceTemplate, "name" | "payloa
 }
 
 /** The galleries that list doc templates: asked again after one is added or removed. */
-export function refreshDocTemplates() {
+function refreshDocTemplates() {
   void appMutate((key: unknown) => typeof key === "string" && key.startsWith(DocHomeEndpoint.Templates))
 }
 

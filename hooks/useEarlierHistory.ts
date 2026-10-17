@@ -49,6 +49,9 @@ export function useEarlierHistory(taskUUID: string, newest: TaskActivityInterfac
         const base = cur.task === taskUUID ? cur.lines : []
         return { task: taskUUID, lines: [...page, ...base], more: Boolean(res.data?.data?.task_activity_has_more) && page.length > 0 }
       })
+    } catch {
+      // The request says it failed (the API client's read toast); the button
+      // stays, for another try.
     } finally {
       setLoading(false)
     }

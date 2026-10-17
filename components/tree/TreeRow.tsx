@@ -8,6 +8,8 @@
 import { memo, type DragEvent, type KeyboardEvent, type ReactNode } from "react"
 import { ChevronRight } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
+import type { CampHue } from "@/lib/campHue"
 import { DropMark, type DropZone } from "@/components/tree/treeDnd"
 
 export interface TreeRowProps {
@@ -17,6 +19,8 @@ export interface TreeRowProps {
   title: string
   placeholder: string
   icon?: ReactNode
+  /** The row's hue (data-hue): what it is tints its hover and selected states. */
+  hue?: CampHue | null
   hasChildren: boolean
   open: boolean
   focused: boolean
@@ -51,6 +55,8 @@ export const TreeRow = memo(function TreeRow(p: TreeRowProps) {
       aria-label={label}
       data-tree-id={p.id}
       data-tree-parent={p.parent ?? ""}
+      // A nav row of the interaction layer, in the row's hue (D13, SH-01).
+      {...ix("nav", { hue: p.hue ?? undefined })}
       tabIndex={p.focused ? 0 : -1}
       draggable={p.draggable}
       onFocus={p.onFocus}
@@ -79,7 +85,8 @@ export const TreeRow = memo(function TreeRow(p: TreeRowProps) {
                 e.stopPropagation()
                 p.onToggle()
               }}
-              className={cn("absolute inset-0 items-center justify-center rounded-sm hover:bg-[var(--press)]", p.open ? "flex" : "hidden group-hover:flex [@media(hover:none)]:flex")}
+              {...ix("icon")}
+              className={cn("absolute inset-0 items-center justify-center rounded-sm", p.open ? "flex" : "hidden group-hover:flex [@media(hover:none)]:flex")}
             >
               <ChevronRight aria-hidden="true" className={cn("h-3.5 w-3.5 transition-transform duration-100", p.open && "rotate-90")} />
             </button>

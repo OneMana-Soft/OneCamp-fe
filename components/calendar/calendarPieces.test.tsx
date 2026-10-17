@@ -1,27 +1,32 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { addDays } from "date-fns"
 
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn().mockResolvedValue({}), isSubmitting: false }) }))
 
 import { MonthView } from "./monthView"
-import { EventPopover, joinLinkOf, whenLabel } from "./eventPopover"
+import { EventPopover, whenLabel } from "./eventPopover"
+import { joinLinkOf } from "@/lib/calendar/joinLink"
 import { QuickCreateCard } from "./quickCreateCard"
 import { CalendarsPanel } from "./calendarsPopover"
 import { CalendarAgenda, nextItemId } from "./calendarAgenda"
 import { itemsByDay, layoutWeek, monthGridRange, placeItems } from "./calendarLayout"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+// Today is TEST_TODAY wherever the code under test reads the time.
+pinTestClock()
 
 afterEach(cleanup)
 
 const now = new Date(2026, 9, 15, 10, 0) // Thu 15 Oct
 const iso = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).toISOString()
 
-function month(items: Parameters<typeof placeItems>[0]) {
+function month(items: Parameters<typeof placeItems>[0], on = { onItemClick: vi.fn(), onDraft: vi.fn() }) {
   const { start, end } = monthGridRange(now)
   const placed = placeItems(items)
   const weeks = []
   for (let ws = start; ws <= end; ws = addDays(ws, 7)) weeks.push({ weekStart: ws, days: Array.from({ length: 7 }, (_, i) => addDays(ws, i)), tracks: layoutWeek(ws, placed) })
-  return render(<MonthView month={now} weeks={weeks} byDay={itemsByDay(placed, start, end)} now={now} onItemClick={vi.fn()} onDraft={vi.fn()} />)
+  return render(<MonthView month={now} weeks={weeks} byDay={itemsByDay(placed, start, end)} now={now} onItemClick={on.onItemClick} onDraft={on.onDraft} />)
 }
 
 describe("the month (C05, C06)", () => {
@@ -45,6 +50,21 @@ describe("the month (C05, C06)", () => {
   it("lists what doesn't fit behind +N more", () => {
     month([1, 2, 3, 4, 5].map((i) => ({ event_uuid: `m${i}`, event_title: `M${i}`, event_start_time: iso(15, 8 + i), event_end_time: iso(15, 9 + i) })))
     expect(screen.getByRole("button", { name: "+2 more" })).toBeTruthy()
+  })
+
+  it("opens the day's whole list there: an item opens beside +N more, and New event drafts 9:00 on that day", () => {
+    const on = { onItemClick: vi.fn(), onDraft: vi.fn() }
+    month([1, 2, 3, 4, 5].map((i) => ({ event_uuid: `m${i}`, event_title: `M${i}`, event_start_time: iso(15, 8 + i), event_end_time: iso(15, 9 + i) })), on)
+    const more = screen.getByRole("button", { name: "+2 more" })
+    fireEvent.click(more)
+    const list = document.querySelector("[data-day-overflow]") as HTMLElement
+    expect(within(list).getByText("Thu 15 Oct").className).toMatch(/text-brand-text/)
+    expect(["M1", "M2", "M3", "M4", "M5"].every((t) => within(list).queryByText(t))).toBe(true)
+    fireEvent.click(within(list).getByText("M5"))
+    expect(on.onItemClick).toHaveBeenCalledWith(expect.objectContaining({ event_uuid: "m5" }), more)
+    fireEvent.click(more)
+    fireEvent.click(screen.getByRole("button", { name: "New event" }))
+    expect(on.onDraft).toHaveBeenCalledWith({ start: new Date(2026, 9, 15, 9, 0), end: new Date(2026, 9, 15, 9, 30) }, more.parentElement)
   })
 })
 
@@ -129,5 +149,14 @@ describe("the agenda (C17)", () => {
     const row = document.querySelector("[data-next]") as HTMLElement
     expect(row.textContent).toMatch(/Next · in 60 min.*Design review/)
     expect(document.querySelector("[data-agenda=desktop]")?.className).toMatch(/max-w-\[720px\]/)
+  })
+
+  // PTC-9: "Launch day", a day long from another zone, read "09:30 / 09:30 – 09:30".
+  it("says a day-long event runs from its start and until its end, with both days", () => {
+    const launch = { event_uuid: "launch", event_title: "Launch day", event_start_time: iso(15, 9, 30), event_end_time: iso(16, 9, 30) }
+    render(<CalendarAgenda desktop days={[{ day: new Date(2026, 9, 15), items: [launch] }, { day: new Date(2026, 9, 16), items: [launch] }]} onOpen={vi.fn()} now={now} />)
+    const rows = Array.from(document.querySelectorAll('[data-agenda] [data-event-uuid="launch"]')).map((r) => r.textContent ?? "")
+    expect(rows[0]).toMatch(/^From .*9:30.*Launch day.*Thu.*9:30.*–.*Fri.*9:30/)
+    expect(rows[1]).toMatch(/^Until .*9:30.*Launch day/)
   })
 })

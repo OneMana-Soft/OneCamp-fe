@@ -67,7 +67,7 @@ interface SocketState {
 let state: SocketState | null = null
 
 /** The varString document name at the start of a Hocuspocus frame, and its type. */
-export function peekFrame(data: ArrayBuffer | Uint8Array): { name: string; type: number } | null {
+function peekFrame(data: ArrayBuffer | Uint8Array): { name: string; type: number } | null {
   const buf = data instanceof Uint8Array ? data : new Uint8Array(data)
   let i = 0
   const uint = () => {

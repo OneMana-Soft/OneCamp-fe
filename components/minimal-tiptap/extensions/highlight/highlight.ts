@@ -14,13 +14,13 @@ declare module '@tiptap/core' {
 }
 
 /** The highlighter's own colour: what ==text== and a bare <mark> get. */
-export const DEFAULT_HIGHLIGHT: DocColour = 'sun'
+const DEFAULT_HIGHLIGHT: DocColour = 'sun'
 
 const colourOf = (v: unknown): DocColour => (isDocColour(v) ? v : DEFAULT_HIGHLIGHT)
 
 /** ==text== as it is typed (K13): text that starts and ends with something other than a space. */
-export const HIGHLIGHT_TYPED = /(?:^|\s)(==([^=\s](?:[^=]*[^=\s])?)==)$/
-export const HIGHLIGHT_PASTED = /(?:^|\s)(==([^=\s](?:[^=]*[^=\s])?)==)/g
+const HIGHLIGHT_TYPED = /(?:^|\s)(==([^=\s](?:[^=]*[^=\s])?)==)$/
+const HIGHLIGHT_PASTED = /(?:^|\s)(==([^=\s](?:[^=]*[^=\s])?)==)/g
 
 /**
  * A highlight (editor.md P1-2): text on one of the doc colours' tints, stored

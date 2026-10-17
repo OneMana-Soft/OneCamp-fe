@@ -32,10 +32,8 @@ import { ConnectionCard, RowMenu, StateWord } from "@/components/admin/connectPa
 import { Copy, ExternalLink, Link2, Loader2, Unlink } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import type { ChannelInfoListInterfaceResp } from "@/types/channel"
 import {
     connectSlackBridge,
     disconnectSlackBridge,
@@ -70,9 +68,8 @@ const SlackBridgeCard: React.FC = () => {
     const [pickSlack, setPickSlack] = useState("")
     const [pickOneCamp, setPickOneCamp] = useState("")
 
-    const { data: channelsData } = useFetch<ChannelInfoListInterfaceResp>(
-        status?.connected ? GetEndpointUrl.GetAllActiveChannelList : "",
-    )
+    // Every channel, not the list's first page of 20 (useEveryChannel).
+    const { channels } = useEveryChannel(!!status?.connected)
 
     const load = useCallback(async () => {
         try {
@@ -103,8 +100,8 @@ const SlackBridgeCard: React.FC = () => {
     }, [status?.connected, loadSlackChannels])
 
     const oneCampChoices = useMemo(
-        () => linkableChannels(channelsData?.channels_list ?? [], status?.links ?? []),
-        [channelsData, status?.links],
+        () => linkableChannels(channels, status?.links ?? []),
+        [channels, status?.links],
     )
 
     const copy = useCallback(

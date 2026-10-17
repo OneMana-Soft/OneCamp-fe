@@ -40,6 +40,7 @@ import {
   type Votable,
 } from "@/lib/board/facilitation"
 import { followView, sceneToLocal, type BoardView } from "@/lib/board/viewport"
+import { ix } from "@/lib/ui/interactive"
 
 interface Props {
   provider: HocuspocusProvider
@@ -385,7 +386,8 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
                       <button
                         type="button"
                         onClick={() => goTo(r.id)}
-                        className="relative flex h-9 w-full items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-ui hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
+                        {...ix("item")}
+                        className="relative flex h-9 w-full items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-ui"
                       >
                         <span
                           aria-hidden="true"
@@ -649,7 +651,8 @@ function Choice({
               o.onPick()
               setOpen(false)
             }}
-            className="flex h-8 w-full items-center rounded-lg px-2 text-left text-ui text-ink hover:bg-press focus-visible:bg-press focus-visible:outline-none"
+            {...ix("item")}
+            className="flex h-8 w-full items-center rounded-lg px-2 text-left text-ui text-ink"
           >
             {o.label}
           </button>

@@ -21,7 +21,11 @@ import { HubRow, HubRowSkeleton, HubToolButton } from "@/components/ui/hubRow"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { HubFrame, HubTabs } from "@/components/activity/hubFrame"
 import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
-import { Bell, Bookmark, Check, ClipboardList, Clock, FileText, Hash, LayoutDashboard, MessageCircle, Undo2, X } from "@/lib/icons"
+import { Bell, Bookmark, Check, ClipboardList, Clock, Hash, LayoutDashboard, MessageCircle, Undo2, X } from "@/lib/icons"
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
+import { placeHue } from "@/lib/placeHue"
+import { PlaceMark, placeMarkHue } from "@/components/ui/graphics/placeMark"
+import { paneFromHref } from "@/lib/split"
 import { useLaterActions, useLaterList } from "@/hooks/useLater"
 import type { LaterItem } from "@/services/laterService"
 import { reminderPill, type ReminderTone } from "@/lib/utils/later"
@@ -32,15 +36,30 @@ import { useResolve } from "@/lib/hub/motion"
 import { cn } from "@/lib/utils/helpers/cn"
 import { SaveForLaterButton } from "@/components/later/SaveForLater"
 
-/** The lead per kind of thing saved (L2): identity glyphs in ink-3, no hue for messages and docs. */
+/** Where a saved message lives: its channel, read from its link. */
+const channelOf = (item: LaterItem) => {
+  const pane = item.item_type === "post" ? paneFromHref(item.link) : null
+  return pane?.kind === "channel" ? pane.id : undefined
+}
+
+/** The hue a saved thing's row tints in (D13): a doc's, or the channel a message is in. */
+function hueOf(item: LaterItem): string | undefined {
+  if (item.item_type === "doc") return placeMarkHue({ kind: "doc", id: item.item_id })
+  return placeHue("channel", channelOf(item))
+}
+
+/** The lead per kind of thing saved (L2): a doc's glyph and a message's channel tile in their hues (D13), other kinds a glyph in ink-3. */
 function leadFor(item: LaterItem): ReactNode {
   switch (item.item_type) {
     case "task":
       return <StatusGlyph status="todo" />
     case "doc":
-      return <FileText className="size-4 text-ink-3" />
-    case "post":
-      return <Hash className="size-4 text-ink-3" />
+      // A saved doc carries no icon: the one the app last saw (lib/docLook), as Recent and the palette.
+      return <PlaceMark place={{ kind: "doc", id: item.item_id }} />
+    case "post": {
+      const channel = channelOf(item)
+      return channel ? <ChannelTile id={channel} size={20} /> : <Hash className="size-4 text-ink-3" />
+    }
     case "comment":
     case "chat":
       return <MessageCircle className="size-4 text-ink-3" />
@@ -150,7 +169,11 @@ export function LaterItems({ state }: { state: "open" | "done" }) {
             title: "Marked done",
             description: item.title || undefined,
             action: (
-              <ToastAction altText="Put it back in Saved" onClick={() => actions.done(item.id, false).finally(() => hide(item.id, false))}>
+              <ToastAction
+                altText="Put it back in Saved"
+                // A refused Undo is said by its request; nothing is left unhandled.
+                onClick={() => void actions.done(item.id, false).finally(() => hide(item.id, false)).catch(() => {})}
+              >
                 Undo
               </ToastAction>
             ),
@@ -281,6 +304,9 @@ function LaterRow({
   return (
     <HubRow
       data-later-row=""
+      data-hue={hueOf(item)}
+      // Opens through its title, stretched over the row (SH-32).
+      opens
       flipKey={item.id}
       density="two-line"
       resolve={phase === "leaving" ? "leaving" : undefined}
@@ -295,7 +321,7 @@ function LaterRow({
         </>
       }
       title={
-        <Link href={item.link} className={cn("relative z-[1] rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", done && "text-ink-3")}>
+        <Link href={item.link} className={cn("after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-brand", done && "text-ink-3")}>
           {item.title || "Untitled"}
         </Link>
       }

@@ -8,6 +8,7 @@ import { ArrowUpRight, CircleCheck, FileText, Kanban, ListTodo } from "@/lib/ico
 import { trackPos } from "../smart-paste/smartPaste"
 import { ancestor } from "../../utils/ancestor"
 import { openWhenDrawn } from "../subpage/opening"
+import { subpagePrivate } from "@/lib/docCache"
 import { pickPage, pickProject, PICK_PAGE, PICK_PROJECT, type Picked } from "./pick"
 
 /**
@@ -36,7 +37,7 @@ function newSubpage(editor: Editor, range: Range) {
   if (!docId) return
   const at = trackPos(editor, range.from)
   void import("@/services/docGraphService")
-    .then(({ createDoc }) => createDoc({ parent_uuid: docId }))
+    .then(({ createDoc }) => createDoc({ parent_uuid: docId, doc_private: subpagePrivate(docId) }))
     .then(
       (page) => {
         const pos = at.pos()

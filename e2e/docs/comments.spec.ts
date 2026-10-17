@@ -115,37 +115,42 @@ type EditorEl = HTMLElement & {
  * as Ctrl+Home may belong to the page instead). Then waits for the editor to
  * hold that selection: it reads the page's selection a moment later, and a
  * key pressed before then (⌘⇧M) would act on the old one.
+ *
+ * The page's selection is set again on each look until the editor holds it.
+ * Gaining the focus, ProseMirror writes its own selection back to the page
+ * 20ms later unless it has read the page's by then; on a loaded machine it
+ * hadn't, the words' selection was overwritten with the old caret (1, 1),
+ * and the editor never saw it (the b17h merge's gate, 16 Oct).
  */
 async function select(tab: Tab, words: string, caret = false) {
     await tab.body.focus()
-    const want = await tab.body.evaluate(
-        (el, { words, caret }) => {
-            const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-            for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-                const at = n.textContent?.indexOf(words) ?? -1
-                if (at < 0 || (n.parentElement && n.parentElement.closest(".collaboration-cursor__caret"))) continue
-                const range = document.createRange()
-                range.setStart(n, at)
-                range.setEnd(n, caret ? at : at + words.length)
-                const sel = window.getSelection()!
-                sel.removeAllRanges()
-                sel.addRange(range)
+    const place = (want: number[] | null) =>
+        tab.body.evaluate(
+            (el, { words, caret, want }) => {
                 const view = (el as EditorEl).editor?.view
-                if (!view) return null
-                const from = view.posAtDOM(n, at)
-                return [from, caret ? from : view.posAtDOM(n, at + words.length)]
-            }
-            throw new Error(`"${words}" isn't in the doc`)
-        },
-        { words, caret },
-    )
-    if (!want) return
-    await expect
-        .poll(() => tab.body.evaluate((el) => {
-            const s = (el as EditorEl).editor?.state.selection
-            return s ? [s.from, s.to] : null
-        }), { timeout: 10_000 })
-        .toEqual(want)
+                const held = (el as EditorEl).editor?.state.selection
+                if (want && held && held.from === want[0] && held.to === want[1]) return { want, held: [held.from, held.to] }
+                const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+                for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+                    const at = n.textContent?.indexOf(words) ?? -1
+                    if (at < 0 || (n.parentElement && n.parentElement.closest(".collaboration-cursor__caret"))) continue
+                    const range = document.createRange()
+                    range.setStart(n, at)
+                    range.setEnd(n, caret ? at : at + words.length)
+                    const sel = window.getSelection()!
+                    sel.removeAllRanges()
+                    sel.addRange(range)
+                    if (!view) return null
+                    const from = view.posAtDOM(n, at)
+                    return { want: [from, caret ? from : view.posAtDOM(n, at + words.length)], held: held ? [held.from, held.to] : null }
+                }
+                throw new Error(`"${words}" isn't in the doc`)
+            },
+            { words, caret, want },
+        )
+    const first = await place(null)
+    if (!first) return
+    await expect.poll(async () => (await place(first.want))?.held, { timeout: 10_000 }).toEqual(first.want)
 }
 
 /**

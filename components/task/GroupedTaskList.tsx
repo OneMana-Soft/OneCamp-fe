@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { fieldKeyDown } from "@/lib/keys/ime"
 import { useDispatch, useSelector } from "react-redux"
 
 import { Checkbox } from "@/components/ui/checkbox"
@@ -358,12 +359,12 @@ function InlineAdd({ group, onSubmit, onCancel }: { group: TaskGroup; onSubmit: 
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
+        onKeyDown={fieldKeyDown((e) => {
           if (e.key === "Escape") {
             e.stopPropagation()
             onCancel()
           }
-        }}
+        })}
         onBlur={() => !name.trim() && onCancel()}
         placeholder="Task title"
         aria-label={`New task in ${group.label}`}

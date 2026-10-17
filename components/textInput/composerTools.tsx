@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { Spark } from "@/components/ui/graphics/motifs"
-import { AtSign, ArrowUp, BarChart3, ChevronDown, Clock, ListTodo, Loader2, Mic, Paperclip, Plus, Square, Type, Upload, Video } from "@/lib/icons"
+import { AtSign, ArrowUp, BarChart3, ChevronDown, Clock, ListTodo, Loader2, Mic, Plus, Square, Type, Upload, Video } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { openUI } from "@/store/slice/uiSlice"
 import { prefersReducedMotion } from "@/lib/celebrate"

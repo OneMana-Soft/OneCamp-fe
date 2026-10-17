@@ -163,13 +163,13 @@ export function blocksOfSelection(state: EditorState): BlockRef[] {
 }
 
 /** Back from blocks to the text: the caret at the end of the last one, or near it. */
-export function caretAfterBlocks(doc: PMNode, blocks: BlockRef[]): Selection {
+function caretAfterBlocks(doc: PMNode, blocks: BlockRef[]): Selection {
   const last = blocks[blocks.length - 1]
   const r = textRange(last.node, last.pos)
   return r ? TextSelection.create(doc, r.end) : Selection.near(doc.resolve(Math.min(doc.content.size, last.pos + last.node.nodeSize)), -1)
 }
 
-export const blockSelectionKey = new PluginKey("blockSelection")
+const blockSelectionKey = new PluginKey("blockSelection")
 
 const BLOCK_ID = "blockId"
 
@@ -219,7 +219,7 @@ function setBlocks(editor: Editor, blocks: BlockRef[], anchor?: number, head?: n
 }
 
 /** Esc: choose the caret's block, or the blocks a text selection touches; Esc again: back to the text. */
-export function escapeToBlocks(editor: Editor): boolean {
+function escapeToBlocks(editor: Editor): boolean {
   if (suggestionMenuOpen(editor) || isSlashMenuOpen()) return false
   const { state } = editor
   // Escape, then Tab leaves the editor (A0's way out for the keyboard): this
@@ -244,7 +244,7 @@ function chosenAsBlocks(state: EditorState): BlockRef[] | null {
 }
 
 /** ↑ ↓ with blocks chosen: the block above or below instead; with ⇧, one more. */
-export function stepBlocks(editor: Editor, dir: -1 | 1, extend: boolean): boolean {
+function stepBlocks(editor: Editor, dir: -1 | 1, extend: boolean): boolean {
   const { state } = editor
   const sel = state.selection
   if (!(sel instanceof BlockSelection)) return false
@@ -263,7 +263,7 @@ export function stepBlocks(editor: Editor, dir: -1 | 1, extend: boolean): boolea
 }
 
 /** ↩ with blocks chosen: edit the last one, its text's end. */
-export function editBlocks(editor: Editor): boolean {
+function editBlocks(editor: Editor): boolean {
   const { state } = editor
   if (!(state.selection instanceof BlockSelection)) return false
   editor.view.dispatch(state.tr.setSelection(caretAfterBlocks(state.doc, state.selection.refs())).scrollIntoView())

@@ -13,6 +13,7 @@
  *   itself and throwing with the server's message (errors are errors: N46).
  */
 import { docAbilities, docLevelOf } from "@/lib/docs/abilities"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useCallback, useEffect, useMemo } from "react"
 import { useDispatch } from "react-redux"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -26,7 +27,8 @@ import {
     decrementDocCommentCount,
     incrementDocCommentCount,
 } from "@/store/slice/createDocCommentSlice"
-import { messageOf, useThreads } from "@/components/threads/useThreads"
+import { THREADS_TROUBLE, useThreads } from "@/components/threads/useThreads"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import type { ThreadBody, ThreadResource } from "@/components/threads/types"
 import type { Anchor } from "@/lib/anchors/types"
 import type { DocInfoResponse } from "@/types/doc"
@@ -41,7 +43,7 @@ export function useDocThreads(docId: string) {
     const resource = useMemo<ThreadResource | null>(() => (docId ? { kind: "doc", uuid: docId } : null), [docId])
     const t = useThreads(resource)
     // The doc's own answer, as its page asks for it: one cached answer for both.
-    const doc = useFetch<DocInfoResponse>(docId ? docInfoKey(docId) : "", undefined, undefined, { suppressErrorToast: true } as never)
+    const doc = useFetch<DocInfoResponse>(docId ? docInfoKey(docId) : "", undefined, undefined, OWN_ERRORS)
     const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const info = doc.data?.data
     const me = self.data?.data
@@ -92,7 +94,7 @@ export function useDocThreads(docId: string) {
         try {
             return await fn()
         } catch (e) {
-            throw new Error(messageOf(e))
+            throw new Error(apiErrorMessage(e, THREADS_TROUBLE))
         }
     }, [])
 
@@ -172,7 +174,7 @@ export function useDocThreads(docId: string) {
         isError: t.status === "error",
         // The server's own reason, when it gave one; else ErrorState's own
         // words (nothing lost, likely the connection) say it better.
-        errorDetail: t.error && t.error !== messageOf(undefined) ? t.error : undefined,
+        errorDetail: t.error && t.error !== THREADS_TROUBLE ? t.error : undefined,
         // In the trash (410): there's nothing to retry.
         isDeleted: docError?.response?.status === 410,
         /** Try again: the threads read again. */

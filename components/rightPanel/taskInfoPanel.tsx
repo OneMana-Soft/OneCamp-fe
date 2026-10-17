@@ -943,7 +943,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             This task is deleted
                         </span>
                         {isAdmin && (
-                            <Button variant="ghost" size="sm" onClick={handleUndeleteTask} className="h-7 text-danger-ink hover:bg-destructive/10 hover:text-danger-ink">
+                            <Button data-tone="danger" variant="ghost" size="sm" onClick={handleUndeleteTask} className="h-7 text-danger-ink hover:text-danger-ink">
                                 Undelete
                             </Button>
                         )}

@@ -97,7 +97,7 @@ function BoardsPage() {
             ) : null}
           </div>
           {!firstRun ? (
-            <label className="relative flex h-8 w-full items-center rounded-lg bg-raised shadow-e1 transition-shadow focus-within:ring-1 focus-within:ring-brand/50 sm:w-60">
+            <label className="relative flex h-8 w-full items-center rounded-lg bg-raised shadow-e1 transition-shadow focus-within:focus-halo sm:w-60">
               <Search className="pointer-events-none absolute left-2.5 size-3.5 text-ink-3" aria-hidden="true" />
               <input
                 value={search}

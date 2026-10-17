@@ -3,13 +3,12 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Skeleton } from "@/components/ui/skeleton"
-import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import { TableCell, TableRow } from "@/components/ui/table"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useListKeyboard } from "@/hooks/useListKeyboard"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { ListSelectionContext, useRowState, useSelectedIds } from "@/hooks/useListSelection"
+import { ListSelectionContext, useRowState } from "@/hooks/useListSelection"
 import { createSelectionStore } from "@/lib/listSelection"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { ListField } from "@/lib/listKeys"
@@ -120,51 +119,6 @@ function RowCheck({ id, selected }: { id: string; selected: boolean }) {
       // Quiet until the row is pointed at or anything is picked; never hidden, so always reachable.
       className={cn("transition-opacity", !selected && "opacity-40 group-hover/row:opacity-100 focus-visible:opacity-100")}
     />
-  )
-}
-
-/** The header's box: every task on this page, or none. */
-const SKELETON_WIDTHS = ["w-4/5", "w-3/5", "w-2/3", "w-1/2", "w-3/4"]
-
-/**
- * A task table's rows while its first page loads: a page of them, each a
- * row's height and with the row's checkbox, so nothing moves when the tasks
- * land. The shared skeleton drew five rows of 33px against a page of ten 37px
- * rows.
- */
-export function TaskTableSkeletonRows({ columns, rows }: { columns: number; rows: number }) {
-  return (
-    <>
-      {Array.from({ length: rows }, (_, r) => (
-        <TableRow key={r} aria-hidden="true" data-skeleton-row="" className={cn(taskRowClass, "hover:bg-transparent")}>
-          <TableCell className="w-8 pr-0">
-            <Skeleton className="h-4 w-4 rounded-sm" />
-          </TableCell>
-          {Array.from({ length: columns }, (_, c) => (
-            <TableCell key={c}>
-              <Skeleton className={cn("h-4", SKELETON_WIDTHS[(r + c) % SKELETON_WIDTHS.length])} />
-            </TableCell>
-          ))}
-        </TableRow>
-      ))}
-    </>
-  )
-}
-
-export function SelectAllHead({ ids }: { ids: string[] }) {
-  const store = React.useContext(ListSelectionContext)
-  const selected = useSelectedIds(store)
-  const picked = ids.filter((id) => selected.has(id)).length
-  const all = ids.length > 0 && picked === ids.length
-  return (
-    <TableHead className="w-8 pr-0">
-      <Checkbox
-        checked={all ? true : picked > 0 ? "indeterminate" : false}
-        disabled={ids.length === 0}
-        onCheckedChange={() => (all ? store?.clear() : store?.addRun(ids))}
-        aria-label={all ? "Clear the selection" : "Select every task on this page"}
-      />
-    </TableHead>
   )
 }
 

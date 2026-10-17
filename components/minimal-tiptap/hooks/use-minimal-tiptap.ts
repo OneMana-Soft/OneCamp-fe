@@ -16,8 +16,7 @@ import type { EditionGate } from '@/components/docEditor/registry/registry'
 import type { BlockContext, EditorKind } from '@/components/docEditor/registry/types'
 
 // Where these live now, for what imports them from here.
-export { collaboratorCaret, collaboratorHueClass, collaboratorSelection } from '@/components/docEditor/registry/presence'
-export { TYPOGRAPHY } from '../blocks/behaviour'
+export { collaboratorCaret, collaboratorSelection } from '@/components/docEditor/registry/presence'
 
 export interface ThrottleControls {
   flush: () => void
@@ -72,7 +71,6 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
     activeUsers?: number
   }
   provider?: HocuspocusProvider
-  providerSynced?: boolean
   /** Uploads an image and returns its address; it is given progress and an abort signal. */
   uploadFn?: (file: File, options?: ImageUploadOptions) => Promise<{ id: string, src: string }>
   onActionFiles?: (files: File[], pos?: number) => void
@@ -141,7 +139,6 @@ export const useMinimalTiptapEditor = ({
   onBlur,
   collaboration,
   provider: externalProvider,
-  providerSynced,
   uploadFn,
   onActionFiles,
   allowedMimeTypes,
@@ -242,7 +239,10 @@ export const useMinimalTiptapEditor = ({
   // left out so presence updates never rebuild it.
   const ai = !!gateProp?.ai
   const gate = React.useMemo<EditionGate>(() => ({ ai }), [ai])
-  const ready = useBlocksReady(kind, gate)
+  // A doc whose saved copy holds a block on demand (a table) waits for its
+  // plugins, so its tables are editable from the first frame; any other
+  // fetches them when it first holds one (registry/onDemand.ts).
+  const ready = useBlocksReady(kind, gate, typeof value === 'string' ? value : '')
   const extensions = React.useMemo(
     () => {
       if (!ready) return WAITING

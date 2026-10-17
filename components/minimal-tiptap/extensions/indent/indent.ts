@@ -35,13 +35,13 @@ import { isRemote } from "../block-id/blockId"
 export const INDENT_ATTR = "indent"
 
 /** The new indents for blocks, with their children: null where nothing changes. */
-export function indentTransaction(state: EditorState, targets: BlockRef[], delta: 1 | -1): Transaction | null {
+function indentTransaction(state: EditorState, targets: BlockRef[], delta: 1 | -1): Transaction | null {
   const tr = state.tr
   return indentInto(tr, targets, delta) ? tr : null
 }
 
 /** Writes the blocks' new indents (their children's too) into a transaction; true when one changed. */
-export function indentInto(tr: Transaction, targets: BlockRef[], delta: 1 | -1): boolean {
+function indentInto(tr: Transaction, targets: BlockRef[], delta: 1 | -1): boolean {
   const doc = tr.doc
   const sorted = [...targets].filter((t) => carriesIndent(t.node)).sort((a, b) => a.pos - b.pos)
   const next = new Map<number, number>()
@@ -105,7 +105,7 @@ function listItemAround(state: EditorState): { item: PMNode; list: PMNode; listP
  * nesting (A0's keymap, the phone bar's sink and lift); empty where there is
  * no block (nothing moves, and focus stays in the text).
  */
-export function nestTargets(editor: Editor, delta: 1 | -1): BlockRef[] | null {
+function nestTargets(editor: Editor, delta: 1 | -1): BlockRef[] | null {
   const { state } = editor
   const chosen = selectedBlocks(state)
   if (chosen) return chosen
@@ -127,7 +127,7 @@ export function nestTargets(editor: Editor, delta: 1 | -1): BlockRef[] | null {
 }
 
 /** Tab (1) or ⇧Tab (-1): true when the key is the block's, false to leave it to A0's keymap. */
-export function tabNests(editor: Editor, delta: 1 | -1): boolean {
+function tabNests(editor: Editor, delta: 1 | -1): boolean {
   if (!editor.isEditable) return false
   if (docKeymapOf(editor)?.tabLeaves) return false
   if (suggestionMenuOpen(editor) || isSlashMenuOpen()) return false

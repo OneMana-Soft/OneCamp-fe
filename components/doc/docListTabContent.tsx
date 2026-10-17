@@ -8,7 +8,7 @@ import { DOC_TABS, tabTools, type DocTab } from "@/lib/utils/docTab"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** The part of the page's sort and filters a tab's list takes (lib/utils/docTab). Pure. */
-export function queryFor(tab: DocTab, q: DocListQuery): DocListQuery {
+function queryFor(tab: DocTab, q: DocListQuery): DocListQuery {
     const tools = tabTools(tab)
     return { sort: tools.sort ? q.sort : undefined, owner: tools.owner ? q.owner : undefined, space: tools.space ? q.space : undefined }
 }

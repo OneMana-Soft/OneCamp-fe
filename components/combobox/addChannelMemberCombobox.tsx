@@ -39,7 +39,7 @@ const AddChannelMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
                         variant="outline"
                         role="combobox"
                         aria-expanded={open}
-                        className="w-[220px] justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150"
+                        className="w-[220px] justify-between font-normal h-10 bg-muted/20 border-border/40 hover:border-border/60 transition-colors duration-150"
                         size="sm"
                     >
                         <span className="truncate text-sm font-medium">
@@ -82,7 +82,7 @@ const AddChannelMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
             <Button 
                 variant="default" 
                 size="sm" 
-                className="h-10 px-5 font-medium transition-colors duration-150 bg-primary hover:bg-primary/90" 
+                className="h-10 px-5 font-medium transition-colors duration-150 bg-primary" 
                 onClick={()=>{handleOnClick(value)}}
                 disabled={!value}
             >

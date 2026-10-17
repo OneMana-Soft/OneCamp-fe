@@ -20,7 +20,7 @@ export function externalHref(href: string | null | undefined, origin = typeof wi
 }
 
 /** A click that opens a link in a new tab: with ⌘ on a Mac, Ctrl elsewhere. Pure. */
-export function opensWithModifier(event: Pick<MouseEvent, 'metaKey' | 'ctrlKey'>): boolean {
+function opensWithModifier(event: Pick<MouseEvent, 'metaKey' | 'ctrlKey'>): boolean {
   return event.metaKey || event.ctrlKey
 }
 

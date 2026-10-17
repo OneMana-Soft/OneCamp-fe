@@ -59,7 +59,7 @@ export const TeamList = () => {
                     <Link
                         key={teamData.team_uuid}
                         href={`${app_team_path}/${teamData.team_uuid}`}
-                        className="block focus:outline-none"
+                        className="block rounded-md focus-visible:-outline-offset-2"
                     >
                         <TeamInfo teamInfo={teamData} />
                     </Link>

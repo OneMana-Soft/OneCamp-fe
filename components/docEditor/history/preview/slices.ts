@@ -26,7 +26,7 @@ const MAX_SHOWN = 200
 const aborted = () => new DOMException("The preview was replaced", "AbortError")
 
 /** Hands the thread back to the browser for a moment. */
-export function yieldToBrowser(): Promise<void> {
+function yieldToBrowser(): Promise<void> {
   const s = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler
   if (s?.yield) return s.yield()
   return new Promise((resolve) => {

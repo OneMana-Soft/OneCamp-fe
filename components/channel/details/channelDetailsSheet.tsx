@@ -20,6 +20,7 @@ import { useChannelMembers } from "@/components/member/channelMemberContent"
 import { MemberRow } from "@/components/channel/details/memberRow"
 import { DetailsRow as Row, DetailsSection as Section } from "@/components/channel/details/detailsParts"
 import { ChannelNameRow } from "@/components/channel/details/channelNameRow"
+import { isComposingKey } from "@/lib/keys/ime"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -28,13 +29,15 @@ import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useDebounce } from "@/hooks/useDebounce"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { removeUserChannelName, setUserChannelNotificationType, updateUserChannelName } from "@/store/slice/userSlice"
+import { removeUserChannelName, updateUserChannelName } from "@/store/slice/userSlice"
+import { useChannelNotification } from "@/hooks/useConversationNotification"
 import { displayNameOf } from "@/lib/personName"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { app_channel_path } from "@/types/paths"
-import { Hash, Lock, Megaphone, Search, X, Pencil } from "@/lib/icons"
-import { NotificationType, type ChannelInfoInterfaceResp, type ChannelMemberUpdateInterface, type ChannelNotificationInterface } from "@/types/channel"
+import { Lock, Megaphone, Search, X, Pencil } from "@/lib/icons"
+import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
+import { NotificationType, type ChannelInfoInterfaceResp, type ChannelMemberUpdateInterface } from "@/types/channel"
 import type { UserProfileInterface } from "@/types/user"
 
 interface ChannelDetailsSheetProps {
@@ -147,7 +150,6 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const selfId = selfProfile.data?.data?.user_uuid
     const update = usePost()
-    const notify = usePost()
     const leave = usePost()
 
     const info = basic.data?.channel_info
@@ -172,8 +174,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
 
     const [editingTopic, setEditingTopic] = useState(false)
     const [topic, setTopic] = useState("")
-    const [notification, setNotification] = useState<string | null>(null)
-    const currentNotification = notification ?? info?.notification_type ?? NotificationType.NotificationAll
+    const notification = useChannelNotification(channelId, info?.notification_type, name)
 
     // Every setting goes through the one UpdateChannel call with the rest of
     // the channel as it is, so changing one never resets another. Each says
@@ -222,23 +223,6 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
         const next = topic.trim()
         if (next === (info?.ch_about ?? "")) return setEditingTopic(false)
         if (await save({ channel_about: next }, { failed: "Couldn't save the description", done: "Description saved" })) setEditingTopic(false)
-    }
-
-    const changeNotification = async (next: string) => {
-        const before = currentNotification
-        setNotification(next)
-        try {
-            await notify.makeRequest<ChannelNotificationInterface>({
-                payload: { channel_id: channelId, notification_type: next },
-                apiEndpoint: PostEndpointUrl.UpdateChannelNotification,
-                showErrorToast: true,
-                failureTitle: `Couldn't change your notifications for #${name}`,
-            })
-            // The sidebar shows the channel muted, or not, at once.
-            dispatch(setUserChannelNotificationType({ channelUUID: channelId, notificationType: next }))
-        } catch {
-            setNotification(before)
-        }
     }
 
     const leaveChannel = async () => {
@@ -291,9 +275,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                     className="fixed inset-y-0 right-0 z-[var(--z-modal)] flex w-full flex-col bg-sheet shadow-e4 outline-none animate-panel-in sm:w-[440px]"
                 >
                     <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line px-4">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sunken text-ink-2">
-                            {info?.ch_private ? <Lock className="size-4" /> : <Hash className="size-4" />}
-                        </span>
+                        <ChannelTile id={channelId} isPrivate={!!info?.ch_private} size={32} />
                         <div className="min-w-0 flex-1">
                             <DialogPrimitive.Title className="truncate text-heading text-ink">{name || "Channel"}</DialogPrimitive.Title>
                             <p className="text-meta text-ink-3">
@@ -336,6 +318,8 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                                         maxLength={250}
                                         onChange={(e) => setTopic(e.target.value)}
                                         onKeyDown={(e) => {
+                                            // An input method's Enter picks its word and its Escape drops it.
+                                            if (isComposingKey(e.nativeEvent)) return
                                             if (e.key === "Enter") { e.preventDefault(); saveTopic() }
                                             if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditingTopic(false) }
                                         }}
@@ -423,7 +407,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
 
                         {isMember && (
                             <Section title="Notifications">
-                                <RadioGroup value={currentNotification} onValueChange={changeNotification} aria-label="Notify me about" className="gap-0 divide-y divide-line">
+                                <RadioGroup value={notification.level} onValueChange={notification.choose} aria-label="Notify me about" className="gap-0 divide-y divide-line">
                                     {NOTIFY.map((n) => (
                                         <label key={n.value} className="flex min-h-14 cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-hover">
                                             <RadioGroupItem value={n.value} aria-label={n.label} />

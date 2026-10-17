@@ -13,7 +13,7 @@
 
 const KEY = "onecamp-doc-toggles"
 /** The most toggles remembered; the oldest choices go first. */
-export const MAX_REMEMBERED = 1000
+const MAX_REMEMBERED = 1000
 
 let states: Map<string, boolean> | null = null
 const fresh = new Set<string>()

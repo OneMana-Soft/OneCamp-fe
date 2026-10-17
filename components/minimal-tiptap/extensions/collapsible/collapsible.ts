@@ -52,7 +52,7 @@ type At = { node: PMNode; pos: number }
 const menuOpen = (editor: Editor) => isSlashMenuOpen() || suggestionMenuOpen(editor)
 
 /** The innermost toggle around a position. */
-export function toggleAround(state: EditorState, pos = state.selection.from): (At & { depth: number }) | null {
+function toggleAround(state: EditorState, pos = state.selection.from): (At & { depth: number }) | null {
   const $pos = state.doc.resolve(pos)
   for (let d = $pos.depth; d > 0; d--) {
     const node = $pos.node(d)
@@ -62,7 +62,7 @@ export function toggleAround(state: EditorState, pos = state.selection.from): (A
 }
 
 /** The toggle whose summary (its first line) holds the caret, if any. */
-export function summaryAt(state: EditorState): At | null {
+function summaryAt(state: EditorState): At | null {
   const { $from } = state.selection
   if ($from.depth < 2 || !$from.parent.isTextblock) return null
   if ($from.node(-1).type.name !== NAME || $from.index(-1) !== 0) return null
@@ -70,7 +70,7 @@ export function summaryAt(state: EditorState): At | null {
 }
 
 /** A toggle's level: its summary heading's, else 0. */
-export const toggleLevel = (toggle: PMNode) => (toggle.firstChild?.type.name === 'heading' ? Number(toggle.firstChild.attrs.level) || 0 : 0)
+const toggleLevel = (toggle: PMNode) => (toggle.firstChild?.type.name === 'heading' ? Number(toggle.firstChild.attrs.level) || 0 : 0)
 
 const isOpen = (toggle: PMNode) => isToggleOpen(toggle.attrs.blockId as string | null)
 
@@ -121,7 +121,7 @@ export function unwrap(tr: Transaction, at: At) {
 }
 
 /** Opens or closes a toggle for this viewer; one closed never keeps the caret in its body. */
-export function setToggleOpen(editor: Editor, at: At, open: boolean) {
+function setToggleOpen(editor: Editor, at: At, open: boolean) {
   const id = at.node.attrs.blockId as string | null
   if (id) setTogglesOpen([id], open)
   if (open) return
@@ -133,7 +133,7 @@ export function setToggleOpen(editor: Editor, at: At, open: boolean) {
 }
 
 /** Opens, for this viewer, every closed toggle whose body holds pos (find, the outline, a block link). */
-export function revealAt(editor: Editor, pos: number) {
+function revealAt(editor: Editor, pos: number) {
   if (!Number.isFinite(pos) || pos < 0 || pos > editor.state.doc.content.size) return
   const $pos = editor.state.doc.resolve(pos)
   const ids: string[] = []
@@ -146,7 +146,7 @@ export function revealAt(editor: Editor, pos: number) {
 }
 
 /** ⌘⌥T: every toggle opened, or all closed when every one is open. */
-export function toggleAll(editor: Editor): boolean {
+function toggleAll(editor: Editor): boolean {
   const ids: string[] = []
   editor.state.doc.descendants((node) => {
     if (node.type.name === NAME && node.attrs.blockId) ids.push(node.attrs.blockId)
@@ -177,7 +177,7 @@ export function toggleAll(editor: Editor): boolean {
  * - An open one whose first line inside is empty: the caret goes there.
  * - The empty last line inside a toggle or a callout: out, after it.
  */
-export function enterInToggle(editor: Editor): boolean {
+function enterInToggle(editor: Editor): boolean {
   const { state } = editor
   const { $from, empty } = state.selection
   if (!empty || !$from.parent.isTextblock || menuOpen(editor)) return false
@@ -227,7 +227,7 @@ export function enterInToggle(editor: Editor): boolean {
  * keymap's ⌫ on a heading), and an automatic change a moment ago goes back
  * first (its ⌘Z).
  */
-export function backspaceAtStart(editor: Editor): boolean {
+function backspaceAtStart(editor: Editor): boolean {
   const { state } = editor
   const { $from, empty } = state.selection
   if (!empty || !$from.parent.isTextblock || $from.parentOffset !== 0 || $from.depth < 2) return false
@@ -247,7 +247,7 @@ export function backspaceAtStart(editor: Editor): boolean {
  * block would otherwise be selected whole, and the next ⌫ would delete it).
  * A closed toggle opens for this viewer, so the line is seen where it went.
  */
-export function backspaceIntoBox(editor: Editor): boolean {
+function backspaceIntoBox(editor: Editor): boolean {
   const { state } = editor
   const { $from, empty } = state.selection
   if (!empty || !$from.parent.isTextblock || $from.parentOffset !== 0 || $from.parent.type.spec.code || $from.depth < 1) return false

@@ -23,6 +23,7 @@ export function hueForCategory(color: string, category: StatusCategory): string 
 }
 
 import { useMemo, useState } from "react"
+import { fieldKeyDown } from "@/lib/keys/ime"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -198,10 +199,10 @@ function StatusRow({
           disabled={busy}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => save({})}
-          onKeyDown={(e) => {
+          onKeyDown={fieldKeyDown((e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur()
             if (e.key === "Escape") setName(status.name)
-          }}
+          })}
           className="h-8 flex-1 border-transparent bg-transparent px-2 shadow-none focus-visible:border-input"
         />
         <CategorySelect value={status.category} disabled={busy} onChange={(category) => save({ category })} />

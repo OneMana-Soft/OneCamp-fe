@@ -9,7 +9,7 @@
  *   in front of the API failing, which the browser reports as a network
  *   error), or the server failed (5xx). Nothing is lost; Try again.
  */
-export type DocLoadFailure = "deleted" | "gone" | "unreachable"
+type DocLoadFailure = "deleted" | "gone" | "unreachable"
 
 /**
  * - "deleted": 410, the doc is in the trash and was there for this person

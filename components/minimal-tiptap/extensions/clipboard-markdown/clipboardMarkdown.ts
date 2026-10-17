@@ -49,7 +49,7 @@ const fetchWriter = () => {
   void loadClipboardWriter().catch(() => {})
 }
 
-export interface ClipboardMarkdownOptions {
+interface ClipboardMarkdownOptions {
   /** Codec rules for blocks the codec has none of its own for; by default the block registry's. */
   rules: () => CodecRule[]
 }

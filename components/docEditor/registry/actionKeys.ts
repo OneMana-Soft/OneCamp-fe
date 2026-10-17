@@ -15,24 +15,12 @@
 
 import * as React from 'react'
 import { goArmed } from '@/lib/goKeys'
+import { chordMatches } from '@/lib/keys/chord'
 import type { EditionGate } from './registry'
 import { actionsWithKeys } from './shortcuts'
 import type { ActionContext } from './types'
 
-/** Whether a key event is this chord (Tiptap's notation: 'Mod-l', 'Shift-f', '?'). Pure. */
-export function chordMatches(e: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>, chord: string, mac: boolean): boolean {
-  const parts = chord.split(/-(?!$)/)
-  const key = parts.pop()!
-  const want = new Set(parts)
-  // Mod is ⌘ on a Mac and Ctrl elsewhere.
-  const meta = mac ? want.has('Mod') || want.has('Meta') : want.has('Meta')
-  const ctrl = mac ? want.has('Ctrl') : want.has('Mod') || want.has('Ctrl')
-  if (e.metaKey !== meta || e.ctrlKey !== ctrl || e.altKey !== want.has('Alt')) return false
-  const letter = /^[a-z]$/i.test(key)
-  // A shifted symbol ("?") is a key of its own: Shift counts for letters and named keys.
-  if ((letter || key.length > 1) && e.shiftKey !== want.has('Shift')) return false
-  return letter ? e.key.toLowerCase() === key.toLowerCase() : e.key === key
-}
+export { chordMatches }
 
 /** A chord that can't type a character: it works in the text as well. */
 const typesNothing = (chord: string) => /(^|-)(Mod|Ctrl|Alt)-/.test(chord)

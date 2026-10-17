@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 
 import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
@@ -39,10 +40,10 @@ export function DocAccessNote({
     action?: React.ReactNode
     className?: string
 }) {
-    const access = useFetch<{ data?: DocAccess }>(docId ? docAccessKey(docId) : "", undefined, undefined, { suppressErrorToast: true } as never)
+    const access = useFetch<{ data?: DocAccess }>(docId ? docAccessKey(docId) : "", undefined, undefined, OWN_ERRORS)
     const locked = !!access.data?.data?.locked
     const canRequest = access.data?.data?.can_request === true
-    const requests = useFetch<{ data?: DocAccessRequests }>(canRequest ? accessRequestsKey(docId) : "", undefined, undefined, { suppressErrorToast: true } as never)
+    const requests = useFetch<{ data?: DocAccessRequests }>(canRequest ? accessRequestsKey(docId) : "", undefined, undefined, OWN_ERRORS)
     const open = (requests.data?.data?.outgoing ?? []).some((r) => r.doc_uuid === docId && r.status === "pending")
     const [state, setState] = React.useState<"idle" | "sending" | "sent" | "failed">("idle")
 

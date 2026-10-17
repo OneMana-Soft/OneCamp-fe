@@ -21,6 +21,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { DocInfoResponse } from "@/types/doc"
 import { ChevronDown, Loader2, Plus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ix } from "@/lib/ui/interactive"
 import type { DocSpace } from "@/types/docGraph"
 
 interface Group {
@@ -112,7 +113,7 @@ export default function DocsTreeGroups({ onOpened, sidebar = false }: { onOpened
 
   if (known && states.every((s) => s.empty)) {
     return (
-      <button type="button" onClick={() => void create({ busyKey: "tree:first" })} disabled={!!busy} className="shell-row nav-idle w-full text-left !text-ink-3">
+      <button type="button" onClick={() => void create({ busyKey: "tree:first" })} disabled={!!busy} {...ix("nav")} className="shell-row nav-idle w-full text-left !text-ink-3">
         <span className="shell-invite-tile" aria-hidden="true">
           {busy === "tree:first" ? <Loader2 className="animate-spin" /> : <Plus />}
         </span>

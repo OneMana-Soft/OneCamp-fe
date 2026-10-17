@@ -7,7 +7,7 @@ import type { EntityAccess } from "@/lib/liveEntity/types"
 import { CONNECTED_PATHS } from "@/services/endPoints"
 
 /** One thing as POST /entities answers it. */
-export interface EntityAnswer {
+interface EntityAnswer {
   kind: string
   id: string
   access: EntityAccess

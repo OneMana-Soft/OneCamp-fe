@@ -9,6 +9,7 @@ import { CommandList, CommandTile, type CommandListItem } from "@/components/ui/
 import { FloatingBar, FloatingBarButton, FloatingBarDivider } from "@/components/ui/FloatingBar"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { cn } from "@/lib/utils/helpers/cn"
+import { isComposingKey } from "@/lib/keys/ime"
 
 import { BLOCK_TYPES, currentBlockLabel } from "./blockTypes"
 import { docKeymapOf } from "@/components/minimal-tiptap/extensions/doc-keymap/storage"
@@ -277,7 +278,8 @@ export function SelectionBar({ editor, context, onAIClick, onComment, hide }: Se
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Escape") {
+                      // An input method's Escape drops the word being made, not the link.
+                      if (e.key === "Escape" && !isComposingKey(e.nativeEvent)) {
                         e.preventDefault()
                         e.stopPropagation()
                         back()

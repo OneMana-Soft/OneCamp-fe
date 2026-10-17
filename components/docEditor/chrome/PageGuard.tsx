@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useRouter } from "next/navigation"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { toast } from "@/hooks/use-toast"
@@ -14,7 +15,6 @@ import "./contributions"
 import { leaveDoc, provideNavigate, setFacts, softLocked, usePageFacts } from "./pageFacts"
 import { useDoc } from "./useDoc"
 
-const QUIET = { suppressErrorToast: true } as never
 
 /**
  * The open doc's page facts and its soft lock (B6), over its editor
@@ -32,7 +32,7 @@ export default function PageGuard({ docId, editor }: SlotProps) {
   }, [router])
 
   const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-  const stars = useFetch<Envelope<{ places: Place[] }>>(docId ? placesKey("star", "doc") : "", undefined, undefined, QUIET)
+  const stars = useFetch<Envelope<{ places: Place[] }>>(docId ? placesKey("star", "doc") : "", undefined, undefined, OWN_ERRORS)
   const doc = useDoc(docId)
   const myId = me.data?.data?.user_uuid
   React.useEffect(() => {

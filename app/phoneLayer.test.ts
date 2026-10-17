@@ -113,7 +113,8 @@ describe("L4. a pull is not a press", () => {
 
 describe("§7. the phone's motion rules", () => {
   it("moves only transform, opacity, scale, translate, rotate, a filter and small colours", () => {
-    const allowed = new Set(["transform", "opacity", "scale", "translate", "rotate", "background-color", "color", "box-shadow", "filter", "stroke-dashoffset", "border-radius"])
+    // --ix-a is the interaction layer's tint alpha (app/interaction.css): a colour.
+    const allowed = new Set(["transform", "opacity", "scale", "translate", "rotate", "background-color", "color", "box-shadow", "filter", "stroke-dashoffset", "border-radius", "--ix-a"])
     for (const m of CSS.matchAll(/transition(?:-property)?:\s*([^;]+);/g)) {
       for (const part of m[1].split(",")) {
         const prop = part.trim().split(/\s+/)[0].replace("!important", "")

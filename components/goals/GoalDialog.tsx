@@ -19,7 +19,7 @@ import { ChevronsUpDown, Loader2, X } from "@/lib/icons"
 import { MEASURES, parentChoices, quarterEnd, type GoalDetail, type GoalInput, type GoalSummary, type Measure } from "@/lib/goals"
 import { cn } from "@/lib/utils/helpers/cn"
 import { dayDate, localDay } from "@/lib/utils/timeZone"
-import { DateField } from "@/components/task/taskDateField"
+import { DateProperty } from "@/components/task/taskDateField"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserListInterfaceResp, UserProfileInterface } from "@/types/user"
 
@@ -193,13 +193,13 @@ export function GoalDialog({
                 input wrote mm/dd/yyyy in a US browser, unlike every other date. */}
             <div className="grid gap-1.5">
               <span className="text-sm font-medium">Due</span>
-              <DateField compact isAdmin label="Due" value={dayDate(due)} onSelect={(d) => d && setDue(localDay(d))} className="h-9 w-full justify-between" />
+              <DateProperty compact isAdmin label="Due" value={dayDate(due)} onSelect={(d) => d && setDue(localDay(d))} className="h-9 w-full justify-between" />
             </div>
             <div className="grid gap-1.5">
               <span className="text-sm font-medium">
                 Starts <span className="font-normal text-muted-foreground">(optional)</span>
               </span>
-              <DateField compact isAdmin label="Starts" value={dayDate(start)} onSelect={(d) => setStart(d ? localDay(d) : "")} onClear={() => setStart("")} className="h-9 w-full justify-between" />
+              <DateProperty compact isAdmin label="Starts" value={dayDate(start)} onSelect={(d) => setStart(d ? localDay(d) : "")} onClear={() => setStart("")} className="h-9 w-full justify-between" />
             </div>
           </div>
 

@@ -29,12 +29,12 @@ import { useModKey } from "@/hooks/useModKey"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import { useCommentDraft } from "./useCommentDraft"
 
-export interface CommentBody {
+interface CommentBody {
     body: string
     attachments: AttachmentMediaReq[]
 }
 
-export interface CommentComposerProps {
+interface CommentComposerProps {
     docId: string
     placeholder: string
     /** The editor's accessible name: "Comment on the selected text", "Reply to Maya". */

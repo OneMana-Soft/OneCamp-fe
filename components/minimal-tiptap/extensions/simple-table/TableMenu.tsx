@@ -130,7 +130,8 @@ function Menu({ editor, kind, close, keyboard }: { editor: Editor; kind: TableMe
               <div className="px-2 pb-1 pt-1.5 text-meta font-[510] text-ink-3" id="doc-table-colour-label">
                 Colour
               </div>
-              <div role="group" aria-labelledby="doc-table-colour-label" className="flex flex-wrap gap-1 px-2 pb-1">
+              {/* Under a finger a swatch is 36px and keeps its square (a menu row's 44px height isn't its own), takes the shared 44px tap, and stands 8px from the next. */}
+              <div role="group" aria-labelledby="doc-table-colour-label" className="flex flex-wrap gap-1 px-2 pb-1 pointer-coarse:gap-2">
                 {([null, ...DOC_COLOURS] as Array<CellColour | null>).map((c) => (
                   <button
                     key={c ?? "default"}
@@ -140,9 +141,10 @@ function Menu({ editor, kind, close, keyboard }: { editor: Editor; kind: TableMe
                     aria-label={c ? `${COLOUR_LABEL[c]} background` : "Default background"}
                     title={c ? COLOUR_LABEL[c] : "Default"}
                     data-swatch=""
+                    data-touch-target=""
                     onClick={() => pick(() => colourCells(editor, c))}
                     className={cn(
-                      "grid size-6 place-items-center rounded-md shadow-e1 outline-none max-sm:size-9",
+                      "grid size-6 !min-h-0 place-items-center rounded-md shadow-e1 outline-none max-sm:size-9 pointer-coarse:size-9",
                       "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
                     )}
                     style={{ background: c ? tintOf(c) : "var(--sheet)" }}
