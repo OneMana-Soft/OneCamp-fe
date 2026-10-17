@@ -1,0 +1,161 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import * as React from "react"
+
+// Esc closes the innermost layer first: a menu, a popover, a dialog or a
+// sheet (interaction spec, rule 7). A toast is not one of them. Radix made
+// every toast a layer, and a toast that came while a dialog was open (Link
+// copied, Saved a version) became the top one: Esc closed the toast and left
+// the dialog. A toast now takes Esc only when it has focus, or when nothing
+// else is open.
+
+let api: typeof import("@/hooks/use-toast")
+let Toaster: typeof import("@/components/ui/toaster").Toaster
+let ui: {
+  dialog: typeof import("@/components/ui/dialog")
+  sheet: typeof import("@/components/ui/sheet")
+  menu: typeof import("@/components/ui/dropdown-menu")
+}
+
+beforeEach(async () => {
+  // One module graph for the toasts and the layers: Radix keeps its layers
+  // in one module, and the bug is the toast and the dialog sharing it.
+  vi.resetModules()
+  api = await import("@/hooks/use-toast")
+  Toaster = (await import("@/components/ui/toaster")).Toaster
+  ui = {
+    dialog: await import("@/components/ui/dialog"),
+    sheet: await import("@/components/ui/sheet"),
+    menu: await import("@/components/ui/dropdown-menu"),
+  }
+})
+
+afterEach(cleanup)
+
+const toastNamed = (title: string) =>
+  Array.from(document.querySelectorAll<HTMLElement>(".toast-root")).find((t) => t.textContent?.includes(title)) ?? null
+const toastOpen = (title: string) => toastNamed(title)?.getAttribute("data-state") === "open"
+
+/** Esc, pressed where focus is (or on `target`). */
+function escape(target: Element | null = document.activeElement) {
+  act(() => {
+    fireEvent.keyDown(target ?? document.body, { key: "Escape" })
+  })
+}
+
+function InDialog() {
+  const [open, setOpen] = React.useState(true)
+  const { Dialog, DialogContent, DialogDescription, DialogTitle } = ui.dialog
+  return (
+    <>
+      <Toaster />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogTitle>Share</DialogTitle>
+          <DialogDescription>Who can open the doc</DialogDescription>
+          <button type="button" onClick={() => api.toast({ title: "Link copied" })}>
+            Copy link
+          </button>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function InSheet() {
+  const [open, setOpen] = React.useState(true)
+  const { Sheet, SheetContent, SheetDescription, SheetTitle } = ui.sheet
+  return (
+    <>
+      <Toaster />
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent>
+          <SheetTitle>Channel details</SheetTitle>
+          <SheetDescription>Members and settings</SheetDescription>
+          <button type="button">Leave</button>
+        </SheetContent>
+      </Sheet>
+    </>
+  )
+}
+
+function InMenu() {
+  const [open, setOpen] = React.useState(true)
+  const { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } = ui.menu
+  return (
+    <>
+      <Toaster />
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger>More</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>Rename</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  )
+}
+
+describe("Esc with a toast showing", () => {
+  it("closes the dialog a toast came up in, and leaves the toast", () => {
+    render(<InDialog />)
+    const copy = screen.getByRole("button", { name: "Copy link" })
+    fireEvent.click(copy)
+    expect(toastOpen("Link copied")).toBe(true)
+    copy.focus()
+    escape()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(toastOpen("Link copied")).toBe(true)
+    // Nothing else is open now: the next Esc is the toast's.
+    escape(document.body)
+    expect(toastOpen("Link copied")).toBe(false)
+  })
+
+  it("closes a sheet before a toast that came while it was open", () => {
+    render(<InSheet />)
+    act(() => {
+      api.toast({ title: "Moved to Done" })
+    })
+    screen.getByRole("button", { name: "Leave" }).focus()
+    escape()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(toastOpen("Moved to Done")).toBe(true)
+  })
+
+  it("closes a menu before a toast that came while it was open", () => {
+    render(<InMenu />)
+    act(() => {
+      api.toast({ title: "Saved a version" })
+    })
+    escape(screen.getByRole("menuitem", { name: "Rename" }))
+    expect(screen.queryByRole("menu")).toBeNull()
+    expect(toastOpen("Saved a version")).toBe(true)
+  })
+
+  it("closes the toast that has focus", () => {
+    render(<Toaster />)
+    act(() => {
+      api.toast({ title: "Link copied" })
+    })
+    const toast = toastNamed("Link copied")!
+    toast.focus()
+    escape(toast)
+    expect(toastOpen("Link copied")).toBe(false)
+  })
+
+  it("closes the front toast, and only that one, when nothing else is open", () => {
+    render(
+      <>
+        <Toaster />
+        <button type="button">Board</button>
+      </>,
+    )
+    act(() => {
+      api.toast({ title: "Moved to Done" })
+      api.toast({ title: "Link copied" })
+    })
+    screen.getByRole("button", { name: "Board" }).focus()
+    escape()
+    expect(toastOpen("Link copied")).toBe(false)
+    expect(toastOpen("Moved to Done")).toBe(true)
+  })
+})

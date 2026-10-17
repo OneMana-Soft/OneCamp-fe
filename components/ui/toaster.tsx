@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { toastDuration, useToastState, TOAST_LIMIT } from "@/hooks/use-toast"
+import { toastDuration, useToast, useToastState, TOAST_LIMIT } from "@/hooks/use-toast"
+import { escapeBelongsToLayer } from "@/hooks/useEscapeClosesPanel"
 import { usePhone } from "@/hooks/usePhone"
 import {
   Toast,
@@ -49,6 +50,37 @@ function usePaused() {
 }
 
 /**
+ * Esc closes the front toast when nothing else wants the key. A dialog, a
+ * sheet, a menu or a popover open under a toast closes first: Esc takes the
+ * innermost layer first (interaction spec, rule 7), and a toast is not one.
+ * Radix made every toast a layer, so a toast that came while a dialog was
+ * open (Link copied, Saved a version) was the top one and took the dialog's
+ * Esc; patches/@radix-ui__react-toast@1.2.15.patch takes toasts out of the
+ * layers, and this is the rest of it. A toast with focus closes itself, in
+ * Radix's own keydown on the toast.
+ *
+ * On the window in the bubble phase, after the document: every layer has had
+ * the key, and one that used it marked it (escapeBelongsToLayer).
+ */
+function useEscapeClosesFrontToast(frontId: string | undefined) {
+  const { dismiss } = useToast()
+  const front = React.useRef(frontId)
+  React.useEffect(() => {
+    front.current = frontId
+  })
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing || !front.current) return
+      if ((event.target as Element | null)?.closest?.(".toast-root")) return
+      if (escapeBelongsToLayer(event)) return
+      dismiss(front.current)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [dismiss])
+}
+
+/**
  * The toasts, stacked (design v3, shell T1). Three show; the newest is in
  * front and the others step back behind it. Pointing at the stack, or moving
  * focus into it, opens it out with 10px between toasts and pauses every
@@ -71,6 +103,7 @@ export function Toaster() {
   }, [])
 
   const open = toasts.filter((t) => t.open !== false)
+  useEscapeClosesFrontToast(open[0]?.id)
   const expanded = hover || focus
   const frontHeight = heights[open[0]?.id ?? ""] ?? 52
 

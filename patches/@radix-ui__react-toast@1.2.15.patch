@@ -1,0 +1,50 @@
+diff --git a/dist/index.js b/dist/index.js
+index 89b40c46b070a7ec3264bf87fa157be7f1ac174b..9eab0d149efa05fa569c903ce3664d294bc3fe85 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -422,13 +422,15 @@ var ToastImpl = React.forwardRef(
+       ),
+       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToastInteractiveProvider, { scope: __scopeToast, onClose: handleClose, children: ReactDOM.createPortal(
+         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Collection.ItemSlot, { scope: __scopeToast, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+-          DismissableLayer.Root,
++          // OneCamp patch (patches/@radix-ui__react-toast@1.2.15.patch): a toast
++          // is not a DismissableLayer. Layers share one stack and Escape goes to
++          // its top layer only, so a toast that came while a dialog, a sheet or
++          // a menu was open was that top layer and took their Escape. The app
++          // decides when Escape closes a toast (components/ui/toaster.tsx); a
++          // toast with focus still closes itself, in its onKeyDown below.
++          import_react_primitive.Primitive.div,
+           {
+             asChild: true,
+-            onEscapeKeyDown: (0, import_primitive.composeEventHandlers)(onEscapeKeyDown, () => {
+-              if (!context.isFocusedToastEscapeKeyDownRef.current) handleClose();
+-              context.isFocusedToastEscapeKeyDownRef.current = false;
+-            }),
+             children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+               import_react_primitive.Primitive.li,
+               {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index cca1a95f8687577a8d86b213ab735e32221139ef..f54f913c65b59421ae5f4377c5aa1dce5bb35acf 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -373,13 +373,15 @@ var ToastImpl = React.forwardRef(
+       ),
+       /* @__PURE__ */ jsx(ToastInteractiveProvider, { scope: __scopeToast, onClose: handleClose, children: ReactDOM.createPortal(
+         /* @__PURE__ */ jsx(Collection.ItemSlot, { scope: __scopeToast, children: /* @__PURE__ */ jsx(
+-          DismissableLayer.Root,
++          // OneCamp patch (patches/@radix-ui__react-toast@1.2.15.patch): a toast
++          // is not a DismissableLayer. Layers share one stack and Escape goes to
++          // its top layer only, so a toast that came while a dialog, a sheet or
++          // a menu was open was that top layer and took their Escape. The app
++          // decides when Escape closes a toast (components/ui/toaster.tsx); a
++          // toast with focus still closes itself, in its onKeyDown below.
++          Primitive.div,
+           {
+             asChild: true,
+-            onEscapeKeyDown: composeEventHandlers(onEscapeKeyDown, () => {
+-              if (!context.isFocusedToastEscapeKeyDownRef.current) handleClose();
+-              context.isFocusedToastEscapeKeyDownRef.current = false;
+-            }),
+             children: /* @__PURE__ */ jsx(
+               Primitive.li,
+               {
