@@ -19,7 +19,26 @@ import { runAction, type Run } from "./docAiRun"
 // two tabs on one doc, as the collaboration server joins them.
 
 const editors: Editor[] = []
-afterEach(() => {
+// Every run a test starts is stopped and settled after it, before its editors
+// go. A test that ran out of time on a loaded machine left its run in flight;
+// the next test's beforeEach reset the stand-in fetch, and the run read `.ok`
+// of nothing: an unhandled error, put on whichever test came next (public ai
+// CI, at a load of 70 to 100). A test that ran out of time also goes on in the
+// background, and one that waited before its run would start it in a later
+// test's time and take that test's answer. Its editors are gone by then, so
+// such a start says so instead.
+const runs: Run[] = []
+const start = (input: Parameters<typeof runAction>[0]) => {
+  if (input.editor.isDestroyed) throw new Error("A doc AI run was started after its test had ended: the test ran out of time.")
+  const run = runAction(input)
+  runs.push(run)
+  return run
+}
+afterEach(async () => {
+  for (const run of runs.splice(0)) {
+    run.stop()
+    await settled(run)
+  }
   while (editors.length) editors.pop()?.destroy()
 })
 beforeEach(() => {
@@ -57,10 +76,15 @@ function block(e: Editor, index: number) {
   return { from, to: from + e.state.doc.child(index).nodeSize }
 }
 
-/** A stream the test feeds frame by frame. */
+/**
+ * A stream the test feeds frame by frame, served as the answer to the run's
+ * next request (serve). Like fetch's, it ends in an AbortError once that
+ * request is aborted, so a stopped run settles.
+ */
 function controlled() {
   const queue: Array<Uint8Array | null> = []
   let wake: (() => void) | null = null
+  let signal: AbortSignal | undefined
   const enc = new TextEncoder()
   const push = (frame: unknown) => {
     queue.push(enc.encode(`data: ${JSON.stringify(frame)}\n\n`))
@@ -71,7 +95,13 @@ function controlled() {
     body: {
       getReader: () => ({
         read: async () => {
-          while (!queue.length) await new Promise<void>((r) => (wake = r))
+          while (!queue.length) {
+            if (signal?.aborted) throw new DOMException("The request was aborted.", "AbortError")
+            await new Promise<void>((r) => {
+              wake = r
+              signal?.addEventListener("abort", () => r(), { once: true })
+            })
+          }
           const v = queue.shift()!
           return v ? { done: false, value: v } : { done: true, value: undefined }
         },
@@ -80,7 +110,12 @@ function controlled() {
       }),
     },
   }
-  return { response, push, end: () => (queue.push(null), wake?.()) }
+  const serve = () =>
+    streamFetch.mockImplementationOnce(async (_url: unknown, init?: { signal?: AbortSignal }) => {
+      signal = init?.signal
+      return response
+    })
+  return { response, push, serve, end: () => (queue.push(null), wake?.()) }
 }
 
 const model = { name: "qwen3:4b", label: "qwen3 4B", provider: "ollama", local: true }
@@ -88,7 +123,7 @@ const model = { name: "qwen3:4b", label: "qwen3 4B", provider: "ollama", local: 
 /** Feeds a whole answer at once. */
 function answer(text: string) {
   const s = controlled()
-  streamFetch.mockResolvedValueOnce(s.response)
+  s.serve()
   s.push({ model })
   s.push({ content: text })
   s.push({ done: true })
@@ -116,7 +151,7 @@ describe("a rewrite (a transform)", () => {
     answer("We ship on Friday and tell everyone.")
     const { from, to } = block(tabA, 1)
     const before = Y.encodeStateVector(a)
-    const run = runAction({ editor: tabA, docId: "d1", action: "improve", from: from + 1, to: to - 1, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "improve", from: from + 1, to: to - 1, model: null })
     await settled(run)
     expect(run.state.phase).toBe("done")
     const id = run.state.proposalId!
@@ -141,7 +176,7 @@ describe("a rewrite (a transform)", () => {
     // Typed a moment ago, as the line was in the e2e run.
     await new Promise((r) => setTimeout(r, 600))
     const { from, to } = block(tabA, 1)
-    const run = runAction({ editor: tabA, docId: "d1", action: "edit", prompt: "make it a plan", from: from + 1, to: to - 1, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "edit", prompt: "make it a plan", from: from + 1, to: to - 1, model: null })
     await settled(run)
     acceptProposal(tabA, run.state.proposalId!)
     const types = () => {
@@ -166,7 +201,7 @@ describe("a rewrite (a transform)", () => {
     const real = globalThis.crypto
     vi.stubGlobal("crypto", { getRandomValues: real.getRandomValues.bind(real) })
     try {
-      const run = runAction({ editor: tabA, docId: "d1", action: "fix", from: 1, to: tabA.state.doc.child(0).nodeSize - 1, model: null })
+      const run = start({ editor: tabA, docId: "d1", action: "fix", from: 1, to: tabA.state.doc.child(0).nodeSize - 1, model: null })
       await settled(run)
       acceptProposal(tabA, run.state.proposalId!)
       await recordedSoon(1)
@@ -180,7 +215,7 @@ describe("a rewrite (a transform)", () => {
     const { tabA } = tabs("<p>We ship on Thursday, tell sales and wait.</p>")
     answer("We ship on Friday, tell everyone and celebrate.")
     const { from, to } = block(tabA, 0)
-    const run = runAction({ editor: tabA, docId: "d1", action: "improve", from: from + 1, to: to - 1, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "improve", from: from + 1, to: to - 1, model: null })
     await settled(run)
     const id = run.state.proposalId!
     const hunks = proposalsOf(tabA.state).active[id].proposal.hunks.map((h) => h.id)
@@ -197,7 +232,7 @@ describe("a rewrite (a transform)", () => {
   it("is never recorded when it is discarded, and leaves the doc as it was", async () => {
     const { tabA } = tabs("<p>We ship on Thursday.</p>")
     answer("We ship on Friday.")
-    const run = runAction({ editor: tabA, docId: "d1", action: "fix", from: 1, to: tabA.state.doc.child(0).nodeSize - 1, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "fix", from: 1, to: tabA.state.doc.child(0).nodeSize - 1, model: null })
     await settled(run)
     discardProposal(tabA, run.state.proposalId!)
     expect(text(tabA)).toBe("We ship on Thursday.")
@@ -207,9 +242,9 @@ describe("a rewrite (a transform)", () => {
   it("lands on the text it was asked about after another tab's edit moved it (N43)", async () => {
     const { tabA, tabB } = tabs("<p>Intro.</p><p>We ship on Thursday.</p>")
     const s = controlled()
-    streamFetch.mockResolvedValueOnce(s.response)
+    s.serve()
     const { from, to } = block(tabA, 1)
-    const run = runAction({ editor: tabA, docId: "d1", action: "improve", from: from + 1, to: to - 1, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "improve", from: from + 1, to: to - 1, model: null })
     await tick()
     // While the model writes, someone adds a paragraph above it in the other tab.
     tabB.commands.insertContentAt(0, "<p>Added by Maya.</p>")
@@ -225,9 +260,9 @@ describe("a rewrite (a transform)", () => {
   it("says so when the text it was about is gone", async () => {
     const { tabA, tabB } = tabs("<p>Intro.</p><p>We ship on Thursday.</p>")
     const s = controlled()
-    streamFetch.mockResolvedValueOnce(s.response)
+    s.serve()
     const { from, to } = block(tabA, 1)
-    const run = runAction({ editor: tabA, docId: "d1", action: "improve", from: from + 1, to: to - 1, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "improve", from: from + 1, to: to - 1, model: null })
     await tick()
     tabB.commands.setContent("<p>Intro.</p>")
     s.push({ content: "We ship on Friday." })
@@ -242,10 +277,10 @@ describe("a write", () => {
   it("streams in as ghost text nobody else sees, and goes in as real blocks on Accept (N17)", async () => {
     const { a, tabA, tabB } = tabs("<p>Intro.</p><p></p>")
     const s = controlled()
-    streamFetch.mockResolvedValueOnce(s.response)
+    s.serve()
     const empty = block(tabA, 1)
     const handedOver = vi.fn()
-    const run = runAction({ editor: tabA, docId: "d1", action: "write", prompt: "a rollout plan", from: empty.from + 1, to: empty.from + 1, model: null, onHandOver: handedOver })
+    const run = start({ editor: tabA, docId: "d1", action: "write", prompt: "a rollout plan", from: empty.from + 1, to: empty.from + 1, model: null, onHandOver: handedOver })
     const before = Y.encodeStateVector(a)
     s.push({ model })
     s.push({ content: "## Rollout\n\n- Freeze on **Monday**\n" })
@@ -274,9 +309,9 @@ describe("a write", () => {
   it("stops when it is discarded while still writing, and nothing goes in", async () => {
     const { tabA } = tabs("<p>Intro.</p><p></p>")
     const s = controlled()
-    streamFetch.mockResolvedValueOnce(s.response)
+    s.serve()
     const empty = block(tabA, 1)
-    const run = runAction({ editor: tabA, docId: "d1", action: "continue", from: empty.from + 1, to: empty.from + 1, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "continue", from: empty.from + 1, to: empty.from + 1, model: null })
     s.push({ content: "More words" })
     await new Promise((r) => setTimeout(r, 30))
     const id = run.state.proposalId!
@@ -294,7 +329,7 @@ describe("blocks chosen apart", () => {
     answer("Two points about the launch.")
     const one = block(tabA, 0)
     const three = block(tabA, 2)
-    const run = runAction({ editor: tabA, docId: "d1", action: "explain", from: one.from, to: three.to, parts: [three, one], model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "explain", from: one.from, to: three.to, parts: [three, one], model: null })
     await settled(run)
     const body = streamFetch.mock.calls[0][1].jsonBody
     expect(body.text).toBe("First point.\n\nThird point.")
@@ -305,7 +340,7 @@ describe("blocks chosen apart", () => {
     const { tabA } = tabs("<p>First point.</p><p>Not chosen.</p><p>Third point.</p>")
     const one = block(tabA, 0)
     const three = block(tabA, 2)
-    const run = runAction({ editor: tabA, docId: "d1", action: "improve", from: one.from, to: three.to, parts: [one, three], model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "improve", from: one.from, to: three.to, parts: [one, three], model: null })
     expect(run.state).toMatchObject({ phase: "error", error: "Pick blocks that are next to each other to change them, or ask about these." })
     expect(streamFetch).not.toHaveBeenCalled()
   })
@@ -322,7 +357,7 @@ describe("a summary", () => {
     const before = Y.encodeStateVector(a)
     const was = tabA.getHTML()
     answer("Launch this week: ship Thursday, docs Friday.")
-    const run = runAction({ editor: tabA, docId: "d1", action: "summarize", from: 1, to: 1, model: null, canChange: false })
+    const run = start({ editor: tabA, docId: "d1", action: "summarize", from: 1, to: 1, model: null, canChange: false })
     await settled(run)
     expect(run.state).toMatchObject({ phase: "done", kind: "answer", text: "Launch this week: ship Thursday, docs Friday.", proposalId: null })
     expect(Object.keys(proposalsOf(tabA.state).active)).toEqual([])
@@ -337,7 +372,7 @@ describe("a summary", () => {
   it("is read in the bar when the request says the person can't change the doc, though the editor could", async () => {
     const { tabA } = tabs("<p>We ship on Thursday.</p>")
     answer("Ship Thursday.")
-    const run = runAction({ editor: tabA, docId: "d1", action: "summarize", from: 1, to: 1, model: null, canChange: false })
+    const run = start({ editor: tabA, docId: "d1", action: "summarize", from: 1, to: 1, model: null, canChange: false })
     await settled(run)
     expect(run.state).toMatchObject({ kind: "answer", proposalId: null })
   })
@@ -346,7 +381,7 @@ describe("a summary", () => {
     const { tabA } = tabs("<p>We ship on Thursday.</p><p></p>")
     const empty = block(tabA, 1)
     answer("Ship Thursday.")
-    const run = runAction({ editor: tabA, docId: "d1", action: "summarize", from: empty.from + 1, to: empty.from + 1, model: null, canChange: true })
+    const run = start({ editor: tabA, docId: "d1", action: "summarize", from: empty.from + 1, to: empty.from + 1, model: null, canChange: true })
     await settled(run)
     expect(run.state.kind).toBe("write")
     expect(run.state.proposalId).not.toBeNull()
@@ -359,7 +394,7 @@ describe("an answer", () => {
   it("is read in the bar and changes nothing in the doc", async () => {
     const { tabA } = tabs("<p>We ship on Thursday.</p>")
     answer("It means the launch is this week.")
-    const run = runAction({ editor: tabA, docId: "d1", action: "explain", from: 1, to: 9, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "explain", from: 1, to: 9, model: null })
     await settled(run)
     expect(run.state).toMatchObject({ phase: "done", kind: "answer", text: "It means the launch is this week.", proposalId: null })
     expect(Object.keys(proposalsOf(tabA.state).active)).toEqual([])
@@ -370,9 +405,9 @@ describe("an answer", () => {
   it("says what went wrong", async () => {
     const { tabA } = tabs("<p>We ship.</p>")
     const s = controlled()
-    streamFetch.mockResolvedValueOnce(s.response)
+    s.serve()
     s.push({ error: "AI is switched off in this workspace." })
-    const run = runAction({ editor: tabA, docId: "d1", action: "explain", from: 1, to: 3, model: null })
+    const run = start({ editor: tabA, docId: "d1", action: "explain", from: 1, to: 3, model: null })
     await settled(run)
     expect(run.state).toMatchObject({ phase: "error", error: "AI is switched off in this workspace." })
   })
