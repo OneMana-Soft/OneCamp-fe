@@ -20,10 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No version here: the action reads package.json's packageManager, and refuses
+      # a second version that differs from it ("Multiple versions of pnpm specified").
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -70,10 +70,9 @@ jobs:
     needs: lint-build-unit
     steps:
       - uses: actions/checkout@v4
+      # pnpm's version comes from package.json's packageManager, as above.
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
