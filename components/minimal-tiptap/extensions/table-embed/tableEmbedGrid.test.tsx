@@ -45,6 +45,13 @@ vi.mock("@/lib/axiosInstance", () => ({
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => `/app/doc/${DOC}` }))
+// The selection bar's floating shell, in place (lib/testing/bubbleMenu).
+// Tippy's floating layer can't load under vitest: Node hands the bubble
+// menu tippy.js's CommonJS exports as its default import, so the menu's
+// first show throws "tippy is not a function". An inserted or pasted embed
+// is selected, and on a loaded machine the grid's import outlasts the
+// menu's 250 ms wait, so the real menu showed with the doc still open.
+vi.mock("@/components/minimal-tiptap/components/bubble-menu/bubble-menu", () => import("@/lib/testing/bubbleMenu"))
 
 import DocInput from "@/components/docEditor/docInput"
 
