@@ -25,7 +25,7 @@ import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { AlertCircle, Loader2, Lock, RefreshCw } from "@/lib/icons"
-import { clearUnsaved, markUnsaved } from "@/lib/unsavedChanges"
+import { clearUnsaved, markUnsaved, SAVE_NUDGE_EVENT } from "@/lib/unsavedChanges"
 import { SavedTick, type SaveStatus } from "@/components/ui/saveStatus"
 import { useSaysLoadFailure } from "@/lib/http/loadFailure"
 
@@ -474,7 +474,7 @@ export function DangerZone({ children, description, id }: { children: React.Reac
 }
 
 /** The event a way off the page sends first, so the dock nudges before a confirm. */
-export const SAVE_NUDGE_EVENT = "onecamp:save-nudge"
+export { SAVE_NUDGE_EVENT }
 
 /**
  * Unsaved changes on a form that spans several cards (the email template

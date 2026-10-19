@@ -31,3 +31,20 @@ export function docLoadFailure(error: unknown): DocLoadFailure {
     if (status === 410) return "deleted"
     return status >= 500 ? "unreachable" : "gone"
 }
+
+/**
+ * Where a doc that belongs to something else is (a table row's page, docs
+ * D-18): the server refuses it on the doc page with 403 {code: "hosted", msg,
+ * path} to someone its host lets open it, so the page takes them to its host.
+ * Only a path inside the app is ever followed, with no "." or ".." in it. Null
+ * for any other answer. Pure.
+ */
+export function hostedPlace(error: unknown): { msg: string; path: string } | null {
+    const answer = (error as { response?: { status?: unknown; data?: { code?: unknown; msg?: unknown; path?: unknown } } } | null | undefined)?.response
+    const path = answer?.data?.path
+    if (answer?.status !== 403 || answer.data?.code !== "hosted" || typeof path !== "string") return null
+    if (!path.startsWith("/app/") || path.startsWith("//") || path.includes("\\") || /[\s]/.test(path)) return null
+    // No "." or ".." segment: the jump stays inside /app/.
+    if (path.split(/[?#]/)[0].split("/").some((segment) => segment === "." || segment === "..")) return null
+    return { msg: typeof answer.data?.msg === "string" ? answer.data.msg : "This page belongs to a row of a table.", path }
+}

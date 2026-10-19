@@ -361,14 +361,42 @@ describe("the v3 board (work.md W20, W22)", () => {
     expect(container.querySelectorAll("[data-shift]")).toHaveLength(0)
   })
 
-  it("lights only another column under a held card", () => {
+  it("lights only another column under a held card, as the layer's drop well", () => {
     const { container } = board({ columns: { todo: many(2), done: many(1, "done") } })
     const card = container.querySelector<HTMLElement>('[data-task-id="t-todo-0"]')!
     act(() => card.focus())
     act(() => void fireEvent.keyDown(card, { key: " " }))
     expect(container.querySelector('[data-column="todo"]')!.hasAttribute("data-drag-over")).toBe(false)
     act(() => void fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" }))
-    expect(container.querySelector('[data-column="done"]')!.hasAttribute("data-drag-over")).toBe(true)
+    const target = container.querySelector<HTMLElement>('[data-column="done"]')!
+    expect(target.hasAttribute("data-drag-over")).toBe(true)
+    // A dashed accent edge and tint (app/interaction.css [data-drop], INTERACTION_SPEC §5.2), not a solid ring of its own.
+    expect(target.getAttribute("data-drop")).toBe("valid")
+    expect(target.className).not.toMatch(/ring-brand/)
+    // And the line where it will land is drawn, not hidden.
+    const line = target.querySelector<HTMLElement>("[data-drop-line]")!
+    expect(line.className).not.toMatch(/opacity-0|(^|\s)h-0(\s|$)/)
+  })
+
+  // The rivals review (16 Oct 2026): Notion tints each status column and heads
+  // it with a coloured pill, so the stage reads from across the room.
+  it("washes a column in its status's hue, under a lozenge, and leaves To do neutral", () => {
+    const { container } = board({ columns: { todo: many(1), done: many(1, "done") } })
+    const doneCol = container.querySelector<HTMLElement>('[data-column="done"]')!
+    expect(doneCol.className).toContain("hue-moss")
+    expect(doneCol.className).toContain("var(--hue-tint)")
+    expect(doneCol.querySelector("[data-column-lozenge]")!.className).toContain("bg-hue-tint text-hue-ink")
+    const todoCol = container.querySelector<HTMLElement>('[data-column="todo"]')!
+    expect(todoCol.className).not.toMatch(/hue-/)
+    expect(todoCol.querySelector("[data-column-lozenge]")!.className).toContain("bg-hover")
+  })
+
+  it("keeps a column's + in sight at rest, where it waited on the column's hover", () => {
+    board({ columns: { todo: many(1), done: [] }, onQuickAdd: async () => true })
+    const plus = screen.getByRole("button", { name: "New task in To do" })
+    for (let el: HTMLElement | null = plus; el && !el.hasAttribute("data-column"); el = el.parentElement) {
+      expect(el.className).not.toMatch(/(^|\s)opacity-0(\s|$)/)
+    }
   })
 
   it("offers every drag as a menu: Move to… each column", () => {

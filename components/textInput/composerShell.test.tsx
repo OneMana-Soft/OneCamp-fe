@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { Provider } from "react-redux"
 import { SendHorizontal } from "@/lib/icons"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
 // The conversation's composer (design v3 chat, C38, C39, C44, C45, C46): a
 // floating card at e2 with the accent halo on focus, at most 800px; five tools
@@ -11,8 +12,10 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/components/minimal-tiptap/components/bubble-menu/link-bubble-menu", () => ({ LinkBubbleMenu: () => null }))
+// Whether a dictation is going, as a test sets it.
+const voice = vi.hoisted(() => ({ recording: false, stop: (() => {}) as () => void }))
 vi.mock("@/hooks/useVoiceDictation", () => ({
-  useVoiceDictation: () => ({ available: true, recording: false, transcribing: false, setup: { needed: false, sizeMb: null, progress: null }, start: vi.fn(), stop: vi.fn(), toggle: vi.fn() }),
+  useVoiceDictation: () => ({ available: true, recording: voice.recording, transcribing: false, setup: { needed: false, sizeMb: null, progress: null }, start: vi.fn(), stop: voice.stop, toggle: vi.fn() }),
   dictationLabel: () => "Dictate",
 }))
 let kinds: Record<string, string> = {}
@@ -115,5 +118,48 @@ describe("send later's presets", () => {
     expect(late).toEqual(["hour", "tomorrow"])
     const sunday = sendLaterChoices(new Date(2026, 9, 11, 9, 0)).map((c) => c.key)
     expect(sunday).not.toContain("monday")
+  })
+})
+
+// While a dictation goes, Esc in the box stops it (and drops what it heard).
+// In a dialog, the dialog heard Esc first and closed, the dictation with it:
+// the box says it answers Escape while it does (lib/keys/escapeOwn).
+describe("a dictation in a dialog", () => {
+  it("stops with Esc, and the dialog stays; with none going, Esc closes the dialog", async () => {
+    const stop = vi.fn()
+    voice.stop = stop
+    voice.recording = true
+    const onOpenChange = vi.fn()
+    const view = () => (
+      <Provider store={store}>
+        <TooltipProvider>
+          <Dialog open onOpenChange={onOpenChange}>
+            <DialogContent>
+              <DialogTitle>Forward this message</DialogTitle>
+              <DialogDescription>With a note, if you like.</DialogDescription>
+              <MinimalTiptapTextInput variant="chat" throttleDelay={20} output="html" content="" editable ButtonIcon={SendHorizontal} buttonOnclick={() => {}} />
+            </DialogContent>
+          </Dialog>
+        </TooltipProvider>
+      </Provider>
+    )
+    try {
+      const { rerender } = render(view())
+      const box = await waitFor(() => {
+        const el = document.querySelector<HTMLElement>("[data-composer] [contenteditable]")
+        if (!el) throw new Error("no box yet")
+        return el
+      })
+      fireEvent.keyDown(box, { key: "Escape" })
+      expect(stop).toHaveBeenCalledTimes(1)
+      expect(onOpenChange).not.toHaveBeenCalled()
+      voice.recording = false
+      rerender(view())
+      fireEvent.keyDown(box, { key: "Escape" })
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    } finally {
+      voice.recording = false
+      voice.stop = () => {}
+    }
   })
 })

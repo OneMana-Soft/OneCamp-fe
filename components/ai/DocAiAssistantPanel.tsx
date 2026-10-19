@@ -69,6 +69,7 @@ import { streamDocAI, type DocAIRequest } from "@/lib/ai/docAIStream";
 import { getDocAIModel } from "@/lib/ai/docAIApi";
 import { applyFromPanel, panelRequest } from "./docAiRun";
 import { takePanelHandoff } from "./docAiStore";
+import { escapeTaken, takeEscape } from "@/lib/keys/escapeOwn";
 
 /** The panel's actions, as the bar names them. */
 const PANEL_ACTIONS: Partial<Record<DocAIActionId, { icon: React.ElementType; description: string }>> = {
@@ -119,6 +120,12 @@ interface DocAiAssistantPanelProps {
   initialAction?: string;
   /** What was typed with it ("/" then "Ask AI to write …"). */
   initialPrompt?: string;
+  /**
+   * Drawn in the phone's sheet (docInput): the panel's body is the sheet's one
+   * scroller, and the answer grows in it. On a computer the answer keeps a box
+   * of its own, at most 350 px, inside the panel.
+   */
+  sheet?: boolean;
 }
 
 const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
@@ -129,6 +136,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
   onClose,
   initialAction,
   initialPrompt,
+  sheet,
 }) => {
   const dispatch = useDispatch();
   const [run, setRun] = React.useState<PanelRun | null>(null);
@@ -141,6 +149,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
   const [still, setStill] = React.useState(false);
   const abortRef = React.useRef<AbortController | null>(null);
   const resultRef = React.useRef<HTMLDivElement>(null);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
   const rootRef = React.useRef<HTMLDivElement>(null);
 
   const editorNow = React.useCallback(() => {
@@ -287,10 +296,13 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
     return () => clearTimeout(t);
   }, [waiting]);
 
-  // The answer follows its last line as it streams.
+  // The answer follows its last line as it streams: its own box on a
+  // computer; in the phone's sheet the panel's one scroller.
   React.useEffect(() => {
-    if (resultRef.current && run?.phase === "streaming") resultRef.current.scrollTop = resultRef.current.scrollHeight;
-  }, [run?.text, run?.phase]);
+    if (run?.phase !== "streaming") return;
+    const box = sheet ? scrollRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]") : resultRef.current;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [run?.text, run?.phase, sheet]);
 
   const back = () => {
     abortRef.current?.abort();
@@ -348,8 +360,11 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "Escape" || e.defaultPrevented) return;
-    e.preventDefault();
+    // A press a popup in the panel used is its. One the phone's sheet left
+    // here is the panel's, and so is one the sheet over a narrow page handed
+    // on: the panel takes it, and nothing after it hears it.
+    if (e.key !== "Escape" || escapeTaken(e.nativeEvent)) return;
+    takeEscape(e.nativeEvent);
     if (run && (run.phase === "waiting" || run.phase === "streaming")) return stop();
     if (run) return back();
     if (showPromptInput) return setShowPromptInput(false);
@@ -363,7 +378,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
   const canReplace = hasSelection && kind === "transform";
 
   return (
-    <div ref={rootRef} tabIndex={-1} className={cn("flex h-full flex-col outline-none", isSidebar && "border-l")} onKeyDown={onKeyDown} data-doc-ai-panel="">
+    <div ref={rootRef} tabIndex={-1} className={cn("flex h-full flex-col outline-none", isSidebar && "border-l")} onKeyDown={onKeyDown} data-escape-own="" data-doc-ai-panel="">
       {/* In the right panel it opens under the panel's one header, as a
           thread, a task or the AI chat do. */}
       {isSidebar && !onClose ? (
@@ -382,7 +397,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
         </div>
       )}
 
-      <ScrollArea className="flex-1">
+      <ScrollArea ref={scrollRef} className="flex-1">
         <div className="p-5">
           {line && (
             <p className="mb-3 truncate text-meta text-ink-3" title={line}>
@@ -534,7 +549,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                 </div>
 
                 {run.text ? (
-                  <div className="max-h-[350px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar" ref={resultRef}>
+                  <div className={sheet ? undefined : "max-h-[350px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar"} ref={resultRef} data-ai-answer="">
                     <div className="text-ui text-ink">
                       <MarkdownMessage content={run.text} />
                       {run.phase === "streaming" && <span className="ml-0.5 inline-block h-4 w-[2px] animate-blink bg-agent align-middle motion-reduce:animate-none" aria-hidden="true" />}

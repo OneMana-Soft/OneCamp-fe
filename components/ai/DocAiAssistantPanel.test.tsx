@@ -2,7 +2,7 @@ import * as React from "react"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
-import { configureStore } from "@reduxjs/toolkit"
+import { configureStore, type Middleware } from "@reduxjs/toolkit"
 import { Editor } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
 
@@ -15,6 +15,8 @@ vi.mock("@/lib/ai/docAIApi", () => ({
 }))
 const feature = { state: "available" as "available" | "unknown" | "unavailable" }
 vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeatureState: () => feature.state }))
+// The right panel's header asks the screen's size (a narrow window's right panel, below).
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isTablet: true, isDesktop: false }) }))
 const toasts = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: unknown) => toasts(t), useToast: () => ({ toast: toasts }) }))
 
@@ -25,6 +27,10 @@ import { loadCodec } from "@/lib/ai/docAIContent"
 import { DocAiMarkers, pinRange } from "./docAiPlugin"
 import { handToPanel, setPanelPin } from "./docAiStore"
 import { DocAiAssistantPanel } from "./DocAiAssistantPanel"
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
+import { OverlaySheet } from "@/components/ui/overlaySheet"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { onEscape } from "@/lib/keys/onEscape"
 
 // The doc AI panel, the long conversation's place (N17, N43, N44): its
 // answers go into the doc as blocks to review, on the text it was opened on,
@@ -261,5 +267,124 @@ describe("the panel's controls (N44)", () => {
     feature.state = "unavailable"
     const { container } = panel()
     expect(container.textContent).toBe("")
+  })
+})
+
+// On a phone the panel is the AI sheet's content (docInput: the shared
+// drawer, which leaves Esc to what answers it). The sheet heard Esc first and
+// closed, with a run still writing; the panel took no press it was left.
+describe("the panel in the phone's sheet", () => {
+  it("stops on Esc, then goes back, and the sheet stays; then it closes", async () => {
+    const onClose = vi.fn()
+    const onOpenChange = vi.fn()
+    const s = controlled()
+    const store = configureStore({ reducer: { ui: (st: Record<string, unknown> = {}) => st } })
+    render(
+      <Provider store={store}>
+        <Drawer open onOpenChange={onOpenChange}>
+          <DrawerContent>
+            <DrawerTitle className="sr-only">OneCamp AI</DrawerTitle>
+            <DrawerDescription className="sr-only">Write and change text with AI.</DrawerDescription>
+            <DocAiAssistantPanel selectedText="We ship on Thursday." docId="d1" initialAction="improve" onClose={onClose} />
+          </DrawerContent>
+        </Drawer>
+      </Provider>,
+    )
+    await vi.waitFor(() => expect(streamFetch).toHaveBeenCalled(), { timeout: 3000 })
+    s.push({ content: "We ship" })
+    const words = await screen.findByText("We ship")
+    fireEvent.keyDown(words, { key: "Escape" })
+    await settle()
+    expect(screen.queryByRole("button", { name: /Stop/ })).toBeNull()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByText("We ship"), { key: "Escape" })
+    expect(screen.getByRole("button", { name: /Improve writing/ })).toBeTruthy()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole("button", { name: /Improve writing/ }), { key: "Escape" })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+// The answer as it streams (DRAWERS, 17 Oct). On a computer it has a box of
+// its own, at most 350 px, which follows its last line. In the phone's sheet
+// that box inside the panel's scroller made two (a flick moved the wrong
+// one), so there the answer grows in the panel's one scroller, which follows
+// it instead. e2e/phoneSheets.spec.ts measures the sheet.
+describe("the answer as it streams", () => {
+  // jsdom lays nothing out: the scroller followed is given a height.
+  const tall = (el: HTMLElement) => Object.defineProperty(el, "scrollHeight", { configurable: true, get: () => 5000 })
+
+  it("in the phone's sheet, grows in the panel's one scroller, which follows its last line", async () => {
+    const s = controlled()
+    panel({ selectedText: "We ship on Thursday.", initialAction: "improve", sheet: true })
+    await vi.waitFor(() => expect(streamFetch).toHaveBeenCalled(), { timeout: 3000 })
+    const viewport = document.querySelector<HTMLElement>("[data-doc-ai-panel] [data-radix-scroll-area-viewport]")!
+    tall(viewport)
+    s.push({ content: "We ship" })
+    await screen.findByText("We ship")
+    const answer = document.querySelector<HTMLElement>("[data-ai-answer]")!
+    expect(answer.className, "the answer's own box, a second scroller in the sheet").not.toMatch(/max-h-|overflow-y-auto/)
+    s.push({ content: " on Friday" })
+    await screen.findByText(/on Friday/)
+    expect(viewport.scrollTop).toBe(5000)
+  })
+
+  it("on a computer, keeps a box of its own, which follows its last line", async () => {
+    const s = controlled()
+    panel({ selectedText: "We ship on Thursday.", initialAction: "improve", isSidebar: true })
+    await vi.waitFor(() => expect(streamFetch).toHaveBeenCalled(), { timeout: 3000 })
+    s.push({ content: "We ship" })
+    await screen.findByText("We ship")
+    const answer = document.querySelector<HTMLElement>("[data-ai-answer]")!
+    expect(answer.className).toContain("max-h-[350px]")
+    tall(answer)
+    s.push({ content: " on Friday" })
+    await screen.findByText(/on Friday/)
+    expect(answer.scrollTop).toBe(5000)
+  })
+})
+
+// In a narrow window the right panel is a sheet over the page
+// (LayoutContent: OverlaySheet, escape="own"), which hands Esc on unused to
+// what is in it. The panel skipped a press marked that way: Esc stopped no
+// run, and went on to the page's own Esc (following someone, a list's
+// selection). Its keys are the same as beside the page: one press, one thing.
+describe("the panel in a narrow window's right panel", () => {
+  it("stops on Esc, then goes back, then closes the panel, and the page hears none of it", async () => {
+    const page = vi.fn(() => true)
+    const stopPage = onEscape("page", page)
+    const actions: Array<{ type: string }> = []
+    const record: Middleware = () => (next) => (action) => {
+      actions.push(action as { type: string })
+      return next(action)
+    }
+    const store = configureStore({ reducer: { ui: (st: Record<string, unknown> = {}) => st }, middleware: (defaults) => defaults().concat(record) })
+    const closed = () => actions.filter((a) => a.type === "rightPanel/closeRightPanel").length
+    try {
+      const s = controlled()
+      render(
+        <Provider store={store}>
+          <TooltipProvider>
+            <OverlaySheet open onClose={() => {}} label="Side panel" escape="own">
+              <DocAiAssistantPanel selectedText="We ship on Thursday." docId="d1" initialAction="improve" isSidebar />
+            </OverlaySheet>
+          </TooltipProvider>
+        </Provider>,
+      )
+      await vi.waitFor(() => expect(streamFetch).toHaveBeenCalled(), { timeout: 3000 })
+      s.push({ content: "We ship" })
+      const words = await screen.findByText("We ship")
+      fireEvent.keyDown(words, { key: "Escape" })
+      await settle()
+      expect(screen.queryByRole("button", { name: /Stop/ })).toBeNull()
+      fireEvent.keyDown(screen.getByText("We ship"), { key: "Escape" })
+      expect(screen.getByRole("button", { name: /Improve writing/ })).toBeTruthy()
+      expect(closed()).toBe(0)
+      fireEvent.keyDown(screen.getByRole("button", { name: /Improve writing/ }), { key: "Escape" })
+      expect(closed()).toBe(1)
+      expect(page).not.toHaveBeenCalled()
+    } finally {
+      stopPage()
+    }
   })
 })

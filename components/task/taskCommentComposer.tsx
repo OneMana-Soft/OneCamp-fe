@@ -17,7 +17,7 @@ import type { CreateTaskCommentInterface } from "@/types/task"
 import type { CreateCommentResInterface } from "@/types/comment"
 import type { UserProfileInterface } from "@/types/user"
 import { cn } from "@/lib/utils/helpers/cn"
-import { SendHorizontal } from "@/lib/icons"
+import { Eye, SendHorizontal } from "@/lib/icons"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { TaskCommentFileUpload } from "@/components/fileUpload/taskCommentFileUpload"
 import type { Content } from "@tiptap/core"
@@ -55,7 +55,7 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
         // Tighter on a phone, where the task page has no bottom bar: clear of
         // the home indicator (safe-area inset), and less of the screen spent
         // on an empty box above the task's own fields.
-        <div className="flex-shrink-0 border-t px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:p-4">
+        <div data-task-comment-box="" className="flex-shrink-0 border-t px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:p-4">
             <div data-composer-frame={frame ? "page" : undefined} className={frame}>
             <MinimalTiptapTextInput
                 throttleDelay={300}
@@ -80,6 +80,22 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
         </div>
     )
 })
+
+/**
+ * In the box's place, for someone who reads a task but can't comment on it (a
+ * project's viewer): said quietly, in the server's words, never a box that
+ * refuses what is typed in it (Work Access, A1).
+ */
+export function TaskCommentNote({ frame }: { frame?: string }) {
+    return (
+        <div data-task-comment-note="" className="flex-shrink-0 border-t px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4">
+            <p data-composer-frame={frame ? "page" : undefined} className={cn("flex items-center gap-2 text-ui-sm text-ink-3", frame)}>
+                <Eye className="size-3.5 shrink-0" aria-hidden="true" />
+                <span>You can see this project but not comment in it.</span>
+            </p>
+        </div>
+    )
+}
 
 /**
  * The composer with what it needs from the store: the comment being written,

@@ -20,7 +20,7 @@ import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
-import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ConfirmAlertDialog } from "@/components/dialog/confirmAlertDialog"
 import { editorOf, useDocBus } from "@/components/docEditor/registry/commandBus"
@@ -210,7 +210,7 @@ export default function HistorySheet({ docId, onClose }: { docId: string; onClos
   if (isMobile) {
     return (
       <Drawer detent="large" open={open} onOpenChange={(o) => !o && close()}>
-        <DrawerContent data-history-sheet="" onEscapeKeyDown={keepWhileNaming}>
+        <DrawerContent data-history-sheet="">
           <DrawerTitle className="sr-only">Version history</DrawerTitle>
           <DrawerDescription className="sr-only">Read, compare, name and restore earlier versions of {docTitle}.</DrawerDescription>
           {phoneView === "list" || !selected ? (
@@ -256,7 +256,6 @@ export default function HistorySheet({ docId, onClose }: { docId: string; onClos
         hideClose
         // The rail focuses the version it shows (VersionRail autoFocus).
         onOpenAutoFocus={(e) => e.preventDefault()}
-        onEscapeKeyDown={keepWhileNaming}
         className="flex h-[calc(100dvh-3rem)] max-h-none w-[calc(100vw-3rem)] max-w-[1240px] flex-col gap-0 overflow-hidden p-0"
         data-history-sheet=""
       >
@@ -294,12 +293,12 @@ export default function HistorySheet({ docId, onClose }: { docId: string; onClos
 /** Mid-sentence: "the version from today, 2:32 PM". */
 const whenInSentence = (v: DocVersion) => versionWhen(v).replace(/^(Today|Yesterday)/, (w) => w.toLowerCase())
 
-/** Esc in a version's name field leaves the name as it was, not the sheet (the field hears it after the sheet would). */
-function keepWhileNaming(e: KeyboardEvent) {
-  if ((e.target as Element | null)?.closest?.("[data-version-name-field]")) e.preventDefault()
-}
 
-/** "Save version": the doc as it is now, kept, with a name if one is given. */
+/**
+ * "Save version": the doc as it is now, kept, with a name if one is given.
+ * A popover by the button on a computer; on a phone (compact) a sheet of its
+ * own over the history sheet, as a popover there floated over the sheet.
+ */
 function SaveVersion({ docId, onSaved, compact }: { docId: string; onSaved(v: DocVersion): Promise<void>; compact?: boolean }) {
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState("")
@@ -320,47 +319,62 @@ function SaveVersion({ docId, onSaved, compact }: { docId: string; onSaved(v: Do
       setBusy(false)
     }
   }
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant={compact ? "secondary" : "ghost"} size="sm" className="gap-1.5" data-save-version="">
-          <Plus aria-hidden="true" />
+  const trigger = (
+    <Button variant={compact ? "secondary" : "ghost"} size="sm" className="gap-1.5" data-save-version="">
+      <Plus aria-hidden="true" />
+      Save version
+    </Button>
+  )
+  const form = (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        void submit()
+      }}
+      className="space-y-2.5"
+    >
+      <label className="block text-ui font-medium text-ink" htmlFor="history-save-name">
+        Keep the doc as it is now
+      </label>
+      <input
+        id="history-save-name"
+        value={name}
+        maxLength={MAX_NAME}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Name it, if you like"
+        autoFocus
+        className="h-8 w-full rounded-md bg-sunken px-2.5 text-ui text-ink outline-none ring-1 ring-inset ring-line focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:text-base"
+      />
+      <p className="text-meta text-ink-3">A named version is kept until you unname it.</p>
+      {error && (
+        <p role="alert" className="text-meta text-danger-ink">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end">
+        <Button type="submit" size="sm" disabled={busy} aria-busy={busy || undefined} className={cn("gap-1.5")}>
+          {busy && <Loader2 className="animate-spin" />}
           Save version
         </Button>
-      </PopoverTrigger>
+      </div>
+    </form>
+  )
+  if (compact) {
+    return (
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerTrigger asChild>{trigger}</DrawerTrigger>
+        <DrawerContent aria-describedby={undefined} data-save-version-sheet="">
+          <DrawerTitle className="sr-only">Save version</DrawerTitle>
+          <div className="px-4 pb-4 pt-1">{form}</div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-3">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            void submit()
-          }}
-          className="space-y-2.5"
-        >
-          <label className="block text-ui font-medium text-ink" htmlFor="history-save-name">
-            Keep the doc as it is now
-          </label>
-          <input
-            id="history-save-name"
-            value={name}
-            maxLength={MAX_NAME}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Name it, if you like"
-            autoFocus
-            className="h-8 w-full rounded-md bg-sunken px-2.5 text-ui text-ink outline-none ring-1 ring-inset ring-line focus-visible:ring-2 focus-visible:ring-brand"
-          />
-          <p className="text-meta text-ink-3">A named version is kept until you unname it.</p>
-          {error && (
-            <p role="alert" className="text-meta text-danger-ink">
-              {error}
-            </p>
-          )}
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={busy} aria-busy={busy || undefined} className={cn("gap-1.5")}>
-              {busy && <Loader2 className="animate-spin" />}
-              Save version
-            </Button>
-          </div>
-        </form>
+        {form}
       </PopoverContent>
     </Popover>
   )

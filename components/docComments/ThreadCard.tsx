@@ -50,6 +50,14 @@ export interface ThreadCardProps {
     matches?: number
     /** The phone's thread page: no card, every comment, the reply box its page's. */
     page?: boolean
+    /**
+     * Where a thread on something other than a doc is, in words, for a thread
+     * its quote can't say: "On this row", "On Status" (a table's row and its
+     * cells). Absent for a doc, whose threads quote their words.
+     */
+    placeOf?: (thread: ThreadView) => string | undefined
+    /** Whether a reply can attach files (a doc's can; a table row's can't yet). */
+    uploads?: boolean
 }
 
 /** How long an unread thread is in view before it counts as read. */
@@ -111,7 +119,7 @@ function IconAction({ label, onClick, children, busy }: { label: string; onClick
     )
 }
 
-export const ThreadCard = React.memo(function ThreadCard({ docId, thread, actions: t, place, matches = 0, page }: ThreadCardProps) {
+export const ThreadCard = React.memo(function ThreadCard({ docId, thread, actions: t, place, matches = 0, page, placeOf, uploads = true }: ThreadCardProps) {
     const { toast } = useToast()
     const card = React.useRef<HTMLElement>(null)
     const id = thread.id
@@ -176,7 +184,8 @@ export const ThreadCard = React.memo(function ThreadCard({ docId, thread, action
     }
 
     const detached = place?.state === "detached"
-    const anchored = !onPage(thread)
+    const where = placeOf?.(thread)
+    const anchored = !where && !onPage(thread)
     const quote = quoteLine(thread.anchor.quote)
     const open = thread.status === "open"
     const { shown, hidden, at } = foldComments(thread.comments, unfolded || !!page)
@@ -293,7 +302,7 @@ export const ThreadCard = React.memo(function ThreadCard({ docId, thread, action
                         <span className="line-clamp-2">{quote || "This block"}</span>
                     </button>
                 ) : (
-                    <span className="mt-1.5 min-w-0 flex-1 text-meta text-ink-3">On the page</span>
+                    <span className="mt-1.5 min-w-0 flex-1 truncate text-meta text-ink-3">{where ?? "On the page"}</span>
                 )}
                 {thread.can_resolve && (
                     <span className="flex shrink-0">
@@ -357,6 +366,7 @@ export const ThreadCard = React.memo(function ThreadCard({ docId, thread, action
                             placeholder="Reply…"
                             label="Reply in this thread"
                             sendLabel="Reply"
+                            uploads={uploads}
                             autoFocus={replying}
                             onSend={(b) => t.reply(thread.id, b)}
                             onCancel={() => {

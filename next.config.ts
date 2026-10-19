@@ -88,6 +88,11 @@ const nextConfig: NextConfig = {
     // A self-contained server for the container build (see Dockerfile). Off
     // otherwise, so a Vercel or `next start` deployment is unchanged.
     output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
+    // `next dev` (Next 16.3) writes AGENTS.md and CLAUDE.md into the root when it
+    // detects an AI coding agent: instructions every agent working in the tree
+    // would read, and files that could be committed with other work. Off, and
+    // .gitignore names both (app/agentRules.test.ts).
+    agentRules: false,
     reactStrictMode: false,
     generateBuildId: async () => buildId,
     env: { NEXT_PUBLIC_BUILD_ID: buildId },

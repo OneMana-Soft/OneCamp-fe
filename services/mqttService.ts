@@ -175,6 +175,9 @@ interface msgChatInterface {
     chat_fwd_msg_chat?: ChatInfo
     chat_reply_to?: ChatInfo
     chat_attachments: AttachmentMediaReq[]
+    /** As a ChatInfo's chat_kind and chat_system: a system line and its facts. */
+    chat_kind?: string
+    chat_system?: string
 }
 interface msgPostInterface {
     type: MqttActionType
@@ -191,6 +194,9 @@ interface msgPostInterface {
     post_fwd_msg_chat?: ChatInfo
     post_reply_to?: PostsRes
     post_attachments: AttachmentMediaReq[]
+    /** As a PostsRes's post_kind and post_system: a system line and its facts. */
+    post_kind?: string
+    post_system?: string
 }
 
 

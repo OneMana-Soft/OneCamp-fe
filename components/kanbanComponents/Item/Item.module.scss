@@ -3,7 +3,8 @@
  * Visual styling (material, padding, type) lives in Tailwind classes on
  * Item.tsx; this keeps what belongs to a drag:
  *
- *  - lift: the copy under the pointer scales 1 -> 1.03 on the spring and
+ *  - lift: the copy under the pointer scales to the layer's lift (1.02,
+ *    --ix-lift-scale, INTERACTION_SPEC §5.1) on the spring and
  *    tilts 1.5 degrees toward the drag (--tilt, set by the board on the
  *    first move; never by touch), on the floating step (e3);
  *  - drop: back to scale 1, no tilt, resting shadow, on the drop token
@@ -22,7 +23,7 @@
   }
 
   to {
-    scale: 1.03;
+    scale: var(--ix-lift-scale, 1.02);
   }
 }
 
@@ -96,7 +97,7 @@
 
   &.dragOverlay {
     cursor: grabbing;
-    scale: 1.03;
+    scale: var(--ix-lift-scale, 1.02);
     rotate: var(--tilt, 0deg);
     box-shadow: var(--e3);
     opacity: 1;

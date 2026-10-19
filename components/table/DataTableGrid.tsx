@@ -4,16 +4,15 @@ import * as React from "react"
 import { useVirtualizer, type Virtualizer } from "@tanstack/react-virtual"
 import "./table.css"
 import { cn } from "@/lib/utils/helpers/cn"
-import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Copy, Maximize2, Pin, Plus, Trash2, X } from "@/lib/icons"
+import { Copy, FileText, Maximize2, Pin, Plus, Trash2, X } from "@/lib/icons"
+import { UnreadDot } from "@/components/docComments/UnreadDot"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { FloatingBar, FloatingBarButton, FloatingBarDivider } from "@/components/ui/FloatingBar"
 import {
   createField,
   createRow,
   deleteField,
-  deleteRow,
   isNumeric,
   parseFieldConfig,
   parseRowValues,
@@ -24,7 +23,9 @@ import {
 } from "@/services/tableService"
 import { nextCell, swallowsAtEdge, type CellKind } from "@/lib/tables/gridKeys"
 import { TABLE_VIEW_BODY } from "@/components/table/TableViewFrame"
-import { Cell, cellKind, optionIndexOf, type CellContext } from "@/components/table/gridCells"
+import { Cell, optionIndexOf, type CellContext } from "@/components/table/gridCells"
+import { fieldKind } from "@/lib/fieldTypes/registry"
+import { tintedFields } from "@/components/table/optionChip"
 import { AddColumn, ColumnHeader, type ColumnCreateInput, type ColumnPage, type ColumnSaveInput } from "@/components/table/ColumnMenu"
 import { useCellCommit, type CellCommit } from "@/lib/tables/useCellCommit"
 import { rowPx, type RowHeight, type SummaryFn } from "@/lib/tables/display"
@@ -32,6 +33,9 @@ import { SUMMARY_LABEL, defaultSummary, summarize, summaryChoices } from "@/lib/
 import { ix } from "@/lib/ui/interactive"
 import { isComposingKey } from "@/lib/keys/ime"
 import { formatLocale } from "@/lib/tables/numberFormat"
+import { fieldOrder } from "@/lib/tables/fieldOrder"
+import { batchRows, restoreFromTrash, rowsText, undoChange } from "@/lib/tables/ledger"
+import { useUndoToast } from "@/components/table/ledger/useUndoToast"
 
 export { groupedNumber } from "@/components/table/gridCells"
 
@@ -114,6 +118,12 @@ export function columnWidth(f: TableField): number {
 
 const HEADER_HEIGHT = 36
 const GUTTER = 44
+
+/** "2 comments": what a row's comment mark says. */
+const commentsLabel = (n: number) => `${n} ${n === 1 ? "comment" : "comments"}`
+/** The open button's name: the row, its comments and its page. Pure. */
+const openRowLabel = (n: number, row: Pick<TableRow, "comments" | "page">) =>
+  `Open row ${n}${row.comments ? `, ${commentsLabel(row.comments)}` : ""}${row.page ? ", which has a page" : ""}`
 const ADD_COL = 48
 /** Rows shown before the grid's frame has been measured. */
 const FIRST_SCREEN_ROWS = 40
@@ -162,15 +172,15 @@ export function DataTableGrid({
   commit: shared,
   compact,
 }: DataTableGridProps) {
-  const { toast } = useToast()
   const confirm = useConfirm()
+  const offerUndo = useUndoToast(onChange)
   const [adding, setAdding] = React.useState(false)
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set())
   const [menu, setMenu] = React.useState<{ field: string; page: ColumnPage } | null>(null)
 
   const sortedFields = React.useMemo(() => {
     const hide = new Set(hidden || [])
-    return [...fields].sort((a, b) => a.position - b.position).filter((f) => !hide.has(f.id))
+    return fieldOrder(fields).filter((f) => !hide.has(f.id))
   }, [fields, hidden])
 
   const own = useCellCommit({ tableId, rows, onChange })
@@ -211,18 +221,20 @@ export function DataTableGrid({
     }
   }
 
+  // One request, one change set: the whole delete is one Undo, and its rows
+  // wait in the table's trash until someone brings them back.
   const deleteSelected = () => {
     const ids = [...selected]
     confirm({
       title: ids.length === 1 ? "Delete the selected row?" : `Delete ${ids.length} selected rows?`,
-      description: "They're removed for everyone. This can't be undone.",
+      description: ids.length === 1 ? "It's removed for everyone, and kept in the table's trash." : "They're removed for everyone, and kept in the table's trash.",
       confirmText: "Delete selected",
       destructive: true,
       onConfirm: async () => {
         try {
-          await Promise.all(ids.map((id) => deleteRow(tableId, id)))
+          const done = await batchRows(tableId, { delete: ids })
           setSelected(new Set())
-          toast({ title: ids.length === 1 ? "Row deleted" : `${ids.length} rows deleted` })
+          offerUndo(ids.length === 1 ? "Row deleted" : `${rowsText(ids.length)} deleted`, () => undoChange(tableId, done.change_set))
         } catch {
           // surfaced
         } finally {
@@ -232,15 +244,17 @@ export function DataTableGrid({
     })
   }
 
-  // Copies go after every row, one after another, in the order shown.
+  // Copies go after every row, in the order shown, in one request: one
+  // change set, one Undo.
   const duplicateSelected = async () => {
     const ids = new Set(selected)
     const picked = rows.filter((r) => ids.has(r.id))
-    const made: TableRow[] = []
+    let made: TableRow[] = []
     try {
-      for (const r of picked) made.push(await createRow(tableId, writableValues(fields, parseRowValues(r))))
+      const done = await batchRows(tableId, { create: picked.map((r) => ({ values: writableValues(fields, parseRowValues(r)) })) })
+      made = done.created ?? []
       setSelected(new Set())
-      toast({ title: picked.length === 1 ? "Row duplicated" : `${picked.length} rows duplicated` })
+      offerUndo(picked.length === 1 ? "Row duplicated" : `${rowsText(picked.length)} duplicated`, () => undoChange(tableId, done.change_set))
     } catch {
       // surfaced
     } finally {
@@ -293,14 +307,14 @@ export function DataTableGrid({
   const deleteColumn = (field: TableField) => {
     confirm({
       title: `Delete the column "${field.name}"?`,
-      description: "Its cells are emptied in every row. This can't be undone.",
+      description: "It's removed for everyone, and kept in the table's trash with its cells.",
       confirmText: "Delete column",
       destructive: true,
       onConfirm: async () => {
         try {
           await deleteField(tableId, field.id)
           onChange()
-          toast({ title: "Column deleted" })
+          offerUndo("Column deleted", () => restoreFromTrash(tableId, { fields: [field.id] }))
         } catch {
           // surfaced
         }
@@ -530,6 +544,7 @@ export function DataTableGrid({
   const ctx = React.useMemo<CellContext>(
     () => ({
       options: optionIndexOf(fields),
+      tinted: tintedFields(fields),
       rowHeight,
       onEditField: canManage ? (fieldId) => setMenu({ field: fieldId, page: "formula" }) : undefined,
     }),
@@ -914,6 +929,20 @@ const GridRow = React.memo(
                 )}
               />
             ) : null}
+            {row.comments ? (
+              // People are talking about this row: a dot in the corner, and
+              // the open button says how many comments its open threads hold.
+              <span data-row-comments={row.comments} title={commentsLabel(row.comments)} className="pointer-events-none absolute right-1 top-1 flex group-hover:opacity-0">
+                <UnreadDot className="block" />
+              </span>
+            ) : null}
+            {row.page ? (
+              // The row has a page of its own (rows as pages): a small page
+              // mark in the other corner, and the open button says so.
+              <span data-row-page="" title="This row has a page" className="pointer-events-none absolute bottom-1 right-1 flex text-ink-3 group-hover:opacity-0">
+                <FileText className="size-2.5" aria-hidden />
+              </span>
+            ) : null}
             {onOpen ? (
               // On a touch screen it keeps 8 px clear of the first cell, and
               // the checkbox moves out of its way: a browser gives a tap near
@@ -921,7 +950,7 @@ const GridRow = React.memo(
               // for the cell (TAB-BUG-15).
               <button
                 type="button"
-                aria-label={`Open row ${rowIndex + 1}`}
+                aria-label={openRowLabel(rowIndex + 1, row)}
                 onClick={() => onOpen(row.id)}
                 className="pointer-events-none absolute right-0.5 inline-flex size-5 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-press hover:text-ink group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:right-2 [@media(hover:none)]:opacity-100"
               >
@@ -931,7 +960,7 @@ const GridRow = React.memo(
           </span>
         </td>
         {fields.map((f, col) => (
-          <td key={f.id} data-kind={cellKind(f)} data-frozen={col === 0 || undefined} className={cn("overflow-hidden p-0 align-middle", isNumeric(f) && "text-right")}>
+          <td key={f.id} data-kind={fieldKind(f.type).cell} data-frozen={col === 0 || undefined} className={cn("overflow-hidden p-0 align-middle", isNumeric(f) && "text-right")}>
             <Cell
               field={f}
               value={values[f.id]}
@@ -950,6 +979,8 @@ const GridRow = React.memo(
   (a, b) =>
     a.row.id === b.row.id &&
     a.row.values === b.row.values &&
+    a.row.comments === b.row.comments &&
+    a.row.page === b.row.page &&
     a.rowIndex === b.rowIndex &&
     a.height === b.height &&
     a.fields === b.fields &&

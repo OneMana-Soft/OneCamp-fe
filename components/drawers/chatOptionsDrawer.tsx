@@ -1,6 +1,6 @@
 "use client"
 
-import { Clapperboard, Video } from "@/lib/icons"
+import { Clapperboard, UserPlus, Video } from "@/lib/icons"
 import {
     Drawer,
     SheetCancel,
@@ -23,6 +23,9 @@ import { DrawerItem } from "@/components/drawers/drawerItem"
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 import { WorkspaceName } from "@/hooks/useWorkspaceName"
+import { useDispatch } from "react-redux"
+import { openUI } from "@/store/slice/uiSlice"
+import { getGroupingId } from "@/lib/utils/getGroupingId"
 
 interface ChatOptionsDrawerProps {
     drawerOpenState: boolean
@@ -36,10 +39,12 @@ export function ChatOptionsDrawer({
     chatId,
 }: ChatOptionsDrawerProps) {
     const router = useRouter()
+    const dispatch = useDispatch()
 
     const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(
         `${GetEndpointUrl.SelfProfile}/${chatId}`,
     )
+    const selfUUID = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid
 
     // The header's write: shown at once, a refusal taken back and said, never
     // left unhandled (hooks/useConversationNotification).
@@ -101,6 +106,18 @@ export function ChatOptionsDrawer({
                             router.push(`/app/chat/${chatId}/recording`)
                         }}
                     />
+
+                    {/* A group of the two of you and whoever you add (chat A9). */}
+                    {selfUUID && !otherUserInfo.data?.data?.is_bot && (
+                        <DrawerItem
+                            icon={UserPlus}
+                            label="Add people"
+                            onClick={() => {
+                                closeDrawer()
+                                dispatch(openUI({ key: "editDmMember", data: { grpId: getGroupingId(selfUUID, chatId), kind: "dm", adding: true } }))
+                            }}
+                        />
+                    )}
                 </SheetGroup>
                     <SheetCancel />
                 </div>

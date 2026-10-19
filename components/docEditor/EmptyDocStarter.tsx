@@ -85,6 +85,7 @@ export function StarterRow({
       type="button"
       data-starter-row=""
       onClick={onPick}
+      data-escape-own=""
       onKeyDown={onKeyDown}
       disabled={disabled || busy}
       aria-busy={busy || undefined}

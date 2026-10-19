@@ -1,17 +1,18 @@
 import { avatarSeed } from "@/lib/utils/getAvatarColor";
-import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
-import React, { useState, useRef } from 'react';
+import { displayNameOf } from "@/lib/personName"
+import React, { useState } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, isSameDay } from "date-fns";
 import { shortDateTime } from "@/lib/utils/date/shortDate";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
-import type { CalendarEventInterface, GetEventsResponse, CreateEventPayload } from "@/types/calendar";
+import type { CalendarEventInterface, GetEventsResponse } from "@/types/calendar";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ErrorState } from "@/components/ui/error-state";
-import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
-import { X, Plus, Trash2, CalendarClock, Sparkles, LogOut, Ellipsis } from "@/lib/icons";
+import { UserProfileInterface } from "@/types/user";
+import { Trash2, CalendarClock, Sparkles, LogOut, Ellipsis, Video } from "@/lib/icons";
+import { joinLinkOf, joinOffer } from "@/lib/calendar/joinLink";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EventMenuRows, type EventMenuItem } from "@/components/calendar/eventMenu";
 import { Edit2 } from "@/lib/icons";
@@ -21,28 +22,14 @@ import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
 import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fieldLabel, fieldRow, inlineAdd, sectionTitle } from "@/lib/ui/fieldRow";
+import { fieldLabel, fieldRow, sectionTitle } from "@/lib/ui/fieldRow";
 import { cn } from "@/lib/utils/helpers/cn";
 import { allDayItem } from "@/components/calendar/calendarLayout";
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay";
 import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
 import { deleteEventConfirm, deleteEventRequest } from "@/lib/calendar/confirmDelete";
 import { submitOnModEnter } from "@/lib/keys/chord";
-import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
-import { wholeDays } from "@/lib/timeOff";
-import RescheduleDialog from "@/components/ai/RescheduleDialog";
-import MeetingPrepDialog from "@/components/ai/MeetingPrepDialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "@/components/ui/command";
-import { UserComboboxItem } from "@/components/combobox/userComboboxItem";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useSWRConfig, type Cache } from "swr";
 import {closeRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import { useDispatch } from "react-redux";
@@ -50,15 +37,37 @@ import { openUI } from "@/store/slice/uiSlice";
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
 import { SafeHtml } from "@/components/safeHtml/SafeHtml";
 import { clockTime } from "@/lib/utils/date/clock";
+import { FEATURE_CALENDAR_REPEATS, useFeature } from "@/hooks/useClientConfig";
+import { ScopePromptView, useScopePrompt } from "@/components/calendar/scopePrompt";
+import { lazyView } from "@/components/task/LazyView";
+import type { EventFormValues, FormProblem } from "@/lib/calendar/eventForm";
+import { isRichNotes } from "@/lib/calendar/richNotes";
+import { useWhenIdle } from "@/hooks/useWhenIdle";
+import { isInstanceId, seriesIdOf } from "@/lib/calendar/instanceId";
+import { apiEventUrl, deleteApiEventRequest, guestLinkRequest, nudgeGuestsRequest, patchApiEventRequest, readApiEventRequest, readerZone, type Answer, type ApiEvent } from "@/lib/calendar/eventsApi";
+import { eventGuests } from "@/components/calendar/rsvp/eventGuests";
+import { EventGuestList } from "@/components/calendar/rsvp/guestList";
+import { YourAnswer } from "@/components/calendar/rsvp/yourAnswer";
+import { sendAnswer } from "@/components/calendar/rsvp/sendAnswer";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import { toast } from "@/hooks/use-toast";
+import { TellGuestsView, useTellGuests } from "@/components/calendar/tellGuests";
 
-const formSchema = z.object({
-    title: z.string().min(1, "Title is required"),
-    description: z.string().optional(),
-    startTime: z.string().min(1, "Start time is required"),
-    endTime: z.string().min(1, "End time is required"),
-});
-
-type FormValues = z.infer<typeof formSchema>;
+// What only an edit, a question or a menu's item needs, each a chunk of its
+// own, as the calendar's grid keeps them (calendarApp.tsx): the repeat editor
+// (its rule sheet, the date field and the rules' words), the scope question,
+// "Tell guests?", and the assistant's Find a better time and Prep brief. The
+// event's own page (a phone's) loaded them all with it, about 137 KB of source
+// it never draws until asked. They are fetched when the page is idle, and the
+// editor when Edit is pressed as well, so none waits when wanted.
+// The edit kit (calendar FORM): the one form, its values from the event and its save.
+const EventFormView = lazyView(() => import("@/components/calendar/form/panelEdit"));
+const Reschedule = lazyView(() => import("@/components/ai/RescheduleDialog"));
+const MeetingPrep = lazyView(() => import("@/components/ai/MeetingPrepDialog"));
+// The reader's reminders (calendar A5): a chunk asked for once the row is drawn.
+const Reminders = lazyView(() => import("@/components/calendar/rsvp/reminderRow"));
+const fetchAhead = () =>
+    [EventFormView, ScopePromptView, TellGuestsView, Reschedule, MeetingPrep, Reminders].forEach((view) => void view.warm().catch(() => {}));
 
 interface EventInfoPanelProps {
     eventUUID: string;
@@ -67,11 +76,14 @@ interface EventInfoPanelProps {
 
 export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelProps) {
     const post = usePost();
+    const { copy } = useCopyToClipboard();
     const [isEditing, setIsEditing] = useState(false);
-    const [focus, setFocus] = useState(false);
-    const [away, setAway] = useState(false);
     const [rescheduleOpen, setRescheduleOpen] = useState(false);
     const [prepOpen, setPrepOpen] = useState(false);
+    // Each of the assistant's dialogs is drawn from its first opening on, so
+    // it plays its closing motion.
+    const [rescheduleUsed, setRescheduleUsed] = useState(false);
+    const [prepUsed, setPrepUsed] = useState(false);
     // The event by its id (CAL-BUG-7). The panel used to look for it in the
     // list of the month on screen, or of today's month when it had none (a
     // phone, a link), so an event in any other month couldn't be opened,
@@ -91,72 +103,59 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     const event = React.useMemo(() => (found ? placedByDates(found) : undefined), [found]);
     const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const dispatch = useDispatch();
+    // Where events repeat (the calendar's one store), the calendar's own API
+    // says what the /event routes can't: how a series repeats and the
+    // version a change is made from. An instance of a series is changed or
+    // deleted through it, for the scope the person picks (D-CAL-6).
+    const repeats = useFeature(FEATURE_CALENDAR_REPEATS);
+    const { data: apiRes, mutate: mutateApi } = useFetch<{ data: ApiEvent }>(
+        repeats && eventUUID && !eventUUID.startsWith("gcal-") ? apiEventUrl(eventUUID) : "",
+        undefined,
+        undefined,
+        OWN_ERRORS,
+    );
+    const apiEvent = apiRes?.data;
+    const { ask: askScope, prompt: scopePrompt } = useScopePrompt();
+    const { ask: askTell, prompt: tellPrompt } = useTellGuests();
+    useWhenIdle(fetchAhead);
 
     const currentUserUUID = selfProfile?.data?.user_uuid;
     const isCreator = event?.event_created_by?.user_uuid === currentUserUUID;
     const isParticipant = event?.event_participants?.some(p => p.user_uuid === currentUserUUID);
 
-    const [participants, setParticipants] = useState<any[]>([]);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<UserProfileDataInterface[]>([]);
-    const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const searchUserRef = useRef(usePost());
-
-    React.useEffect(() => {
-        if (searchQuery.length < 2) {
-            setSearchResults([]);
-            return;
-        }
-
-        const controller = new AbortController();
-        const delayDebounceFn = setTimeout(async () => {
-            try {
-                const res = await searchUserRef.current.makeRequest<{ searchText: string }, UserProfileDataInterface[]>({
-                    apiEndpoint: PostEndpointUrl.SearchUserForDoc as any,
-                    payload: { searchText: searchQuery }
-                });
-                if (!controller.signal.aborted && res && Array.isArray(res)) {
-                    setSearchResults(res);
-                }
-            } catch {
-                if (!controller.signal.aborted) setSearchResults([]);
-            }
-        }, 500);
-
-        return () => {
-            clearTimeout(delayDebounceFn);
-            controller.abort();
-        };
-    }, [searchQuery]);
-
-    const form = useForm<FormValues>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-            title: event?.event_title || "",
-            description: event?.event_description || "",
-            startTime: event?.event_start_time ? format(parseISO(event.event_start_time), "yyyy-MM-dd'T'HH:mm") : "",
-            endTime: event?.event_end_time ? format(parseISO(event.event_end_time), "yyyy-MM-dd'T'HH:mm") : "",
-        }
-    });
-
-    // Update the form when another event opens, and once when the server's
-    // answer replaces the list's copy (never while it is being edited).
+    // The Event Form's values while it is being edited (calendar FORM):
+    // read from the calendar's own API where it keeps its events, else from
+    // the event as listed (the old stores), when Edit is pressed.
+    const [draft, setDraft] = useState<EventFormValues | null>(null);
+    const [was, setWas] = useState<EventFormValues | null>(null);
+    const [problem, setProblem] = useState<FormProblem | null>(null);
+    const [saving, setSaving] = useState(false);
+    // Another event opened: an edit of the last one is left.
     const eventId = event?.event_uuid;
-    const source = eventRes?.data ? "server" : "list";
     React.useEffect(() => {
-        if (event && !isEditing) {
-            form.reset({
-                title: event.event_title,
-                description: event.event_description || "",
-                startTime: format(parseISO(event.event_start_time), "yyyy-MM-dd'T'HH:mm"),
-                endTime: format(parseISO(event.event_end_time), "yyyy-MM-dd'T'HH:mm"),
-            });
-            setParticipants(event.event_participants || []);
-            setFocus(!!event.event_is_focus);
-            setAway(!!event.event_is_away);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [eventId, source]);
+        setIsEditing(false);
+        setDraft(null);
+    }, [eventId]);
+    // The form's values come with the edit kit, fetched when the page was idle,
+    // so usually here already: from the calendar's API where it keeps its
+    // events, else from the event as listed (the old stores).
+    React.useEffect(() => {
+        if (!isEditing || draft || !event) return;
+        let live = true;
+        const zone = readerZone();
+        EventFormView.warm().then(
+            (m) => {
+                if (!live) return;
+                const values = apiEvent ? m.eventValues(apiEvent, m.ownReminders(event), zone) : m.listedValues(event, zone);
+                setDraft(values);
+                setWas(values);
+            },
+            () => {},
+        );
+        return () => {
+            live = false;
+        };
+    }, [isEditing, draft, event, apiEvent]);
 
     // In the right panel the shared header carries the view's actions and the
     // close button; on the phone's own page the app bar has the way back.
@@ -194,46 +193,62 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // before, counted in days (a day the clocks change on isn't 24 hours).
     const allDay = allDayItem(event, start, end);
     const lastMoment = allDay ? allDayLastDay(start, end) : end;
+    const callLink = joinLinkOf(event);
+    const join = joinOffer(callLink, start, end, new Date());
 
-    const save = async (values: FormValues) => {
-        try {
-            await post.makeRequest<CreateEventPayload>({
-                apiEndpoint: (PostEndpointUrl.UpdateCalendarEvent + `/${event.event_uuid}`) as PostEndpointUrl,
-                payload: {
-                    title: values.title,
-                    description: values.description,
-                    // Time off is whole days, however the times were changed after ticking Away.
-                    startTime: (away ? wholeDays(new Date(values.startTime), new Date(values.endTime)).start : new Date(values.startTime)).toISOString(),
-                    endTime: (away ? wholeDays(new Date(values.startTime), new Date(values.endTime)).end : new Date(values.endTime)).toISOString(),
-                    participants: participants.map(p => p.user_uuid) || [],
-                    isFocus: focus && !away,
-                    isAway: away,
-                },
-                // The server's reason when it refuses ("Only the person who made
-                // this event can change it."), never a bare failure (CAL-BUG-16).
-                showErrorToast: true,
-                failureTitle: "Couldn't save the event",
-            });
-            await mutate();
-            refreshLists();
-            setIsEditing(false);
-        } catch (e) {
-            // Deleted meanwhile, or no longer yours to see: the panel says so.
-            if ((e as { response?: { status?: number } })?.response?.status === 404) void mutate();
-        }
+    // Edit opens the Event Form with the event as it is now; Save sends what
+    // changed (components/calendar/form/saveEvent): through the calendar's own
+    // API, asking the scope for an instance and "Tell guests?" for a change
+    // guests would hear of, or through the /event routes for the old stores.
+    // After this and following or all events, its id may name another
+    // instance, so the panel closes and the lists show where everything went.
+    const startEditing = () => {
+        setDraft(null);
+        setProblem(null);
+        setIsEditing(true);
     };
-    // A booked meeting asks before its time changes, naming its guest (CAL-BUG-4).
-    const handleSave = (values: FormValues) => {
+    const stopEditing = () => {
+        setIsEditing(false);
+        setDraft(null);
+    };
+    const saveDraft = async () => {
+        if (!draft || !was || saving) return;
+        // Here already: the draft came with it.
+        const m = await EventFormView.warm();
+        const wrong = m.formProblem(draft);
+        setProblem(wrong);
+        if (wrong) return;
+        const go = async () => {
+            setSaving(true);
+            const deps = { makeRequest: post.makeRequest, askScope, askTell };
+            const r = apiEvent ? await m.saveEventChange(deps, { v: draft, was, api: apiEvent, organiser: isCreator }) : await m.saveLegacyChange(deps, event.event_uuid, draft);
+            setSaving(false);
+            if (!r.saved) {
+                // Changed meanwhile: read again, and the edit stays open. Gone: the panel says so.
+                if (r.why === "stale") void mutateApi();
+                if (r.why === "gone") void mutate();
+                return;
+            }
+            stopEditing();
+            if (r.moved) {
+                closeGone();
+                return;
+            }
+            await Promise.all([mutate(), mutateApi()]);
+            refreshLists();
+        };
+        // A booked meeting asks before its time changes, naming its guest (CAL-BUG-4).
         const booking = event.event_booking;
+        const times = m.whenOf(draft);
+        const at = (w: { at?: string; date?: string }) => new Date(w.at ?? `${w.date}T00:00:00`);
         const minute = (d: Date) => Math.floor(d.getTime() / 60_000);
-        const times = away ? wholeDays(new Date(values.startTime), new Date(values.endTime)) : { start: new Date(values.startTime), end: new Date(values.endTime) };
-        const moved = minute(times.start) !== minute(parseISO(event.event_start_time)) || minute(times.end) !== minute(parseISO(event.event_end_time));
-        if (!booking || !moved) return save(values);
+        const moved = minute(at(times.start)) !== minute(start) || minute(at(times.end)) !== minute(end);
+        if (!booking || !moved) return go();
         dispatch(openUI({
             key: 'confirmAlert',
             data: {
-                ...bookedMeetingConfirm(booking, "move", times.start, times.end),
-                onConfirm: () => save(values),
+                ...bookedMeetingConfirm(booking, "move", at(times.start), at(times.end)),
+                onConfirm: go,
             }
         }));
     };
@@ -298,6 +313,18 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     };
 
     const handleDelete = async () => {
+        // One instance of a series: which of them go to the trash.
+        if (apiEvent && isInstanceId(apiEvent.id)) {
+            const scope = await askScope("delete");
+            if (!scope) return;
+            try {
+                await post.makeRequest(deleteApiEventRequest(apiEvent.id, scope, apiEvent.sequence));
+                closeGone();
+            } catch {
+                // The toast said why.
+            }
+            return;
+        }
         dispatch(openUI({
             key: 'confirmAlert',
             data: {
@@ -311,30 +338,102 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // Which calendar it is on, in that calendar's hue, the way the calendar
     // draws it: dot and word under the title, as a task's status sits under its.
     const onGoogle = event.event_uuid.startsWith("gcal-");
+
+    // Guests' answers (calendar A2), where the calendar keeps them: a guest
+    // answers, with a note for the organiser, until the event is over; the
+    // organiser sees who said what, asks again, and copies the link of a
+    // guest invited by email.
+    const guestView = eventGuests(event, currentUserUUID);
+    const ended = end <= new Date();
+    const answering = !onGoogle && !isCreator && guestView.answered && guestView.mine !== undefined && !ended;
+    const answer = async (a: Answer, note?: string) => {
+        const ok = await sendAnswer({ post, askScope, selfId: currentUserUUID }, event, a, note);
+        if (ok !== null) {
+            await mutate();
+            refreshLists();
+        }
+        return ok;
+    };
+    const nudge = async () => {
+        try {
+            const res = await post.makeRequest<unknown, { asked?: number }>(nudgeGuestsRequest(event.event_uuid));
+            const asked = res?.asked ?? 0;
+            toast(asked
+                ? { title: `Asked ${asked} guest${asked === 1 ? "" : "s"} again` }
+                : { title: "Nobody else to ask", description: "Everyone has answered, or was asked in the last day." });
+            await mutate();
+        } catch {
+            // The toast said why.
+        }
+    };
+    const copyLink = async (email: string, name: string) => {
+        try {
+            const res = await post.makeRequest<{ email: string }, { url?: string }>(guestLinkRequest(event.event_uuid, email));
+            if (res?.url) void copy(res.url, `${name}'s answer link. Anyone with it can answer as them.`);
+        } catch {
+            // The toast said why.
+        }
+    };
+    // The organiser's "Email me when guests answer" is the series', for an instance of one.
+    const setEmailOnAnswers = async (on: boolean) => {
+        if (!apiEvent) return;
+        const failureTitle = "Couldn't change how you hear of answers";
+        try {
+            const target = isInstanceId(apiEvent.id)
+                ? await post.makeRequest<unknown, ApiEvent>({ ...readApiEventRequest(seriesIdOf(apiEvent.id)), quiet: false, showErrorToast: true, failureTitle })
+                : apiEvent;
+            if (target) await post.makeRequest({ ...patchApiEventRequest(target.id, { sequence: target.sequence, email_on_answers: on }), failureTitle });
+        } catch {
+            // The toast said why.
+        }
+        void mutateApi();
+    };
     // What the person can do with the event, once: quiet icon buttons in the
     // right panel's header, where hovering names them; on the phone's page,
     // where nothing hovers, Edit with its name and the rest in a labelled menu
     // (PTC-53).
     const viewActions: EventAction[] = [
-        ...(isCreator || isParticipant ? [{ label: "Prep brief", icon: Sparkles, onSelect: () => setPrepOpen(true) }] : []),
+        ...(isCreator || isParticipant
+            ? [
+                  {
+                      label: "Prep brief",
+                      icon: Sparkles,
+                      onSelect: () => {
+                          setPrepUsed(true);
+                          setPrepOpen(true);
+                      },
+                  },
+              ]
+            : []),
         ...(isCreator
             ? [
-                  { label: "Find a better time", icon: CalendarClock, onSelect: () => setRescheduleOpen(true) },
+                  {
+                      label: "Find a better time",
+                      icon: CalendarClock,
+                      onSelect: () => {
+                          setRescheduleUsed(true);
+                          setRescheduleOpen(true);
+                      },
+                  },
                   { label: "Delete event", icon: Trash2, onSelect: handleDelete, destructive: true },
-                  { label: "Edit event", icon: Edit2, onSelect: () => setIsEditing(true), main: true },
+                  { label: "Edit event", icon: Edit2, onSelect: startEditing, main: true },
               ]
             : isParticipant
-              ? [{ label: "Leave event", icon: LogOut, onSelect: handleLeave, destructive: true }]
+              ? [
+                    // A guest the organiser lets change the event edits it too (not what guests may do).
+                    ...(apiEvent?.guests_can_modify ? [{ label: "Edit event", icon: Edit2, onSelect: startEditing, main: true }] : []),
+                    { label: "Leave event", icon: LogOut, onSelect: handleLeave, destructive: true },
+                ]
               : []),
     ];
 
     const actions = isEditing ? (
         <>
-            <Button variant="ghost" size="sm" className="h-8" onClick={() => setIsEditing(false)}>
+            <Button variant="ghost" size="sm" className="h-8" onClick={stopEditing}>
                 Cancel
             </Button>
-            <Button size="sm" className="h-8" onClick={form.handleSubmit(handleSave)}>
-                Save
+            <Button size="sm" className="h-8" onClick={() => void saveDraft()} disabled={saving || !draft} aria-busy={saving || undefined}>
+                {saving ? "Saving…" : "Save"}
             </Button>
         </>
     ) : inPanel ? (
@@ -353,7 +452,22 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     );
 
     return (
-        <EventPanelFrame inPanel={inPanel} actions={actions}>
+        <EventPanelFrame
+            inPanel={inPanel}
+            actions={actions}
+            // A guest answers at the panel's foot (calendar A2), while it's to come.
+            footer={
+                !isEditing && answering ? (
+                    <YourAnswer
+                        answer={guestView.mine}
+                        note={guestView.faces.find((f) => f.key === currentUserUUID)?.note}
+                        organiserName={displayNameOf(event.event_created_by) || "the organiser"}
+                        onAnswer={answer}
+                        className=""
+                    />
+                ) : undefined
+            }
+        >
                 {!isEditing ? (
                     // As the task panel reads: the title, what it is under it,
                     // quiet labels in one column with each value on one line,
@@ -364,6 +478,16 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             <IdentityMark variant="dot" hue={onGoogle ? CALENDAR_HUE.google : CALENDAR_HUE.onecamp} />
                             {onGoogle ? "Google Calendar" : "Personal event"}
                         </p>
+                        {/* Its first action, while there is a call to join
+                            (lib/calendar/joinLink), as the event's pop card has it. */}
+                        {callLink && join ? (
+                            <Button asChild size="sm" variant={join === "primary" ? "default" : "secondary"} className="mt-4">
+                                <a href={callLink} target="_blank" rel="noopener noreferrer">
+                                    <Video />
+                                    Join call
+                                </a>
+                            </Button>
+                        ) : null}
 
                         <dl className="mt-6">
                             <div className={fieldRow()}>
@@ -378,6 +502,36 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     {allDay ? "All day" : isSameDay(start, end) ? `${clockTime(start)} to ${clockTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
                                 </dd>
                             </div>
+                            {apiEvent?.recurrence ? (
+                                <div className={fieldRow()} data-event-repeats="">
+                                    <dt className={fieldLabel}>Repeats</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">
+                                        {apiEvent.recurrence.text || "Repeats"}
+                                    </dd>
+                                </div>
+                            ) : null}
+                            {/* Each person's own reminders (calendar A5), where the calendar keeps them;
+                                none for a guest who said no, as nobody is reminded of those. */}
+                            {event.event_reminders && !onGoogle && !ended && (isCreator || guestView.mine !== "declined") ? (
+                                <div className={fieldRow()} data-event-reminders="">
+                                    <dt className={fieldLabel}>Reminders</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center">
+                                        <Reminders.View
+                                            render={(m) => (
+                                                <m.ReminderRow
+                                                    event={event}
+                                                    phone={!inPanel}
+                                                    onSaved={() => {
+                                                        void mutate();
+                                                        refreshLists();
+                                                    }}
+                                                />
+                                            )}
+                                            fallback={<span className="min-h-7" aria-hidden="true" data-reminders-loading="" />}
+                                        />
+                                    </dd>
+                                </div>
+                            ) : null}
                             {event.event_is_focus && (
                                 <div className={fieldRow()}>
                                     <dt className={fieldLabel}>Focus time</dt>
@@ -392,7 +546,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             )}
                             {event.event_created_by && (
                                 <div className={fieldRow()}>
-                                    <dt className={fieldLabel}>Created by</dt>
+                                    <dt className={fieldLabel}>Organiser</dt>
                                     <dd className="flex min-h-8 min-w-0 items-center gap-2 text-sm text-foreground">
                                         <IdentityMark
                                             variant="avatar"
@@ -407,9 +561,22 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             )}
                         </dl>
 
+                        <EventGuestList
+                            guests={guestView}
+                            organiser={isCreator}
+                            ended={ended}
+                            onNudge={() => void nudge()}
+                            onCopyLink={(email, name) => void copyLink(email, name)}
+                            emailOnAnswers={apiEvent?.email_on_answers}
+                            onEmailOnAnswers={apiEvent ? (on) => void setEmailOnAnswers(on) : undefined}
+                        />
+
                         <section className="mt-6 space-y-2">
                             <h3 className={sectionTitle}>Notes</h3>
-                            {event.event_description ? (
+                            {event.event_description && !isRichNotes(event.event_description) ? (
+                                // Typed into a plain field: its own line breaks.
+                                <p className="whitespace-pre-line break-words text-sm leading-relaxed text-foreground">{event.event_description}</p>
+                            ) : event.event_description ? (
                                 <SafeHtml
                                     as="div"
                                     sanitizer={sanitizeRichHtml}
@@ -421,202 +588,48 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             )}
                         </section>
 
-                        <section className="mt-6 space-y-2">
-                            <h3 className={cn(sectionTitle, "flex items-baseline gap-1.5")}>
-                                Guests
-                                <span className="text-xs font-normal tabular-nums text-muted-foreground">{event.event_participants?.length || 0}</span>
-                            </h3>
-                            {event.event_participants?.length ? (
-                                <ul>
-                                    {event.event_participants.map((participant) => (
-                                        <li key={participant.user_uuid} className="flex h-9 min-w-0 items-center gap-2.5 text-sm">
-                                            <IdentityMark
-                                                variant="avatar"
-                                                size={24}
-                                                id={avatarSeed(participant)}
-                                                label={displayNameOf(participant) || "Someone"}
-                                                src={participant.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${participant.user_profile_object_key}` : undefined}
-                                            />
-                                            <span className="truncate text-foreground">{displayNameOf(participant)}</span>
-                                            {addressOrHandleOf(participant) && (
-                                                <span className="truncate text-xs text-muted-foreground">{addressOrHandleOf(participant)}</span>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className="text-sm text-muted-foreground">No guests yet.</p>
-                            )}
-                        </section>
                     </div>
+                ) : draft ? (
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            void saveDraft();
+                        }}
+                        onKeyDown={submitOnModEnter}
+                        data-event-edit=""
+                    >
+                        <EventFormView.View
+                            render={(m) => (
+                                <m.EventForm
+                                    values={draft}
+                                    onChange={setDraft}
+                                    full={!!apiEvent}
+                                    organiser={isCreator}
+                                    exclude={currentUserUUID ? [currentUserUUID] : []}
+                                    problem={problem}
+                                    titleClassName="font-sans text-xl font-medium tracking-tight sm:text-2xl"
+                                    autoFocusTitle
+                                    layout="panel"
+                                />
+                            )}
+                            fallback={<EventPanelSkeleton />}
+                        />
+                    </form>
                 ) : (
-                    <Form {...form}>
-                        {/* The same label column as the facts above it, so a
-                            field opens for editing where its value was. */}
-                        <form onSubmit={form.handleSubmit(handleSave)} onKeyDown={submitOnModEnter} data-event-edit="">
-                            <FormField
-                                control={form.control}
-                                name="title"
-                                render={({ field }) => (
-                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
-                                        <FormLabel className={cn(fieldLabel, "font-normal")}>Title</FormLabel>
-                                        <div className="min-w-0">
-                                            <FormControl>
-                                                <Input {...field} className="h-9" />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </div>
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="startTime"
-                                render={({ field }) => (
-                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
-                                        <FormLabel className={cn(fieldLabel, "font-normal")}>Start</FormLabel>
-                                        <div className="min-w-0">
-                                            <FormControl>
-                                                <DateTimePicker
-                                                    value={field.value ? new Date(field.value) : undefined}
-                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </div>
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="endTime"
-                                render={({ field }) => (
-                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
-                                        <FormLabel className={cn(fieldLabel, "font-normal")}>End</FormLabel>
-                                        <div className="min-w-0">
-                                            <FormControl>
-                                                <DateTimePicker
-                                                    value={field.value ? new Date(field.value) : undefined}
-                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </div>
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="description"
-                                render={({ field }) => (
-                                    <FormItem className={cn(fieldRow("start"), "space-y-0")}>
-                                        <FormLabel className={cn(fieldLabel, "font-normal sm:pt-2.5")}>Notes</FormLabel>
-                                        <div className="min-w-0">
-                                            <FormControl>
-                                                <Textarea {...field} className="min-h-[100px] resize-none text-sm" />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </div>
-                                    </FormItem>
-                                )}
-                            />
-
-                            <div className={fieldRow("start")}>
-                                <span className={cn(fieldLabel, "sm:pt-2")}>Guests</span>
-                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                    {participants.map((p) => (
-                                        <span key={p.user_uuid} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-muted pl-1.5 pr-1 text-sm">
-                                            <IdentityMark variant="avatar" size={20} id={avatarSeed(p)} label={displayNameOf(p) || "Someone"} />
-                                            <span className="max-w-[10rem] truncate">{displayNameOf(p)}</span>
-                                            <button
-                                                type="button"
-                                                aria-label={`Remove ${displayNameOf(p) || "this guest"}`}
-                                                className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-highlight hover:text-danger-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                                                onClick={() => setParticipants(participants.filter((pt) => pt.user_uuid !== p.user_uuid))}
-                                            >
-                                                <X className="h-3.5 w-3.5" aria-hidden="true" />
-                                            </button>
-                                        </span>
-                                    ))}
-                                    <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-                                        <PopoverTrigger asChild>
-                                            <Button type="button" variant="ghost" size="sm" className={cn(inlineAdd, participants.length > 0 && "ml-0")}>
-                                                <Plus className="h-4 w-4" aria-hidden="true" /> Add a guest
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent portalled={false} className="w-[240px] p-0" align="start">
-                                            <Command shouldFilter={false}>
-                                                <CommandInput
-                                                    placeholder="Search people…"
-                                                    className="h-9"
-                                                    value={searchQuery}
-                                                    onValueChange={setSearchQuery}
-                                                />
-                                                <CommandList>
-                                                    <CommandEmpty>{searchQuery.length < 2 ? "Type a name to search" : "Nobody by that name"}</CommandEmpty>
-                                                    <CommandGroup>
-                                                        {searchResults.map((user) => (
-                                                            <UserComboboxItem
-                                                                key={user.user_uuid}
-                                                                userUuid={user.user_uuid}
-                                                                userName={displayNameOf(user)}
-                                                                userFullName={user.user_full_name}
-                                                                userHandle={user.user_handle}
-                                                                userEmail={user.user_email_id}
-                                                                userProfileObjectKey={user.user_profile_object_key}
-                                                                isSelected={participants.some(p => p.user_uuid === user.user_uuid)}
-                                                                onSelect={() => {
-                                                                    if (!participants.some(p => p.user_uuid === user.user_uuid)) {
-                                                                        setParticipants([...participants, user]);
-                                                                    }
-                                                                    setIsSearchOpen(false);
-                                                                    setSearchQuery("");
-                                                                }}
-                                                            />
-                                                        ))}
-                                                    </CommandGroup>
-                                                </CommandList>
-                                            </Command>
-                                        </PopoverContent>
-                                    </Popover>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 space-y-3">
-                                <FocusTimeCheckbox
-                                    checked={focus}
-                                    onChange={(checked) => {
-                                        setFocus(checked);
-                                        if (checked) setAway(false);
-                                    }}
-                                />
-                                <AwayCheckbox
-                                    checked={away}
-                                    onChange={(checked) => {
-                                        setAway(checked);
-                                        if (!checked) return;
-                                        setFocus(false);
-                                        // Time off is whole days.
-                                        const days = wholeDays(new Date(form.getValues("startTime")), new Date(form.getValues("endTime")));
-                                        form.setValue("startTime", format(days.start, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
-                                        form.setValue("endTime", format(days.end, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
-                                    }}
-                                />
-                            </div>
-                        </form>
-                    </Form>
+                    // The edit kit on its way (rarely: it is fetched when the page is idle).
+                    <EventPanelSkeleton />
                 )}
-            <RescheduleDialog
-                open={rescheduleOpen}
-                onOpenChange={setRescheduleOpen}
-                eventUUID={event.event_uuid}
-                onRescheduled={refreshEvents}
-            />
-            <MeetingPrepDialog
-                open={prepOpen}
-                onOpenChange={setPrepOpen}
-                eventUUID={event.event_uuid}
-            />
+            {rescheduleUsed ? (
+                <Reschedule.View
+                    render={(m) => <m.default open={rescheduleOpen} onOpenChange={setRescheduleOpen} eventUUID={event.event_uuid} onRescheduled={refreshEvents} />}
+                    fallback={null}
+                />
+            ) : null}
+            {prepUsed ? (
+                <MeetingPrep.View render={(m) => <m.default open={prepOpen} onOpenChange={setPrepOpen} eventUUID={event.event_uuid} />} fallback={null} />
+            ) : null}
+            {scopePrompt}
+            {tellPrompt}
         </EventPanelFrame>
     );
 }
@@ -663,7 +676,7 @@ function PhoneEventActions({ actions }: { actions: EventAction[] }) {
  * close button; on the phone's own page the app bar already says where you
  * are and has the way back, so the actions take a row of their own.
  */
-function EventPanelFrame({ inPanel, actions, children }: { inPanel: boolean; actions?: React.ReactNode; children: React.ReactNode }) {
+function EventPanelFrame({ inPanel, actions, footer, children }: { inPanel: boolean; actions?: React.ReactNode; footer?: React.ReactNode; children: React.ReactNode }) {
     return (
         <div className="flex h-full min-h-0 flex-col bg-background" data-event-panel="">
             {inPanel ? (
@@ -674,6 +687,13 @@ function EventPanelFrame({ inPanel, actions, children }: { inPanel: boolean; act
             <ScrollArea className="min-h-0 flex-1">
                 <div className="px-6 pb-8 pt-5">{children}</div>
             </ScrollArea>
+            {/* Pinned at the foot, a hairline above, however long the notes run:
+                the guest's answer, as the card and the phone's sheet keep it. */}
+            {footer ? (
+                <div className="shrink-0 border-t border-line px-6 py-3" data-event-panel-foot="">
+                    {footer}
+                </div>
+            ) : null}
         </div>
     );
 }

@@ -185,6 +185,7 @@ export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; childre
           align="start"
           sideOffset={4}
           aria-label="Workspace"
+          collisionPadding={8}
           onCloseAutoFocus={returnFocusOnlyForKeys}
           className="shell-menu shell-pop z-[var(--z-dropdown)] origin-[var(--radix-dropdown-menu-content-transform-origin)]"
         >

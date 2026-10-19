@@ -31,7 +31,7 @@ vi.mock("@/lib/ui/palette", () => ({ openPalette: vi.fn() }))
 import { SidebarRail } from "@/components/navigationBar/desktop/SidebarRail"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { MediaQueryProvider } from "@/context/MediaQueryContext"
-import { Calendar, CircleCheck, Home, Inbox, Table as TableIcon } from "@/lib/icons"
+import { Calendar, CircleCheck, FileText, Home, Inbox, Table as TableIcon } from "@/lib/icons"
 import type { DesktopNavType } from "@/types/nav"
 
 const PRIMARY: DesktopNavType[] = [
@@ -60,6 +60,33 @@ beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+})
+
+// As the sidebar orders them (rivals review, 16 Oct 2026): the
+// conversations, then the pages that are sections (Docs).
+describe("the rail's order", () => {
+  it("puts Channels and DMs before Docs", () => {
+    render(
+      <MediaQueryProvider>
+        <TooltipProvider>
+          <SidebarRail
+            primary={PRIMARY}
+            sections={[{ title: "Docs", label: "", icon: FileText, variant: "ghost", path: "/app/doc" }]}
+            more={MORE}
+            places={[]}
+            isAdmin={false}
+            onExpand={() => {}}
+            peek={() => null}
+            conversations={{ channels: { unread: false, spoken: "" }, dms: { unread: false, spoken: "" } }}
+          />
+        </TooltipProvider>
+      </MediaQueryProvider>,
+    )
+    const names = screen.getAllByRole("link").map((a) => a.getAttribute("href"))
+    expect(names.indexOf("/app/channel")).toBeLessThan(names.indexOf("/app/doc"))
+    expect(names.indexOf("/app/chat")).toBeLessThan(names.indexOf("/app/doc"))
+    expect(names.indexOf("/app/myTask")).toBeLessThan(names.indexOf("/app/channel"))
+  })
 })
 
 // Design v3, shell S13. The peek was armed by a strip laid over the rail's

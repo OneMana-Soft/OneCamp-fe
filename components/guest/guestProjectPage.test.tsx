@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import type { GuestProjectView, GuestTaskView } from "@/services/guestService"
 import type { PublicResult } from "@/services/publicApi"
 
@@ -18,6 +18,13 @@ const celebrateTask = vi.fn((_el: Element) => 8)
 vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrateTask(el), prefersReducedMotion: () => true }))
 
 import GuestProjectPage from "@/app/guest/p/[token]/page"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The celebrations' bursts are a chunk fetched when the page is idle
+// (lib/celebrateSoon): here they are in before anything finishes.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 const view: GuestProjectView = {
   project: "Acme website relaunch",
@@ -110,6 +117,19 @@ describe("a client's task panel, once the task is in", () => {
     // A second press, from outside the field, closes the panel.
     fireEvent.keyDown(document.body, { key: "Escape" })
     expect(screen.queryByRole("complementary", { name: "Task" })).not.toBeInTheDocument()
+  })
+
+  // Panels (one press, one thing: lib/keys/escape). Closing uses the press,
+  // so a toast showing stays for the next one.
+  it("closes on Escape as one press", async () => {
+    await open()
+    await openTask()
+    const esc = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    act(() => {
+      document.body.dispatchEvent(esc)
+    })
+    expect(screen.queryByRole("complementary", { name: "Task" })).not.toBeInTheDocument()
+    expect(esc.defaultPrevented, "the press was used").toBe(true)
   })
 
   it("has one filled button: the verdict, not the comment's send", async () => {

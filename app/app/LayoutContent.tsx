@@ -4,6 +4,7 @@ import { useMedia } from "@/context/MediaQueryContext";
 import { NoticeStack } from "@/components/banner/NoticeBar";
 import { SheetProgressBar } from "@/context/LoadingContext";
 import { AdminBanners } from "@/components/banner/AdminBanners";
+import { FeaturesNotice } from "@/components/banner/FeaturesNotice";
 import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { useDispatch } from "react-redux";
@@ -13,7 +14,7 @@ import { UserProfileInterface } from "@/types/user";
 import { MobileNavigationBar } from "@/components/navigationBar/mobile/mobileNavigationBar";
 import { DesktopNavigationBar } from "@/components/navigationBar/desktop/desktopNavigationBar";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { PanelResizeHandle, ImperativePanelHandle, getPanelGroupElement } from "react-resizable-panels";
+import { ImperativePanelHandle, getPanelGroupElement } from "react-resizable-panels";
 import { cn } from "@/lib/utils/helpers/cn";
 import { RightPanel } from "@/components/rightPanel/rightPanel";
 import { useSelector } from "react-redux";
@@ -28,6 +29,8 @@ import { useOpenFromUrl } from "@/hooks/useOpenFromUrl";
 import { useSplitView } from "@/hooks/useSplitView";
 import { useGoKeys } from "@/hooks/useGoKeys";
 import { SplitPane } from "@/components/split/SplitPane";
+import { MeetingSplit } from "@/components/split/MeetingSplit";
+import { Seam } from "@/components/split/Seam";
 import { FocusPill } from "@/components/split/FocusPill";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
 import { KeyboardTip } from "@/components/onboarding/KeyboardTip";
@@ -38,6 +41,7 @@ import { followHistory, noteRouteChange } from "@/lib/navigation/back";
 import { usePanelPlacement, useShellBand } from "@/components/navigationBar/tablet/useShellBand";
 import { isTabletBand } from "@/lib/ui/shellBand";
 import { OverlaySheet } from "@/components/ui/overlaySheet";
+import { warmBurstsWhenIdle } from "@/lib/celebrateSoon";
 
 /** The panel group beside the sidebar: the page, any split panes, the right panel. */
 const PANEL_GROUP_ID = "app-panels";
@@ -64,24 +68,6 @@ function usePanelGroupWidth(id: string, enabled: boolean): number {
   return width;
 }
 
-/**
- * The seam between two sheets is the handle (design v3, shell V1 and V2): an
- * 8px gap where the frame and its glow show through, with a 3x28 grip that
- * fades in on hover. Double-click resets the panel beside it.
- */
-function Seam({ hidden, onDragging, onReset, label }: { hidden?: boolean; onDragging?: (d: boolean) => void; onReset?: () => void; label: string }) {
-  return (
-    <PanelResizeHandle
-      onDragging={onDragging}
-      className={cn("shell-seam", hidden && "hidden")}
-      aria-label={label}
-      onDoubleClick={onReset}
-    >
-      <i />
-    </PanelResizeHandle>
-  );
-}
-
 const percentOf = (px: number, groupWidth: number) => Math.ceil((px / groupWidth) * 1000) / 10;
 
 /**
@@ -99,6 +85,7 @@ function PageSheet({ isAdmin, keysHere, focusPill, children }: { isAdmin?: boole
           offline state is the foot pill now (T3), not a notice. */}
       <NoticeStack>
         <AdminBanners isAdmin={isAdmin} />
+        <FeaturesNotice />
       </NoticeStack>
       {focusPill && (
         <div className="pointer-events-none absolute right-3 top-2.5 z-[var(--z-sticky)] [&>*]:pointer-events-auto">
@@ -123,6 +110,9 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   // While the on-screen keyboard is up, the app fits what is left of the
   // screen (lib/ui/visualViewport.ts). Outside React: nothing re-renders.
   useEffect(() => followKeyboard(), []);
+  // The celebrations' sparks (lib/celebrate) come once the app is idle, so a
+  // finish or a moment anywhere in it finds them in (lib/celebrateSoon).
+  useEffect(() => warmBurstsWhenIdle(), []);
   const { isMobile } = useMedia();
   // A tablet's shell (design v3, mobile T1): the rail, and the right panel as
   // a sheet over the page.
@@ -231,6 +221,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         banners={
           <NoticeStack shown={1}>
             <AdminBanners isAdmin={isAdmin} />
+            <FeaturesNotice />
           </NoticeStack>
         }
       >
@@ -241,8 +232,11 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if(inMeeting) {
-    return children;
+  // A call's own page: the call, and beside it the call's conversation once
+  // its Chat opens it (MeetingSplit). Always the same frame, so opening the
+  // conversation never remounts the call, which would hang it up.
+  if (inMeeting) {
+    return <MeetingSplit pathname={pathname} enabled={!tablet}>{children}</MeetingSplit>;
   }
 
   const pageSheet = (

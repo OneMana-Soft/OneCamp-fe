@@ -279,8 +279,12 @@ describe("Turn into database", () => {
       createTable: async (input: unknown) => (calls.push(["createTable", input]), { id: "t-1" }),
       updateField: async (...a: unknown[]) => void calls.push(["updateField", ...a]),
       createField: async (_t: string, input: { name: string }) => (calls.push(["createField", input.name]), { id: `f-${input.name}` }),
-      createRow: async (_t: string, values: unknown) => void calls.push(["createRow", values]),
       deleteTable: async () => void calls.push(["deleteTable"]),
+    }))
+    // The rows go in as one batch: one request, one change set.
+    vi.doMock("@/lib/tables/ledger", async (orig) => ({
+      ...(await orig<object>()),
+      batchRows: async (_t: string, input: unknown) => (calls.push(["batchRows", input]), { change_set: "cs", created: [], updated: [], deleted: [] }),
     }))
     vi.doMock("@/lib/axiosInstance", () => ({
       default: {
@@ -295,9 +299,10 @@ describe("Turn into database", () => {
     expect(calls[0]).toEqual(["createTable", { name: "Launch table", visibility: "private" }])
     expect(calls).toContainEqual(["updateField", "t-1", "f-name", { name: "Task" }])
     expect(calls).toContainEqual(["createField", "Owner"])
-    expect(calls).toContainEqual(["createRow", { "f-name": "Ship", "f-Owner": "Sam" }])
+    expect(calls).toContainEqual(["batchRows", { kind: "import", create: [{ values: { "f-name": "Ship", "f-Owner": "Sam" } }] }])
     expect(e.getJSON().content?.[0]).toEqual(expect.objectContaining({ type: "tableEmbed", attrs: expect.objectContaining({ tableId: "t-1" }) }))
     vi.doUnmock("@/services/tableService")
+    vi.doUnmock("@/lib/tables/ledger")
     vi.doUnmock("@/lib/axiosInstance")
     vi.doUnmock("@/components/docEditor/registry/commandBus")
   })

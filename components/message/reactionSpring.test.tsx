@@ -9,6 +9,7 @@ vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => (
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 const pops = vi.fn()
 vi.mock("@/lib/celebrate", () => ({ springPop: (el: Element) => pops(el), celebrate: () => 0 }))
+vi.mock("@/lib/spring", () => ({ springPop: (el: Element) => pops(el) }))
 
 const { ReactionPill } = await import("./reactionPill")
 

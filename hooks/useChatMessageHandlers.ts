@@ -29,6 +29,8 @@ import {
     updateChatCommentByCommentId, updateChatCommentReactionByCommentId
 } from "@/store/slice/chatCommentSlice";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
+import { isSystemLine } from "@/lib/conversation/systemLine";
+import { followSystemLine } from "@/lib/conversation/liveSystemLine";
 
 import {
     createGroupChat,
@@ -61,6 +63,10 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                 const isGroupChat = mqttChatInfo.data.chat_grp_id.split(" ").length === 1;
                 const dmId = isGroupChat ? "" : getOtherUserId(mqttChatInfo.data.chat_grp_id, userUuid || "");
                 const grpId = isGroupChat ? mqttChatInfo.data.chat_grp_id : getGroupingId((userUuid || '') || '', dmId);
+                // A created system line's own fields (lib/conversation/systemLine); nothing for a person's message.
+                const systemFields = mqttChatInfo.data.chat_kind
+                    ? { chat_kind: mqttChatInfo.data.chat_kind, chat_system: mqttChatInfo.data.chat_system }
+                    : undefined
 
                 switch (mqttChatInfo.data.type) {
                     case MqttActionType.Create:
@@ -92,6 +98,7 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                     fwdChat: mqttChatInfo.data.chat_fwd_msg_chat,
                                     fwdPost: mqttChatInfo.data.chat_fwd_msg_post,
                                     replyTo: mqttChatInfo.data.chat_reply_to,
+                                    system: systemFields,
                                 })
                             )
                         } else {
@@ -112,9 +119,15 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                     fwdChat: mqttChatInfo.data.chat_fwd_msg_chat,
                                     fwdPost: mqttChatInfo.data.chat_fwd_msg_post,
                                     replyTo: mqttChatInfo.data.chat_reply_to,
+                                    system: systemFields,
                                 })
                             )
                         }
+                        followSystemLine(dispatch, {
+                            kind: isGroupChat ? "group" : "dm",
+                            id: grpId,
+                            latestKey: isGroupChat ? `${GetEndpointUrl.GetGroupChatLatestMessage}/${grpId}` : `${GetEndpointUrl.GetChatLatestMessage}/${dmId}`,
+                        }, mqttChatInfo.data.chat_kind, mqttChatInfo.data.chat_system, store.getState().users.userSidebar.userChats)
 
                         // ALWAYS update the "last message" preview in the chat list
                         dispatch(UpdateMessageInChatList({
@@ -150,8 +163,9 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                         // conversation. Read the path at call time (the
                         // callback is memoized, so a closed-over value would be
                         // stale).
+                        // A system line is never unread: the server counts none.
                         const isViewingThis = isOpenAt(window.location.pathname, grpId, userUuid || '')
-                        if ((userUuid || '') !== mqttChatInfo.data.user_uuid && !isViewingThis) {
+                        if ((userUuid || '') !== mqttChatInfo.data.user_uuid && !isViewingThis && !isSystemLine(mqttChatInfo.data.chat_kind)) {
                             dispatch(IncrementUnreadCount({grpId: grpId}))
                             dispatch(incrementUserChatUnread({dm_grouping_id: grpId}))
                         }

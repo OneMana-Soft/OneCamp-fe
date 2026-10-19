@@ -249,6 +249,7 @@ export function UpdateComposer({
         e.preventDefault()
         void submit()
       }}
+      data-escape-own={!busy ? "" : undefined}
       onKeyDown={(e) => {
         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
           e.preventDefault()

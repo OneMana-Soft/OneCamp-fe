@@ -111,6 +111,11 @@ export interface BaseMessage {
   // replyTo is the Discord-style inline reply parent (same shape as a forward
   // preview, reused). One level deep.
   replyTo?: NormalizedForwardMessage
+  /** "system" for a line the server writes about the conversation, and its facts as JSON (lib/conversation/systemLine). */
+  kind?: string
+  system?: string
+  /** The message a shared history copied this one from. */
+  copyOf?: string
 }
 
 export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
@@ -154,6 +159,9 @@ export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
           createdAt: chatInfo.chat_reply_to.chat_created_at,
         }
       : undefined,
+    kind: chatInfo.chat_kind,
+    system: chatInfo.chat_system,
+    copyOf: chatInfo.chat_copy_of,
   }
 }
 
@@ -198,6 +206,9 @@ export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
           createdAt: postInfo.post_reply_to.post_created_at,
         }
       : undefined,
+    kind: postInfo.post_kind,
+    system: postInfo.post_system,
+    copyOf: postInfo.post_copy_of,
   }
 }
 

@@ -3,8 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useConfirm } from "@/hooks/useConfirm"
-import { unsavedWhat } from "@/lib/unsavedChanges"
-import { SAVE_NUDGE_EVENT } from "@/components/ui/settingsSection"
+import { SAVE_NUDGE_EVENT, unsavedWhat } from "@/lib/unsavedChanges"
 import { isPlainLeftClick } from "@/lib/ui/linkClick"
 
 const NUDGE_WINDOW_MS = 4000

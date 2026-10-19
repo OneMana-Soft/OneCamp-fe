@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags"
 import { useModKey } from "@/hooks/useModKey"
 import type { AttachmentMediaReq } from "@/types/attachment"
+import { escapeTaken } from "@/lib/keys/escapeOwn"
 import { useCommentDraft } from "./useCommentDraft"
 
 interface CommentBody {
@@ -46,13 +47,22 @@ interface CommentComposerProps {
     autoFocus?: boolean
     /** The send button's name. */
     sendLabel?: string
+    /**
+     * Whether files can be attached (a doc's comments). Off where the comments
+     * keep no files (a table's rows, for now): no paperclip, and a file
+     * dropped or pasted in is refused in words.
+     */
+    uploads?: boolean
     className?: string
 }
+
+/** What a composer that takes no files says of one dropped or pasted in. */
+export const NO_FILES_HERE = "Files can't be attached to a comment here yet."
 
 /** The editable element's name and kind, by value (the editor compares them so). */
 const attributesFor = (label: string) => ({ "aria-label": label, "aria-multiline": "true", role: "textbox" })
 
-export function CommentComposer({ docId, placeholder, label, onSend, onCancel, autoFocus, sendLabel = "Send", className }: CommentComposerProps) {
+export function CommentComposer({ docId, placeholder, label, onSend, onCancel, autoFocus, sendLabel = "Send", uploads = true, className }: CommentComposerProps) {
     const draft = useCommentDraft(docId)
     const [sending, setSending] = React.useState(false)
     const [error, setError] = React.useState<string | null>(null)
@@ -65,7 +75,7 @@ export function CommentComposer({ docId, placeholder, label, onSend, onCancel, a
         placeholder,
         // Return is a new line: ⌘↵ sends (below).
         onSubmit: () => false,
-        onActionFiles: (files) => draft.add(files),
+        onActionFiles: (files) => (uploads ? draft.add(files) : setError(NO_FILES_HERE)),
         // "/" formats, as in every composer: the module's one array (a new
         // one each render would make the editor anew each render).
         slashCommands: CHAT_COMMANDS,
@@ -117,7 +127,8 @@ export function CommentComposer({ docId, placeholder, label, onSend, onCancel, a
     }
     // Esc after the editor and its menus: a menu that took it keeps it.
     const onKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key !== "Escape" || e.defaultPrevented || !onCancel || suggestionMenuOpen(editor)) return
+        // A menu that took it keeps it (escapeTaken); one a sheet over the page handed on is the box's.
+        if (e.key !== "Escape" || escapeTaken(e.nativeEvent) || !onCancel || suggestionMenuOpen(editor)) return
         e.preventDefault()
         e.stopPropagation()
         onCancel()
@@ -128,13 +139,14 @@ export function CommentComposer({ docId, placeholder, label, onSend, onCancel, a
         <div
             data-comment-composer=""
             onKeyDownCapture={onKeyDownCapture}
+            data-escape-own={!!onCancel ? "" : undefined}
             onKeyDown={onKeyDown}
             className={cn(
                 "group/composer composer-card rounded-xl bg-raised px-2.5 py-1.5",
                 className,
             )}
         >
-            <DocCommentFileUpload docId={docId} draft={draft} />
+            {uploads && <DocCommentFileUpload docId={docId} draft={draft} />}
             <div className="flex items-end gap-0.5">
                 <div className="min-w-0 flex-1 py-0.5">
                     {editor ? (
@@ -148,28 +160,32 @@ export function CommentComposer({ docId, placeholder, label, onSend, onCancel, a
                     )}
                 </div>
                 {editor && <MentionTool editor={editor} />}
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Attach files"
-                    className={COMPOSER_TOOL}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => fileInput.current?.click()}
-                >
-                    <Paperclip aria-hidden="true" />
-                </Button>
+                {uploads && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Attach files"
+                        className={COMPOSER_TOOL}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => fileInput.current?.click()}
+                    >
+                        <Paperclip aria-hidden="true" />
+                    </Button>
+                )}
                 <SendSplit nothingToSend={nothingToSend || draft.uploading} disabled={sending} label={sendName} onSend={() => void send()} />
-                <input
-                    ref={fileInput}
-                    type="file"
-                    multiple
-                    hidden
-                    onChange={(e) => {
-                        if (e.target.files?.length) draft.add(e.target.files)
-                        e.target.value = ""
-                    }}
-                />
+                {uploads && (
+                    <input
+                        ref={fileInput}
+                        type="file"
+                        multiple
+                        hidden
+                        onChange={(e) => {
+                            if (e.target.files?.length) draft.add(e.target.files)
+                            e.target.value = ""
+                        }}
+                    />
+                )}
             </div>
             {error ? (
                 <p role="alert" className="pt-1 text-meta text-danger-ink">

@@ -13,8 +13,8 @@ let onPush: ((payload: unknown) => void) | undefined
 const registered = vi.fn<(o: unknown) => Promise<object>>(async () => ({}))
 const previews = vi.fn<(t: unknown) => { dismiss: () => void }>(() => ({ dismiss: () => {} }))
 const router = { push: vi.fn() }
-vi.mock("@/lib/firebase", () => ({ getFCMToken: async () => "token-1", isFirebaseConfigured: true, messaging: {} }))
-vi.mock("firebase/messaging", () => ({ onMessage: (_m: unknown, fn: (p: unknown) => void) => { onPush = fn; return () => {} } }))
+vi.mock("@/lib/firebase", () => ({ getFCMToken: async () => "token-1", onForegroundMessage: (fn: (p: unknown) => void) => { onPush = fn; return () => { onPush = undefined } } }))
+vi.mock("@/lib/push/firebaseConfig", () => ({ isFirebaseConfigured: true }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: registered, isSubmitting: false }) }))
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: unknown) => previews(t) }))
 vi.mock("next/navigation", () => ({ useRouter: () => router }))
@@ -36,6 +36,10 @@ const at = (path: string) => window.history.pushState({}, "", path)
 const push = (data: Record<string, string>) => act(() => onPush?.({ data: { title: "Maya Chen", body: "hi", ...data } }))
 
 beforeEach(() => {
+  onPush = undefined
+  // A quiet moment comes at once here; the listener waits for one (whenIdle).
+  vi.stubGlobal("requestIdleCallback", (cb: () => void) => window.setTimeout(cb, 0))
+  vi.stubGlobal("cancelIdleCallback", (id: number) => window.clearTimeout(id))
   store.dispatch({ type: RESET_STORE_ACTION })
   registered.mockClear()
   previews.mockClear()
@@ -44,28 +48,50 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
   at("/")
 })
 
 describe("a push while the app is open", () => {
-  const show = () => render(<Provider store={store}><FCMHandler /></Provider>)
+  // The listener subscribes once the page is idle and the SDK has come.
+  const show = async () => {
+    render(<Provider store={store}><FCMHandler /></Provider>)
+    await act(() => vi.waitFor(() => expect(onPush).toBeDefined()))
+  }
 
-  it("raises no preview for a message in the channel being read", () => {
-    show()
+  it("is listened for only once the page is idle: the SDK is not on the first screen", async () => {
+    render(<Provider store={store}><FCMHandler /></Provider>)
+    expect(onPush).toBeUndefined()
+    await act(() => vi.waitFor(() => expect(onPush).toBeDefined()))
+    cleanup()
+    expect(onPush).toBeUndefined()
+  })
+
+  it("raises no preview for a message in the channel being read", async () => {
+    await show()
     at(`/app/channel/${ENG}`)
     push({ type: "channel", type_id: ENG, thread_id: POST })
     expect(previews).not.toHaveBeenCalled()
   })
 
-  it("raises one for a message in another channel", () => {
-    show()
+  // Calendar A5: a reminder is its own toast, with Join or Snooze, from the
+  // live notice the server raises beside the push.
+  it("leaves a calendar reminder to its own toast", async () => {
+    await show()
+    at("/app/home")
+    push({ type: "calendar", type_id: ENG, tag: `reminder:${ENG}`, title: "Design review in 10 minutes" })
+    expect(previews).not.toHaveBeenCalled()
+  })
+
+  it("raises one for a message in another channel", async () => {
+    await show()
     at(`/app/channel/${OPS}`)
     push({ type: "channel", type_id: ENG, thread_id: POST })
     expect(previews).toHaveBeenCalledTimes(1)
   })
 
-  it("raises one for a reply, unless its thread is open", () => {
-    show()
+  it("raises one for a reply, unless its thread is open", async () => {
+    await show()
     at(`/app/channel/${ENG}`)
     push({ type: "post_comment", type_id: ENG, thread_id: POST })
     expect(previews).toHaveBeenCalledTimes(1)
@@ -74,8 +100,8 @@ describe("a push while the app is open", () => {
     expect(previews).toHaveBeenCalledTimes(1)
   })
 
-  it("raises none for a DM from the person being read, and one from anyone else", () => {
-    show()
+  it("raises none for a DM from the person being read, and one from anyone else", async () => {
+    await show()
     at(`/app/chat/${MAYA}`)
     push({ type: "chat", type_id: `${MAYA} ${SELF}`, thread_id: "m1" })
     expect(previews).not.toHaveBeenCalled()

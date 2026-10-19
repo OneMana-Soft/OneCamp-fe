@@ -54,17 +54,16 @@ const isMeasure = (v: unknown): v is Measure => v === "tasks" || v === "hours"
 /**
  * A week's capacity column (design v3, work.md W41): a 32 x 36 r6 column on
  * --press (what they take on) fills from the bottom with the load, in the
- * person's own hue (INTERACTION_SPEC D13, PG2-08): room is its avatar's light
- * stop at 35 %, full its deep stop at 70 %. Over is danger at 85 %, with a 4 px
- * danger cap above the column for the excess. Two greys on a grey well read as
- * skeletons that never loaded. The hue comes from the person's row (data-hue);
- * outside one (the key) the steps are ink-2. Full was the accent once, which
- * is for the one primary action on a page.
+ * colour of its state (step 3, part 3, amending INTERACTION_SPEC D13): room
+ * moss at 45 %, full sun at 75 %, over danger at 85 % with a 4 px danger cap
+ * above the column for the excess, and the word "over" by its number. The
+ * person's hue stays on their row, its avatar and its hover. Room and full
+ * were the person's two stops, which outside a row (the key) were two greys.
  */
 export const FILL: Record<Load, string> = {
   free: "transparent",
-  room: "color-mix(in oklab, var(--hue-a1, var(--ink-2)) 35%, transparent)",
-  full: "color-mix(in oklab, var(--hue-a2, var(--ink-2)) 70%, transparent)",
+  room: "color-mix(in oklab, var(--camp-moss) 45%, transparent)",
+  full: "color-mix(in oklab, var(--camp-sun) 75%, transparent)",
   over: "color-mix(in oklab, var(--destructive) 85%, transparent)",
 }
 
@@ -270,10 +269,10 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
               { value: "hours", label: "Hours" },
             ]}
           />
-          <div className="flex items-center gap-3 text-xs text-ink-2" aria-hidden>
+          <div data-workload-key="" className="flex items-center gap-3 text-xs text-ink-2" aria-hidden>
             {(["room", "full", "over"] as const).map((l) => (
               <span key={l} className="flex items-center gap-1.5">
-                <span className="size-2 rounded-[2px]" style={{ background: FILL[l] }} />
+                <span data-swatch="" className="size-2 rounded-[2px]" style={{ background: FILL[l] }} />
                 {l === "room" ? "Room" : l === "full" ? "Full" : "Over"}
               </span>
             ))}
@@ -291,7 +290,7 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
       )}
       {/* What the weeks say, in words, above the grid (W41). */}
       <p data-workload-summary={overLine ? "over" : "room"} className="flex items-center gap-2 text-xs text-ink-2">
-        <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", overLine ? "bg-camp-sun" : "bg-camp-moss")} />
+        <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", overLine ? "bg-destructive" : "bg-camp-moss")} />
         {overLine ? (
           <span>
             {overLine.name} {overLine.more > 0 ? `and ${overLine.more} more are` : "is"} over capacity {overLine.when} ({overLine.value} of {overLine.capacity}).{" "}
@@ -698,7 +697,7 @@ function TasksPopover({
           {...ix("button")}
           className={cn(
             "relative mx-auto flex flex-col items-center justify-center gap-1 rounded-md text-xs font-[510] tabular-nums",
-            kind === "overdue" ? "h-11 w-12 text-danger-ink" : "h-[52px] w-16 text-foreground",
+            kind === "overdue" ? "h-11 w-12 text-danger-ink" : cn("h-[52px] w-16", meter?.load === "over" ? "text-danger-ink" : "text-foreground"),
           )}
         >
           {meter && (
@@ -716,7 +715,11 @@ function TasksPopover({
               {meter.load === "over" && <span data-over-cap="" className="absolute -top-1.5 left-0 right-0 h-1 rounded-[2px] bg-destructive" />}
             </span>
           )}
-          <span className="relative leading-4">{children}</span>
+          <span className="relative leading-4">
+            {children}
+            {/* Over says so in words too, beside its number. */}
+            {meter?.load === "over" ? <span className="font-[450]"> over</span> : null}
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[22rem] max-w-[calc(100vw-2rem)] p-0">

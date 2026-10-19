@@ -71,6 +71,7 @@ export function ChannelNameRow({ name, canRename, onRename }: {
             <Label htmlFor="channel-name" className="text-meta font-medium text-ink-2">Name</Label>
             <Input
                 id="channel-name"
+                data-escape-own=""
                 autoFocus
                 value={value}
                 maxLength={40}

@@ -25,7 +25,32 @@ export interface CalendarEventInterface {
     event_end_date?: string;
     /** Someone booked it through a booking page: shown to its creator only, while the booking is to come. */
     event_booking?: EventBooking;
+    /** Each guest's answer, from the calendar's one store (calendar A2): members by uuid, guests invited by email by address. */
+    event_guests?: EventGuest[];
+    /**
+     * The reader's own reminders for it (calendar A5, the one store): minutes
+     * before it starts (an all-day event's, before 00:00 of its first day);
+     * empty for none. event_reminders_default says they set none and these
+     * are the default's.
+     */
+    event_reminders?: number[];
+    event_reminders_default?: boolean;
+    /** Its own colour, one of the camp hues (the Event Form), and where it is: from the one store. */
+    event_hue?: string;
+    event_location?: string;
     isTask?: boolean;
+}
+
+/** One guest's answer to an event: needs_action, accepted, declined or tentative, with their note. */
+export interface EventGuest {
+    user_uuid?: string;
+    email?: string;
+    name?: string;
+    role: string;
+    response: string;
+    note?: string;
+    /** To the organiser alone: whether a guest by email was emailed their invitation. */
+    invite?: "sent" | "not_sent" | "failed";
 }
 
 export interface GetEventsResponse {

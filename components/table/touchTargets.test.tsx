@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
 // AI on, unless a test says otherwise (hooks/useClientConfig reads the server's config).
@@ -17,6 +17,12 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
 import { DataTableBoard } from "@/components/table/DataTableBoard"
 import { ColumnHeader } from "@/components/table/ColumnMenu"
 import type { TableField, TableRow } from "@/services/tableService"
+import { loadColumnMenus } from "@/components/table/ColumnMenu"
+import { cellPickers } from "@/components/table/cellPickerPart"
+
+// The column menus, the cell pickers are chunks of their own
+// (lazyView): loaded once, before these tests, they draw at once.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm()]))
 
 afterEach(cleanup)
 

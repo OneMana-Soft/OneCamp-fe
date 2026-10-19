@@ -36,6 +36,8 @@ import {usePost} from "@/hooks/usePost"
 import { useFeature, FEATURE_GITHUB } from "@/hooks/useClientConfig";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch"
+import { accessOf, canCommentTask, canEditTask } from "@/lib/work/access"
+import { canDeleteTask } from "@/lib/work/canDelete"
 
 import {useToast} from "@/hooks/use-toast"
 import {
@@ -48,7 +50,7 @@ import {
 import {useUploadFile} from "@/hooks/useUploadFile"
 import {RightPanelTaskHeader} from "@/components/rightPanel/RightPanelTaskHeader"
 import {openUI} from "@/store/slice/uiSlice"
-import {TaskCommentBox} from "@/components/task/taskCommentComposer"
+import {TaskCommentBox, TaskCommentNote} from "@/components/task/taskCommentComposer"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
 import {TaskRepeatField} from "@/components/task/taskRepeatField"
 import {TaskCycleField} from "@/components/task/taskCycleField"
@@ -243,10 +245,15 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         (state: RootState) => state.createTaskComment.taskComments[taskUUID] || NO_COMMENTS,
     )
 
-    const isAdmin = useMemo(
-        () => taskInfo.data?.data.task_project.project_is_admin || false,
-        [taskInfo.data?.data.task_project.project_is_admin],
-    )
+    // What the reader may do here, as the server says (Work Access, A1):
+    // changing this task is its task_access; deleting it, and the project's
+    // statuses, are their own.
+    const me = selfProfile.data?.data?.user_uuid
+    const access = useMemo(() => accessOf(taskInfo.data?.data.task_project), [taskInfo.data?.data.task_project])
+    const canEdit = useMemo(() => canEditTask(taskInfo.data?.data, me), [taskInfo.data?.data, me])
+    // A viewer reads the task but can't comment: no box that refuses what they type.
+    const canComment = useMemo(() => canCommentTask(taskInfo.data?.data), [taskInfo.data?.data])
+    const canDelete = useMemo(() => canDeleteTask(taskInfo.data?.data, me), [taskInfo.data?.data, me])
 
     const canMarkComplete = useMemo(
         () => {
@@ -368,7 +375,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
             // picker sends them joined the way the server keeps them.
             const projectUUID = taskInfo.data?.data.task_project.project_uuid
             if (
-                !isAdmin ||
+                !canEdit ||
                 !projectUUID ||
                 trimmedLabel === CONSTANTS.LABEL_PLACEHOLDER
             ) {
@@ -404,7 +411,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                 }),
             })
         },
-        [isAdmin, post, taskUUID, taskInfo.data?.data.task_project.project_uuid, dispatch, optimisticUpdateTask],
+        [canEdit, post, taskUUID, taskInfo.data?.data.task_project.project_uuid, dispatch, optimisticUpdateTask],
     )
 
     const updateTaskStartDate = useCallback(
@@ -545,7 +552,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
 
     const handleTaskFileUpload = useCallback(
         (e: React.ChangeEvent<HTMLInputElement>) => {
-            if (!isAdmin || !taskInfo.data?.data.task_project.project_uuid) return
+            if (!canEdit || !taskInfo.data?.data.task_project.project_uuid) return
 
             const files = e.target.files
             if (!files?.length) return
@@ -556,7 +563,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                 }
             })
         },
-        [isAdmin, uploadFile, taskUUID, taskInfo.data?.data.task_project.project_uuid],
+        [canEdit, uploadFile, taskUUID, taskInfo.data?.data.task_project.project_uuid],
     )
 
     const openCommentFiles = useCallback(() => dispatch(openUI({ key: 'taskCommentFileUpload' })), [dispatch])
@@ -898,12 +905,15 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     // the server answers an id that names nothing, a task deleted for good
     // and one in a project they aren't in alike (404). Only a read that
     // failed offers Try again; it said "a connection problem" about a task
-    // that was never there (PTC-4).
-    if (!taskInfo.data?.data && taskInfo.isError) {
+    // that was never there (PTC-4). A page of its earlier history that
+    // answers so (the task was deleted, or they left its project, while the
+    // panel was open) is the same answer: not a list that can't go on.
+    const cantOpen = !taskInfo.data?.data && taskInfo.isError ? taskInfo.isError : history.cantOpen
+    if (cantOpen) {
         return (
             <div className="flex h-full flex-col">
                 <LoadFailureState
-                    error={taskInfo.isError}
+                    error={cantOpen}
                     noun="task"
                     onRetry={() => void taskInfo.mutate()}
                     back={onPage ? { label: "Back to My Tasks", href: app_my_task_path } : isDesktop ? { label: "Close", onClick: () => dispatch(closeRightPanel()) } : undefined}
@@ -922,7 +932,8 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         <div className="flex flex-col h-full" data-task-panel="">
             <div>
                 <RightPanelTaskHeader
-                    isAdmin={isAdmin}
+                    isAdmin={canEdit}
+                    canDelete={canDelete}
                     canMarkComplete={canMarkComplete}
                     onMarkComplete={() => handleStatusSelect(CONSTANTS.STATUS_DONE)}
                     onReopen={() => handleStatusSelect("todo")}
@@ -934,6 +945,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     scrolled={scrolled}
                     onPage={onPage}
                     deleted={taskIsDeleted}
+                    parent={parentTask ? { name: parentTask.task_name, onOpen: () => handleChangeTask(parentTask.task_uuid) } : undefined}
                     hasGitHubLink={!!(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch)}
                 />
                 {taskIsDeleted && (
@@ -943,7 +955,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             <Trash2 className="h-3.5 w-3.5" />
                             This task is deleted
                         </span>
-                        {isAdmin && (
+                        {canDelete && (
                             <Button data-tone="danger" variant="ghost" size="sm" onClick={handleUndeleteTask} className="h-7 text-danger-ink hover:text-danger-ink">
                                 Undelete
                             </Button>
@@ -969,16 +981,6 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     )}
                     style={entranceStyle(entrance, "body")}
                 >
-                {parentTask && (
-                    <button
-                        type="button"
-                        className="mb-2 inline-flex max-w-full items-center gap-1 text-ui-sm text-ink-3 transition-colors hover:text-foreground"
-                        onClick={() => handleChangeTask(parentTask.task_uuid)}
-                    >
-                        <span className="shrink-0">Subtask of</span>
-                        <span className="truncate font-[510] text-ink-2">{parentTask.task_name}</span>
-                    </button>
-                )}
 
                     {/* The title: title-2, edited in place, a hover ground behind it (W29). */}
                     <div className="-mx-1 mb-4 rounded-md transition-colors hover:bg-hover focus-within:bg-transparent" style={entranceStyle(entrance, "title")}>
@@ -987,7 +989,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             delay={3000}
                             content={taskInfo.data?.data.task_name || ""}
                             textUpdate={(s: string) => saveName({ taskName: s, taskUUID })}
-                            disabled={!isAdmin}
+                            disabled={!canEdit}
                             className="!min-h-0 !border-0 !bg-transparent !px-1 !py-0.5 !text-title-2 !shadow-none"
                         />
                     </div>
@@ -998,15 +1000,15 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         className={cn("mb-6", onPage && "lg:sticky lg:top-6 lg:!col-start-2 lg:row-[1/span_40] lg:mb-0 lg:self-start lg:rounded-lg lg:bg-raised lg:p-4 lg:shadow-e1")}
                     >
                     <TaskStatusPriorityControl
-                        isAdmin={isAdmin}
+                        isAdmin={canEdit}
                         selectedStatus={selectedStatus}
                         statusOptions={statusOpts}
                         selectedPriority={selectedPriority}
                         onSelectStatus={handleStatusSelect}
                         onSelectPriority={handlePrioritySelect}
-                        onManageStatuses={isAdmin && projectUUID ? () => setManagingStatuses(true) : undefined}
+                        onManageStatuses={access.manage && projectUUID ? () => setManagingStatuses(true) : undefined}
                     />
-                    {isAdmin && projectUUID && (
+                    {access.manage && projectUUID && (
                         <ProjectStatusesDialog
                             projectId={projectUUID}
                             open={managingStatuses}
@@ -1015,7 +1017,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     )}
 
                     <TaskAssigneePicker
-                        isAdmin={isAdmin}
+                        isAdmin={canEdit}
                         label="Assignee"
                         members={projectMembers}
                         assignee={taskInfo.data?.data.task_assignee}
@@ -1024,7 +1026,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     />
 
                     <DatesProperty
-                        isAdmin={isAdmin}
+                        isAdmin={canEdit}
                         start={startDate}
                         due={dueDate}
                         done={isDone}
@@ -1043,15 +1045,15 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             projectUUID={projectUUID}
                             minutes={taskInfo.data?.data.task_estimate_minutes}
                             loggedSeconds={taskTime.time?.seconds}
-                            canEdit={isAdmin}
+                            canEdit={canEdit}
                         />
                     )}
                     {/* Tags: chips for everyone, the picker for whoever can edit. */}
-                    {(isAdmin || taskLabel.trim() !== "") && (
+                    {(canEdit || taskLabel.trim() !== "") && (
                         <div className={propertyRow()} data-property="labels">
                             <span className={propertyLabel}>Labels</span>
                             <div className="min-w-0">
-                                <TagPicker projectId={projectUUID} label={taskLabel} canEdit={isAdmin} onChange={editLabel} />
+                                <TagPicker projectId={projectUUID} label={taskLabel} canEdit={canEdit} onChange={editLabel} />
                             </div>
                         </div>
                     )}
@@ -1060,18 +1062,18 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     <MoreFields>
                         <TaskRepeatField
                             taskUUID={taskUUID}
-                            isAdmin={isAdmin}
+                            isAdmin={canEdit}
                             isSubtask={!!taskInfo.data?.data.task_parent_task?.task_uuid}
                             dueDate={dueDate}
                         />
-                        <TaskCycleField taskUUID={taskUUID} projectId={projectUUID} isAdmin={isAdmin} />
+                        <TaskCycleField taskUUID={taskUUID} projectId={projectUUID} isAdmin={canEdit} />
                         {projectUUID && (
                             <TaskFieldsSection
                                 key={taskUUID}
                                 taskUUID={taskUUID}
                                 projectUUID={projectUUID}
                                 values={taskInfo.data?.data.task_fields}
-                                canEdit={isAdmin}
+                                canEdit={canEdit}
                                 members={projectMembers}
                             />
                         )}
@@ -1085,11 +1087,11 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         taskUUID={taskUUID}
                         projectUUID={taskInfo.data?.data.task_project?.project_uuid || ""}
                         html={taskInfo.data?.data.task_description || ""}
-                        canEdit={isAdmin}
+                        canEdit={canEdit}
                     />
 
                     <SubtasksSection
-                        isAdmin={isAdmin}
+                        isAdmin={canEdit}
                         subtasks={taskSubTasks}
                         projectMembers={projectMembers}
                         onToggleStatus={(id, newStatus) => {
@@ -1117,7 +1119,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             taskUUID={taskUUID}
                             taskName={taskInfo.data.data.task_name}
                             projectUUID={taskInfo.data.data.task_project.project_uuid}
-                            canEdit={isAdmin}
+                            canEdit={canEdit}
                             waitingOn={taskInfo.data.data.task_blocked_by ?? []}
                             blocking={taskInfo.data.data.task_blocks ?? []}
                             onOpen={handleChangeTask}
@@ -1125,7 +1127,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     )}
 
                     <TaskAttachmentsSection
-                        isAdmin={isAdmin}
+                        isAdmin={canEdit}
                         attachments={taskAttachments}
                         previewFiles={taskInputState?.filesPreview || []}
                         projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}
@@ -1137,14 +1139,14 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     />
 
                     {taskUUID && (
-                        <LinkedItemsSection sourceType="task" sourceUUID={taskUUID} canEdit={isAdmin} />
+                        <LinkedItemsSection sourceType="task" sourceUUID={taskUUID} canEdit={canEdit} />
                     )}
 
                     {taskInfo.data?.data && (
                         <div className="mb-4">
                             <TaskGitHubSection
                                 task={taskInfo.data.data}
-                                isAdmin={isAdmin}
+                                isAdmin={canEdit}
                                 taskUUID={taskUUID}
                                 syncStatus={syncStatus.data?.data}
                                 githubConnected={githubConnected}
@@ -1270,7 +1272,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
             </div>
             )}
 
-            {settled ? <TaskCommentBox
+            {!canComment ? <TaskCommentNote frame={onPage ? PAGE_COLUMNS : undefined} /> : settled ? <TaskCommentBox
                 taskUUID={taskUUID}
                 frame={onPage ? PAGE_COLUMNS : undefined}
                 projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}

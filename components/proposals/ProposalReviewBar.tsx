@@ -175,6 +175,7 @@ export function ProposalReviewBar(props: ProposalReviewBarProps) {
       role="toolbar"
       aria-label="Review the proposed change"
       tabIndex={-1}
+      data-escape-own=""
       onKeyDown={onKeyDown}
       data-proposal-review=""
       className="fixed z-40 flex max-w-[min(560px,calc(100vw-32px))] flex-wrap items-center gap-1 rounded-lg border border-[color-mix(in_oklab,var(--agent)_35%,transparent)] bg-raised p-1 shadow-e2 outline-none"

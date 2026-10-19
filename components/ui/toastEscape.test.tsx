@@ -13,6 +13,7 @@ import * as React from "react"
 let api: typeof import("@/hooks/use-toast")
 let Toaster: typeof import("@/components/ui/toaster").Toaster
 let panel: typeof import("@/hooks/useEscapeClosesPanel")
+let reveal: typeof import("@/hooks/useTouchReveal")
 let ui: {
   overlay: typeof import("@/components/ui/overlaySheet")
   dialog: typeof import("@/components/ui/dialog")
@@ -20,22 +21,42 @@ let ui: {
   menu: typeof import("@/components/ui/dropdown-menu")
 }
 
+let stopEscape = () => {}
+
+const graph = () =>
+  Promise.all([
+    import("@/lib/keys/escape"),
+    import("@/hooks/use-toast"),
+    import("@/components/ui/toaster"),
+    import("@/hooks/useEscapeClosesPanel"),
+    import("@/hooks/useTouchReveal"),
+    import("@/components/ui/overlaySheet"),
+    import("@/components/ui/dialog"),
+    import("@/components/ui/sheet"),
+    import("@/components/ui/dropdown-menu"),
+  ])
+// Compiled once while the file is collected, which no hook's time limit
+// covers: under load the first compile took the first test's setup past it.
+await graph()
+
 beforeEach(async () => {
   // One module graph for the toasts and the layers: Radix keeps its layers
-  // in one module, and the bug is the toast and the dialog sharing it.
+  // in one module, and the bug is the toast and the dialog sharing it. The
+  // one Escape is started from it too, to hear what registers in it.
   vi.resetModules()
-  api = await import("@/hooks/use-toast")
-  Toaster = (await import("@/components/ui/toaster")).Toaster
-  panel = await import("@/hooks/useEscapeClosesPanel")
-  ui = {
-    overlay: await import("@/components/ui/overlaySheet"),
-    dialog: await import("@/components/ui/dialog"),
-    sheet: await import("@/components/ui/sheet"),
-    menu: await import("@/components/ui/dropdown-menu"),
-  }
+  const [escape, toasts, toaster, panelHook, revealHook, overlay, dialog, sheet, menu] = await graph()
+  stopEscape = escape.listenForEscape()
+  api = toasts
+  Toaster = toaster.Toaster
+  panel = panelHook
+  reveal = revealHook
+  ui = { overlay, dialog, sheet, menu }
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  stopEscape()
+})
 
 const toastNamed = (title: string) =>
   Array.from(document.querySelectorAll<HTMLElement>(".toast-root")).find((t) => t.textContent?.includes(title)) ?? null
@@ -138,6 +159,20 @@ function NarrowPanel() {
   )
 }
 
+/** A row whose tools a tap shows (useTouchReveal), beside the toasts. */
+function TappedRow() {
+  const t = reveal.useTouchReveal()
+  return (
+    <>
+      <Toaster />
+      <button type="button" {...t.toggleProps}>
+        Actions
+      </button>
+      {t.revealed && <div role="toolbar">Reply</div>}
+    </>
+  )
+}
+
 describe("Esc with a toast showing", () => {
   it("closes the dialog a toast came up in, and leaves the toast", async () => {
     render(<InDialog />)
@@ -218,6 +253,22 @@ describe("Esc with a toast showing", () => {
     expect(screen.queryByRole("complementary", { name: "Task" })).toBeNull()
     expect(toastOpen("Link copied")).toBe(true)
     // and the one after that, the toast.
+    await escape(document.body)
+    expect(toastOpen("Link copied")).toBe(false)
+  })
+
+  // Every page-level Escape goes through lib/keys/escape now: a row's tools
+  // shown by a tap went away on the same press as the toast.
+  it("puts a row's tools away first, then the toast", async () => {
+    render(<TappedRow />)
+    fireEvent.click(screen.getByRole("button", { name: "Actions" }))
+    expect(screen.getByRole("toolbar")).toBeTruthy()
+    act(() => {
+      api.toast({ title: "Link copied" })
+    })
+    await escape(document.body)
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(toastOpen("Link copied")).toBe(true)
     await escape(document.body)
     expect(toastOpen("Link copied")).toBe(false)
   })

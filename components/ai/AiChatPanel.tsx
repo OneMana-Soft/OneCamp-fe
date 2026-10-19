@@ -82,7 +82,7 @@ import { CitationContext, SourceChips, type SourceChipItem } from "@/components/
 import { numberCitations, orderSources } from "@/components/ai/citations";
 import { suggestionsFrom, type Suggestion, type SuggestionContext } from "@/components/ai/suggestions";
 import { getAttention } from "@/services/memoryService";
-import { prefersReducedMotion } from "@/lib/celebrate";
+import { prefersReducedMotion } from "@/lib/reducedMotion";
 
 // --- Client-side AI text sanitization ---
 // Defense-in-depth: strip tool_call XML, UUIDs, and command syntax before display.

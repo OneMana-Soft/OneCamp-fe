@@ -17,6 +17,14 @@ const iso = (d: number, h: number) => new Date(now.getFullYear(), now.getMonth()
 const standup = () => ({ event_uuid: "e1", event_title: "Standup", event_start_time: iso(now.getDate(), 9), event_end_time: iso(now.getDate(), 10), event_created_by: { user_uuid: "me", user_name: "Sam" } })
 // Asking the events and the tasks again (and patching the events' copy).
 const refetch = vi.fn()
+// The server's optional features (useClientConfig), asked of nothing here:
+// repeats are off, as on a server whose calendar isn't in its one store,
+// unless a test says they're on.
+let repeatsOn = false
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
+  useFeature: (name: string) => repeatsOn && name === "calendar_repeats",
+}))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
@@ -73,7 +81,7 @@ pinTestClock()
 // The surfaces the calendar loads on first use, loaded once for the file:
 // a first dynamic import can take more than a second on a busy machine.
 beforeAll(async () => {
-  await Promise.all([import("./calendarsPopover"), import("./goToDate"), import("./eventMenu"), import("./eventPopover")])
+  await Promise.all([import("./calendarsPopover"), import("./goToDate"), import("./eventMenu"), import("./eventPopover"), import("./scopePromptDialog"), import("./seriesChanges")])
 })
 
 beforeEach(() => {
@@ -180,7 +188,11 @@ describe("the calendar", () => {
     expect(screen.getByRole("button", { name: "Week", pressed: true })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Month" }))
     const thumb = document.querySelector("[data-thumb]") as HTMLElement
-    expect(thumb.style.transform).toBe("translateX(128px)")
+    // Whole segments: 64 px each, 52 under 40rem of header (the panel open at
+    // 1280), where the search (/ opens it) steps aside, so the period stays whole.
+    expect(thumb.style.transform).toBe("translateX(calc(var(--seg) * 2))")
+    expect(document.querySelector("[data-calendar-views]")!.className).toMatch(/\[--seg:64px\] @max-\[40rem\]\/calhead:\[--seg:52px\]/)
+    expect(screen.getByRole("button", { name: "Search events" }).className).toMatch(/@max-\[40rem\]\/calhead:hidden/)
     fireEvent.click(screen.getByRole("button", { name: "Day" }))
     expect(screen.getByRole("button", { name: "Previous day" })).toBeTruthy()
     expect(ranges()).toEqual(first)
@@ -361,7 +373,8 @@ describe("moving a booked meeting", () => {
     events = [{ ...standup(), event_booking: { guest_name: "Alex Kim", page_title: "Intro call", guest_told: true } }]
     render(<CalendarApp />)
     dragFirstEventTwoHours()
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Move this booked meeting?", confirmText: "Move and tell Alex Kim" }))
+    // Its question comes with its own small chunk, asked for on the move.
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Move this booked meeting?", confirmText: "Move and tell Alex Kim" })))
     expect(confirm.mock.calls[0][0].description).toMatch(/^Alex Kim booked it through Intro call\. We'll email them the new time, .*11:00/)
     expect(makeRequest).not.toHaveBeenCalled()
     await act(async () => {
@@ -550,9 +563,9 @@ describe("the calendar's keys", () => {
       press(k, standupBlock())
       await waitFor(() => expect(dialog).toMatchObject({ open: true, initial: { title: "Standup" } }))
     },
-    delete: (k) => {
+    delete: async (k) => {
       press(k, standupBlock())
-      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ ...deleteEventConfirm({}), destructive: true }))
+      await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ ...deleteEventConfirm({}), destructive: true })))
     },
     undo: async (k) => {
       await moveStandup()
@@ -632,6 +645,7 @@ describe("the calendar's keys", () => {
     makeRequest.mockResolvedValue({})
     render(<CalendarApp />)
     press("Delete", standupBlock())
+    await waitFor(() => expect(confirm).toHaveBeenCalled())
     await act(async () => {
       await confirm.mock.calls[0][0].onConfirm()
     })
@@ -720,7 +734,7 @@ describe("an event's menu", () => {
     choose(await menuOn(block()), "Open")
     expect(dispatch).toHaveBeenCalledWith({ type: "rightPanel/openRightPanel", payload: { eventUUID: "e1" } })
     choose(await menuOn(block()), "Delete")
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ ...deleteEventConfirm({}), destructive: true }))
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ ...deleteEventConfirm({}), destructive: true })))
   })
 
   it("duplicates it into the full dialog without its call link", async () => {
@@ -799,5 +813,56 @@ describe("a month with many tasks", () => {
     expect(taskRange).toBe(`startDate=${new Date(2026, 8, 28).toISOString()}&endDate=${new Date(2026, 10, 1, 23, 59, 59, 999).toISOString()}`)
     fireEvent.click(screen.getByRole("button", { name: "Agenda" }))
     expect(document.querySelectorAll('[data-agenda] [data-event-uuid^="t"]')).toHaveLength(250)
+  })
+})
+
+// Calendar A7: a moved or deleted instance of a repeating event asks which of
+// the series it is for (D-CAL-6), and goes through the calendar's own API.
+describe("an instance of a repeating event", () => {
+  const instance = "6f1c2a9e-3b7d-4c5e-9a1f-2b3c4d5e6f70_20261013T080000Z"
+  beforeEach(() => {
+    repeatsOn = true
+    events = [{ ...standup(), event_uuid: instance }]
+  })
+  afterEach(() => {
+    repeatsOn = false
+  })
+
+  it("asks which events a drag moves, and moves those at the version read", async () => {
+    makeRequest.mockImplementation(async (req: { method?: string }) => (req.method === "GET" ? { id: instance, sequence: 2, all_day: false } : {}))
+    render(<CalendarApp />)
+    dragFirstEventTwoHours()
+    fireEvent.click(await screen.findByRole("radio", { name: "All events" }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    })
+    await waitFor(() => expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ method: "PATCH" })))
+    const patch = makeRequest.mock.calls.find(([r]) => r.method === "PATCH")![0]
+    expect(patch).toMatchObject({ apiEndpoint: "/calendar/events", appendToUrl: `/${instance}` })
+    expect(patch.payload).toMatchObject({ sequence: 2, scope: "all", start: { at: iso(now.getDate(), 11) }, end: { at: iso(now.getDate(), 12) } })
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Moved “Standup”", description: "Every event in the series moved with it." })))
+  })
+
+  it("moves nothing when the question is closed", async () => {
+    render(<CalendarApp />)
+    dragFirstEventTwoHours()
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
+    })
+    expect(makeRequest).not.toHaveBeenCalled()
+  })
+
+  it("asks which events Delete takes, in place of the plain question", async () => {
+    makeRequest.mockResolvedValue({})
+    render(<CalendarApp />)
+    const block = document.querySelector<HTMLElement>(`[data-calendar] [data-event-uuid="${instance}"]`)!
+    block.focus()
+    act(() => void fireEvent.keyDown(block, { key: "Delete" }))
+    await screen.findByRole("radio", { name: "This event" })
+    expect(confirm).not.toHaveBeenCalled()
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    })
+    expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ method: "DELETE", apiEndpoint: "/calendar/events", appendToUrl: `/${instance}?scope=this` }))
   })
 })

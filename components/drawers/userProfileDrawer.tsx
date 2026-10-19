@@ -1,4 +1,6 @@
 "use client"
+import dynamic from "next/dynamic"
+import { useState } from "react"
 
 import {
     Bell,
@@ -26,8 +28,10 @@ import { ThemeSwatches } from "@/components/navigationBar/appearanceControl"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { CAP_AGENT_MANAGE, CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
-import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
-import { PauseNotificationsDialog, pauseMenuLabel } from "@/components/notifications/PauseNotificationsDialog"
+import { LazyMemberInviteDialog } from "@/components/invite/LazyMemberInviteDialog"
+import { pauseMenuLabel } from "@/lib/notifications/pause"
+// The pause menu loads with its first open: the shell carried it on every page.
+const PauseNotificationsDialog = dynamic(() => import("@/components/notifications/PauseNotificationsDialog").then((m) => m.PauseNotificationsDialog), { ssr: false })
 import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -55,6 +59,7 @@ import {
 } from "@/components/ui/drawer"
 import { WorkspaceName } from "@/hooks/useWorkspaceName"
 import { useSheetHandoff } from "@/components/drawers/sheetHandoff"
+import { tablesPath } from "@/lib/tables/route"
 
 interface ProfileDrawerProps {
     drawerOpenState: boolean
@@ -115,6 +120,9 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     // What the sheet hands over to: the pause sheet or the invite dialog
     // (components/drawers/sheetHandoff).
     const { handoff, handTo, handBack, sheetOpen, onSheetOpenChange } = useSheetHandoff<"pause" | "invite">(() => setOpenState(false))
+    // The pause sheet, mounted from its first open on, so it can animate away.
+    const [pauseUsed, setPauseUsed] = useState(false)
+    if (handoff === "pause" && !pauseUsed) setPauseUsed(true)
     const { pausedUntil, focusUntil } = usePauseNotifications()
     const { startFocus, starting } = useStartFocus()
     const me = selfProfile.data?.data
@@ -257,8 +265,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerItem
                         icon={TableIcon}
                         label="Tables"
-                        hue={destinationHue("/app/tables")}
-                        onClick={() => handleNavigate("/app/tables")}
+                        hue={destinationHue(tablesPath())}
+                        onClick={() => handleNavigate(tablesPath())}
                     />
 
                     {aiAvailable && (
@@ -339,8 +347,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                 </div>
             </DrawerContent>
         </Drawer>
-        <MemberInviteDialog open={handoff === "invite"} onOpenChange={handBack} />
-        <PauseNotificationsDialog open={handoff === "pause"} onOpenChange={handBack} />
+        <LazyMemberInviteDialog open={handoff === "invite"} onOpenChange={handBack} />
+        {handoff === "pause" || pauseUsed ? <PauseNotificationsDialog open={handoff === "pause"} onOpenChange={handBack} /> : null}
         </>
     )
 }

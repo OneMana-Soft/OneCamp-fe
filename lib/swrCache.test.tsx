@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
 import useSWR, { SWRConfig } from "swr"
 import { RecentCache, isKept, localStorageProvider, serialise } from "./swrCache"
+import { CLIENT_CONFIG_KEY } from "./clientConfigKey"
 import { SESSION_ENDED_KEY, endSession } from "./sessionEnd"
 
 // Tests for the SWR cache provider's persistence + safety logic.
@@ -273,6 +274,13 @@ describe("isKept", () => {
       "/user/assignedTaskList",
       "/user/assignedTaskListForKanban",
     ]) expect(isKept(key), key).toBe(true)
+  })
+
+  // What this server has (AI, calls…): kept, so a read that fails on the next
+  // load keeps the features it last had rather than hiding them (17 Oct: a
+  // dark channel shot lost Huddle and the AI spark that way).
+  it("keeps the client config, the features the server last said it has", () => {
+    expect(isKept(CLIENT_CONFIG_KEY)).toBe(true)
   })
 
   it("keeps nothing else", () => {

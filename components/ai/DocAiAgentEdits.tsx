@@ -234,6 +234,7 @@ function AgentMark({ mark, across, docId, onReverted }: { mark: Placed; across: 
       style={compact ? undefined : { left: across.chip, top: mark.top - 2 }}
       title={title}
       data-agent-edit={mark.id}
+      data-escape-own={compact ? "" : undefined}
       onKeyDown={(e) => {
         if (compact && e.key === "Escape") {
           e.preventDefault()

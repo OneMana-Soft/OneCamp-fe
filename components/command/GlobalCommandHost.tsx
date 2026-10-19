@@ -12,12 +12,37 @@
 import { CornerCard } from "@/components/ui/CornerStack"
 import React, { useEffect, useState, useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
-import BlockKitCard from "./BlockKitCard"
-import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { Button } from "@/components/ui/button"
 import { Bell, X, Zap } from "@/lib/icons"
-import type { CommandResponse } from "@/types/command"
-import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
+import type { Block, CommandResponse } from "@/types/command"
+import { LazyMemberInviteDialog } from "@/components/invite/LazyMemberInviteDialog"
+import { lazyPart } from "@/lib/lazy/lazyPart"
+
+// The host's rare pieces come when they are wanted: the invite dialog when it
+// is asked for (LazyMemberInviteDialog), a late answer's card or text when one
+// arrives. Until 17 Oct 2026 they rode in with every signed-in first screen,
+// and the text renderer brings charts, query plans and the tables service with
+// it (app/firstLoad.test.ts, SHELL_LAZY). Each is a lazy part
+// (lib/lazy/lazyPart): an answer's text reads as plain text until its renderer
+// is in, or if it can't come, and a card that can't come says so in its place.
+const PlainAnswer = ({ content }: { content: string }) => <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{content}</p>
+const answerText = lazyPart<{ content: string }>(() => import("@/components/ai/MarkdownMessage").then((m) => m.default), {
+    placeholder: PlainAnswer,
+    failed: PlainAnswer,
+})
+const NoCardYet = () => null
+const CardUnavailable = ({ retry }: { retry: () => void }) => (
+    <div className="flex flex-col items-start gap-2">
+        <p className="text-sm text-ink-2">{"Couldn't show this answer. Check your connection, then try again."}</p>
+        <Button type="button" variant="outline" size="sm" onClick={retry}>
+            Try again
+        </Button>
+    </div>
+)
+const answerCard = lazyPart<{ blocks: Block[] }>(() => import("./BlockKitCard").then((m) => m.default), {
+    placeholder: NoCardYet,
+    failed: CardUnavailable,
+})
 
 interface HostedCard {
     id: string
@@ -71,7 +96,7 @@ const GlobalCommandHost: React.FC = () => {
 
     return (
         <>
-            <MemberInviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+            <LazyMemberInviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
             {cards.length > 0 && (
                 // The right-hand corner stack places them (components/ui/CornerStack),
                 // above the demo prompt and under the toasts.
@@ -88,10 +113,10 @@ const GlobalCommandHost: React.FC = () => {
                                 </span>
                                 <div className="min-w-0 flex-1">
                                     {card.response.blocks && card.response.blocks.length > 0 ? (
-                                        <BlockKitCard blocks={card.response.blocks} />
+                                        <answerCard.Part blocks={card.response.blocks} />
                                     ) : card.response.text ? (
                                         <div className="text-sm leading-relaxed text-foreground">
-                                            <MarkdownMessage content={card.response.text} />
+                                            <answerText.Part content={card.response.text} />
                                         </div>
                                     ) : null}
                                 </div>

@@ -9,17 +9,16 @@ import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
-import { FitLabel } from "@/components/common/FitLabel"
-import { CommandList, type CommandListItem } from "@/components/ui/CommandList"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
+import { ZonePicker } from "@/components/ui/zonePicker"
+import { zoneLabel } from "@/lib/utils/zones"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { SpamTrap } from "@/components/common/SpamTrap"
 import { PaperCard, PublicFrame, WorkspaceMark } from "@/components/guest/PublicFrame"
 import { PublicGoneLater as PublicGone } from "@/components/guest/publicGoneLater"
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Globe, Loader2, Mail } from "@/lib/icons"
-import { dayKey, googleCalendarUrl, icsFor, timeZones, type Slot } from "@/lib/calendar/availability"
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock, Loader2, Mail } from "@/lib/icons"
+import { dayKey, googleCalendarUrl, icsFor, type Slot } from "@/lib/calendar/availability"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { cn } from "@/lib/utils/helpers/cn"
 import { bookSlot, getBookingPage, type Booked, type PublicBookingPage } from "@/services/bookingService"
@@ -77,71 +76,9 @@ export function bookLabel(slot: Slot, tz: string, h24: boolean): string {
   return `Book ${shortDay(slot.start, tz)}, ${slotTime(slot.start, tz, h24)}`
 }
 
-/**
- * A zone's name as Intl says it ("long", "longGeneric", "shortOffset"), or ""
- * when it can't. `keep` false builds a formatter that isn't kept: the zone
- * list asks once for each of some 420 zones.
- */
-function zoneName(tz: string, style: "long" | "longGeneric" | "shortOffset", keep = true): string {
-  try {
-    const f = keep ? formatFor("en-US", tz, { timeZoneName: style }) : new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: style })
-    return f.formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? ""
-  } catch {
-    return ""
-  }
-}
-
-/** "New York": the place a zone is named for. */
-const zoneCity = (tz: string) => (tz.split("/").pop() || tz).replace(/_/g, " ")
-
-/**
- * A zone said ever shorter, for a label with little room: "Eastern Daylight
- * Time (GMT-4)", "Eastern Time (GMT-4)", "New York (GMT-4)", "GMT-4". The
- * aside cut the first to "Eastern Daylight Time (…", losing the offset,
- * which is the part a visitor checks.
- */
-export function zoneLabels(tz: string): string[] {
-  const off = zoneName(tz, "shortOffset")
-  const withOff = (n: string) => (off ? `${n} (${off})` : n)
-  const out = [zoneLabel(tz), withOff(zoneName(tz, "longGeneric") || zoneCity(tz)), withOff(zoneCity(tz))]
-  if (off) out.push(off)
-  return out.filter((v, i) => v && out.indexOf(v) === i)
-}
-
-/** "India Standard Time (GMT+5:30)". */
-export function zoneLabel(tz: string): string {
-  const name = zoneName(tz, "long")
-  const off = zoneName(tz, "shortOffset")
-  return name ? `${name}${off ? ` (${off})` : ""}` : tz.replace(/_/g, " ")
-}
-
-interface ZoneRow {
-  z: string
-  label: string
-  off: string
-  hay: string
-}
-
-/**
- * Every zone as people know it ("Eastern Time · New York", with its offset),
- * the visitor's own first: built the first time a picker opens and kept for
- * the page's life. It costs two formatters a zone, about 840, and was built
- * on load, twice, for two pickers nobody had opened (CAL-BUG-20).
- */
-let zoneRowsKept: { first: string; rows: ZoneRow[] } | null = null
-function zoneRows(): ZoneRow[] {
-  const first = browserTZ()
-  if (zoneRowsKept?.first !== first) {
-    const rows = timeZones(first).map((z) => {
-      const generic = zoneName(z, "longGeneric", false)
-      const city = zoneCity(z)
-      const label = generic && !/^GMT/.test(generic) ? `${generic} · ${city}` : city
-      return { z, label, off: zoneName(z, "shortOffset", false), hay: `${z.replace(/_/g, " ")} ${label}`.toLowerCase() }
-    })
-    zoneRowsKept = { first, rows }
-  }
-  return zoneRowsKept.rows
-}
+// Zones as people know them live in lib/utils/zones (the Event Form picks from
+// them too); the booking pages read them from here as well.
+export { zoneLabel, zoneLabels } from "@/lib/utils/zones"
 
 /** Whether the window is at least `px` wide, following it as it changes. */
 function useMinWidth(px: number): boolean {
@@ -483,76 +420,20 @@ function HostAside({
   )
 }
 
-/** A ghost button with the zone; a searchable list with the visitor's zone first and a 24-hour switch. */
+/** The zone, from the shared picker (components/ui/zonePicker), with a 24-hour switch under its list. */
 function TimeZoneButton({ tz, onTz, h24, onH24, className }: { tz: string; onTz: (tz: string) => void; h24: boolean; onH24: (v: boolean) => void; className?: string }) {
-  const [open, setOpen] = React.useState(false)
-  const [query, setQuery] = React.useState("")
-  // Rows say a zone as people know it, "Eastern Time · New York" with its
-  // offset, rather than the database's "America/New York"; a search finds
-  // either. Built when the list first opens, never on load.
-  const named = React.useMemo(() => (open ? zoneRows() : []), [open])
-  const items: CommandListItem[] = React.useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return named
-      .filter((n) => !q || n.hay.includes(q))
-      .slice(0, 80)
-      .map((n, i) => ({
-        id: n.z,
-        label: n.label,
-        text: n.label,
-        group: i === 0 && !q ? "Your time zone" : q ? undefined : "All time zones",
-        trailing: (
-          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-meta text-ink-3 tabular-nums">
-            {n.off}
-            {n.z === tz ? <Check className="size-3.5 text-ink-2" aria-hidden="true" /> : null}
-          </span>
-        ),
-      }))
-  }, [named, query, tz])
-  const listRef = React.useRef<{ onKeyDown: (e: React.KeyboardEvent) => boolean } | null>(null)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className={cn("h-7 w-full justify-start gap-1.5 px-2 text-ui-sm font-medium text-ink-2", className)} aria-label={`Time zone: ${zoneLabel(tz)}`}>
-          <Globe className="size-3.5 shrink-0" aria-hidden="true" />
-          <FitLabel options={zoneLabels(tz)} />
-          <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-0" data-tz-list="">
-        <div className="border-b border-line p-1.5">
-          <input
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (listRef.current?.onKeyDown(e)) e.preventDefault()
-            }}
-            placeholder="Search time zones"
-            aria-label="Search time zones"
-            className="h-8 w-full rounded-md bg-transparent px-2 text-ui text-ink outline-none placeholder:text-ink-3"
-          />
-        </div>
-        <CommandList
-          ref={listRef as never}
-          items={items}
-          label="Time zones"
-          query={query}
-          maxHeight={280}
-          className="rounded-none border-0 shadow-none"
-          empty={<p className="px-3 py-2 text-ui-sm text-ink-3">No time zone matches.</p>}
-          onSelect={(it) => {
-            onTz(it.id)
-            setOpen(false)
-            setQuery("")
-          }}
-        />
+    <ZonePicker
+      tz={tz}
+      onTz={onTz}
+      className={className}
+      footer={
         <label className="flex items-center justify-between border-t border-line px-3 py-2 text-ui-sm text-ink-2">
           Use 24-hour time
           <Switch checked={h24} onCheckedChange={onH24} aria-label="Use 24-hour time" />
         </label>
-      </PopoverContent>
-    </Popover>
+      }
+    />
   )
 }
 

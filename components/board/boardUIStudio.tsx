@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
+import { onEscape } from "@/lib/keys/onEscape"
 import AiModelPicker from "@/components/ai/AiModelPicker"
 import { PREVIEW_SANDBOX, frameDocument } from "@/components/board/uiStudioFrame"
 import {
@@ -185,15 +186,8 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
     return () => ro.disconnect()
   }, [open, dims.w, dims.h, html])
 
-  // Esc to close.
-  React.useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [open, onClose])
+  // Esc to close, after a menu open in it.
+  React.useEffect(() => (open ? onEscape("overlay", () => onClose()) : undefined), [open, onClose])
 
   const handleCopy = React.useCallback(async () => {
     if (!html) return

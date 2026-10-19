@@ -16,8 +16,10 @@ import { formatLocale } from "@/lib/tables/numberFormat"
 import { moveKeyOf } from "@/lib/board/keyMove"
 import { BOARD_AUTO_SCROLL, boardAnnouncements } from "@/lib/board/drag"
 import { shortDate } from "@/lib/utils/date/shortDate"
-import { hueFor } from "@/lib/campHue"
-import { OptionChip, chipsTinted } from "@/components/table/optionChip"
+import { campHueOf, hueFor } from "@/lib/campHue"
+import { columnWash } from "@/components/kanbanComponents/columnLook"
+import { OptionChip, tintedFields } from "@/components/table/optionChip"
+import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET, TOUCH_ROW } from "@/components/table/TableViewFrame"
 
 interface DataTableBoardProps {
@@ -78,9 +80,9 @@ export function formatCardValue(v: unknown, type?: string): string {
 export function rowDetails(fields: TableField[], values: Record<string, unknown>, skip: (string | undefined)[], max: number): { f: TableField; text: string }[] {
   return fields
     .filter((f) => !skip.includes(f.id))
-    .slice(0, max)
     .map((f) => ({ f, text: isComputed(f) ? formulaText(values[f.id], computedOf(f).result) : formatCardValue(values[f.id], f.type) }))
     .filter((d) => d.text)
+    .slice(0, max)
 }
 
 /** The select field a board groups by: the one asked for, else the first. */
@@ -150,12 +152,13 @@ export function DataTableBoard({
   const refocus = React.useRef<string | null>(null)
   const sensors = useSensors(useSensor(MouseSensor, MOUSE), useSensor(TouchSensor, TOUCH))
 
-  const sortedFields = React.useMemo(() => [...fields].sort((a, b) => a.position - b.position), [fields])
+  const sortedFields = React.useMemo(() => fieldOrder(fields), [fields])
   const groupField = React.useMemo(() => boardGroupField(fields, groupFieldId), [fields, groupFieldId])
+  // A card's choices tint as the grid's do (optionChip tintedFields).
+  const tinted = React.useMemo(() => tintedFields(fields), [fields])
 
-  // The primary display field for a card title: the first text field, else the
-  // first field.
-  const titleField = React.useMemo(() => sortedFields.find((f) => f.type === "text") || sortedFields[0], [sortedFields])
+  // A card's title is the row's name: its primary field (fieldOrder leads with it).
+  const titleField = sortedFields[0]
   const titleOf = React.useCallback((row: TableRow) => (titleField ? cardTitle(titleField, parseRowValues(row)[titleField.id]) : "") || "Untitled", [titleField])
 
   const columns: BoardColumn[] = React.useMemo(() => {
@@ -339,7 +342,7 @@ export function DataTableBoard({
     >
       {/* Scrolls inside the frame, as the grid does, at the frame's one inset;
           a card held at its edge scrolls it, and only it. */}
-      <div ref={boardRef} className={cn(TABLE_VIEW_BODY, TABLE_VIEW_INSET)} data-table-board="" data-board-scroll="" onKeyDownCapture={onKeyDownCapture} onKeyUpCapture={onKeyUpCapture}>
+      <div ref={boardRef} className={cn(TABLE_VIEW_BODY, TABLE_VIEW_INSET)} data-table-board="" data-board-scroll="" data-escape-own={!!held ? "" : undefined} onKeyDownCapture={onKeyDownCapture} onKeyUpCapture={onKeyUpCapture}>
         <div className="flex gap-3">
           {columns.map((col, i) => {
             const cards = rowsByColumn[col.key] || []
@@ -350,7 +353,8 @@ export function DataTableBoard({
                 {/* The option in its own colour, as the grid's chip and a guest's
                     view show it; the count beside it is a plain number. */}
                 <div className="flex h-10 items-center gap-2 px-3 text-ui-sm font-medium">
-                  {col.key === NO_VALUE ? <span className="truncate text-ink-3">{col.label}</span> : <OptionChip label={col.label} color={col.color} tinted={chipsTinted(groupField)} />}
+                  {/* A lane is a stage: its option in its own tint, whatever the grid's chips do. */}
+                  {col.key === NO_VALUE ? <span className="truncate text-ink-3">{col.label}</span> : <OptionChip label={col.label} color={col.color} tinted />}
                   <span className="shrink-0 text-meta font-normal tabular-nums text-ink-3">{cards.length}</span>
                 </div>
                 <div className="flex flex-col gap-2 px-2 pb-2">
@@ -361,6 +365,7 @@ export function DataTableBoard({
                       title={titleOf(row)}
                       lane={col.key}
                       fields={sortedFields}
+                      tinted={tinted}
                       skip={[titleField?.id, groupField.id]}
                       columns={columns}
                       held={held?.rowId === row.id}
@@ -410,11 +415,23 @@ export function DataTableBoard({
   )
 }
 
-/** A lane, where a card is dropped: ringed while a card is over it, or held for it from the keyboard. */
+/**
+ * A lane, where a card is dropped: washed in its option's hue, as the project
+ * board's columns are in their status's (kanbanComponents/columnLook); under
+ * a card, or held for it from the keyboard, the layer's drop well
+ * (INTERACTION_SPEC §5.2). A lane keeps no order, so it draws no line.
+ */
 function BoardLane({ column, target, children }: { column: BoardColumn; target: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.key })
+  const dropping = target || isOver
   return (
-    <div ref={setNodeRef} data-lane={column.key} data-drop-target={target || isOver || undefined} className={cn("flex w-72 shrink-0 flex-col rounded-[16px] bg-sunken transition-shadow", (target || isOver) && "ring-2 ring-inset ring-brand/60")}>
+    <div
+      ref={setNodeRef}
+      data-lane={column.key}
+      data-drop-target={dropping || undefined}
+      data-drop={dropping ? "valid" : undefined}
+      className={cn("flex w-72 shrink-0 flex-col rounded-[16px] transition-shadow", columnWash(column.key === NO_VALUE ? null : campHueOf(column.color)))}
+    >
       {children}
     </div>
   )
@@ -430,6 +447,7 @@ function BoardCard({
   title,
   lane,
   fields,
+  tinted,
   skip,
   columns,
   held,
@@ -441,6 +459,8 @@ function BoardCard({
   title: string
   lane: string
   fields: TableField[]
+  /** The columns whose chips are tinted. */
+  tinted: Set<string>
   /** Fields a card doesn't list: its title's, and its lane's. */
   skip: (string | undefined)[]
   columns: BoardColumn[]
@@ -465,12 +485,11 @@ function BoardCard({
       >
         <p className="font-medium text-ink">{title}</p>
         {details.length ? (
-          <div className="mt-1 space-y-0.5">
+          // Each field as a chip with its name (PTC-31): a choice in its own
+          // chip, as the grid draws it; anything else as a label and value.
+          <div className="mt-1.5 flex flex-wrap gap-1">
             {details.map(({ f, text }) => (
-              <p key={f.id} className="truncate text-meta text-ink-2">
-                <span className="text-ink-3">{f.name} </span>
-                {text}
-              </p>
+              <CardField key={f.id} field={f} value={values[f.id]} text={text} tinted={tinted.has(f.id)} />
             ))}
           </div>
         ) : null}
@@ -497,5 +516,29 @@ function BoardCard({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  )
+}
+
+/** One of a card's fields, as a chip: a choice's options as the grid draws them, the rest as its name and value. */
+function CardField({ field, value, text, tinted }: { field: TableField; value: unknown; text: string; tinted: boolean }) {
+  if ((field.type === "select" || field.type === "multi_select") && !isHiddenRef(value)) {
+    const labels = (Array.isArray(value) ? value : [value]).filter((v): v is string => typeof v === "string" && v !== "")
+    const options = optionsOf(field)
+    const shown = labels.slice(0, 2)
+    return (
+      <span title={field.name} data-card-field={field.id} className="inline-flex min-w-0 max-w-full items-center gap-1">
+        <span className="sr-only">{field.name}: </span>
+        {shown.map((label) => (
+          <OptionChip key={label} label={label} color={options.find((o) => o.label === label)?.color} tinted={tinted} className="h-5 px-1.5 text-2xs" />
+        ))}
+        {labels.length > shown.length ? <span className="shrink-0 text-2xs text-ink-3">+{labels.length - shown.length}</span> : null}
+      </span>
+    )
+  }
+  return (
+    <span title={`${field.name}: ${text}`} data-card-field={field.id} className="chip h-5 min-w-0 max-w-full gap-1 px-1.5 text-2xs">
+      <span className="shrink-0 text-ink-3">{field.name}</span>
+      <span className="truncate text-ink-2">{text}</span>
+    </span>
   )
 }

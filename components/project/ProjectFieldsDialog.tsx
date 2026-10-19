@@ -183,6 +183,8 @@ function FieldRow({
           value={name}
           maxLength={40}
           aria-label="Field name"
+          // Esc puts a changed name back; with nothing to put back, it closes the dialog.
+          data-escape-own={name !== field.name ? "" : undefined}
           disabled={busy}
           onChange={(e) => setName(e.target.value)}
           onBlur={saveName}

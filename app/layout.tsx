@@ -7,6 +7,9 @@ import "./interaction.css";
 // The phone layer (design v3, mobile.md): after globals, so it outranks the
 // shell's phone block at equal specificity.
 import "./phone.css";
+// The one overlay layout (components/ui/overlay): a header, a body that is the
+// only scroller and a pinned footer, and the quiet bar inside overlays.
+import "./overlay.css";
 import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ClientProviders } from "@/components/providers/ClientProviders";
@@ -14,6 +17,7 @@ import { CHUNK_RECOVERY_SCRIPT } from "@/lib/chunkRecovery";
 import { APP_BOOT_CSS, APP_BOOT_SCRIPT } from "@/lib/appBoot";
 import { AppBootScreen } from "@/components/protectedRoute/Splash";
 import { splashLinks } from "@/lib/pwa/splash";
+import { THEME_COLOR_METAS } from "@/lib/pwa/grounds";
 
 // One face for the whole app (design v3, "Type"): Inter, variable, with its
 // optical-size axis, so a 14px label takes the text cut and a 30px title the
@@ -38,6 +42,7 @@ const inter = Inter({
 // render and look fine. An install that has not set this gets relative URLs and
 // a plain link preview, which is the honest failure.
 const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
 
 // The API's origin. Every page's first call goes there (the session check on
 // the start page, the profile in the app), and a new connection to it costs
@@ -90,13 +95,17 @@ export const viewport: Viewport = {
   // page), which put every composer behind it. iOS ignores this and is
   // handled in lib/ui/visualViewport.ts.
   interactiveWidget: "resizes-content",
-  // Light is the default mode, so this is the correct pre-hydration value; it
-  // matches the manifest's theme_color and background_color, so the install
-  // splash doesn't flash a different colour into the app shell. ThemeColorMeta
-  // then keeps the tag equal to the background the user actually chose.
-  // Matches --frame in the light theme (design v3), the colour of the frame the browser
-  // chrome continues. The manifest carries the same value.
-  themeColor: "#f3f4f6",
+  // The browser's bar before any code runs: a phone's ground (lib/pwa/grounds),
+  // in the system's mode, picked by media query. It was the light frame alone,
+  // a light band over a dark app on every dark start. On an app address the
+  // boot script sets every one to the exact ground in the mode chosen in the
+  // app, and ThemeColorMeta keeps them on the chrome the person is looking at.
+  themeColor: THEME_COLOR_METAS,
+  // The page's own canvas before its stylesheet has arrived (it blocks the
+  // first paint, seconds on a slow line): in the person's scheme, so a dark
+  // system never sees white there. next-themes' explicit color-scheme on
+  // <html> takes over as soon as it runs.
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({
@@ -122,8 +131,9 @@ export default function RootLayout({
             meant the home-screen icon fell back to a screenshot of the page.
             This is an opaque 180px PNG, the size iOS actually asks for. */}
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        {/* The installed app's launch screen: the frame's colour, light or
-            dark, so a dark app never starts on a white flash (lib/pwa/splash). */}
+        {/* The installed app's launch screen: the ground the app starts on,
+            light or dark, so a dark app never starts on a white flash
+            (lib/pwa/splash, lib/pwa/grounds). */}
         {splashLinks().map((l) => (
           <link key={l.href} rel="apple-touch-startup-image" href={l.href} media={l.media} />
         ))}

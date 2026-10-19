@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useId } from "react"
+import { useId, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -38,6 +39,41 @@ export function DetailsRow({ icon, label, description, controlId, children }: { 
                 {description && <p className="text-meta text-ink-3 text-pretty">{description}</p>}
             </div>
             {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+        </div>
+    )
+}
+
+/**
+ * A destructive action that asks in place (C54): the button turns into the
+ * question and its two answers, inside the card. No dialog over a sheet.
+ * Shared by the channel's Details and a DM's or group's (Leave).
+ */
+export function InlineConfirm({ label, question, warning, confirmLabel, onConfirm, busy, disabled, description }: {
+    label: string
+    question: string
+    warning?: string
+    confirmLabel: string
+    onConfirm: () => void
+    busy?: boolean
+    disabled?: boolean
+    description?: string
+}) {
+    const [asking, setAsking] = useState(false)
+    if (!asking) {
+        return (
+            <DetailsRow label={label} description={description}>
+                <Button variant="destructive" size="sm" disabled={disabled} onClick={() => setAsking(true)}>{label}</Button>
+            </DetailsRow>
+        )
+    }
+    return (
+        <div role="group" aria-label={question} className="space-y-2 px-3 py-3 animate-fade-in">
+            <p className="text-ui font-medium text-ink">{question}</p>
+            {warning && <p className="text-meta text-warning-ink">{warning}</p>}
+            <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setAsking(false)} autoFocus>Cancel</Button>
+                <Button variant="destructive" size="sm" aria-busy={busy || undefined} onClick={onConfirm}>{confirmLabel}</Button>
+            </div>
         </div>
     )
 }

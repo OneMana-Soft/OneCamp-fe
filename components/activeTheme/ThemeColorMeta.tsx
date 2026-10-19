@@ -76,13 +76,16 @@ export function ThemeColorMeta() {
       if (!background) return
       const hex = toHexColor(background)
       if (!hex) return
-      let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-      if (!meta) {
-        meta = document.createElement("meta")
+      // One per media query from the first paint (app/layout, lib/pwa/grounds):
+      // the browser shows the first that matches, so every one takes the colour.
+      const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
+      if (metas.length === 0) {
+        const meta = document.createElement("meta")
         meta.name = "theme-color"
         document.head.appendChild(meta)
+        metas.push(meta)
       }
-      if (meta.content !== hex) meta.content = hex
+      for (const meta of metas) if (meta.content !== hex) meta.content = hex
     }
 
     // Read after the current frame's mutations land: whoever toggled the theme

@@ -111,6 +111,7 @@ export function AiComposer({
           ref={setRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          data-escape-own={streaming ? "" : undefined}
           onKeyDown={(e) => {
             // An input method's Enter picks its word (Safari's has keyCode
             // 229 and isComposing false): it never sends.

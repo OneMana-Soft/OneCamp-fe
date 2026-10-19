@@ -263,8 +263,9 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         [path, counts.channel, counts.dm, counts.activity, counts.laterDue, counts.tasksDue, counts.urgentNudges, isAdmin],
     );
     // Docs are a section in the full sidebar and an item in the rails, which
-    // have no sections (lib/nav/focusMode): the rails take primary, the full
-    // sidebar's rows leave Docs to its section.
+    // have no sections (lib/nav/focusMode): the tablet's rail takes primary,
+    // the collapsed rail puts the sections after Channels and DMs as the full
+    // sidebar does, and the full sidebar's rows leave Docs to its section.
     const { primary: rows, sections, folded: more } = useMemo(() => partitionNav(navLinks), [navLinks]);
     const primary = useMemo(() => [...rows, ...sections], [rows, sections]);
 
@@ -342,7 +343,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
             active = path.length > 3 && path[3] == u
         }
         dmRows.push({
-            title: others.length == 0 ? displayNameOf(self) || '' : others.map((item) => userDisplayName(item)).join(", "),
+            title: others.length == 0 ? displayNameOf(self) || '' : (isGroup && d.dm_name) || others.map((item) => userDisplayName(item)).join(", "),
             unread_count: d?.dm_unread,
             // Every unread DM is about you: it takes the brand badge.
             badge: true,
@@ -384,7 +385,8 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                 <div hidden={!userSideNav.data}>
                     {/* Starred only when something is; five, then "Show N more",
                         so it never pushes the chat sections off the first
-                        screen (design review PG1-02). */}
+                        screen (design review PG1-02). Then Projects, the
+                        conversations, and Docs. */}
                     <SidebarSection title="Starred" open={isFavOpen} setOpen={setIsFavOpen} rows={starredRows} cap={5} />
                     <SidebarSection
                         title="Projects"
@@ -396,12 +398,6 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                         rows={projectRows}
                         cap={8}
                         invite={{ label: "Start a project", onClick: () => dispatch(openUI({ key: 'createProject' })) }}
-                    />
-                    <DocsSection
-                        open={isDocsOpen}
-                        setOpen={setIsDocsOpen}
-                        active={path[2] === "doc" && !path[3]}
-                        onAdd={() => dispatch(openUI({ key: 'createDoc' }))}
                     />
                     <SidebarSection
                         title="Channels"
@@ -422,6 +418,15 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                         rows={dmRows}
                         cap={8}
                         invite={{ label: "Message someone", onClick: () => dispatch(openUI({ key: 'createChatMessage' })) }}
+                    />
+                    {/* The docs tree after the conversations: above them, it put
+                        Channels and DMs below the first screen at 1280 by 860
+                        (PG1-02, the rivals review of 16 Oct). */}
+                    <DocsSection
+                        open={isDocsOpen}
+                        setOpen={setIsDocsOpen}
+                        active={path[2] === "doc" && !path[3]}
+                        onAdd={() => dispatch(openUI({ key: 'createDoc' }))}
                     />
                 </div>
             </div>
@@ -490,7 +495,9 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
                             <SettingsRailItems isAdmin={isAdmin} />
                         </Suspense>
                     ) : undefined}
-                    primary={primary}
+                    // Docs after Channels and DMs, as the sidebar orders them.
+                    primary={rows}
+                    sections={sections}
                     more={more}
                     places={[...projectRows, ...starredRows]}
                     conversations={{

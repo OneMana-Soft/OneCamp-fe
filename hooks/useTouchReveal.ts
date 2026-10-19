@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import type React from "react"
+import { onEscape } from "@/lib/keys/onEscape"
 
 /** Where a tool's own menu or dialog opens: a tap or Escape there keeps the tools out. */
 const TOOL_LAYERS = "[data-radix-popper-content-wrapper], [role='menu'], [role='dialog'], [role='listbox']"
@@ -42,14 +43,12 @@ export function useTouchReveal() {
       if (rowRef.current?.contains(at) || at?.closest?.(TOOL_LAYERS)) return
       setRevealed(false)
     }
-    const escape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !(e.target as Element | null)?.closest?.(TOOL_LAYERS)) setRevealed(false)
-    }
+    const escape = (e: KeyboardEvent) => ((e.target as Element | null)?.closest?.(TOOL_LAYERS) ? false : setRevealed(false))
     document.addEventListener("pointerdown", away, true)
-    document.addEventListener("keydown", escape)
+    const stopEscape = onEscape("overlay", escape)
     return () => {
       document.removeEventListener("pointerdown", away, true)
-      document.removeEventListener("keydown", escape)
+      stopEscape()
     }
   }, [revealed])
 

@@ -84,4 +84,39 @@ describe("a task's earlier history", () => {
     expect(shown()).toEqual(["a-5", "a-6"])
     expect(screen.getByRole("button", { name: "Show earlier history" })).toBeEnabled()
   })
+
+  // A task the person can't open any more (deleted, or they left its project,
+  // while the panel was open) answers 404, or 403 from a server from before
+  // roles. That is the panel's to say, in place of the task
+  // (components/rightPanel/taskHistoryCantOpen.test.tsx): the failure is handed
+  // on, and no more pages are offered.
+  it.each([404, 403])("hands on a page that answers %i, and offers no more", async (status) => {
+    const failure = Object.assign(new Error(`Request failed with status code ${status}`), { response: { status } })
+    h.get.mockRejectedValueOnce(failure)
+    let cantOpen: unknown
+    function Probe() {
+      const history = useEarlierHistory("t", [line(5)], true)
+      cantOpen = history.cantOpen
+      return <EarlierHistoryButton earlier={history} />
+    }
+    render(<Probe />)
+    expect(cantOpen).toBeUndefined()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Show earlier history" })))
+    expect(cantOpen).toBe(failure)
+    expect(screen.queryByRole("button", { name: "Show earlier history" })).toBeNull()
+  })
+
+  it("hands on nothing when a page fails for another reason", async () => {
+    h.get.mockRejectedValueOnce(Object.assign(new Error("Request failed with status code 503"), { response: { status: 503 } }))
+    let cantOpen: unknown = "unread"
+    function Probe() {
+      const history = useEarlierHistory("t", [line(5)], true)
+      cantOpen = history.cantOpen
+      return <EarlierHistoryButton earlier={history} />
+    }
+    render(<Probe />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Show earlier history" })))
+    expect(cantOpen).toBeUndefined()
+    expect(screen.getByRole("button", { name: "Show earlier history" })).toBeEnabled()
+  })
 })

@@ -71,10 +71,11 @@ describe("workload cells", () => {
     expect(container.querySelector("[data-workload-summary='over']")!.textContent).toContain("jonas is over capacity this week (5 of 4)")
   })
 
-  // INTERACTION_SPEC D13 (PG2-08): two greys on a grey well read as
-  // skeletons. Room and full take the person's own hue, from their row, and a
-  // week tints in it under the pointer (the interaction layer).
-  it("fills room and full in the person's own hue, the one their avatar wears", () => {
+  // Step 3, part 3 (amends INTERACTION_SPEC D13): the person's hue stays on
+  // their row (and its hover tint); a week's column says its state in colour:
+  // room moss, full sun, over danger, in the key too, which drew room and
+  // full as two greys outside any row.
+  it("colours each week by its state, the key the same, and keeps the person's hue on the row", () => {
     data = {
       people: [person("maya"), person("jonas")],
       tasks: [task("a", "maya"), ...["b", "c", "d", "e"].map((id) => task(id, "jonas"))],
@@ -90,9 +91,20 @@ describe("workload cells", () => {
       expect(row.querySelector('[data-load] ')?.closest("[data-interactive]")?.getAttribute("data-interactive")).toBe("button")
     }
     const room = container.querySelector<HTMLElement>("[data-load='room'] [data-capacity-fill]")!
-    expect(room.style.background).toContain("var(--hue-a1")
+    expect(room.style.background).toContain("var(--camp-moss")
     const full = container.querySelector<HTMLElement>("[data-load='full'] [data-capacity-fill]")!
-    expect(full.style.background).toContain("var(--hue-a2")
+    expect(full.style.background).toContain("var(--camp-sun")
+    const key = Array.from(container.querySelectorAll<HTMLElement>("[data-workload-key] [data-swatch]")).map((s) => s.style.background)
+    expect(key).toEqual([room.style.background, full.style.background, expect.stringContaining("--destructive")])
+  })
+
+  it("says over in words and danger ink in an over week, and marks the over line with a danger dot", () => {
+    data = { people: [person("jonas")], tasks: ["a", "b", "c", "d", "e"].map((id) => task(id, "jonas")), undated: [], default_capacity: 5, default_hours: 40, truncated: false }
+    const { container } = render(<ProjectsWorkload projects={projects} />)
+    const over = container.querySelector<HTMLElement>("[data-load='over']")!
+    expect(over.className).toContain("text-danger-ink")
+    expect(over.textContent).toMatch(/5\s*over/)
+    expect(container.querySelector("[data-workload-summary='over'] > span[aria-hidden]")!.className).toContain("bg-destructive")
   })
 
   it("marks this week's header and draws no box round the grid", () => {

@@ -20,6 +20,7 @@ vi.mock("@/components/project/ProjectTimeDialog", () => ({ ProjectTimeDialog: sh
 vi.mock("@/components/project/ProjectFormsDialog", () => ({ ProjectFormsDialog: shown("forms") }))
 vi.mock("@/components/project/ProjectShareDialog", () => ({ ProjectShareDialog: shown("share") }))
 vi.mock("@/components/projectTemplates/SaveAsTemplateDialog", () => ({ SaveAsTemplateDialog: shown("template") }))
+vi.mock("@/components/project/ProjectAccessDialog", () => ({ ProjectAccessDialog: shown("access") }))
 
 const { ProjectActionsMenu } = await import("@/components/project/ProjectToolButtons")
 const { GetEndpointUrl } = await import("@/services/endPoints")
@@ -46,7 +47,7 @@ describe("the project header's actions", () => {
     const onMembers = vi.fn()
     render(<ProjectActionsMenu projectId="q4-1" isAdmin isMember onRename={onRename} onMembers={onMembers} />)
     openMenu()
-    for (const name of ["Forms that make tasks", "Save as a template", "Edit project name", "Manage project members"]) {
+    for (const name of ["Forms that make tasks", "Save as a template", "Who can change tasks", "Edit project name", "Manage project members"]) {
       expect(screen.getByRole("menuitem", { name })).toBeTruthy()
     }
     // Sharing with a client is a word in the header bar (work.md W16), not a menu item.
@@ -105,5 +106,29 @@ describe("the project header's actions", () => {
   it("shows nothing to someone outside the project", () => {
     const { container } = render(<ProjectActionsMenu projectId="q4-1" isAdmin={false} isMember={false} onRename={() => {}} onMembers={() => {}} />)
     expect(container.innerHTML).toBe("")
+  })
+
+  it("opens who can change tasks from the menu", async () => {
+    render(<ProjectActionsMenu projectId="q4-1" isAdmin isMember onRename={() => {}} onMembers={() => {}} />)
+    openMenu()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Who can change tasks" }))
+    expect(await screen.findByTestId("access")).toBeTruthy()
+  })
+
+  // Its team's admin manages its people and archives it without running it
+  // (Work Access): one who only views the project is offered those two, and
+  // none of its settings.
+  it("offers its team's admin the people and archiving, not its settings", () => {
+    const steward = {
+      role: "viewer" as const, view: true, comment: false, create_tasks: false, edit_tasks: "none" as const, delete_tasks: "none" as const,
+      log_time: false, post_updates: false, add_files: false, manage: false, manage_people: true, archive: true,
+    }
+    render(<ProjectActionsMenu projectId="q4-1" isAdmin={false} isMember access={steward} onRename={() => {}} onMembers={() => {}} />)
+    openMenu()
+    expect(screen.getByRole("menuitem", { name: "Manage project members" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "Archive project…" })).toBeTruthy()
+    for (const name of ["Edit project name", "Who can change tasks", "Forms that make tasks"]) {
+      expect(screen.queryByRole("menuitem", { name })).toBeNull()
+    }
   })
 })

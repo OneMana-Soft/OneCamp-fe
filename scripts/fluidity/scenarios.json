@@ -1,0 +1,13 @@
+{
+  "about": [
+    "The fluidity scenarios scripts/fluidity/run.mjs runs, each held to its budgets file (Fluidity budgets #6; PLATFORM-LEAD, 17 Oct 2026). A programme registers its own here: a script beside this file, its budgets file, what it needs and the CPU slowdowns it runs at.",
+    "A script takes --base <url> --cpu <n> --runs <n> --budgets <file> --result <file>, writes { \"checks\": [rows] } to --result, rows as budgets.mjs's check() makes them, and exits 1 when an enforced budget is missed. covers names the budgets' scenario fields it measures (a budget's scenario must be covered here: app/fluidityBudgets.test.ts).",
+    "needs: build (a production build in .next, no server), fixtures (a production server, every answer faked: nothing leaves the machine), demo (a production server with the live demo's data, read only). gate: run in the integrator's full gate after its build; the rest run nightly and before a release, on a quieter machine, as medians."
+  ],
+  "scenarios": {
+    "routes": { "script": "routes.mjs", "args": ["--check"], "budgets": "route-ceilings.json", "covers": ["routes"], "needs": "build", "cpu": [1], "gate": true },
+    "docs": { "script": "docs.mjs", "budgets": "doc-budgets.json", "covers": ["docs"], "needs": "fixtures", "cpu": [1, 4] },
+    "calendar": { "script": "content.mjs", "args": ["--only", "calendar,booking"], "budgets": "calendar-budgets.json", "covers": ["calendar", "booking"], "needs": "demo", "cpu": [1, 4] },
+    "chat": { "script": "chat.mjs", "budgets": "chat-budgets.json", "covers": ["chat"], "needs": "fixtures", "cpu": [1, 4] }
+  }
+}

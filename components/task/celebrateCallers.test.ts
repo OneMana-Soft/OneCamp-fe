@@ -16,6 +16,8 @@ import { describe, expect, it } from "vitest"
 const ROOT = process.cwd()
 const ALLOWED = new Set([
   "lib/celebrate.ts",
+  // Its API for every screen, the bursts loaded on the side.
+  "lib/celebrateSoon.ts",
   "components/task/TaskCheck.tsx",
   "components/task/taskListTask.tsx",
   "components/kanbanComponents/TaskBoard.tsx",

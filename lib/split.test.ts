@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { callConversationOf, canSwapBeside } from "./callConversation"
 import { MAIN, claims, isCallPane, restorablePanes, hrefOfPane, isPaneList, paneFromHref, splitShortcut, stepView, withPane } from "./split"
 
 const id = "3ea2ea90-0322-43b9-9efd-cee17ec92b01"
@@ -62,5 +63,25 @@ describe("split shortcuts", () => {
     expect(stepView(1, 1, 2)).toBe(MAIN)
     expect(stepView(MAIN, -1, 1)).toBe(0)
     expect(stepView(MAIN, 1, 0)).toBe(MAIN)
+  })
+})
+
+describe("a call's own page", () => {
+  it("names the conversation the call belongs to, which its dock's Chat opens beside it", () => {
+    expect(callConversationOf(`/app/meet/ch/${id}`)).toEqual({ kind: "channel", id })
+    expect(callConversationOf(`/app/meet/chat/${id}`)).toEqual({ kind: "chat", id })
+    expect(callConversationOf(`/app/meet/grp/${id}`)).toEqual({ kind: "group", id })
+    // A meeting and an instant call belong to no conversation; other pages aren't calls.
+    expect(callConversationOf(`/app/meet/m/${id}`)).toBeNull()
+    expect(callConversationOf("/app/meet/instant")).toBeNull()
+    expect(callConversationOf(`/app/channel/${id}`)).toBeNull()
+    expect(callConversationOf("")).toBeNull()
+  })
+  it("never offers to swap a view with a call, beside the page or as the page", () => {
+    const channel = { kind: "channel" as const, id }
+    expect(canSwapBeside(channel, `/app/doc/${id}`)).toBe(true)
+    // Swapping would move the call, and moving it hangs it up.
+    expect(canSwapBeside(channel, `/app/meet/ch/${id}`)).toBe(false)
+    expect(canSwapBeside({ kind: "call-channel", id }, `/app/doc/${id}`)).toBe(false)
   })
 })

@@ -23,6 +23,7 @@ import { avatarHueClass } from "@/components/ui/graphics/hues"
 import { Check, X, Trash, SmilePlus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useRelativeTime } from "@/hooks/useRelativeTime"
+import { onEscape } from "@/lib/keys/onEscape"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { BoardMentionInput, type MentionedUser } from "@/components/board/boardMentionInput"
@@ -235,14 +236,11 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
   // the user is never stuck in comment mode.
   React.useEffect(() => {
     if (!commentMode && !openId && !draft) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return
+    return onEscape("overlay", () => {
       if (commentMode) onCommentModeChange(false)
       setDraft(null)
       setOpenId(null)
-    }
-    document.addEventListener("keydown", onKey)
-    return () => document.removeEventListener("keydown", onKey)
+    })
   }, [commentMode, openId, draft, onCommentModeChange])
 
   // Compute a pin's position within the overlay container.

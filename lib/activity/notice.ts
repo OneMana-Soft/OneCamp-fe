@@ -8,8 +8,10 @@
 import type { NoticeItem, UnifiedActivityItem } from "@/types/activity"
 import type { UserProfileDataInterface } from "@/types/user"
 import type { KindBadgeKind } from "@/components/ui/kindBadge"
+import { format } from "date-fns"
 import { dayAndTime } from "@/lib/utils/date/clock"
 import { calendarRoute } from "@/lib/calendar/route"
+import { tablePath } from "@/lib/tables/route"
 
 /** The place a notice names when its reader can't open the page now. */
 export const UNOPENED_PLACE = "a page you can't open"
@@ -50,6 +52,21 @@ export function noticeWords(n: NoticeItem): NoticeWords {
   switch (n.kind) {
     case "doc.mentioned":
       return { actor, verb: "mentioned you in", place, preview: "" }
+    // A comment on a table's row (business/TableComments): the place is the
+    // row in its table, "Acme in Deals".
+    case "table_row.mentioned":
+      return { actor, verb: "mentioned you on", place, preview: "" }
+    case "table_row.mention.unshared": {
+      const person = n.data?.person
+        ? ({ user_uuid: n.data.person, user_name: n.data.person_name ?? "" } as UserProfileDataInterface)
+        : undefined
+      return {
+        actor: person,
+        verb: "can't open",
+        place,
+        preview: "You mentioned them, but the table isn't shared with them, so they weren't told.",
+      }
+    }
     case "doc.comment.created":
       return { actor, verb: "commented on", place, preview: "" }
     case "doc.shared":
@@ -74,6 +91,13 @@ export function noticeWords(n: NoticeItem): NoticeWords {
         preview: bookingWhen(n.data?.starts_at, n.data?.ends_at),
       }
     }
+    // An event's guests hear of it (calendar A2): asked, asked again, a
+    // change to it, and it cancelled. Its organiser hears of each answer.
+    case "calendar.invited":
+    case "calendar.updated":
+    case "calendar.cancelled":
+    case "calendar.rsvp":
+      return calendarWords(n, actor)
     // Taken off an event's guest list (CAL-BUG-1). The event is never named:
     // its reader can't open it any more.
     case "event.uninvited":
@@ -120,9 +144,12 @@ export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
   switch (n?.kind) {
     case "doc.mentioned":
     case "doc.mention.unshared":
+    case "table_row.mentioned":
+    case "table_row.mention.unshared":
       return "mention"
     case "doc.shared":
     case "booking.created":
+    case "calendar.invited":
     case "doc.access_requested":
     case "doc.access_answered":
       return "invite"
@@ -132,6 +159,7 @@ export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
     case "thread.replied":
     case "thread.resolved":
     case "thread.reopened":
+    case "calendar.rsvp":
       return "reply"
   }
   return "comment"
@@ -146,8 +174,20 @@ export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
 export function noticeHref(n: NoticeItem | undefined): string | null {
   if (n?.resource_kind === "event") {
     if (n.kind === "booking.created") return calendarRoute({ event: n.resource_uuid })
+    // An event its guest or organiser can still open opens: the instance a
+    // notice is about, else the event. A cancelled one shows its day.
+    if (n.kind.startsWith("calendar.") && n.kind !== "calendar.cancelled") {
+      return n.can_open ? calendarRoute({ event: n.data?.instance || n.resource_uuid }) : null
+    }
+    if (n.kind === "calendar.cancelled") return calendarRoute(dayOf(n) ? { date: dayOf(n)! } : {})
     // A cancelled booking's meeting is gone; an event you were taken off isn't yours to open.
     return n.kind === "booking.cancelled" ? calendarRoute() : null
+  }
+  // A table's row opens in its table, at the thread when there is one.
+  if (n?.resource_kind === "table_row") {
+    const table = n.data?.table_id
+    if (!n.can_open || !table || !n.resource_uuid) return null
+    return tablePath(table, { row: n.resource_uuid, thread: n.data?.thread_id || undefined })
   }
   if (!n?.can_open || n.resource_kind !== "doc" || !n.resource_uuid) return null
   const doc = `/app/doc/${n.resource_uuid}`
@@ -163,7 +203,66 @@ export function noticeHref(n: NoticeItem | undefined): string | null {
 
 /** Whether an inbox item is a mention of its reader, of any kind. */
 export function isMention(item: UnifiedActivityItem): boolean {
-  return item.activity_type === "MENTION" || (item.activity_type === "NOTICE" && item.notice?.kind === "doc.mentioned")
+  return (
+    item.activity_type === "MENTION" ||
+    (item.activity_type === "NOTICE" && (item.notice?.kind === "doc.mentioned" || item.notice?.kind === "table_row.mentioned"))
+  )
+}
+
+/** What a guest's answer says of them, as a sentence: "is going to". */
+const ANSWERED: Record<string, string> = {
+  accepted: "is going to",
+  tentative: "might go to",
+  declined: "can't go to",
+}
+
+/** What changed, in a few words: "New time: Tue 21 Oct, 10:00 – 11:00". */
+function changeLine(n: NoticeItem): string {
+  const changed = (n.data?.changed ?? "").split(",").filter(Boolean)
+  if (changed.includes("time")) return `New time: ${eventWhen(n)}`
+  const words: Record<string, string> = { title: "It has a new name.", location: "It's somewhere new.", notes: "Its notes changed.", recurrence: "How it repeats changed." }
+  return changed.map((c) => words[c]).filter(Boolean)[0] ?? eventWhen(n)
+}
+
+/** A calendar notice in words: the event by its title when its reader can open it, else by its day. */
+function calendarWords(n: NoticeItem, actor: UserProfileDataInterface | undefined): NoticeWords {
+  const when = eventWhen(n)
+  const place = n.can_open && n.title ? n.title : when ? `an event on ${when}` : "an event"
+  switch (n.kind) {
+    case "calendar.invited":
+      return n.data?.again === "true"
+        ? { actor, verb: "is waiting for your answer to", place, preview: when }
+        : { actor, verb: "invited you to", place, preview: when }
+    case "calendar.updated":
+      return { actor, verb: "changed", place, preview: changeLine(n) }
+    case "calendar.cancelled":
+      return { actor, verb: "cancelled", place, preview: "It's no longer on your calendar." }
+  }
+  // An answer, to the organiser: from a member, or from a guest invited by email.
+  const guest = !n.actor && n.data?.guest_name ? ({ user_uuid: "", user_name: n.data.guest_name } as UserProfileDataInterface) : undefined
+  return { actor: actor ?? guest, verb: ANSWERED[n.data?.response ?? ""] ?? "answered", place, preview: n.data?.note ? `“${n.data.note}”` : when }
+}
+
+/** An event notice's time on the reader's own clock, or its dates for an all-day one. */
+function eventWhen(n: NoticeItem): string {
+  if (n.data?.all_day === "true" && n.data.date) {
+    // Dates, in no zone: the end is the day after the last, counted in days.
+    const day = (d: string, back = 0) => {
+      const [y, m, dd] = d.split("-").map(Number)
+      return new Date(y, (m || 1) - 1, (dd || 1) - back)
+    }
+    const first = day(n.data.date)
+    const last = n.data.end_date ? day(n.data.end_date, 1) : first
+    return last > first ? `${format(first, "EEE d MMM")} – ${format(last, "EEE d MMM")}` : format(first, "EEE d MMM")
+  }
+  return bookingWhen(n.data?.start, n.data?.end)
+}
+
+/** The day an event notice is about, for the calendar to open on. */
+function dayOf(n: NoticeItem): Date | null {
+  const raw = n.data?.date ? `${n.data.date}T12:00:00` : n.data?.start
+  const d = raw ? new Date(raw) : null
+  return d && !Number.isNaN(d.getTime()) ? d : null
 }
 
 /** "Tue 14 Oct, 10:00 – 10:30": a meeting's time on the reader's own clock; "" without one. */

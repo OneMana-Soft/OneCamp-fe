@@ -55,3 +55,23 @@ describe("the demo explaining itself", () => {
     for (const v of [undefined, null, "demo", { code: "nope" }, { msg: why }]) expect(isDemoRefusal(v)).toBe(false)
   })
 })
+
+// A 503 is a refusal for now. Calendar A1: while an install's events move to
+// the calendar's one store, a write answers 503 with words for people.
+describe("a 503 that says why", () => {
+  const why = "The calendar is being moved to its new store. Try again in a minute."
+  it("is not available for now, in the server's words, never something gone wrong", () => {
+    expect(errorToastCopy(503, why, "calendar_moving")).toEqual({ title: "Not available right now", description: why })
+    const storage = "Storage didn't take the upload. Try again in a minute."
+    expect(errorToastCopy(503, storage)).toEqual({ title: "Not available right now", description: storage })
+  })
+  it("with no reason of its own is still the server's trouble", () => {
+    for (const msg of ["", "Internal Error", "Failed to upload the file"]) {
+      expect(errorToastCopy(503, msg)).toEqual({ title: "Something went wrong", description: "The server hit a problem. Try again in a moment." })
+    }
+  })
+  it("leaves every other status's title alone", () => {
+    expect(errorToastCopy(500, why).title).toBe("Something went wrong")
+    expect(errorToastCopy(409, why).title).toBe("Already changed")
+  })
+})

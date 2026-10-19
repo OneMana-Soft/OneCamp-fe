@@ -17,6 +17,7 @@ import {
   type SettingsPlace,
 } from "@/lib/adminSections"
 import { useModKey } from "@/hooks/useModKey"
+import { onEscape } from "@/lib/keys/onEscape"
 import { preloadAdminSection } from "@/components/admin/adminPreload"
 import { flashCard } from "@/hooks/useJumpFlash"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -116,16 +117,17 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
         e.preventDefault()
         searchRef.current?.focus()
         searchRef.current?.select()
-        return
       }
-      if (e.key !== "Escape" || e.defaultPrevented) return
-      const t = e.target instanceof Element ? e.target : null
-      if (t && (t.closest("input,textarea,select,[contenteditable='true'],[role='dialog'],[role='menu'],[role='listbox']"))) return
-      if (document.querySelector("[role='dialog'][data-state='open'],[role='alertdialog'][data-state='open']")) return
-      router.push(lastAppRoute())
     }
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    const stopEscape = onEscape("page", (e) => {
+      if ((e.target as Element | null)?.closest?.("input,textarea,select,[contenteditable='true']")) return false
+      router.push(lastAppRoute())
+    })
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      stopEscape()
+    }
   }, [router])
 
   // The chip: measured to the current row, moved by transform.
@@ -174,6 +176,7 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
           value={query}
           placeholder="Search settings"
           onChange={(e) => setQuery(e.target.value)}
+          data-escape-own={!!query ? "" : undefined}
           onKeyDown={(e) => {
             if (e.key === "Enter" && hits[0]) {
               e.preventDefault()

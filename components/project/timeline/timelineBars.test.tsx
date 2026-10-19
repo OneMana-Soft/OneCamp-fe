@@ -18,14 +18,56 @@ const base = { left: 40, width: 160, label: "8 Oct to 12 Oct", late: false, done
 const task = { task_uuid: "a", task_name: "Write the launch announcement", task_status: "inProgress" }
 
 describe("timeline bars", () => {
-  it("fill with their status's tint, with a cap in the strong cut", () => {
-    const { container } = render(<TimelineBar {...base} task={task} hue="sun" />)
+  // Step 3, part 3 (the rivals review, 16 Oct): bars were each status's pale
+  // tint, a field of outlines. Now a bar is its project's hue in the a2 cut
+  // with white words, the one pairing over 4.5:1 for all six hues in both
+  // themes (paletteContrast.test); its status is in its glyphs and the late tail.
+  it("fill with their project's hue in the a2 cut, with the name in white", () => {
+    const { container, getByText } = render(<TimelineBar {...base} width={300} task={task} hue="sun" />)
     const bar = container.querySelector<HTMLElement>("[data-bar]")!
     expect(bar.className).toContain("hue-sun")
     const fill = container.querySelector<HTMLElement>("[data-bar-fill]")!
-    expect(fill.className).toContain("bg-hue-tint")
+    expect(fill.className).toContain("bg-[var(--hue-a2)]")
+    expect(fill.className).not.toContain("bg-hue-tint")
     expect(container.innerHTML).not.toMatch(/bg-\w+-\d+\/10/)
-    expect(fill.querySelector(".bg-hue")).not.toBeNull()
+    expect(getByText("Write the launch announcement").closest("[data-bar-name]")!.className).toContain("text-white")
+  })
+
+  it("let a done bar step back to the project's tint, with its check and the hue's ink", () => {
+    const { container, getByText } = render(<TimelineBar {...base} width={300} task={{ ...task, task_status: "done" }} hue="sun" done />)
+    expect(container.querySelector<HTMLElement>("[data-bar-fill]")!.className).toContain("bg-hue-tint")
+    expect(getByText("Write the launch announcement").closest("[data-bar-name]")!.className).toContain("text-hue-ink")
+  })
+
+  it("carry the assignee's face on any bar 40 px wide, the name beside a bar too short for it", () => {
+    const who = { user_uuid: "u1", user_full_name: "Maya Chen" }
+    const short = render(<TimelineBar {...base} width={48} task={{ ...task, task_assignee: who }} hue="sun" />)
+    expect(short.container.querySelector("[data-bar] [data-bar-face]")).not.toBeNull()
+    // The name is beside it, outside.
+    expect(short.container.querySelector("[data-bar-name]")).toBeNull()
+    cleanup()
+    const narrow = render(<TimelineBar {...base} width={32} task={{ ...task, task_assignee: who }} hue="sun" />)
+    expect(narrow.container.querySelector("[data-bar-face]")).toBeNull()
+  })
+
+  it("draw a milestone as a diamond in the a2 cut with a halo", () => {
+    const { container } = render(<TimelineBar {...base} task={task} hue="sun" milestone />)
+    const diamond = container.querySelector<HTMLElement>("[data-milestone]")!
+    expect(diamond.className).toContain("bg-[var(--hue-a2)]")
+    expect(diamond.className).toContain("ring-2")
+    expect(diamond.className).toContain("rotate-45")
+  })
+
+  it("give every bar its project's hue, whatever its status", async () => {
+    const { projectHue } = await import("@/lib/projectHue")
+    const tasks = [
+      { task_uuid: "a", task_name: "Plan the load test", task_status: "inProgress", task_start_date: at(5), task_due_date: at(12) },
+      { task_uuid: "b", task_name: "Write it up", task_status: "inReview", task_start_date: at(6), task_due_date: at(13) },
+      { task_uuid: "c", task_name: "Ship it", task_status: "done", task_start_date: at(7), task_due_date: at(9) },
+    ]
+    const { container } = render(<ProjectTimeline projectId="p-hue" tasks={tasks} onOpenTask={() => {}} />)
+    const hues = Array.from(container.querySelectorAll<HTMLElement>("[data-bar]")).map((b) => b.dataset.hue)
+    expect(hues).toEqual([projectHue("p-hue"), projectHue("p-hue"), projectHue("p-hue")])
   })
 
   it("draw a late bar's tail up to today, and none when on time", () => {

@@ -20,7 +20,8 @@ import type { Editor } from "@tiptap/core"
 import type { Node as PMNode } from "@tiptap/pm/model"
 import { TableMap } from "@tiptap/pm/tables"
 import axiosInstance from "@/lib/axiosInstance"
-import { createField, createRow, createTable, deleteTable, tableFieldsKey, updateField, type TableField } from "@/services/tableService"
+import { createField, createTable, deleteTable, tableFieldsKey, updateField, type TableField } from "@/services/tableService"
+import { BATCH_MAX, batchRows } from "@/lib/tables/ledger"
 import { toast } from "@/hooks/use-toast"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import { tableForDoc } from "@/components/docEditor/tableForDoc"
@@ -58,11 +59,6 @@ export function columnNames(header: string[] | null, width: number): string[] {
     used.add(name.toLowerCase())
     return name
   })
-}
-
-/** Runs work n at a time, in order of starting. */
-async function inBatches<T>(items: T[], n: number, work: (item: T, i: number) => Promise<unknown>) {
-  for (let i = 0; i < items.length; i += n) await Promise.all(items.slice(i, i + n).map((item, j) => work(item, i + j)))
 }
 
 /** Where the table is now: found by its block id, or still at pos. */
@@ -106,7 +102,12 @@ export async function turnIntoDatabase(editor: Editor, pos: number): Promise<voi
       ids.push(seeded[0].id)
     }
     for (let i = ids.length; i < width; i++) ids.push((await createField(table.id, { name: names[i], type: "text", position: i })).id)
-    await inBatches(rows, 4, (row, i) => createRow(table.id, Object.fromEntries(ids.map((id, c) => [id, row[c] ?? ""])), (i + 1) * 1000))
+    // The rows in batches of the most one change set holds, in order: a
+    // table of 300 rows is one request, not 300.
+    for (let i = 0; i < rows.length; i += BATCH_MAX) {
+      const chunk = rows.slice(i, i + BATCH_MAX)
+      await batchRows(table.id, { kind: "import", create: chunk.map((row) => ({ values: Object.fromEntries(ids.map((id, c) => [id, row[c] ?? ""])) })) })
+    }
 
     const at = findAgain(editor, pos, original)
     const now = at == null ? null : editor.state.doc.nodeAt(at)

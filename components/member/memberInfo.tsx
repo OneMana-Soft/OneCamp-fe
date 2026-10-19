@@ -29,6 +29,8 @@ interface MemberPropInfoInterface {
     handleRemoveAdmin: (id: string) => void
     handleRemoveMember: (id: string) => void
     blockedUUID: boolean
+    /** What the row shows in place of the admin crown: a project's role picker. */
+    roleControl?: React.ReactNode
 }
 
 const MemberInfo: React.FC<MemberPropInfoInterface> = ({
@@ -38,6 +40,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
     handleRemoveAdmin,
     handleMakeAdmin,
     handleRemoveMember,
+    roleControl,
 }) => {
     const { src: imageSrc } = useUserAvatar(userInfo.user_profile_object_key)
     const botKind = useBotKind(userInfo.user_uuid, userInfo.is_bot)
@@ -131,6 +134,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                         <div className="w-8" />
                     ) : (
                     <>
+                    {roleControl ?? (
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
@@ -160,6 +164,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                             {userInfo.user_is_admin ? "Remove admin role" : "Make admin"}
                         </TooltipContent>
                     </Tooltip>
+                    )}
 
                     {blockedUUID || (!isAdmin && !isSelf) ? (
                         <div className="w-8" />

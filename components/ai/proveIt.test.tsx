@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -54,6 +54,13 @@ vi.mock("@/components/list/virtualInfiniteScroll", () => ({
 }))
 
 import MyAIActivityCard from "@/components/ai/MyAIActivityCard"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The celebrations' bursts are a chunk fetched when the page is idle
+// (lib/celebrateSoon): here they are in before anything finishes.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 beforeEach(() => {
   vi.useFakeTimers()

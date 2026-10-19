@@ -1,7 +1,14 @@
 import { readFileSync } from "fs"
 import { join } from "path"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The celebrations' bursts are a chunk fetched when the page is idle
+// (lib/celebrateSoon): here they are in before anything finishes.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 // The card's data: one provider (Jira), connected, and its jobs.
 let jobs: unknown[] = []
@@ -51,6 +58,8 @@ vi.mock("@/services/importService", async (orig) => ({
 }))
 const fx = vi.hoisted(() => ({ celebrate: vi.fn(() => 8), springPop: vi.fn(() => null) }))
 vi.mock("@/lib/celebrate", () => ({ celebrate: fx.celebrate, springPop: fx.springPop, prefersReducedMotion: () => false }))
+vi.mock("@/lib/spring", () => ({ springPop: fx.springPop }))
+vi.mock("@/lib/reducedMotion", () => ({ prefersReducedMotion: () => false }))
 vi.mock("@/components/admin/ImportConnectDialog", () => ({
   ImportConnectDialog: ({ open }: { open: boolean }) => (open ? <p>connect dialog open</p> : null),
 }))

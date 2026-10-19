@@ -4,6 +4,7 @@ import {AttachmentMediaReq} from "@/types/attachment";
 import {TeamInfoInterface} from "@/types/team";
 import {CommentInfoInterface} from "@/types/comment";
 import type {FieldValues} from "@/lib/tasks/fields";
+import type {TaskAccess} from "@/lib/work/types";
 import type {DependencyFacets} from "@/lib/tasks/dependency";
 import {z} from "zod";
 import { nameSchema } from "@/lib/validation/names";
@@ -51,6 +52,7 @@ export interface TaskInfoInterface {
     task_start_date: string;
     task_attachments: AttachmentMediaReq[]
     task_created_by: UserProfileDataInterface;
+    task_access?: TaskAccess;
     task_github_issue_number?: number;
     task_github_issue_url?: string;
     task_github_pr_number?: number;

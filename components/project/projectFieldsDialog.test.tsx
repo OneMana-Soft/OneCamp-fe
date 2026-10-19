@@ -129,3 +129,38 @@ describe("a field's kind (work.md W47)", () => {
     expect(kind.textContent).toBe("Money")
   })
 })
+
+// One press, one thing (rule 7; lib/keys/escapeOwn): Esc in a field's name
+// being changed puts the name back and leaves the dialog open; with nothing
+// to put back, Esc closes it.
+describe("Esc in a field's name", () => {
+  it("puts the name back first, and closes the dialog on the next press", () => {
+    fields = [channel]
+    const onOpenChange = vi.fn()
+    render(<ProjectFieldsDialog projectId="p" open onOpenChange={onOpenChange} />)
+    const name = screen.getByLabelText("Field name")
+    fireEvent.change(name, { target: { value: "Where it goes out" } })
+    fireEvent.keyDown(name, { key: "Escape" })
+    expect((name as HTMLInputElement).value).toBe("Channel")
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(name, { key: "Escape" })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})
+
+// The same for a choice's name (components/fields/OptionsEditor), which said
+// "a menu or dialog it sits in closes as well".
+describe("Esc in an option's name", () => {
+  it("puts the name back first, and closes the dialog on the next press", () => {
+    fields = [channel]
+    const onOpenChange = vi.fn()
+    render(<ProjectFieldsDialog projectId="p" open onOpenChange={onOpenChange} />)
+    const blog = screen.getAllByLabelText("Option name").find((el) => (el as HTMLInputElement).value === "Blog") as HTMLInputElement
+    fireEvent.change(blog, { target: { value: "Blogs" } })
+    fireEvent.keyDown(blog, { key: "Escape" })
+    expect(blog.value).toBe("Blog")
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(blog, { key: "Escape" })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})

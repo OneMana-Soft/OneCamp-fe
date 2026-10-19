@@ -22,6 +22,8 @@ interface DmItemProps {
     attachmentCount: number;
     lastAttachments?: AttachmentMediaReq[];
     dmParticipants: UserProfileDataInterface[];
+    /** A group's name, when its people gave it one. */
+    groupName?: string;
     selfProfile: UserProfileDataInterface;
     isCallActive?: boolean;
 }
@@ -33,6 +35,7 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
     unseenMessageCount,
     userSelected,
     dmParticipants,
+    groupName,
     lastAttachments,
     selfProfile,
     isCallActive,
@@ -44,8 +47,8 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
         () =>
             isSelfDm
                 ? displayNameOf(selfProfile)
-                : dmParticipants.map((t) => userDisplayName(t)).join(", ") || displayNameOf(selfProfile),
-        [dmParticipants, isSelfDm, selfProfile],
+                : (dmParticipants.length > 1 && groupName) || dmParticipants.map((t) => userDisplayName(t)).join(", ") || displayNameOf(selfProfile),
+        [dmParticipants, isSelfDm, selfProfile, groupName],
     );
 
     const message = useMemo(

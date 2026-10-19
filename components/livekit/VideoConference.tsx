@@ -34,6 +34,8 @@ import {
 } from "./callState";
 import { FrontendTranscriber, type TranscriberState } from "./FrontendTranscriber";
 import { InCallAIPanel } from "./InCallAIPanel";
+import { CallPeoplePanel, useCallPeople } from "./callPeople";
+import { FloatingReactions, useCallReactions } from "./callReactions";
 import { useInCallAgent } from "./useInCallAgent";
 import { cn } from "@/lib/utils/helpers/cn"
 import { readCaption } from "@/lib/calls/signals"
@@ -102,6 +104,12 @@ interface VideoConferenceProps {
   /** The call has connected: from now on, leaving is leaving, and it has a duration. */
   onConnected?: () => void;
   transcriptionConfig?: CallTranscriptionConfig;
+  /**
+   * The conversation the call belongs to, beside it (CallView's useCallChat):
+   * the dock's Chat. An instant meeting and a guest's call have none.
+   */
+  onChatToggle?: () => void;
+  isChatOpen?: boolean;
 }
 
 
@@ -111,7 +119,7 @@ interface VideoConferenceProps {
  * phone's full-width bar, 84px for the floating dock). Speaker and grid used
  * different insets once, so every tile moved 8px on a switch.
  */
-export const STAGE_FRAME = "px-3 pt-12 pb-24 @3xl:pb-[84px]"
+export const STAGE_FRAME = "px-3 pt-12 pb-24 @3xl:pb-[84px] @7xl:pb-[100px]"
 
 /**
  * The app's face on the stage. LiveKit's theme sets the system UI font on
@@ -139,6 +147,8 @@ export function VideoConference({
   extraStatus,
   onConnected,
   transcriptionConfig,
+  onChatToggle,
+  isChatOpen,
 }: VideoConferenceProps) {
   const [shouldConnect, setShouldConnect] = useState(false);
 
@@ -235,6 +245,8 @@ export function VideoConference({
               removalRef={removalRef}
               extraStatus={extraStatus}
               config={transcriptionConfig}
+              onChatToggle={onChatToggle}
+              isChatOpen={isChatOpen}
             />
             <RoomAudioRenderer />
         </LayoutContextProvider>
@@ -299,6 +311,8 @@ function MyVideoConference({
   removalRef,
   extraStatus,
   config = {},
+  onChatToggle,
+  isChatOpen,
 }: {
   onDisconnect?: (end?: CallEnd) => void;
   parentToggleRecording?: (isRecording: boolean) => Promise<unknown> | void;
@@ -310,6 +324,8 @@ function MyVideoConference({
   removalRef: MutableRefObject<CallRemoval | null>;
   extraStatus?: ReactNode;
   config?: CallTranscriptionConfig;
+  onChatToggle?: () => void;
+  isChatOpen?: boolean;
 }) {
   const tracks = useTracks(
     [
@@ -515,7 +531,11 @@ function MyVideoConference({
   // Why no captions are appearing, so switching them on never leaves the user
   // staring at an empty screen wondering whether the feature is broken.
   const [captionState, setCaptionState] = useState<TranscriberState>({ status: "starting" });
-  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  // One side column at a time: the in-call AI or who is in the call.
+  const [side, setSide] = useState<"ai" | "people" | null>(null);
+  const aiPanelOpen = side === "ai";
+  const peopleOpen = side === "people";
+  const toggleSide = useCallback((which: "ai" | "people") => setSide((s) => (s === which ? null : which)), []);
   // Rolling buffer of recent FINAL utterances ("Name: text"), newest last.
   // Fed from handleTranscript; this is the freshest in-call context source for
   // the in-call AI agent (the persisted Dgraph copy only exists while recording
@@ -647,6 +667,10 @@ function MyVideoConference({
   // LiveKit data-channel broadcast, so the conversation survives the panel
   // being closed and every participant sees the same answers.
   const inCallAgent = useInCallAgent(room.name, getTranscriptBuffer);
+
+  // Who is in the call, and the reactions on the stage (step 3, part 2).
+  const people = useCallPeople();
+  const reactions = useCallReactions(room);
 
   // Unread indicator: count exchanges that arrived while the panel was closed
   // so we can badge the AI button (and clear it when the panel opens).
@@ -805,6 +829,14 @@ function MyVideoConference({
                 />
             )}
 
+            <FloatingReactions reactions={reactions.shown} />
+
+            {peopleOpen && (
+                <div className="absolute inset-0 z-30 @3xl:static @3xl:inset-auto @3xl:z-auto @3xl:h-full shrink-0">
+                    <CallPeoplePanel people={people} onClose={() => setSide(null)} onRemove={onRemove} />
+                </div>
+            )}
+
             {/* In-Call AI Assistant side panel. On desktop it docks to the
                 right as a flex sibling (shrinking the video area); on mobile it
                 overlays full-screen. */}
@@ -815,7 +847,7 @@ function MyVideoConference({
                         isStreaming={inCallAgent.isStreaming}
                         onAsk={inCallAgent.ask}
                         onCancel={inCallAgent.cancel}
-                        onClose={() => setAiPanelOpen(false)}
+                        onClose={() => setSide(null)}
                     />
                 </div>
             )}
@@ -833,9 +865,13 @@ function MyVideoConference({
             onToggleCaptions={captionsAvailable ? onCaptions : undefined}
             showCaptions={showCaptions}
             captionsOff={!transcription.on}
-            onToggleAI={guest ? undefined : () => setAiPanelOpen((v) => !v)}
+            onToggleAI={guest ? undefined : () => toggleSide("ai")}
             isAIOpen={aiPanelOpen}
             aiUnreadCount={aiUnread}
+            people={{ count: people.length, open: peopleOpen, onToggle: () => toggleSide("people") }}
+            onReact={reactions.send}
+            onChatToggle={onChatToggle}
+            isChatOpen={isChatOpen}
         />
         {!guest && (
             <FrontendTranscriber

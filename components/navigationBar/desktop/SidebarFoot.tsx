@@ -1,4 +1,5 @@
 "use client"
+import dynamic from "next/dynamic"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -27,7 +28,9 @@ import { clearUserEmojiStatus } from "@/store/slice/userSlice"
 import type { RootState } from "@/store/store"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { USER_STATUS_ONLINE, type UserProfileInterface } from "@/types/user"
-import { PauseNotificationsDialog, pauseLeftLabel } from "@/components/notifications/PauseNotificationsDialog"
+import { pauseLeftLabel } from "@/lib/notifications/pause"
+// The pause menu loads with its first open: the shell carried it on every page.
+const PauseNotificationsDialog = dynamic(() => import("@/components/notifications/PauseNotificationsDialog").then((m) => m.PauseNotificationsDialog), { ssr: false })
 import { AppearanceControl } from "@/components/navigationBar/appearanceControl"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
 import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModality"
@@ -226,6 +229,9 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
   const status = useOwnStatus(profile?.user_uuid)
   const post = usePost()
   const [pauseOpen, setPauseOpen] = useState(false)
+  // Mounted from its first open on, so it can animate away.
+  const [pauseUsed, setPauseUsed] = useState(false)
+  if (pauseOpen && !pauseUsed) setPauseUsed(true)
   useEffect(() => watchInputModality(), [])
 
   const clearStatus = () => {
@@ -241,7 +247,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
       <Menu.Root>
         <Menu.Trigger asChild>{children}</Menu.Trigger>
         <Menu.Portal>
-          <Menu.Content side="top" align="start" sideOffset={6} aria-label="Profile and settings" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop z-[var(--z-dropdown)]">
+          <Menu.Content side="top" align="start" sideOffset={6} collisionPadding={8} aria-label="Profile and settings" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop z-[var(--z-dropdown)]">
             <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-2">
               <FootAvatar profile={profile} size={36} />
               <div className="min-w-0 flex-1">
@@ -367,7 +373,7 @@ export function ProfileMenu({ children }: { children: React.ReactNode }) {
           </Menu.Content>
         </Menu.Portal>
       </Menu.Root>
-      <PauseNotificationsDialog open={pauseOpen} onOpenChange={setPauseOpen} />
+      {pauseOpen || pauseUsed ? <PauseNotificationsDialog open={pauseOpen} onOpenChange={setPauseOpen} /> : null}
     </>
   )
 }

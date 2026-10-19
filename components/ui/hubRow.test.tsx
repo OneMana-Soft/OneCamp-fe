@@ -117,13 +117,14 @@ describe("a row's tools where nothing can hover", () => {
 
   it("reveals on Actions without opening the row, and puts them away on a tap elsewhere or Escape", () => {
     const opened = vi.fn()
-    const { container } = render(
+    const tree = (menu: boolean) => (
       <>
         <HubRow density="two-line" title="Launch notes" onClick={opened} tools={<HubToolButton label="Done">x</HubToolButton>} />
-        <div role="menu" data-testid="menu" />
+        {menu && <div role="menu" data-testid="menu" />}
         <p data-testid="away">elsewhere</p>
-      </>,
+      </>
     )
+    const { container, rerender } = render(tree(true))
     const row = container.querySelector("[data-hub-row]")!
     const more = screen.getByRole("button", { name: "Actions" })
     expect(row.getAttribute("data-reveal")).toBe("tap")
@@ -143,6 +144,12 @@ describe("a row's tools where nothing can hover", () => {
     expect(row.hasAttribute("data-revealed")).toBe(false)
 
     fireEvent.click(more)
+    // A tool's menu open takes Escape first (one press, one thing, the
+    // innermost first: lib/keys/escape), and the tools stay out;
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(row.hasAttribute("data-revealed")).toBe(true)
+    // with the menu gone, the next Escape puts them away.
+    rerender(tree(false))
     fireEvent.keyDown(document, { key: "Escape" })
     expect(row.hasAttribute("data-revealed")).toBe(false)
   })

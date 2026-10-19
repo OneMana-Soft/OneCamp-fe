@@ -37,6 +37,7 @@ import {
     ArrowRight,
     Bot,
     ChevronDown,
+    CalendarDays,
     ChevronRight,
     Copy,
     Download,
@@ -102,6 +103,9 @@ export const CATEGORY_GLYPH: Record<string, LucideIcon> = {
     // What happened to docs: shares, access and lock changes, deletes,
     // restores, purges, exports, publishes, transfers and recoveries.
     docs: FileText,
+    // What happened to events: made, changed, moved to the trash, restored,
+    // answered, guests added or taken off (calendar A2). Never their titles.
+    calendar: CalendarDays,
 }
 const glyphOf = (c: string) => CATEGORY_GLYPH[c] ?? ScrollText
 
@@ -113,7 +117,7 @@ const serverReason = (e: unknown) => (apiErrorStatus(e) ? apiErrorMessage(e) : u
 
 // The filter list the component starts with, replaced by whatever the server
 // reports, so the menu has its items on the first paint.
-const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent", "docs"]
+const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent", "docs", "calendar"]
 
 const ALL = "all"
 /** Entries read at a time; a page that comes back shorter was the last. */

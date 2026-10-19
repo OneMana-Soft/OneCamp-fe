@@ -24,7 +24,8 @@ function firstPaint(url: string, stored?: string) {
   new Function(APP_BOOT_SCRIPT)()
 }
 
-const said = () => host.querySelector("[data-app-boot-screen]")?.textContent
+// What it says while it opens: the line, not the slow note kept hidden under it.
+const said = () => host.querySelector("[data-app-boot-screen] .splash-opening")?.textContent
 const slot = () => host.querySelector(`[${APP_BOOT_NAME_ATTR}]`)
 
 beforeEach(() => {

@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 const makeRequest = vi.fn()
+// The server's optional features (useClientConfig), asked of nothing here:
+// repeats are off, as on a server whose calendar isn't in its one store.
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => false }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 beforeEach(() => {
   makeRequest.mockReset()
@@ -11,7 +14,10 @@ beforeEach(() => {
   ], busy: {} })
 })
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }) }))
-vi.mock("@/components/common/peoplePicker", () => ({ PeoplePicker: () => <input aria-label="Guests" /> }))
+vi.mock("@/components/common/peoplePicker", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/common/peoplePicker")>()),
+  PeoplePicker: () => <input aria-label="Guests" />,
+}))
 
 import { CreateCalendarEventDialog } from "./createCalendarEventDialog"
 import { FindTimeSuggestions } from "./findTimeSuggestions"
@@ -61,6 +67,8 @@ describe("a new event", () => {
       fireEvent.keyDown(notes(), { key: "Enter", ctrlKey: true })
       await waitFor(() => expect(created()).toHaveLength(1))
       expect(created()[0][0].payload).toMatchObject({ title: "Launch review" })
+      // Sent: Create event is pressable again (it isn't while it sends).
+      await waitFor(() => expect(screen.getByRole("button", { name: "Create event" })).toBeTruthy())
       fireEvent.keyDown(notes(), { key: "Enter", metaKey: true })
       await waitFor(() => expect(created()).toHaveLength(2))
     })

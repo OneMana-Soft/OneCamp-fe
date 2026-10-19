@@ -40,6 +40,7 @@ interface CreateChat {
     replyTo?: ChatInfo
     attachments: AttachmentMediaReq[]
     addedLocally?: boolean
+    system?: Pick<ChatInfo, "chat_kind" | "chat_system">
 }
 
 interface SetGroupChatReplyTarget {
@@ -391,7 +392,7 @@ const groupChatSlice = createSlice({
         },
 
         createGroupChat: (state, action: {payload: CreateChat}) => {
-            const {chatId, chatText, chatCreatedAt, grpId, chatBy, attachments, fwdChat, fwdPost, replyTo, addedLocally = false} = action.payload;
+            const {chatId, chatText, chatCreatedAt, grpId, chatBy, attachments, fwdChat, fwdPost, replyTo, addedLocally = false, system} = action.payload;
             // Ignore an out-of-order create delivered after this message's
             // delete. A later authoritative restore is allowed after TTL.
             if (chatId && isTombstoned(state.deletedChats, grpId, chatId)) return;
@@ -401,7 +402,7 @@ const groupChatSlice = createSlice({
             if (state.chatMessages[grpId].some(c => c.chat_uuid === chatId)) return;
             // The echo of a message this tab is still sending: it becomes that
             // message, in its place, rather than a second copy below it.
-            const echoed = !fwdPost && !fwdChat ? indexOfEchoed(state.chatMessages[grpId], CHAT_ACCESS, chatBy?.user_uuid, chatText) : -1;
+            const echoed = !fwdPost && !fwdChat && !system ? indexOfEchoed(state.chatMessages[grpId], CHAT_ACCESS, chatBy?.user_uuid, chatText) : -1;
             if (echoed >= 0) {
                 const c = state.chatMessages[grpId][echoed]
                 c.chat_uuid = chatId
@@ -421,6 +422,7 @@ const groupChatSlice = createSlice({
                 chat_fwd_msg_chat: fwdChat,
                 chat_fwd_msg_post: fwdPost,
                 chat_reply_to: replyTo,
+                ...system,
             })
         },
 

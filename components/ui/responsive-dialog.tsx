@@ -1,9 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { useMedia } from "@/context/MediaQueryContext"
+import dynamic from "next/dynamic"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+
+// On a phone, the sheet: loaded with the first one opened there.
+const ResponsiveSheet = dynamic(() => import("@/components/ui/responsive-sheet"), { ssr: false })
 
 /**
  * A dialog on a wide screen, the shared sheet (Drawer) on a phone: one
@@ -25,20 +28,14 @@ export function ResponsiveDialog({
   wide?: boolean
   children: React.ReactNode
 }) {
-  const { isMobile } = useMedia()
+  // The phone rule (components/ui/overlayMode): a phone in landscape too.
+  const sheet = useSheetMode()
   const change = (open: boolean) => !open && onClose()
-  if (isMobile) {
+  if (sheet) {
     return (
-      <Drawer open onOpenChange={change} detent={wide ? "large" : "medium"}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>{title}</DrawerTitle>
-            {description ? <DrawerDescription>{description}</DrawerDescription> : null}
-          </DrawerHeader>
-          <div className="min-h-0 flex-1 overflow-auto px-4">{children}</div>
-          <DrawerFooter>{footer}</DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+      <ResponsiveSheet title={title} description={description} footer={footer} onClose={onClose} wide={wide}>
+        {children}
+      </ResponsiveSheet>
     )
   }
   return (

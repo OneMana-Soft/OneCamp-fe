@@ -6,6 +6,7 @@ import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } 
 
 import { COLUMN, COLUMN_LIST, MAX_COLUMNS } from "../block-commands/nodes"
 import { isRemote } from "../block-id/blockId"
+import { onEscape } from "@/lib/keys/onEscape"
 
 /**
  * COLUMNS (B1; editor.md P1-14). A row (`columnList`) of 2–4 columns, each
@@ -129,7 +130,7 @@ function startResize(event: PointerEvent, editor: Editor, getPos: () => number |
     grip.removeEventListener("pointermove", move)
     grip.removeEventListener("pointerup", up)
     grip.removeEventListener("pointercancel", cancel)
-    window.removeEventListener("keydown", key, true)
+    stopEscape()
     dom.removeAttribute("data-resizing")
     const pos = getPos()
     if (!commit || pos === undefined || widths === start) {
@@ -141,16 +142,11 @@ function startResize(event: PointerEvent, editor: Editor, getPos: () => number |
   }
   const up = () => end(true)
   const cancel = () => end(false)
-  const key = (e: KeyboardEvent) => {
-    if (e.key !== "Escape") return
-    e.preventDefault()
-    e.stopPropagation()
-    end(false)
-  }
+  // Esc puts the widths back: the drag layer of the one Escape (lib/keys/escape).
+  const stopEscape = onEscape("drag", () => end(false))
   grip.addEventListener("pointermove", move)
   grip.addEventListener("pointerup", up)
   grip.addEventListener("pointercancel", cancel)
-  window.addEventListener("keydown", key, true)
 }
 
 export const Column = Node.create({

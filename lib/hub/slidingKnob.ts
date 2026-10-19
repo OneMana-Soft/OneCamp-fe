@@ -9,7 +9,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react"
 
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect
 

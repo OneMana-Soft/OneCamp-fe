@@ -2,6 +2,8 @@
 
 import { useEffect } from "react"
 
+import { whenIdle } from "@/lib/whenIdle"
+
 /**
  * Runs `run` once, when the page has opened and the browser has a quiet
  * moment (requestIdleCallback, at most `timeoutMs` later), or after a short
@@ -10,13 +12,6 @@ import { useEffect } from "react"
  * first screen. Dropped if the page goes before then.
  */
 export function useWhenIdle(run: () => void, timeoutMs = 2500) {
-  useEffect(() => {
-    if (typeof window.requestIdleCallback === "function") {
-      const id = window.requestIdleCallback(run, { timeout: timeoutMs })
-      return () => window.cancelIdleCallback(id)
-    }
-    const t = window.setTimeout(run, Math.min(timeoutMs, 1200))
-    return () => window.clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the page opens
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the page opens
+  useEffect(() => whenIdle(run, timeoutMs), [])
 }

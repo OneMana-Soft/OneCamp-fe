@@ -183,6 +183,7 @@ export function BoardMentionInput({
         ref={ref}
         value={value}
         onChange={handleChange}
+        data-escape-own={dropdownOpen ? "" : undefined}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={className}

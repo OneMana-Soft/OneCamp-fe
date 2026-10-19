@@ -29,6 +29,16 @@ function week(props: Partial<Parameters<typeof WeekView>[0]> = {}) {
 
 const blankNote = () => document.querySelector("[data-calendar-blank]")
 
+// STEP5_PLAN §3 C, the week in colour: a block is drawn in its event's own colour.
+describe("an event's own colour", () => {
+  it("draws its block, and its all-day chip, in it", () => {
+    const offsite: CalendarEventInterface = { event_uuid: "e2", event_title: "Offsite", event_start_time: at(2, 0), event_end_time: at(3, 0), event_all_day: true, event_hue: "sun" }
+    week({ events: [{ ...standup, event_hue: "moss" }, offsite] })
+    expect(document.querySelector('[data-hue-block][data-event-uuid="e1"]')?.getAttribute("data-hue")).toBe("moss")
+    expect(document.querySelector('[data-hue-block][data-event-uuid="e2"]')?.getAttribute("data-hue")).toBe("sun")
+  })
+})
+
 describe("now", () => {
   it("is drawn in the week that has today, and not in another", () => {
     const thisWeek = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 0)
@@ -181,5 +191,43 @@ describe("a busy day of twelve", () => {
       }
     // Lunch has the day to itself.
     expect(across(blocks[9])).toEqual([2, 702])
+  })
+})
+
+// Step 3, part 2: the all-day rail's chips were one truncated line, and a
+// task's took its project's hue only from whatever had drawn the chip last:
+// the reader's projects share the hues out once they arrive, and the chips
+// never heard of it.
+describe("the all-day rail's chips", () => {
+  const task = (id: string, name: string, project: string) => ({
+    task_uuid: id,
+    task_name: name,
+    task_status: "todo",
+    task_due_date: at(2, 12),
+    task_start_date: "",
+    task_project: { project_uuid: project, project_name: "Launch" },
+  })
+
+  it("give a long title two lines", () => {
+    week({ tasks: [task("t1", "Write the launch email for the pilot customers", "p-one")] as never })
+    const chip = document.querySelector('[data-all-day-rail] [data-event-uuid="t1"]') as HTMLElement
+    expect(chip.className).not.toMatch(/(^|\s)h-\[22px\]/)
+    expect(chip.querySelector(".line-clamp-2")?.textContent).toBe("Write the launch email for the pilot customers")
+  })
+
+  it("take their project's hue again when the reader's projects arrive", async () => {
+    const { hueFor } = await import("@/lib/campHue")
+    const { setProjectOrder } = await import("@/lib/projectHue")
+    const { act } = await import("@testing-library/react")
+    // Two projects whose ids hash to one hue: the newer gives way once both are known.
+    const first = "proj-a-0"
+    let second = ""
+    for (let i = 1; i < 500 && !second; i++) if (hueFor(`proj-b-${i}`) === hueFor(first)) second = `proj-b-${i}`
+    week({ tasks: [task("t2", "Pricing page copy", second)] as never })
+    const chip = () => document.querySelector('[data-all-day-rail] [data-event-uuid="t2"]') as HTMLElement
+    expect(chip().dataset.hue).toBe(hueFor(second))
+    act(() => setProjectOrder([first, second]))
+    expect(chip().dataset.hue).not.toBe(hueFor(second))
+    act(() => setProjectOrder([]))
   })
 })

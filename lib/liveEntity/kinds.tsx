@@ -13,6 +13,7 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { PHONE_QUERY } from "@/context/MediaQueryContext"
 import store from "@/store/store"
 import { dateLabel, dayTone } from "./dates"
+import { workRoute } from "@/lib/work/route"
 import { followHref, wantsNewTab, type LinkClick } from "./follow"
 import { registerEntityKind } from "./registry"
 import type { EntityRead, TopicMessage } from "./types"
@@ -73,7 +74,7 @@ function openTaskBeside(id: string): boolean {
 
 /** Opens a task as everything that names one does: beside, or its own page on a phone or for a new tab. */
 export function openTask(id: string, e: LinkClick, push: (href: string) => void): void {
-  if (wantsNewTab(e) || !openTaskBeside(id)) followHref(`/app/task/${id}`, e, push)
+  if (wantsNewTab(e) || !openTaskBeside(id)) followHref(workRoute({ task: id }), e, push)
 }
 
 registerEntityKind<DocChipData>({
@@ -98,7 +99,7 @@ registerEntityKind<TaskChipData>({
     trailing: t.due ? dateLabel(t.due, today) : undefined,
     tone: t.due ? dayTone(t.due, today, isClosedStatus(t.status)) : undefined,
   }),
-  href: (id) => `/app/task/${id}`,
+  href: (id) => workRoute({ task: id }),
   // Beside the doc in the task panel, as the project's lists open it; on a phone, its page.
   open: openTaskBeside,
   card: () => cards().then((m) => ({ default: m.TaskCard })),
@@ -109,7 +110,7 @@ registerEntityKind<ProjectChipData>({
   icon: FolderKanban,
   noun: "project",
   view: (p) => ({ lead: <FolderKanban className="size-3.5 text-ink-3" aria-hidden="true" />, title: p.name || "Untitled project" }),
-  href: (id) => `/app/project/${id}`,
+  href: (id) => workRoute({ project: id }),
 })
 
 registerEntityKind<PersonChipData>({

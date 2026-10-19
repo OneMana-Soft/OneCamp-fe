@@ -203,6 +203,18 @@ describe("a space's page tree", () => {
     expect(actions()).not.toContain("hidden")
   })
 
+  // The phone's Pages sheet draws these rows a finger tall, with their "+"
+  // and "⋯" always shown, 20 px each: under the 44 px a finger needs
+  // (DRAWERS, 17 Oct). Each takes a tap across 44 px under a finger, and the
+  // two stand far enough apart that neither takes the other's (phone.css F3, F3b).
+  it("gives + and ⋯ a finger's reach, side by side without taking each other's taps", async () => {
+    renderWith(<DocTree space="workspace" label="Workspace pages" />)
+    const plans = await screen.findByRole("treeitem", { name: "Plans" })
+    expect(plans.querySelector("[data-tree-actions]")?.getAttribute("data-touch-group")).toBe("20")
+    expect(plans.querySelector("[data-tree-add]")?.hasAttribute("data-touch-target")).toBe(true)
+    expect(plans.querySelector("[data-doc-row-menu]")?.hasAttribute("data-touch-target")).toBe(true)
+  })
+
   it("stars a page into the Starred section at once, then on the server", async () => {
     const store = renderWith(<DocTree space="workspace" label="Workspace pages" />)
     const plans = await screen.findByRole("treeitem", { name: "Plans" })
@@ -275,6 +287,8 @@ describe("the sidebar's Docs section", () => {
 
   it("makes a page at the top of the workspace from its group's +", async () => {
     renderWith(<DocsTreeGroups />)
+    // A finger's reach for it too, in the Pages sheet.
+    expect((await screen.findByRole("button", { name: "New page in the workspace" })).hasAttribute("data-touch-target")).toBe(true)
     fireEvent.click(await screen.findByRole("button", { name: "New page in the workspace" }))
     await waitFor(() => expect(post).toHaveBeenCalledWith("/doc/createDoc", { doc_title: "", space: "workspace", doc_private: false }))
   })

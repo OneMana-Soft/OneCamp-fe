@@ -1,0 +1,72 @@
+{
+  "about": [
+    "The chat fluidity budgets (chat programme A5; design/chat-vs-slack/perf-mobile.md PM-1 to PM-7; G-CHAT-PERF). scripts/fluidity/chat.mjs measures each on a production build against the fake server side (fakeApp.mjs): a synthetic workspace of six channels, one of them 2,000 messages long and paged as the server pages it, and three DMs, at 150 ms a round trip. It exits non-zero when an enforced value is over its max. Each value is the median of the runs; a switch's figures are the p95 of its twelve switches a run.",
+    "target is perf-mobile.md's first target (after A1 and A5), and owner the package that gets it there. measured is the first run, on 17 Oct 2026 (beta 7397fab2c with the shell diet): at 1x with the machine quiet (load 2 to 12), at 4x under load (46 to 53), which inflates the 4x times.",
+    "Where a value is over target, max is that measure with room for a shared machine (about 25 to 30%, rounded); where it is under, max is the target. Renders hold at any CPU speed, so they gate on a busy machine where the times don't.",
+    "The read-back pulls the way the list loads (CHAT-LEAD, 17 Oct): a real scroll event within 200 px of the top while the list isn't busy (aria-busy), nudged when already at the top. Six pulls fetch six older pages of 50 (350 rows).",
+    "Never raise a max to make a run pass. Lower it when a package brings a metric down, and to the target once the metric holds there."
+  ],
+  "network": { "rttMs": 150, "why": "As the doc budgets: the low end of the demo's time to first byte." },
+  "budgets": {
+    "coldOpenMs": {
+      "scenario": "chat",
+      "owner": "A5",
+      "source": "A channel opened in a fresh tab until its first message row shows. Demo, 13 Oct: 2.2-2.5 s at 1x, 3.4-4.9 s at 4x. First target 1.5 s on a computer, 3.5 s on a mid phone",
+      "cpu1": { "max": 1500, "target": 1500, "measured": 1253 },
+      "cpu4": { "max": 11500, "target": 3500, "measured": 9171 }
+    },
+    "switchP95Ms": {
+      "scenario": "chat",
+      "owner": "A5",
+      "source": "Twelve switches through the sidebar (channel, channel, DM ...), click to the first new row, the p95. Demo, 13 Oct: p90 558-688 ms at 1x, 839-1,209 at 4x. First target 200 ms at 1x, 500 at 4x; later 100 and 300",
+      "cpu1": { "max": 750, "target": 200, "measured": 576 },
+      "cpu4": { "max": 3500, "target": 500, "measured": 2675 }
+    },
+    "rendersPerSwitch": {
+      "scenario": "chat",
+      "owner": "A5",
+      "source": "React renders per switch, the median of the run's twelve: 3,546 at 1x and 3,194 at 4x on 17 Oct (about 3,700 on the demo): the whole list re-renders. What a 200 ms switch needs gone",
+      "max": 3700,
+      "target": 400,
+      "measured": 3546
+    },
+    "switchCls": {
+      "scenario": "chat",
+      "owner": "A5",
+      "source": "Layout shift during a switch, the p95. 0 on the fixtures; 0.13 on the demo's open and switch on 17 Oct, which the fixtures' even rows don't reproduce yet",
+      "max": 0.02,
+      "target": 0.02,
+      "measured": 0
+    },
+    "keyP95Ms": {
+      "scenario": "chat",
+      "owner": "A5",
+      "source": "A sentence typed in the composer, the per-key p95. 24 ms at 1x and 136 ms at 4x on 17 Oct",
+      "cpu1": { "max": 32, "target": 32, "measured": 24 },
+      "cpu4": { "max": 180, "target": 50, "measured": 136 }
+    },
+    "scrollOlderPages": {
+      "scenario": "chat",
+      "owner": "A1",
+      "enforce": false,
+      "source": "Six pulls to the top of the 2,000-message channel: the older pages fetched. Six on 17 Oct, one a pull. Report only: the fixture pages 50 at a time, as A1's exact cursors will, while the server pages 10 today (domain/Post/postDomain.go, PM-4), so the count says nothing about the server's paging until A1 moves it; enforce it then, with the fixture at the server's page size",
+      "max": 6,
+      "target": 6,
+      "measured": 6
+    },
+    "scrollTbtMs": {
+      "scenario": "chat",
+      "owner": "A1",
+      "source": "Blocking time while reading back those 300 messages, at 1x: 4,314 ms on 17 Oct at load 38 (the rows each page brings render at once). perf-mobile.md: no task over 100 ms",
+      "cpu1": { "max": 5500, "target": 100, "measured": 4314 }
+    },
+    "heapMB": {
+      "scenario": "chat",
+      "owner": "A5",
+      "source": "JS heap at the run's end, after the switches and the read-back of 350 rows: 65 MB on 17 Oct (51 MB when the read-back fetched one page; 28-44 MB on the demo's short channels, PM-7). First target 60 MB",
+      "max": 75,
+      "target": 60,
+      "measured": 65
+    }
+  }
+}

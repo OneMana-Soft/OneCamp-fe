@@ -35,7 +35,7 @@ function withoutLink(notes: string, link: string): string {
  * A copy of an event, for the new-event dialog (Duplicate; EV-58): its title,
  * times, kind, guests and notes, as Google Calendar's Duplicate opens one, and
  * never its call link (`callLink`, the link its card joins): a copy of a
- * meeting gets a call of its own. A Google all-day event keeps its dates
+ * meeting gets a call of its own. Guests invited by email are copied too. A Google all-day event keeps its dates
  * (CAL-BUG-2); the person duplicating isn't their own guest. Pure.
  */
 export function duplicateOf(event: CalendarEventInterface, callLink: string | null, self?: string): EventDraftValues {
@@ -47,7 +47,11 @@ export function duplicateOf(event: CalendarEventInterface, callLink: string | nu
     end: parseISO(placed.event_end_time),
     isFocus: !!event.event_is_focus,
     isAway: !!event.event_is_away,
-    guests: (event.event_participants ?? []).filter((p) => p.user_uuid && p.user_uuid !== self).map((p) => ({ uuid: p.user_uuid, name: displayNameOf(p) || "Someone" })),
+    guests: [
+      ...(event.event_participants ?? []).filter((p) => p.user_uuid && p.user_uuid !== self).map((p) => ({ uuid: p.user_uuid, name: displayNameOf(p) || "Someone" })),
+      // Guests invited by email come too (calendar A2).
+      ...(event.event_guests ?? []).filter((g) => !g.user_uuid && g.email).map((g) => ({ uuid: "", name: g.name || g.email!, email: g.email!.toLowerCase() })),
+    ],
     description: callLink ? withoutLink(notes, callLink) : notes,
   }
 }

@@ -60,6 +60,9 @@ test("the task's header: no two controls reach over each other", async ({ page }
         task_assignee: SAM,
         task_description: "<p>What it needs.</p>",
         task_project: project,
+        // A subtask with a short parent: the path is the project's 16 px tile
+        // (the header is under 40rem), then the parent's name.
+        task_parent_task: { task_uuid: "7a5c00e3-0000-4000-8000-000000000002", task_name: "QA" },
         task_sub_tasks: [],
         task_comments: [],
         task_activities: [],
@@ -80,5 +83,9 @@ test("the task's header: no two controls reach over each other", async ({ page }
   })
   await page.goto(`/app/task/${TASK}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
   await expect(page.locator("[data-task-header]")).toBeVisible({ timeout: 60_000 })
-  expect(overlapping(await reachesIn(page, "[data-task-header]"))).toEqual([])
+  const reaches = await reachesIn(page, "[data-task-header]")
+  // The path's crumbs are among them, or this would pass without them.
+  expect(reaches.some((r) => r.name.endsWith("Billing"))).toBe(true)
+  expect(reaches.some((r) => r.name === "Open QA, the task this one is part of")).toBe(true)
+  expect(overlapping(reaches)).toEqual([])
 })

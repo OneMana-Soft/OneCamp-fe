@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
+import type { AxiosError } from "axios"
 import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { TaskActivityInterface } from "@/types/task"
@@ -14,6 +15,18 @@ interface Earlier {
   lines: TaskActivityInterface[]
   /** What the last page said about lines older still; undefined until one came. */
   more?: boolean
+  /** The failed page's error, when it said the task isn't this person's to open (cantOpenAnswer). */
+  cantOpen?: unknown
+}
+
+/**
+ * A page's answer that the task isn't this person's to open any more: 404 (a
+ * task they may not read answers as one that isn't there, the server's one
+ * rule for tasks), or 403 from a server from before that rule.
+ */
+function cantOpenAnswer(error: unknown): boolean {
+  const status = (error as AxiosError)?.response?.status
+  return status === 404 || status === 403
 }
 
 /**
@@ -22,13 +35,18 @@ interface Earlier {
  * the history at 1,000 lines, oldest first, so a long-lived task lost its
  * newest changes). loadEarlier asks for the 50 lines before the oldest one
  * shown, and they go above it. Another task starts again.
+ *
+ * A page that answers the task can't be opened (it was deleted, or the person
+ * left its project, while the panel was open) is cantOpen, and no more pages
+ * are offered: the panel draws its can't-open state in place of the task, as
+ * when it opens one.
  */
 export function useEarlierHistory(taskUUID: string, newest: TaskActivityInterface[] | undefined, hasMore: boolean | undefined) {
   const [earlier, setEarlier] = useState<Earlier>({ task: taskUUID, lines: [] })
   const [loading, setLoading] = useState(false)
-  const mine = earlier.task === taskUUID ? earlier : { task: taskUUID, lines: [] as TaskActivityInterface[], more: undefined }
+  const mine: Earlier = earlier.task === taskUUID ? earlier : { task: taskUUID, lines: [] }
   const oldest = mine.lines[0] ?? newest?.[0]
-  const more = Boolean((mine.more ?? hasMore) && oldest?.activity_uuid)
+  const more = !mine.cantOpen && Boolean((mine.more ?? hasMore) && oldest?.activity_uuid)
 
   const activities = useMemo(() => {
     if (mine.lines.length === 0) return newest
@@ -49,16 +67,22 @@ export function useEarlierHistory(taskUUID: string, newest: TaskActivityInterfac
         const base = cur.task === taskUUID ? cur.lines : []
         return { task: taskUUID, lines: [...page, ...base], more: Boolean(res.data?.data?.task_activity_has_more) && page.length > 0 }
       })
-    } catch {
-      // The request says it failed (the API client's read toast); the button
-      // stays, for another try.
+    } catch (error) {
+      // A task the person can't open any more is the panel's to say, in
+      // place of the task (its can't-open state keeps the read's toast
+      // quiet). Any other failure the request says (the API client's read
+      // toast), and the button stays, for another try.
+      if (cantOpenAnswer(error)) {
+        setEarlier((cur) => ({ ...(cur.task === taskUUID ? cur : { task: taskUUID, lines: [] }), cantOpen: error }))
+      }
     } finally {
       setLoading(false)
     }
   }, [oldest?.activity_uuid, loading, taskUUID])
 
+  const cantOpen = mine.cantOpen
   // One object while nothing changes, so the memoised stream below doesn't draw again.
-  return useMemo(() => ({ activities, more, loading, loadEarlier }), [activities, more, loading, loadEarlier])
+  return useMemo(() => ({ activities, more, loading, loadEarlier, cantOpen }), [activities, more, loading, loadEarlier, cantOpen])
 }
 
 export type EarlierHistory = ReturnType<typeof useEarlierHistory>

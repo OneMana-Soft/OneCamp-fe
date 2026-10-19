@@ -86,6 +86,7 @@ export function InlineEdit({
           autoComplete="off"
           onChange={(e) => setDraft(e.target.value)}
           onBlur={finish}
+          data-escape-own=""
           onKeyDown={(e) => {
             // An input method's Enter picks a word and its Escape drops one.
             if (isComposingKey(e.nativeEvent)) return

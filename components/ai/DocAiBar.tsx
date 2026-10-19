@@ -451,6 +451,8 @@ export default function DocAiBar({ editor, docId, request, sheet = false }: DocA
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
+            // Esc is the bar's: back to the actions, out of a question, or closed (lib/keys/escapeOwn).
+            data-escape-own=""
             placeholder={placeholder}
             aria-label={placeholder.replace(/…$/, "")}
             role="combobox"
@@ -540,7 +542,7 @@ export default function DocAiBar({ editor, docId, request, sheet = false }: DocA
       )}
 
       {view === "tasks" && (
-        <div onKeyDown={(e) => e.key === "Escape" && (e.preventDefault(), close())}>
+        <div onKeyDown={(e) => e.key === "Escape" && (e.preventDefault(), close())} data-escape-own="">
           <div className="flex h-10 items-center gap-2 bg-[color-mix(in_oklab,var(--agent-muted)_70%,var(--raised))] px-3">
             <ListTodo className="size-4 shrink-0 text-agent" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate text-ui text-ink">Action items in this doc</span>
@@ -618,7 +620,7 @@ function RunCard({
     }
   }
   return (
-    <div ref={ref} tabIndex={-1} onKeyDown={onKeyDown} className="flex flex-col outline-none">
+    <div ref={ref} tabIndex={-1} onKeyDown={onKeyDown} data-escape-own="" className="flex flex-col outline-none">
       <div className="flex h-10 items-center gap-2 bg-[color-mix(in_oklab,var(--agent-muted)_70%,var(--raised))] px-3">
         <Spark size={16} className="shrink-0 text-agent" />
         <span

@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ListSelectionContext, useRowState, useSelectedIds } from "@/hooks/useListSelection"
 import { ChevronDown, GitBranch, MessageSquare, Plus, Sun } from "@/lib/icons"
 import { measureFlip, playFlip, type FlipRects } from "@/lib/flip"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { CLOSED_SHOWN, OPEN_SHOWN, groupCount, groupTasks, type Grouping, type TaskGroup } from "@/lib/tasks/grouping"
 import { isClosedStatus, statusOptionOf, statusValueOf, type StatusOption } from "@/lib/taskStatus"
 import { splitTags } from "@/lib/tags"
@@ -359,6 +359,7 @@ function InlineAdd({ group, onSubmit, onCancel }: { group: TaskGroup; onSubmit: 
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
+        data-escape-own=""
         onKeyDown={fieldKeyDown((e) => {
           if (e.key === "Escape") {
             e.stopPropagation()

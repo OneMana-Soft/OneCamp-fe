@@ -45,7 +45,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { AIActivityFeedRow, type ChainState } from "@/components/ai/aiActivityFeedRow"
 import { verifyChain, type ChainCheck } from "@/components/ai/proveIt"
 import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
-import { celebrateOnce } from "@/lib/celebrate"
+import { celebrateOnce } from "@/lib/celebrateSoon"
 import { AlertTriangle } from "@/lib/icons"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 

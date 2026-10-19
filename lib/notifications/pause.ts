@@ -5,7 +5,7 @@
  * Pure apart from the localStorage pair, so the choices are tested against
  * fixed clocks.
  */
-import { schedulePresets, type SchedulePreset } from "@/lib/messages/schedulePresets"
+import { formatSendAt, schedulePresets, type SchedulePreset } from "@/lib/messages/schedulePresets"
 
 /** The server's limit: a forgotten pause should end on its own. */
 export const MAX_PAUSE_MS = 7 * 24 * 60 * 60 * 1000
@@ -59,4 +59,18 @@ export function isPausedHere(now: number = Date.now()): boolean {
   } catch {
     return false
   }
+}
+
+/** The menu wording for the current state. */
+export function pauseMenuLabel(pausedUntil: Date | null, focusUntil: Date | null = null): string {
+  if (focusUntil && (!pausedUntil || focusUntil >= pausedUntil)) return `Focus time until ${formatSendAt(focusUntil)}`
+  return pausedUntil ? "Resume notifications" : "Pause notifications…"
+}
+
+/** "Paused · 1 h 20 m", for the sun pill beside the status line while a pause runs. */
+export function pauseLeftLabel(until: Date, now: Date = new Date()): string {
+  const mins = Math.max(1, Math.ceil((until.getTime() - now.getTime()) / 60_000))
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return `Paused · ${h ? `${h} h${m ? ` ${m} m` : ""}` : `${m} m`}`
 }

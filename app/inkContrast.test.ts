@@ -413,6 +413,7 @@ const DECORATIVE: Use[] = [
   { file: "components/project/ProjectsOverview.tsx", match: "text-ink-4\">–</span>", why: "an empty date's dash" },
   { file: "components/project/ProjectsOverview.tsx", match: "<span className=\"px-1.5 text-ink-4\">·</span>", why: "a separator dot" },
   { file: "components/project/timeline/UnscheduledPanel.tsx", match: "<GripVertical aria-hidden", why: "a drag grip" },
+  { file: "components/rightPanel/RightPanelTaskHeader.tsx", match: "<ChevronRight aria-hidden className=\"size-3.5 shrink-0 text-ink-4\" />", why: "the task path's separator chevron, aria-hidden" },
   { file: "components/search/searchResultRow.tsx", match: "const dot = <span className=\"text-ink-4\"> · </span>", why: "a separator dot" },
   { file: "components/fields/OptionsEditor.tsx", match: "<GripVertical className=\"size-3.5 text-ink-4\" />", why: "an option's drag grip, in its aria-hidden handle" },
   { file: "components/table/TableRowList.tsx", match: "<ChevronRight className=\"size-4 shrink-0 text-ink-4\" aria-hidden=\"true\" />", why: "a chevron, aria-hidden" },

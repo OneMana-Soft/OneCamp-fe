@@ -24,7 +24,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { SettingsSection } from "@/components/ui/settingsSection"
 import { Switch } from "@/components/ui/switch"
 import { CAMP_HUES, hueFor } from "@/lib/campHue"
-import { celebrate, springPop } from "@/lib/celebrate"
+import { celebrate } from "@/lib/celebrateSoon"
+import { springPop } from "@/lib/spring"
 import {
   CalendarDays,
   CheckCircle2,

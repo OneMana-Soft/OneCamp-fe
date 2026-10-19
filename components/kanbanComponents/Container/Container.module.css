@@ -11,7 +11,8 @@
   overflow: hidden;
   box-sizing: border-box;
   appearance: none;
-  outline: none;
+  /* No outline here: unlayered, it beat the layer's dashed drop edge
+     (app/interaction.css [data-drop]); focus draws its own ring in classes. */
   min-height: 0;
   height: 100%;
   max-height: 100%;

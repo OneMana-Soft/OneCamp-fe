@@ -1,103 +1,64 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import arLang from "./locales/ar/ar.json"
-import beLang from "./locales/be/be.json"
-import bgLang from "./locales/bg/bg.json"
-import caLang from "./locales/ca/ca.json"
-import csLang from "./locales/cs/cs.json"
-import daLang from "./locales/da/da.json"
-import deLang from "./locales/de/de.json"
-import elLang from "./locales/el/el.json"
-import enAuLang from "./locales/en-AU/en-AU.json"
-import esLang from "./locales/es/es.json"
-import etLang from "./locales/es/es.json"
-import euLang from "./locales/eu/eu.json"
-import fiLang from "./locales/fi/fi.json"
-import heLang from "./locales/he/he.json"
-import hiLang from "./locales/hi/hi.json"
-import itLang from "./locales/it/it.json"
-import jaLang from "./locales/ja/ja.json"
-import nlLang from "./locales/nl/nl.json"
-import ptLang from "./locales/pt/pt.json"
-import ruLang from "./locales/ru/ru.json"
-import svLang from "./locales/sv/sv.json"
 import enLang from "./locales/en/en.json"
-import frLang from "./locales/fr/fr.json"
 
+// The app's words.
+//
+// English comes with the first screen: it is the language every screen
+// starts in, and 2 KB of gzip. Every other language is a chunk of its own,
+// fetched when someone picks it (loadLanguage). Until 17 Oct 2026 all 23 came
+// with every signed-in page, 60 KB of gzip on each, for an app that only ever
+// showed English. languages.test.ts keeps it that way, and keeps every
+// language on disk reachable through its own file (Estonian was loading the
+// Spanish one).
 
-// the translations
-// (tip move them in a JSON file and import them,
-// or even better, manage them separated from your code: https://react.i18next.com/guides/multiple-translation-files)
+type Words = Record<string, unknown>
+
+/** Every language but English, each its own chunk, by its code. */
+export const LANGUAGE_LOADERS: Record<string, () => Promise<{ default: Words }>> = {
+    ar: () => import("./locales/ar/ar.json"),
+    be: () => import("./locales/be/be.json"),
+    bg: () => import("./locales/bg/bg.json"),
+    ca: () => import("./locales/ca/ca.json"),
+    cs: () => import("./locales/cs/cs.json"),
+    da: () => import("./locales/da/da.json"),
+    de: () => import("./locales/de/de.json"),
+    el: () => import("./locales/el/el.json"),
+    "en-AU": () => import("./locales/en-AU/en-AU.json"),
+    es: () => import("./locales/es/es.json"),
+    et: () => import("./locales/et/et.json"),
+    eu: () => import("./locales/eu/eu.json"),
+    fi: () => import("./locales/fi/fi.json"),
+    fr: () => import("./locales/fr/fr.json"),
+    he: () => import("./locales/he/he.json"),
+    hi: () => import("./locales/hi/hi.json"),
+    it: () => import("./locales/it/it.json"),
+    ja: () => import("./locales/ja/ja.json"),
+    nl: () => import("./locales/nl/nl.json"),
+    pt: () => import("./locales/pt/pt.json"),
+    ru: () => import("./locales/ru/ru.json"),
+    sv: () => import("./locales/sv/sv.json"),
+}
+
+/**
+ * Switches the app's words to `lng`, fetching them first if this tab hasn't.
+ * False, and nothing changes, for a language the app doesn't have.
+ */
+export async function loadLanguage(lng: string): Promise<boolean> {
+    if (lng !== "en" && !i18n.hasResourceBundle(lng, "translation")) {
+        const load = LANGUAGE_LOADERS[lng]
+        if (!load) return false
+        const words = (await load()).default
+        i18n.addResourceBundle(lng, "translation", words, true, true)
+    }
+    await i18n.changeLanguage(lng)
+    return true
+}
+
 const resources = {
-    ar: {
-        translation: arLang
-    },
-    be: {
-        translation: beLang
-    },
-    bg: {
-        translation: bgLang
-    },
-    ca: {
-        translation: caLang
-    },
-    cs: {
-        translation: csLang
-    },
-    da: {
-        translation: daLang
-    },
-    de: {
-        translation: deLang
-    },
-    el: {
-        translation: elLang
-    },
     en: {
         translation: enLang
     },
-    "en-AU":{
-        translation: enAuLang
-    },
-    es: {
-        translation: esLang
-    },
-    et: {
-        translation: etLang
-    },
-    eu: {
-        translation: euLang
-    },
-    fi: {
-        translation: fiLang
-    },
-    fr: {
-        translation: frLang
-    },
-    he: {
-        translation: heLang
-    },
-    hi: {
-        translation: hiLang
-    },
-    it: {
-        translation: itLang
-    },
-    ja: {
-        translation: jaLang
-    },
-    nl: {
-        translation: nlLang
-    },
-    pt: {
-        translation: ptLang
-    },
-    ru: {
-        translation: ruLang
-    },
-    sv: {
-        translation: svLang
-    }
 };
 
 i18n

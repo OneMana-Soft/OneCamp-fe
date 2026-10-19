@@ -5,10 +5,17 @@ import { act, cleanup, render, screen } from "@testing-library/react"
 let toastApi: typeof import("@/hooks/use-toast")
 let Toaster: typeof import("@/components/ui/toaster").Toaster
 
+const graph = () => Promise.all([import("@/hooks/use-toast"), import("@/components/ui/toaster")])
+// Compiled once while the file is collected, which no hook's time limit
+// covers: under load the first compile took the first test's setup past the
+// hook's ten seconds. Each test then imports them afresh, which is quick.
+await graph()
+
 beforeEach(async () => {
   vi.resetModules()
-  toastApi = await import("@/hooks/use-toast")
-  Toaster = (await import("@/components/ui/toaster")).Toaster
+  const [toasts, toaster] = await graph()
+  toastApi = toasts
+  Toaster = toaster.Toaster
 })
 
 afterEach(() => {

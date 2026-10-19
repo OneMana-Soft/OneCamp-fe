@@ -95,11 +95,11 @@ export default function DocAiStarter({ editor, docId }: SlotProps) {
   }
   return (
     <div className="flex flex-col items-start gap-0.5">
-      <Row ref={first} onClick={() => open(false)} onKeyDown={onKeyDown}>
+      <Row ref={first} onClick={() => open(false)} data-escape-own="" onKeyDown={onKeyDown}>
         Ask AI to draft
       </Row>
       {project && (
-        <Row onClick={() => open(true)} onKeyDown={onKeyDown}>
+        <Row onClick={() => open(true)} data-escape-own="" onKeyDown={onKeyDown}>
           Draft from {project.name}&apos;s open tasks
           <span className="text-ink-3"> · {project.open_tasks}</span>
         </Row>

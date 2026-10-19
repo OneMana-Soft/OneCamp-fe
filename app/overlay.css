@@ -1,0 +1,141 @@
+/* THE ONE OVERLAY LAYOUT (components/ui/overlay, design/drawers-v3/ANALYSIS.md).
+   Every surface over the page, a dialog, a popover, a phone's sheet, is a
+   header, a body that is the only thing that scrolls, and a footer that is
+   always in view. Before it each content root was its own scroller, so an
+   action written last scrolled away with the rest, past a bar that ran the
+   height of the surface (the owner, 18 Oct: "why are we not using
+   DrawerFooter beside having ugly scroll bar").
+
+   Plain CSS outside the layers, like app/phone.css: a rule here outranks
+   Tailwind's utilities, so a caller's overflow class on a root can't make it
+   scroll again, and a wrapper between a root and its body (a form, a
+   provider's div) can't break the column. Loaded after phone.css
+   (app/layout.tsx). Motion is transform and opacity only. */
+
+/* 1. A floating root that holds a body, up to three boxes down: a column
+   that never scrolls itself. A popover's column is at most the room the
+   window leaves it. A phone's sheet is a column already; its own body is the
+   scroller unless it holds one (below). */
+[data-overlay="float"]:has(> [data-overlay-body], > * > [data-overlay-body], > * > * > [data-overlay-body]) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+[data-radix-popper-content-wrapper] > [data-overlay="float"]:has(> [data-overlay-body], > * > [data-overlay-body], > * > * > [data-overlay-body]) {
+  max-height: var(--radix-popover-content-available-height);
+}
+
+/* 2. A box between the root and its body joins the column, and lets it
+   shrink. A sheet's base (display: contents, hidden under a panel) keeps its
+   own display. */
+[data-overlay] > :not([data-overlay-body], [data-sheet-base]):has(> [data-overlay-body], > * > [data-overlay-body]),
+[data-overlay] > * > :not([data-overlay-body], [data-sheet-base]):has(> [data-overlay-body]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* What scrolls into view in a sheet clears the pinned footer's 12px fade. */
+[data-sheet-body] {
+  scroll-padding-bottom: 20px;
+}
+[data-sheet-body]:has(> [data-overlay-body], > [data-sheet-base] > [data-overlay-body]) {
+  overflow: hidden;
+}
+
+/* 3. The body: the one scroller, up and down only, a flick at its end never
+   scrolling the page. Its padding is the caller's (OverlayBody keeps 4px
+   round what it holds by default, for a field's halo, given back off its
+   sides). */
+[data-overlay-body] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+[data-overlay-header],
+[data-overlay-footer] {
+  flex-shrink: 0;
+}
+
+/* 4. A hairline where the body meets the header or the footer, only while
+   there is more to see that way (OverlayBody's data-more-above and
+   data-more-below): a body that fits has no line at all. */
+[data-overlay]:has([data-overlay-body][data-more-above]) [data-overlay-header] {
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+[data-overlay]:has([data-overlay-body][data-more-below]) [data-overlay-footer] {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+/* 5. The quiet bar. A scroller inside an overlay never draws a track, and its
+   thumb shows only while the pointer is over it or for a moment after it
+   scrolls (useOverlayRoot's data-scrolling): a bar at rest read as a second
+   border down the surface's edge. Chromium and Safari draw the pill
+   (::-webkit-scrollbar, app/globals.css); Firefox reads the standard
+   properties, only where the pill isn't (Chromium 121+ ignores the pill on
+   anything whose scrollbar-color is set). */
+[data-overlay]::-webkit-scrollbar-thumb,
+[data-overlay] ::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
+[data-overlay][data-scrolling]::-webkit-scrollbar-thumb,
+[data-overlay] [data-scrolling]::-webkit-scrollbar-thumb {
+  background-color: var(--scroll-bar-color);
+}
+@media (hover: hover) {
+  [data-overlay]:hover::-webkit-scrollbar-thumb,
+  [data-overlay] :hover::-webkit-scrollbar-thumb {
+    background-color: var(--scroll-bar-color);
+  }
+}
+@supports not selector(::-webkit-scrollbar) {
+  [data-overlay],
+  [data-overlay] * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  [data-overlay][data-scrolling],
+  [data-overlay] [data-scrolling] {
+    scrollbar-color: var(--scroll-bar-color) transparent;
+  }
+  @media (hover: hover) {
+    [data-overlay]:hover,
+    [data-overlay] :hover {
+      scrollbar-color: var(--scroll-bar-color) transparent;
+    }
+  }
+}
+
+/* 6. A panel of a sheet (components/ui/drawer's useSheetPanel: a field's day
+   or time) slides in from the side over the sheet's content, in 240ms on the
+   sheet's own curve; a fade alone under reduced motion. */
+.sheet-panel-in {
+  animation: sheet-panel-in 240ms var(--ease-push, cubic-bezier(0.32, 0.72, 0, 1)) backwards;
+}
+@keyframes sheet-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes sheet-panel-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-panel-in {
+    animation-name: sheet-panel-fade;
+  }
+}
+
+/* 7. A phone in landscape (SHEET_QUERY's second half): its sheets are at
+   most 640px wide, centred, so a form doesn't run 844px across. */
+@media (pointer: coarse) and (max-height: 500px) and (min-width: 640px) {
+  [data-vaul-drawer][data-v3-sheet] {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+}

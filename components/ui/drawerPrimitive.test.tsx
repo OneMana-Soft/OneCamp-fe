@@ -128,9 +128,110 @@ describe("detents", () => {
     for (const f of readdirSync(dir).filter((f) => f.endsWith(".tsx") && !f.includes(".test."))) {
       const src = readFileSync(join(dir, f), "utf8")
       const tags = src.match(/<Drawer\b[^>]*>/g) ?? []
-      for (const tag of tags) if (!/\bdetent="(menu|medium|large)"/.test(tag) && !pending.has(f)) missing.push(f)
+      for (const tag of tags) if (!/\bdetent="(menu|medium|half|large)"/.test(tag) && !pending.has(f)) missing.push(f)
     }
-    expect(missing, "pass detent=\"menu|medium|large\"").toEqual([])
+    expect(missing, "pass detent=\"menu|medium|half|large\"").toEqual([])
+  })
+})
+
+// The owner, 17 Oct 2026: "the user status drawer has both scroll bars", "the
+// emoji picker drawer is expanding way too much". The browser half of these
+// rules is e2e/phoneSheets.spec.ts.
+describe("one scroller, up and down only", () => {
+  it("is the body: it never scrolls sideways, and says it is the body", () => {
+    render(<Sheet detent="medium" />)
+    const body = sheet().querySelector("[data-sheet-body]") as HTMLElement
+    expect(body, "no [data-sheet-body]").not.toBeNull()
+    expect(body.className.split(/\s+/)).toEqual(expect.arrayContaining(["overflow-y-auto", "overflow-x-hidden", "overscroll-contain"]))
+  })
+
+  it("keeps room under the last row for a control's reach, and gives it back", () => {
+    const css = readFileSync(join(ROOT, "app/phone.css"), "utf8")
+    expect(css).toMatch(/@media \(pointer: coarse\) \{\s*\[data-sheet-body\] \{\s*padding-bottom: 12px;\s*margin-bottom: -12px;/)
+  })
+
+  // The owner, on a phone, 17 Oct: the status field "trimmed from left and
+  // right", the sheet "smaller" after the keyboard went with the scroll bar
+  // back, and Set status out of place. The browser half is
+  // e2e/phoneSheets.spec.ts, through both kinds of keyboard.
+  it("keeps a halo's room at the body's sides, and gives it back off its margins", () => {
+    const css = readFileSync(join(ROOT, "app/phone.css"), "utf8")
+    expect(css).toMatch(/\[data-sheet-body\] \{\s*padding-inline: 4px;\s*margin-inline: -4px;/)
+  })
+
+  it("pins its header over the scroller and its actions under it, never in it", () => {
+    render(
+      <Drawer open onOpenChange={() => {}}>
+        <DrawerContent header={<DrawerTitle>Sheet</DrawerTitle>} footer={<button type="button">Save</button>}>
+          <DrawerDescription>A sheet</DrawerDescription>
+          <p>content</p>
+        </DrawerContent>
+      </Drawer>,
+    )
+    const header = sheet().querySelector("[data-sheet-header]") as HTMLElement
+    const footer = sheet().querySelector("[data-sheet-footer]") as HTMLElement
+    expect(header, "no header").not.toBeNull()
+    expect(footer, "no footer").not.toBeNull()
+    expect(header.closest("[data-sheet-body]"), "the title scrolls away with the content").toBeNull()
+    expect(footer.closest("[data-sheet-body]"), "the actions scroll with the content").toBeNull()
+    expect(header.nextElementSibling?.hasAttribute("data-sheet-body")).toBe(true)
+    expect(footer.previousElementSibling?.hasAttribute("data-sheet-body")).toBe(true)
+    // The v3 header row: 52px, its title centred (mobile C5).
+    for (const c of ["shrink-0", "min-h-13", "text-center"]) expect(header.className).toContain(c)
+    expect(footer.className).toContain("shrink-0")
+  })
+
+  // vaul's input repositioning wrote a height and a bottom on the sheet and
+  // left them once the keyboard went (vaul #538, #650); the sheet stands on
+  // the keyboard from lib/ui/visualViewport's measure instead, and only while
+  // it is up.
+  it("leaves the keyboard to app/phone.css, which writes nothing on the sheet", () => {
+    const src = readFileSync(join(ROOT, "components/ui/drawer.tsx"), "utf8")
+    expect(src).toMatch(/repositionInputs = false/)
+    const css = readFileSync(join(ROOT, "app/phone.css"), "utf8")
+    expect(css).toMatch(/html\[data-keyboard="open"\] \[data-vaul-drawer\]\[data-v3-sheet\] \{\s*bottom: calc\(100% - var\(--app-vv-top, 0px\) - var\(--app-vvh, 100%\)\);\s*max-height: calc\(var\(--app-vvh, 100dvh\) \* 0\.92\);\s*padding-bottom: 0;/)
+    render(<Sheet detent="medium" />)
+    expect(sheet().style.height).toBe("")
+    expect(sheet().style.bottom).toBe("")
+  })
+
+  it("gives a picker the half detent: half the screen, never the large slab", () => {
+    render(<Sheet detent="half" />)
+    expect(sheet().getAttribute("data-detent")).toBe("half")
+    expect(sheet().className).toContain("h-[max(50dvh,20rem)]")
+    expect(sheet().className.split(/\s+/)).not.toContain("h-[92dvh]")
+  })
+
+  // A sheet's own padding, given on DrawerContent, took the place of its
+  // home-indicator strip (tailwind-merge keeps the last pb), and sat outside
+  // the body, where a small button's reach then ran past the scroller.
+  it("takes a sheet's bottom space inside its content, never on DrawerContent", () => {
+    const own: string[] = []
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === "node_modules" || e.name.startsWith(".")) continue
+        const p = join(dir, e.name)
+        if (e.isDirectory()) walk(p)
+        else if (/\.tsx$/.test(e.name) && !/\.test\./.test(e.name)) {
+          // Its own className: no nested markup (an `above` prop's) in between.
+          for (const m of readFileSync(p, "utf8").matchAll(/<DrawerContent\b[^<>]*?\bclassName="([^"]*)"/g)) {
+            if (/(^|\s)(p|py|pb)-/.test(m[1])) own.push(`${p.slice(ROOT.length + 1)}: ${m[1]}`)
+          }
+        }
+      }
+    }
+    for (const d of ["app", "components"]) walk(join(ROOT, d))
+    expect(own).toEqual([])
+  })
+
+  it("lays a top sheet's scrim, or a dialog's backdrop, over the sheet under it", () => {
+    const css = readFileSync(join(ROOT, "app/phone.css"), "utf8")
+    // Unlayered, so it outranks the scrim's own colour and z-index utilities.
+    const unlayered = css.replace(/@layer[^{]*\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g, "")
+    expect(unlayered).toMatch(/\[data-vaul-drawer\]\[data-state="open"\] ~ \[data-vaul-overlay\]\[data-v3-scrim\] \{\s*z-index: calc\(var\(--z-modal\) \+ 1\)/)
+    expect(unlayered).toMatch(/\[data-vaul-drawer\]\[data-state="open"\] ~ \[data-vaul-drawer\]\[data-v3-sheet\] \{\s*z-index: calc\(var\(--z-modal\) \+ 2\)/)
+    expect(unlayered).toMatch(/\[data-vaul-drawer\]\[data-state="open"\] ~ \.v3-overlay \{\s*z-index: calc\(var\(--z-modal\) \+ 3\)/)
+    expect(unlayered).toMatch(/\[data-vaul-drawer\]\[data-state="open"\] ~ \.v3-dialog \{\s*z-index: calc\(var\(--z-modal\) \+ 4\)/)
   })
 })
 

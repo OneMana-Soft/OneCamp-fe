@@ -10,6 +10,7 @@ import { ProfileMenu, SelfAvatar } from "@/components/navigationBar/desktop/Side
 import { openPalette } from "@/lib/ui/palette"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
+import { onEscape } from "@/lib/keys/onEscape"
 import type { CampHue } from "@/lib/campHue"
 import type { DesktopChildrenNavType, DesktopNavType } from "@/types/nav"
 import { rowSignal, type SidebarSignal } from "@/lib/nav/sidebarSignal"
@@ -87,6 +88,7 @@ export function SidebarRail({
   peek,
   body,
   conversations,
+  sections = [],
 }: {
   /** In its place, what the rail holds instead of the app's places (the settings sections). */
   body?: ReactNode
@@ -107,6 +109,8 @@ export function SidebarRail({
    * other unread; DMs count the conversations with something unread (SN-19).
    */
   conversations?: { channels: SidebarSignal; dms: SidebarSignal; on?: "channel" | "chat" }
+  /** Pages the sidebar shows as sections (Docs): after Channels and DMs, as it orders them. */
+  sections?: DesktopNavType[]
 }) {
   const [peeking, setPeeking] = useState<"open" | "leaving" | null>(null)
   const openTimer = useRef<number | null>(null)
@@ -143,14 +147,7 @@ export function SidebarRail({
     }, 200)
   }
   useEffect(() => clear, [])
-  useEffect(() => {
-    if (!peeking) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPeeking(null)
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [peeking])
+  useEffect(() => (peeking ? onEscape("overlay", () => setPeeking(null)) : undefined), [peeking])
 
   return (
     <>
@@ -192,6 +189,11 @@ export function SidebarRail({
             </RailItem>
           </>
         )}
+        {sections.map((l) => (
+          <RailItem key={l.title} href={String(l.path)} title={l.title} active={l.variant === "sidebarActive"} dot={!!l.label}>
+            {l.icon && <l.icon className="h-4 w-4" aria-hidden="true" />}
+          </RailItem>
+        ))}
         {more.length > 0 && (
           <MorePopover links={more}>
             <button
@@ -247,6 +249,7 @@ export function SidebarRail({
           className="app-frame shell-peek"
           data-leaving={peeking === "leaving" ? "true" : undefined}
           role="dialog"
+          data-escape-own=""
           aria-label="Sidebar"
           onPointerEnter={keep}
           onPointerLeave={disarm}

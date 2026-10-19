@@ -97,6 +97,11 @@ function oneCampNotificationRoute(data, selfUUID) {
     if (type === 'doc_comment') {
         return typeId ? '/app/doc/' + typeId : ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
     }
+    // 'table_row': a comment on a table's row; the table in type_id, the row in thread_id.
+    if (type === 'table_row') {
+        if (!typeId) return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+        return '/app/tables/' + encodeURIComponent(typeId) + (threadId ? '?row=' + encodeURIComponent(threadId) : '');
+    }
     // 'later' carries the app path of the saved item; only an in-app path is followed.
     if (type === 'later') {
         return /^\/app\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9_\-=&%.]*)?$/.test(typeId) ? typeId : '/app/later';
@@ -105,9 +110,13 @@ function oneCampNotificationRoute(data, selfUUID) {
     if (type === 'approval') {
         return '/app/home';
     }
-    // 'calendar': a booking made or cancelled on one of your booking pages.
+    // 'calendar': an event you're asked to, that changed or that a guest
+    // answered opens that event or instance; a cancelled booking, or an event
+    // you were taken off, carries no id and opens the calendar.
     if (type === 'calendar') {
-        return '/app/calendar';
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(_\d{8}(T\d{6}Z)?)?$/i.test(typeId)
+            ? '/app/calendar/event/' + typeId
+            : '/app/calendar';
     }
     // 'reminder' carries no target: focus the app and let it surface the reminder.
     return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;

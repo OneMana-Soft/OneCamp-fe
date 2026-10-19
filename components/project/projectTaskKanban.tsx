@@ -15,6 +15,8 @@ import type { ProjectInfoRawInterface } from "@/types/project"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { boardQuery } from "@/lib/board/boardQuery"
 import type { TaskInfoInterface } from "@/types/task"
+import { accessOf, canEditTask } from "@/lib/work/access"
+import { useMyId } from "@/hooks/useMyId"
 import { useMoveTask } from "@/hooks/useMoveTask"
 import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
@@ -136,7 +138,10 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
         return true
     }
     // Unknown until the project loads; the server checks again on every move.
-    const isAdmin = p?.project_is_admin !== undefined ? Boolean(p.project_is_admin) : false
+    // Which tasks the reader changes, adds and how the board is set up are
+    // the server's answer (Work Access).
+    const me = useMyId()
+    const access = accessOf(p)
     // A phone has no panel beside the board: a card opens the task's page,
     // as a row of the Tasks tab does. It dispatched the panel there, which a
     // phone never draws, so a tapped card only took on the opened ring.
@@ -207,7 +212,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
         })
     }, [grouping, laneBy, columns, members, hideEmpty])
     const boardTasks = useMemo(() => Object.values(columns).flat(), [columns])
-    const canEdit = useCallback(() => isAdmin, [isAdmin])
+    const canEdit = useCallback((t: TaskInfoInterface) => canEditTask(t, me, p), [me, p])
     // Each column's total, and which page a column's Show more asks for:
     // done and cancelled the closed page, every other status the open one.
     const totals = useMemo(
@@ -244,6 +249,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
             <WorkToolbar
                 table={table}
                 projectId={projectId}
+                canCreate={access.create_tasks}
                 extra={
                     <>
                         <TagFilter projectId={projectId} active={tagFilter} onChange={setTagFilter} />
@@ -261,8 +267,8 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                         statusOptions={statusOpts}
                         shown={viewableStatus}
                         onShown={setColumnShown}
-                        onManageStatuses={isAdmin ? () => setManaging(true) : undefined}
-                        onManageFields={isAdmin ? () => setManagingFields(true) : undefined}
+                        onManageStatuses={access.manage ? () => setManaging(true) : undefined}
+                        onManageFields={access.manage ? () => setManagingFields(true) : undefined}
                     />
                 }
             />
@@ -288,14 +294,14 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                             <TaskBoard
                                 columns={byPerson.columns}
                                 visible={byPerson.options}
-                                canDrag={() => isAdmin}
+                                canDrag={canEdit}
                                 onMove={(task, drop) => {
                                     if (drop.column === (task.task_assignee?.user_uuid || NO_ASSIGNEE)) return
                                     const to = drop.column === NO_ASSIGNEE ? null : p?.project_members?.find((m) => m.user_uuid === drop.column) ?? null
                                     void reassign(task.task_uuid, projectId, to)
                                 }}
                                 boardKey={`project:${projectId}:assignee`}
-                                onQuickAdd={isAdmin ? quickAdd : undefined}
+                                onQuickAdd={access.create_tasks ? quickAdd : undefined}
                                 badgeFor={(task) => task.task_custom_status_name || taskStatusLabel(task.task_status)}
                                 onOpen={onOpen}
                             />
@@ -303,7 +309,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                             <TaskBoard
                                 columns={columns}
                                 visible={visible}
-                                canDrag={() => isAdmin}
+                                canDrag={canEdit}
                                 onMove={(task, drop, lane) => {
                                     void moveTask(task.task_uuid, projectId, drop, statusPatch(drop.column, statusOpts))
                                     // Into another row as well: it changes hands, or priority.
@@ -315,7 +321,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                                 boardKey={`project:${projectId}`}
                                 totals={totals}
                                 onShowMore={showMore}
-                                onQuickAdd={isAdmin ? quickAdd : undefined}
+                                onQuickAdd={access.create_tasks ? quickAdd : undefined}
                                 onOpen={onOpen}
                             />
                         )}
@@ -324,8 +330,8 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
             </KeyboardList>
             )}
             </div>
-            {isAdmin && managing && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
-            {isAdmin && managingFields && <ProjectFieldsDialog projectId={projectId} open={managingFields} onOpenChange={setManagingFields} />}
+            {access.manage && managing && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
+            {access.manage && managingFields && <ProjectFieldsDialog projectId={projectId} open={managingFields} onOpenChange={setManagingFields} />}
         </div>
     )
 }

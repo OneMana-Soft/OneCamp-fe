@@ -24,6 +24,7 @@ import { mediaLink } from './media'
 import { connectedLinkOf } from './connectedValues' // C1
 import { dateWords } from './connectedValues'
 import { isSafeHref } from '@/lib/utils/safeHref'
+import { tablePath } from '@/lib/tables/route'
 
 export interface MarkdownOptions {
   /** The web app's origin: links to channels, docs, tasks and tables are made under it; empty, they are paths. */
@@ -160,7 +161,7 @@ class Writer {
         return ['[TOC]']
       case 'tableEmbed': {
         const id = attrString(n, 'tableId')
-        return [id ? '[Table](' + linkDest(this.appURL('/app/tables/' + id)) + ')' : 'Table']
+        return [id ? '[Table](' + linkDest(this.appURL(tablePath(id))) + ')' : 'Table']
       }
       case 'poll':
         return ['*Poll*']

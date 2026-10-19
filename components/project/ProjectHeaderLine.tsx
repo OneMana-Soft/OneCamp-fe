@@ -6,7 +6,7 @@ import { ProjectGlanceLine, type GlanceKind } from "@/components/project/Project
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip"
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip"
 import { useToast } from "@/hooks/use-toast"
-import { celebrateCamp, sparkedRecently } from "@/lib/celebrate"
+import { celebrateCamp, sparkedRecently } from "@/lib/celebrateSoon"
 import type { ProjectGlance } from "@/lib/utils/projectGlance"
 
 /**

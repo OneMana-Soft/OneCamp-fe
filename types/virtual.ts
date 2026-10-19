@@ -1,8 +1,11 @@
 import {VListHandle} from "virtua";
 
 export interface FlatItem<T> {
-    /** A day's heading, a message, or where the unread messages start. */
-    type: "separator" | "item" | "unread";
+    /**
+     * A day's heading, a message, where the unread messages start, or the
+     * heading above a shared history's copies (lib/conversation/sharedHistory).
+     */
+    type: "separator" | "item" | "unread" | "shared";
     date?: string;
     data?: T;
     key: string;

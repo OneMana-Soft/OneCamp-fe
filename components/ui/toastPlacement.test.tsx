@@ -9,11 +9,18 @@ let api: typeof import("@/hooks/use-toast")
 let Toaster: typeof import("@/components/ui/toaster").Toaster
 let ToastAction: typeof import("@/components/ui/toast").ToastAction
 
+const graph = () => Promise.all([import("@/hooks/use-toast"), import("@/components/ui/toaster"), import("@/components/ui/toast")])
+// Compiled once while the file is collected, which no hook's time limit
+// covers: under load the first compile took the first test's setup past the
+// hook's ten seconds. Each test then imports them afresh, which is quick.
+await graph()
+
 beforeEach(async () => {
   vi.resetModules()
-  api = await import("@/hooks/use-toast")
-  Toaster = (await import("@/components/ui/toaster")).Toaster
-  ToastAction = (await import("@/components/ui/toast")).ToastAction
+  const [toasts, toaster, toast] = await graph()
+  api = toasts
+  Toaster = toaster.Toaster
+  ToastAction = toast.ToastAction
 })
 
 afterEach(() => {

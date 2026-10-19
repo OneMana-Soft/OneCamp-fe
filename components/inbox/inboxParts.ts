@@ -47,9 +47,13 @@ export function threadByline(messages: InboxMessage[], myAddress?: string): stri
   return [`${n} ${n === 1 ? "message" : "messages"}`, names.join(", ")].filter(Boolean).join(" · ")
 }
 
-export type InboxKey = "next" | "prev" | "open" | "back" | "summarise" | "task" | "reply" | "gmail" | "search"
+export type InboxKey = "next" | "prev" | "open" | "summarise" | "task" | "reply" | "gmail" | "search"
 
-/** The page's keys (Linear and Superhuman): J/K, ↵, Esc, S, T, R, O and /. */
+/**
+ * The page's keys (Linear and Superhuman): J/K, ↵, S, T, R, O and /. Esc,
+ * back to the list, is the page layer of the one Escape (lib/keys/escape),
+ * in InboxPage.
+ */
 export function inboxKeyAction(e: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey">): InboxKey | null {
   if (e.metaKey || e.ctrlKey || e.altKey) return null
   switch (e.key) {
@@ -61,8 +65,6 @@ export function inboxKeyAction(e: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlK
       return "prev"
     case "Enter":
       return "open"
-    case "Escape":
-      return "back"
     case "s":
       return "summarise"
     case "t":

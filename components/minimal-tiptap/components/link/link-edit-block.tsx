@@ -48,6 +48,7 @@ export const LinkEditBlock = React.forwardRef<HTMLDivElement, LinkEditorProps>((
     <form
       ref={formRef}
       onSubmit={handleSave}
+      data-escape-own=""
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.preventDefault()

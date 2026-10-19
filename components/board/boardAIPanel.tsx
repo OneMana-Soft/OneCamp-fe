@@ -784,6 +784,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
               if (error) setError(null)
               if (plan) setPlan(null)
             }}
+            data-escape-own=""
             onKeyDown={handleKeyDown}
             placeholder={PROMPT_PLACEHOLDERS[type] || "Describe what you want to draw…"}
             className="min-h-[72px] resize-none text-body"
@@ -910,6 +911,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
                   setRefinePrompt(e.target.value)
                   if (refineError) setRefineError(null)
                 }}
+                data-escape-own=""
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                     e.preventDefault()

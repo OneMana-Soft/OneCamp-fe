@@ -25,6 +25,8 @@ import { useFetch } from "@/hooks/useFetch"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { CreateTaskInterface, TaskInfoInterface } from "@/types/task"
+import { accessOf, canEditTask } from "@/lib/work/access"
+import { useMyId } from "@/hooks/useMyId"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { TaskListTask } from "@/components/task/taskListTask"
 import { usePost } from "@/hooks/usePost"
@@ -301,7 +303,12 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
         })
     }, [selectedTaskUUIDs, confirm, bulkUnlink])
 
-    const isAdmin = projectInfo.data?.data.project_is_admin || false
+    // Which tasks the reader changes, and whether they add them, are the
+    // server's answer (Work Access).
+    const me = useMyId()
+    const project = projectInfo.data?.data
+    const access = accessOf(project)
+    const changesTasks = access.edit_tasks !== "none"
 
     // The rows grouped by status, as on a computer (work.md W53, the mock's
     // "In progress 2 / To do 2"): the phone listed them in the server's order,
@@ -336,7 +343,7 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
             <TaskListTask
                 showProject={false}
                 taskInfo={taskInfo}
-                isAdmin={isAdmin}
+                isAdmin={canEditTask(taskInfo, me, project)}
                 onToggleStatus={handleToggleStatusWithAnimation}
                 isAnimating={animatingSubtasks.has(taskInfo.task_uuid)}
                 selectionMode={selectionMode}
@@ -344,7 +351,7 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                 onToggleSelect={handleToggleSelect}
             />
         )
-    }, [isAdmin, handleToggleStatusWithAnimation, animatingSubtasks, selectionMode, selectedTaskUUIDs, handleToggleSelect])
+    }, [me, project, handleToggleStatusWithAnimation, animatingSubtasks, selectionMode, selectedTaskUUIDs, handleToggleSelect])
 
     const handleItemKey = useCallback((item: PhoneRow) => ("kind" in item ? item.key : item.task_uuid), [])
 
@@ -355,7 +362,7 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                 count take a row of their own under them. */}
             <div data-list-search-row="" className="flex shrink-0 items-center pr-2">
                 <div className="min-w-0 flex-1">{search}</div>
-                {isAdmin && (
+                {changesTasks && (
                     <Button
                         variant={selectionMode ? "secondary" : "ghost"}
                         size="sm"
@@ -376,7 +383,7 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                     </Button>
                 )}
             </div>
-            {isAdmin && selectionMode && (
+            {changesTasks && selectionMode && (
                 <div className="flex shrink-0 items-center gap-2 px-2 pb-1.5">
                     <Button
                         variant="ghost"
@@ -406,7 +413,7 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                         title="No tasks yet"
                         description="Make the first one, and it shows here."
                         // The empty page's way forward, as on a computer: it had none.
-                        action={isAdmin ? <Button size="sm" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>New task</Button> : undefined}
+                        action={access.create_tasks ? <Button size="sm" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>New task</Button> : undefined}
                     />
                 )
             ) : (

@@ -153,6 +153,7 @@ export default function DocsTreeGroups({ onOpened, sidebar = false }: { onOpened
                   aria-label={g.add}
                   title={g.add}
                   disabled={!!busy}
+                  data-touch-target=""
                   onClick={() => void create({ space: g.space, busyKey: `tree:top:${g.space}` })}
                   className={cn(
                     "inline-flex size-5 items-center justify-center rounded-sm text-ink-3 opacity-0 outline-none transition-opacity hover:bg-[var(--press)] hover:text-ink focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand group-hover/label:opacity-100 disabled:opacity-60 [@media(hover:none)]:opacity-100",

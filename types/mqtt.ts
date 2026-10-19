@@ -3,6 +3,8 @@ export interface mqttConfigRes {
     username: string
     password: string
     topics: string[]
+    /** Each channel's, DM's and group's topics in topics, by its key (lib/conversation keyOf). */
+    conversation_topics?: Record<string, string[]>
     ws_url?: string
 }
 

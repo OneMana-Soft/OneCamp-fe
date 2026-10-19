@@ -252,15 +252,19 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
     return (
         <Drawer detent="large" onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
-                <form onSubmit={handleSubmit(onSubmit)} className="w-full">
-                    <DrawerHeader className="text-left">
+                {/* The large sheet, filled: the title and Clear/Apply stay put and
+                    the tab's options scroll between them. A fixed 40vh grid left
+                    a third of the sheet empty under the buttons, and on a short
+                    phone its tabs ran down over them. */}
+                <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 w-full flex-1 flex-col">
+                    <DrawerHeader className="shrink-0 text-left">
                         <DrawerTitle>Sort and filter</DrawerTitle>
                         <DrawerDescription></DrawerDescription>
                     </DrawerHeader>
-                    <div className="h-full">
-                        <div className="grid grid-cols-9 border-t border-b h-[40vh]">
+                    <div className="flex min-h-0 flex-1 flex-col">
+                        <div className="grid min-h-0 flex-1 grid-cols-9 grid-rows-[minmax(0,1fr)] border-t border-b">
                             {/* Vertical Tabs */}
-                            <div className="border-r col-span-3">
+                            <div className="border-r col-span-3 min-h-0 overflow-y-auto overscroll-contain">
                                 {filterCategories.map((category) => (
                                     <div
                                         key={category.id}
@@ -275,7 +279,7 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
                             </div>
 
                             {/* Tab Content */}
-                            <div className="p-6 col-span-6 overflow-y-auto h-full">
+                            <div className="p-6 col-span-6 min-h-0 overflow-y-auto overscroll-contain">
                                 {renderTabContent()}
                                 {errors[activeTab as keyof FilterFormValues] && (
                                     <p className="text-danger-ink text-sm mt-2">
@@ -284,7 +288,7 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
                                 )}
                             </div>
                         </div>
-                        <DrawerFooter className="flex flex-row space-x-2 w-full">
+                        <DrawerFooter className="flex shrink-0 flex-row space-x-2 w-full">
                             <Button type="button" variant="outline" className="flex-1" onClick={handleClear}>Clear Filters</Button>
                             <Button type="submit" className="flex-1">Apply</Button>
                         </DrawerFooter>

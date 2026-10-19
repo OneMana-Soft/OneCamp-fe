@@ -1,4 +1,5 @@
-import { getOtherUserId } from "@/lib/utils/getOtherUserId"
+import { chatPath } from "@/lib/routes/conversationRoute"
+import { route } from "@/lib/conversation/route"
 
 /**
  * Pure routing logic for a Workspace Memory item's "where it came from"
@@ -59,10 +60,10 @@ export function resolveMemoryBacklink(
   if (it.channel_uuid) {
     const name =
       it.channel_name || opts.channelNameByUUID?.(it.channel_uuid) || it.scope_label || "channel"
-    const href =
-      it.source_type === "post" && isRealContentUUID(it.source_uuid)
-        ? `/app/channel/${it.channel_uuid}/${it.source_uuid}`
-        : `/app/channel/${it.channel_uuid}`
+    const href = route({
+      conversation: { kind: "channel", id: it.channel_uuid },
+      ...(it.source_type === "post" && isRealContentUUID(it.source_uuid) ? { message: it.source_uuid } : {}),
+    })
     return { kind: "channel", label: name, href }
   }
 
@@ -81,19 +82,13 @@ export function resolveMemoryBacklink(
     // supports a /{message-id} segment, like the channel→post case). A
     // worker-extracted item is scope-keyed (no message uuid) → open the
     // conversation at the bottom.
-    const msgSeg = it.source_type === "chat" && isRealContentUUID(it.source_uuid) ? `/${it.source_uuid}` : ""
+    const message = it.source_type === "chat" && isRealContentUUID(it.source_uuid) ? it.source_uuid : null
     if (grp.includes(" ")) {
-      // 1:1 DM. The route segment is the OTHER participant's uuid.
-      if (opts.currentUserId) {
-        const other = getOtherUserId(grp, opts.currentUserId)
-        if (other) {
-          return { kind: "dm", label: it.scope_label || "direct message", href: `/app/chat/${other}${msgSeg}` }
-        }
-      }
-      return { kind: "dm", label: it.scope_label || "direct message", href: "" }
+      // 1:1 DM: its path names the other person, so it needs who reads it.
+      return { kind: "dm", label: it.scope_label || "direct message", href: chatPath(grp, opts.currentUserId, message) ?? "" }
     }
     // Group chat.
-    return { kind: "group", label: it.scope_label || "group chat", href: `/app/chat/group/${grp}${msgSeg}` }
+    return { kind: "group", label: it.scope_label || "group chat", href: chatPath(grp, opts.currentUserId, message) ?? "" }
   }
 
   return null

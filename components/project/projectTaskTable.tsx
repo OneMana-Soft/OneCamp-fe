@@ -8,10 +8,6 @@ import {
     type SortingState,
     type VisibilityState,
     getCoreRowModel,
-    getFacetedRowModel,
-    getFacetedUniqueValues,
-    getFilteredRowModel,
-    getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table"
 
@@ -35,13 +31,16 @@ import { DUE_WEEK, filtersFromAddress, filtersToAddress } from "@/lib/tasks/list
 import { WorkState } from "@/components/task/workFrame"
 import { ErrorState } from "@/components/ui/error-state"
 import { useProjectTaskColumn } from "@/hooks/useProjectTaskColumn"
-import { useFetch } from "@/hooks/useFetch"
+import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { TASK_PAGE, useTaskPages } from "@/components/task/useTaskPages"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import {useDispatch, useSelector} from "react-redux";
-import {createListForTaskInfo, clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
+import {clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
+import { accessOf, canEditTask } from "@/lib/work/access";
+import type { UserProfileInterface } from "@/types/user";
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
 import { useProjectHue } from "@/lib/projectHue"
@@ -52,8 +51,6 @@ interface ProjectTaskTableProps {
     onLayout?: (layout: Layout) => void
 }
 
-/** How many tasks the list asks for at once; "Show more" at the foot asks for this many again. */
-const LIST_PAGE = 500
 const ALL_PROPS: RowProp[] = ["priority", "labels", "due", "assignee", "estimate", "badges"]
 const DISPLAY_DEFAULTS = { grouping: "status" as const, props: PROJECT_PROPS, showCompleted: "all" as const }
 
@@ -61,6 +58,8 @@ const DISPLAY_DEFAULTS = { grouping: "status" as const, props: PROJECT_PROPS, sh
 // render again on every change to the store (a new `[]` is never equal to
 // the last).
 const NO_TASKS: TaskInfoInterface[] = []
+
+const projectTasksOf = (answer: ProjectInfoRawInterface) => answer.data?.project_tasks
 
 const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
     if (!value) return fallback
@@ -89,25 +88,17 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     // Status, assignee, overdue and due-this-week are words in the address
     // (?status=open), the rest JSON (lib/tasks/listAddress), so a header count
     // can filter the list and Back can take it off again.
-    const { options: addressOpts } = useProjectStatuses(projectId)
-    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => filtersFromAddress(searchParams, addressOpts) as ColumnFiltersState)
+    const { options: statusOpts } = useProjectStatuses(projectId)
+    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => filtersFromAddress(searchParams, statusOpts) as ColumnFiltersState)
     const addressKey = ["status", "assignee", "overdue", "due", "filters"].map((k) => searchParams.get(k) ?? "").join("|")
     useEffect(() => {
-        const next = filtersFromAddress(searchParams, addressOpts) as ColumnFiltersState
+        const next = filtersFromAddress(searchParams, statusOpts) as ColumnFiltersState
         setColumnFilters((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [addressKey, addressOpts])
+    }, [addressKey, statusOpts])
     const [sorting, setSorting] = useState<SortingState>(() => safeJsonParse(searchParams.get("sort"), []))
     const [globalFilter, setGlobalFilter] = useState(() => searchParams.get("search") || "")
-    // No pages (work.md W18): the list asks for a large first batch and,
-    // in the rare project with more, more of them at the foot.
-    const [pageSize, setPageSize] = useState(LIST_PAGE)
-    const pageIndex = 0
     const { display, set: setDisplay, reset: resetDisplay } = useListDisplay(`project:${projectId}`, DISPLAY_DEFAULTS)
-
-    const prevTaskSearchStringRef = useRef("")
-    const prevColumnFiltersRef = useRef<ColumnFiltersState>([])
-    const isInitialMountRef = useRef(true)
 
     const taskSearchString = useDebounce(globalFilter, 500)
 
@@ -122,38 +113,20 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
             params.set("filters", JSON.stringify(columnFilters.map(({ id, value }) => ({ id, value }))))
         }
 
-        params.set("pageSize", pageSize.toString())
-        params.set("pageIndex", pageIndex.toString())
+        params.set("pageSize", TASK_PAGE.toString())
 
         if (taskSearchString) {
             params.set("taskSearchString", taskSearchString)
         }
 
         return params.toString()
-    }, [sorting, columnFilters, pageSize, pageIndex, taskSearchString])
+    }, [sorting, columnFilters, taskSearchString])
 
-    const projectInfo = useFetch<ProjectInfoRawInterface>(
+    // No pages to turn (work.md W18): "Show more" at the foot reads the next.
+    const pages = useTaskPages<ProjectInfoRawInterface>(
         projectId && apiQueryString ? `${GetEndpointUrl.GetProjectTaskList}/${projectId}?${apiQueryString}` : "",
+        projectTasksOf,
     )
-
-    useEffect(() => {
-        // Skip on initial mount
-        if (isInitialMountRef.current) {
-            isInitialMountRef.current = false
-            prevTaskSearchStringRef.current = taskSearchString
-            prevColumnFiltersRef.current = columnFilters
-            return
-        }
-
-        const searchChanged = prevTaskSearchStringRef.current !== taskSearchString
-        const filtersChanged = JSON.stringify(prevColumnFiltersRef.current) !== JSON.stringify(columnFilters)
-
-        if (searchChanged || filtersChanged) {
-            setPageSize(LIST_PAGE)
-            prevTaskSearchStringRef.current = taskSearchString
-            prevColumnFiltersRef.current = columnFilters
-        }
-    }, [taskSearchString, columnFilters])
 
     // Reset taskListVisibleInfo once per project, so a previous project's
     // tasks (or my-task entries) never show through while we wait for the
@@ -162,14 +135,6 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     // run: a Suspense boundary showing this list again re-ran a plain one
     // and emptied the list for good (useLayoutOnce).
     useLayoutOnce(projectId, () => dispatch(clearTaskListVisibleInfo()))
-
-    useEffect(() => {
-
-        if(projectInfo.data?.data.project_tasks) {
-            dispatch(createListForTaskInfo({tasksInfo: projectInfo.data?.data.project_tasks}))
-        }
-
-    }, [projectInfo.data?.data.project_tasks]);
 
     const debouncedUrlUpdateRef = useRef<NodeJS.Timeout|null>(null)
 
@@ -219,9 +184,6 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
         }
     }, [sorting, columnFilters, columnVisibility, globalFilter, pathname, router])
 
-    const pageCount = projectInfo.data?.pageCount || 1
-
-    const { options: statusOpts } = useProjectStatuses(projectId)
     const { fields, isLoading: fieldsLoading, isError: fieldsFailed } = useProjectFields(projectId)
     const { nameOf } = usePeople(projectId, fields)
     const { columns } = useProjectTaskColumn(statusOpts, fields, nameOf)
@@ -238,7 +200,6 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     const table = useReactTable({
         data: taskListState,
         columns,
-        pageCount,
         state: {
             sorting,
             // task_cycle only carries the cycle filter to the server.
@@ -252,20 +213,18 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
         onColumnVisibilityChange: setColumnVisibility,
         onGlobalFilterChange: setGlobalFilter,
         getCoreRowModel: getCoreRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFacetedRowModel: getFacetedRowModel(),
-        getFacetedUniqueValues: getFacetedUniqueValues(),
     })
 
-    // Only a project's admins change its tasks; everyone can move through them.
-    const isAdmin = Boolean(projectInfo.data?.data?.project_is_admin)
-    const canEdit = useCallback(() => isAdmin, [isAdmin])
+    // What the reader may do (Work Access); everyone can move through them.
+    const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid
+    const project = pages.first?.data?.data
+    const access = accessOf(project)
+    const canEdit = useCallback((t: TaskInfoInterface) => canEditTask(t, me, project), [me, project])
     // The first rows reach the list through the store, an effect after the
     // answer: until they do, the skeleton stays (not a frame of "No tasks yet").
-    const firstLoad = taskListState.length === 0 && (projectInfo.isLoading || (projectInfo.data?.data.project_tasks?.length ?? 0) > 0)
+    const firstLoad = taskListState.length === 0 && (pages.loading || (pages.first?.data?.data.project_tasks?.length ?? 0) > 0)
     const filtered = columnFilters.length > 0 || !!globalFilter
-    const failed = projectInfo.isError && taskListState.length === 0
+    const failed = !!pages.first?.isError && taskListState.length === 0
     const dueWeek = columnFilters.some((f) => f.id === DUE_WEEK)
     const shown = useMemo(() => {
         let tasks = display.showCompleted === "all" ? taskListState : taskListState.filter((t) => keepsFinished(t, display.showCompleted))
@@ -291,14 +250,15 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
         },
         [post, projectId, revalidateTaskKeys],
     )
-    const moreToLoad = (projectInfo.data?.pageCount ?? 1) > 1
     const [managing, setManaging] = useState(false)
 
     return (
         <KeyboardList tasks={taskListState} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts}>
+            {pages.readers}
             <WorkToolbar
                 table={table}
                 projectId={projectId}
+                canCreate={access.create_tasks}
                 grouping={display.grouping}
                 onGrouping={(grouping) => setDisplay({ grouping })}
                 props={display.props}
@@ -317,7 +277,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
             />
             {failed ? (
                 <WorkState>
-                    <ErrorState subject="this project's tasks" onRetry={() => void projectInfo.mutate()} />
+                    <ErrorState subject="this project's tasks" onRetry={() => void pages.first?.mutate()} />
                 </WorkState>
             ) : (
                 <GroupedTaskList
@@ -329,7 +289,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                     projectId={projectId}
                     loading={firstLoad}
                     // More pages to load: a group counts only what has come (PROJ-BUG-2).
-                    partial={moreToLoad}
+                    partial={pages.toCome}
                     filtered={filtered}
                     sortedBy={sortedBy}
                     fields={fields}
@@ -338,8 +298,8 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                         table.resetColumnFilters()
                         table.setGlobalFilter("")
                     }}
-                    onAdd={isAdmin ? addInGroup : undefined}
-                    onManageStatuses={isAdmin ? () => setManaging(true) : undefined}
+                    onAdd={access.create_tasks ? addInGroup : undefined}
+                    onManageStatuses={access.manage ? () => setManaging(true) : undefined}
                     empty={
                         <WorkState>
                             <EmptyState
@@ -348,7 +308,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                                 description="Make the first one, or bring them in from Linear, Jira, Asana or Trello."
                                 action={
                                     <div className="flex items-center gap-2">
-                                        <Button size="sm" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>New task</Button>
+                                        {access.create_tasks && <Button size="sm" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>New task</Button>}
                                         <Button size="sm" variant="secondary" onClick={() => router.push("/app/admin?tab=import")}>Import</Button>
                                     </div>
                                 }
@@ -357,16 +317,16 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                     }
                 />
             )}
-            {moreToLoad && !firstLoad && (
+            {pages.more && !firstLoad && (
                 <button
                     type="button"
-                    onClick={() => setPageSize((n) => n + LIST_PAGE)}
+                    onClick={pages.showMore}
                     className="flex h-9 w-full items-center pl-[54px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                 >
                     Show more tasks
                 </button>
             )}
-            {isAdmin && managing && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
+            {access.manage && managing && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
         </KeyboardList>
     )
 }

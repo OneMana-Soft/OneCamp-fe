@@ -20,7 +20,7 @@ import { AtSign, ArrowUp, BarChart3, ChevronDown, Clock, ListTodo, Loader2, Mic,
 import { cn } from "@/lib/utils/helpers/cn"
 import { openUI } from "@/store/slice/uiSlice"
 import { useVoiceDictation, dictationLabel } from "@/hooks/useVoiceDictation"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { formatSendAt, toLocalInputValue } from "@/lib/messages/schedulePresets"
 import { useModKey } from "@/hooks/useModKey"
 import { ACTION_TIP_ABOVE, ACTION_TIP_ABOVE_END } from "@/components/MessageDesktopHover/actionTip"

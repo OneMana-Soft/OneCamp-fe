@@ -222,10 +222,6 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         success: "Message updated.",
         error: "Failed to update message.",
     },
-    [PostEndpointUrl.AddDmMember]: {
-        success: "Member added to group chat.",
-        error: "Failed to add member to group chat.",
-    },
     [PostEndpointUrl.UpdateChatNotification]: {
         success: "Notification settings updated.",
         error: "Failed to update notification settings.",
@@ -661,7 +657,7 @@ export const usePost = () => {
         // down for the request: there is one toast on screen at a time, and
         // the two used to replace each other, the vaguer one last.
         const ownsErrorToast = !options.quiet && !!(showToast || options.showErrorToast)
-        const config = ownsErrorToast || options.quiet ? { suppressErrorToast: true } : undefined
+        const config = ownsErrorToast || options.quiet || options.showErrorToast === false ? { suppressErrorToast: true } : undefined
 
         setIsSubmitting(true)
         try {

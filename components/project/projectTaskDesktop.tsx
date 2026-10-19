@@ -46,6 +46,7 @@ import { NotificationLevelMenu } from "@/components/Notification/notificationLev
 import { useProjectNotification } from "@/hooks/useNotificationLevel";
 import { useProjectHue } from "@/lib/projectHue";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
+import { accessOf } from "@/lib/work/access";
 
 const VALID_TABS = ["list", "kanban", "timeline", "updates", "attachments", "docs"] as const
 type TabValue = (typeof VALID_TABS)[number]
@@ -58,6 +59,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const dispatch = useDispatch()
     const isAdmin = !!projectInfo.data?.data.project_is_admin
     const isMember = !!projectInfo.data?.data.project_is_member
+    const access = accessOf(projectInfo.data?.data)
 
     const searchParams = useSearchParams()
     const router = useRouter()
@@ -144,6 +146,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                 projectName={project?.project_name}
                                 isAdmin={isAdmin}
                                 isMember={isMember}
+                                access={access}
                                 archived={!isZeroEpoch(project?.project_deleted_at || "")}
                                 onRename={() => dispatch(openUI({ key: 'editProjectName', data: { projectUUID: projectId || "" } }))}
                                 onMembers={() => dispatch(openUI({ key: 'editProjectMember', data: { projectUUID: projectId || "" } }))}
@@ -204,7 +207,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                         key={projectId}
                                         projectId={projectId}
                                         onOpenTask={(taskUUID) => dispatch(openRightPanel({ taskUUID }))}
-                                        onCreateTask={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}
+                                        onCreateTask={access.create_tasks ? () => dispatch(openUI({ key: "createTask", data: { projectId } })) : undefined}
                                     />
                                 )}
                             />
@@ -213,7 +216,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             <Updates.View fallback={<TabLoading kind="list" />} render={(m) => <m.ProjectUpdates projectId={projectId} />} />
                         </TabsContent>
                         <TabsContent value="attachments" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
-                            <Files.View fallback={<TabLoading kind="list" />} render={(m) => <m.ProjectAttachments projectId={projectId} projectName={project?.project_name} canLink={isMember} />} />
+                            <Files.View fallback={<TabLoading kind="list" />} render={(m) => <m.ProjectAttachments projectId={projectId} projectName={project?.project_name} canLink={access.add_files} />} />
                         </TabsContent>
                         <TabsContent value="docs" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
                             <Docs.View fallback={<TabLoading kind="list" />} render={(m) => <m.default space={`project:${projectId}` as const} name={project?.project_name} />} />

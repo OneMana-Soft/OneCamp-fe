@@ -75,6 +75,8 @@ type WorkToolbarProps<TData> = {
   projectId?: string
   /** The screen's own controls after the filter chips: a board's tags, the columns it hides. */
   extra?: React.ReactNode
+  /** Whether the reader adds tasks (else no New task, no C). */
+  canCreate?: boolean
 } & ({ display: React.ReactElement } | ({ display?: undefined } & ListDisplay))
 
 /**
@@ -86,7 +88,7 @@ type WorkToolbarProps<TData> = {
  * Search or Cycle); the board brings its own Display.
  */
 export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
-  const { table, projectId, extra } = toolbar
+  const { table, projectId, extra, canCreate = true } = toolbar
   const dispatch = useDispatch()
   const { t } = useTranslation()
   const { options: statusOpts } = useProjectStatuses(projectId)
@@ -184,14 +186,14 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault()
         setFilterOpen(true)
-      } else if (e.key === "c" || e.key === "C") {
+      } else if ((e.key === "c" || e.key === "C") && canCreate) {
         e.preventDefault()
         newTask()
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [newTask])
+  }, [newTask, canCreate])
 
   const clearAll = () => {
     table.setColumnFilters((prev) => prev.filter((f) => f.id === "task_cycle"))
@@ -282,6 +284,7 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
               value={(state.globalFilter as string) || ""}
               onChange={(e) => table.setGlobalFilter(e.target.value)}
               onBlur={(e) => !e.target.value && setSearching(false)}
+              data-escape-own=""
               onKeyDown={fieldKeyDown((e) => {
                 if (e.key === "Escape") {
                   table.setGlobalFilter("")
@@ -299,11 +302,13 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
           </Button>
         )}
         {toolbar.display !== undefined ? toolbar.display : <DisplayMenu {...toolbar} />}
-        <Button size="sm" className="ml-1 text-ui-sm" onClick={newTask} aria-label="New task">
-          <Plus className="size-3.5" />
-          <span className="@max-[520px]:hidden">New task</span>
-          <span className="kbd @max-[520px]:hidden" aria-hidden="true">C</span>
-        </Button>
+        {canCreate && (
+          <Button size="sm" className="ml-1 text-ui-sm" onClick={newTask} aria-label="New task">
+            <Plus className="size-3.5" />
+            <span className="@max-[520px]:hidden">New task</span>
+            <span className="kbd @max-[520px]:hidden" aria-hidden="true">C</span>
+          </Button>
+        )}
       </div>
     </div>
   )

@@ -7,7 +7,9 @@ import { stubBackend } from "./stubbedApp"
 // offers no skin tones, so a status keeps the emoji's id and shows its
 // default; a workspace's own emoji have no store, so the picker offers none.
 // "Clear after → Custom" closed the whole menu on a computer: the date
-// picker it opened took the focus from the popover.
+// picker it opened took the focus from the popover. Custom is a day and a
+// time in the status itself now, each the shared field: a popover by it on a
+// computer, a panel of the status sheet on a phone (components/ui/drawer).
 
 type Sent = { path: string; body: Record<string, string> | null }
 
@@ -69,15 +71,19 @@ test.describe("on a computer", () => {
       await expect.poll(() => shownStatus(page)).toBe(`${e.glyph}${e.words}`)
     }
 
-    // Clear after → Custom: the date picker opens over the menu, which stays.
+    // Clear after → Custom: the day and the time in the menu, whose time
+    // picker opens by its field and leaves the menu open.
     await openStatus(page)
     await page.getByRole("textbox", { name: "Status" }).fill("Out for the afternoon")
     await page.getByRole("radio", { name: "Custom" }).click()
-    const picker = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "Set expiration" }) })
-    await expect(picker).toBeVisible()
+    await expect(page.locator("[data-status-custom]")).toBeVisible()
+    await page.getByRole("button", { name: /^Clears at/ }).click()
+    const times = page.getByRole("listbox", { name: "Time" })
+    await expect(times).toBeVisible()
     await expect(page.locator("[data-status-popover]")).toBeVisible()
-    await picker.getByRole("button", { name: "Set expiration" }).click()
-    await expect(page.locator('[data-clear-after="custom"]')).toHaveText(/^Until /)
+    await times.locator("[aria-selected='true']").click()
+    await expect(times).toBeHidden()
+    await expect(page.locator("[data-status-popover]")).toBeVisible()
     await page.getByRole("button", { name: "Save" }).click()
     await expect.poll(() => sent.at(-1)?.body?.emoji_expiry_time_in).toBe("custom")
     expect(Number(sent.at(-1)?.body?.emoji_expiry_time_at)).toBeGreaterThan(Date.now() / 1000)
@@ -109,7 +115,7 @@ test.describe("on a phone", () => {
     return line
   }
 
-  test("sets a status with each kind of emoji, and clears it", async ({ page }, testInfo) => {
+  test("sets a status with each kind of emoji, a custom end, and clears it", async ({ page }, testInfo) => {
     test.setTimeout(300_000)
     const sent = await app(page, testInfo)
 
@@ -129,6 +135,20 @@ test.describe("on a phone", () => {
       await expect.poll(() => sent.at(-1)?.body?.emoji_id).toBe(e.id)
       await expect.poll(() => shownStatus(page)).toContain(e.words)
     }
+
+    // Clear after → Custom, in the sheet: the time is a panel of it, with Back.
+    await openSheet(page)
+    await page.getByRole("button", { name: "Change your status" }).click()
+    await page.getByRole("radio", { name: "Custom" }).click()
+    await page.getByRole("button", { name: /^Clears at/ }).click()
+    const times = page.getByRole("listbox", { name: "Time" })
+    await expect(times).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByRole("button", { name: "Back" })).toBeVisible()
+    await times.locator("[aria-selected='true']").click()
+    await expect(times).toBeHidden()
+    await page.getByRole("button", { name: "Save" }).click()
+    await expect.poll(() => sent.at(-1)?.body?.emoji_expiry_time_in).toBe("custom")
+    expect(Number(sent.at(-1)?.body?.emoji_expiry_time_at)).toBeGreaterThan(Date.now() / 1000)
 
     await openSheet(page)
     await page.getByRole("button", { name: "Change your status" }).click()

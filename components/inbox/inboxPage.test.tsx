@@ -69,6 +69,23 @@ describe("Mail's frame (I1)", () => {
     expect(screen.getByText("Pick a conversation")).toBeTruthy()
   })
 
+  // Page modes (one press, one thing: lib/keys/escape). Going back uses the
+  // press, so a toast showing stays for the next one.
+  it("goes back with Esc as one press", async () => {
+    list = Promise.resolve({ threads: [row("t1", "a@b.test")] })
+    thread = Promise.resolve({ id: "t1", subject: "Contract", gmail_url: "u", messages: [msg("m1", "a@b.test")] })
+    render(<InboxPage />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole("button", { name: /a@b\.test/ }))
+    await act(async () => {})
+    const esc = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    act(() => {
+      window.dispatchEvent(esc)
+    })
+    expect(screen.getByText("Pick a conversation")).toBeTruthy()
+    expect(esc.defaultPrevented, "the press was used").toBe(true)
+  })
+
   it("focuses the search with /", async () => {
     list = Promise.resolve({ threads: [] })
     render(<InboxPage />)
@@ -126,7 +143,10 @@ describe("the list", () => {
 describe("inbox zero (I10)", () => {
   it("springs its check once and spends the day's one celebration", async () => {
     const celebrate = await import("@/lib/celebrate")
-    const pop = vi.spyOn(celebrate, "springPop").mockReturnValue(null)
+    const spring = await import("@/lib/spring")
+    // The bursts are a chunk fetched when the page is idle: here they are in.
+    await (await import("@/lib/celebrateSoon")).warmBursts()
+    const pop = vi.spyOn(spring, "springPop").mockReturnValue(null)
     const once = vi.spyOn(celebrate, "celebrateOnce").mockReturnValue(0)
     list = Promise.resolve({ threads: [] })
     render(<InboxPage />)

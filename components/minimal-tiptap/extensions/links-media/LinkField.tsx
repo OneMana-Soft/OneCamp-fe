@@ -73,6 +73,7 @@ export function LinkField({
             setValue(e.target.value)
             setProblem(null)
           }}
+          data-escape-own={!!onEscape ? "" : undefined}
           onKeyDown={(e) => {
             if (e.key === "Escape" && !isComposingKey(e.nativeEvent)) onEscape?.()
           }}

@@ -6,24 +6,25 @@ import { useEscapeClosesPanel } from "@/hooks/useEscapeClosesPanel";
 import {RootState} from "@/store/store";
 import { PanelOutlet } from "@/components/docEditor/registry/slots";
 import { useEditionGate } from "@/components/docEditor/registry/gate";
+import { ThreadPanel, preloadThreadPanels } from "@/components/conversation/ThreadPanel";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { getGroupingId } from "@/lib/utils/getGroupingId";
+import type { UserProfileInterface } from "@/types/user";
 
 // What the panel shows loads the first time it's opened, not with every
 // page: a thread's reply box brings the whole editor (ProseMirror, code
 // highlighting, Yjs), several hundred KB the first screen doesn't need. Once
 // the app is idle they're fetched anyway (below), so opening one rarely waits.
+// A conversation's thread is the ThreadPanel host's (chat A1), which loads its
+// kind's panel the same way.
 const loaders = {
-    channel: () => import("@/components/rightPanel/channelComments"),
-    chat: () => import("@/components/rightPanel/chatComments"),
-    group: () => import("@/components/rightPanel/groupChatComments"),
     task: () => import("@/components/rightPanel/taskInfoPanel"),
     doc: () => import("@/components/rightPanel/docCommentList"),
     event: () => import("@/components/rightPanel/eventInfoPanel"),
     ai: () => import("@/components/ai/AiChatPanel"),
     docAi: () => import("@/components/ai/DocAiAssistantPanel"),
 };
-const ChannelComments = dynamic(() => loaders.channel().then((m) => m.ChannelComments));
-const ChatComments = dynamic(() => loaders.chat().then((m) => m.ChatComments));
-const GroupChatComments = dynamic(() => loaders.group().then((m) => m.GroupChatComments));
 const TaskInfoPanel = dynamic(loaders.task);
 const DocCommentList = dynamic(() => loaders.doc().then((m) => m.DocCommentList));
 const EventInfoPanel = dynamic(loaders.event);
@@ -44,7 +45,10 @@ function usePreloadPanels() {
     useEffect(() => {
         let idle = 0
         let started = false
-        const preload = () => Object.values(loaders).forEach((load) => void load().catch(() => {}))
+        const preload = () => {
+            Object.values(loaders).forEach((load) => void load().catch(() => {}))
+            preloadThreadPanels()
+        }
         const start = () => {
             if (started) return
             started = true
@@ -71,6 +75,8 @@ export const RightPanel = () => {
     const gate = useEditionGate();
 
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState);
+    // A DM's thread is in the conversation of the two of you.
+    const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid;
     usePreloadPanels();
     const dispatch = useDispatch();
     // Escape closes a thread, task, comments or event panel, once no popup,
@@ -107,16 +113,18 @@ export const RightPanel = () => {
         }
 
 
+        // A conversation's thread (chat A1's ThreadPanel host).
         if (rightPanelState.data.chatUUID && rightPanelState.data.chatMessageUUID) {
-            return <ChatComments/>
+            const other = rightPanelState.data.chatUUID
+            return <ThreadPanel thread={{ in: { kind: "dm", id: self ? getGroupingId(self, other) : "", other }, root: rightPanelState.data.chatMessageUUID }}/>
         }
 
         if(rightPanelState.data.groupUUID && rightPanelState.data.chatMessageUUID) {
-            return <GroupChatComments/>
+            return <ThreadPanel thread={{ in: { kind: "group", id: rightPanelState.data.groupUUID }, root: rightPanelState.data.chatMessageUUID }}/>
         }
 
         if (rightPanelState.data.channelUUID && rightPanelState.data.postUUID) {
-            return <ChannelComments/>
+            return <ThreadPanel thread={{ in: { kind: "channel", id: rightPanelState.data.channelUUID }, root: rightPanelState.data.postUUID }}/>
         }
 
         if(rightPanelState.data.taskUUID) {

@@ -14,6 +14,7 @@ import { useDispatch } from "react-redux"
 import { useFetch } from "@/hooks/useFetch"
 import type { UserInfoRawInterface } from "@/types/user"
 import type { TaskInfoInterface } from "@/types/task"
+import { canEditTask } from "@/lib/work/access"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { GetTaskStatusQueryParamByStatus } from "@/lib/utils/getTaskStatusQueryParamByStatus"
 import { TaskKanbanColumnPriorityFilter } from "@/components/task/taskKanbanColumnPriorityFilter"
@@ -144,13 +145,13 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
                     <EmptyState illustration={<SpotTasks />} title={t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })} />
                 </WorkState>
             ) : (
-            <KeyboardList tasks={boardTasks} canEdit={canEditTask} placement="overlay" className="flex-1 overflow-hidden">
+            <KeyboardList tasks={boardTasks} canEdit={canEditMine} placement="overlay" className="flex-1 overflow-hidden">
                 <div className="h-full">
                     <TaskBoard
                         columns={columns}
                         visible={visible}
                         // Only in projects where I am an admin: the server allows no more.
-                        canDrag={canEditTask}
+                        canDrag={canEditMine}
                         onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop, statusPatch(drop.column, BUILT_IN_STATUSES))}
                         boardKey="my-tasks"
                         crossProject
@@ -166,5 +167,5 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
     )
 }
 
-/** Tasks here come from many projects; each is changed by its own project's admins. */
-const canEditTask = (task: TaskInfoInterface) => Boolean(task.task_project?.project_is_admin)
+/** Tasks here come from many projects; each says what the reader may do with it (task_access, Work Access). */
+const canEditMine = (task: TaskInfoInterface) => canEditTask(task)

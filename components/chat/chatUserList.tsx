@@ -193,6 +193,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                                     lastUsername={lastUsername}
                                     unseenMessageCount={dmData.dm_unread || 0}
                                     dmParticipants={filteredUser}
+                                    groupName={dmData.dm_name}
                                     userSelected={isSelected}
                                     attachmentCount={attachmentCount}
                                     lastAttachments={lastAttachments}

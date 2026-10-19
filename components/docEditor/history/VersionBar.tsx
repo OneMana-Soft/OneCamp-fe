@@ -201,7 +201,7 @@ function NameField({ initial, busy, onSave, onCancel }: { initial: string; busy:
         placeholder="Name this version"
         disabled={busy}
         className="h-7 min-w-0 flex-1 rounded-md bg-sunken px-2 text-heading text-ink outline-none ring-1 ring-inset ring-line focus-visible:ring-2 focus-visible:ring-brand"
-        data-version-name-field=""
+        data-escape-own=""
       />
       <Button type="submit" size="sm" disabled={busy} aria-busy={busy || undefined}>
         {busy && <Loader2 className="animate-spin" />}

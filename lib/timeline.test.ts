@@ -16,8 +16,6 @@ import {
   timelineRange,
   timelineRows,
   firstView,
-  barColor,
-  barHue,
   dotColor,
   dependencyLinks,
   type TimelineTask,
@@ -237,10 +235,9 @@ describe("the rows", () => {
 })
 
 describe("bar colours", () => {
-  // Design v3 (work.md W24): a bar wears its status's hue, so the chart has
-  // colour; a status with no hue of its own (to do, backlog) takes the
-  // project's. It replaced one neutral fill for every bar.
-  it("draw each bar in its status's hue, and the project's where the status has none", () => {
+  // A bar wears its project's hue now (step 3, part 3; timelineBars.test);
+  // a status's own colour stays on its dot.
+  it("keep each status's dot in its own colour", () => {
     const project = {
       built_in: [],
       colors: [],
@@ -250,22 +247,12 @@ describe("bar colours", () => {
         { id: "plain", project_id: "p", name: "Plain", category: "todo" as const, color: "slate", position: 1 },
       ],
     } as ProjectStatuses
-    const options = statusOptions(project)
-    expect(barHue({ task_status: "inProgress" }, options, "lake")).toBe("sun")
-    expect(barHue({ task_status: "inReview" }, options, "lake")).toBe("dusk")
-    expect(barHue({ task_status: "done" }, options, "lake")).toBe("moss")
-    expect(barHue({ task_status: "inReview", task_custom_status: "qa" }, options, "lake")).toBe("berry")
-    expect(barHue({ task_status: "todo" }, options, "lake")).toBe("lake")
-    expect(barHue({ task_status: "todo", task_custom_status: "plain" }, options, "sky")).toBe("sky")
-    expect(barColor({ task_status: "inProgress" }, options, "lake")).toBe("hue-sun")
     for (const c of STATUS_COLORS) {
       expect(dotColor({ task_status: "todo", task_custom_status: c }, statusOptions({ ...project, custom: [{ id: c, project_id: "p", name: c, category: "todo", color: c, position: 0 }] })), c).toBe(colorDot(c))
     }
   })
 
-  it("keep done work quiet without fading its name, and its dot in full colour", () => {
-    expect(barColor({ task_status: "done" }, statusOptions(null))).not.toMatch(/opacity/)
-    expect(barColor({ task_status: "done" }, statusOptions(null))).not.toBe(barColor({ task_status: "todo" }, statusOptions(null)))
+  it("keep done work's dot in full colour (its bar steps back to the tint: timelineBars.test)", () => {
     expect(dotColor({ task_status: "done" }, statusOptions(null))).toBe("bg-success")
     const { rows } = timelineRows([task("d", { task_status: "done", task_due_date: iso(2026, 10, 1, 17) })], { grouping: "status", statuses: statusOptions(null), showDone: true, collapsed: new Set() })
     expect(rows[0]).toMatchObject({ kind: "group", dot: "bg-success" })

@@ -19,7 +19,7 @@ import { TextSelection } from "@tiptap/pm/state"
 import { CaseSensitive, ChevronDown, ChevronRight, ChevronUp, Replace, ReplaceAll, Search, WholeWord, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { PHONE_QUERY } from "@/context/MediaQueryContext"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { actionById } from "@/components/docEditor/registry/registry"
 import type { ActionContext } from "@/components/docEditor/registry/types"
 import { MAX_MATCHES, findKey, findStateOf, replaceAll, replaceCurrent, setFind, setFindHooks, type FindState } from "@/components/minimal-tiptap/extensions/find-replace/findReplace"
@@ -209,6 +209,7 @@ function FindBar({ editor, ctx, asked, onClose }: { editor: Editor; ctx: ActionC
             ref={query}
             value={state.query}
             onChange={(e) => setFind(editor, { query: e.target.value })}
+            data-escape-own=""
             onKeyDown={(e) => keys(e, "find")}
             placeholder="Find in doc"
             aria-label="Find"
@@ -238,6 +239,7 @@ function FindBar({ editor, ctx, asked, onClose }: { editor: Editor; ctx: ActionC
               ref={replaceField}
               value={replacement}
               onChange={(e) => setReplacement(e.target.value)}
+              data-escape-own=""
               onKeyDown={(e) => keys(e, "replace")}
               placeholder="Replace with"
               aria-label="Replace with"

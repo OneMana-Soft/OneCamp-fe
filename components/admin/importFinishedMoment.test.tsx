@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
 // An import finishing is one of the playful layer's two moments worth a
@@ -8,8 +8,17 @@ import { cleanup, render, screen } from "@testing-library/react"
 
 const fx = vi.hoisted(() => ({ celebrate: vi.fn(() => 8), springPop: vi.fn(() => null) }))
 vi.mock("@/lib/celebrate", () => ({ celebrate: fx.celebrate, springPop: fx.springPop, prefersReducedMotion: () => false }))
+vi.mock("@/lib/spring", () => ({ springPop: fx.springPop }))
+vi.mock("@/lib/reducedMotion", () => ({ prefersReducedMotion: () => false }))
 
 import { ImportStatusChip } from "./ImportJobRow"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The celebrations' bursts are a chunk fetched when the page is idle
+// (lib/celebrateSoon): here they are in before anything finishes.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 beforeEach(() => {
   fx.celebrate.mockClear()

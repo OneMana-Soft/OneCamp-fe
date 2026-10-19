@@ -34,3 +34,43 @@ describe("readCaption", () => {
     expect(readCaption(line, { identity: "jonas" }, "oc.ai")).toBeNull()
   })
 })
+
+// Step 3, part 2: the call's own signals, the layer the Call State package
+// (#29, shared with chat B7) takes over: one topic, a kind and a payload,
+// from the sender LiveKit names. Reactions ride on it, UI only.
+import { CALL_REACTIONS, CALL_SIGNAL_TOPIC, encodeSignal, readCallSignal, readReaction } from "./signals"
+
+describe("a call's own signals", () => {
+  it("carry a kind and a payload on one topic, from the sender LiveKit says", () => {
+    const sent = encodeSignal("hand", { up: true })
+    expect(readCallSignal(sent, { identity: "maya", name: "Maya Chen" }, CALL_SIGNAL_TOPIC)).toEqual({ kind: "hand", payload: { up: true }, from: { identity: "maya", name: "Maya Chen" } })
+  })
+
+  it("take the sender from LiveKit, never from the packet", () => {
+    const forged = bytes({ kind: "reaction", payload: { emoji: "👍" }, from: { identity: "maya", name: "Maya Chen" } })
+    expect(readCallSignal(forged, { identity: "jonas", name: "Jonas Weber" }, CALL_SIGNAL_TOPIC)?.from).toEqual({ identity: "jonas", name: "Jonas Weber" })
+  })
+
+  it("come only from a person in the call, on their own topic, with a kind", () => {
+    const sent = encodeSignal("reaction", { emoji: "👍" })
+    expect(readCallSignal(sent, undefined, CALL_SIGNAL_TOPIC)).toBeNull()
+    expect(readCallSignal(sent, { identity: "transcriber-bot" }, CALL_SIGNAL_TOPIC)).toBeNull()
+    expect(readCallSignal(sent, { identity: "maya" }, "oc.ai")).toBeNull()
+    expect(readCallSignal(sent, { identity: "maya" }, undefined)).toBeNull()
+    expect(readCallSignal(bytes({ payload: {} }), { identity: "maya" }, CALL_SIGNAL_TOPIC)).toBeNull()
+  })
+})
+
+describe("a reaction", () => {
+  it("is one of the tray's emoji, from whoever sent it", () => {
+    expect(CALL_REACTIONS).toHaveLength(6)
+    expect(readReaction(encodeSignal("reaction", { emoji: "🎉" }), { identity: "maya", name: "Maya Chen" }, CALL_SIGNAL_TOPIC)).toEqual({ emoji: "🎉", identity: "maya", name: "Maya Chen" })
+  })
+
+  it("never draws what the tray doesn't offer: words, markup, a run of emoji", () => {
+    for (const emoji of ["<img src=x onerror=alert(1)>", "I approve the budget", "👍👍👍👍👍", 42, null]) {
+      expect(readReaction(encodeSignal("reaction", { emoji }), { identity: "maya" }, CALL_SIGNAL_TOPIC)).toBeNull()
+    }
+    expect(readReaction(encodeSignal("hand", { emoji: "👍" }), { identity: "maya" }, CALL_SIGNAL_TOPIC)).toBeNull()
+  })
+})

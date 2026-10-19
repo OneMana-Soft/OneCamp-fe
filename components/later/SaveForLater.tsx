@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { springPop } from "@/lib/celebrate"
+import { springPop } from "@/lib/spring"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,

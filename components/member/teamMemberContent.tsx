@@ -8,6 +8,11 @@ import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {TeamInfoRawInterface, TeamMemberAddOrRemoveInterface} from "@/types/team";
 import AddTeamMemberCombobox from "@/components/combobox/addTeamMemberCombobox";
+import {useState} from "react";
+import {Button} from "@/components/ui/button";
+import {useToast} from "@/hooks/use-toast";
+import axiosInstance, {OWN_ERRORS} from "@/lib/axiosInstance";
+import {apiErrorMessage} from "@/lib/utils/apiError";
 
 
 interface memberContentProp {
@@ -181,8 +186,44 @@ export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
     }
 
 
+    // A workspace admin reaches a team's stewardship (its people, and its
+    // projects' people and archiving) by becoming one of its admins: one
+    // step, recorded in the audit log (Work Access, D5).
+    const {toast} = useToast()
+    const [stewarding, setStewarding] = useState(false)
+    const workspaceAdminOnly = Boolean(selfProfile.data?.data.user_is_admin && teamInfo.data && !teamInfo.data.data.team_is_admin)
+    const makeMeAdmin = () => {
+        dispatch(openUI({
+            key: 'confirmAlert',
+            data: {
+                title: "Make yourself an admin of this team?",
+                description: "You'll manage its people, and the people of its projects. It's recorded in the audit log.",
+                confirmText: "Make me an admin",
+                onConfirm: async () => {
+                    setStewarding(true)
+                    try {
+                        await axiosInstance.post(`/admin/teams/${teamId}/admins/me`, undefined, OWN_ERRORS)
+                        void teamInfo.mutate()
+                    } catch (err) {
+                        toast({title: apiErrorMessage(err, "Couldn't make you one of its admins."), variant: "destructive"})
+                    } finally {
+                        setStewarding(false)
+                    }
+                },
+            },
+        }))
+    }
+
     return (
         <div className='flex-1 min-h-0 flex flex-col gap-y-4 w-full'>
+            {workspaceAdminOnly && (
+                <div data-team-steward="" className="flex flex-shrink-0 items-center justify-between gap-3 rounded-lg bg-sunken px-3 py-2.5">
+                    <p className="min-w-0 text-ui-sm text-ink-2">You run the workspace, but not this team.</p>
+                    <Button size="sm" variant="secondary" className="shrink-0" onClick={makeMeAdmin} disabled={stewarding}>
+                        Make me an admin
+                    </Button>
+                </div>
+            )}
             {canAdd && (
                 <div className="flex-shrink-0">
                     <AddTeamMemberCombobox handleAddMember={handleAddMember} teamId={teamId}/>

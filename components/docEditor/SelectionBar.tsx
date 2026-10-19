@@ -277,6 +277,7 @@ export function SelectionBar({ editor, context, onAIClick, onComment, hide }: Se
                     autoFocus
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
+                    data-escape-own=""
                     onKeyDown={(e) => {
                       // An input method's Escape drops the word being made, not the link.
                       if (e.key === "Escape" && !isComposingKey(e.nativeEvent)) {

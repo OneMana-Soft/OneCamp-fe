@@ -7,6 +7,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { DndContext, DragOverlay, useDroppable, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type KeyboardCoordinateGetter } from "@dnd-kit/core"
 import { addDays, format, startOfDay } from "date-fns"
 import { announce } from "@/lib/ui/announce"
+import { onEscape } from "@/lib/keys/onEscape"
 import { dragPoint, useDndSetup, useDragState, type DragWords } from "@/lib/ui/dnd"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,7 +32,7 @@ import { useStoredState } from "@/hooks/useStoredState"
 import { CalendarOff, ChevronDown, Plus, SlidersHorizontal } from "@/lib/icons"
 import { useGrow } from "@/hooks/useGrow"
 import { flipBy } from "@/lib/flip"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { statusKindOf } from "@/components/task/taskStatusCell"
@@ -42,7 +43,6 @@ import {
   ZOOMS,
   applyEdit,
   barBox,
-  barHue,
   bubbleLabel,
   dependencyLinks,
   datesAfter,
@@ -337,7 +337,7 @@ export function ProjectTimeline({
         window.removeEventListener("pointermove", move)
         window.removeEventListener("pointerup", up)
         window.removeEventListener("pointercancel", cancel)
-        window.removeEventListener("keydown", escape, true)
+        stopEscape()
         scroller.stop()
         drag.current = null
         setPreview(null)
@@ -355,16 +355,11 @@ export function ProjectTimeline({
       }
       const up = () => finish(true)
       const cancel = () => finish(false)
-      const escape = (ev: globalThis.KeyboardEvent) => {
-        if (ev.key !== "Escape") return
-        ev.preventDefault()
-        ev.stopPropagation()
-        finish(false)
-      }
+      // Esc calls the move off: the drag layer of the one Escape (lib/keys/escape).
+      const stopEscape = onEscape("drag", () => finish(false))
       window.addEventListener("pointermove", move)
       window.addEventListener("pointerup", up)
       window.addEventListener("pointercancel", cancel)
-      window.addEventListener("keydown", escape, true)
     },
     [canEdit, dayWidth, nameWidth, reschedule, shiftAlong, land],
   )
@@ -403,7 +398,7 @@ export function ProjectTimeline({
         window.removeEventListener("pointermove", move)
         window.removeEventListener("pointerup", up)
         window.removeEventListener("pointercancel", cancel)
-        window.removeEventListener("keydown", escape, true)
+        stopEscape()
         setLinking(null)
         swallowNextClick()
         const target = ev ? targetAt(ev.clientX, ev.clientY) : null
@@ -411,16 +406,11 @@ export function ProjectTimeline({
       }
       const up = (ev: globalThis.PointerEvent) => finish(ev)
       const cancel = () => finish(null)
-      const escape = (ev: globalThis.KeyboardEvent) => {
-        if (ev.key !== "Escape") return
-        ev.preventDefault()
-        ev.stopPropagation()
-        finish(null)
-      }
+      // Esc drops the line drawn: the drag layer of the one Escape (lib/keys/escape).
+      const stopEscape = onEscape("drag", () => finish(null))
       window.addEventListener("pointermove", move)
       window.addEventListener("pointerup", up)
       window.addEventListener("pointercancel", cancel)
-      window.addEventListener("keydown", escape, true)
     },
     [canEdit, nameWidth, setDependency, waitsOn],
   )
@@ -762,7 +752,7 @@ export function ProjectTimeline({
   const drawAt = grow.mode === "animate" ? growDone : 0
 
   return (
-    // The project's hue: the bars of statuses with no hue of their own (lib/timeline barHue).
+    // The project's hue: every bar's fill (TimelineBar), the drop ghost and the empty state.
     <div data-timeline="" className={cn(HUE_CLASS[projectHue], "flex h-full min-h-0 flex-col", className)}>
       {toolRow}
 
@@ -936,7 +926,7 @@ export function ProjectTimeline({
                       width={isMove ? origin.width : box.width}
                       shift={isMove ? box.left - origin.left : 0}
                       ghost={moving ? origin : null}
-                      hue={barHue(task, statuses, projectHue)}
+                      hue={projectHue}
                       label={spanLabel(span, today)}
                       bubble={moving ? bubbleLabel(span) : undefined}
                       late={late}

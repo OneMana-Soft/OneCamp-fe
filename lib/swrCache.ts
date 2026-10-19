@@ -35,6 +35,7 @@
 import type { Cache } from "swr"
 
 import { onSessionEnd } from "@/lib/sessionEnd"
+import { CLIENT_CONFIG_KEY } from "@/lib/clientConfigKey"
 import { GetEndpointUrl } from "@/services/endPoints"
 
 const CACHE_KEY = "onecamp-app-cache"
@@ -72,6 +73,9 @@ const KEPT: readonly string[] = [
   GetEndpointUrl.GetUserPublicDocList,
   GetEndpointUrl.GetAllUser,
   GetEndpointUrl.BotKinds,
+  // What this server has (AI, calls…), so a read that fails on the next load
+  // keeps the features it last had (hooks/useClientConfig).
+  CLIENT_CONFIG_KEY,
 ]
 
 /** Whether a response is written down for the next load (KEPT). Pure. */

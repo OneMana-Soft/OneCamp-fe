@@ -414,15 +414,20 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         window.dispatchEvent(new CustomEvent(CONTENT_IO_JOB_EVENT, { detail: JSON.parse(messageStr)?.data }))
                         break
 
-                    case MqttMessageType.Desktop_Notice:
+                    case MqttMessageType.Desktop_Notice: {
                         // A notification for the desktop app to raise: its
                         // webview has no web push. Only there, and its code
                         // loads only when one comes (lib/desktopNotices).
+                        const notice = JSON.parse(messageStr)?.data
                         if (isDesktopApp()) {
-                            const notice = JSON.parse(messageStr)?.data
                             void import("@/lib/desktopNotices").then((m) => m.raiseDesktopNotice(notice, userUuid))
+                        } else if (notice?.data?.type === "calendar" && String(notice.data.tag ?? "").startsWith("reminder:")) {
+                            // A calendar reminder shows in the open app too, with
+                            // Join or Snooze (calendar A5); its code comes with it.
+                            void import("@/components/calendar/reminderToast").then((m) => m.showReminder(notice))
                         }
                         break
+                    }
 
                     case MqttMessageType.Scheduled_Message:
                         // A scheduled message sent, failed or changed; every

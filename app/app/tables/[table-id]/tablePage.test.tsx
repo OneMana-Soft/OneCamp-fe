@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { hueFor } from "@/lib/campHue"
@@ -38,6 +38,9 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
   listRows,
 }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => {} }))
+// The row ledger's calls (tables A2): an undo, a redo.
+const { undoChange, redoChange } = vi.hoisted(() => ({ undoChange: vi.fn(), redoChange: vi.fn() }))
+vi.mock("@/lib/tables/ledger", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/tables/ledger")>()), undoChange, redoChange }))
 const { confirm } = vi.hoisted(() => ({ confirm: vi.fn() }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 // The save dot has its own tests; it needs the app's tooltip providers.
@@ -70,6 +73,13 @@ vi.mock("@/components/guest/GuestLinkSection", () => ({ GuestLinkSection: () => 
 
 import TableDetailPage from "./page"
 import { Toaster } from "@/components/ui/toaster"
+import { loadColumnMenus } from "@/components/table/ColumnMenu"
+import { cellPickers } from "@/components/table/cellPickerPart"
+import { loadTablePageParts } from "@/components/table/lazyParts"
+
+// The column menus, the cell pickers and the page's views, record and dialogs are chunks of their own
+// (lazyView): loaded once, before these tests, they draw at once.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), loadTablePageParts()]))
 
 beforeEach(() => {
   window.history.replaceState(null, "", `/app/tables/${TABLE_ID}`)
@@ -395,5 +405,42 @@ describe("a table AI made", () => {
     window.history.replaceState(null, "", `/app/tables/${TABLE_ID}`)
     render(<TableDetailPage />)
     expect(document.querySelector("[data-made-by-ai]")).toBeNull()
+  })
+})
+
+// Tables A2: ⌘Z undoes the reader's latest change to the table, ⌘⇧Z redoes
+// it, when they aren't typing; the toast says what was left as it is.
+describe("a table's undo and redo keys", () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true })
+  })
+  afterEach(() => {
+    undoChange.mockReset()
+    redoChange.mockReset()
+  })
+
+  it("undo and redo the reader's latest change, and say what they left", async () => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    undoChange.mockResolvedValue({ change_set: "u", reversed: "c", kind: "edit", changes: 1, skipped: 1 })
+    redoChange.mockResolvedValue({ change_set: "r", reversed: "u", kind: "undo", changes: 1, skipped: 0 })
+    render(
+      <>
+        <TableDetailPage />
+        <Toaster />
+      </>,
+    )
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true })
+    await waitFor(() => expect(undoChange).toHaveBeenCalledWith(TABLE_ID))
+    expect(await screen.findByText("1 change was left as it is: it changed again since.")).toBeTruthy()
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true, shiftKey: true })
+    await waitFor(() => expect(redoChange).toHaveBeenCalledWith(TABLE_ID))
+    expect(await screen.findByText("Redone")).toBeTruthy()
+  })
+
+  it("leave a field's own undo to it", () => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    render(<TableDetailPage />)
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Table name" }), { key: "z", metaKey: true })
+    expect(undoChange).not.toHaveBeenCalled()
   })
 })

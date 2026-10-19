@@ -1736,19 +1736,28 @@ body {
     font-size: 0.8rem;
   }
 
+  /* Where two bars meet: nothing, as the track is nothing. It was a 50%
+     black square, unseen only while scrollbar-color switched the pill off. */
   ::-webkit-scrollbar-corner {
-    background: rgba(0, 0, 0, 0.5);
+    background: transparent;
   }
 
-  /* Thin everywhere (INTERACTION_SPEC D15, PG2-03): Chrome 121+ ignores
-     ::-webkit-scrollbar on anything that sets scrollbar-color, so without a
-     width it drew its own bar, arrows and all. */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scroll-bar-color) var(--scroll-bar-bg-color);
+  /* Thin everywhere (INTERACTION_SPEC D15, PG2-03), as each engine draws it.
+     Chromium and Safari draw the 6px pill below (::-webkit-scrollbar);
+     Firefox, which has no ::-webkit-scrollbar, reads the standard
+     properties. They are set only there: Chromium 121+ and Safari 26.2+
+     ignore ::-webkit-scrollbar on anything whose scrollbar-color isn't auto,
+     and scrollbar-color is inherited, so set on * it switched the pill off
+     everywhere and Chromium drew its own classic bar, arrows and a 10px
+     gutter, on Linux and Windows (design/drawers-v3/ANALYSIS.md §1.3). */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scroll-bar-color) var(--scroll-bar-bg-color);
+    }
   }
 
-  /* Works on Chrome, Edge, and Safari */
+  /* Chromium (Chrome, Edge, Brave) and Safari: the pill. */
   *::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -1818,9 +1827,11 @@ body {
     overscroll-behavior: contain;
   }
 
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scroll-bar-color) transparent;
+  @supports not selector(::-webkit-scrollbar) {
+    .custom-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scroll-bar-color) transparent;
+    }
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -2077,10 +2088,13 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
    so a field with a larger size of its own (a title) keeps it, and the
    responsive ones too: the shared Input is 16px on a phone and md:text-sm
    from 768, an iPad's width, so on an iPad the task filter zoomed the page.
+   Every size of the scale under 16px, design v3's with the base's (ui,
+   ui-sm, meta, micro, body, heading): some fifty fields are set in those, the
+   OneCamp AI bar and the alt text box among them, and each zoomed the page.
    Unlayered, to outrank the field's own utilities. The editors are in
    components/minimal-tiptap/styles/index.css. */
 @media (pointer: coarse) {
-  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="button"], [type="submit"], [type="reset"], [type="image"]), textarea, select):is(.text-sm, .text-xs, .text-2xs, .text-3xs, .sm\:text-sm, .md\:text-sm, .lg\:text-sm, .sm\:text-xs, .md\:text-xs, .lg\:text-xs) {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="button"], [type="submit"], [type="reset"], [type="image"]), textarea, select):is(.text-sm, .text-xs, .text-2xs, .text-3xs, .sm\:text-sm, .md\:text-sm, .lg\:text-sm, .sm\:text-xs, .md\:text-xs, .lg\:text-xs, .sm\:text-3xs, .md\:text-3xs, .lg\:text-3xs, .sm\:text-2xs, .md\:text-2xs, .lg\:text-2xs, .text-micro, .sm\:text-micro, .md\:text-micro, .lg\:text-micro, .text-meta, .sm\:text-meta, .md\:text-meta, .lg\:text-meta, .text-ui-sm, .sm\:text-ui-sm, .md\:text-ui-sm, .lg\:text-ui-sm, .text-ui, .sm\:text-ui, .md\:text-ui, .lg\:text-ui, .text-body, .sm\:text-body, .md\:text-body, .lg\:text-body, .text-heading, .sm\:text-heading, .md\:text-heading, .lg\:text-heading) {
     font-size: 1rem;
   }
 }
@@ -2400,14 +2414,21 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     overflow-x: hidden;
     margin: 0 -8px;
     padding: 0 8px 12px;
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
     --fade-top: 0px;
     --fade-end: 0px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-end)), transparent 100%);
   }
+  /* Its thumb shows on hover only: the pill in Chromium and Safari, the
+     standard properties in Firefox (set only there, as the global bar's). */
+  .shell-scroll::-webkit-scrollbar-thumb { background-color: transparent; }
+  @supports not selector(::-webkit-scrollbar) {
+    .shell-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  }
   @media (hover: hover) {
-    .shell-scroll:hover { scrollbar-color: var(--line-3) transparent; }
+    .shell-scroll:hover::-webkit-scrollbar-thumb { background-color: var(--line-3); }
+    @supports not selector(::-webkit-scrollbar) {
+      .shell-scroll:hover { scrollbar-color: var(--line-3) transparent; }
+    }
   }
   .shell-scroll[data-more-above="true"] { --fade-top: 12px; }
   .shell-scroll[data-more-below="true"] { --fade-end: 12px; }
@@ -2557,8 +2578,15 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   @media (hover: none) { .shell-reveal { opacity: 1; } }
 
   /* Menus in the shell (M1, M2, More): 264px, r12, e3, 4px in, 30px items. */
+  /* At most the room the window leaves it, and scrolling past that (with the
+     overlay's quiet bar, app/overlay.css): on a phone in landscape the
+     account menu ran off the top of the screen, its status and pause rows
+     out of reach (design/drawers-v3/ANALYSIS.md §1.2). */
   .shell-menu {
     width: 264px;
+    max-height: var(--radix-dropdown-menu-content-available-height);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 4px;
     border-radius: var(--radius-lg);
     background: var(--pop);
@@ -3278,28 +3306,159 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
 }
 /* V3 SHELL: LOADING, ERRORS, SHORTCUTS
    Design v3, shell §L1–L4, §K, §R (design/v3-areas/shell.md, mocks M6 and M7).
-   Transform and opacity only, but for the ring draw (stroke-dashoffset on one
-   56px stroke, listed in app/motionCost.test.ts). Every animation here is
-   declared under prefers-reduced-motion: no-preference, so with reduced
-   motion the ring is simply drawn, the words are there and nothing moves. */
+   Transform and opacity only (app/motionCost.test.ts). Every animation here
+   is declared under prefers-reduced-motion: no-preference, so with reduced
+   motion the splash's scene is simply there, whole, the words are there and
+   nothing moves. */
 @layer components {
-  /* THE SPLASH (L1). 0–150ms: the frame colour only, so a fast load never
-     flashes a splash. From 150ms the glow, the grain and the ring appear; the
-     ring draws once from 12 o'clock; the line fades in at 350ms. */
+  /* THE SPLASH (L1; 17 Oct 2026). One composition on every start screen: the
+     app's first paint (lib/appBoot), the start page for a member, the demo's
+     start, and the app's own where the layout has none.
+
+     The ground is the app's own: the frame with its glow and grain, or on a
+     phone the sheet with the phone's glow (the phone's app is the sheet edge
+     to edge, app/phone.css). So the hand-over to the app changes the mark and
+     nothing else, and the installed app's launch screen, the browser's bar and
+     the desktop app's window are painted the same (lib/pwa/grounds).
+
+     The scene (Splash.tsx, 160px): a halo of the theme's glow, two orbits,
+     three hue dots, and the logo's ring, which assembles from three arcs
+     swinging into place, closes with one ripple and is joined by the spark.
+     Then the halo breathes (6s) and the dots drift round (48s a turn) until
+     the app is there; the ring never turns. Each moving part is its own
+     element moved by transform and opacity, so the compositor runs it while
+     the app's code loads and parses on the main thread.
+
+     When the app is ready the splash fades out over it at once (220ms),
+     wherever its motion has got to, the scene easing out a little as it goes:
+     a cross-fade, never a wait. */
   .splash {
+    --splash-ground: var(--frame);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
+    gap: 18px;
     min-height: 100dvh;
     padding: 0 16px;
     text-align: center;
   }
-  .splash-ring-draw {
-    stroke-dasharray: 100;
-    stroke-dashoffset: 0;
+  @media (max-width: 639.98px) {
+    .splash { --splash-ground: var(--sheet); }
+    .splash.app-frame { background: var(--sheet); }
+    .splash.app-frame::before { background: radial-gradient(420px 300px at -60px -80px, rgb(var(--glow) / 0.2), transparent 68%); }
+    .dark .splash.app-frame::before { background: radial-gradient(420px 300px at -60px -80px, rgb(var(--glow) / 0.14), transparent 68%); }
+    .splash.app-frame::after { display: none; }
   }
+  .splash-scene {
+    position: relative;
+    flex: none;
+    width: 160px;
+    height: 160px;
+  }
+  .splash-scene > * { position: absolute; }
+  .ss-orbits, .ss-dots { inset: 0; width: 160px; height: 160px; }
+  .ss-orbits circle { fill: none; stroke: var(--line-2); }
+  .ss-orbits .ss-dash {
+    stroke: var(--line-3);
+    stroke-width: 1.25;
+    stroke-dasharray: 1.5 5;
+    stroke-linecap: round;
+  }
+  .ss-halo {
+    left: -12px;
+    top: -12px;
+    width: 184px;
+    height: 184px;
+    border-radius: 9999px;
+  }
+  /* The theme's glow is the frame's alone (app/glowHue.test.ts): the halo and
+     the ripple are the frame's light round the mark, drawn only on it. */
+  .app-frame .ss-halo {
+    background: radial-gradient(closest-side, rgb(var(--glow) / 0.26), rgb(var(--glow) / 0.09) 58%, transparent);
+  }
+  .dark .app-frame .ss-halo {
+    background: radial-gradient(closest-side, rgb(var(--glow) / 0.2), rgb(var(--glow) / 0.07) 58%, transparent);
+  }
+  .ss-arc, .ss-ring { left: 52px; top: 52px; width: 56px; height: 56px; }
+  .ss-arc circle, .ss-ring circle { fill: none; stroke-width: 8; }
+  .ss-arc { display: none; }
+  /* One ripple as the ring closes: a hairline of the theme's glow, 44px round the ring. */
+  .ss-ripple {
+    left: 58px;
+    top: 58px;
+    width: 44px;
+    height: 44px;
+    border-radius: 9999px;
+    opacity: 0;
+  }
+  .app-frame .ss-ripple { box-shadow: inset 0 0 0 1.5px rgb(var(--glow)); }
+  .ss-spark { left: 128px; top: 8px; width: 16px; height: 16px; fill: var(--brand); }
+  /* The demo's people on the orbit, ringed in the ground they sit on. */
+  .ss-face {
+    display: grid;
+    place-items: center;
+    translate: -50% -50%;
+    font-size: 10px;
+    line-height: 1;
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.22), 0 0 0 2.5px var(--splash-ground);
+  }
+  /* Its type is the scale's xs (13/18), set on the element. */
+  .splash-line {
+    margin: 0;
+    color: var(--ink-2);
+  }
+  .splash-name { color: var(--ink); font-weight: 510; }
+  /* Slow (past 8s): "Still connecting to …" and Try again, in the line's place. */
+  .splash-slow {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .splash-retry {
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-weight: 510;
+    color: var(--ink);
+  }
+  html[data-app-boot="slow"] .app-boot .splash-slow,
+  .splash-slow[data-shown] { display: flex; }
+  html[data-app-boot="slow"] .app-boot .splash-opening { display: none; }
+  /* The hand-over: a short cross-fade over the app, drawn whole under it. */
+  .app-boot,
+  .splash[data-leaving] { transition: opacity 220ms var(--ease-out); }
+  html[data-app-boot="leaving"] .app-boot,
+  .splash[data-leaving] { opacity: 0; pointer-events: none; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .splash.app-frame::before,
+    .splash.app-frame::after { animation: ss-in 640ms var(--ease-out) both; }
+    .ss-orbits { animation: ss-orbits 760ms var(--ease-out) 40ms both; }
+    .ss-arc { display: block; animation: ss-arc 700ms var(--ease-out) calc(60ms + var(--i) * 70ms) both; }
+    .ss-ring { display: none; }
+    .ss-ripple { animation: ss-ripple 1000ms var(--ease-out) 600ms forwards; }
+    .ss-halo { animation: ss-halo 1100ms var(--ease-out) 160ms both, ss-breathe 6s ease-in-out 1260ms infinite alternate; }
+    .ss-dots { animation: ss-in 700ms var(--ease-out) 300ms both, ss-orbit 48s linear infinite; }
+    .ss-spark { animation: ss-spark 520ms var(--ease-spring) 680ms both; }
+    .ss-face { animation: ss-face 440ms var(--ease-spring) calc(520ms + var(--i) * 80ms) both; }
+    .splash-line { animation: ss-line 420ms var(--ease-out) 420ms both; }
+    /* The slow note comes in place of the line at once, not after the line's own wait. */
+    .splash-slow { animation-delay: 0ms; }
+    .splash-scene { transition: transform 260ms var(--ease-out); }
+    html[data-app-boot="leaving"] .app-boot .splash-scene,
+    .splash[data-leaving] .splash-scene { transform: scale(1.04); }
+    /* Settled: put up over a screen that already showed the scene (the
+       demo's start, lib/appBoot), so nothing arrives again: every arrival is
+       long over (its last frame held), and the loops go on. It fades in over
+       that screen, so only what differs (the people, the line) changes. */
+    .splash[data-settled] { animation: ss-in 200ms var(--ease-out) both; }
+    .splash[data-settled] *,
+    .splash[data-settled]::before,
+    .splash[data-settled]::after { animation-delay: -9s; }
+  }
+
   /* SKELETONS (L2): the press fill at r5, breathing as every skeleton does. */
   .sk {
     background: var(--press);
@@ -3346,32 +3505,6 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    .splash > *,
-    .splash.app-frame::before,
-    .splash.app-frame::after {
-      animation: splash-appear 1ms 150ms both;
-    }
-    .splash-ring-draw {
-      animation: ring-draw 600ms var(--ease-out) 150ms both;
-    }
-    .splash > .splash-line,
-    .splash-line {
-      animation: splash-line-in 300ms var(--ease-out) 350ms both;
-    }
-    /* The app's splash taking over from the first paint's (lib/appBoot):
-       it is already on screen, ring drawn, so nothing enters or draws again. */
-    .splash[data-continued] > *,
-    .splash[data-continued].app-frame::before,
-    .splash[data-continued].app-frame::after,
-    .splash[data-continued] .splash-ring-draw,
-    .splash[data-continued] .splash-line {
-      animation: none;
-    }
-    /* What follows the splash: the shell, fading up from nothing once. Only
-       backwards fill, so the finished shell keeps no stacking context. */
-    .shell-enter {
-      animation: shell-in 160ms var(--ease-out) backwards;
-    }
     .sk {
       animation: skeleton-breathe 1.8s ease-in-out infinite;
     }
@@ -3398,18 +3531,28 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     }
   }
 }
-@keyframes splash-appear {
-  from { opacity: 0; }
+/* The splash's motion (THE SPLASH, above). The orbits and the line start at
+   1%, not 0: Chrome counts nothing at opacity 0 as painted, and the fades run
+   on the compositor without painting again, so the first contentful paint
+   waited for the app (1.9 s became 3.8 s on a phone). At 1% the first paint
+   is the first contentful paint, and nobody can see the difference. */
+@keyframes ss-in { from { opacity: 0; } }
+@keyframes ss-orbits { from { opacity: 0.01; transform: scale(0.86); } }
+@keyframes ss-arc {
+  from { opacity: 0; transform: rotate(-150deg) scale(1.32); }
+  40% { opacity: 1; }
+  to { opacity: 1; transform: none; }
 }
-@keyframes ring-draw {
-  from { stroke-dashoffset: 100; }
+@keyframes ss-ripple {
+  from { opacity: 0.5; transform: scale(1); }
+  to { opacity: 0; transform: scale(2.7); }
 }
-@keyframes splash-line-in {
-  from { opacity: 0; transform: translateY(4px); }
-}
-@keyframes shell-in {
-  from { opacity: 0; }
-}
+@keyframes ss-halo { from { opacity: 0; transform: scale(0.5); } }
+@keyframes ss-breathe { to { opacity: 0.6; transform: scale(1.06); } }
+@keyframes ss-orbit { to { transform: rotate(360deg); } }
+@keyframes ss-spark { from { opacity: 0; transform: scale(0.2) rotate(-60deg); } }
+@keyframes ss-face { from { opacity: 0; transform: scale(0.6); } }
+@keyframes ss-line { from { opacity: 0.01; transform: translateY(4px); } }
 @keyframes sheet-progress-sweep {
   from { transform: translateX(-100%); }
   to { transform: translateX(250%); }

@@ -22,7 +22,7 @@ vi.mock("@/lib/sessionEnd", () => ({ endSession: async () => {} }))
 
 const { default: axiosInstance, onVisitorPage } = await import("@/lib/axiosInstance")
 
-const VISITOR_PAGES = ["/guest/d/abc123", "/book/maya-patel", "/booking/tok-123", "/f/form-tok", "/unsubscribe"]
+const VISITOR_PAGES = ["/guest/d/abc123", "/book/maya-patel", "/booking/tok-123", "/f/form-tok", "/rsvp/tok-456", "/unsubscribe"]
 
 function becomeVisible() {
   Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true })

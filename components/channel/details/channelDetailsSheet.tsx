@@ -21,7 +21,7 @@ import ChannelAIBudget from "@/components/member/channelAIBudget"
 import { useChannelMembers } from "@/components/member/channelMemberContent"
 import { ChannelWeeklyReportSetting } from "@/components/ai/ChannelWeeklyReportSetting"
 import { MemberRow } from "@/components/channel/details/memberRow"
-import { DetailsRow as Row, DetailsSection as Section } from "@/components/channel/details/detailsParts"
+import { DetailsRow as Row, DetailsSection as Section, InlineConfirm } from "@/components/channel/details/detailsParts"
 import { ChannelNameRow } from "@/components/channel/details/channelNameRow"
 import { isComposingKey } from "@/lib/keys/ime"
 import { useToast } from "@/hooks/use-toast"
@@ -56,40 +56,6 @@ interface UpdateChannelPayload {
     channel_archived: boolean
     post_policy: "everyone" | "admins_only"
     channel_about?: string
-}
-
-/**
- * A destructive action that asks in place (C54): the button turns into the
- * question and its two answers, inside the card. No dialog over a sheet.
- */
-function InlineConfirm({ label, question, warning, confirmLabel, onConfirm, busy, disabled, description }: {
-    label: string
-    question: string
-    warning?: string
-    confirmLabel: string
-    onConfirm: () => void
-    busy?: boolean
-    disabled?: boolean
-    description?: string
-}) {
-    const [asking, setAsking] = useState(false)
-    if (!asking) {
-        return (
-            <Row label={label} description={description}>
-                <Button variant="destructive" size="sm" disabled={disabled} onClick={() => setAsking(true)}>{label}</Button>
-            </Row>
-        )
-    }
-    return (
-        <div role="group" aria-label={question} className="space-y-2 px-3 py-3 animate-fade-in">
-            <p className="text-ui font-medium text-ink">{question}</p>
-            {warning && <p className="text-meta text-warning-ink">{warning}</p>}
-            <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setAsking(false)} autoFocus>Cancel</Button>
-                <Button variant="destructive" size="sm" aria-busy={busy || undefined} onClick={onConfirm}>{confirmLabel}</Button>
-            </div>
-        </div>
-    )
 }
 
 /**
@@ -316,6 +282,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                                     <Label htmlFor="channel-topic" className="text-meta font-medium text-ink-2">Description</Label>
                                     <Input
                                         id="channel-topic"
+                                        data-escape-own=""
                                         autoFocus
                                         value={topic}
                                         maxLength={250}

@@ -240,3 +240,23 @@ describe("version history", () => {
     expect(await screen.findByRole("listbox", { name: "Versions" })).toBeTruthy()
   })
 })
+
+describe("Esc in a version's name", () => {
+  it("leaves the name as it was, and the history stays for the next press", async () => {
+    const onClose = vi.fn()
+    render(
+      <TooltipProvider>
+        <HistorySheet docId={DOC} onClose={onClose} />
+      </TooltipProvider>,
+    )
+    await screen.findByText("We ship on Friday")
+    fireEvent.click(screen.getByRole("button", { name: "Name" }))
+    const field = screen.getByRole("textbox", { name: "The version's name" })
+    fireEvent.change(field, { target: { value: "Before the review" } })
+    fireEvent.keyDown(field, { key: "Escape" })
+    expect(screen.queryByRole("textbox", { name: "The version's name" })).toBeNull()
+    expect(screen.getByText("We ship on Friday")).toBeTruthy()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  })
+})

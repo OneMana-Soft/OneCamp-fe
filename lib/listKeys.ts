@@ -11,7 +11,6 @@ export type ListAction =
   | { type: "column"; by: 1 | -1 }
   | { type: "open" }
   | { type: "toggle" }
-  | { type: "clear" }
   | { type: "edit"; field: ListField }
 
 interface Keys {
@@ -43,8 +42,6 @@ export function listKey(e: Keys): ListAction | null {
       return e.shiftKey ? null : { type: "open" }
     case "x":
       return { type: "toggle" }
-    case "Escape":
-      return { type: "clear" }
     case "s":
       return { type: "edit", field: "status" }
     case "a":

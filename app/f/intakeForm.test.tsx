@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const getForm = vi.fn()
 const sendForm = vi.fn()
@@ -10,6 +10,13 @@ const celebrateTask = vi.fn((_el: Element | null) => 8)
 vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element | null) => celebrateTask(el) }))
 
 import IntakeForm from "@/app/f/[token]/page"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The celebrations' bursts are a chunk fetched when the page is idle
+// (lib/celebrateSoon): here they are in before anything finishes.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 const form = {
   title: "Website change request",

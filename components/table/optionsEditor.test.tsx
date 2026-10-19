@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 const aggregate = vi.fn()
@@ -13,8 +13,12 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
   aggregateTable: (...a: unknown[]) => aggregate(...a),
 }))
 
-import { ColumnHeader } from "@/components/table/ColumnMenu"
+import { ColumnHeader, loadColumnMenus } from "@/components/table/ColumnMenu"
 import type { TableField } from "@/services/tableService"
+
+// The column menu's pages are a chunk of their own (ColumnMenu.tsx): loaded
+// before the tests, as the grid warms it when a header is reached.
+beforeAll(() => loadColumnMenus())
 
 // One option saved with an id, two from before options had them.
 const stage: TableField = {

@@ -135,6 +135,21 @@ describe("following someone", () => {
     expect(screen.getByRole("status").textContent).toBe("Stopped following Maya Chen")
   })
 
+  // Page modes (one press, one thing: lib/keys/escape). Stopping uses the
+  // press, so a toast showing stays for the next one.
+  it("stops on Esc as one press", async () => {
+    awareness.states.set(5, { ...maya, cursor: { head: "h1" } })
+    mount()
+    await act(frame)
+    act(() => seen.control!.follow(5))
+    const esc = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    act(() => {
+      window.dispatchEvent(esc)
+    })
+    expect(local().following).toBeNull()
+    expect(esc.defaultPrevented, "the press was used").toBe(true)
+  })
+
   it("stops when the reader moves the page themselves", () => {
     awareness.states.set(5, { ...maya, cursor: { head: "h1" } })
     mount()

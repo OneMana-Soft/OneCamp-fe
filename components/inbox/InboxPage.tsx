@@ -51,6 +51,7 @@ import {
 } from "@/services/inboxService"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { useModEnter } from "@/hooks/useModKey"
+import { onEscape } from "@/lib/keys/onEscape"
 import { foldedAtStart, inboxKeyAction, senderAddress, splitQuoted, threadByline } from "@/components/inbox/inboxParts"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
@@ -216,12 +217,21 @@ export default function InboxPage() {
     void summarize()
   }, [thread, summarize])
 
-  // The keys (I1). Letters only act outside a field; Esc also leaves one.
+  // Esc goes back to the list, from a field too (the reply box).
+  useEffect(() => {
+    if (!openId) return
+    return onEscape("page", (e) => {
+      if (e.target instanceof HTMLElement) e.target.blur()
+      setOpenId(null)
+    })
+  }, [openId])
+
+  // The keys (I1). Letters only act outside a field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const action = inboxKeyAction(e)
       if (!action) return
-      if (typing(e.target) && action !== "back") return
+      if (typing(e.target)) return
       const rows = threads ?? []
       switch (action) {
         case "next":
@@ -235,12 +245,6 @@ export default function InboxPage() {
           if (cursor >= 0 && rows[cursor]) {
             e.preventDefault()
             void open(rows[cursor].id)
-          }
-          return
-        case "back":
-          if (openId) {
-            if (e.target instanceof HTMLElement) e.target.blur()
-            setOpenId(null)
           }
           return
         case "summarise":

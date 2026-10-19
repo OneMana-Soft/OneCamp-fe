@@ -18,6 +18,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils/helpers/cn"
 import { AuthDivider, AuthField, AuthHeading, AuthNotice, AuthPlaceholder, AuthShell, IdentityChip, PasswordField, authControl } from "@/components/auth/AuthShell"
 import { SpotPlug } from "@/components/ui/graphics/spots"
+import { holdAppBoot, leaveAppBoot } from "@/lib/appBoot"
 import { SignInSide } from "@/components/auth/SignInSide"
 import { landingPath } from "@/lib/landing"
 import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
@@ -145,6 +146,22 @@ export default function SignInPage() {
 
   const router = useRouter();
 
+  // Into the app, on the app's splash (lib/appBoot): it is up at once, over
+  // this page, while the app's code comes, and the app takes it over. A
+  // member's start page has it up already, from its first paint. `settled`
+  // when the demo's starting screen, the same scene, is what it covers.
+  const enterApp = useCallback((path: string, settled = false) => {
+    holdAppBoot({ settled });
+    router.push(path);
+  }, [router]);
+
+  // Nobody is signed in here: the start page is the sign-in page, so the
+  // splash its first paint showed for a member's browser fades from over it,
+  // and the next start shows this page from the first paint.
+  useEffect(() => {
+    if (!isChecking) leaveAppBoot();
+  }, [isChecking]);
+
   // Returns to the password step, of whichever form asked: email or directory (the tab is left as it
   // was). The password is cleared as well as the challenge: an expired challenge means
   // re-authenticating, and leaving the field populated invites a click on "Sign in" that looks like a
@@ -166,12 +183,12 @@ export default function SignInPage() {
     async (code: string) => {
       const result = await authService.completeTOTPLogin(totpChallenge, code);
       if (result.status === "success") {
-        router.push(app_home_path);
+        enterApp(app_home_path);
         return null;
       }
       return { msg: result.msg, expired: result.reason === "challenge_expired" };
     },
-    [router, totpChallenge],
+    [enterApp, totpChallenge],
   );
 
   // What both password forms do with the answer: go in, ask for the code, or say why not, each form
@@ -181,7 +198,7 @@ export default function SignInPage() {
     switch (result.status) {
       case "success":
         // Someone who has just joined opens on the channel they were put in.
-        router.push(landingPath(result.landing) ?? app_home_path);
+        enterApp(landingPath(result.landing) ?? app_home_path);
         break;
       case "totp_required":
         // The password was correct and there is NO session yet. Routing here would land the user in
@@ -339,7 +356,7 @@ export default function SignInPage() {
     setIsLoading(true);
     try {
       const result = await signInWithPasskey();
-      if (result.ok) router.push(app_home_path);
+      if (result.ok) enterApp(app_home_path);
       else setPasskeyError(result.msg ?? NO_PASSKEY_USED);
     } catch (error) {
       // A cancel and "this device has no passkey for this site" look the

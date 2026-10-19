@@ -138,3 +138,18 @@ describe("the comment composer", () => {
         expect(screen.queryByRole("button", { name: /record|emoji|format|later/i })).toBeNull()
     })
 })
+
+// Where comments keep no files (a table's rows, for now), the composer offers
+// none: no paperclip, no file input.
+describe("a composer that takes no files", () => {
+    it("offers no way to attach one", async () => {
+        render(
+            <TooltipProvider>
+                <CommentComposer docId="table_row:r1" placeholder="Add a comment…" label="Comment on this row" uploads={false} onSend={sender()} />
+            </TooltipProvider>,
+        )
+        await editor()
+        expect(screen.queryByRole("button", { name: "Attach files" })).toBeNull()
+        expect(document.querySelector('[data-comment-composer] input[type="file"]')).toBeNull()
+    })
+})

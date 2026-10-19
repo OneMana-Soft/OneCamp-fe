@@ -28,7 +28,7 @@ import { BOARD_TEMPLATES, centreAt, type BoardTemplate } from "@/lib/board/templ
 import { selectedNotes, type BoardElementLike, type SelectedNote } from "@/lib/board/notes"
 import { FloatingBar, FloatingBarButton, FloatingBarDivider } from "@/components/ui/FloatingBar"
 import { TemplatePreview } from "@/components/board/templatePreview"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { cn } from "@/lib/utils/helpers/cn"
 
 interface BoardToolsProps {

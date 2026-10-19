@@ -113,12 +113,14 @@ describe("PWA manifest icons", () => {
     expect(sizes).toContain("512x512")
   })
 
-  it("keeps the splash and chrome colours equal to the light app shell", () => {
-    // The splash is the page (--background); the browser chrome continues the
-    // top bar, which sits on the canvas (--canvas). Both are read from the
-    // tokens, so a palette change cannot leave the manifest behind.
+  it("keeps the launch screen's and the status bar's colours equal to the light app shell", () => {
+    // An installed app is a phone's: the page is the sheet (--background), and
+    // so is the phone's top bar, which the status bar continues (ThemeColorMeta,
+    // lib/pwa/grounds). It was the canvas, a grey bar over a white launch.
+    // Both are read from the tokens, so a palette change cannot leave the
+    // manifest behind (grounds.test.ts checks the dark pair).
     expect(manifest.background_color.toLowerCase()).toBe(lightToken("background"))
-    expect(manifest.theme_color.toLowerCase()).toBe(lightToken("canvas"))
+    expect(manifest.theme_color.toLowerCase()).toBe(lightToken("sheet"))
   })
 
   it("ships an opaque apple-touch-icon PNG, since iOS ignores SVG", () => {

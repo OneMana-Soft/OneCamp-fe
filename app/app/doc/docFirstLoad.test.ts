@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { existsSync, readFileSync, statSync } from "fs"
-import path from "path"
+import { existsSync, readFileSync } from "fs"
+
+import { chainOf, packageOf, walk } from "../../../scripts/fluidity/reach.mjs"
 
 // What opening a doc downloads on top of Home (docs programme A2; I20: the doc
 // route adds at most 300 KB gzip over Home, and heavy libraries load lazily).
@@ -52,6 +53,8 @@ const NEVER_FILES = [
   "lib/codec/markdown.ts",
   // The trash's client loads with the page chrome's lazy pieces (B6: TrashedBanner, the breadcrumbs, More's actions).
   "services/docGraphService.ts",
+  // The tables service comes with the doc's first new table (docInput), 17 Oct 2026.
+  "services/tableService.ts",
 ]
 
 /**
@@ -61,56 +64,24 @@ const NEVER_FILES = [
  * path). A1 brought it to 743 KB the same day: the doc-only blocks load with
  * the doc's editor, the codec on idle or at the first selection, the phone's
  * AI sheet when it opens, DocDeleted's restore client when Restore shows.
- * May only go down.
+ * May only go down. It lives in the one table of route ceilings
+ * (scripts/fluidity/route-ceilings.json, beyondHome), with every route's own.
  */
-const DOC_ROUTE_SOURCE_CEILING = 745_000
+const DOC_ROUTE_SOURCE_CEILING: number = JSON.parse(readFileSync("scripts/fluidity/route-ceilings.json", "utf8")).beyondHome[DOC_ROUTE].source
 
-const importRe = /^\s*(?:import|export)\s+(?!type\b)(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/gm
-
-function resolve(spec: string, from: string): string | null {
-  let base: string
-  if (spec.startsWith("@/")) base = spec.slice(2)
-  else if (spec.startsWith(".")) base = path.join(path.dirname(from), spec)
-  else return null
-  for (const c of [base, `${base}.ts`, `${base}.tsx`, `${base}.js`, path.join(base, "index.ts"), path.join(base, "index.tsx")]) {
-    if (existsSync(c) && statSync(c).isFile() && /\.(t|j)sx?$/.test(c)) return c
-  }
-  return null
-}
-
-const packageOf = (spec: string) => (spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0])
-
-/** Files reached by static import (with who imported each) and packages (with their importer). */
+// The one walker of the first-load guards (scripts/fluidity/reach.mjs).
+/** Files reached by static import (with who imported each) and packages (with their first importer). */
 function reach(entries: string[]) {
-  const files = new Map<string, string | null>(entries.map((e) => [e, null]))
+  const walked = walk(entries) as { files: Map<string, string | null>; packages: Array<[string, string]> }
   const packages = new Map<string, string>()
-  const queue = [...entries]
-  while (queue.length) {
-    const file = queue.shift()!
-    const src = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
-    for (const m of src.matchAll(importRe)) {
-      const next = resolve(m[1], file)
-      if (next) {
-        if (!files.has(next)) {
-          files.set(next, file)
-          queue.push(next)
-        }
-      } else if (!m[1].startsWith(".") && !m[1].startsWith("@/") && !packages.has(packageOf(m[1]))) {
-        packages.set(packageOf(m[1]), file)
-      }
-    }
+  for (const [spec, file] of walked.packages) {
+    const p = packageOf(spec) as string
+    if (!packages.has(p)) packages.set(p, file)
   }
-  return { files, packages }
+  return { files: walked.files, packages }
 }
 
-function chain(files: Map<string, string | null>, from: string | null): string {
-  const out: string[] = []
-  while (from) {
-    out.push(from)
-    from = files.get(from) ?? null
-  }
-  return out.join(" <- ")
-}
+const chain = (files: Map<string, string | null>, from: string | null): string => (from ? (chainOf(files, from) as string) : "")
 
 const home = reach(HOME)
 const doc = reach([DOC_ROUTE])

@@ -95,6 +95,36 @@ describe("the rows a table's page holds", () => {
     expect(mutate).not.toHaveBeenCalled()
   })
 
+  // A row's threads changed (business/TableComments): the page holding it is
+  // read again for its comment count, whatever shows its threads is told, and
+  // nothing else is read.
+  it("asks again for only the page holding a row someone commented on, and tells its threads", async () => {
+    const { result } = renderHook(() => useTableRows("t"))
+    act(() => result.current.more())
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    listRows.mockClear()
+    const { onRowComments } = await import("@/lib/tables/rowComments")
+    const told = vi.fn()
+    const stop = onRowComments("r700", told)
+    tell({ action: "comments", row_id: "r700", thread_id: "th1", event: "thread.created" })
+    expect(told).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(listRows.mock.calls).toEqual([["t", 500, 500]]))
+    expect(mutate).not.toHaveBeenCalled()
+    stop()
+  })
+
+  // A row given a page (tables T2): the page of rows holding it is read
+  // again, for the row's page, and nothing else.
+  it("asks again for only the page holding a row someone gave a page", async () => {
+    const { result } = renderHook(() => useTableRows("t"))
+    act(() => result.current.more())
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    listRows.mockClear()
+    tell({ action: "page", row_id: "r700", page: "d1" })
+    await waitFor(() => expect(listRows.mock.calls).toEqual([["t", 500, 500]]))
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
   it("asks again for the bundle and every page held when rows go", async () => {
     const { result } = renderHook(() => useTableRows("t"))
     act(() => result.current.more())
@@ -103,6 +133,34 @@ describe("the rows a table's page holds", () => {
     tell({ action: "deleted", row_id: "r3" })
     await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(listRows).toHaveBeenCalledWith("t", 500, 500))
+  })
+
+  // The row ledger (A2): a change of many rows is one live message naming them.
+  it("asks again for only the pages holding rows a change of many only changed", async () => {
+    const { result } = renderHook(() => useTableRows("t"))
+    act(() => result.current.more())
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    listRows.mockClear()
+    edited.r600 = "Pasted"
+    edited.r650 = "Pasted"
+    tell({ action: "changed", change_set: "cs", created: [], updated: ["r600", "r650"], deleted: [], restored: [] })
+    await waitFor(() => expect(result.current.rows.find((r) => r.id === "r650")?.values).toContain("Pasted"))
+    expect(listRows.mock.calls).toEqual([["t", 500, 500]])
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it("asks again for everything held when a change of many made, deleted, brought back or moved rows", async () => {
+    for (const change of [{ created: ["r1200"] }, { deleted: ["r3"] }, { restored: ["r3"] }, { updated: ["r3"], moved: true }, { updated: ["r3"], more: true }]) {
+      const { result, unmount } = renderHook(() => useTableRows("t"))
+      act(() => result.current.more())
+      await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+      mutate.mockClear()
+      listRows.mockClear()
+      tell({ action: "changed", change_set: "cs", created: [], updated: [], deleted: [], restored: [], ...change })
+      await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(listRows).toHaveBeenCalledWith("t", 500, 500))
+      unmount()
+    }
   })
 
   it("asks for the bundle alone when a row is added or the table renamed", async () => {

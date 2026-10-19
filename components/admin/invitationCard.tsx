@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Button } from "@/components/ui/button"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { SpotInbox } from "@/components/ui/graphics"
-import { celebrate } from "@/lib/celebrate"
+import { celebrate } from "@/lib/celebrateSoon"
 import { ErrorState } from "@/components/ui/error-state"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { InvitationListResponseInterface } from "@/types/user"

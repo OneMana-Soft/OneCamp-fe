@@ -35,7 +35,7 @@ import {
 import { CampBand, FirstRunCamp, useHost, useReducedMotion } from "@/components/auth/CampArt"
 import { ThemeStep, TeamStep } from "@/components/auth/FirstRun"
 import { SpotError } from "@/components/ui/graphics/spots"
-import { celebrate } from "@/lib/celebrate"
+import { celebrate } from "@/lib/celebrateSoon"
 import { hueFor } from "@/lib/campHue"
 
 /** How long the ignition plays before step 2 (the spec's ceiling is 1.4s). */

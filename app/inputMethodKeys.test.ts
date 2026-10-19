@@ -119,13 +119,15 @@ const NONE_IN = [
  * Fields elsewhere that still act on an input method's keys: 57 on 15 Oct 2026,
  * once the docs, editor and sharing were fixed; 43 once fourteen task and
  * project fields took fieldKeyDown (16 Oct); 38 with the tables fixes (17d);
- * 37 once the calendar's Go to took it (TABLES-A2's 58a2a68a1, carried ahead).
- * Admin, AI composers, boards, channels, six table fields, the
- * task panel's InlineEdit (fixed on rv-shell-fe-2026-10-15-projects) and
- * pickers; the test's message lists them. Lower it as they are fixed; never
- * raise it.
+ * 25 once the last six table fields did (tables A1: the tables' search and
+ * rename, the rows' search, a column's name, a typed cell and a record's
+ * title), counting the fields fixed meanwhile, the calendar's Go to among
+ * them; still 25 merged with web beta 07592907d, which counted 37 without
+ * A1's fixes. Admin, AI composers, boards, calendar, the home and inbox,
+ * pickers and the like; the test's message lists them. Lower it as they are
+ * fixed; never raise it.
  */
-const ELSEWHERE_BASELINE = 37
+const ELSEWHERE_BASELINE = 25
 
 describe("an input method's Enter and Escape", () => {
   const found = fieldsThatDontWait()

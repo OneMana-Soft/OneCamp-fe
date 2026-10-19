@@ -13,11 +13,10 @@ import { exceedsUploadLimit, uploadLimitMessage } from '@/lib/utils/uploadLimit'
 import { LinkBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/link-bubble-menu'
 import { SelectionBar } from '@/components/docEditor/SelectionBar'
 import { DocAccessoryBar } from '@/components/docEditor/DocAccessoryBar'
-import { celebrate } from '@/lib/celebrate'
+import { celebrate } from '@/lib/celebrateSoon'
 import { DOC_EDITOR_CLASS, useDocEditor } from '@/components/docEditor/useDocEditor'
 import { ImageNotUploadable, type ImageUploadOptions } from '@/components/minimal-tiptap/extensions/image/uploads'
 import { TableEmbedPickerDialog } from '@/components/docEditor/TableEmbedPickerDialog'
-import { createTable } from '@/services/tableService'
 import { tableForDoc } from '@/components/docEditor/tableForDoc'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
 import { useDispatch, useSelector } from "react-redux"
@@ -73,6 +72,13 @@ interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate
     abilities?: DocAbilities
     /** What shows under the title: what a reader may do (DocAccessNote). */
     belowTitle?: React.ReactNode
+    /**
+     * A doc that belongs to something else (a table row's page, docs D-18):
+     * drawn without the doc page's own layers over its body (the gutter's
+     * marks, an empty doc's starter of templates, import and Ask AI), whose
+     * paths refuse a hosted doc.
+     */
+    hosted?: boolean
 }
 
 /**
@@ -102,7 +108,7 @@ function useChecklistDone(editor: Editor | null) {
 }
 
 const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
-    ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, titleStore, onTitleChange, onTitleBlur, editableTitle = true, collaboration, lastEditedRelative, focusMode, fullWidth = false, authorName, onEditor, onComment, abilities, belowTitle, ...props }, ref) => {
+    ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, titleStore, onTitleChange, onTitleBlur, editableTitle = true, collaboration, lastEditedRelative, focusMode, fullWidth = false, authorName, onEditor, onComment, abilities, belowTitle, hosted = false, ...props }, ref) => {
         const { toast } = useToast()
         const uploadFile = useUploadFile()
         const clientConfig = useClientConfig()
@@ -288,6 +294,9 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             setCreatingTable(true)
             try {
                 const { visibility } = docId ? await tableForDoc(docId) : { visibility: 'private' as const }
+                // The tables service comes with the first new table, not with the doc's
+                // first screen (17 Oct 2026: 24 KB, app/app/doc/docFirstLoad.test.ts).
+                const { createTable } = await import("@/services/tableService")
                 const t = await createTable({ name: "Untitled table", visibility })
                 editor.chain().focus().setTableEmbed({ tableId: t.id }).run()
                 setEmbedTableOpen(false)
@@ -367,7 +376,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                         )}
                         {/* The gutter and the empty starter (DocBodyLayer.tsx):
                             no height, over the top of the body. */}
-                        {editor && !snapshot && (
+                        {editor && !snapshot && !hosted && (
                             <DocBodyLayer gate={gate} docId={docId ?? ''} editor={editor} canEdit={canEdit} padded={isFullWidth ? "px-5 md:px-12" : "px-5 md:px-8"} />
                         )}
                         {editor && (
@@ -416,6 +425,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                                     initialAction={drawerAsk.action as never}
                                     initialPrompt={drawerAsk.prompt}
                                     onClose={() => setIsDrawerOpen(false)}
+                                    sheet
                                 />
                             </React.Suspense>
                         )}

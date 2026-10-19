@@ -28,6 +28,21 @@ export function chipsTinted(field: TableField | undefined | null): boolean {
   return !!field && parseFieldConfig(field).tinted === true
 }
 
+/**
+ * The columns of a table whose chips are tinted: each that switched it on,
+ * or, while none has, the table's first single select, unless it switched it
+ * off. That is the column a board groups by unless told otherwise, the one
+ * most like a status: Notion's tinted pills read state faster than a dot (the
+ * rivals review, 16 Oct 2026), and one tinted column a table keeps the grid
+ * calm, as the column menu advises.
+ */
+export function tintedFields(fields: TableField[]): Set<string> {
+  const said = fields.filter((f) => parseFieldConfig(f).tinted === true)
+  if (said.length) return new Set(said.map((f) => f.id))
+  const first = fields.filter((f) => f.type === "select").sort((a, b) => a.position - b.position)[0]
+  return first && parseFieldConfig(first).tinted !== false ? new Set([first.id]) : new Set()
+}
+
 export function OptionChip({
   label,
   color,

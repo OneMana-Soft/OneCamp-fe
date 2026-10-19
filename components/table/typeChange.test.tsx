@@ -1,5 +1,5 @@
 import * as React from "react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 const preview = vi.fn()
@@ -17,6 +17,12 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
 
 import { ColumnHeader, type ColumnPage } from "@/components/table/ColumnMenu"
 import type { TableField } from "@/services/tableService"
+import { loadColumnMenus } from "@/components/table/ColumnMenu"
+import { cellPickers } from "@/components/table/cellPickerPart"
+
+// The column menus, the cell pickers are chunks of their own
+// (lazyView): loaded once, before these tests, they draw at once.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm()]))
 
 const notes: TableField = { id: "notes", table_id: "t", name: "Notes", type: "text", config: "{}", position: 0 }
 const tags: TableField = { id: "tags", table_id: "t", name: "Tags", type: "multi_select", config: JSON.stringify({ options: [{ id: "o_a", label: "A" }] }), position: 1 }

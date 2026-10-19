@@ -42,6 +42,41 @@ afterEach(() => {
   patchRow.mockReset()
 })
 
+// The rivals review (16 Oct 2026): Notion tints each column and heads it with
+// its pill; our cards printed bare "Field value" lines (PTC-31).
+describe("a table's board, drawn", () => {
+  const hued: TableField[] = fields.map((f) =>
+    f.id === "stage" ? { ...f, config: JSON.stringify({ options: [{ id: "o_todo", label: "To do", color: "sky" }, { id: "o_done", label: "Done", color: "emerald" }] }) } : f,
+  )
+
+  it("washes a lane in its option's hue, under the option's own tint, and no value stays neutral", () => {
+    render(<DataTableBoard tableId="t" fields={hued} rows={[card(1, "Done")]} canManage onChange={() => {}} />)
+    expect(lane("o_done").className).toContain("hue-moss")
+    expect(lane("o_done").querySelector("[data-option-chip]")!.hasAttribute("data-tinted")).toBe(true)
+    expect(lane("__none__").className).toMatch(/(^|\s)bg-sunken(\s|$)/)
+  })
+
+  it("is the layer's drop well under a held card", () => {
+    render(<DataTableBoard tableId="t" fields={hued} rows={[card(1, "To do")]} canManage onChange={() => {}} />)
+    const c = cardButton("Card 1")
+    c.focus()
+    fireEvent.keyDown(c, { key: " " })
+    expect(lane("o_todo").getAttribute("data-drop")).toBe("valid")
+    expect(lane("o_todo").className).not.toMatch(/ring-brand/)
+    fireEvent.keyDown(c, { key: "Escape" })
+  })
+
+  it("shows a card's fields as chips with their names: a choice as the grid draws it, text as name and value", () => {
+    render(<DataTableBoard tableId="t" fields={hued} rows={[card(1, "To do")]} canManage onChange={() => {}} />)
+    const notes = document.querySelector<HTMLElement>('[data-card-field="notes"]')!
+    expect(notes.textContent).toBe("NotesTheirs")
+    expect(notes.className).toMatch(/(^|\s)chip(\s|$)/)
+    const priority = document.querySelector<HTMLElement>('[data-card-field="priority"]')!
+    expect(priority.querySelector("[data-option-chip]")!.textContent).toBe("High")
+    expect(priority.getAttribute("title")).toBe("Priority")
+  })
+})
+
 describe("a table's board", () => {
   it("draws a lane's first 50 cards, and the rest when asked", () => {
     const rows = Array.from({ length: 300 }, (_, i) => card(i, "To do"))
@@ -50,6 +85,25 @@ describe("a table's board", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show 250 more" }))
     expect(screen.getAllByText(/^Card \d+$/)).toHaveLength(300)
     expect(screen.queryByRole("button", { name: /^Show .* more$/ })).toBeNull()
+  })
+})
+
+// Tables A1 (FD-14): a row has one name, its primary field, on a card as in
+// its record and its links; the board had a rule of its own, the first text
+// field.
+describe("a board card's title", () => {
+  const row = (values: Record<string, unknown>): TableRow => ({ id: "r1", table_id: "t", position: 1, created_at: "", updated_at: "", values: JSON.stringify(values) })
+
+  it("is the row's primary field, wherever that field sits", () => {
+    const named = fields.map((f) => (f.id === "notes" ? { ...f, primary: true } : f))
+    render(<DataTableBoard tableId="t" fields={named} rows={[row({ item: "Card 1", stage: "To do", notes: "Invoice 7" })]} canManage onChange={() => {}} />)
+    expect(screen.getByRole("button", { name: "Move Invoice 7" })).toBeTruthy()
+  })
+
+  it("is the first field on a table with none marked, whatever its kind", () => {
+    const numbered: TableField[] = [{ id: "no", table_id: "t", name: "No.", type: "number", config: "{}", position: 0 }, ...fields.map((f) => ({ ...f, position: f.position + 1 }))]
+    render(<DataTableBoard tableId="t" fields={numbered} rows={[row({ no: 42, item: "Card 1", stage: "To do" })]} canManage onChange={() => {}} />)
+    expect(screen.getByRole("button", { name: "Move 42" })).toBeTruthy()
   })
 })
 

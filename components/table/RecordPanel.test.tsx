@@ -16,6 +16,29 @@ vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 const { toast } = vi.hoisted(() => ({ toast: vi.fn() }))
 vi.mock("@/hooks/use-toast", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/use-toast")>()), useToast: () => ({ toast }) }))
 
+// The row's comments are their own chunk (components/table/comments): a stand-in
+// that shows what the record hands it, and reports a count for Notes' cell.
+const comments = vi.hoisted(() => ({ props: null as null | Record<string, unknown>, counts: {} as Record<string, number> }))
+vi.mock("@/components/table/comments/RowComments", async () => {
+  const React = await import("react")
+  function RowCommentsStandIn(p: { target: string | null; onCellCounts?: (c: Record<string, number>) => void }) {
+    comments.props = p
+    React.useEffect(() => p.onCellCounts?.(comments.counts), [p])
+    return <div data-testid="row-comments" data-target={p.target ?? ""} />
+  }
+  return { default: RowCommentsStandIn }
+})
+// The row's page is its own chunk too (components/table/rowPage): a stand-in
+// that shows which row and page the record hands it.
+vi.mock("@/components/table/rowPage/RowPage", () => {
+  function RowPageStandIn(p: { rowId: string; page?: string }) {
+    return <div data-testid="row-page" data-row={p.rowId} data-page={p.page ?? ""} />
+  }
+  return { default: RowPageStandIn }
+})
+const { copy } = vi.hoisted(() => ({ copy: vi.fn() }))
+vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copy, copied: false }) }))
+
 import { RecordPanel } from "@/components/table/RecordPanel"
 import type { TableField, TableRow } from "@/services/tableService"
 
@@ -97,6 +120,23 @@ describe("a row's record with lines of text", () => {
     expect(commitCell).toHaveBeenCalledWith(lined, "notes", "Para one\n\nPara two, again")
   })
 
+  // The title is as tall as its text, never as the record around it: it was
+  // the record's visible height, a blank stretch above the fields.
+  it("is as tall as its title's text", () => {
+    const scroll = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "TEXTAREA" ? 64 : 900
+    })
+    // The record around it is far taller than the title.
+    const client = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "TEXTAREA" ? 64 : 900
+    })
+    open()
+    const title = screen.getByRole("textbox", { name: "Item" }) as HTMLTextAreaElement
+    expect(title.style.height).toBe("64px")
+    scroll.mockRestore()
+    client.mockRestore()
+  })
+
   it("keeps the title's lines, and adds one on Shift+Enter", () => {
     const commitCell = open()
     const title = screen.getByRole("textbox", { name: "Item" }) as HTMLTextAreaElement
@@ -118,5 +158,133 @@ describe("a row's record", () => {
     render(<RecordPanel tableId="t" tableName="Launch budget" fields={[...fields, tags]} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
     for (const label of ["A", "B", "C", "D"]) expect(screen.getAllByText(label).length).toBeGreaterThan(0)
     expect(screen.queryByText("+2")).toBeNull()
+  })
+})
+
+// Tables A1: a record is titled by the row's name, its primary field (FD-14),
+// and says what each field is for (its description).
+describe("a row's record and its fields", () => {
+  const open = (with_: TableField[], values: Record<string, unknown>) =>
+    render(
+      <RecordPanel
+        tableId="t"
+        tableName="Launch budget"
+        fields={with_}
+        rows={[{ id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify(values) }]}
+        rowId="r1"
+        canManage
+        commit={{ commitCell: vi.fn(), linkCell: vi.fn() }}
+        onStep={vi.fn()}
+        onClose={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    )
+
+  it("is titled by the primary field, wherever that field sits", () => {
+    open(
+      fields.map((f) => (f.id === "notes" ? { ...f, primary: true } : f)),
+      { item: "Booth", summary: "A booth", notes: "Stand B" },
+    )
+    const title = screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement
+    expect(title.value).toBe("Stand B")
+    expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("Stand B, a row of Launch budget")
+    expect(screen.getByText("Item")).toBeTruthy()
+  })
+
+  // A table's first select is tinted until someone switches it off in its
+  // column menu (optionChip tintedFields). Switched off, the record shows the
+  // neutral chip and dot, as the grid and a guest's view do.
+  it("keeps a select's chips neutral once its column switched tinting off", () => {
+    const stage = (tinted?: boolean): TableField => ({
+      id: "stage",
+      table_id: "t",
+      name: "Stage",
+      type: "select",
+      position: 3,
+      config: JSON.stringify({ options: [{ id: "o_won", label: "Won", color: "green" }], ...(tinted === undefined ? {} : { tinted }) }),
+    })
+    const chip = () => screen.getAllByText("Won")[0].closest("[data-option-chip]")
+    open([...fields, stage()], { item: "Booth", stage: "Won" })
+    expect(chip()?.hasAttribute("data-tinted")).toBe(true)
+    cleanup()
+    open([...fields, stage(false)], { item: "Booth", stage: "Won" })
+    expect(chip()).toBeTruthy()
+    expect(chip()?.hasAttribute("data-tinted")).toBe(false)
+  })
+
+  it("says what a field is for, under its value", () => {
+    open(
+      fields.map((f) => (f.id === "notes" ? { ...f, description: "Who pays, and when" } : f)),
+      { item: "Booth", summary: "A booth", notes: "" },
+    )
+    const said = screen.getByText("Who pays, and when")
+    expect(said.tagName).toBe("DD")
+    expect(said.hasAttribute("data-field-description")).toBe(true)
+  })
+})
+
+
+// Comments on a row (tables A8): the record holds them, each field's button
+// starts one on its cell and says how many it has, and the record copies a
+// link to its row.
+describe("a row's comments in its record", () => {
+  afterEach(() => {
+    comments.props = null
+    comments.counts = {}
+    copy.mockReset()
+  })
+
+  it("starts a comment on the cell whose button was chosen", async () => {
+    panel(row())
+    expect((await screen.findByTestId("row-comments")).dataset.target).toBe("")
+    fireEvent.click(screen.getByRole("button", { name: "Comment on Notes" }))
+    expect(screen.getByTestId("row-comments").dataset.target).toBe("notes")
+  })
+
+  it("says how many comments a cell has", async () => {
+    comments.counts = { notes: 2 }
+    panel(row())
+    await screen.findByRole("button", { name: "Comment on Notes, 2 comments" })
+    expect(screen.getByRole("button", { name: "Comment on Summary" })).toBeTruthy()
+  })
+
+  it("copies a link to the row", async () => {
+    panel(row())
+    fireEvent.click(screen.getByRole("button", { name: "Copy a link to this row" }))
+    expect(copy).toHaveBeenCalledWith(expect.stringMatching(/\/app\/tables\/t\?row=r1$/), expect.any(String))
+  })
+})
+
+// Rows as pages (T2): the record shows the row's page under its fields, and
+// opens as a page across the window, or beside the grid, as each person last
+// chose.
+describe("a row's page in its record", () => {
+  afterEach(() => {
+    try {
+      window.localStorage.clear()
+    } catch {
+      // no storage in this run
+    }
+  })
+
+  it("shows the row's page under its fields", async () => {
+    panel({ ...row(), page: "d1" })
+    const page = await screen.findByTestId("row-page")
+    expect(page.dataset.row).toBe("r1")
+    expect(page.dataset.page).toBe("d1")
+  })
+
+  it("opens as a page, and back beside the grid, and remembers which", async () => {
+    panel(row())
+    const dialog = screen.getByRole("dialog")
+    expect(dialog.hasAttribute("data-record-as-page")).toBe(false)
+    fireEvent.click(screen.getByRole("button", { name: "Open as a page" }))
+    expect(dialog.hasAttribute("data-record-as-page")).toBe(true)
+    expect(screen.getByRole("button", { name: "Back to the side panel" }).getAttribute("aria-pressed")).toBe("true")
+    cleanup()
+    panel(row())
+    expect(await screen.findByRole("button", { name: "Back to the side panel" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Back to the side panel" }))
+    expect(screen.getByRole("dialog").hasAttribute("data-record-as-page")).toBe(false)
   })
 })

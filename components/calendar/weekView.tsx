@@ -5,6 +5,7 @@ import { addDays, format, isSameDay, isWeekend, parseISO, startOfDay } from "dat
 import { cn } from "@/lib/utils/helpers/cn";
 import { ChevronDown, Plus } from "@/lib/icons";
 import { SpotCalendar } from "@/components/ui/graphics";
+import { lazyView } from "@/components/task/LazyView";
 import { HueBlock, dragPlaceholderClasses } from "@/components/calendar/HueBlock";
 import { NowLine, useMinute } from "@/components/calendar/NowLine";
 import { kindOf, type CalendarItemLike } from "@/components/calendar/calendarTones";
@@ -13,11 +14,15 @@ import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
 import { clockHour, clockRange, clockTime } from "@/lib/utils/date/clock";
 import { placedByDates } from "@/lib/calendar/allDay";
+import { DEFAULT_VIEW_MINUTES, openingMinute } from "@/lib/calendar/openAt";
 import { daySpan, daySpanWords } from "@/components/calendar/calendarLayout";
 import { onDragCancel } from "@/lib/ui/dragCancel";
 import { PRESS_LIFT, holdLifted, pressBecomes } from "@/lib/ui/pressLift";
 import { edgeScroller } from "@/lib/ui/edgeScroll";
 import { useStableCallback } from "@/hooks/useStableCallback";
+
+/** The rail's "+N" list, loaded when a day first has more than the rail holds. */
+const Rail = lazyView(() => import("@/components/calendar/railMore"));
 
 /** px per hour: 15 minutes is 14 px (content.md C07). */
 export const HOUR_HEIGHT = 56;
@@ -41,9 +46,11 @@ interface TimedItem extends CalendarItemLike {
   /** How many columns it covers, from `col`: the free ones to its right as well. */
   span: number;
   movable: boolean;
+  /** It began on an earlier day: its block starts at the top of this one. */
+  carried?: boolean;
 }
 
-interface AllDayItem extends CalendarItemLike {
+export interface AllDayItem extends CalendarItemLike {
   uuid: string;
   title: string;
   task_status?: string;
@@ -265,6 +272,7 @@ export function WeekView({
           cols: 1,
           span: 1,
           movable: !!onEventChange && isSameDay(start, end) && (canMove ? canMove(base.uuid) : true),
+          carried: start < dayStart,
         });
       });
     };
@@ -276,7 +284,12 @@ export function WeekView({
         const start = parseISO(e.event_start_time);
         const end = parseISO(e.event_end_time);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
-        pushTimedOrAllDay({ uuid: e.event_uuid, title: e.event_title, event_uuid: e.event_uuid, event_is_focus: !!e.event_is_focus, event_is_away: !!e.event_is_away }, start, end, !!e.event_all_day);
+        pushTimedOrAllDay(
+          { uuid: e.event_uuid, title: e.event_title, event_uuid: e.event_uuid, event_is_focus: !!e.event_is_focus, event_is_away: !!e.event_is_away, event_hue: e.event_hue },
+          start,
+          end,
+          !!e.event_all_day,
+        );
       });
     }
 
@@ -310,30 +323,34 @@ export function WeekView({
     return { timedByDay: timed.map(packDay), allDayByDay: allDay };
   }, [days, events, tasks, showEvents, showTasks, onEventChange, canMove]);
 
-  // On opening, the working day is in view: an hour before now when today is
-  // shown, whatever came earlier that week (an event at 00:30 on Saturday
-  // opened this week at midnight: PTC-8); else 8 am, or earlier for an
-  // earlier first event; with the hour's label clear of the top. Once more
-  // when the items first arrive (they usually come after the grid), never
-  // after that: moving to another period keeps the scroll, as a calendar does.
-  const firstMin = useMemo(() => Math.min(...timedByDay.flat().map((it) => it.topMin), DAY_MINUTES), [timedByDay]);
-  const scrolledFor = useRef<"none" | "grid" | "items">("none");
+  // On opening, the grid shows what comes next (lib/calendar/openAt): now and
+  // the next item when both fit, else that item with an hour above it, with
+  // its hour's label clear of the top; never a later day's early event
+  // ahead of now (an event at 00:30 on Saturday opened this week at
+  // midnight: PTC-8). Until the person scrolls, it follows the items as they
+  // land (they usually come after the grid); after that it stays where they
+  // put it. The grid is remounted per period, so a new week or day opens the
+  // same way.
+  const openedAt = useRef(new Date());
+  const userMoved = useRef(false);
+  const openedTop = useRef<number | null>(null);
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    const hasItems = firstMin < DAY_MINUTES;
-    if (scrolledFor.current === "items" || (scrolledFor.current === "grid" && !hasItems)) return;
-    const t = new Date();
-    const showsToday = days.some((d) => isSameDay(d, t));
-    let hour = showsToday ? Math.max(0, Math.min(t.getHours() - 1, 16)) : 8;
-    if (hasItems && !showsToday && firstMin / 60 < hour) hour = Math.floor(firstMin / 60);
-    const top = Math.max(0, hour * HOUR_HEIGHT - 12);
-    const smooth = scrolledFor.current === "grid" && !reducedMotion();
+    if (!el || userMoved.current) return;
+    const t = openedAt.current;
+    const todayIdx = days.findIndex((d) => isSameDay(d, t));
+    const viewMin = el.clientHeight > 0 ? (el.clientHeight / HOUR_HEIGHT) * 60 : DEFAULT_VIEW_MINUTES;
+    const min = openingMinute(timedByDay, todayIdx, wallMinutes(t), viewMin);
+    const top = Math.max(0, Math.floor(min / 60) * HOUR_HEIGHT - 12);
+    if (top === openedTop.current) return;
+    const smooth = openedTop.current !== null && !reducedMotion();
     if (el.scrollTo) el.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
     else el.scrollTop = top;
-    scrolledFor.current = hasItems ? "items" : "grid";
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- on opening, and once when the items arrive
-  }, [firstMin]);
+    openedTop.current = top;
+  }, [timedByDay, days]);
+  const moved = () => {
+    userMoved.current = true;
+  };
 
   const blank = !loading && allDayByDay.every((d) => d.length === 0) && timedByDay.every((d) => d.length === 0);
   const todayIndex = days.findIndex((d) => isSameDay(d, now));
@@ -673,10 +690,17 @@ export function WeekView({
                     className={cn("w-full", matches && !matches(it.title) && "opacity-25")}
                   >
                     {it.when ? <span className="shrink-0 text-micro font-[450] tabular-nums opacity-75">{it.when}</span> : null}
-                    <span className={cn("truncate", it.done && "line-through decoration-ink-4")}>{it.title}</span>
+                    <span className={cn("line-clamp-2 min-w-0 break-words", it.done && "line-through decoration-ink-4")}>{it.title}</span>
                   </HueBlock>
                 ))}
-                {more > 0 ? (
+                {more > 0 && railOpen ? (
+                  // Past the rail's three: the day's list, as the month's "+N more" opens.
+                  // Its list is a chunk of its own (railMore.tsx); until it lands, the same "+N", inert.
+                  <Rail.View
+                    fallback={<span className="h-5 self-start rounded-sm px-1.5 text-meta font-medium text-ink-2">+{more}</span>}
+                    render={(m) => <m.RailMore day={days[i]} items={items} hidden={more} onPick={(it, el) => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid, el))} />}
+                  />
+                ) : more > 0 ? (
                   <button
                     type="button"
                     onClick={() => setRailOpen(true)}
@@ -693,13 +717,25 @@ export function WeekView({
 
         {/* Time grid */}
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <div ref={scrollRef} tabIndex={-1} className="custom-scrollbar flex-1 overflow-y-auto overscroll-contain outline-none" data-time-grid-scroll="">
+          <div
+            ref={scrollRef}
+            tabIndex={-1}
+            data-week-scroll=""
+            data-time-grid-scroll=""
+            className="custom-scrollbar flex-1 overflow-y-auto overscroll-contain outline-none"
+            // Caught on the way down: a block's own press stops there.
+            onWheelCapture={moved}
+            onTouchStartCapture={moved}
+            onPointerDownCapture={moved}
+            onKeyDownCapture={moved}
+          >
             <div className="relative flex" style={{ height: `${24 * HOUR_HEIGHT}px` }}>
               {/* Hour gutter: labels on the line, the first hidden. */}
               <div className="shrink-0" style={{ width: GUTTER }}>
                 {hours.map((h) => (
                   <div key={h} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
-                    {h > 0 && Math.abs(nowTopMin - h * 60) >= 20 ? (
+                    {/* The hour beside now gives way to now's pill, on today's week only. */}
+                    {h > 0 && (todayIndex < 0 || Math.abs(nowTopMin - h * 60) >= 20) ? (
                       <span className="absolute right-2 top-0 -translate-y-1/2 text-micro tabular-nums text-ink-3">
                         {clockHour(new Date(2000, 0, 1, h))}
                       </span>
@@ -931,3 +967,4 @@ function Origin({ it }: { it: TimedItem }) {
     />
   );
 }
+

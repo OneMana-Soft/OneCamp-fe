@@ -4,6 +4,7 @@ import type { ChatInfo } from "@/types/chat"
 import type { PostsRes } from "@/types/post"
 import { noticeHref } from "@/lib/activity/notice"
 import { chatPath } from "@/lib/routes/conversationRoute"
+import { route } from "@/lib/conversation/route"
 
 /**
  * Where an Activity row opens: the message, thread, task, doc or board it is
@@ -56,7 +57,7 @@ export function activityHref(activity: UnifiedActivityItem, currentUserId: strin
 /** A channel message, in its channel with the thread open. */
 function postHref(post: Partial<PostsRes> | undefined | null): string | null {
   const channel = post?.post_channel?.ch_uuid
-  return channel && post?.post_uuid ? `/app/channel/${channel}/${post.post_uuid}` : null
+  return channel && post?.post_uuid ? route({ conversation: { kind: "channel", id: channel }, message: post.post_uuid }) : null
 }
 
 /** A message in a DM (to the other person) or a group, with it in view (chatPath). */

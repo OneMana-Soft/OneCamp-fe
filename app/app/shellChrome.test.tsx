@@ -81,7 +81,9 @@ describe("sheets beside the page", () => {
     expect(LAYOUT).toMatch(/data-right-panel-sheet=""[\s\S]{0,200}"app-sheet shell-panel-sheet/)
     expect(LAYOUT).not.toMatch(/bg-border/)
     expect(read("lib/ui/rightPanelSize.ts")).toMatch(/RIGHT_PANEL_DEFAULT_PX = 452/)
-    expect(LAYOUT).toMatch(/className=\{cn\("shell-seam"/)
+    // The seam is its own piece, shared by the shell and a call's own page.
+    expect(LAYOUT).toMatch(/import \{ Seam \} from "@\/components\/split\/Seam"/)
+    expect(read("components/split/Seam.tsx")).toMatch(/className=\{cn\("shell-seam"/)
   })
 
   it("marks the split view the keys act on with the brand top edge, not a 2px inset bar", () => {

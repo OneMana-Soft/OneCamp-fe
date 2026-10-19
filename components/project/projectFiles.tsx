@@ -10,6 +10,7 @@ import { SpotPlug, SpotSearch } from "@/components/ui/graphics"
 import { Upload } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
+import { accessOf } from "@/lib/work/access"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { usePost } from "@/hooks/usePost"
 import { useUploadFile } from "@/hooks/useUploadFile"
@@ -91,7 +92,10 @@ export function useProjectFiles(projectId: string) {
     list,
     files,
     uploading,
-    isAdmin: list.data?.data.project_is_admin || false,
+    // Adding files is for the people who work in it, taking them away for its
+    // admins, as the server says (Work Access).
+    canAdd: accessOf(list.data?.data).add_files,
+    isAdmin: accessOf(list.data?.data).manage,
     mediaPath: (uuid: string) => `${GetEndpointUrl.GetProjectMedia}/${projectId}/${uuid}`,
     upload,
     cancel,

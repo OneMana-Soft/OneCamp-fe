@@ -20,7 +20,7 @@ import * as React from 'react';
 import {generateColorFromUUID} from "@/lib/utils/generateColorFromUUID";
 import {DocInfoResponse} from "@/types/doc";
 import { Minimize2, RefreshCw } from "@/lib/icons";
-import { canRestoreDeleted, docLoadFailure } from "@/components/docEditor/docLoadFailure";
+import { canRestoreDeleted, docLoadFailure, hostedPlace } from "@/components/docEditor/docLoadFailure";
 import { LoadFailureState } from "@/components/ui/load-failure-state";
 import {Button} from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -44,7 +44,7 @@ import { useDocAbilities } from "@/hooks/useDocAbilities";
 import { DocAccessNote } from "@/components/docEditor/DocAccessNote";
 import { DocAccessRequests } from "@/components/docEditor/DocAccessRequests";
 import { warmCollabToken } from "@/lib/collabToken";
-import { escapeBelongsToLayer } from "@/hooks/useEscapeClosesPanel";
+import { onEscape } from "@/lib/keys/onEscape";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useLaterActions, useSavedEntry } from "@/hooks/useLater";
 import "@/components/docEditor/registry";
@@ -97,6 +97,13 @@ export function DocView({ docId }: { docId: string }) {
 
     const docCommentCount = useSelector((state: RootState) => state.createDocComment?.docCommentCount[docId]);
     const router = useRouter();
+    // A table row's page opened as a doc (docs D-18): the server says which
+    // row it belongs to, and the page goes there.
+    const hosted = docInfoHelper ? null : hostedPlace(docLoadError);
+    const hostedPath = hosted?.path;
+    useEffect(() => {
+        if (hostedPath) router.replace(hostedPath);
+    }, [hostedPath, router]);
 
     const { isMobile, isDesktop } = useMedia();
     const { makeRequest: updateDoc } = usePost();
@@ -256,18 +263,9 @@ export function DocView({ docId }: { docId: string }) {
 
     // Exit focus mode on Escape so it's never a trap. Only active in focus
     // mode. An open editor menu (slash, mention, link) or popup has the key
-    // first and closes, and a second Escape exits. Exiting marks the key
-    // handled, so it doesn't also close a panel open beside the doc.
-    React.useEffect(() => {
-        if (!focusMode) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape' || e.isComposing || escapeBelongsToLayer(e)) return;
-            e.preventDefault();
-            setFocusMode(false);
-        };
-        document.addEventListener('keydown', onKey);
-        return () => document.removeEventListener('keydown', onKey);
-    }, [focusMode]);
+    // first and closes, and a second Escape exits. Exiting uses the key, so
+    // it doesn't also close a panel open beside the doc.
+    React.useEffect(() => (focusMode ? onEscape('overlay', () => setFocusMode(false)) : undefined), [focusMode]);
 
     // Keyboard shortcuts modal
     const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -489,6 +487,23 @@ export function DocView({ docId }: { docId: string }) {
             <React.Suspense fallback={<DocPageSkeleton />}>
                 <TrashedBanner docId={docId} canRestore={canRestoreDeleted(docLoadError)} onRestored={() => void refreshDocInfo()} />
             </React.Suspense>
+        );
+    }
+
+    if (!docInfo && hosted) {
+        // A table row's page opened as a doc (docs D-18): it lives with its
+        // row, so the page goes there, and says so while it does.
+        return (
+            <EmptyState
+                title={hosted.msg}
+                headingLevel={2}
+                className="py-20"
+                action={
+                    <Button variant="outline" size="sm" onClick={() => router.replace(hosted.path)}>
+                        Open the row
+                    </Button>
+                }
+            />
         );
     }
 

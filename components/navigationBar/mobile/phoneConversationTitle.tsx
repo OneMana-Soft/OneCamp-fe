@@ -103,7 +103,7 @@ function GroupTitle({ id }: { id: string }) {
     const fetched = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${id}`)
     const local = useSelector((s: RootState) => s.groupChat.locallyCreatedGrpInfo[id] || NO_GROUP)
     const people = local.participants || fetched.data?.data?.dm_participants || []
-    const names = people.map((p) => userDisplayName(p)).join(", ")
+    const names = fetched.data?.data?.dm_name || people.map((p) => userDisplayName(p)).join(", ")
     return (
         <TitleButton
             label={`${names || "Group"}, members`}

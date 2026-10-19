@@ -4,7 +4,6 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true, isTablet: false }) }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/components/reactionPicker/reactionPicker", () => ({ ReactionPicker: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
-vi.mock("@/components/dialog/customExpirationCalendarDialog", () => ({ default: () => null }))
 vi.mock("@/hooks/useStatusIsExpired", () => ({ useStatusIsExpired: () => false }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),

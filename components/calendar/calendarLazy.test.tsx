@@ -7,6 +7,9 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // quiet moment, so none waits on its first use. Each module records when it
 // is first asked for, once per file: the cases run in this order.
 const loaded = vi.hoisted(() => new Set<string>())
+// The server's optional features (useClientConfig), asked of nothing here:
+// repeats are off, as on a server whose calendar isn't in its one store.
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => false }))
 vi.mock("@/components/calendar/calendarsPopover", async (real) => (loaded.add("calendars"), await real()))
 vi.mock("@/components/calendar/createCalendarEventDialog", async () => (loaded.add("dialog"), { CreateCalendarEventDialog: () => null }))
 vi.mock("@/components/calendar/quickCreateCard", async () => (loaded.add("quick"), { QuickCreateCard: () => null }))
@@ -46,7 +49,7 @@ describe("the calendar's surfaces", () => {
     expect([...loaded]).toEqual([])
   })
 
-  it("on a phone, fetch only the dialog and the month it can open at the first quiet moment", async () => {
+  it("on a phone, fetch only the dialog, the event's card (its sheet) and the month it can open at the first quiet moment", async () => {
     mobile = true
     vi.useFakeTimers()
     render(<CalendarApp />)
@@ -55,7 +58,7 @@ describe("the calendar's surfaces", () => {
     })
     vi.useRealTimers()
     await settle()
-    expect([...loaded].sort()).toEqual(["dialog", "month"])
+    expect([...loaded].sort()).toEqual(["card", "dialog", "month"])
   })
 
   it("are fetched when the pointer heads for one, so it opens at once", async () => {

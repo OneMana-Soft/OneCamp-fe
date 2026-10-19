@@ -4,7 +4,8 @@
     "scenario is the content.mjs scenario that measures it. max is what a run must stay under now; target is the Wave A budget (design/calendar-vs-gcal/perf-mobile.md §2), and owner the package that gets it there.",
     "measured is A0's own run: 14 Oct 2026, the A0 branch's build, inside browser-isolated under nice, while the workstation ran other gates (load average 60 to 90 on 32 cores), so the 4× timings varied up to fourfold from run to run. Where it is over target, max is that median with room for such a run (about 25 to 40%, rounded); where it is under, max is the target.",
     "Never raise a max to make a run pass. Lower it when a package brings a metric down, and to the target once the metric holds there.",
-    "enforce: false on a budget prints it against its max without failing the run; no budget here uses it."
+    "enforce: false on a budget prints it against its max without failing the run; no budget here uses it.",
+    "Renders (17 Oct 2026, CAL-LEAD): React component renders per step, which no CPU slowdown or busy machine changes, so they hold where the 4x times vary. One max for every CPU, measured on beta 7397fab2c the same day (J five times: 4,816 renders at 1x, 4,885 at 4x)."
   ],
   "budgets": {
     "homeToCalendarMs": {
@@ -45,6 +46,30 @@
       "max": 375,
       "target": 250,
       "measured": 367
+    },
+    "rendersPerNextPeriod": {
+      "scenario": "calendar",
+      "owner": "B1",
+      "source": "Renders per press of J (next week): the median run's five presses, over five. About 960 on 17 Oct 2026: the week grid's cells re-render on every navigation (PM-2); a grid memoised by its visible range, its cells memo components on stable props, is B1's and C3's",
+      "max": 1000,
+      "target": 100,
+      "measured": 963
+    },
+    "rendersPerViewSwitch": {
+      "scenario": "calendar",
+      "owner": "B1",
+      "source": "The busiest of a run's view switches (Week, Month, Day), in renders. 1,377 on 17 Oct 2026, switching to Month (Week 966, Day 1,028): PM-2's re-render",
+      "max": 1400,
+      "target": 150,
+      "measured": 1377
+    },
+    "popCardRenders": {
+      "scenario": "calendar",
+      "owner": "C3",
+      "source": "Renders to draw an event's card after a click. 243 on 17 Oct 2026",
+      "max": 250,
+      "target": 60,
+      "measured": 243
     }
   }
 }

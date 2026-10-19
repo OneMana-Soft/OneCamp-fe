@@ -58,30 +58,41 @@ function durationText(minutes: number): string {
  * One Tab stop (CA-31): the arrows, Home and End move through the times,
  * typing "9" or "930" jumps to the first that starts so, and Enter or Space
  * picks. Each time is a row of the interaction layer (its ring, its tint).
+ *
+ * `flow`, in a phone's sheet: no scroller of its own (a sheet has one, its
+ * body), 44px rows for a finger, and the chosen time in the middle of the
+ * sheet as it rises.
  */
 export function TimeList({
   value,
   onPick,
   since,
+  after,
+  flow,
   className,
 }: {
   /** Minutes from midnight. */
   value: number | null
   onPick: (minutes: number) => void
   since?: number
+  /** Only the times later than this (a status's end, today: later than now), with no durations. */
+  after?: number
+  flow?: boolean
   className?: string
 }) {
   const box = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => {
     const el = box.current?.querySelector<HTMLElement>("[aria-selected='true']")
-    if (el && box.current) {
-      const top = el.offsetTop - box.current.clientHeight / 2 + el.offsetHeight / 2
-      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-      if (box.current.scrollTo) box.current.scrollTo({ top, behavior: reduce ? "auto" : "smooth" })
+    const scroller = flow ? box.current?.closest<HTMLElement>("[data-sheet-body]") : box.current
+    if (el && scroller?.scrollTo) {
+      const top = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - scroller.clientHeight / 2 + el.offsetHeight / 2
+      const reduce = flow || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+      scroller.scrollTo({ top, behavior: reduce ? "auto" : "smooth" })
     }
     // Scroll once, when the list opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const options = since !== undefined ? QUARTER_HOURS.filter((m) => m > since) : QUARTER_HOURS
+  const options = QUARTER_HOURS.filter((m) => (since === undefined || m > since) && (after === undefined || m > after))
   const chosen = options.findIndex((m) => value !== null && Math.abs(value - m) < 8)
   const [cursor, setCursor] = React.useState(Math.max(0, chosen))
   const typed = React.useRef({ text: "", at: 0 })
@@ -106,7 +117,7 @@ export function TimeList({
     e.preventDefault()
   }
   return (
-    <div ref={box} role="listbox" aria-label="Time" data-time-list="" onKeyDown={onKeyDown} className={cn("h-40 overflow-y-auto overscroll-contain p-1", className)}>
+    <div ref={box} role="listbox" aria-label="Time" data-time-list="" onKeyDown={onKeyDown} className={cn("p-1", !flow && "h-40 overflow-y-auto overscroll-contain", className)}>
       {options.map((m, i) => {
         const selected = value !== null && Math.abs(value - m) < 8
         const d = new Date(2000, 0, 1, Math.floor(m / 60), m % 60)
@@ -120,10 +131,18 @@ export function TimeList({
             onFocus={() => setCursor(i)}
             onClick={() => onPick(m)}
             {...ix("row")}
-            className={cn("flex h-7 w-full items-center justify-between rounded-md px-2 text-ui-sm tabular-nums", selected ? "bg-ink text-sheet" : "text-ink")}
+            className={cn(
+              "flex w-full items-center justify-between tabular-nums text-ink",
+              flow ? "h-11 rounded-[10px] px-3 text-ui" : "h-7 rounded-md px-2 text-ui-sm",
+              // The chosen time is the layer's selected row (its tint and
+              // leading bar, from tokens in both themes) and its weight, the
+              // cue that isn't colour. It was bg-ink text-sheet, an inverted
+              // slab that read as a light block in dark mode (SHADCN-AUDIT).
+              selected && "font-medium",
+            )}
           >
             <span>{clockTime(d)}</span>
-            {since !== undefined ? <span className={cn("text-meta", selected ? "text-sheet/70" : "text-ink-3")}>{durationText(m - since)}</span> : null}
+            {since !== undefined ? <span className="text-meta text-ink-3">{durationText(m - since)}</span> : null}
           </button>
         )
       })}

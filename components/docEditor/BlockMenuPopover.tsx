@@ -138,6 +138,7 @@ export default function BlockMenuPopover({ editor, docId, request, onClose }: { 
                 setQuery(e.target.value)
                 setList(null)
               }}
+              data-escape-own=""
               onKeyDown={onKeyDown}
               placeholder="Search actions"
               aria-label="Search actions"

@@ -11,6 +11,7 @@ import { COLUMN_LIST, MAX_INDENT } from "../block-commands/nodes"
 import { clearEffect, reducedMotion, showEffect } from "../block-commands/effects"
 import { besideAllowed, dropTransaction, landedRanges, type Drop } from "./dropTarget"
 import { edgeScroller } from "@/lib/ui/edgeScroll"
+import { onEscape } from "@/lib/keys/onEscape"
 
 /**
  * DRAGGING BLOCKS (B1; editor.md P0-2, small-details V4, V5, S10; content.md
@@ -309,6 +310,7 @@ export function runBlockDrag({ view, dragged, startX, startY, blockLeft, onEnd }
     window.removeEventListener("pointermove", move, true)
     window.removeEventListener("pointerup", up, true)
     window.removeEventListener("pointercancel", cancel, true)
+    stopEscape()
     window.removeEventListener("keydown", key, true)
     window.removeEventListener("keyup", key, true)
     scroller?.removeEventListener("scroll", schedule)
@@ -331,13 +333,10 @@ export function runBlockDrag({ view, dragged, startX, startY, blockLeft, onEnd }
 
   const up = () => finish(true)
   const cancel = () => finish(false)
+  // Esc calls the drag off: the drag layer of the one Escape (lib/keys/escape),
+  // heard before anything else and stopped there.
+  const stopEscape = onEscape("drag", () => finish(false))
   const key = (e: KeyboardEvent) => {
-    if (e.type === "keydown" && e.key === "Escape") {
-      e.preventDefault()
-      e.stopPropagation()
-      finish(false)
-      return
-    }
     if (e.key === "Alt" && alt !== (e.type === "keydown")) {
       alt = e.type === "keydown"
       schedule()

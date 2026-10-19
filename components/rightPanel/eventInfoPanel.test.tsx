@@ -20,7 +20,12 @@ let failure: { status: number; data?: unknown } | null = null
 let booking: { guest_name: string; page_title: string; guest_told: boolean } | undefined
 // Every URL the panel asked for.
 const asked: string[] = []
-const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, event_created_by: SAM, event_participants: participants, ...(booking ? { event_booking: booking } : {}) })
+// The event's notes, where a call link would be.
+let description = ""
+const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, event_description: description, event_created_by: SAM, event_participants: participants, ...(booking ? { event_booking: booking } : {}) })
+// The server's optional features (useClientConfig), asked of nothing here:
+// repeats are off, as on a server whose calendar isn't in its one store.
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => false }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
@@ -39,8 +44,10 @@ vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () =>
 // SWR's cache: a list already loaded (the calendar's month, Home's today).
 let cache = new Map<string, unknown>()
 vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof import("swr")>()), useSWRConfig: () => ({ mutate: vi.fn(), cache }) }))
-vi.mock("@/components/ai/RescheduleDialog", () => ({ default: () => null }))
-vi.mock("@/components/ai/MeetingPrepDialog", () => ({ default: () => null }))
+// The assistant's dialogs, each a chunk the panel loads when it is idle or
+// the dialog is first opened: an open one says which it is.
+vi.mock("@/components/ai/RescheduleDialog", () => ({ default: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Find a better time" /> : null) }))
+vi.mock("@/components/ai/MeetingPrepDialog", () => ({ default: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Prep brief" /> : null) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
 // The delete question, as the one helper the calendar's Delete key and menu ask with too.
 const askedToDelete = vi.fn()
@@ -51,6 +58,10 @@ vi.mock("@/lib/calendar/confirmDelete", async (importOriginal) => {
 
 import EventInfoPanel from "./eventInfoPanel"
 import { deleteEventRequest } from "@/lib/calendar/confirmDelete"
+
+// The Event Form is a chunk of its own: its first load, on a busy machine, can
+// take longer than a test's usual 5 s.
+vi.setConfig({ testTimeout: 20_000 })
 
 afterEach(() => {
   cleanup()
@@ -65,6 +76,7 @@ afterEach(() => {
   dispatch.mockReset()
   askedToDelete.mockReset()
   booking = undefined
+  description = ""
 })
 
 function panel(props: { onClose?: () => void; uuid?: string } = {}) {
@@ -82,8 +94,8 @@ describe("an event in the side panel", () => {
     const row = (label: string) => within(facts).getByText(label).nextElementSibling as HTMLElement
     expect(row("Date").textContent).toBe("Monday 28 September 2026")
     expect(row("Time").textContent).toMatch(/^9:30\sAM to 9:45\sAM$/)
-    expect(row("Created by").textContent).toContain("Sam Rivera")
-    for (const label of ["Date", "Time", "Created by"]) expect(row(label).className).toMatch(/truncate|min-w-0/)
+    expect(row("Organiser").textContent).toContain("Sam Rivera")
+    for (const label of ["Date", "Time", "Organiser"]) expect(row(label).className).toMatch(/truncate|min-w-0/)
   })
 
   it("says which calendar it is on quietly, in sentence case, without the accent", () => {
@@ -118,6 +130,15 @@ describe("an event in the side panel", () => {
       const b = screen.getByRole("button", { name })
       expect(b.innerHTML).not.toMatch(/hover:text-primary/)
     }
+  })
+
+  it("opens the assistant's Prep brief and Find a better time, each from a chunk of its own", async () => {
+    panel()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Prep brief" }))
+    expect(await screen.findByRole("dialog", { name: "Prep brief" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Find a better time" }))
+    expect(await screen.findByRole("dialog", { name: "Find a better time" })).toBeTruthy()
   })
 
   it("says All day for an all-day event, on its one day", () => {
@@ -164,14 +185,16 @@ describe("an event in the side panel", () => {
     }
   })
 
-  it("edits on the same columns, with Cancel and Save where its actions were", () => {
+  it("edits on the same columns, with Cancel and Save where its actions were", async () => {
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
     const group = screen.getByRole("button", { name: "Close panel" }).closest("[data-panel-actions]") as HTMLElement
     expect(within(group).getByRole("button", { name: "Save" })).toBeTruthy()
     expect(within(group).getByRole("button", { name: "Cancel" })).toBeTruthy()
+    // The one Event Form, a chunk of its own: its title where the view's was.
+    expect(await screen.findByRole("textbox", { name: "Title" }, { timeout: 8000 })).toBeTruthy()
     const form = document.querySelector("[data-event-edit]") as HTMLElement
-    for (const label of ["Title", "Start", "End", "Notes"]) {
+    for (const label of ["Starts", "Ends", "Notes"]) {
       const el = within(form).getByText(label)
       expect(el.className).toContain(fieldLabel)
       expect((el.parentElement as HTMLElement).className).toMatch(/grid-cols-\[6\.5rem_minmax\(0,1fr\)\]/)
@@ -267,6 +290,8 @@ describe("an event opened by its id", () => {
 // what it saves, and removing the last sends an empty list, never none.
 describe("saving the guests", () => {
   const save = async () => {
+    // The form comes with the edit kit, a chunk of its own.
+    await screen.findByRole("textbox", { name: "Title" }, { timeout: 8000 })
     fireEvent.click(within(screen.getByRole("button", { name: "Close panel" }).closest("[data-panel-actions]") as HTMLElement).getByRole("button", { name: "Save" }))
     await waitFor(() => expect(makeRequest).toHaveBeenCalled(), { timeout: 5000 })
     return makeRequest.mock.calls[0][0]
@@ -276,7 +301,7 @@ describe("saving the guests", () => {
     participants = [MAYA, JONAS]
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
-    fireEvent.click(screen.getByRole("button", { name: "Remove Jonas" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Jonas" }, { timeout: 8000 }))
     const call = await save()
     expect(call.payload.participants).toEqual([MAYA.user_uuid])
   })
@@ -285,7 +310,7 @@ describe("saving the guests", () => {
     participants = [MAYA]
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
-    fireEvent.click(screen.getByRole("button", { name: "Remove Maya" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Maya" }, { timeout: 8000 }))
     const call = await save()
     expect(call.payload).toHaveProperty("participants", [])
   })
@@ -294,6 +319,7 @@ describe("saving the guests", () => {
   it("saves with ⌘⏎ from the notes, as Save does", async () => {
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    await screen.findByRole("textbox", { name: "Title" }, { timeout: 8000 })
     const notes = document.querySelector<HTMLTextAreaElement>("form[data-event-edit] textarea")!
     fireEvent.keyDown(notes, { key: "Enter", metaKey: true })
     await waitFor(() => expect(makeRequest).toHaveBeenCalled(), { timeout: 5000 })
@@ -331,9 +357,10 @@ describe("a booked meeting", () => {
     participants = [MAYA, JONAS]
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    const removeJonas = await screen.findByRole("button", { name: "Remove Jonas" }, { timeout: 8000 })
     // The meeting moves meanwhile (another tab): this form, still at 9:30, would move it back.
     times = { event_start_time: "2026-09-28T10:30:00", event_end_time: "2026-09-28T10:45:00" }
-    fireEvent.click(screen.getByRole("button", { name: "Remove Jonas" }))
+    fireEvent.click(removeJonas)
     fireEvent.click(saveButton())
     await waitFor(() => expect(confirmed()).toHaveLength(1), { timeout: 5000 })
     expect(confirmed()[0]).toMatchObject({ title: "Move this booked meeting?", confirmText: "Move and tell Alex Kim" })
@@ -347,6 +374,9 @@ describe("a booked meeting", () => {
     booking = { guest_name: "Alex Kim", page_title: "Intro call", guest_told: true }
     panel()
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    // Save waits for the form, which comes with the edit kit.
+    expect(saveButton().hasAttribute("disabled")).toBe(true)
+    await screen.findByRole("textbox", { name: "Title" }, { timeout: 8000 })
     fireEvent.click(saveButton())
     await waitFor(() => expect(makeRequest).toHaveBeenCalledTimes(1), { timeout: 5000 })
     expect(confirmed()).toHaveLength(0)
@@ -371,5 +401,38 @@ describe("deleting", () => {
       await asked[0].onConfirm()
     })
     expect(makeRequest).toHaveBeenCalledWith(deleteEventRequest("e1"))
+  })
+})
+
+// Step 3, part 2: the panel had no Join at all; the popover's comes first.
+describe("the event panel's Join", () => {
+  const around = (fromMin: number, toMin: number) => {
+    const t = Date.now()
+    return { event_start_time: new Date(t + fromMin * 60_000).toISOString(), event_end_time: new Date(t + toMin * 60_000).toISOString() }
+  }
+
+  it("joins a call that is on, first, under the line that says whose event it is", () => {
+    times = around(-5, 25)
+    description = "<p>Dial in: https://meet.example.com/standup</p>"
+    panel()
+    const view = document.querySelector("[data-event-view]") as HTMLElement
+    const join = within(view).getByRole("link", { name: "Join call" })
+    expect(join.getAttribute("href")).toBe("https://meet.example.com/standup")
+    expect(join.className).toMatch(/bg-brand/)
+    // Straight after the title and its calendar line, before the details.
+    const order = Array.from(view.querySelectorAll("h2, p, a, dl")).map((el) => el.tagName)
+    expect(order.slice(0, 4)).toEqual(["H2", "P", "A", "DL"])
+  })
+
+  it("offers none once it has ended, or for a link that isn't a call", () => {
+    times = around(-60, -30)
+    description = "<p>Dial in: https://meet.example.com/standup</p>"
+    panel()
+    expect(screen.queryByRole("link", { name: /Join call/ })).toBeNull()
+    cleanup()
+    times = around(-5, 25)
+    description = "<p>Agenda: https://docs.example.com/d/1</p>"
+    panel()
+    expect(screen.queryByRole("link", { name: /Join call/ })).toBeNull()
   })
 })

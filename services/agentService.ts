@@ -294,6 +294,7 @@ export const EVENT_TRIGGER_OPTIONS: { value: string; label: string }[] = [
   { value: "user.joined", label: "Someone joins a channel" },
   { value: "table.row.created", label: "A table row is added" },
   { value: "table.row.updated", label: "A table row is updated" },
+  { value: "table.rows.changed", label: "Rows of a table change, one at a time or many at once" },
 ]
 
 // GitHub events an agent can no longer be set up on. What they carry is

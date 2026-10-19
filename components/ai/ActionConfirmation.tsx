@@ -37,7 +37,7 @@ import { UserProfileInterface } from "@/types/user";
 import { ArrowUpRight, Bell, Calendar, Check, FileText, Github, Mail, Megaphone, MessageSquare, Shield, Users, X, Zap } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { StatusGlyph } from "@/components/ui/graphics/glyphs";
-import { springPop } from "@/lib/celebrate";
+import { springPop } from "@/lib/spring";
 import { AiMark } from "@/components/ai/AiMark";
 import { useModEnter } from "@/hooks/useModKey";
 

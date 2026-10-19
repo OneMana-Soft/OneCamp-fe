@@ -29,6 +29,8 @@
  *   reminder               recipient user id           —              business/Command/delivery.go
  *   later                  app path of the saved item  —              business/SavedItem/savedItem.go
  *   approval               —                           —              business/AI/approvalPush.go
+ *   table_row              table id                    row id         business/TableComments/notify.go
+ *   calendar               event or instance id, or —  —              business/Calendar/notify.go, booking pages
  *
  *   (*) some chat senders omit thread_id; the chat arm doesn't need it.
  *
@@ -36,6 +38,10 @@
  * "task" but in thread_id for "task_comment", and a chat grouping id is either
  * two space-separated user uuids (a DM) or a group id.
  */
+
+import { chatRef, route } from "@/lib/conversation/route"
+import { workRoute } from "@/lib/work/route"
+import { tablePath } from "@/lib/tables/route"
 
 /** The subset of FCM `data` this needs. Everything is optional: it's wire data. */
 export interface PushNotificationData {
@@ -92,43 +98,47 @@ export function notificationRoute(
   const threadId = data.thread_id?.trim() || ""
 
   if (data.type === "chat" || CHAT_THREAD_TYPES.has(data.type)) {
-    const segment = typeId ? chatRouteSegment(typeId, selfUUID) : null
-    if (!segment) return NOTIFICATION_FALLBACK_ROUTE
     // A plain new message opens the conversation; a reaction or a reply opens the
-    // thread it happened in, when we were told which one.
-    if (data.type !== "chat" && threadId) return `/app/chat/${segment}/${threadId}`
-    return `/app/chat/${segment}`
+    // thread it happened in, when we were told which one (the Link Router).
+    const conversation = chatRef(typeId, selfUUID)
+    if (!conversation) return NOTIFICATION_FALLBACK_ROUTE
+    return route({ conversation, ...(data.type !== "chat" && threadId ? { message: threadId } : {}) })
   }
 
   switch (data.type) {
     case "channel":
     case "post_comment":
       if (!typeId) return NOTIFICATION_FALLBACK_ROUTE
-      return threadId ? `/app/channel/${typeId}/${threadId}` : `/app/channel/${typeId}`
+      return route({ conversation: { kind: "channel", id: typeId }, ...(threadId ? { message: threadId } : {}) })
 
     case "channel_call":
-      return typeId ? `/app/channel/${typeId}` : NOTIFICATION_FALLBACK_ROUTE
+      return typeId ? route({ conversation: { kind: "channel", id: typeId } }) : NOTIFICATION_FALLBACK_ROUTE
 
     // The task id is in type_id here…
     case "task":
-      return typeId ? `/app/task/${typeId}` : NOTIFICATION_FALLBACK_ROUTE
+      return typeId ? workRoute({ task: typeId }) : NOTIFICATION_FALLBACK_ROUTE
 
     // …and in thread_id here, because type_id carries the project.
     case "task_comment":
-      return threadId ? `/app/task/${threadId}` : NOTIFICATION_FALLBACK_ROUTE
+      return threadId ? workRoute({ task: threadId }) : NOTIFICATION_FALLBACK_ROUTE
 
     case "doc_comment":
       return typeId ? `/app/doc/${typeId}` : NOTIFICATION_FALLBACK_ROUTE
+
+    // A comment on a table's row: the table in type_id, the row in thread_id.
+    case "table_row":
+      return typeId ? tablePath(typeId, threadId ? { row: threadId } : {}) : NOTIFICATION_FALLBACK_ROUTE
 
     // An agent is waiting for a decision. Home leads with "Needs your
     // approval", which lists every open one, so the push carries no id.
     case "approval":
       return "/app/home"
 
-    // A booking made or cancelled on one of your booking pages: the calendar,
-    // since a cancelled booking's meeting is gone.
+    // An event you're asked to, that changed, or that a guest answered: that
+    // event, or the one instance of it (calendar A2). A booking cancelled, or
+    // an event you were taken off, carries no id: the calendar.
     case "calendar":
-      return "/app/calendar"
+      return EVENT_REF.test(typeId) ? `/app/calendar/event/${typeId}` : "/app/calendar"
 
     // A fired /remind carries no target: focus the app and let the in-app
     // surface show the reminder itself.
@@ -144,6 +154,9 @@ export function notificationRoute(
       return NOTIFICATION_FALLBACK_ROUTE
   }
 }
+
+/** An event's id, or one instance's ("<id>_20261020T081500Z", "<id>_20261020"): nothing else is put in a path. */
+const EVENT_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(_\d{8}(T\d{6}Z)?)?$/i
 
 /** An in-app path of the shape the server accepts for saved items. */
 function isLaterPath(path: string): boolean {

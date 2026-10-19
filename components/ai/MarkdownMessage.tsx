@@ -3,11 +3,40 @@
 import React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/helpers/cn";
-import { normalizeChartSpec } from "@/lib/utils/chartSpec";
-import SvgChart from "@/components/charts/SvgChart";
+import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec";
 import AgentHtmlArtifact from "@/components/ai/AgentHtmlArtifact";
-import { normalizeQueryPlan } from "@/lib/utils/queryPlanSpec";
-import AgentQueryPlan from "@/components/ai/AgentQueryPlan";
+import { normalizeQueryPlan, type NormalizedQueryPlan } from "@/lib/utils/queryPlanSpec";
+import { lazyPart } from "@/lib/lazy/lazyPart";
+import { Button } from "@/components/ui/button";
+
+// An answer's chart and query plan come when an answer has one: SVG charts,
+// and a plan's card with the tables service it reads, were on every screen that
+// shows AI text, Home's "While you were away" card among them (17 Oct 2026,
+// app/firstLoad.test.ts SHELL_LAZY). Each is a lazy part (lib/lazy/lazyPart):
+// its room is kept while it comes, an answer that opens a ```chart or
+// ```queryplan fence fetches it while the rest streams in, and one that can't
+// come says so in its own place, with Try again, instead of taking the page
+// with it.
+const BlockRoom = () => <div aria-hidden data-block-room="" className="my-2 h-40 w-full rounded-lg bg-muted/60" />;
+const blockFailed = (what: string) =>
+    function BlockFailed({ retry }: { retry: () => void }) {
+        return (
+            <div data-block-failed="" className="my-2 flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-lg bg-sunken px-4 py-3 text-center">
+                <p className="text-xs text-ink-2">{`Couldn't show this ${what}. Check your connection, then try again.`}</p>
+                <Button type="button" variant="outline" size="sm" onClick={retry}>
+                    Try again
+                </Button>
+            </div>
+        );
+    };
+const chartPart = lazyPart<{ chart: NormalizedChart }>(() => import("@/components/charts/SvgChart").then((m) => m.default), {
+    placeholder: BlockRoom,
+    failed: blockFailed("chart"),
+});
+const planPart = lazyPart<{ plan: NormalizedQueryPlan }>(() => import("@/components/ai/AgentQueryPlan").then((m) => m.default), {
+    placeholder: BlockRoom,
+    failed: blockFailed("query plan"),
+});
 import { CiteToken } from "@/components/ai/Citations";
 import { CodeBlock } from "@/components/ai/CodeBlock";
 
@@ -239,6 +268,10 @@ function parseBlocks(src: string): React.ReactNode[] {
         // Fenced code block
         const fence = line.match(/^```(\w*)\s*$/);
         if (fence) {
+            // A chart's or a plan's code is fetched as soon as its fence opens,
+            // so it is usually in by the time the rest of it has streamed.
+            if (fence[1] === "chart") void chartPart.warm();
+            else if (fence[1] === "queryplan") void planPart.warm();
             const code: string[] = [];
             i++;
             while (i < lines.length && !/^```\s*$/.test(lines[i])) {
@@ -256,7 +289,7 @@ function parseBlocks(src: string): React.ReactNode[] {
             if (fence[1] === "chart" && closed) {
                 const chart = normalizeChartSpec(code.join("\n"));
                 if (chart) {
-                    blocks.push(<SvgChart key={key++} chart={chart} />);
+                    blocks.push(<chartPart.Part key={key++} chart={chart} />);
                     continue;
                 }
             }
@@ -268,7 +301,7 @@ function parseBlocks(src: string): React.ReactNode[] {
             if (fence[1] === "queryplan" && closed) {
                 const plan = normalizeQueryPlan(code.join("\n"));
                 if (plan) {
-                    blocks.push(<AgentQueryPlan key={key++} plan={plan} />);
+                    blocks.push(<planPart.Part key={key++} plan={plan} />);
                     continue;
                 }
             }

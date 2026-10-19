@@ -33,6 +33,9 @@ export interface PostsRes {
     post_send_state?: SendState
     /** When it last changed live here (lib/chat/liveChange), by this client's clock. */
     post_live_at?: number
+    post_kind?: string
+    post_system?: string
+    post_copy_of?: string
 }
 
 export interface CreateOrUpdatePostsReq {

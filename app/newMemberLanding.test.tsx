@@ -10,6 +10,7 @@ const nav = vi.hoisted(() => ({ search: "" }))
 vi.mock("next/navigation", () => ({ useRouter: () => router, useSearchParams: () => new URLSearchParams(nav.search) }))
 vi.mock("@/components/themeProvider/theme-toggle", () => ({ ThemeToggle: () => null }))
 vi.mock("@/services/passkeyService", () => ({ signInWithPasskey: vi.fn() }))
+
 import SignInPage from "./page"
 import SignupPage from "./signup/page"
 

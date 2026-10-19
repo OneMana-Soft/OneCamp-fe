@@ -13,7 +13,10 @@ describe("the date and time picker", () => {
     const chosen = screen.getAllByRole("option").filter((o) => o.getAttribute("aria-selected") === "true")
     expect(chosen).toHaveLength(1)
     expect(chosen[0].textContent).toMatch(/9:30/)
-    expect(chosen[0].className).toMatch(/bg-ink/)
+    // The interaction layer's selected row and a weight, not an ink slab
+    // (SHADCN-AUDIT, 17 Oct; timeListSelected.test).
+    expect(chosen[0].className).toContain("font-medium")
+    expect(chosen[0].className).not.toMatch(/bg-ink/)
   })
 
   it("shows how long an end time makes the event", () => {

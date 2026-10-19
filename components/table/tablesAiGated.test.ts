@@ -28,7 +28,8 @@ describe("tables' AI entry points", () => {
   // The column menu's Fill with AI ships in both editions; the record's Fill
   // again and the list's Generate in the AI edition.
   it("are found, the column menu's among them", () => {
-    expect(askers.map((f) => f.slice(ROOT.length + 1))).toContain("components/table/ColumnMenu.tsx")
+    // Its pages are a chunk of their own (columnMenu/ColumnMenuBody).
+    expect(askers.map((f) => f.slice(ROOT.length + 1))).toContain("components/table/columnMenu/ColumnMenuBody.tsx")
   })
 
   it.each(askers.map((f) => [f.slice(ROOT.length + 1), f]))("%s draws its AI controls only where AI is on", (_, file) => {

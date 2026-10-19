@@ -1,4 +1,4 @@
-import { hueFor, type CampHue } from "@/lib/campHue"
+import { hueFor, isCampHue, type CampHue } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { projectHue } from "@/lib/projectHue"
 
@@ -30,6 +30,8 @@ export interface CalendarItemLike {
   event_is_focus?: boolean
   event_is_away?: boolean
   task_project?: { project_uuid?: string } | null
+  /** The event's own colour (the Event Form), where the calendar keeps its own events. */
+  event_hue?: string
 }
 
 export function kindOf(item: CalendarItemLike): CalendarKind {
@@ -41,6 +43,8 @@ export function kindOf(item: CalendarItemLike): CalendarKind {
 /** The hue an item is drawn in: its project's for a task, its calendar's otherwise. */
 export function hueOf(item: CalendarItemLike): CampHue {
   if (item.isTask) return item.task_project?.project_uuid ? projectHue(item.task_project.project_uuid) : hueFor(item.event_uuid)
+  // An event's own colour first (STEP5_PLAN §3 C, the week in colour); Google's keep Google's hue for now.
+  if (!item.event_uuid.startsWith("gcal-") && isCampHue(item.event_hue)) return item.event_hue
   return item.event_uuid.startsWith("gcal-") ? CALENDAR_HUE.google : CALENDAR_HUE.onecamp
 }
 

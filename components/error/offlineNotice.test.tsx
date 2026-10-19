@@ -1,18 +1,41 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, render as renderBare, screen } from "@testing-library/react"
+import type React from "react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-let mqtt: { isConnected: boolean; reconnectAttempts?: number } | undefined = undefined
-const reconnect = vi.fn()
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqttConnectionState: () => mqtt, useMqttReconnect: () => reconnect }))
 let ready = false
 const reload = vi.fn()
 vi.mock("@/hooks/useUpdateReady", () => ({ useUpdateReady: () => ({ ready, reload }) }))
 
 import { FootPill, OfflineNotice } from "@/components/error/OfflineNotice"
+import { MqttContext, type MqttContextValue } from "@/components/mqtt/mqttContext"
 import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity"
 import { markSchemaOutdated, resetSchemaOutdated } from "@/lib/schemaOutdated"
+
+// The live connection as the signed-in app hands it down: its provider
+// (components/mqtt/mqttProvider) gives this context, which the pill reads
+// (mqttProviderReaders.test.tsx holds the provider to it). Outside the app
+// there is no connection, and mqtt stays undefined. The context is given here
+// rather than a module mocked, so the pill is read the way the app reads it.
+let mqtt: { isConnected: boolean; reconnectAttempts?: number } | undefined = undefined
+const reconnect = vi.fn()
+const noop = () => {}
+function Live({ children }: { children: React.ReactNode }) {
+  const value: MqttContextValue | null = mqtt
+    ? {
+        connectionState: { isConnecting: false, error: null, reconnectAttempts: 0, ...mqtt },
+        reconnect,
+        publish: async () => {},
+        connect: noop,
+        disconnect: noop,
+        subscribeToTopic: () => "",
+        unsubscribeFromTopic: noop,
+      }
+    : null
+  return <MqttContext.Provider value={value}>{children}</MqttContext.Provider>
+}
+const render = (ui: React.ReactElement) => renderBare(ui, { wrapper: Live })
 
 // Design v3 (shell T3): one pill says the connection state, above the
 // sidebar's foot on a desktop and floating above the tab bar elsewhere.

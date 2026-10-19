@@ -81,7 +81,7 @@ export function InCallAIPanel({
         // AI's own pieces in dark (hub.md section 9): its mark, your question
         // in the neutral bubble, the answer flat beside the mark, the mark
         // breathing while it thinks (no spinner in the AI), and its composer.
-        <div data-in-call-ai="" className="hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-foreground @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @3xl:w-[360px] @3xl:rounded-[14px] @3xl:shadow-e3">
+        <div data-in-call-ai="" className="hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-foreground @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @7xl:h-[calc(100%-24px-100px)] @3xl:w-[360px] @3xl:rounded-[14px] @3xl:shadow-e3">
             <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 py-3">
                 <div className="flex items-center gap-2.5">
                     {/* The AI is agent identity: the agent square, not the accent. */}

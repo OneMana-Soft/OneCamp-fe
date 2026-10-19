@@ -115,7 +115,8 @@ export async function fakeApp(context, o) {
       if (!doc || (doc.levels?.[o.user.token] ?? "none") === "none") return json(404, { msg: "There's no such doc." })
       return json(200, { msg: "ok", data: docInfo(doc, o.user) })
     }
-    for (const [re, body] of [...(o.fixtures || []), ...SHELL_FIXTURES]) if (re.test(path)) return json(200, typeof body === "function" ? body(path) : body)
+    // A fixture that is a function is asked with the path and the whole URL (its query).
+    for (const [re, body] of [...(o.fixtures || []), ...SHELL_FIXTURES]) if (re.test(path)) return json(200, typeof body === "function" ? body(path, url) : body)
     // Anything else the shell asks for: an empty object, which every reader
     // takes as "nothing here" (lists that need an array are fixed above).
     if (req.method() === "GET") return json(200, { msg: "ok", data: {} })

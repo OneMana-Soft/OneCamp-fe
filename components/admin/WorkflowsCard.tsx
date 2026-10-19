@@ -10,7 +10,7 @@ import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { displayNameOf } from "@/lib/personName";
-import { prefersReducedMotion } from "@/lib/celebrate";
+import { prefersReducedMotion } from "@/lib/reducedMotion";
 import type { UserListResponseInterface, UserProfileDataInterface, UserProfileInterface } from "@/types/user";
 import { SavedTick, useSaveStatus } from "@/components/ui/saveStatus";
 import { Switch } from "@/components/ui/switch";

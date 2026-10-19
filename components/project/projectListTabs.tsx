@@ -10,6 +10,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { useProjectNotification } from "@/hooks/useNotificationLevel"
 import { Pencil, Users } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
+import { accessOf } from "@/lib/work/access"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip"
@@ -69,8 +70,9 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
     const dispatch = useDispatch()
     // Its Notifications: a level chosen, not cycled (hooks/useNotificationLevel).
     const notification = useProjectNotification(projectId, info?.notification_type)
+    const access = accessOf(info)
     const extra: ProjectMenuExtra[] = [
-        ...(info?.project_is_admin
+        ...(access.manage
             ? [{ key: "rename", label: "Edit project name", Icon: Pencil, onSelect: () => dispatch(openUI({ key: "editProjectName", data: { projectUUID: projectId } })) }]
             : []),
         { key: "members", label: "Project members", Icon: Users, onSelect: () => dispatch(openUI({ key: "editProjectMember", data: { projectUUID: projectId } })) },
@@ -85,7 +87,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             <div className="grid shrink-0 grid-cols-[minmax(0,1fr)] gap-1.5 px-4 pt-3">
                 <div className="flex items-center gap-1">
                     <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 overflow-hidden" />
-                    <ProjectActionsMenu compact projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} archived={!isZeroEpoch(info?.project_deleted_at || "")} notifications={{ level: notification.level, onChoose: notification.choose }} extra={extra} />
+                    <ProjectActionsMenu compact projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} access={access} archived={!isZeroEpoch(info?.project_deleted_at || "")} notifications={{ level: notification.level, onChoose: notification.choose }} extra={extra} />
                 </div>
                 {/* Each piece loads on its own, so each has its place from the
                     first paint: the chips in a row of their own. The goal's name

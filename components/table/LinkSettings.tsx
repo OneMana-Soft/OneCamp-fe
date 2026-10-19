@@ -11,7 +11,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { relationOf, tableFieldsKey, type DataTable, type RollupHow, type TableField } from "@/services/tableService"
 import { canRollUp, rollupOptions, ROLLUP_LABELS, tableRelations } from "@/lib/tables/links"
-import { kindOfField } from "@/lib/tables/viewRules"
+import { filterKind } from "@/lib/fieldTypes/registry"
 
 const selectClass = "h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
 const labelClass = "text-xs font-medium text-muted-foreground"
@@ -172,7 +172,7 @@ export function RollupSettings({ fields, draft, onChange }: { fields: TableField
   } as never)
   const linkedFields = (data?.data ?? []).filter(canRollUp)
   const of = linkedFields.find((f) => f.id === draft.field)
-  const options = rollupOptions(of ? kindOfField(of) : null)
+  const options = rollupOptions(of ? filterKind(of) : null)
   if (relations.length === 0) {
     return (
       <p className="text-2xs leading-snug text-muted-foreground">
@@ -215,7 +215,7 @@ export function RollupSettings({ fields, draft, onChange }: { fields: TableField
               disabled={isLoading}
               onChange={(e) => {
                 const next = linkedFields.find((f) => f.id === e.target.value)
-                onChange({ ...draft, field: e.target.value, aggregate: rollupOptions(next ? kindOfField(next) : null)[0] })
+                onChange({ ...draft, field: e.target.value, aggregate: rollupOptions(next ? filterKind(next) : null)[0] })
               }}
               className={selectClass}
             >

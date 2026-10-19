@@ -180,6 +180,7 @@ export function DocCover({ docId, cover, offset = 50, padded }: { docId: string;
           aria-valuetext={`${Math.round(at)}% down`}
           autoFocus
           onPointerDown={drag}
+          data-escape-own=""
           onKeyDown={(e) => {
             if (e.key === "ArrowUp" || e.key === "ArrowDown") {
               e.preventDefault()

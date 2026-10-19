@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import { isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
-import { useMqttConnectionState, useMqttReconnect } from "@/components/mqtt/mqttProvider"
+import { useMqttConnectionState, useMqttReconnect } from "@/components/mqtt/mqttContext"
 import { FAST_RECONNECT_TRIES } from "@/lib/mqtt/reconnectDelay"
 import { useUpdateReady } from "@/hooks/useUpdateReady"
 import { isSchemaOutdated, subscribeSchemaOutdated } from "@/lib/schemaOutdated"

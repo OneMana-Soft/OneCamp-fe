@@ -29,7 +29,7 @@ import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { ArrowUpRight, Check, Loader2, Send, Shield } from "@/lib/icons"
-import { celebrateOnce } from "@/lib/celebrate"
+import { celebrateOnce } from "@/lib/celebrateSoon"
 import { useResolve } from "@/lib/hub/motion"
 import { cn } from "@/lib/utils/helpers/cn"
 import { groupNeeds, NEEDS_CAP, type NeedsItem } from "@/components/home/needsMe"
@@ -412,6 +412,7 @@ export function NeedsMeSection({
                           autoFocus
                           value={draft}
                           onChange={(e) => setDraft(e.target.value)}
+                          data-escape-own=""
                           onKeyDown={(e) => {
                             e.stopPropagation()
                             if (e.key === "Escape") setReplying(null)

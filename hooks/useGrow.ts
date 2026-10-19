@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react"
 
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 
 /**
  * The first reveal of a view's numbers (work.md §1.5, `grow`): timeline bars
