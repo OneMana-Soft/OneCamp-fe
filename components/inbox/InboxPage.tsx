@@ -19,7 +19,8 @@
 
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { celebrateOnce, springPop } from "@/lib/celebrate"
+import { celebrateOnce } from "@/lib/celebrateSoon"
+import { springPop } from "@/lib/spring"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
 import { SafeHtml } from "@/components/safeHtml/SafeHtml"
