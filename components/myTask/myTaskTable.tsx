@@ -7,10 +7,6 @@ import {
     SortingState,
     VisibilityState,
     getCoreRowModel,
-    getFacetedRowModel,
-    getFacetedUniqueValues,
-    getFilteredRowModel,
-    getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
 // <CHANGE> Add Next.js router hooks for URL-based state persistence
@@ -26,13 +22,14 @@ import { WorkState } from "@/components/task/workFrame";
 import { ErrorState } from "@/components/ui/error-state";
 import {useMyTaskColumn} from "@/hooks/useMyTaskColumn";
 import {useDebounce} from "@/hooks/useDebounce";
-import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
+import { TASK_PAGE, useTaskPages } from "@/components/task/useTaskPages";
 import {UserInfoRawInterface} from "@/types/user";
-import {createListForTaskInfo, clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
+import {clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
+import { canEditTask } from "@/lib/work/access";
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
 import { statusOptions } from "@/lib/taskStatus"
@@ -42,8 +39,7 @@ import { statusOptions } from "@/lib/taskStatus"
 // the last).
 const NO_TASKS: TaskInfoInterface[] = []
 
-/** How many tasks the list asks for at once (no pages, work.md W14). */
-const LIST_PAGE = 500
+const userTasksOf = (answer: UserInfoRawInterface) => answer.data?.user_tasks
 const ALL_PROPS: RowProp[] = ["project", "priority", "labels", "due", "estimate", "badges"]
 const DISPLAY_DEFAULTS = { grouping: "when" as const, props: MINE_PROPS, showCompleted: "week" as const }
 
@@ -65,11 +61,13 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
     const dispatch = useDispatch()
 
     const [urlParam, setUrlParam] = useState('');
-    const userInfo = useFetch<UserInfoRawInterface>(urlParam ? GetEndpointUrl.GetUserTaskList + '?' + urlParam : '');
 
     const taskListState = useSelector(
         (state: RootState) => state.TaskInfo.taskListVisibleInfo || NO_TASKS,
     )
+
+    // No pages to turn (work.md W14): "Show more" at the foot reads the next.
+    const pages = useTaskPages<UserInfoRawInterface>(urlParam ? GetEndpointUrl.GetUserTaskList + '?' + urlParam : '', userTasksOf);
 
 
     // <CHANGE> Initialize all states from URL parameters
@@ -89,15 +87,10 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
         searchParams.get("search") || ""
     );
 
-    const [pageSize, setPageSize] = useState(LIST_PAGE);
-    const pageIndex = 0;
     const { display, set: setDisplay, reset: resetDisplay } = useListDisplay("mine", DISPLAY_DEFAULTS);
 
     const taskSearchString = useDebounce(globalFilter, 500);
 
-    // <CHANGE> Use refs to track previous values without causing re-renders
-    const prevTaskSearchStringRef = useRef(taskSearchString);
-    const hasFiltersChangedRef = useRef(false);
     const urlUpdateTimeoutRef = useRef<NodeJS.Timeout|null>(null);
 
 
@@ -108,20 +101,10 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
     // projectTaskTable. Once only: see useLayoutOnce.
     useLayoutOnce("my-tasks", () => dispatch(clearTaskListVisibleInfo()))
 
-    useEffect(() => {
-
-        if(userInfo.data?.data.user_tasks) {
-            dispatch(createListForTaskInfo({tasksInfo: userInfo.data?.data.user_tasks}))
-        }
-
-    }, [userInfo.data?.data.user_tasks]);
-
-    const pageCount = userInfo.data?.pageCount || 1;
     const {columns} = useMyTaskColumn();
     const table = useReactTable({
         data: taskListState,
         columns,
-        pageCount,
         state: {
             sorting,
             columnVisibility,
@@ -130,17 +113,10 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
         },
         getRowId: (originalRow) => originalRow.task_uuid,
         onSortingChange: setSorting,
-        onColumnFiltersChange: (c) => {
-            hasFiltersChangedRef.current = true;
-            setColumnFilters(c);
-        },
+        onColumnFiltersChange: setColumnFilters,
         onColumnVisibilityChange: setColumnVisibility,
         onGlobalFilterChange: setGlobalFilter,
         getCoreRowModel: getCoreRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFacetedRowModel: getFacetedRowModel(),
-        getFacetedUniqueValues: getFacetedUniqueValues(),
     });
 
     // <CHANGE> Memoized query string builder for API calls only
@@ -155,27 +131,14 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
             params.set('filters', JSON.stringify(columnFilters.map(({ id, value }) => ({ id, value }))));
         }
 
-        params.set('pageSize', pageSize.toString());
-        params.set('pageIndex', pageIndex.toString());
+        params.set('pageSize', TASK_PAGE.toString());
 
         if (taskSearchString) {
             params.set('taskSearchString', taskSearchString);
         }
 
         return params.toString();
-    }, [sorting, columnFilters, pageSize, pageIndex, taskSearchString]);
-
-    // <CHANGE> Effect to handle page reset when filters or search changes
-    useEffect(() => {
-        const searchChanged = prevTaskSearchStringRef.current !== taskSearchString;
-        const filtersChanged = hasFiltersChangedRef.current;
-
-        if (searchChanged || filtersChanged) {
-            setPageSize(LIST_PAGE);
-            prevTaskSearchStringRef.current = taskSearchString;
-            hasFiltersChangedRef.current = false;
-        }
-    }, [taskSearchString]);
+    }, [sorting, columnFilters, taskSearchString]);
 
     // <CHANGE> Effect to update API query string
     useEffect(() => {
@@ -224,18 +187,18 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
     // The first rows reach the list through the store, an effect after the
     // answer, and the request itself starts an effect after the first render.
     // Until the rows are in, the skeleton stays.
-    const firstLoad = taskListState.length === 0 && (!urlParam || userInfo.isLoading || (userInfo.data?.data.user_tasks?.length ?? 0) > 0);
+    const firstLoad = taskListState.length === 0 && (!urlParam || pages.loading || (pages.first?.data?.data.user_tasks?.length ?? 0) > 0);
     const filtered = columnFilters.length > 0 || !!globalFilter;
-    const failed = userInfo.isError && taskListState.length === 0;
+    const failed = !!pages.first?.isError && taskListState.length === 0;
     const shown = useMemo(
         () => (display.showCompleted === "all" ? taskListState : taskListState.filter((t) => keepsFinished(t, display.showCompleted))),
         [taskListState, display.showCompleted],
     );
     const sortedBy: RowProp | undefined = sorting[0]?.id === "task_due_date" ? "due" : undefined;
-    const moreToLoad = (userInfo.data?.pageCount ?? 1) > 1;
 
     return (
-        <KeyboardList tasks={taskListState} canEdit={canEditTask}>
+        <KeyboardList tasks={taskListState} canEdit={canEditMine}>
+            {pages.readers}
             <WorkToolbar
                 table={table}
                 grouping={display.grouping}
@@ -256,7 +219,7 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
             />
             {failed ? (
                 <WorkState>
-                    <ErrorState subject="your tasks" onRetry={() => void userInfo.mutate()} />
+                    <ErrorState subject="your tasks" onRetry={() => void pages.first?.mutate()} />
                 </WorkState>
             ) : (
                 <GroupedTaskList
@@ -264,10 +227,10 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
                     options={MINE_OPTIONS}
                     grouping={display.grouping}
                     props={display.props}
-                    canEdit={canEditTask}
+                    canEdit={canEditMine}
                     loading={firstLoad}
                     // More pages to load: a group counts only what has come (PROJ-BUG-2).
-                    partial={moreToLoad}
+                    partial={pages.toCome}
                     filtered={filtered}
                     sortedBy={sortedBy}
                     onClearFilters={() => {
@@ -286,10 +249,10 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
                     }
                 />
             )}
-            {moreToLoad && !firstLoad && (
+            {pages.more && !firstLoad && (
                 <button
                     type="button"
-                    onClick={() => setPageSize((n) => n + LIST_PAGE)}
+                    onClick={pages.showMore}
                     className="flex h-9 w-full items-center pl-[54px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                 >
                     Show more tasks
@@ -302,5 +265,5 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
 /** My Tasks spans projects, so it knows only the built-in statuses; a project's own status still reads by its name. */
 const MINE_OPTIONS = statusOptions();
 
-/** Tasks here come from many projects; each is changed by its own project's admins. */
-const canEditTask = (task: TaskInfoInterface) => Boolean(task.task_project?.project_is_admin)
+/** Tasks here come from many projects; each says what the reader may do with it (task_access, Work Access). */
+const canEditMine = (task: TaskInfoInterface) => canEditTask(task)

@@ -59,7 +59,10 @@ import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/li
 import { cn } from "@/lib/utils/helpers/cn"
 import { isClosedStatus, type StatusOption } from "@/lib/taskStatus"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
-import { celebrateTask, prefersReducedMotion } from "@/lib/celebrate"
+import { columnHue, columnLozenge, columnWash } from "@/components/kanbanComponents/columnLook"
+import type { CampHue } from "@/lib/campHue"
+import { celebrateTask, warmBurstsWhenIdle } from "@/lib/celebrateSoon"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { BoardActionsContext, type BoardActions } from "@/components/kanbanComponents/boardActions"
 import { ChevronDown, ChevronRight, Plus } from "@/lib/icons"
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
@@ -280,6 +283,8 @@ export function TaskBoard({
     // showing it until the data changes (the optimistic update or the server's
     // answer), or the card would jump back to where it started and forward again.
     const heldFrom = useRef<Columns | null>(null)
+    // A card's sparks are lib/celebrate's, fetched once the page is idle.
+    useEffect(() => warmBurstsWhenIdle(), [])
     useEffect(() => {
         if (dragging) return
         if (heldFrom.current === board) return
@@ -569,7 +574,7 @@ export function TaskBoard({
         >
             <BoardActionsContext.Provider value={actions}>
             {/* Display contents: only here to catch the keys of the cards inside. */}
-            <div className="contents" onKeyDownCapture={onKeyDownCapture}>
+            <div className="contents" data-escape-own={!!activeTask && byKeys ? "" : undefined} onKeyDownCapture={onKeyDownCapture}>
             {lanes ? (
                 <LaneGrid
                     boardRef={boardRef}
@@ -937,10 +942,14 @@ function LaneGrid({
                         const total = totals?.[status.value]
                         const capped = total !== undefined && total > loaded
                         const paging = columnPaging(status)
+                        const hue = columnHue(status)
                         return (
-                            <div key={status.value} className={cn(LANE_CELL, "flex h-10 items-center gap-2 rounded-lg bg-sunken px-3 dark:bg-white/[.02]")}>
-                                <TaskStatusCell status={status} label="tip" />
-                                <h2 className="truncate text-xs font-[510] text-foreground">{status.label}</h2>
+                            <div key={status.value} className={cn(LANE_CELL, "flex h-10 items-center gap-2 rounded-lg px-2", columnWash(hue))}>
+                                {/* The column's lozenge, as a board without lanes heads it. */}
+                                <span data-column-lozenge="" className={cn("inline-flex h-6 min-w-0 items-center gap-1.5 rounded-sm px-2 text-xs font-[510]", columnLozenge(hue))}>
+                                    <TaskStatusCell status={status} label="tip" />
+                                    <h2 className="truncate">{status.label}</h2>
+                                </span>
                                 <span className="text-xs tabular-nums text-ink-3">{Math.max(total ?? 0, loaded)}</span>
                                 {capped && onShowMore && loaded < paging.max && (
                                     <button
@@ -988,6 +997,7 @@ function LaneGrid({
                                             return (
                                                 <LaneCell
                                                     key={id}
+                                                    hue={columnHue(status)}
                                                     id={id}
                                                     lane={lane.id}
                                                     column={status.value}
@@ -1015,6 +1025,7 @@ function LaneGrid({
 
 /** One lane's share of one column: somewhere to drop even when empty. */
 const LaneCell = memo(function LaneCell({
+    hue,
     id,
     lane,
     column,
@@ -1027,6 +1038,8 @@ const LaneCell = memo(function LaneCell({
     onQuickAdd,
     badgeFor,
 }: {
+    /** Its column's status hue (columnLook): the lane's share of the column wears the column's wash. */
+    hue: CampHue | null
     id: string
     lane: string
     column: string
@@ -1044,10 +1057,12 @@ const LaneCell = memo(function LaneCell({
         <div
             ref={setNodeRef}
             data-column={id}
+            // Under a held card: the layer's drop well (INTERACTION_SPEC §5.2).
+            data-drop={lineAt !== null ? "valid" : undefined}
             className={cn(
                 LANE_CELL,
                 "group/cell flex min-h-[4.5rem] flex-col gap-2 rounded-lg p-2 transition-[background-color,box-shadow] duration-[140ms] [contain:layout]",
-                lineAt !== null ? "bg-[color-mix(in_oklab,var(--brand-muted)_45%,var(--sunken))] ring-1 ring-inset ring-brand/35" : "bg-sunken dark:bg-white/[.02]",
+                columnWash(hue),
             )}
         >
             <CardStack id={id} column={column} tasks={tasks} canDrag={canDrag} activeId={activeId} liftedId={liftedId} describedBy={describedBy} lineAt={lineAt} badgeFor={badgeFor} />
@@ -1057,12 +1072,14 @@ const LaneCell = memo(function LaneCell({
 })
 
 /**
- * Where a dragged card will land. On a board the gap the cards open is the
- * indicator (work.md W22), so this marks the spot without drawing: the keys
- * keep it in view, and it takes no space.
+ * Where a dragged card will land: the layer's 2px accent line with its ring
+ * (app/interaction.css [data-drop-line], INTERACTION_SPEC §5.1), in the
+ * middle of the gap the cards open for it (work.md W22). Above a card that
+ * has moved aside, it rises by half the room, to the gap's middle. It takes
+ * no space, and the keys keep it in view.
  */
 function DropLine({ className }: { className: string }) {
-    return <span aria-hidden="true" data-drop-line="" className={cn("pointer-events-none absolute inset-x-1 z-10 block h-0 opacity-0", className)} />
+    return <span aria-hidden="true" data-drop-line="" className={cn("pointer-events-none absolute inset-x-1 z-10 block", className)} />
 }
 
 const BoardCard = memo(function BoardCard({
@@ -1096,7 +1113,7 @@ const BoardCard = memo(function BoardCard({
             data-card-slot={task.task_uuid}
             className="relative transition-transform duration-[160ms] ease-out data-[shift]:translate-y-[var(--room,0px)]"
         >
-            {lineAbove && <DropLine className="-top-[5px]" />}
+            {lineAbove && <DropLine className="-top-[5px] [[data-shift]>&]:top-[calc(-5px_-_var(--room,0px)/2)]" />}
             <Item
                 ref={setNodeRef}
                 value={task.task_uuid}
@@ -1175,6 +1192,7 @@ function QuickAdd({
                 value={name}
                 disabled={busy}
                 onChange={(e) => setName(e.target.value)}
+                data-escape-own=""
                 onKeyDown={fieldKeyDown((e) => {
                     if (e.key === "Enter") {
                         e.preventDefault()

@@ -7,6 +7,7 @@
 
 import useSWR from "swr"
 import axiosInstance from "@/lib/axiosInstance"
+import { CLIENT_CONFIG_KEY } from "@/lib/clientConfigKey"
 import { GetEndpointUrl } from "@/services/endPoints"
 
 interface ClientConfig {
@@ -59,6 +60,11 @@ export const FEATURE_PUSH = "push"
 // whether to offer a pull-request affordance with it, and it used to ask
 // /admin/github/status, which 403s for everyone who is not an admin.
 export const FEATURE_GITHUB = "github"
+// FEATURE_CALENDAR_REPEATS is whether the calendar's events are in its one
+// store (calendar A1), where events repeat and a change to one instance asks
+// its scope. Off (the two old stores, or while the events move), no repeat
+// is offered: nothing would make one.
+export const FEATURE_CALENDAR_REPEATS = "calendar_repeats"
 
 // A sane default mirrors the backend default (10 MB) so validation still works
 // before the config request resolves.
@@ -102,12 +108,34 @@ async function fetchClientConfig(): Promise<ClientConfig> {
 
 // One SWR key, one set of options, shared by every reader below so they cannot
 // drift into two caches of the same request.
+//
+// WHEN THE READ FAILS (17 Oct 2026). Everything optional reads as off until
+// the server answers, and so it stayed when the read failed: a dark channel
+// shot had no Huddle and no AI spark, and nobody was told. So:
+//   - the answer is kept for the next load (lib/swrCache's KEPT), and a read
+//     that fails keeps the features the last one gave, as SWR keeps data;
+//   - a failure is asked again on its own, a few seconds apart, growing;
+//   - with nothing known, FeaturesNotice says so and offers Try again.
+export const CONFIG_RETRY = { interval: 3000, count: 6 }
+
 function useClientConfigRequest() {
-    return useSWR("client-config", fetchClientConfig, {
+    return useSWR(CLIENT_CONFIG_KEY, fetchClientConfig, {
         revalidateOnFocus: false,
         dedupingInterval: 5 * 60 * 1000,
         fallbackData: DEFAULT_CONFIG,
+        errorRetryInterval: CONFIG_RETRY.interval,
+        errorRetryCount: CONFIG_RETRY.count,
     })
+}
+
+/**
+ * Whether this server has said what it has, and whether asking failed: the
+ * notice that says so when nothing is known (components/banner/FeaturesNotice).
+ * `retry` asks again now.
+ */
+export function useClientConfigStatus(): { known: boolean; failed: boolean; retry: () => void } {
+    const { data, error, mutate } = useClientConfigRequest()
+    return { known: !!data && data !== DEFAULT_CONFIG, failed: !!error, retry: () => void mutate() }
 }
 
 export function useClientConfig(): ClientConfig {

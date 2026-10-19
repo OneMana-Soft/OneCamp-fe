@@ -257,6 +257,7 @@ export function WorkSearch({ value, onChange, placeholder, label }: { value: str
         aria-label={label}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        data-escape-own=""
         onKeyDown={fieldKeyDown((e) => {
           if (e.key === "Escape") {
             onChange("")

@@ -1,20 +1,23 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import dynamic from "next/dynamic"
 import { format, isValid, parse } from "date-fns"
 
 import { CalendarIcon, Clock } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { clockTime } from "@/lib/utils/date/clock"
-import { usePhone } from "@/hooks/usePhone"
 import { inputSizing } from "@/components/ui/input"
+import { useSheetMode } from "@/components/ui/overlayMode"
+import { useSheetPanel } from "@/components/ui/sheetPanels"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
 
 // The pickers load when a field first opens (date-field-panels).
 const DatePanel = dynamic(() => import("@/components/ui/date-field-panels").then((m) => m.DatePanel), { ssr: false, loading: () => <div className="size-[280px]" /> })
 const TimePanel = dynamic(() => import("@/components/ui/date-field-panels").then((m) => m.TimePanel), { ssr: false, loading: () => <div className="h-[212px]" /> })
+// A phone's own sheet for a picker, loaded with the first one opened there.
+const PickerSheet = dynamic(() => import("@/components/ui/date-field-sheet"), { ssr: false })
 
 /**
  * ONE DATE FIELD AND ONE TIME FIELD (INTERACTION_SPEC D14, PG2-06), in place
@@ -24,14 +27,72 @@ const TimePanel = dynamic(() => import("@/components/ui/date-field-panels").then
  * a typed date, the quick days, the month and Clear), by its trigger on a
  * computer and in a sheet on a phone. A form's field (DateField) is one
  * trigger for it; a task's or a goal's date (components/task/taskDateField's
- * DateProperty) is another.
+ * DateProperty) is another. Every time opens the one time picker
+ * (TimePicker), the same two ways.
  */
 
 /**
- * Where the date picker opens: a popover by its trigger, or a sheet on a
- * phone, holding the same panel. `trigger` is the control that opens it; a
- * day picked, typed or quick, or Clear, closes it.
+ * Where a picker opens, the same panel each way (design/drawers-v3 §1.5): by
+ * its field where overlays float; on a phone (portrait or landscape), as a
+ * panel of the sheet it is in, with Back and the field's name, else in a sheet
+ * of its own, titled, never stacked over a sheet like a popup.
  */
+function PickerFrame({
+  trigger,
+  label,
+  open,
+  onOpenChange,
+  detent,
+  floatClassName,
+  children,
+}: {
+  trigger: React.ReactElement
+  label: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  detent: "medium" | "half"
+  floatClassName: string
+  children: React.ReactNode
+}) {
+  const sheet = useSheetMode()
+  const { inSheet, host } = useSheetPanel(sheet && open, label, () => onOpenChange(false))
+  // Mounted from the first open on, so the sheet can animate away.
+  const [used, setUsed] = React.useState(false)
+  if (sheet && open && !inSheet && !used) setUsed(true)
+  if (sheet) {
+    const button = trigger as React.ReactElement<React.ButtonHTMLAttributes<HTMLButtonElement>>
+    const opener = button.props.onClick
+    return (
+      <>
+        {React.cloneElement(button, {
+          "aria-expanded": open,
+          onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+            opener?.(event)
+            if (!event.defaultPrevented) onOpenChange(true)
+          },
+        })}
+        {inSheet ? (host && children ? createPortal(children, host) : null) : used ? (
+          <PickerSheet label={label} open={open} onOpenChange={onOpenChange} detent={detent}>
+            {children}
+          </PickerSheet>
+        ) : null}
+      </>
+    )
+  }
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent className={cn("content-float rounded-xl bg-pop p-0 shadow-e3", floatClassName)} align="start">
+        {/* The body (app/overlay.css): a short window scrolls it, never runs it off the screen. */}
+        <div data-overlay-body="" className="-mx-1 min-h-0 p-1">
+          {children}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** The date picker: a typed date, the quick days, the month and Clear. A pick or Clear closes it. */
 export function DatePicker({
   trigger,
   label,
@@ -56,41 +117,67 @@ export function DatePicker({
   /** The day picked, or undefined for Clear. */
   onPick: (day: Date | undefined) => void
 }) {
-  const phone = usePhone()
-  const panel = open ? (
-    <DatePanel
-      day={value}
-      from={from}
-      to={to}
-      clearable={clearable}
-      onPick={(d) => {
-        onPick(d)
-        onOpenChange(false)
-      }}
-      onClear={() => {
-        onPick(undefined)
-        onOpenChange(false)
-      }}
-    />
-  ) : null
-  if (phone) {
-    return (
-      <Drawer open={open} onOpenChange={onOpenChange} detent="medium">
-        <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-        <DrawerContent aria-describedby={undefined}>
-          <DrawerTitle className="sr-only">{label}</DrawerTitle>
-          <div className="flex justify-center pb-3">{panel}</div>
-        </DrawerContent>
-      </Drawer>
-    )
-  }
+  const sheet = useSheetMode()
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className="content-float w-auto rounded-xl bg-pop p-0 shadow-e3" align="start">
-        {panel}
-      </PopoverContent>
-    </Popover>
+    <PickerFrame trigger={trigger} label={label} open={open} onOpenChange={onOpenChange} detent="medium" floatClassName="w-auto">
+      {open ? (
+        <DatePanel
+          day={value}
+          from={from}
+          to={to}
+          clearable={clearable}
+          sheet={sheet}
+          onPick={(d) => {
+            onPick(d)
+            onOpenChange(false)
+          }}
+          onClear={() => {
+            onPick(undefined)
+            onOpenChange(false)
+          }}
+        />
+      ) : null}
+    </PickerFrame>
+  )
+}
+
+/** The time picker: the quarter hours flow in a sheet's one scroller. A time picked or typed closes it. */
+function TimePicker({
+  trigger,
+  label,
+  open,
+  onOpenChange,
+  minutes,
+  since,
+  after,
+  onPick,
+}: {
+  trigger: React.ReactElement
+  /** What it picks ("Until"): the sheet's name. */
+  label: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  minutes: number | null
+  since?: number
+  after?: number
+  onPick: (minutes: number) => void
+}) {
+  const sheet = useSheetMode()
+  return (
+    <PickerFrame trigger={trigger} label={label} open={open} onOpenChange={onOpenChange} detent="half" floatClassName="w-[220px]">
+      {open ? (
+        <TimePanel
+          minutes={minutes}
+          since={since}
+          after={after}
+          sheet={sheet}
+          onPick={(m) => {
+            onPick(m)
+            onOpenChange(false)
+          }}
+        />
+      ) : null}
+    </PickerFrame>
   )
 }
 
@@ -126,6 +213,9 @@ function minutesOf(value: string | undefined): number | null {
 }
 
 const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
+
+/** A moment's time of day as a TimeField's value ("HH:mm"), for a caller that keeps a Date. */
+export const timeValueOf = (d: Date) => hhmm(d.getHours() * 60 + d.getMinutes())
 
 const TRIGGER = "field-surface flex w-full min-w-0 items-center gap-2 rounded-md px-2.5 text-left text-sm tabular-nums text-ink disabled:cursor-not-allowed"
 
@@ -264,8 +354,9 @@ export function DateField({ min, max, ...props }: FieldProps & { min?: string; m
  * A time, typed ("9:30", "4pm") or picked from the quarter hours, written on
  * the reader's own clock (12 or 24 hour) and stored as "HH:mm". `since`
  * ("HH:mm"), for an end time: the list starts after it and says how long.
+ * `after` ("HH:mm"): the list offers only later times, and says nothing more.
  */
-export function TimeField({ since, ...props }: FieldProps & { since?: string }) {
+export function TimeField({ since, after, ...props }: FieldProps & { since?: string; after?: string }) {
   const minutes = minutesOf(props.value)
   return (
     <Field
@@ -274,21 +365,16 @@ export function TimeField({ since, ...props }: FieldProps & { since?: string }) 
       empty={minutes === null}
       props={{ placeholder: "Pick a time", ...props }}
       picker={(trigger, open, setOpen) => (
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-          <PopoverContent className="content-float w-[220px] rounded-xl bg-pop p-0 shadow-e3" align="start">
-            {open ? (
-              <TimePanel
-                minutes={minutes}
-                since={minutesOf(since) ?? undefined}
-                onPick={(m) => {
-                  props.onChange(hhmm(m))
-                  setOpen(false)
-                }}
-              />
-            ) : null}
-          </PopoverContent>
-        </Popover>
+        <TimePicker
+          trigger={trigger}
+          label={props["aria-label"] ?? "Time"}
+          open={open}
+          onOpenChange={setOpen}
+          minutes={minutes}
+          since={minutesOf(since) ?? undefined}
+          after={minutesOf(after) ?? undefined}
+          onPick={(m) => props.onChange(hhmm(m))}
+        />
       )}
     />
   )

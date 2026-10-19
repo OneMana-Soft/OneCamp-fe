@@ -7,109 +7,43 @@ import { Button } from "@/components/ui/button"
 import {
   AlertTriangle,
   ArrowUpRight,
-  AtSign,
   CalendarDays,
   Check,
-  CheckSquare,
-  CircleDot,
-  Hash,
-  Link2,
   Mail,
-  Network,
-  Sigma,
-  Tag,
-  Type,
-  User,
 } from "@/lib/icons"
 import { PopoverContent } from "@/components/ui/popover"
 import { LazyPopover } from "./LazyPopover"
-import { Calendar } from "@/components/ui/calendar"
-import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
+import { cellPickers, PickerLoading } from "./cellPickerPart"
 import {
   computedOf,
   formulaOf,
   optionsOf,
   parseFieldConfig,
   relationOf,
-  type FieldType,
   type RelationRef,
   type TableField,
 } from "@/services/tableService"
 import { RelationCell } from "@/components/table/RelationCell"
-import { OptionChip, chipsTinted } from "@/components/table/optionChip"
+import { OptionChip, chipsTinted, tintedFields } from "@/components/table/optionChip"
 import { showFormulaValue } from "@/lib/tables/formula"
-import type { CellKind } from "@/lib/tables/gridKeys"
 import { cellValid, formatNumber, numberFormatOf, safeHref, shortDay, urlHost } from "@/lib/tables/cellFormat"
-import { parseTypedNumber, typedNumberText } from "@/lib/format/number"
+import { typedNumberText } from "@/lib/format/number"
 import type { RowHeight } from "@/lib/tables/display"
 import { localDay } from "@/lib/utils/timeZone"
-import { campHueOf } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { formatLocale } from "@/lib/tables/numberFormat"
-import { isComposingKey } from "@/lib/keys/ime"
-
-/** The twelve column types, each with the one-line hint the type menus show (kept short: the hint gives way to the name, see ColumnMenu's TypeHint). */
-export const FIELD_TYPES: { value: FieldType; label: string; hint: string }[] = [
-  { value: "text", label: "Text", hint: "Names, notes, anything" },
-  { value: "number", label: "Number", hint: "Sums and currency" },
-  { value: "select", label: "Select", hint: "One option from a list" },
-  { value: "multi_select", label: "Multi-select", hint: "Several, as tags" },
-  { value: "date", label: "Date", hint: "Due dates, calendars" },
-  { value: "checkbox", label: "Checkbox", hint: "Done or not" },
-  { value: "url", label: "URL", hint: "A link that opens" },
-  { value: "email", label: "Email", hint: "An address to write to" },
-  { value: "person", label: "Person", hint: "Who it belongs to" },
-  { value: "relation", label: "Relation", hint: "Link to another table" },
-  { value: "formula", label: "Formula", hint: "From other fields" },
-  { value: "rollup", label: "Rollup", hint: "Add up what's linked" },
-]
-
-/** A column type's glyph: the header says the type with it, never in words. */
-export const FIELD_GLYPH: Record<FieldType, React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
-  text: Type,
-  number: Hash,
-  select: CircleDot,
-  multi_select: Tag,
-  date: CalendarDays,
-  checkbox: CheckSquare,
-  url: Link2,
-  email: AtSign,
-  person: User,
-  relation: ArrowUpRight,
-  formula: Sigma,
-  rollup: Network,
-}
-
-export const fieldTypeLabel = (type: FieldType) => FIELD_TYPES.find((t) => t.value === type)?.label ?? type
-
-/** The kind of control a cell is, for moving around from the keyboard. */
-export function cellKind(f: TableField): CellKind {
-  switch (f.type) {
-    case "formula":
-    case "rollup":
-      return "computed"
-    case "checkbox":
-      return "checkbox"
-    case "select":
-    case "multi_select":
-    case "relation":
-    case "date":
-      return "button"
-    case "number":
-      return "number"
-    default:
-      return "text"
-  }
-}
+import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
+import { fieldKind } from "@/lib/fieldTypes/registry"
 
 /** A select option the grid knows, by its label: for chips a formula's result can borrow. */
 export type OptionIndex = Map<string, { color?: string; tinted: boolean }>
 
 export function optionIndexOf(fields: TableField[]): OptionIndex {
   const out: OptionIndex = new Map()
+  const tintedIds = tintedFields(fields)
   for (const f of fields) {
     if (f.type !== "select" && f.type !== "multi_select") continue
-    const tinted = chipsTinted(f)
+    const tinted = tintedIds.has(f.id)
     for (const o of optionsOf(f)) if (!out.has(o.label)) out.set(o.label, { color: o.color, tinted })
   }
   return out
@@ -118,6 +52,8 @@ export function optionIndexOf(fields: TableField[]): OptionIndex {
 /** What every cell in a grid shares. */
 export interface CellContext {
   options: OptionIndex
+  /** The columns whose chips are tinted (optionChip tintedFields); without it, each column's own say. */
+  tinted?: Set<string>
   rowHeight: RowHeight
   /** Opens a column's menu at its formula (from a formula error's card). */
   onEditField?: (fieldId: string) => void
@@ -248,16 +184,6 @@ export function CheckboxCell({
   )
 }
 
-/** An option's tile in a picker: its 6 px dot. */
-function OptionDot({ color }: { color?: string }) {
-  const hue = campHueOf(color)
-  return (
-    <span className="inline-flex size-6 items-center justify-center">
-      <span aria-hidden="true" className={cn("size-2 rounded-[4px]", hue ? cn(HUE_CLASS[hue], "bg-hue") : "bg-ink-3")} />
-    </span>
-  )
-}
-
 /**
  * A select or multi-select cell: its chips at rest (neutral unless the column
  * opted into tints), and a CommandList picker on click or Enter, with search.
@@ -280,41 +206,18 @@ export function SelectCell({
 }) {
   const multi = field.type === "multi_select"
   const options = React.useMemo(() => optionsOf(field), [field])
-  const tinted = chipsTinted(field)
+  const tinted = ctx.tinted ? ctx.tinted.has(field.id) : chipsTinted(field)
   const saved = React.useMemo<string[]>(
     () => (multi ? (Array.isArray(value) ? (value as string[]) : []) : typeof value === "string" && value ? [value] : []),
     [multi, value],
   )
   const [selected, change] = useShownValue(saved)
   const [open, setOpen] = React.useState(false)
-  const [q, setQ] = React.useState("")
-  const list = React.useRef<CommandListHandle>(null)
   const colorOf = (label: string) => options.find((o) => o.label === label)?.color
   const { max: maxChips, wrap } = chipRoom(ctx, multi)
 
-  const items: CommandListItem[] = React.useMemo(() => {
-    const ql = q.trim().toLowerCase()
-    // Each option by its id; a cell holds the label.
-    const out: CommandListItem[] = options
-      .filter((o) => !ql || o.label.toLowerCase().includes(ql))
-      .map((o) => ({
-        id: o.id,
-        label: o.label,
-        tile: <OptionDot color={o.color} />,
-        trailing: selected.includes(o.label) ? <Check className="size-4 text-camp-moss" aria-hidden="true" /> : undefined,
-      }))
-    if (!multi && selected.length && !ql) out.push({ id: "__clear", label: "Clear", text: "Clear", tile: <span className="size-6" /> })
-    return out
-  }, [options, q, selected, multi])
-
-  const pick = (item: CommandListItem) => {
-    if (item.id === "__clear") {
-      change([], () => onCommit(""))
-      setOpen(false)
-      return
-    }
-    const label = options.find((o) => o.id === item.id)?.label
-    if (label === undefined) return
+  // A pick toggles a multi-select's option, and chooses a select's.
+  const pickLabel = (label: string) => {
     if (multi) {
       const next = selected.includes(label) ? selected.filter((s) => s !== label) : [...selected, label]
       change(next, (v) => onCommit(v))
@@ -322,6 +225,10 @@ export function SelectCell({
       change([label], () => onCommit(label))
       setOpen(false)
     }
+  }
+  const clear = () => {
+    change([], () => onCommit(""))
+    setOpen(false)
   }
 
   const shown = selected.slice(0, maxChips)
@@ -347,10 +254,7 @@ export function SelectCell({
   return (
     <LazyPopover
       open={open}
-      onOpenChange={(o) => {
-        setOpen(o)
-        if (!o) setQ("")
-      }}
+      onOpenChange={setOpen}
       trigger={
         <button
           type="button"
@@ -363,28 +267,9 @@ export function SelectCell({
       }
     >
       <PopoverContent align="start" sideOffset={2} className="w-auto rounded-xl bg-transparent p-0 shadow-none" onOpenAutoFocus={(e) => e.preventDefault()}>
-        <CommandList
-          ref={list}
-          label={`${field.name} options`}
-          className="w-64"
-          items={items}
-          query={q}
-          onSelect={pick}
-          maxHeight={280}
-          empty={options.length === 0 ? "No options yet. Add some in the column menu." : `No options match “${q}”`}
-          header={
-            <input
-              autoFocus
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => {
-                if (list.current?.onKeyDown(e)) e.preventDefault()
-              }}
-              placeholder={multi ? "Find options" : "Find an option"}
-              aria-label="Find an option"
-              className="h-7 w-full bg-transparent text-ui text-ink outline-none placeholder:text-ink-3"
-            />
-          }
+        <cellPickers.View
+          fallback={<PickerLoading />}
+          render={(m) => <m.OptionPicker name={field.name} options={options} selected={selected} multi={multi} onPick={pickLabel} onClear={clear} />}
         />
       </PopoverContent>
     </LazyPopover>
@@ -458,12 +343,7 @@ export function DateCell({
       }
     >
       <PopoverContent className="content-float w-auto rounded-xl p-0 shadow-e3" align="start">
-        <Calendar mode="single" selected={day} defaultMonth={day} onSelect={pick} initialFocus />
-        <div className="flex justify-end p-2 pt-0">
-          <Button variant="ghost" size="xs" disabled={!day} onClick={() => pick(undefined)}>
-            Clear
-          </Button>
-        </div>
+        <cellPickers.View fallback={<PickerLoading />} render={(m) => <m.DayPicker day={day} onPick={pick} />} />
       </PopoverContent>
     </LazyPopover>
   )
@@ -499,6 +379,17 @@ const LINES_MAX_PX = 240
  * at most `max`, past which it scrolls; `data-grown` when it's taller than
  * its cell. Closed, it's its cell's height again, at its first line.
  */
+/**
+ * A text area that isn't a cell (the record's title): as tall as its text.
+ * fitLines keeps a cell's text area at least its cell's height; a title's
+ * parent is the whole record, and that made the title as tall as the record's
+ * visible part, a blank stretch above its fields.
+ */
+export function fitText(el: HTMLTextAreaElement) {
+  el.style.height = "auto"
+  el.style.height = `${el.scrollHeight}px`
+}
+
 export function fitLines(el: HTMLTextAreaElement, open: boolean, max = Infinity) {
   if (!open) {
     el.style.height = ""
@@ -579,9 +470,11 @@ export function TextCell({
     setLocal(savedText)
   }, [savedText])
 
-  // What a save sends: a number column's text read as a number, null when it isn't one.
-  const typed = isNumber ? parseTypedNumber(local) : local
-  const notNumber = typed === null
+  // What a save sends: the text read as the field's kind reads what's typed
+  // (a number column's in the reader's signs), null when it isn't one.
+  const parsed = fieldKind(type).parse?.(local, field) ?? { value: local }
+  const typed = "value" in parsed ? parsed.value : null
+  const notNumber = "error" in parsed
 
   // The latest typing, for a commit when the row leaves the page while its
   // cell still has the focus: removing a focused element does not blur it.
@@ -737,13 +630,14 @@ export function TextCell({
             fit(e.currentTarget, false)
             commit()
           }}
-          onKeyDown={(e) => {
+          data-escape-own={local !== savedText ? "" : undefined}
+          onKeyDown={fieldKeyDown((e) => {
             escape(e)
             const next = lineBreakKey(e)
             if (next === null) return
             setLocal(next)
             fit(e.currentTarget, true)
-          }}
+          })}
           aria-label={field.name}
           autoComplete="off"
           spellCheck={type === "text" ? undefined : false}
@@ -757,7 +651,8 @@ export function TextCell({
           value={local}
           onChange={(e) => setLocal(e.target.value)}
           onBlur={commit}
-          onKeyDown={escape}
+          data-escape-own={local !== savedText ? "" : undefined}
+          onKeyDown={fieldKeyDown(escape)}
           aria-label={field.name}
           aria-invalid={invalid || undefined}
           autoComplete="off"

@@ -1,0 +1,64 @@
+{
+  "about": "What a cell of each field kind stores when a writer sends a value: the server's registry (business/FieldTypes) and the web's (lib/fieldTypes) are each held to these, byte for byte the same file in both repositories. A case with typed true is text a person types into the web's editor, which the web reads in the case's locale (whose number signs are signs) before it sends it; every case is what the server stores from any writer. want is the stored value; error true is a refusal.",
+  "options": [{"id": "o_todo000001", "label": "To do"}, {"label": "Done"}],
+  "cases": [
+    {"name": "a number is a number", "kind": "number", "in": 12.5, "want": 12.5},
+    {"name": "text with the plain signs", "kind": "number", "in": "1,200.50", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 1200.5},
+    {"name": "German signs", "kind": "number", "in": "1.234,5", "typed": true, "locale": "de-DE", "signs": {"decimal": ",", "group": "."}, "want": 1234.5},
+    {"name": "a German decimal comma", "kind": "number", "in": "1,5", "typed": true, "locale": "de-DE", "signs": {"decimal": ",", "group": "."}, "want": 1.5},
+    {"name": "French signs", "kind": "number", "in": "1 234,5", "typed": true, "locale": "fr-FR", "signs": {"decimal": ",", "group": " "}, "want": 1234.5},
+    {"name": "India's groups", "kind": "number", "in": "1,00,000", "typed": true, "locale": "en-IN", "signs": {"decimal": ".", "group": ","}, "want": 100000},
+    {"name": "a currency sign before", "kind": "number", "in": "€12", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 12},
+    {"name": "a currency sign after", "kind": "number", "in": "12 €", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 12},
+    {"name": "a minus sign", "kind": "number", "in": "−1 234", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": -1234},
+    {"name": "an exponent", "kind": "number", "in": "1e3", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 1000},
+    {"name": "a comma that groups digits isn't a decimal sign", "kind": "number", "in": "1,5", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "error": true},
+    {"name": "a unit isn't a number", "kind": "number", "in": "12 kg", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "error": true},
+    {"name": "a word isn't a number", "kind": "number", "in": "TBD", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "error": true},
+    {"name": "a box isn't a number", "kind": "number", "in": true, "error": true},
+    {"name": "an empty cell clears", "kind": "number", "in": "", "want": ""},
+    {"name": "nothing clears", "kind": "number", "in": null, "want": null},
+
+    {"name": "a ticked box", "kind": "checkbox", "in": true, "want": true},
+    {"name": "yes ticks it", "kind": "checkbox", "in": "Yes", "want": true},
+    {"name": "a tick ticks it", "kind": "checkbox", "in": "✓", "want": true},
+    {"name": "no unticks it", "kind": "checkbox", "in": "no", "want": false},
+    {"name": "one ticks it", "kind": "checkbox", "in": 1, "want": true},
+    {"name": "zero unticks it", "kind": "checkbox", "in": 0, "want": false},
+    {"name": "maybe is neither", "kind": "checkbox", "in": "maybe", "error": true},
+    {"name": "two is neither", "kind": "checkbox", "in": 2, "error": true},
+
+    {"name": "a day", "kind": "date", "in": "2026-10-16", "want": "2026-10-16"},
+    {"name": "a moment is its day", "kind": "date", "in": "2026-10-16T23:30:00+05:30", "want": "2026-10-16"},
+    {"name": "a day and a time", "kind": "date", "in": "2026-10-16 09:15", "want": "2026-10-16"},
+    {"name": "words aren't a date", "kind": "date", "in": "next Friday", "error": true},
+    {"name": "a number isn't a date", "kind": "date", "in": 20261016, "error": true},
+
+    {"name": "an option by its label", "kind": "select", "in": "To do", "want": "To do"},
+    {"name": "an option by its id", "kind": "select", "in": "o_todo000001", "want": "To do"},
+    {"name": "an option saved without an id, by the id it's known by", "kind": "select", "in": "label:Done", "want": "Done"},
+    {"name": "a label that isn't an option", "kind": "select", "in": "Doing", "error": true},
+    {"name": "a list isn't one option", "kind": "select", "in": ["To do"], "error": true},
+    {"name": "an empty select clears", "kind": "select", "in": "", "want": ""},
+
+    {"name": "options by label", "kind": "multi_select", "in": ["To do", "Done"], "want": ["To do", "Done"]},
+    {"name": "one option is a list of one", "kind": "multi_select", "in": "Done", "want": ["Done"]},
+    {"name": "each option once, by label or id, in order", "kind": "multi_select", "in": ["Done", "Done", "o_todo000001"], "want": ["Done", "To do"]},
+    {"name": "a label that isn't an option among them", "kind": "multi_select", "in": ["Done", "Nope"], "error": true},
+    {"name": "an empty list clears", "kind": "multi_select", "in": [], "want": []},
+
+    {"name": "text keeps its line breaks", "kind": "text", "in": "Line one\nLine two", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "Line one\nLine two"},
+    {"name": "a number as text", "kind": "text", "in": 12, "want": "12"},
+    {"name": "a ticked box as text", "kind": "text", "in": true, "want": "Yes"},
+    {"name": "a list as text", "kind": "text", "in": ["a", "b"], "want": "a, b"},
+    {"name": "an object isn't text", "kind": "text", "in": {"label": "x"}, "error": true},
+    {"name": "a person's name", "kind": "person", "in": "Maya Iyer", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "Maya Iyer"},
+    {"name": "a link", "kind": "url", "in": "https://example.com/a", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "https://example.com/a"},
+    {"name": "an address", "kind": "email", "in": "maya@example.com", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "maya@example.com"},
+
+    {"name": "a link to an item keeps its id and type alone", "kind": "relation", "config": {"relation_target": "any"}, "in": [{"id": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b", "type": "doc", "label": "Plan"}], "want": [{"id": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b", "type": "doc"}]},
+    {"name": "a link with no id is refused", "kind": "relation", "config": {"relation_target": "doc"}, "in": [{"label": "Salaries", "type": "doc"}], "error": true},
+
+    {"name": "a formula's cell isn't stored, so isn't checked", "kind": "formula", "in": "anything", "want": "anything"}
+  ]
+}

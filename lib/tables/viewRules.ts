@@ -2,8 +2,10 @@
 // board and calendar, kept in their browser for that table. Pure, so the views
 // and their tests share one reading of a cell.
 
-import { computedOf, isHiddenRef, isMoreRef, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
+import { isHiddenRef, isMoreRef, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
 import { typedNumber } from "@/lib/format/number"
+import { filterKind } from "@/lib/fieldTypes/registry"
+import type { FilterKind } from "@/lib/fieldTypes/types"
 
 export type SortRule = { field: string; dir: "asc" | "desc" }
 export type FilterOp =
@@ -31,33 +33,9 @@ export interface ViewRules {
 
 export const NO_RULES: ViewRules = { sort: [], filters: [], match: "all" }
 
-/** How a field's cells compare: a formula or a rollup by what it gives. */
-export type FieldKind = "text" | "number" | "date" | "checkbox" | "list"
-
-export function kindOfField(f: TableField): FieldKind {
-  switch (f.type) {
-    case "number":
-      return "number"
-    case "date":
-      return "date"
-    case "checkbox":
-      return "checkbox"
-    case "multi_select":
-    case "person":
-    case "relation":
-      return "list"
-    case "formula":
-    case "rollup": {
-      const result = computedOf(f).result
-      return result === "checkbox" ? "checkbox" : result
-    }
-    default:
-      return "text"
-  }
-}
 
 /** The filters a kind of field takes, as the filter menu lists them. */
-export const OPS_FOR: Record<FieldKind, { op: FilterOp; label: string; needsValue: boolean }[]> = {
+export const OPS_FOR: Record<FilterKind, { op: FilterOp; label: string; needsValue: boolean }[]> = {
   text: [
     { op: "contains", label: "contains", needsValue: true },
     { op: "not_contains", label: "doesn't contain", needsValue: true },
@@ -123,13 +101,13 @@ function asDay(v: unknown): string | null {
 }
 
 /** Whether a cell has nothing to sort by: it's blank, or it's a link cell naming none of its links. */
-const unnamed = (kind: FieldKind, v: unknown) =>
+const unnamed = (kind: FilterKind, v: unknown) =>
   kind === "checkbox" ? false : kind === "number" ? asNumber(v) === null : kind === "date" ? asDay(v) === null : labels(v).length === 0
 
 /** Whether a cell is empty: a link cell counting links it doesn't name, or holding ones the reader can't open, has links. */
-const isBlank = (kind: FieldKind, v: unknown) => unnamed(kind, v) && !(Array.isArray(v) && v.some((x) => isMoreRef(x) || isHiddenRef(x)))
+const isBlank = (kind: FilterKind, v: unknown) => unnamed(kind, v) && !(Array.isArray(v) && v.some((x) => isMoreRef(x) || isHiddenRef(x)))
 
-function passes(kind: FieldKind, v: unknown, rule: FilterRule): boolean {
+function passes(kind: FilterKind, v: unknown, rule: FilterRule): boolean {
   const want = (rule.value ?? "").trim()
   switch (rule.op) {
     case "empty":
@@ -194,7 +172,7 @@ function passes(kind: FieldKind, v: unknown, rule: FilterRule): boolean {
 }
 
 /** Compares two cells for sorting, ascending; blanks are left to the caller. */
-function compareCells(kind: FieldKind, a: unknown, b: unknown): number {
+function compareCells(kind: FilterKind, a: unknown, b: unknown): number {
   switch (kind) {
     case "number":
       return (asNumber(a) ?? 0) - (asNumber(b) ?? 0)
@@ -223,7 +201,7 @@ export function applyViewRules(rows: TableRow[], fields: TableField[], rules: Vi
   let out = rows.map((row) => ({ row, values: parseRowValues(row) }))
   if (filters.length > 0) {
     out = out.filter(({ values }) => {
-      const check = (r: FilterRule) => passes(kindOfField(byId.get(r.field)!), values[r.field], r)
+      const check = (r: FilterRule) => passes(filterKind(byId.get(r.field)!), values[r.field], r)
       return rules.match === "any" ? filters.some(check) : filters.every(check)
     })
   }
@@ -232,7 +210,7 @@ export function applyViewRules(rows: TableRow[], fields: TableField[], rules: Vi
       .map((x, i) => ({ ...x, i }))
       .sort((x, y) => {
         for (const s of sorts) {
-          const kind = kindOfField(byId.get(s.field)!)
+          const kind = filterKind(byId.get(s.field)!)
           const a = x.values[s.field]
           const b = y.values[s.field]
           const ab = unnamed(kind, a)
@@ -283,7 +261,7 @@ export function keepInSight(
 
 /** Whether a filter still fits its field: the field is there, and takes that condition (a field's type can change). */
 function fits(field: TableField | undefined, rule: FilterRule): boolean {
-  return !!field && OPS_FOR[kindOfField(field)].some((o) => o.op === rule.op)
+  return !!field && OPS_FOR[filterKind(field)].some((o) => o.op === rule.op)
 }
 
 /** A table's rules without any for fields that are gone, or filters that no longer fit their field. */

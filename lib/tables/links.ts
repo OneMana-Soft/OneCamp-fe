@@ -3,7 +3,7 @@
 
 import type { RollupHow, TableField } from "@/services/tableService"
 import { relationOf } from "@/services/tableService"
-import type { FieldKind } from "@/lib/tables/viewRules"
+import type { FilterKind } from "@/lib/fieldTypes/types"
 
 export const ROLLUP_LABELS: Record<RollupHow, string> = {
   count: "Count the rows",
@@ -21,7 +21,7 @@ export const ROLLUP_LABELS: Record<RollupHow, string> = {
 }
 
 /** The ways a rollup can add up a field of a kind, the likeliest first; with no field, it can only count the rows. */
-export function rollupOptions(kind: FieldKind | null): RollupHow[] {
+export function rollupOptions(kind: FilterKind | null): RollupHow[] {
   switch (kind) {
     case null:
       return ["count"]

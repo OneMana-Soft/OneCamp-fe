@@ -18,7 +18,7 @@
  * Under reduced motion, or without Web Animations, it does nothing: things
  * are simply where they are.
  */
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 
 export type FlipRects = Map<string, DOMRect>
 

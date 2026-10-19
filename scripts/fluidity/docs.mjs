@@ -13,7 +13,7 @@
 //
 //   node scripts/fluidity/docs.mjs --base http://localhost:3000 --cpu 4
 //   options: --runs 3  --rtt 150  --device desktop|phone  --only open,type,big,sockets,weight,reader
-//            --budgets <file>  --out <file.json>  --label <name>
+//            --budgets <file>  --out <file.json>  --label <name>  --result <file> (rows, for run.mjs)
 // Under Docker network churn, run it in its own namespace:
 //   ~/bin/browser-isolated --forward 3000 -- node scripts/fluidity/docs.mjs ...
 import { chromium } from "@playwright/test"
@@ -22,6 +22,7 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { installProbe, keyStats, mark, median, since } from "./lib.mjs"
+import { check } from "./budgets.mjs"
 import { USERS, collabFor, fakeApp } from "./fakeApp.mjs"
 import { bigDocBlocks, docFromBlocks, launchPlanBlocks } from "./fakeCollab.mjs"
 
@@ -365,19 +366,12 @@ if (result.big.length) {
   M.bigLayoutReadsPerKey = median(result.big.map((b) => b.type.layoutReadsPerKey))
 }
 
-const rows = []
-let failed = 0
-for (const [metric, b] of Object.entries(BUDGETS.budgets)) {
-  const value = M[metric]
-  const at = b[`cpu${CPU}`] ?? b
-  if (at.max === undefined || value === undefined) continue
-  const ok = value === null ? null : value <= at.max
-  // A report-only budget is printed against its target and never fails the
-  // run: a metric too noisy on a shared machine to hold yet (doc-budgets.json).
-  const enforced = b.enforce !== false
-  if (ok === false && enforced) failed++
-  rows.push({ metric, value, max: at.max, target: at.target ?? null, owner: b.owner ?? "", ok, enforced })
-}
+// The one checker (budgets.mjs). A report-only budget is printed against its
+// target and never fails the run: a metric too noisy on a shared machine to
+// hold yet (doc-budgets.json). A part not asked for (--only) has no row, and
+// a value the build can't give (null) is printed, never failing.
+const rows = check(BUDGETS, M, { cpu: CPU, skipMissing: true })
+const failed = rows.filter((r) => r.ok === false && r.enforced).length
 result.budgets = rows
 console.log(`docs.mjs ${LABEL} cpu ${CPU}× rtt ${RTT} ms ${DEVICE} ${BASE}`)
 console.log("metric".padEnd(28), "value".padStart(8), "max".padStart(8), "target".padStart(8), " owner ok")
@@ -387,6 +381,8 @@ for (const r of rows) {
 }
 if (result.reader && typeof result.reader === "string") console.log(result.reader)
 if (OUT) writeFileSync(OUT, JSON.stringify(result, null, 2))
+// The rows as run.mjs reads them (scenarios.json).
+if (opt("result", null)) writeFileSync(opt("result"), JSON.stringify({ scenario: "docs", cpu: CPU, metrics: M, checks: rows }, null, 2))
 if (failed) {
   console.log(`${failed} budget(s) missed`)
   process.exit(1)

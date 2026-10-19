@@ -50,3 +50,21 @@ describe("a project's statuses (work.md W48)", () => {
     expect(hueForCategory("amber", "backlog")).toBe("slate")
   })
 })
+
+// One press, one thing (rule 7; lib/keys/escapeOwn): Esc in a status name
+// being changed puts the name back and leaves the dialog open; with nothing
+// to put back, Esc closes it. Radix hears Esc first, in the document, so one
+// press put the name back and closed the dialog with it.
+describe("Esc in a status's name", () => {
+  it("puts the name back first, and closes the dialog on the next press", () => {
+    const onOpenChange = vi.fn()
+    render(<ProjectStatusesDialog projectId="p1" open onOpenChange={onOpenChange} />)
+    const name = screen.getByDisplayValue("QA")
+    fireEvent.change(name, { target: { value: "Quality" } })
+    fireEvent.keyDown(name, { key: "Escape" })
+    expect((name as HTMLInputElement).value).toBe("QA")
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(name, { key: "Escape" })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})

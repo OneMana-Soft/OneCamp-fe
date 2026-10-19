@@ -14,10 +14,12 @@ import "@/components/table/table.css"
 import { TableField, TableRow, RelationRef, isHiddenRef, isNumeric, optionsOf, parseRowValues, computedOf } from "@/services/tableService"
 import { Check, Lock } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
-import { OptionChip, chipsTinted } from "@/components/table/optionChip"
-import { FIELD_GLYPH, dayOf } from "@/components/table/gridCells"
+import { OptionChip, tintedFields } from "@/components/table/optionChip"
+import { dayOf } from "@/components/table/gridCells"
+import { fieldKind } from "@/lib/fieldTypes/registry"
 import { formatNumber, hiddenText, numberFormatOf, safeHref, shortDay, urlHost } from "@/lib/tables/cellFormat"
 import { formatLocale } from "@/lib/tables/numberFormat"
+import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { cn } from "@/lib/utils/helpers/cn"
 
 interface GuestTableViewerProps {
@@ -27,7 +29,7 @@ interface GuestTableViewerProps {
   total?: number
 }
 
-function CellValue({ field, value }: { field: TableField; value: unknown }) {
+function CellValue({ field, value, tinted }: { field: TableField; value: unknown; tinted: boolean }) {
   if (value === null || value === undefined || value === "") {
     return <span className="sr-only">Empty</span>
   }
@@ -69,7 +71,7 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
         <span className="flex flex-wrap gap-1">
           {arr.map((v, i) => {
             const label = String(v)
-            return <OptionChip key={i} label={label} color={opts.find((o) => o.label === label)?.color} tinted={chipsTinted(field)} />
+            return <OptionChip key={i} label={label} color={opts.find((o) => o.label === label)?.color} tinted={tinted} />
           })}
         </span>
       )
@@ -126,9 +128,24 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
   }
 }
 
+/**
+ * Rows in their table's order: by their places (position_key, compared as
+ * the server compares them, character by character), then their ids; a row
+ * from a server before places, by its number. Pure.
+ */
+function byPlace(a: TableRow, b: TableRow): number {
+  if (a.position_key && b.position_key) {
+    if (a.position_key !== b.position_key) return a.position_key < b.position_key ? -1 : 1
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  }
+  return a.position - b.position
+}
+
 export function GuestTableViewer({ fields, rows, total }: GuestTableViewerProps) {
-  const sortedFields = React.useMemo(() => [...fields].sort((a, b) => a.position - b.position), [fields])
-  const sortedRows = React.useMemo(() => [...rows].sort((a, b) => a.position - b.position), [rows])
+  const sortedFields = React.useMemo(() => fieldOrder(fields), [fields])
+  // As the members' grid tints them (optionChip tintedFields).
+  const tinted = React.useMemo(() => tintedFields(fields), [fields])
+  const sortedRows = React.useMemo(() => [...rows].sort(byPlace), [rows])
 
   if (sortedFields.length === 0) {
     return <p className="px-8 pb-12 pt-6 text-center text-ui text-ink-3">This table has no columns yet.</p>
@@ -140,7 +157,7 @@ export function GuestTableViewer({ fields, rows, total }: GuestTableViewerProps)
         <thead>
           <tr>
             {sortedFields.map((f, i) => {
-              const G = FIELD_GLYPH[f.type] ?? FIELD_GLYPH.text
+              const G = fieldKind(f.type).glyph
               return (
                 <th
                   key={f.id}
@@ -183,7 +200,7 @@ export function GuestTableViewer({ fields, rows, total }: GuestTableViewerProps)
                         i === 0 && "!left-0 pl-5 font-medium sm:pl-8 max-sm:max-w-[140px] max-sm:truncate",
                       )}
                     >
-                      <CellValue field={f} value={values[f.id]} />
+                      <CellValue field={f} value={values[f.id]} tinted={tinted.has(f.id)} />
                     </td>
                   ))}
                 </tr>

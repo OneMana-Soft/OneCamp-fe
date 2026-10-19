@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react
 
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { statusKindOf, useStatusLabel, type StatusLike } from "@/components/task/taskStatusCell"
-import { celebrateTask, prefersReducedMotion } from "@/lib/celebrate"
+import { celebrateTask, warmBurstsWhenIdle } from "@/lib/celebrateSoon"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { feedback } from "@/lib/ui/feedback"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -61,6 +62,8 @@ export function TaskCheck({
   }, [anim])
 
   const press = useLongPress(() => ref.current && onPicker?.(ref.current))
+  // The sparks are lib/celebrate's, fetched once the page is idle.
+  useEffect(() => warmBurstsWhenIdle(), [])
 
   const click = useCallback(
     (e: MouseEvent<HTMLButtonElement>) => {

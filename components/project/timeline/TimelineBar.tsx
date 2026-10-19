@@ -17,8 +17,12 @@ import { stuckRoom } from "@/hooks/useTimelineView"
  */
 const fitsName = (name: string, width: number, icons: number) => name.length * 7 + 24 + icons * 16 <= width
 
-/** A bar wide enough to carry its assignee's face at its end (work.md W24). */
-const AVATAR_FROM = 120
+/**
+ * A bar wide enough to carry its assignee's face at its end (work.md W24).
+ * It took 120 px, and with it the name inside, so at the week's 16 px a day
+ * almost no bar showed who had it; now any bar with room for the 18 px face.
+ */
+const FACE_FROM = 40
 
 /** How far in from the names column a bar's name sticks. */
 export const STICK_INSET = 4
@@ -27,7 +31,7 @@ interface BarProps {
   task: TimelineTask
   left: number
   width: number
-  /** Its status's hue (lib/timeline barHue): the tint, the cap and the name's ink. */
+  /** Its project's hue: the a2 cut it is filled with, or the tint once it is done. */
   hue: CampHue
   label: string
   /** The date bubble while it's being dragged: "Tue 14 → Fri 17 Oct". */
@@ -65,10 +69,11 @@ interface BarProps {
 }
 
 /**
- * One task's bar (design v3, work.md W24): 24px, r6, in its status's tint
- * with a hairline and a 3px cap of the strong cut, its name sticky in the
- * hue's ink. Done is moss with a check; late grows a hatched danger tail up
- * to today. Drag it to move it (it ticks from day to day, lifted, over a
+ * One task's bar (design v3, work.md W24; step 3, part 3): 24px, r6, filled
+ * with its project's hue in the a2 cut, its name sticky in white (over 4.5:1
+ * for all six hues in both themes), its assignee's face at its end. Its
+ * status is in its glyphs: done steps back to the project's tint with a
+ * check, late grows a hatched danger tail up to today, blocked has a lock. Drag it to move it (it ticks from day to day, lifted, over a
  * ghost of where it was), drag an end to change when it starts or is due;
  * arrows do the same from the keyboard. A click opens the task.
  */
@@ -100,12 +105,12 @@ export const TimelineBar = memo(function TimelineBar({
   onHover,
 }: BarProps) {
   const dragging = bubble !== undefined
-  const wide = width > AVATAR_FROM
+  const who = task.task_assignee?.user_full_name || task.task_assignee?.user_name || ""
+  const face = !!who && !milestone && width >= FACE_FROM
   const icons = (done ? 1 : 0) + (blocked > 0 ? 1 : 0) + (late ? 1 : 0)
-  const inside = !milestone && fitsName(task.task_name, width - (wide ? 24 : 0), icons)
+  const inside = !milestone && fitsName(task.task_name, width - (face ? 24 : 0), icons)
   const handles = canEdit && !milestone && width >= 18
   const waits = blocked > 0 ? `Waiting on ${blocked} ${blocked === 1 ? "task" : "tasks"}` : ""
-  const who = task.task_assignee?.user_full_name || task.task_assignee?.user_name || ""
   const tip = [task.task_name, label, who, waits].filter(Boolean).join(" · ")
   const tail = late && lateTail > 0 && !milestone ? Math.max(6, lateTail) : 0
   // Room after the bar for the dependency handle, then the name of a short bar.
@@ -143,7 +148,8 @@ export const TimelineBar = memo(function TimelineBar({
         aria-describedby={canEdit ? helpId : undefined}
         className={cn(
           HUE_CLASS[hue],
-          "work-tip group/bar absolute top-1.5 flex h-6 items-center text-2xs font-[510] leading-4 text-hue-ink outline-none",
+          "work-tip group/bar absolute top-1.5 flex h-6 items-center text-2xs font-[510] leading-4 outline-none",
+          done ? "text-hue-ink" : "text-white",
           milestone ? "justify-center" : "rounded-md",
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           dragging ? "z-10 cursor-grabbing shadow-e2" : cn("hover:shadow-e1", canEdit ? "cursor-grab" : "cursor-pointer"),
@@ -157,16 +163,19 @@ export const TimelineBar = memo(function TimelineBar({
       >
         {/* The bar itself: tint, hairline and cap, grown from its start on first reveal. */}
         {milestone ? (
-          <span aria-hidden data-milestone="" data-grown={grow?.["data-grown"]} className="pointer-events-none size-3 rotate-45 rounded-[2px] bg-hue" />
+          <span aria-hidden data-milestone="" data-grown={grow?.["data-grown"]} className="pointer-events-none size-3.5 rotate-45 rounded-[3px] bg-[var(--hue-a2)] shadow-e1 ring-2 ring-sheet" />
         ) : (
           <span
             aria-hidden
             data-bar-fill=""
             data-grown={grow?.["data-grown"]}
-            className="pointer-events-none absolute inset-0 overflow-hidden rounded-md bg-hue-tint"
-            style={{ ...grow?.style, boxShadow: "inset 0 0 0 1px color-mix(in oklab, var(--hue) 30%, transparent)" }}
+            className={cn("pointer-events-none absolute inset-0 overflow-hidden rounded-md", done ? "bg-hue-tint" : "bg-[var(--hue-a2)]")}
+            style={{
+              ...grow?.style,
+              // Done keeps a hairline round its tint; an open bar, a lit top edge.
+              boxShadow: done ? "inset 0 0 0 1px color-mix(in oklab, var(--hue) 30%, transparent)" : "inset 0 1px 0 rgb(255 255 255 / 0.16)",
+            }}
           >
-            <span className="absolute inset-y-0 left-0 w-[3px] bg-hue" />
             {landed && <span data-landed="" className="absolute inset-0" style={{ animation: "work-landed 700ms cubic-bezier(0.25, 0.1, 0.25, 1) both" }} />}
           </span>
         )}
@@ -190,22 +199,26 @@ export const TimelineBar = memo(function TimelineBar({
             className="absolute inset-y-0 left-0 z-[1] flex w-1.5 cursor-ew-resize items-center justify-center"
             onPointerDown={(e) => onPointerDown(e, task, "start")}
           >
-            <span className="h-2.5 w-0.5 rounded-[1px] bg-hue-ink/40 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/bar:opacity-100" />
+            <span className={cn("h-2.5 w-0.5 rounded-[1px] opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/bar:opacity-100", done ? "bg-hue-ink/40" : "bg-white/60")} />
           </span>
         )}
         {inside && (
           // It narrows to what is left of its bar in view rather than sliding
           // under the names column ("upport on the new tiers", PTC-29).
-          <span className="sticky z-[1] flex min-w-0 items-center gap-1 pl-3 pr-2" style={{ left: stickAt, maxWidth: stuckRoom(left + width, STICK_INSET) }}>
+          <span
+            data-bar-name=""
+            className={cn("sticky z-[1] flex min-w-0 items-center gap-1 pl-2.5 pr-2", done ? "text-hue-ink" : "text-white")}
+            style={{ left: stickAt, maxWidth: stuckRoom(left + width, STICK_INSET) }}
+          >
             {done && <Check className="size-3 shrink-0" />}
-            {late && <Clock aria-hidden className="size-3 shrink-0 text-danger-ink" />}
+            {late && <Clock aria-hidden className="size-3 shrink-0" />}
             {blocked > 0 && <Lock aria-hidden className="size-3 shrink-0" />}
-            <span className={cn("truncate", done && "text-ink-3")}>{task.task_name}</span>
+            <span className="truncate">{task.task_name}</span>
           </span>
         )}
-        {inside && who && wide && (
-          <span className="relative z-[1] ml-auto mr-1 shrink-0">
-            <IdentityMark variant="avatar" size={18} id={avatarSeed(task.task_assignee)} label={who} />
+        {face && (
+          <span data-bar-face="" className="relative z-[1] ml-auto mr-[3px] shrink-0">
+            <IdentityMark variant="avatar" size={18} id={avatarSeed(task.task_assignee)} label={who} className="ring-1 ring-white/70" />
           </span>
         )}
         {handles && (
@@ -215,7 +228,7 @@ export const TimelineBar = memo(function TimelineBar({
             className="absolute inset-y-0 right-0 z-[1] flex w-1.5 cursor-ew-resize items-center justify-center"
             onPointerDown={(e) => onPointerDown(e, task, "end")}
           >
-            <span className="h-2.5 w-0.5 rounded-[1px] bg-hue-ink/40 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/bar:opacity-100" />
+            <span className={cn("h-2.5 w-0.5 rounded-[1px] opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/bar:opacity-100", done ? "bg-hue-ink/40" : "bg-white/60")} />
           </span>
         )}
         {canEdit && onLinkStart && (

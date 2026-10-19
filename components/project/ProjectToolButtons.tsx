@@ -7,13 +7,14 @@
 //
 // ?tool=time opens the project's time, so a link (the demo's landing for
 // people leaving Toggl, a doc) can show logged hours rather than a header
-// with a clock icon somewhere in it. Only that tool, and only for someone it
-// would open for; the parameter is dropped once used, like ?open= is.
+// with a clock icon somewhere in it (?tool=access, who can change tasks). Only
+// for someone it would open for; the parameter is dropped once used.
 
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Archive, Bell, ClipboardList, Clock, Globe, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, Users } from "@/lib/icons"
+import { Archive, Bell, ClipboardList, Clock, Globe, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users } from "@/lib/icons"
+import type { WorkAccess } from "@/lib/work/types"
 import { useArchiveProject } from "@/hooks/useArchiveProject"
 import { appMutate } from "@/lib/swrMutate"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -43,16 +44,18 @@ const ProjectFormsDialog = dynamic(() => import("@/components/project/ProjectFor
 const ProjectShareDialog = dynamic(() => import("@/components/project/ProjectShareDialog").then((m) => m.ProjectShareDialog), { loading: () => null })
 const ProjectTimeDialog = dynamic(() => import("@/components/project/ProjectTimeDialog").then((m) => m.ProjectTimeDialog), { loading: () => null })
 const SaveAsTemplateDialog = dynamic(() => import("@/components/projectTemplates/SaveAsTemplateDialog").then((m) => m.SaveAsTemplateDialog), { loading: () => null })
+const ProjectAccessDialog = dynamic(() => import("@/components/project/ProjectAccessDialog").then((m) => m.ProjectAccessDialog), { loading: () => null })
 
 /** Starts the menu's dialogs loading, so the one chosen opens without a wait. */
 function warmTools() {
   void import("@/components/project/ProjectFormsDialog")
   void import("@/components/project/ProjectShareDialog")
   void import("@/components/projectTemplates/SaveAsTemplateDialog")
+  void import("@/components/project/ProjectAccessDialog")
 }
 const warmTime = () => void import("@/components/project/ProjectTimeDialog")
 
-type ToolKey = "time" | "forms" | "share" | "template"
+type ToolKey = "time" | "forms" | "share" | "template" | "access"
 export interface ProjectTool {
   key: ToolKey
   label: string
@@ -75,13 +78,14 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   const allowed = isAdmin || isMember
   useEffect(() => {
     // Waits for the project's info: until it says who this is, it's nobody.
-    if (asked !== "time" || !allowed) return
-    setOpen("time")
+    const opens = (asked === "time" && allowed) || (asked === "access" && isAdmin)
+    if (!opens) return
+    setOpen(asked === "access" ? "access" : "time")
     const rest = new URLSearchParams(params?.toString() ?? "")
     rest.delete("tool")
     const q = rest.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
-  }, [asked, allowed, params, pathname, router])
+  }, [asked, allowed, isAdmin, params, pathname, router])
 
   const set = (which: ToolKey) => (o: boolean) => setOpen(o ? which : null)
   // A dialog renders (and its chunk loads) from its first opening on.
@@ -97,6 +101,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
       tool("forms", "Forms that make tasks", ClipboardList),
       tool("share", "Share with a client", Globe),
       tool("template", "Save as a template", LayoutTemplate),
+      tool("access", "Who can change tasks", ShieldCheck),
     ] : []),
   ]
   const dialogs = !allowed ? null : (
@@ -105,6 +110,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
       {isAdmin && was("forms") && <ProjectFormsDialog projectId={projectId} open={open === "forms"} onOpenChange={set("forms")} />}
       {isAdmin && was("share") && <ProjectShareDialog projectId={projectId} open={open === "share"} onOpenChange={set("share")} />}
       {isAdmin && was("template") && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}
+      {isAdmin && was("access") && <ProjectAccessDialog projectId={projectId} open={open === "access"} onOpenChange={set("access")} />}
     </>
   )
   return { allowed, tools, dialogs }
@@ -148,6 +154,7 @@ export function ProjectActionsMenu({
   projectName,
   isAdmin,
   isMember,
+  access,
   onRename,
   onMembers,
   compact = false,
@@ -159,6 +166,8 @@ export function ProjectActionsMenu({
   projectName?: string
   isAdmin: boolean
   isMember: boolean
+  /** What the server says the reader may do; else isAdmin. */
+  access?: WorkAccess
   onRename?: () => void
   onMembers?: () => void
   /** Archived: its admins see Restore project in place of Archive project. */
@@ -173,7 +182,10 @@ export function ProjectActionsMenu({
    */
   extra?: ProjectMenuExtra[]
 }) {
-  const { allowed, tools: allTools, dialogs } = useProjectTools({ projectId, projectName, isAdmin, isMember })
+  const manage = access?.manage ?? isAdmin
+  const people = access?.manage_people ?? isAdmin
+  const archives = access?.archive ?? isAdmin
+  const { allowed, tools: allTools, dialogs } = useProjectTools({ projectId, projectName, isAdmin: manage, isMember })
   const tools = allowed ? allTools : []
   // Archive from the project itself (PTC-13); it was only on the team's page
   // and the phone's long press. An archived project leaves the person's
@@ -217,7 +229,7 @@ export function ProjectActionsMenu({
           <first.Icon className="size-4" />
         </Button>
       )}
-      {(rest.length > 0 || isAdmin || !!extra?.length || !!notifications) && (<>
+      {(rest.length > 0 || manage || people || archives || !!extra?.length || !!notifications) && (<>
       {/* Not modal: an item opens a dialog, and a modal menu closing over it
           can leave the page unclickable. */}
       <DropdownMenu modal={false}>
@@ -233,17 +245,17 @@ export function ProjectActionsMenu({
               {label}
             </DropdownMenuItem>
           ))}
-          {isAdmin && onRename && onMembers && (
+          {(manage || people) && onRename && onMembers && (
             <>
               {rest.length > 0 && <DropdownMenuSeparator />}
-              <DropdownMenuItem onSelect={onRename}>
+              {manage && <DropdownMenuItem onSelect={onRename}>
                 <Pencil className="h-4 w-4 text-muted-foreground" />
                 Edit project name
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onMembers}>
+              </DropdownMenuItem>}
+              {people && <DropdownMenuItem onSelect={onMembers}>
                 <Users className="h-4 w-4 text-muted-foreground" />
                 Manage project members
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
             </>
           )}
           {notifications && (
@@ -276,7 +288,7 @@ export function ProjectActionsMenu({
             </>
           ) : null}
           {/* What takes the project away is alone, and last (design v3, mobile C7). */}
-          {isAdmin && (
+          {archives && (
             <>
               <DropdownMenuSeparator />
               {archived ? (

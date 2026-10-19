@@ -110,9 +110,10 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="px-2 pb-6">
+        <DrawerContent className="px-2">
           <DrawerTitle className="sr-only">Pause notifications</DrawerTitle>
-          {contents}
+          {/* Its bottom space in the body: on the sheet (pb-6) it took the home-indicator strip's place. */}
+          <div className="pb-6">{contents}</div>
         </DrawerContent>
       </Drawer>
     )
@@ -138,16 +139,6 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
   )
 }
 
-/** The menu wording for the current state. */
-export function pauseMenuLabel(pausedUntil: Date | null, focusUntil: Date | null = null): string {
-  if (focusUntil && (!pausedUntil || focusUntil >= pausedUntil)) return `Focus time until ${formatSendAt(focusUntil)}`
-  return pausedUntil ? "Resume notifications" : "Pause notifications…"
-}
-
-/** "Paused · 1 h 20 m", for the sun pill beside the status line while a pause runs. */
-export function pauseLeftLabel(until: Date, now: Date = new Date()): string {
-  const mins = Math.max(1, Math.ceil((until.getTime() - now.getTime()) / 60_000))
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return `Paused · ${h ? `${h} h${m ? ` ${m} m` : ""}` : `${m} m`}`
-}
+// The shell's labels live beside the pause itself, so the shell can show them
+// without loading this dialog (lib/notifications/pause).
+export { pauseMenuLabel, pauseLeftLabel } from "@/lib/notifications/pause"

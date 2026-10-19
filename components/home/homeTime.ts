@@ -110,13 +110,8 @@ export function joinState(ev: TimedEvent & { hasCall?: boolean; live?: boolean }
   return minutesToStart > 2 ? "secondary" : "primary"
 }
 
-/** The first call link in an event's description, if it has one. */
-export function callLinkOf(description?: string | null): string | undefined {
-  if (!description) return undefined
-  const m = description.match(/https?:\/\/[^\s<>"')]+/)
-  if (!m) return undefined
-  return /meet|zoom|teams|whereby|call|livekit|jitsi/i.test(m[0]) ? m[0] : undefined
-}
+/** The call link in an event's description, if it has one: the calendar's own test (lib/calendar/joinLink). */
+export { callLinkOf } from "@/lib/calendar/joinLink"
 
 /** "starts in 12 min", "started 8 min ago", "ends in 22 min": the meta line's clause. */
 export function whenClause(ev: TimedEvent, now: Date): string {

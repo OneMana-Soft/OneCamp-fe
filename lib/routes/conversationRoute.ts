@@ -1,9 +1,9 @@
-import { chatRouteSegment } from "@/lib/utils/notificationRoute"
+import { chatRef, route } from "@/lib/conversation/route"
 
 // The web app's one rule for links to a conversation (chat programme,
-// PROGRAM.md CH13): W0-F's helper, moved here at the programme's day 0. A1
-// adds route() and parse() for every ConversationRef beside it, and every
-// link builder calls them.
+// PROGRAM.md CH13) is the Link Router, lib/conversation/route.ts (chat A1).
+// chatPath is its form for a DM's or group's grouping id, which is how most
+// sources name one (search hits, Activity, the server's events).
 
 /**
  * Where a conversation opens, for the person signed in: a group at
@@ -12,19 +12,14 @@ import { chatRouteSegment } from "@/lib/utils/notificationRoute"
  * route takes the other person's id), and with a message id, that message
  * with its thread. Null when it can't be built: no grouping id, or a DM while
  * who is signed in isn't known yet, where guessing could open a conversation
- * with the wrong person.
- *
- * The one rule for every link to a conversation: search, the palette,
- * Activity. The grouping id itself in the path opened a conversation "with" a
- * message id. Built on chatRouteSegment, the rule push taps use; the server's
- * copy is helpers.ChatPath. Pure.
+ * with the wrong person. The server's copy is helpers.ChatPath. Pure.
  */
 export function chatPath(
   groupingId: string | null | undefined,
   selfUUID: string | null | undefined,
   messageId?: string | null,
 ): string | null {
-  const segment = groupingId ? chatRouteSegment(groupingId, selfUUID || undefined) : null
-  if (!segment) return null
-  return messageId ? `/app/chat/${segment}/${messageId}` : `/app/chat/${segment}`
+  const conversation = chatRef(groupingId, selfUUID)
+  if (!conversation) return null
+  return route({ conversation, ...(messageId ? { message: messageId } : {}) })
 }

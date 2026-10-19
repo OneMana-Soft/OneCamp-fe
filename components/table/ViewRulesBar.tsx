@@ -10,18 +10,19 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ArrowUpDown, Check, ChevronDown, Filter, Plus, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
-import { OPS_FOR, kindOfField, type FieldKind, type FilterRule, type SortRule, type ViewRules } from "@/lib/tables/viewRules"
+import { OPS_FOR, type FilterRule, type SortRule, type ViewRules } from "@/lib/tables/viewRules"
+import { fieldKind, filterKind } from "@/lib/fieldTypes/registry"
+import type { FilterKind } from "@/lib/fieldTypes/types"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { optionsOf, type TableField } from "@/services/tableService"
 import { TableToolbar, TOUCH_ROW } from "@/components/table/TableViewFrame"
-import { FIELD_GLYPH } from "@/components/table/gridCells"
 import { ix } from "@/lib/ui/interactive"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 const MAX_SORTS = 3
 const MAX_FILTERS = 10
 
-const DIRECTIONS: Record<FieldKind, { asc: string; desc: string }> = {
+const DIRECTIONS: Record<FilterKind, { asc: string; desc: string }> = {
   text: { asc: "A → Z", desc: "Z → A" },
   list: { asc: "A → Z", desc: "Z → A" },
   number: { asc: "1 → 9", desc: "9 → 1" },
@@ -121,7 +122,7 @@ export function RuleSelect({
 
 const fieldOptions = (fields: TableField[]) =>
   fields.map((f) => {
-    const G = FIELD_GLYPH[f.type] ?? FIELD_GLYPH.text
+    const G = fieldKind(f.type).glyph
     return { value: f.id, label: f.name, icon: <G aria-hidden /> }
   })
 
@@ -146,7 +147,7 @@ function RuleChip({ children, onOpen, onRemove, removeLabel }: { children: React
  */
 export function ruleText(rule: FilterRule, field: TableField | undefined): string {
   if (!field) return ""
-  const op = OPS_FOR[kindOfField(field)].find((o) => o.op === rule.op)
+  const op = OPS_FOR[filterKind(field)].find((o) => o.op === rule.op)
   const value = op?.needsValue ? (rule.value ? ` ${rule.value}` : " …") : ""
   return `${field.name} ${op?.label ?? ""}${value}`.trim()
 }
@@ -300,7 +301,7 @@ function SortMenu({
         {sort.length === 0 && <p className="text-ui-sm text-ink-3">Rows are in the order they were added.</p>}
         {sort.map((s, i) => {
           const field = fields.find((f) => f.id === s.field)
-          const dir = DIRECTIONS[field ? kindOfField(field) : "text"]
+          const dir = DIRECTIONS[field ? filterKind(field) : "text"]
           return (
             <div key={i} className="flex items-center gap-1.5">
               <RuleSelect label={i === 0 ? "Sort by" : "Then by"} value={s.field} options={fieldOptions(fields)} onChange={(v) => set(i, { ...s, field: v })} className="flex-1" />
@@ -344,7 +345,7 @@ function FilterMenu({
 }) {
   const { filters } = rules
   const set = (i: number, rule: FilterRule) => onChange({ ...rules, filters: filters.map((f, j) => (j === i ? rule : f)) })
-  const fresh = (field: TableField): FilterRule => ({ field: field.id, op: OPS_FOR[kindOfField(field)][0].op, value: "" })
+  const fresh = (field: TableField): FilterRule => ({ field: field.id, op: OPS_FOR[filterKind(field)][0].op, value: "" })
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
@@ -372,7 +373,7 @@ function FilterMenu({
         {filters.map((rule, i) => {
           const field = fields.find((f) => f.id === rule.field)
           if (!field) return null
-          const kind = kindOfField(field)
+          const kind = filterKind(field)
           const ops = OPS_FOR[kind]
           const op = ops.find((o) => o.op === rule.op) ?? ops[0]
           const options = field.type === "select" || field.type === "multi_select" ? optionsOf(field) : []

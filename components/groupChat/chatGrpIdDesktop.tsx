@@ -136,7 +136,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                     ))}
                 </span>
                 <span data-header-title='' className='truncate text-heading text-ink' title={participants.map((u) => displayNameOf(u)).join(', ')}>
-                    {groupTitle(participants.map((u) => displayNameOf(u)))}
+                    {dmParticipantsInfo.data?.data?.dm_name || groupTitle(participants.map((u) => displayNameOf(u)))}
                 </span>
                 <div className='min-w-0 flex-1' />
                 <div className='flex shrink-0 items-center gap-1'>
@@ -145,8 +145,8 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                     <FeatureGate feature={FEATURE_CALLS}>
                         <HuddleButton href={app_grp_call + "/" + grpId} live={chatCallActive} onOpen={(e) => { if (openBeside({ kind: "call-group", id: grpId }, e)) return }} />
                     </FeatureGate>
-                    <WithTooltip label="Members">
-                        <Button aria-label="Manage members" size='icon' variant='ghost' className={HEADER_ICON} onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId: grpId} }))}}><Users aria-hidden='true' /></Button>
+                    <WithTooltip label="People and details">
+                        <Button aria-label="People and details" size='icon' variant='ghost' className={HEADER_ICON} onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId: grpId} }))}}><Users aria-hidden='true' /></Button>
                     </WithTooltip>
                     {/* Search in this group (QA F-15). */}
                     <WithTooltip label="Search in this group">

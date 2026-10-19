@@ -467,17 +467,7 @@
     border-top-left-radius: var(--r-sheet);
     border-top-right-radius: var(--r-sheet);
   }
-  [data-vaul-drawer][data-v3-sheet][data-state="open"],
-  [data-vaul-overlay][data-v3-scrim][data-state="open"] {
-    animation-duration: var(--t-sheet);
-  }
-  [data-vaul-drawer][data-v3-sheet][data-state="closed"],
-  [data-vaul-overlay][data-v3-scrim][data-state="closed"] {
-    animation-duration: var(--t-sheet-out);
-  }
-  [data-vaul-drawer][data-v3-sheet] {
-    transition-duration: 300ms;
-  }
+  /* Its timing (420ms in, 300ms out) is unlayered: C5t, below. */
   [data-v3-grabber] {
     width: 36px;
     height: 5px;
@@ -550,6 +540,98 @@
       animation-duration: 160ms !important;
     }
   }
+  /* The sheet's body keeps room round what it holds and takes it back off
+     its margins, so nothing moves. At its sides 4px, for a field's halo and a
+     control's focus ring: a scroller clips what passes its edges, and the
+     status field's halo was cut off at both. Under a finger 12px under its
+     last row, for a control's reach (F3: a 28px button's runs 8px past it),
+     which let a sheet that fits scroll by 8px. */
+  [data-sheet-body] {
+    padding-inline: 4px;
+    margin-inline: -4px;
+  }
+  @media (pointer: coarse) {
+    [data-sheet-body] {
+      padding-bottom: 12px;
+      margin-bottom: -12px;
+    }
+  }
+  /* The pinned footer (DrawerContent's footer): what scrolls under its top
+     edge fades out rather than being cut off at a line. */
+  [data-sheet-footer]::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 100%;
+    height: 12px;
+    background: linear-gradient(to top, var(--pop), transparent);
+    pointer-events: none;
+  }
+}
+
+/* C5t. THE SHEET'S TIMING, OUT OF THE LAYERS. vaul injects its own CSS
+   outside any layer, its drawer and its overlay at half a second, and a rule
+   outside the layers beats every rule in one: the 420ms in and 300ms out in
+   the components layer above never applied, and sheets rose in half a second
+   (DRAWERS, 17 Oct, read from WebKit's computed style). Here, outside the
+   layers and more specific than vaul's, they do. Nothing is forced: vaul
+   turns the transition off inline while a finger drags, and that must still
+   win. Reduced motion's fade (above) is forced, so it still wins too. */
+[data-vaul-drawer][data-v3-sheet][data-state="open"],
+[data-vaul-overlay][data-v3-scrim][data-state="open"] {
+  animation-duration: var(--t-sheet);
+}
+[data-vaul-drawer][data-v3-sheet][data-state="closed"],
+[data-vaul-overlay][data-v3-scrim][data-state="closed"] {
+  animation-duration: var(--t-sheet-out);
+}
+[data-vaul-drawer][data-v3-sheet] {
+  transition-duration: 300ms;
+}
+
+/* C5b. A SHEET OVER A SHEET (the emoji picker over the status sheet, a
+   field's own sheet over its form): its scrim lies over the sheet under it
+   too, lighter, as the page is dimmed already, so that one reads as behind
+   and a tap on it closes the top one. Unlayered: the scrim's colour and
+   z-index are utilities. */
+[data-vaul-drawer][data-state="open"] ~ [data-vaul-overlay][data-v3-scrim] {
+  z-index: calc(var(--z-modal) + 1);
+  background-color: rgb(10 11 14 / 0.2);
+}
+.dark [data-vaul-drawer][data-state="open"] ~ [data-vaul-overlay][data-v3-scrim] {
+  background-color: rgb(0 0 0 / 0.4);
+}
+[data-vaul-drawer][data-state="open"] ~ [data-vaul-drawer][data-v3-sheet] {
+  z-index: calc(var(--z-modal) + 2);
+}
+/* C5c. THE ON-SCREEN KEYBOARD. Vaul's input repositioning is off
+   (components/ui/drawer): it wrote a height and a bottom on the sheet and left
+   them once the keyboard went (vaul #538, #650). While the keyboard is up,
+   lib/ui/visualViewport writes data-keyboard, --app-vvh (what is left of the
+   screen) and --app-vv-top on <html>, and every sheet stands on the keyboard
+   and fits what is left: iOS shrinks only the visual viewport, Android
+   (resizes-content) the page too, and this reads the same on both. Once it
+   goes, nothing written on the sheet is left behind. The keyboard covers the
+   home-indicator strip, so the sheet keeps no room for it on the keyboard. A
+   half sheet whose field has the keyboard takes all of what is left, so the
+   emoji search's finds show; with no keyboard (a computer's narrow window) it
+   stays half. */
+html[data-keyboard="open"] [data-vaul-drawer][data-v3-sheet] {
+  bottom: calc(100% - var(--app-vv-top, 0px) - var(--app-vvh, 100%));
+  max-height: calc(var(--app-vvh, 100dvh) * 0.92);
+  padding-bottom: 0;
+}
+html[data-keyboard="open"] [data-vaul-drawer][data-v3-sheet][data-detent="half"]:has(input:focus) {
+  height: calc(var(--app-vvh, 100dvh) * 0.92);
+}
+/* A dialog asked for from a sheet (a confirm, a rename) stands over it, its
+   backdrop over the sheet as over the page, as iOS lays an alert over a
+   sheet: the backdrop sat under the sheet, which stayed bright behind it. */
+[data-vaul-drawer][data-state="open"] ~ .v3-overlay {
+  z-index: calc(var(--z-modal) + 3);
+}
+[data-vaul-drawer][data-state="open"] ~ .v3-dialog {
+  z-index: calc(var(--z-modal) + 4);
 }
 
 @layer components {

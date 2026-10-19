@@ -31,6 +31,9 @@ export interface ChatInfo {
     chat_send_state?: SendState
     /** When it last changed live here (lib/chat/liveChange), by this client's clock. */
     chat_live_at?: number
+    chat_kind?: string
+    chat_system?: string
+    chat_copy_of?: string
 }
 
 export interface CreateOrUpdateChatsReq {

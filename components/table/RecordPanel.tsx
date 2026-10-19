@@ -3,11 +3,23 @@
 import * as React from "react"
 import "./table.css"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronUp, Loader2, Trash2, X } from "@/lib/icons"
+import { ChevronDown, ChevronUp, Link2, Loader2, Maximize2, MessageSquare, Minimize2, Trash2, X } from "@/lib/icons"
+import dynamic from "next/dynamic"
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
+import { tablePath } from "@/lib/tables/route"
+import { cn } from "@/lib/utils/helpers/cn"
 import { Spark } from "@/components/ui/graphics"
 import { useConfirm } from "@/hooks/useConfirm"
-import { deleteRow, fillTableAIColumn, parseFieldConfig, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
-import { Cell, FIELD_GLYPH, fitLines, lineBreakKey, optionIndexOf, type CellContext } from "@/components/table/gridCells"
+import { onEscape } from "@/lib/keys/onEscape"
+import { fillTableAIColumn, parseFieldConfig, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
+import { batchRows, undoChange } from "@/lib/tables/ledger"
+import { useUndoToast } from "@/components/table/ledger/useUndoToast"
+import { RowHistory } from "@/components/table/history/RowHistory"
+import { Cell, fitText, lineBreakKey, optionIndexOf, type CellContext } from "@/components/table/gridCells"
+import { fieldKind } from "@/lib/fieldTypes/registry"
+import { fieldKeyDown } from "@/lib/keys/ime"
+import { fieldOrder } from "@/lib/tables/fieldOrder"
+import { tintedFields } from "@/components/table/optionChip"
 import { aiPromptOf } from "@/components/table/ColumnMenu"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import type { CellCommit } from "@/lib/tables/useCellCommit"
@@ -15,6 +27,13 @@ import { relativeTime } from "@/lib/utils/relativeTime"
 import { ix } from "@/lib/ui/interactive"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { useToast } from "@/hooks/use-toast"
+import { useRecordAsPage } from "@/components/table/rowPage/recordWidth"
+
+// A row's comments are a chunk of their own: the editor and the thread cards
+// load when a record opens, never with the grid. So is its page (T2), whose
+// editor is a chunk of its own again, loaded only for a row with a page.
+const RowComments = dynamic(() => import("@/components/table/comments/RowComments"), { loading: () => null })
+const RowPage = dynamic(() => import("@/components/table/rowPage/RowPage"), { loading: () => null })
 
 /**
  * Under an AI column's value [AI]: whether a person wrote it, which the AI
@@ -75,6 +94,7 @@ export function RecordPanel({
   onStep,
   onClose,
   onChange,
+  focusThread,
 }: {
   tableId: string
   tableName: string
@@ -87,14 +107,27 @@ export function RecordPanel({
   onStep: (rowId: string) => void
   onClose: () => void
   onChange: () => void
+  /** A thread on the row a link named, which its comments open at. */
+  focusThread?: string | null
 }) {
   const confirm = useConfirm()
-  const sorted = React.useMemo(() => [...fields].sort((a, b) => a.position - b.position), [fields])
+  const offerUndo = useUndoToast(onChange)
+  const sorted = React.useMemo(() => fieldOrder(fields), [fields])
   const index = rows.findIndex((r) => r.id === rowId)
   const row = index >= 0 ? rows[index] : undefined
   const values = React.useMemo(() => (row ? parseRowValues(row) : {}), [row])
-  const ctx = React.useMemo<CellContext>(() => ({ options: optionIndexOf(fields), rowHeight: "medium", panel: true }), [fields])
+  const ctx = React.useMemo<CellContext>(() => ({ options: optionIndexOf(fields), tinted: tintedFields(fields), rowHeight: "medium", panel: true }), [fields])
   const panelRef = React.useRef<HTMLDivElement>(null)
+  // A cell a new comment goes on, and each cell's count of open comments.
+  const [commentOn, setCommentOn] = React.useState<string | null>(null)
+  const [cellCounts, setCellCounts] = React.useState<Record<string, number>>({})
+  const { copy } = useCopyToClipboard()
+  // A record opens beside the grid, or as a page across the window (T2).
+  const [asPage, setAsPage] = useRecordAsPage()
+  React.useEffect(() => {
+    setCommentOn(null)
+    setCellCounts({})
+  }, [rowId])
 
   const step = React.useCallback(
     (by: number) => {
@@ -105,19 +138,20 @@ export function RecordPanel({
   )
 
   React.useEffect(() => {
+    const typingIn = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null
-      const typing = !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
-      if (e.key === "Escape" && !typing && !document.querySelector("[data-radix-popper-content-wrapper]")) {
-        e.preventDefault()
-        onClose()
-      } else if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "j" || e.key === "k")) {
+      if (!typingIn(e.target) && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "j" || e.key === "k")) {
         e.preventDefault()
         step(e.key === "j" ? 1 : -1)
       }
     }
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    // Esc closes it, after a picker open in it; not from a field.
+    const stopEscape = onEscape("panel", (e) => (typingIn(e.target) ? false : onClose()))
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      stopEscape()
+    }
   }, [onClose, step])
 
   React.useEffect(() => {
@@ -131,13 +165,14 @@ export function RecordPanel({
   const remove = () =>
     confirm({
       title: "Delete this row?",
-      description: "It's removed for everyone. This can't be undone.",
+      description: "It's removed for everyone, and kept in the table's trash.",
       confirmText: "Delete row",
       destructive: true,
       onConfirm: async () => {
         try {
           const next = rows[index + 1] ?? rows[index - 1]
-          await deleteRow(tableId, row.id)
+          const done = await batchRows(tableId, { delete: [row.id] })
+          offerUndo("Row deleted", () => undoChange(tableId, done.change_set))
           if (next) onStep(next.id)
           else onClose()
         } catch {
@@ -153,9 +188,14 @@ export function RecordPanel({
       ref={panelRef}
       tabIndex={-1}
       role="dialog"
+      data-escape-own=""
       aria-label={title ? `${title}, a row of ${tableName}` : `A row of ${tableName}`}
       data-record-panel=""
-      className="content-float fixed inset-y-2 right-2 z-[var(--z-popover)] flex w-[min(480px,calc(100vw-16px))] flex-col overflow-hidden rounded-[16px] bg-sheet shadow-e3 outline-none [--float-from-y:0px] max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:h-[88dvh] max-sm:w-full max-sm:rounded-b-none max-sm:shadow-sheet"
+      data-record-as-page={asPage ? "" : undefined}
+      className={cn(
+        "content-float fixed inset-y-2 right-2 z-[var(--z-popover)] flex flex-col overflow-hidden rounded-[16px] bg-sheet shadow-e3 outline-none [--float-from-y:0px] max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:h-[88dvh] max-sm:w-full max-sm:rounded-b-none max-sm:shadow-sheet",
+        asPage ? "left-2 sm:w-auto" : "w-[min(480px,calc(100vw-16px))]",
+      )}
     >
       <header className="flex h-12 shrink-0 items-center gap-1 px-3" data-touch-group="">
         <TableGlyph id={tableId} size="sm" />
@@ -168,6 +208,24 @@ export function RecordPanel({
         <Button variant="ghost" size="icon-sm" aria-label="Next row (J)" disabled={index >= rows.length - 1} onClick={() => step(1)}>
           <ChevronDown className="size-4" />
         </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="max-sm:hidden"
+          aria-label={asPage ? "Back to the side panel" : "Open as a page"}
+          aria-pressed={asPage}
+          onClick={() => setAsPage(!asPage)}
+        >
+          {asPage ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Copy a link to this row"
+          onClick={() => void copy(`${window.location.origin}${tablePath(tableId, { row: row.id })}`, "A link to this row is on your clipboard.")}
+        >
+          <Link2 className="size-4" />
+        </Button>
         {canManage ? (
           <Button variant="ghost" size="icon-sm" aria-label="Delete this row" onClick={remove}>
             <Trash2 className="size-4" />
@@ -178,6 +236,7 @@ export function RecordPanel({
         </Button>
       </header>
       <div key={row.id} className="table-sub-in min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-2">
+        <div className={cn(asPage && "mx-auto w-full max-w-[760px]")}>
         {primary ? (
           <PanelTitle
             key={`${row.id}:${title}`}
@@ -189,12 +248,13 @@ export function RecordPanel({
         ) : null}
         <dl className="space-y-0.5">
           {rest.map((f) => {
-            const Glyph = FIELD_GLYPH[f.type] ?? FIELD_GLYPH.text
+            const Glyph = fieldKind(f.type).glyph
             return (
               <div key={f.id} className="grid min-h-9 grid-cols-[148px_minmax(0,1fr)] items-start gap-2 max-sm:grid-cols-1 max-sm:gap-0.5">
-                <dt className="flex h-9 items-center gap-1.5 text-ui-sm text-ink-3">
+                <dt className="group/field flex h-9 items-center gap-1.5 text-ui-sm text-ink-3">
                   <Glyph className="size-3.5 shrink-0" aria-hidden />
                   <span className="truncate">{f.name}</span>
+                  <CellCommentButton field={f} count={cellCounts[f.id] ?? 0} onClick={() => setCommentOn(f.id)} />
                 </dt>
                 <dd className="-mx-3 flex min-h-9 items-stretch rounded-lg transition-colors hover:bg-hover focus-within:bg-raised focus-within:shadow-e1 [&>*]:min-h-9 [&>*]:w-full">
                   <Cell
@@ -206,17 +266,60 @@ export function RecordPanel({
                     onLink={(change) => void commit.linkCell(row.id, f.id, change)}
                   />
                 </dd>
+                {f.description?.trim() ? (
+                  // What the field is for, under its value: a dt may have several dds.
+                  <dd className="col-start-2 -mt-0.5 whitespace-pre-wrap break-words pb-1 text-meta text-ink-3 max-sm:col-start-1" data-field-description="">
+                    {f.description.trim()}
+                  </dd>
+                ) : null}
                 {aiPromptOf(parseFieldConfig(f)) ? <AiCellNote tableId={tableId} field={f} row={row} onFilled={onChange} /> : null}
               </div>
             )
           })}
         </dl>
+        <RowPage tableId={tableId} rowId={row.id} page={row.page} />
+        <RowComments
+          rowId={row.id}
+          fields={fields}
+          target={commentOn}
+          onTargetDone={() => setCommentOn(null)}
+          focusThread={focusThread}
+          onCellCounts={setCellCounts}
+        />
         <p className="mt-6 text-meta text-ink-3">
           {row.updated_at ? `Edited ${relativeTime(row.updated_at)}` : null}
           {row.created_at ? ` · Added ${relativeTime(row.created_at)}` : null}
         </p>
+        <RowHistory tableId={tableId} rowId={row.id} fields={fields} />
+        </div>
       </div>
     </aside>
+  )
+}
+
+/**
+ * A field's comment button in the record: shown on hover and focus (always on
+ * a touch screen), and kept in view with its count while its cell has open
+ * comments. It starts a comment on that cell in the comments below.
+ */
+function CellCommentButton({ field, count, onClick }: { field: TableField; count: number; onClick: () => void }) {
+  const label = count > 0 ? `Comment on ${field.name}, ${count} ${count === 1 ? "comment" : "comments"}` : `Comment on ${field.name}`
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      data-touch-target=""
+      data-cell-comments={count || undefined}
+      className={cn(
+        "ml-auto flex h-6 shrink-0 items-center gap-0.5 rounded-md px-1 text-meta text-ink-3 transition-[opacity,color,background-color] duration-[140ms] ease-out hover:bg-hover hover:text-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+        count > 0 ? "opacity-100" : "opacity-0 group-hover/field:opacity-100 group-focus-within/field:opacity-100 [@media(hover:none)]:opacity-100",
+      )}
+    >
+      <MessageSquare className="size-3.5" aria-hidden="true" />
+      {count > 0 ? <span className="tabular-nums">{count}</span> : null}
+    </button>
   )
 }
 
@@ -229,7 +332,7 @@ function PanelTitle({ label, value, readOnly, onCommit }: { label: string; value
   const [text, setText] = React.useState(value)
   const ref = React.useRef<HTMLTextAreaElement>(null)
   React.useLayoutEffect(() => {
-    if (ref.current) fitLines(ref.current, true)
+    if (ref.current) fitText(ref.current)
   }, [text])
   if (readOnly) return <h2 className="mb-4 whitespace-pre-wrap break-words font-display text-title-2 text-ink">{value || "Untitled"}</h2>
   return (
@@ -239,14 +342,15 @@ function PanelTitle({ label, value, readOnly, onCommit }: { label: string; value
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => text !== value && onCommit(text)}
-      onKeyDown={(e) => {
+      data-escape-own={text !== value ? "" : undefined}
+      onKeyDown={fieldKeyDown((e) => {
         const next = lineBreakKey(e)
         if (next !== null) setText(next)
         if (e.key === "Escape" && text !== value) {
           e.stopPropagation()
           setText(value)
         }
-      }}
+      })}
       aria-label={label}
       placeholder="Untitled"
       {...ix("field")}

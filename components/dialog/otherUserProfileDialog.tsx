@@ -200,7 +200,9 @@ const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState
     if (phone) {
         return (
             <Drawer open={dialogOpenState} onOpenChange={(o) => !o && close()}>
-                <DrawerContent data-profile-sheet="" className="p-0">
+                {/* No padding of its own: "p-0" here took the sheet's
+                    home-indicator strip (components/ui/drawer) with it. */}
+                <DrawerContent data-profile-sheet="">
                     <DrawerTitle className="sr-only">{name || "Profile"}</DrawerTitle>
                     {card}
                 </DrawerContent>

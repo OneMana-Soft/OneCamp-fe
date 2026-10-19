@@ -7,39 +7,21 @@
 // a reader can't open without a name, shown here as one "can't open" chip. A
 // link to a table's row is stored by id, and comes back with the row's name.
 
-import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { PopoverContent } from "@/components/ui/popover"
 import { LazyPopover } from "./LazyPopover"
 import { cn } from "@/lib/utils/helpers/cn"
-import { useGlobalSearch, SearchResult } from "@/services/searchService"
 import Link from "next/link"
-import { Check, CircleDot, FileText, Folder, LayoutDashboard, Link2, Loader2, Lock, Search, User, X, Plus } from "@/lib/icons"
-import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
+import { CircleDot, FileText, Folder, LayoutDashboard, Link2, Lock, User, X, Plus } from "@/lib/icons"
 import { TableGlyph } from "@/components/table/TableGlyph"
-import { isHiddenRef, pickRows, relationWrite, RelationRef, RelationTarget } from "@/services/tableService"
+import { isHiddenRef, relationWrite, RelationRef, RelationTarget } from "@/services/tableService"
+import { cellPickers, PickerLoading } from "./cellPickerPart"
 import { hiddenText } from "@/lib/tables/cellFormat"
 import { formatLocale } from "@/lib/tables/numberFormat"
-
-// Pull a {id,label,type} ref out of a unified-search result, scoped to the
-// allowed target type ("any" accepts the linkable kinds).
-function refFromResult(r: SearchResult, target: RelationTarget): RelationRef | null {
-  const accept = (t: string) => target === "any" || target === t
-  if (r.type === "doc" && r.doc?.doc_uuid && accept("doc"))
-    return { id: r.doc.doc_uuid, label: r.doc.doc_title || "Untitled doc", type: "doc" }
-  if (r.type === "board" && r.board?.board_uuid && accept("board"))
-    return { id: r.board.board_uuid, label: r.board.board_title || "Untitled board", type: "board" }
-  if (r.type === "task" && r.task?.task_uuid && accept("task"))
-    return { id: r.task.task_uuid, label: r.task.task_name || "Untitled task", type: "task" }
-  if (r.type === "project" && r.project?.project_uuid && accept("project"))
-    return { id: r.project.project_uuid, label: r.project.project_name || "Untitled project", type: "project" }
-  if (r.type === "user" && r.user?.user_uuid && accept("user"))
-    return { id: r.user.user_uuid, label: displayNameOf(r.user) || "User", type: "user" }
-  return null
-}
+import { tablePath } from "@/lib/tables/route"
 
 /** A linked thing's 14 px glyph: a table row's tile, a page, a task's ring, a project, a person. */
-function RefGlyph({ item: r }: { item: RelationRef }) {
+export function RefGlyph({ item: r }: { item: RelationRef }) {
   if (r.type === "row" && r.table_id) return <TableGlyph id={r.table_id} size="sm" className="!size-3.5 !rounded-[4px] [&_svg]:!size-2.5" />
   const Icon = r.type === "doc" ? FileText : r.type === "board" ? LayoutDashboard : r.type === "task" ? CircleDot : r.type === "project" ? Folder : r.type === "user" ? User : Link2
   return <Icon className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
@@ -47,7 +29,7 @@ function RefGlyph({ item: r }: { item: RelationRef }) {
 
 /** Where a linked chip goes: a table's row opens in its record panel. */
 function hrefOf(r: RelationRef): string | null {
-  if (r.type === "row" && r.table_id) return `/app/tables/${r.table_id}?row=${encodeURIComponent(r.id)}`
+  if (r.type === "row" && r.table_id) return tablePath(r.table_id, { row: r.id })
   if (r.type === "doc") return `/app/doc/${r.id}`
   if (r.type === "board") return `/app/board/${r.id}`
   if (r.type === "project") return `/app/project/${r.id}`
@@ -87,60 +69,7 @@ export function RelationCell({
 }) {
   const rowsOf = target === "table" ? tableId : undefined
   const refs: RelationRef[] = Array.isArray(value) ? (value as RelationRef[]) : []
-  const { search } = useGlobalSearch()
   const [open, setOpen] = React.useState(false)
-  const [query, setQuery] = React.useState("")
-  const [items, setItems] = React.useState<RelationRef[]>([])
-  const [loading, setLoading] = React.useState(false)
-  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const reqId = React.useRef(0)
-  const list = React.useRef<CommandListHandle>(null)
-
-  React.useEffect(() => {
-    if (!open) {
-      if (timer.current) clearTimeout(timer.current)
-      reqId.current++ // a search still running is for a picker that's closed
-      setQuery("")
-      setItems([])
-      setLoading(false)
-    }
-  }, [open])
-
-  React.useEffect(() => {
-    if (!open) return
-    const q = query.trim()
-    if (timer.current) clearTimeout(timer.current)
-    // A table's rows show before anything is typed; anything else is searched for.
-    if (!q && !rowsOf) {
-      reqId.current++ // a search still running was for text that's gone
-      setItems([])
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    const myReq = ++reqId.current
-    timer.current = setTimeout(async () => {
-      let mapped: RelationRef[] = []
-      try {
-        if (rowsOf) {
-          const rows = await pickRows(rowsOf, q)
-          mapped = rows.map((r) => ({ id: r.id, label: r.label, type: "row", table_id: rowsOf }))
-        } else {
-          const res = await search(q)
-          for (const r of res?.page ?? []) {
-            const ref = refFromResult(r, target)
-            if (ref) mapped.push(ref)
-            if (mapped.length >= 8) break
-          }
-        }
-      } catch {
-        // surfaced by the interceptor; nothing to offer
-      }
-      if (myReq !== reqId.current) return
-      setItems(mapped)
-      setLoading(false)
-    }, rowsOf && !q ? 0 : 180)
-  }, [query, open, search, target, rowsOf])
 
   // A cell's write keeps every link it holds, the ones this reader can't open too.
   const add = (ref: RelationRef) => {
@@ -158,30 +87,6 @@ export function RelationCell({
   const named = refs.filter((r) => r.type !== "more" && !isHiddenRef(r) && r.label)
   const shown = named.slice(0, room.max)
   const more = refs.find((r) => r.type === "more")
-
-  const listItems: CommandListItem[] = items.map((ref) => ({
-    id: `${ref.type}-${ref.id}`,
-    label: ref.label ?? "",
-    text: ref.label ?? "",
-    tile: (
-      <span className="inline-flex size-6 items-center justify-center">
-        <RefGlyph item={ref} />
-      </span>
-    ),
-    trailing: refs.some((x) => x.id === ref.id) ? (
-      <Check className="size-4 text-camp-moss" aria-label="Linked" />
-    ) : ref.type !== "row" ? (
-      <span className="text-meta text-ink-3 first-letter:uppercase">{ref.type}</span>
-    ) : undefined,
-  }))
-  const placeholder = rowsOf ? `Link a row from ${tableName || "the table"}` : `Search ${target === "any" ? "tasks, docs and people" : target + "s"}`
-  const emptyText = loading
-    ? null
-    : !query.trim() && !rowsOf
-      ? "Type to search"
-      : rowsOf && !query.trim()
-        ? "That table has no rows yet"
-        : `Nothing matches “${query.trim()}”`
 
   return (
     <div className={cn("relative flex h-full min-h-8 items-center gap-1 px-3", room.wrap ? "flex-wrap content-center py-1" : "overflow-hidden")}>
@@ -255,44 +160,9 @@ export function RelationCell({
           }
         >
           <PopoverContent align="start" sideOffset={2} className="w-auto bg-transparent p-0 shadow-none" onOpenAutoFocus={(e) => e.preventDefault()}>
-            <CommandList
-              ref={list}
-              label="Rows to link"
-              roomy
-              className="w-80"
-              items={listItems}
-              query={query}
-              maxHeight={300}
-              onSelect={(item) => {
-                const ref = items.find((r) => `${r.type}-${r.id}` === item.id)
-                if (!ref) return
-                toggle(ref)
-                if (!rowsOf) setOpen(false)
-              }}
-              empty={emptyText}
-              after={
-                loading ? (
-                  <div className="flex h-9 items-center gap-2 px-2 text-ui-sm text-ink-3">
-                    <Loader2 className="size-3.5 animate-spin" /> Searching…
-                  </div>
-                ) : null
-              }
-              header={
-                <span className="flex w-full items-center gap-2">
-                  <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
-                  <input
-                    autoFocus
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (list.current?.onKeyDown(e)) e.preventDefault()
-                    }}
-                    placeholder={placeholder}
-                    aria-label={placeholder}
-                    className="h-7 min-w-0 flex-1 bg-transparent text-ui font-normal text-ink outline-none placeholder:text-ink-3"
-                  />
-                </span>
-              }
+            <cellPickers.View
+              fallback={<PickerLoading />}
+              render={(m) => <m.RelationPicker refs={refs} target={target} rowsOf={rowsOf} tableName={tableName} onToggle={toggle} onClose={() => setOpen(false)} />}
             />
           </PopoverContent>
         </LazyPopover>

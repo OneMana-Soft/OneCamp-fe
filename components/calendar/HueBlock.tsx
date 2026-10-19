@@ -8,6 +8,7 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
 
 import { hueOf, kindOf, type CalendarItemLike } from "./calendarTones"
+import { useProjectHues } from "@/lib/projectHue"
 
 /**
  * An event drawn on time (content.md §1.4, §1.5): month bars, week and day
@@ -102,6 +103,8 @@ export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function Hu
   { item, variant, past, live, selected, quiet, continued, as = "button", className, children, ...rest },
   ref,
 ) {
+  // Again when the reader's projects arrive: they share the hues out (lib/projectHue).
+  useProjectHues()
   const kind = kindOf(item)
   const Comp = as as "button"
   const lead =
@@ -128,7 +131,7 @@ export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function Hu
         "group/hb relative flex min-w-0 select-none overflow-hidden rounded-md text-left outline-none",
         "focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-sheet",
         variant === "bar" && "h-[22px] items-center gap-1 pr-1.5 text-meta font-medium",
-        variant === "chip" && "h-[22px] items-center gap-1 pr-1.5 text-meta font-medium",
+        variant === "chip" && "min-h-[22px] items-start gap-1 py-[3px] pr-1.5 text-meta font-medium leading-4",
         variant === "row" && "h-8 items-center gap-2 pr-2 text-ui-sm font-medium",
         variant === "block" && "flex-col items-stretch pr-1.5 text-meta font-medium",
         bar && !continued ? "pl-[9px]" : "pl-1.5",
@@ -140,7 +143,7 @@ export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function Hu
       {bar && !continued ? (
         <span aria-hidden="true" data-hue-bar="" className={cn("absolute inset-y-0 left-0 w-[3px]", kind === "focus" ? "bg-ink-3" : "bg-hue")} />
       ) : null}
-      {variant !== "block" ? lead : null}
+      {variant === "chip" && lead ? <span className="flex h-4 shrink-0 items-center">{lead}</span> : variant !== "block" ? lead : null}
       {variant === "block" && lead ? <span className="absolute right-1 top-1 opacity-80">{lead}</span> : null}
       {children}
     </Comp>

@@ -21,7 +21,7 @@
 import { personHue } from "@/lib/utils/getAvatarColor"
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { hueFor, type CampHue } from "@/lib/campHue"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { SPARK_PATH } from "@/components/ui/graphics/motifs"

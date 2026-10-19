@@ -5,6 +5,9 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // (PM-3) and stays mounted from its first use. One failed load of that chunk
 // (a moment offline) left it unopenable: nothing asked for it again.
 const asked = vi.hoisted(() => ({ dialog: 0 }))
+// The server's optional features (useClientConfig), asked of nothing here:
+// repeats are off, as on a server whose calendar isn't in its one store.
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => false }))
 vi.mock("@/components/calendar/createCalendarEventDialog", async () => {
   asked.dialog++
   if (asked.dialog === 1) throw new Error("Failed to fetch dynamically imported module")

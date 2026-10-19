@@ -105,7 +105,7 @@ export const STORED_NAME: Record<StatusHue, string> = {
 export const STATUS_COLORS: string[] = Object.values(STORED_NAME)
 
 /** A category's own hue: what a built-in status draws in (its glyph's colour). */
-const CATEGORY_HUE: Record<StatusCategory, StatusHue> = {
+export const CATEGORY_HUE: Record<StatusCategory, StatusHue> = {
   backlog: "neutral",
   todo: "neutral",
   inProgress: "sun",

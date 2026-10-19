@@ -99,3 +99,23 @@ describe("the title band (D-2, T4)", () => {
     expect(screen.getByRole("button", { name: "Add a cover" })).toBeTruthy()
   })
 })
+
+// Step 3, part 2: Add icon and Add cover by touch. A finger's 44 px reach
+// (app/phone.css F3) ran 6 px past each 32 px button, so with 4 px between
+// them a tap at the near edge of Add an icon went to Add a cover. The band
+// is a touch group, as every row of small controls is (app/phone.css F3b).
+describe("the title band under a finger", () => {
+  it("stands a phone's Add an icon and Add a cover apart, as a group of 32 px controls", () => {
+    hoisted.mobile = true
+    render(<Band docId="tb4" />)
+    const row = screen.getByRole("button", { name: "Add an icon" }).closest("[data-doc-band]")
+    expect(row?.getAttribute("data-touch-group")).toBe("32")
+    expect(row?.contains(screen.getByRole("button", { name: "Add a cover" }))).toBe(true)
+  })
+
+  it("does the same for a tablet's Add icon and Add cover, 28 px tall", () => {
+    render(<Band docId="tb5" />)
+    const row = screen.getByRole("button", { name: "Add icon" }).closest("[data-doc-band]")
+    expect(row?.getAttribute("data-touch-group")).toBe("")
+  })
+})

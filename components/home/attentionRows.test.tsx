@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 /** "What needs me now" (hub.md H8–H10): one queue, grouped, acting in place. */
@@ -11,6 +11,13 @@ vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined
 const { NeedsMeSection } = await import("@/components/home/NeedsMeSection")
 const { groupNeeds, tasksToNeeds, mentionsToNeeds, dmsToNeeds } = await import("@/components/home/needsMe")
 import type { NeedsItem } from "@/components/home/needsMe"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The celebrations' bursts are a chunk fetched when the page is idle
+// (lib/celebrateSoon): here they are in before anything finishes.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 afterEach(() => {
   cleanup()

@@ -202,6 +202,16 @@ describe("sidebar sections", () => {
     for (const gone of ['title="Teams"', 'title="Docs"', 'title="Boards"', "title: 'teams'", "title: 'Docs'"]) expect(nav).not.toContain(gone)
     expect(nav.indexOf('title="Starred"')).toBeLessThan(nav.indexOf('title="Projects"'))
   })
+
+  // The rivals review (16 Oct 2026): with the docs tree above them, Channels
+  // and Direct messages started about 995px down, below a 1280 by 860 screen.
+  it("puts Channels and Direct messages above the docs tree", () => {
+    const nav = readFileSync(join(__dirname, "desktopNavigationBar.tsx"), "utf8")
+    const docs = nav.indexOf("<DocsSection")
+    expect(docs).toBeGreaterThan(0)
+    expect(nav.indexOf('title="Channels"')).toBeLessThan(docs)
+    expect(nav.indexOf('title="Direct messages"')).toBeLessThan(docs)
+  })
 })
 
 // S5: four rows, then More as a popover holding the rest.

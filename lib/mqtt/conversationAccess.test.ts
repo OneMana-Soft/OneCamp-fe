@@ -1,18 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ScopedMutator } from "swr"
-import {
-  CONVERSATION_MOVED_EVENT,
-  applyConversationAccess,
-  readConversationAccess,
-  type ConversationMoved,
-} from "@/lib/mqtt/conversationAccess"
+import { applyConversationAccess, readConversationAccess } from "@/lib/mqtt/conversationAccess"
 import { GetEndpointUrl } from "@/services/endPoints"
 
 // A conversation started, joined or added to after the page loaded never
 // streamed: the app held only the topics its settings named when it
 // connected. Told on its own topic, the app fetches its settings again, and
-// the lists that show conversations, and a group open on an id it no longer
-// has moves to the new one.
+// the lists that show conversations. A group never changes its id (chat A9):
+// adding someone opens the group of the new set, which arrives like any new
+// conversation.
 
 const cached = [
   `${GetEndpointUrl.SelfProfileSideNav}`,
@@ -51,23 +47,22 @@ describe("a conversation that became the member's", () => {
     expect(revalidated(mutate)).toEqual([GetEndpointUrl.SelfProfileSideNav, GetEndpointUrl.GetUserLatestChatList])
   })
 
-  it("moves an open group to the id it has now that it took someone in", () => {
-    const moved: ConversationMoved[] = []
-    const listen = (e: Event) => moved.push((e as CustomEvent<ConversationMoved>).detail)
-    window.addEventListener(CONVERSATION_MOVED_EVENT, listen)
-    applyConversationAccess(
-      { kind: "group", id: "grp-new", change: "added", previous_id: "grp-old" },
-      { refreshTopics: () => {}, mutate: vi.fn() as unknown as ScopedMutator },
-    )
-    window.removeEventListener(CONVERSATION_MOVED_EVENT, listen)
-    expect(moved).toEqual([{ kind: "group", from: "grp-old", to: "grp-new" }])
+  it("brings the group of a new set of people into the lists, and moves no view", () => {
+    const mutate = vi.fn()
+    const moved = vi.fn()
+    window.addEventListener("conversation-moved", moved)
+    applyConversationAccess({ kind: "group", id: "grp-new", change: "added" }, { refreshTopics: () => {}, mutate: mutate as unknown as ScopedMutator })
+    window.removeEventListener("conversation-moved", moved)
+    expect(revalidated(mutate)).toEqual([GetEndpointUrl.SelfProfileSideNav, GetEndpointUrl.GetUserLatestChatList])
+    expect(moved).not.toHaveBeenCalled()
   })
 })
 
 describe("the event's data", () => {
   it("is read only when it's whole", () => {
     expect(readConversationAccess({ kind: "channel", id: "c", change: "dropped" })).toEqual({ kind: "channel", id: "c", change: "dropped" })
-    expect(readConversationAccess({ kind: "group", id: "g2", change: "added", previous_id: "g1" })?.previous_id).toBe("g1")
+    // An older server's previous_id names a re-keyed group, which no longer happens: it isn't carried.
+    expect(readConversationAccess({ kind: "group", id: "g2", change: "added", previous_id: "g1" })).toEqual({ kind: "group", id: "g2", change: "added" })
     for (const bad of [null, "x", {}, { kind: "doc", id: "d", change: "added" }, { kind: "dm", id: "", change: "added" }, { kind: "dm", id: "a", change: "joined" }]) {
       expect(readConversationAccess(bad)).toBeNull()
     }

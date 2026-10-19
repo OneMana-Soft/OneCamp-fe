@@ -68,6 +68,7 @@ interface CreateChat {
     replyTo?: ChatInfo
     attachments: AttachmentMediaReq[]
     addedLocally?: boolean
+    system?: Pick<ChatInfo, "chat_kind" | "chat_system">
 }
 
 interface SetChatReplyTarget {
@@ -428,7 +429,7 @@ const chatSlice = createSlice({
         },
 
         createChat: (state, action: {payload: CreateChat}) => {
-            const {chatId, chatText, chatCreatedAt, dmId, chatBy, chatTo, attachments, fwdChat, fwdPost, replyTo, addedLocally = false} = action.payload;
+            const {chatId, chatText, chatCreatedAt, dmId, chatBy, chatTo, attachments, fwdChat, fwdPost, replyTo, addedLocally = false, system} = action.payload;
             // Ignore an out-of-order create delivered after this message's
             // delete. A later authoritative restore is allowed after TTL.
             if (chatId && isTombstoned(state.deletedChats, dmId, chatId)) return;
@@ -439,7 +440,7 @@ const chatSlice = createSlice({
             if (state.chatMessages[dmId].some(c => c.chat_uuid === chatId)) return;
             // The echo of a message this tab is still sending: it becomes that
             // message, in its place, rather than a second copy below it.
-            const echoed = !fwdPost && !fwdChat ? indexOfEchoed(state.chatMessages[dmId], CHAT_ACCESS, chatBy?.user_uuid, chatText) : -1;
+            const echoed = !fwdPost && !fwdChat && !system ? indexOfEchoed(state.chatMessages[dmId], CHAT_ACCESS, chatBy?.user_uuid, chatText) : -1;
             if (echoed >= 0) {
                 const c = state.chatMessages[dmId][echoed]
                 c.chat_uuid = chatId
@@ -459,6 +460,7 @@ const chatSlice = createSlice({
                 chat_fwd_msg_chat: fwdChat,
                 chat_fwd_msg_post: fwdPost,
                 chat_reply_to: replyTo,
+                ...system,
             })
         },
 

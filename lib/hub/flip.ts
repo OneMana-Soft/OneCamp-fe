@@ -9,7 +9,7 @@
  * over 200ms on the in-out curve. Children are matched by data-flip-key, or by
  * their key in document order when none is set.
  */
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 
 export type Rects = Map<string, DOMRect>
 

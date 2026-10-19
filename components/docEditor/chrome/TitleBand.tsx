@@ -185,7 +185,9 @@ export default function TitleBand({
 
   return (
     <>
-      <div ref={row} className={cn("absolute inset-x-0 bottom-0 flex h-7 items-center gap-1", padded)} data-doc-band="">
+      {/* A touch group (app/phone.css F3b): under a finger, Add icon and Add
+          cover stand far enough apart that each one's reach stays its own. */}
+      <div ref={row} className={cn("absolute inset-x-0 bottom-0 flex h-7 items-center gap-1", padded)} data-doc-band="" data-touch-group={isMobile ? "32" : ""}>
         {isMobile ? (
           <>
             <div className="min-w-0 flex-1">

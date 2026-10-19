@@ -10,6 +10,7 @@ import { useMqttTopic } from "@/hooks/useMqttTopic"
 import { TableBundle, tableBundleKey } from "@/services/tableService"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
+import { tablePath } from "@/lib/tables/route"
 
 // The grid (DataTableGrid, its cells, menus and virtual rows: about 38 KB
 // gzip) is fetched with the first table a doc embeds, not with every doc: it
@@ -93,7 +94,7 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
         title={gone ? "Table unavailable" : bundle?.table?.name || (isLoading ? "Loading table…" : "Table")}
         meta={showGrid ? `${rowCount} ${rowCount === 1 ? "row" : "rows"}` : undefined}
         // Only offer "Open" when the table is reachable: a dead link would error in the new tab.
-        openHref={tableId && showGrid ? `/app/tables/${tableId}` : undefined}
+        openHref={tableId && showGrid ? tablePath(tableId) : undefined}
         bodyClassName="relative"
       >
         {isLoading ? (

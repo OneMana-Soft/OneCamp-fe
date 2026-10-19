@@ -37,11 +37,13 @@ export const FALLBACK_EVENT_TYPES = [
   "channel.created", "channel.archived",
   "user.joined", "user.left",
   "doc.created", "doc.updated", "doc.deleted", "doc.shared", "doc.comment.created",
+  "table.rows.changed",
 ]
 
 /** What a group of events needs said about who it reaches. */
 const GROUP_NOTE: Record<string, string> = {
   doc: "Sent only for docs whoever sets up the webhook can open. A private doc's title is never sent, and doc.updated is at most once a minute per doc.",
+  table: "One event for each change to a table's rows, naming every row it touched: a paste of 500 rows is one event. Ids only, never a cell's value.",
 }
 
 /**

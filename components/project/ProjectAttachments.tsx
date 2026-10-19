@@ -82,7 +82,7 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
 
     // "U" uploads, from anywhere on the tab but a field.
     React.useEffect(() => {
-        if (!p.isAdmin) return
+        if (!p.canAdd) return
         const onKey = (e: KeyboardEvent) => {
             if (e.metaKey || e.ctrlKey || e.altKey || isTyping(document.activeElement)) return
             if (e.key === "u" || e.key === "U") {
@@ -92,13 +92,13 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
         }
         window.addEventListener("keydown", onKey)
         return () => window.removeEventListener("keydown", onKey)
-    }, [p.isAdmin])
+    }, [p.canAdd])
 
     // The drop target: files dragged over the tab show where they will go.
     const [dragging, setDragging] = React.useState(false)
     const depth = React.useRef(0)
     const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files")
-    const dropProps = p.isAdmin
+    const dropProps = p.canAdd
         ? {
               onDragEnter: (e: React.DragEvent) => {
                   if (!hasFiles(e)) return
@@ -157,6 +157,7 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                                 autoFocus
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
+                                data-escape-own=""
                                 onKeyDown={fieldKeyDown((e) => e.key === "Escape" && (setQuery(""), setSearching(false)))}
                                 placeholder="Search files"
                                 aria-label="Search files"
@@ -194,7 +195,7 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                             triggerClassName="h-7 gap-1.5 text-ink-2 hover:text-ink"
                         />
                     )}
-                    {p.isAdmin && (
+                    {p.canAdd && (
                         <Button size="sm" className="gap-1.5" onClick={pickFiles} aria-keyshortcuts="U">
                             <Upload className="size-3.5" aria-hidden="true" />
                             Upload
@@ -211,7 +212,7 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                         <ErrorState subject="the files" onRetry={() => void p.list.mutate()} />
                     </WorkState>
                 ) : empty ? (
-                    <ProjectFilesEmpty onAdd={p.isAdmin ? pickFiles : undefined} />
+                    <ProjectFilesEmpty onAdd={p.canAdd ? pickFiles : undefined} />
                 ) : (
                     <div className="space-y-8">
                         {(p.files.length > 0 || p.uploading.length > 0) && (
@@ -269,7 +270,7 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
                     <p className="text-heading font-semibold text-ink">Drop to upload{projectName ? ` to ${projectName}` : ""}</p>
                 </div>
             ) : null}
-            {p.isAdmin && (
+            {p.canAdd && (
                 <input
                     ref={fileInputRef}
                     type="file"

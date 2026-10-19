@@ -11,14 +11,14 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { SlotProps } from "@/components/docEditor/registry/types"
 import type { Place } from "@/types/docGraph"
 import type { UserProfileInterface } from "@/types/user"
-import "./contributions"
+import { offerPageActions } from "./contributions"
 import { leaveDoc, provideNavigate, setFacts, softLocked, usePageFacts } from "./pageFacts"
 import { useDoc } from "./useDoc"
 
 
 /**
  * The open doc's page facts and its soft lock (B6), over its editor
- * (editorOverlay): its chunk registers More's page actions and the dialogs
+ * (editorOverlay): once drawn it offers More's page actions and the dialogs
  * (contributions.ts); what they read as More opens (starred, locked, owned)
  * is kept current from the doc's own answer; and a soft lock holds the editor
  * through the plugin it was made with (softLock.ts), which reads these facts
@@ -26,9 +26,15 @@ import { useDoc } from "./useDoc"
  */
 export default function PageGuard({ docId, editor }: SlotProps) {
   const router = useRouter()
+  // Handed over for good: the app's router outlives this guard, and an action
+  // still running when the guard goes (More's Delete waits for its answer,
+  // and the editor can be remade meanwhile) leaves the page with it. Taken
+  // back on unmount, that left the page by a full page load, which took the
+  // Undo toast with it (N32). The page actions are offered only then, so none
+  // runs before the router is here (contributions.ts).
   React.useEffect(() => {
     provideNavigate((href) => router.push(href))
-    return () => provideNavigate(null)
+    offerPageActions()
   }, [router])
 
   const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)

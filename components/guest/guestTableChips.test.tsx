@@ -28,8 +28,11 @@ describe("a shared table's option chips", () => {
   const chipOf = (label: string) => screen.getByText(label).closest("[data-option-chip]") as HTMLElement
   const dotOf = (label: string) => chipOf(label).querySelector("[data-chip-dot]")?.getAttribute("class") || ""
 
-  it("are neutral chips with a dot in their camp hue, as a member sees them", () => {
-    render(<GuestTableViewer fields={[field]} rows={[row("r1", "Shortlisted"), row("r2", "Blocked"), row("r3", "Signed"), row("r4", "Unsorted")]} />)
+  // A table's first select is tinted until it says otherwise (optionChip
+  // tintedFields), for a guest as for a member; switched off, it is neutral.
+  it("are neutral chips with a dot in their camp hue in a column switched off, as a member sees them", () => {
+    const off = { ...field, config: JSON.stringify({ ...JSON.parse(field.config), tinted: false }) } as TableField
+    render(<GuestTableViewer fields={[off]} rows={[row("r1", "Shortlisted"), row("r2", "Blocked"), row("r3", "Signed"), row("r4", "Unsorted")]} />)
     expect(chipOf("Shortlisted").className).toMatch(/\bbg-hover\b/)
     expect(dotOf("Shortlisted")).toMatch(/\bhue-sky\b/)
     expect(dotOf("Blocked")).toMatch(/\bhue-berry\b/)
@@ -39,6 +42,12 @@ describe("a shared table's option chips", () => {
     for (const label of ["Shortlisted", "Blocked", "Signed"]) {
       expect(chipOf(label).outerHTML).not.toMatch(/destructive|danger|success|warning|-500\//)
     }
+  })
+
+  it("wear their camp hue as a tint in a table's first select, until it says otherwise", () => {
+    render(<GuestTableViewer fields={[field]} rows={[row("r1", "Shortlisted"), row("r4", "Unsorted")]} />)
+    expect(chipOf("Shortlisted").className).toMatch(/\bhue-sky\b.*\bbg-hue-tint\b.*\btext-hue-ink\b/)
+    expect(chipOf("Unsorted").className).toMatch(/\bbg-hover\b/)
   })
 
   it("wear their camp hue as a tint behind ink when the column opts in", () => {

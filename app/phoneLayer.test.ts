@@ -151,3 +151,54 @@ describe("the installed app", () => {
     expect(CSS).toMatch(/@media \(display-mode: standalone\)[\s\S]*?overscroll-behavior: none[\s\S]*?-webkit-touch-callout: none/)
   })
 })
+
+// DRAWERS (17 Oct 2026): sheets rose in 0.5s, not 420ms. vaul injects its
+// CSS unlayered ([data-vaul-drawer] { animation-duration: .5s }), and an
+// unlayered rule beats every layered one, so the timing in @layer components
+// never applied. The sheet's timing is unlayered and more specific than vaul's.
+describe("C5t. the sheet's timing beats vaul's own", () => {
+  /** The stylesheet split in two: what sits outside any @layer block, and what sits inside one. */
+  function split(css: string): { top: string; layered: string } {
+    let top = ""
+    let layered = ""
+    let i = 0
+    while (i < css.length) {
+      const at = css.indexOf("@layer", i)
+      if (at < 0) {
+        top += css.slice(i)
+        break
+      }
+      top += css.slice(i, at)
+      let j = css.indexOf("{", at) + 1
+      let depth = 1
+      while (depth > 0 && j < css.length) {
+        if (css[j] === "{") depth++
+        else if (css[j] === "}") depth--
+        j++
+      }
+      layered += css.slice(at, j)
+      i = j
+    }
+    return { top, layered }
+  }
+  const { top, layered } = split(CSS)
+
+  it("rises in --t-sheet and goes in --t-sheet-out, outside any layer", () => {
+    expect(top).toMatch(/\[data-vaul-drawer\]\[data-v3-sheet\]\[data-state="open"\],\s*\[data-vaul-overlay\]\[data-v3-scrim\]\[data-state="open"\]\s*\{\s*animation-duration:\s*var\(--t-sheet\);/)
+    expect(top).toMatch(/\[data-vaul-drawer\]\[data-v3-sheet\]\[data-state="closed"\],\s*\[data-vaul-overlay\]\[data-v3-scrim\]\[data-state="closed"\]\s*\{\s*animation-duration:\s*var\(--t-sheet-out\);/)
+    expect(top).toMatch(/\[data-vaul-drawer\]\[data-v3-sheet\]\s*\{\s*transition-duration:\s*300ms;/)
+  })
+
+  it("leaves no sheet timing inside a layer, where vaul's would win", () => {
+    expect(layered).not.toMatch(/\[data-vaul-drawer\]\[data-v3-sheet\]\[data-state="(open|closed)"\][^{]*\{\s*animation-duration:\s*var\(--t-sheet/)
+  })
+
+  it("keeps vaul's own .5s, the reason this is unlayered", () => {
+    const vaul = readFileSync(join(ROOT, "node_modules/vaul/dist/index.mjs"), "utf8")
+    expect(vaul).toMatch(/\[data-vaul-drawer\]\{[^}]*animation-duration:\.5s/)
+  })
+
+  it("never forces the transition, which vaul turns off inline while a finger drags", () => {
+    expect(top).not.toMatch(/\[data-vaul-drawer\]\[data-v3-sheet\]\s*\{[^}]*transition-duration:[^;]*!important/)
+  })
+})

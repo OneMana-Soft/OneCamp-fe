@@ -24,3 +24,10 @@ export function unsavedWhat(): string | null {
   const first = unsaved.values().next()
   return first.done ? null : first.value
 }
+
+/**
+ * The event a way off the page sends first, so a SaveBar's dock nudges before
+ * the confirm (components/ui/settingsSection). Here rather than beside the dock
+ * so the guard on every page (UnsavedChangesGuard) needn't bring the settings UI.
+ */
+export const SAVE_NUDGE_EVENT = "onecamp:save-nudge"

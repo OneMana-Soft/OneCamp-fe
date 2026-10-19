@@ -108,19 +108,21 @@ export function DocListTabs() {
     const searching = searchable(debounced);
     const clearSearch = React.useCallback(() => setText(""), []);
 
+    // A tab the person picks goes into the address, for Back and a reload.
+    // The one the home picks for itself stays out of it: writing the address
+    // is a navigation, and Next keeps only the latest, so written once
+    // Recent's first page came, it cancelled a navigation the person had
+    // already started (Undo right after a delete stayed here: N32).
     const onTab = React.useCallback((value: string) => {
         if (!isDocTab(value)) return;
         setChosen(true);
         setTab(value);
         setText("");
-    }, []);
-
-    React.useEffect(() => {
-        if (!chosen || pathname !== "/app/doc" || searchParams.get("tab") === tab) return;
+        if (pathname !== "/app/doc" || searchParams.get("tab") === value) return;
         const params = new URLSearchParams(searchParams.toString());
-        params.set("tab", tab);
+        params.set("tab", value);
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }, [chosen, tab, pathname, router, searchParams]);
+    }, [pathname, router, searchParams]);
 
     // How the list is shown, sorted and filtered.
     const [view, setView] = useStoredState<DocsView>("docs.view", "grid", isView);
@@ -268,6 +270,7 @@ function SearchPill({
                 type="search"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                data-escape-own=""
                 onKeyDown={(e) => {
                     // An input method's Escape drops the word being made, not the search.
                     if (e.key === "Escape" && !isComposingKey(e.nativeEvent)) {

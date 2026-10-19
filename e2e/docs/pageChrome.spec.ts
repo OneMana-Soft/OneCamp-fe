@@ -151,21 +151,32 @@ test("More's Delete moves the doc to the trash, leaves its page, and Undo brings
       "/doc/children": { data: { parent: "", nodes: [], hidden: 0, count: 0 } },
     },
   })
+  // The page is left in the app, never by a page load: one took the Undo
+  // toast with it (2 runs in 12) when the page guard had gone meanwhile.
+  const loads: string[] = []
+  tab.page.on("request", (r) => {
+    if (r.resourceType() === "document") loads.push(new URL(r.url()).pathname)
+  })
   await more(tab.page, "Delete")
   await expect.poll(() => tab.posts.some((p) => p.path === "/doc/delete")).toBe(true)
   // The words a row's menu says too (one docActions module), up as the page
-  // is left. A person going for Undo points at the toasts, which opens the
-  // stack out and holds every toast's clock (shell T1). Without that, a toast
-  // that came in on top (an unanswered read's "Not in this test") covered the
-  // Undo, and the click waited behind it until the six seconds ran out; on a
-  // loaded machine they also ran out while the page was being left.
+  // is left. Undo the keyboard's way: the focus in the toasts opens the stack
+  // and holds every toast's clock (shell T1), and Enter reaches the button
+  // wherever the stack has it. A click waited behind a toast that came in on
+  // top (an unanswered read's "Not in this test") until the six seconds ran out.
   const toast = tab.page.getByText("Moved “Launch notes” to the trash", { exact: true })
   await expect(toast).toBeVisible()
-  await tab.page.getByRole("region", { name: /^Notifications/ }).getByRole("list").hover()
+  const undo = tab.page.getByRole("button", { name: "Undo" })
+  await undo.focus()
   await expect(tab.page).toHaveURL(/\/app\/doc$/)
-  await expect(toast).toBeVisible()
-  await tab.page.getByRole("button", { name: "Undo" }).click()
+  expect(loads).toEqual([])
+  await undo.press("Enter")
   await expect.poll(() => tab.posts.find((p) => p.path === "/doc/restore")?.body).toEqual({ doc_uuid: DOC })
+  // Back on its page: a page load of its own (the doc route's answer, then
+  // its editor), waited for as the first open waits for it. Given the five
+  // seconds a toast gets, it ran out twice in 36 runs as the machine's load
+  // rose (back in 1 to 3 s otherwise), the doc route's answer still on its way.
+  await expect(tab.body).toBeVisible({ timeout: 60_000 })
   await expect(tab.page).toHaveURL(new RegExp(`/app/doc/${DOC}$`))
   await tab.close()
 })

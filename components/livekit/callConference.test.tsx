@@ -78,7 +78,10 @@ vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => room,
   useConnectionState: () => ConnectionState.Connected,
   useMediaDeviceSelect: () => ({ devices: [], activeDeviceId: "", setActiveMediaDevice: vi.fn() }),
+  useParticipants: () => participants,
 }))
+// Who LiveKit says is in the room.
+let participants: unknown[] = []
 
 // The browser's recogniser, watched.
 class FakeRecognition {
@@ -104,6 +107,7 @@ const metadata = (o: object) => JSON.stringify(o)
 const on = { on: true, by: "Maya Chen", byId: "maya", since: 1, where: "browser", kept: true }
 
 beforeEach(() => {
+  participants = []
   room = makeRoom("ch-1")
   config = { transcription_mode: "frontend" }
   FakeRecognition.made = []
@@ -321,5 +325,45 @@ describe("CALL-BUG-1 and 20: what LiveKit is given", () => {
   it("asks for adaptive stream, dynacast and speech audio", async () => {
     await act(async () => render(call()))
     expect(liveKitProps.options).toMatchObject({ adaptiveStream: true, dynacast: true, singlePeerConnection: false, publishDefaults: { audioPreset: AudioPresets.speech } })
+  })
+})
+
+// Step 3, part 2: the dock's People, React and Chat, in a call.
+describe("who is in the call, reactions and the conversation", () => {
+  const maya = { identity: "maya", name: "Maya Chen", isLocal: false, isMicrophoneEnabled: false, isCameraEnabled: true }
+  const bot = { identity: "transcriber-bot", name: "Transcriber", isLocal: false, isMicrophoneEnabled: true, isCameraEnabled: false, kind: 4 }
+
+  it("counts the people on People, never the agent, and lists them beside the stage", async () => {
+    participants = [{ ...lp, isLocal: true }, maya, bot]
+    await act(async () => render(call()))
+    const people = screen.getByRole("button", { name: "Participants, 2" })
+    await act(async () => fireEvent.click(people))
+    const panel = screen.getByRole("complementary", { name: "Participants" })
+    expect(panel.textContent).toContain("Maya Chen")
+    expect(panel.textContent).not.toContain("Transcriber")
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Close participants" })))
+    expect(screen.queryByRole("complementary", { name: "Participants" })).toBeNull()
+  })
+
+  it("floats a reaction someone sent, and sends yours to everyone", async () => {
+    await act(async () => render(call()))
+    const { encodeSignal, CALL_SIGNAL_TOPIC } = await import("@/lib/calls/signals")
+    await act(async () => room.emit("dataReceived", encodeSignal("reaction", { emoji: "🎉" }), { identity: "maya", name: "Maya Chen" }, undefined, CALL_SIGNAL_TOPIC))
+    expect(screen.getByRole("log", { name: "Reactions" }).textContent).toContain("Maya Chen")
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "React" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Thumbs up" })))
+    expect(lp.publishData).toHaveBeenCalledWith(encodeSignal("reaction", { emoji: "👍" }), { reliable: false, topic: CALL_SIGNAL_TOPIC })
+  })
+
+  it("offers Chat only where the call has a conversation", async () => {
+    await act(async () => render(call()))
+    expect(screen.queryByRole("button", { name: "Chat" })).toBeNull()
+    cleanup()
+    const chat = vi.fn()
+    await act(async () => render(call({ onChatToggle: chat, isChatOpen: true })))
+    const button = screen.getByRole("button", { name: "Chat" })
+    expect(button.getAttribute("aria-pressed")).toBe("true")
+    await act(async () => fireEvent.click(button))
+    expect(chat).toHaveBeenCalled()
   })
 })

@@ -1,13 +1,14 @@
 "use client"
 
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { DueLabel } from "@/components/task/DueLabel"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
-import { celebrateTask, prefersReducedMotion } from "@/lib/celebrate"
+import { celebrateTask, warmBurstsWhenIdle } from "@/lib/celebrateSoon"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { AlertCircle, Check, MessageSquare } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { GuestReview as Review, GuestTaskCard } from "@/services/guestService"
@@ -94,6 +95,8 @@ export function GuestCard({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [justApproved, setJustApproved] = useState(false)
+  // A finish's sparks are lib/celebrate's, fetched once the page is idle.
+  useEffect(() => warmBurstsWhenIdle(), [])
   const waiting = awaitsReview(task)
   return (
     <div

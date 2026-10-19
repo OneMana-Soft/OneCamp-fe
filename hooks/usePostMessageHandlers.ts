@@ -18,6 +18,9 @@ import {
     updateChannelCommentByCommentUUID, updateChannelCommentReactionByCommentId
 } from "@/store/slice/channelCommentSlice";
 import {incrementUserChannelUnread} from "@/store/slice/userSlice";
+import { isSystemLine } from "@/lib/conversation/systemLine";
+import { followSystemLine } from "@/lib/conversation/liveSystemLine";
+import { GetEndpointUrl } from "@/services/endPoints";
 import { mentionsUser } from "@/components/message/tintMentions";
 import { RemoveChannelTyping } from "@/store/slice/typingSlice";
 interface UsePostMessageHandlersProps {
@@ -63,8 +66,17 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                                 fwdPost: mqttPostInfo.data.post_fwd_msg_post,
                                 replyTo: mqttPostInfo.data.post_reply_to,
                                 attachments: mqttPostInfo.data.post_attachments,
+                                // A system line's own fields (lib/conversation/systemLine); nothing for a person's message.
+                                system: mqttPostInfo.data.post_kind
+                                    ? { post_kind: mqttPostInfo.data.post_kind, post_system: mqttPostInfo.data.post_system }
+                                    : undefined,
                             }),
                         )
+                        followSystemLine(dispatch, {
+                            kind: "channel",
+                            id: mqttPostInfo.data.post_channel_uuid,
+                            latestKey: `${GetEndpointUrl.GetChannelLatestPost}/${mqttPostInfo.data.post_channel_uuid}`,
+                        }, mqttPostInfo.data.post_kind, mqttPostInfo.data.post_system)
                         // Author just posted — drop the typing indicator
                         // immediately so the receiver doesn't see "still
                         // typing" lingering for ~6s after the post lands.
@@ -77,9 +89,11 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                         // ELSE and we aren't currently viewing this channel.
                         // For posts by the current user (any device), this
                         // is just a sync echo — don't badge our own work.
+                        // A system line is never unread: the server counts none.
                         if (
                             userUuid !== mqttPostInfo.data.user_uuid &&
-                            path3 !== mqttPostInfo.data.post_channel_uuid
+                            path3 !== mqttPostInfo.data.post_channel_uuid &&
+                            !isSystemLine(mqttPostInfo.data.post_kind)
                         ) {
                             dispatch(incrementUserChannelUnread({
                                 ch_uuid: mqttPostInfo.data.post_channel_uuid,

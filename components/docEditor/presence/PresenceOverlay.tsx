@@ -23,6 +23,7 @@ import { useDocBus } from "@/components/docEditor/registry/commandBus"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { collaboratorHue } from "@/lib/identityHue"
 import { cn } from "@/lib/utils/helpers/cn"
+import { onEscape } from "@/lib/keys/onEscape"
 import { setPresenceControl } from "./control"
 import { followersOf, type AwarenessState } from "./people"
 import { awarenessOf, flagCaret, posOf, scrollerOf, showPos, showView, viewOf, type AwarenessLike, type View } from "./live"
@@ -245,8 +246,11 @@ function useFollow(editor: Editor, awareness: AwarenessLike, following: number |
     }
     const stopped = () => end(`Stopped following ${nameRef.current}`)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" || (PAGE_KEYS.has(e.key) && !typing(e.target))) stopped()
+      if (PAGE_KEYS.has(e.key) && !typing(e.target)) stopped()
     }
+    // Esc stops following: the page layer of the one Escape (lib/keys/escape),
+    // after a menu or a dialog open over the doc.
+    const stopEscape = onEscape("page", () => stopped())
     const onDown = (e: Event) => {
       if (scroller.contains(e.target as Node)) stopped()
     }
@@ -259,6 +263,7 @@ function useFollow(editor: Editor, awareness: AwarenessLike, following: number |
     return () => {
       window.clearTimeout(timer)
       awareness.off("change", onChange)
+      stopEscape()
       window.removeEventListener("keydown", onKey)
       scroller.removeEventListener("wheel", stopped)
       scroller.removeEventListener("touchmove", stopped)

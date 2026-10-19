@@ -49,9 +49,6 @@ const KEYFRAME_EXCEPTIONS: Record<string, string> = {
   // The ring in the workspace mark draws itself once a day (design v3, shell
   // S3): one 16px glyph repaints for 600ms.
   "shell-ring-draw": "stroke-dashoffset",
-  // The logo ring drawing once on the splash (design v3, shell §L1): one 56px
-  // stroke repaints for 600ms while nothing else is on screen.
-  "ring-draw": "stroke-dashoffset",
   // The moss check drawing once when a pull to refresh lands (design v3,
   // mobile L4): one 36px glyph repaints for 200ms.
   "ptr-draw": "stroke-dashoffset",
@@ -179,7 +176,8 @@ describe("motion cost", () => {
   })
 
   it("bursts a celebration with transform and opacity only", () => {
-    const src = readFileSync(join(ROOT, "lib/celebrate.ts"), "utf8")
+    // The bursts, and the springy check beside them.
+    const src = ["lib/celebrate.ts", "lib/spring.ts"].map((f) => readFileSync(join(ROOT, f), "utf8")).join("\n")
     const frames = [...src.matchAll(/\{\s*(transform|scale|opacity|offset)[^{}]*\}/g)].map((m) => m[0])
     expect(frames.length).toBeGreaterThan(0)
     for (const f of frames) {

@@ -6,7 +6,8 @@ import { fieldKeyDown } from "@/lib/keys/ime"
 import { ArrowUpRight, Check, Plus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { panelSection } from "@/lib/ui/propertyRow"
-import { celebrateRing, prefersReducedMotion } from "@/lib/celebrate"
+import { celebrateRing } from "@/lib/celebrateSoon"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { Bar } from "@/components/ui/progress"
 import { DueLabel } from "@/components/task/DueLabel"
 import { TaskTitle } from "@/components/task/TaskCheck"
@@ -144,6 +145,7 @@ function AddRow({ value, onChange, onAdd, onCancel }: { value: string; onChange:
                 ref={ref}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                data-escape-own=""
                 onKeyDown={fieldKeyDown((e) => {
                     if (e.key === "Enter") {
                         e.preventDefault()

@@ -39,6 +39,8 @@ vi.mock("@/components/livekit/VideoConference", () => ({
 
 const router = { push: vi.fn(), replace: vi.fn(), back: vi.fn() }
 vi.mock("next/navigation", () => ({ useRouter: () => router }))
+// The dock's Chat follows split view (callChat.test); these pages test the call itself.
+vi.mock("@/components/livekit/callChat", () => ({ useCallChat: () => ({}) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({ transcription_mode: "frontend", transcription_language: "de-DE" }) }))
 const joinInstantMeeting = vi.fn()

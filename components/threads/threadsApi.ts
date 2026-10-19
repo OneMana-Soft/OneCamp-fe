@@ -53,3 +53,32 @@ export async function reanchorThread(id: string, anchor: Anchor): Promise<Thread
 export async function markThreadRead(id: string): Promise<void> {
   await axiosInstance.post(`${one(id)}/read`, {})
 }
+
+/**
+ * A comment threads keep (a table row's: business/Thread commentChanges.go),
+ * by its thread and its id. A doc's comments change through the doc's own
+ * routes (components/docComments/docCommentApi); these answer "not available"
+ * for them.
+ */
+const commentPath = (threadId: string, commentId: string) => `${one(threadId)}/comments/${encodeURIComponent(commentId)}`
+
+/** Its writer's new words; answers the comment as stored. */
+export async function editThreadComment(threadId: string, commentId: string, body: string): Promise<ThreadComment> {
+  return (await axiosInstance.post<Envelope<ThreadComment>>(`${commentPath(threadId, commentId)}/edit`, { body })).data.data
+}
+
+/** Its writer, or a moderator (the owner, full access, an admin), removes it. */
+export async function removeThreadComment(threadId: string, commentId: string): Promise<void> {
+  await axiosInstance.post(`${commentPath(threadId, commentId)}/remove`, {})
+}
+
+/** Adds the person's reaction, or changes its emoji; answers the reaction's id. */
+export async function reactToThreadComment(threadId: string, commentId: string, emojiId: string): Promise<string> {
+  const r = await axiosInstance.post<Envelope<{ reaction_id: string }>>(`${commentPath(threadId, commentId)}/react`, { emoji_id: emojiId })
+  return r.data.data.reaction_id
+}
+
+/** Takes back the person's own reaction. */
+export async function unreactToThreadComment(threadId: string, commentId: string, reactionId: string): Promise<void> {
+  await axiosInstance.post(`${commentPath(threadId, commentId)}/unreact`, { reaction_id: reactionId })
+}

@@ -21,8 +21,7 @@ import { cycleDates, cycleLabel, nextStart, percentDone, timeLeft, type Cycle } 
 import { SpotCalendar } from "@/components/ui/graphics/spots"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
-import { celebrateRing } from "@/lib/celebrate"
-
+import { celebrateRing } from "@/lib/celebrateSoon"
 const STATE_LABEL: Record<string, string> = { current: "Current", upcoming: "Upcoming", ended: "Ended", completed: "Completed" }
 
 /** What the switcher shows: the form for a new cycle, or the cycles. */

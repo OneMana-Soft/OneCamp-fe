@@ -28,11 +28,14 @@ afterEach(() => {
   makeRequest.mockClear()
 })
 
-function card() {
+// The card's half hour; nothing here reads it against today.
+const DRAFT = { start: new Date(2026, 9, 15, 9), end: new Date(2026, 9, 15, 9, 30) }
+
+function card(onClose: () => void = vi.fn()) {
   const anchor = document.createElement("div")
   document.body.appendChild(anchor)
   const onCreated = vi.fn()
-  render(<QuickCreateCard draft={{ start: new Date(2026, 9, 15, 9), end: new Date(2026, 9, 15, 9, 30) }} anchor={anchor} onDraftChange={vi.fn()} onClose={vi.fn()} onCreated={onCreated} onMoreOptions={vi.fn()} />)
+  render(<QuickCreateCard draft={DRAFT} anchor={anchor} onDraftChange={vi.fn()} onClose={onClose} onCreated={onCreated} onMoreOptions={vi.fn()} />)
   return onCreated
 }
 const type = (text: string) => fireEvent.change(screen.getByLabelText("Event title"), { target: { value: text } })
@@ -96,5 +99,26 @@ describe("quick create's guests", () => {
     type("Coffee with Sam")
     expect((await save()).participants).toEqual([])
     expect(makeRequest.mock.calls.filter(([o]) => o.apiEndpoint.includes("search"))).toHaveLength(0)
+  }, 20_000)
+})
+
+// One press, one thing (lib/keys/escapeOwn): the names offered close first,
+// then the guests, and the card stays with what was typed.
+describe("Esc in quick create's guests", () => {
+  it("closes their suggestions first, then the guests, and the card stays", async () => {
+    people = { Sam: [RIVERA] }
+    const onClose = vi.fn()
+    card(onClose)
+    fireEvent.click(screen.getByRole("button", { name: "Add guests" }))
+    const guests = await screen.findByPlaceholderText("Add guests by name")
+    fireEvent.change(guests, { target: { value: "Sam" } })
+    await screen.findByRole("listbox", undefined, SLOW)
+    fireEvent.keyDown(guests, { key: "Escape" })
+    expect(screen.queryByRole("listbox")).toBeNull()
+    expect(screen.getByPlaceholderText("Add guests by name")).toBeTruthy()
+    fireEvent.keyDown(guests, { key: "Escape" })
+    expect(screen.queryByPlaceholderText("Add guests by name")).toBeNull()
+    expect(screen.getByLabelText("Event title")).toBeTruthy()
+    expect(onClose).not.toHaveBeenCalled()
   }, 20_000)
 })

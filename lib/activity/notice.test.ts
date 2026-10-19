@@ -191,3 +191,44 @@ describe("a request for access in the inbox", () => {
     expect(noticeWords(gone)).toMatchObject({ place: UNOPENED_PLACE, preview: "" })
   })
 })
+
+// A comment on a table's row (business/TableComments): named "Acme in Deals"
+// for a reader who may open the row, opening it at the thread.
+describe("a notice about a table's row", () => {
+  const row = (kind: string, extra: Partial<NoticeItem> = {}) =>
+    notice(kind, {
+      resource_kind: "table_row",
+      resource_uuid: "r1",
+      title: "Acme in Deals",
+      data: { table_id: "t1", thread_id: "th1", comment_id: "c1" },
+      ...extra,
+    })
+
+  it("says who mentioned you on which row, and opens the row at the thread", () => {
+    const n = row("table_row.mentioned")
+    expect(noticeWords(n)).toMatchObject({ verb: "mentioned you on", place: "Acme in Deals" })
+    expect(noticeHref(n)).toBe("/app/tables/t1?row=r1&thread=th1")
+    expect(noticeBadge(n)).toBe("mention")
+    expect(isMention(item(n))).toBe(true)
+  })
+
+  it("says a reply on a row as a doc thread's reply is said", () => {
+    const n = row("thread.replied")
+    expect(noticeWords(n)).toMatchObject({ verb: "replied in a thread on", place: "Acme in Deals" })
+    expect(noticeHref(n)).toBe("/app/tables/t1?row=r1&thread=th1")
+  })
+
+  it("tells whoever mentioned someone who can't open the table why they weren't told", () => {
+    const words = noticeWords(row("table_row.mention.unshared", { data: { table_id: "t1", person: "p9", person_name: "Sam" } }))
+    expect(words.actor?.user_name).toBe("Sam")
+    expect(words.verb).toBe("can't open")
+    expect(words.preview).toMatch(/isn't shared with them, so they weren't told/)
+  })
+
+  it("never names or opens a row its reader can't open now, nor one without its table", () => {
+    const shut = row("table_row.mentioned", { can_open: false, title: "" })
+    expect(noticeWords(shut).place).toBe(UNOPENED_PLACE)
+    expect(noticeHref(shut)).toBeNull()
+    expect(noticeHref(row("table_row.mentioned", { data: {} }))).toBeNull()
+  })
+})

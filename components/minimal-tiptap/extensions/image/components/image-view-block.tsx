@@ -12,6 +12,7 @@ import { FloatingBar, FloatingBarButton, FloatingBarDivider } from '@/components
 import { toast } from '@/hooks/use-toast'
 import { useMediaFetch } from '@/hooks/useFetch'
 import { isComposingKey } from '@/lib/keys/ime'
+import { onEscape } from '@/lib/keys/onEscape'
 import { GetMediaURLRes } from '@/types/file'
 import { useGuestReader } from '@/components/minimal-tiptap/guestReader'
 import { busFor } from '@/components/docEditor/registry/commandBus'
@@ -246,14 +247,11 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
   // Close the lightbox on Escape and lock body scroll while it's open.
   React.useEffect(() => {
     if (!imageState.isZoomed) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeZoom()
-    }
-    document.addEventListener('keydown', onKey)
+    const stopEscape = onEscape('overlay', closeZoom)
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
-      document.removeEventListener('keydown', onKey)
+      stopEscape()
       document.body.style.overflow = prevOverflow
     }
   }, [imageState.isZoomed, closeZoom])
@@ -504,6 +502,7 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
             <div
               role="dialog"
               aria-modal="true"
+              data-escape-own=""
               aria-label={node.attrs.alt || 'Picture'}
               onClick={closeZoom}
               style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}

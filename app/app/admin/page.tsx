@@ -46,6 +46,7 @@ const ReadReceiptsPolicyCard = dynamic(() => import("@/components/admin/ReadRece
 const DefaultChannelsCard = dynamic(() => import("@/components/admin/DefaultChannelsCard"), { loading: AdminCardSkeleton })
 const ScimProvisioningCard = dynamic(() => import("@/components/admin/ScimProvisioningCard"), { loading: AdminCardSkeleton })
 const PermissionsCard = dynamic(() => import("@/components/admin/PermissionsCard"), { loading: AdminCardSkeleton })
+const ProjectsPermissionsCard = dynamic(() => import("@/components/admin/ProjectsPermissionsCard"), { loading: AdminCardSkeleton })
 const TranscriptionSettingsCard = dynamic(() => import("@/components/admin/TranscriptionSettingsCard"), { loading: AdminCardSkeleton })
 const WorkflowsCard = dynamic(() => import("@/components/admin/WorkflowsCard"), { loading: AdminCardSkeleton })
 const AdminAuditLog = dynamic(() => import("@/components/admin/AdminAuditLog"), { loading: AdminCardSkeleton })
@@ -265,7 +266,10 @@ const AdminPage = () => {
                 </div>
               </TabsContent>
               <TabsContent value="permissions" className="mt-0">
-                <PermissionsCard />
+                <div className={ADMIN_SECTION_STACK}>
+                  <PermissionsCard />
+                  <ProjectsPermissionsCard />
+                </div>
               </TabsContent>
               {callsAvailable && (
               <TabsContent value="transcription" className="mt-0">

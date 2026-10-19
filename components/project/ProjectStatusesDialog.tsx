@@ -196,6 +196,8 @@ function StatusRow({
           value={name}
           maxLength={40}
           aria-label="Status name"
+          // Esc puts a changed name back; with nothing to put back, it closes the dialog.
+          data-escape-own={name !== status.name ? "" : undefined}
           disabled={busy}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => save({})}

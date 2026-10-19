@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 let saved: { id: string } | undefined
 const spring = vi.fn()
 vi.mock("@/lib/celebrate", async (orig) => ({ ...(await orig<typeof import("@/lib/celebrate")>()), springPop: (el: unknown) => spring(el) }))
+vi.mock("@/lib/spring", () => ({ springPop: (el: unknown) => spring(el) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true, isTablet: false }) }))
 vi.mock("@/hooks/useLater", () => ({
   useSavedEntry: () => saved,

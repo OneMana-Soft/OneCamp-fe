@@ -30,6 +30,7 @@ import { setGuestAccess, listGuestGrants, revokeGuestGrant, type GuestGrant } fr
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { formatDistanceToNow } from "date-fns"
 import { NEUTRAL_TILE } from "@/components/admin/neutralTile"
+import { tablePath } from "@/lib/tables/route"
 
 // Per-resource-type display: a friendly label, an icon, and (for resources that
 // have an in-app page) a link an admin can open to see what was shared.
@@ -39,7 +40,7 @@ const RESOURCE_META: Record<
 > = {
     doc: { label: "Document", Icon: FileText, href: (id) => `/app/doc/${id}` },
     board: { label: "Board", Icon: Kanban, href: (id) => `/app/board/${id}` },
-    table: { label: "Table", Icon: TableIcon, href: (id) => `/app/tables/${id}` },
+    table: { label: "Table", Icon: TableIcon, href: (id) => tablePath(id) },
     meeting: { label: "Meeting", Icon: Video },
     channel: { label: "Channel", Icon: Hash, href: (id) => `/app/channel/${id}` },
     project: { label: "Project", Icon: FolderKanban, href: (id) => `/app/project/${id}` },

@@ -84,8 +84,13 @@ describe("no list draws a check of its own", () => {
       (src.match(/&&\s*<Check\b/g)?.length ?? 0) + (src.match(/\?\s*<Check\b[^>]*\/>\s*:\s*(null|undefined)\b/g)?.length ?? 0)
     // Not a list's check: the shared check itself, a subtask's own checkbox, a
     // done task's mark on its timeline bar, a checkbox cell's value, a tip's
-    // "tried" mark and a colour swatch's tick.
+    // "tried" mark, a colour swatch's tick (a status's, an event's), a guest's answer on their face, and
+    // the Yes of an event's "Going?" control, which says it with a check
+    // (STEP4_PLAN §4 #5; a segmented control, not a list).
     const notAList: Record<string, number> = {
+      "components/calendar/rsvp/guestFaces.tsx": 1,
+      "components/calendar/rsvp/goingControl.tsx": 1,
+      "components/calendar/form/hueRow.tsx": 1,
       "components/ui/menuCheck.tsx": 1,
       "components/task/subtasksSection.tsx": 1,
       "components/project/timeline/TimelineBar.tsx": 1,
@@ -98,6 +103,7 @@ describe("no list draws a check of its own", () => {
     const notYet: Record<string, number> = {
       "components/admin/AddAdminDialog.tsx": 1,
       "components/booking/BookingFlow.tsx": 1,
+      "components/ui/zonePicker.tsx": 1,
       "components/calendar/calendarsPopover.tsx": 1,
       "components/doc/DocsToolbar.tsx": 1,
       "components/docEditor/BlockSheet.tsx": 1,

@@ -6,6 +6,7 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import { cn } from "@/lib/utils/helpers/cn"
 import {useMedia} from "@/context/MediaQueryContext";
 import {useLongPress} from "@/hooks/useLongPress";
+import type { HandedOn } from "@/lib/keys/escape"
 
 /** The provider, with the 300ms window in which moving between tooltips skips the delay. */
 const TooltipProvider = ({ skipDelayDuration = 300, ...props }: React.ComponentProps<typeof TooltipPrimitive.Provider>) => (
@@ -116,6 +117,9 @@ const TooltipTrigger = React.forwardRef<
 })
 TooltipTrigger.displayName = TooltipPrimitive.Trigger.displayName
 
+// Closes on Esc, and the press goes on (lib/keys/escape).
+const passOn = (e: KeyboardEvent & HandedOn) => void (e.escapeHandedOn = true)
+
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
@@ -123,6 +127,7 @@ const TooltipContent = React.forwardRef<
   <TooltipPrimitive.Portal >
     <TooltipPrimitive.Content
       ref={ref}
+      onEscapeKeyDown={passOn}
 
       sideOffset={sideOffset}
       className={cn(

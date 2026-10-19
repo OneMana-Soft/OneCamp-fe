@@ -13,7 +13,7 @@ import { PublicGone } from "@/components/guest/publicStates"
 import { publicTrouble } from "@/services/publicApi"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { hueFor } from "@/lib/campHue"
-import { celebrateTask } from "@/lib/celebrate"
+import { celebrateTask, warmBurstsWhenIdle } from "@/lib/celebrateSoon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DateField } from "@/components/ui/date-field"
@@ -35,6 +35,8 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
   const [website, setWebsite] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  // The sent badge's spark is lib/celebrate's, fetched once the page is idle.
+  useEffect(() => warmBurstsWhenIdle(), [])
 
   useEffect(() => {
     getForm(token).then((res) => {

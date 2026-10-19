@@ -18,6 +18,15 @@ describe("a calendar item's colour", () => {
     expect(CALENDAR_HUE.onecamp).not.toBe(CALENDAR_HUE.google)
   })
 
+  // STEP5_PLAN §3 C, the week in colour: an event's own colour, from the Event Form.
+  it("is an event's own colour when it is one of the camp hues, never a Google event's", () => {
+    expect(hueOf({ event_uuid: "e1", event_hue: "moss" })).toBe("moss")
+    expect(hueOf({ event_uuid: "e1", event_hue: "chartreuse" })).toBe(CALENDAR_HUE.onecamp)
+    expect(hueOf({ event_uuid: "e1", event_hue: "" })).toBe(CALENDAR_HUE.onecamp)
+    expect(hueOf({ event_uuid: "gcal-1", event_hue: "moss" })).toBe(CALENDAR_HUE.google)
+    expect(hueOf({ event_uuid: "t1", isTask: true, event_hue: "moss", task_project: { project_uuid: "p1" } })).not.toBe("moss")
+  })
+
   it("is no hue at all for time off, which is an absence", () => {
     const tone = toneOf({ event_uuid: "e2", event_is_away: true })
     expect(tone.block).not.toMatch(/hue-/)

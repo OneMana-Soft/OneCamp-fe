@@ -8,6 +8,7 @@ import { FitLabel } from "@/components/common/FitLabel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DayCell } from "@/components/ui/dayCell";
 import { ErrorState } from "@/components/ui/error-state";
+import { calendarAwayDetail } from "@/lib/calendar/unavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToastAction } from "@/components/ui/toast";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -30,14 +31,13 @@ import { calendarPlace, calendarRoute } from "@/lib/calendar/route";
 import { calendarKeyHint, calendarKeyRow, type CalendarCommand } from "@/lib/calendar/keys";
 import { isMacLike } from "@/lib/keys/chord";
 import { isTyping } from "@/lib/goKeys";
-import { deleteEventConfirm, deleteEventRequest } from "@/lib/calendar/confirmDelete";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { WeekView, type CalendarDraft } from "@/components/calendar/weekView";
 import type { MonthItem } from "@/components/calendar/monthView";
 import { CalendarAgenda } from "@/components/calendar/calendarAgenda";
 import { joinLinkOf } from "@/lib/calendar/joinLink";
 import type { EventMenuAt } from "@/components/calendar/eventMenu";
-import { duplicateOf, type EventDraftValues } from "@/lib/calendar/duplicate";
+import type { EventDraftValues } from "@/lib/calendar/duplicate";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import type { CalendarRow } from "@/components/calendar/calendarsPopover";
 import { lazyView } from "@/components/task/LazyView";
@@ -49,8 +49,11 @@ import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
 import { agendaDays, agendaEmptyTitle, agendaTitles, agendaWindowFrom, nextAgendaWindow, previousAgendaWindow, type AgendaWindow } from "@/lib/utils/calendarAgenda";
 import { dayKey, dayListTime, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
 import { placeAllByDates } from "@/lib/calendar/allDay";
-import { bookedMeetingConfirm } from "@/lib/calendar/bookedMeeting";
 import { dayAndTime } from "@/lib/utils/date/clock";
+import { ScopePromptView, useScopePrompt } from "@/components/calendar/scopePrompt";
+import { isInstanceId } from "@/lib/calendar/instanceId";
+import type { RepeatScope } from "@/lib/calendar/repeat";
+import { apiErrorMessage } from "@/lib/utils/apiError";
 
 export type CalendarView = "day" | "week" | "month" | "agenda";
 const VIEWS: { id: CalendarView; label: string }[] = [
@@ -60,16 +63,15 @@ const VIEWS: { id: CalendarView; label: string }[] = [
     { id: "agenda", label: "Agenda" },
 ];
 /** A move as it was before: what its Undo puts back. */
-type Move = { uuid: string; start: string; end: string };
-/** Each view button's width: the thumb slides by whole steps (transform only). */
-const SEG = 64;
+type Move = { uuid: string; start: string; end: string; scope?: RepeatScope };
 const PIN_KEY = "onecamp-calendar-pinned";
 
 // What opens on first use, each a chunk of its own, so the route brings the
 // grid alone (PM-3): quick create, the full dialog, the Calendars panel (and
 // the day's mini month), Go to with the parser, an event's pop card and its
-// right-click menu, and the month view (the week or the agenda opens first).
-// Their code is fetched
+// right-click menu, the month view (the week or the agenda opens first),
+// Duplicate's copy of an event, and a repeating event's scope question and
+// changes. Their code is fetched
 // when the page has a quiet moment, and when the pointer heads for one, so
 // by the time it opens it is in and draws at once (lazyView holds no
 // fallback on screen once a chunk is loaded).
@@ -80,6 +82,12 @@ const GoTo = lazyView(() => import("@/components/calendar/goToDate"));
 const Menu = lazyView(() => import("@/components/calendar/eventMenu"));
 const Card = lazyView(() => import("@/components/calendar/eventPopover"));
 const Month = lazyView(() => import("@/components/calendar/monthView"));
+/** Duplicate's copier (⌘D and the menu), fetched ahead with the dialog it fills. */
+const Copier = { warm: () => import("@/lib/calendar/duplicate") };
+/** A booked meeting's question before it moves, and Delete's question and request: only an action asks them. */
+const Booked = { warm: () => import("@/lib/calendar/bookedMeeting") };
+const Deleting = { warm: () => import("@/lib/calendar/confirmDelete") };
+const Series = lazyView(() => import("@/components/calendar/seriesChanges"));
 /** Fetches a surface's code ahead of its first use; a failure here says nothing, the surface asks when it opens. */
 const ahead = (surface: { warm: () => Promise<unknown> }) => () => void surface.warm().catch(() => {});
 
@@ -142,6 +150,11 @@ export function CalendarApp() {
     const { toast } = useToast();
     const confirm = useConfirm();
     const post = usePost();
+    // A change to one instance of a repeating event asks which of the series
+    // it is for (D-CAL-6), and goes through the calendar's own API. Only the
+    // one store answers with instances (lib/calendar/instanceId), so an
+    // instance's id says repeats are on.
+    const { ask: askScope, prompt: scopePrompt } = useScopePrompt();
 
     // Where it opens: the place its address names (a reload, Back, a link to a
     // day), else this week (FE-F-2).
@@ -194,9 +207,8 @@ export function CalendarApp() {
     const [fullOpen, setFullOpen] = useState(false);
     const [fullInitial, setFullInitial] = useState<EventDraftValues | null>(null);
     // A phone opens the full dialog alone (no quick create, Calendars or Go to
-    // there; an event opens at its own page, so no pop card either), and its
-    // month view.
-    useWhenIdle(() => (isMobile ? [EventDialog, Month] : [QuickCreate, EventDialog, Calendars, GoTo, Menu, Card, Month]).forEach((surface) => ahead(surface)()));
+    // there), the event's card as a sheet, and its month view.
+    useWhenIdle(() => [...(isMobile ? [EventDialog, Card, Month, Copier] : [QuickCreate, EventDialog, Calendars, GoTo, Menu, Card, Month, Copier]), Series, ScopePromptView, Booked, Deleting].forEach((surface) => ahead(surface)()));
     // Quick create and the dialog stay mounted from their first use on, so
     // each keeps its state and plays its closing motion.
     const [quickUsed, setQuickUsed] = useState(false);
@@ -424,10 +436,9 @@ export function CalendarApp() {
     }, [anchor, view, viewChosen, panelEvent, goTo, pickView, openNamed]);
     const clickItem = useCallback((item: { event_uuid: string; isTask?: boolean }, el: HTMLElement) => {
         if (item.isTask) return openTask(item.event_uuid);
-        if (isMobile) return openFull(item.event_uuid);
         setDraft(null);
         setSelected((cur) => (cur?.uuid === item.event_uuid ? null : { uuid: item.event_uuid, el }));
-    }, [openTask, openFull, isMobile]);
+    }, [openTask]);
     const selectedEvent = selected ? allEvents.find((e) => e.event_uuid === selected.uuid) ?? null : null;
 
     // Only your own OneCamp events move; a Google event is changed in Google.
@@ -458,7 +469,7 @@ export function CalendarApp() {
     const undoMove = useStableCallback((move: Move | null = lastMove.current): boolean => {
         if (!move) return false;
         if (lastMove.current === move) lastMove.current = null;
-        void changeTimes(move.uuid, parseISO(move.start), parseISO(move.end), true);
+        void changeTimes(move.uuid, parseISO(move.start), parseISO(move.end), true, false, move.scope);
         return true;
     });
 
@@ -468,14 +479,34 @@ export function CalendarApp() {
      * went back to. A booked meeting asks first, naming its guest and whether
      * they'll be told (CAL-BUG-4).
      */
-    const changeTimes = useCallback(async (uuid: string, start: Date, end: Date, undoing = false, confirmed = false): Promise<void> => {
+    const changeTimes = useCallback(async (uuid: string, start: Date, end: Date, undoing = false, confirmed = false, scoped?: RepeatScope): Promise<void> => {
         const e = allEvents.find((x) => x.event_uuid === uuid);
         if (!e) return;
         if (e.event_booking && !confirmed) {
+            const { bookedMeetingConfirm } = await Booked.warm();
             confirm({
                 ...bookedMeetingConfirm(e.event_booking, "move", start, end),
-                onConfirm: () => changeTimes(uuid, start, end, undoing, true),
+                onConfirm: () => changeTimes(uuid, start, end, undoing, true, scoped),
             });
+            return;
+        }
+        // One instance of a repeating event: which of them move. Closed, the
+        // prompt moves nothing.
+        let scope = scoped;
+        if (!scope && isInstanceId(uuid)) {
+            const picked = await askScope("change");
+            if (!picked) return;
+            scope = picked;
+        }
+        const chosen = scope;
+        if (chosen && chosen !== "this") {
+            // Many instances move (components/calendar/seriesChanges says how
+            // it went), and the calendar asks again for where they went.
+            await Series.warm().then(
+                (m) => m.moveInstances(post, toast, e, start, end, chosen),
+                (err) => toast({ title: `Couldn't move “${e.event_title}”`, description: apiErrorMessage(err, "Nothing moved."), variant: "destructive" }),
+            );
+            void mutateEvents();
             return;
         }
         const before = { start: e.event_start_time, end: e.event_end_time };
@@ -483,14 +514,16 @@ export function CalendarApp() {
             cur?.data ? { ...cur, data: cur.data.map((x) => (x.event_uuid === uuid ? { ...x, event_start_time: s, event_end_time: en } : x)) } : cur;
         void mutateEvents(patch(start.toISOString(), end.toISOString()), { revalidate: false });
         let saved = false;
+        let why: unknown;
         try {
-            saved = (await sendTimes(e, start, end)) !== undefined;
-        } catch {
+            saved = (await (chosen ? Series.warm().then((m) => m.sendInstanceTimes(post, e, start, end, chosen)) : sendTimes(e, start, end))) !== undefined;
+        } catch (err) {
             saved = false;
+            why = err;
         }
         if (!saved) {
             void mutateEvents(patch(before.start, before.end), { revalidate: true });
-            toast({ title: `Couldn't move “${e.event_title}”`, description: "It's back where it was.", variant: "destructive" });
+            toast({ title: `Couldn't move “${e.event_title}”`, description: scope ? apiErrorMessage(why, "It's back where it was.") : "It's back where it was.", variant: "destructive" });
             return;
         }
         void mutateEvents();
@@ -498,7 +531,7 @@ export function CalendarApp() {
             toast({ title: `Moved “${e.event_title}” back`, description: dayAndTime(start, end) });
             return;
         }
-        const move = { uuid, start: before.start, end: before.end };
+        const move: Move = { uuid, start: before.start, end: before.end, scope };
         lastMove.current = move;
         toast({
             title: `Moved “${e.event_title}”`,
@@ -509,7 +542,7 @@ export function CalendarApp() {
                 </ToastAction>
             ),
         });
-    }, [allEvents, mutateEvents, sendTimes, toast, confirm, undoMove]);
+    }, [allEvents, mutateEvents, sendTimes, post, toast, confirm, undoMove, askScope]);
 
     const moveDays = useCallback((item: MonthItem, days: number) => {
         void changeTimes(item.event_uuid, addDays(parseISO(item.event_start_time), days), addDays(parseISO(item.event_end_time), days));
@@ -535,6 +568,7 @@ export function CalendarApp() {
     // first and sent as the event's panel asks and sends it.
     const removeEvent = useCallback(async (ev: CalendarEventInterface) => {
         try {
+            const { deleteEventRequest } = await Deleting.warm();
             await post.makeRequest(deleteEventRequest(ev.event_uuid));
         } catch {
             return; // The toast said why.
@@ -543,7 +577,7 @@ export function CalendarApp() {
         if (panelEvent === ev.event_uuid) dispatch(closeRightPanel());
         void mutateEvents((cur: GetEventsResponse | undefined) => (cur?.data ? { ...cur, data: cur.data.filter((x) => x.event_uuid !== ev.event_uuid) } : cur), { revalidate: true });
     }, [post, panelEvent, dispatch, mutateEvents]);
-    const askDelete = useCallback((ev: CalendarEventInterface) => {
+    const askDelete = useCallback(async (ev: CalendarEventInterface) => {
         if (!canMove(ev.event_uuid)) {
             toast(
                 ev.event_uuid.startsWith("gcal-")
@@ -552,15 +586,35 @@ export function CalendarApp() {
             );
             return;
         }
+        // One instance of a repeating event: the prompt asks which of them
+        // go to the trash, in place of the plain question.
+        if (isInstanceId(ev.event_uuid)) {
+            const scope = await askScope("delete");
+            // Not gone: the request's toast said why.
+            if (!scope || !(await Series.warm().then((m) => m.trashInstances(post, ev.event_uuid, scope), () => false))) return;
+            setSelected((cur) => (cur?.uuid === ev.event_uuid ? null : cur));
+            if (panelEvent === ev.event_uuid) dispatch(closeRightPanel());
+            void mutateEvents();
+            return;
+        }
+        const { deleteEventConfirm } = await Deleting.warm();
         confirm({ ...deleteEventConfirm(ev), destructive: true, onConfirm: () => removeEvent(ev) });
-    }, [canMove, toast, confirm, removeEvent]);
+    }, [canMove, toast, confirm, removeEvent, askScope, post, panelEvent, dispatch, mutateEvents]);
 
-    // Duplicate (⌘D and the menu): the full dialog with a copy, never the call link (EV-58).
+    // Duplicate (⌘D and the menu): the full dialog with a copy, never the call
+    // link (EV-58). The copy's code is a chunk, asked for beside the dialog's
+    // so neither waits for the other; one that failed to load is asked for
+    // again next time, and says so now.
     const duplicate = useCallback((ev: CalendarEventInterface) => {
         setSelected(null);
         setDraft(null);
-        openDialog(duplicateOf(ev, joinLinkOf(ev), selfId));
-    }, [selfId, openDialog]);
+        ahead(EventDialog)();
+        // A copier that failed to come (offline) says so; the next press asks for it again.
+        Copier.warm().then(
+            ({ duplicateOf }) => openDialog(duplicateOf(ev, joinLinkOf(ev), selfId)),
+            () => toast({ title: `Couldn't copy “${ev.event_title}”`, description: "Check your connection and try again.", variant: "destructive" }),
+        );
+    }, [selfId, openDialog, toast]);
     const { copy } = useCopyToClipboard();
 
     // An event's menu: a right-click on it, or the menu key on its block.
@@ -799,6 +853,7 @@ export function CalendarApp() {
                                         autoFocus
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
+                                        data-escape-own=""
                                         onKeyDown={(e) => {
                                             if (e.key === "Escape") {
                                                 setSearchQuery("");
@@ -823,7 +878,7 @@ export function CalendarApp() {
                                     </button>
                                 </div>
                             ) : (
-                                <Button variant="ghost" size="icon-sm" aria-label="Search events" title={`Search · ${calendarKeyHint("search")}`} onClick={() => setSearchOpen(true)}>
+                                <Button variant="ghost" size="icon-sm" className="@max-[40rem]/calhead:hidden" aria-label="Search events" title={`Search · ${calendarKeyHint("search")}`} onClick={() => setSearchOpen(true)}>
                                     <Search />
                                 </Button>
                             )}
@@ -846,13 +901,14 @@ export function CalendarApp() {
                                     </PopoverContent>
                                 </Popover>
                             ) : null}
-                            {/* The view switch: four buttons over one sliding thumb. */}
-                            <div role="group" aria-label="View" data-calendar-views="" className="relative flex rounded-lg bg-sunken p-0.5">
+                            {/* The view switch: four buttons over one sliding thumb, narrower (the search,
+                                which / opens, aside) under 40rem of header, so the period stays whole. */}
+                            <div role="group" aria-label="View" data-calendar-views="" className="relative flex rounded-lg bg-sunken p-0.5 [--seg:64px] @max-[40rem]/calhead:[--seg:52px]">
                                 <span
                                     aria-hidden="true"
                                     data-thumb=""
                                     className="calendar-thumb absolute bottom-0.5 left-0.5 top-0.5 rounded-md bg-raised shadow-e1"
-                                    style={{ width: SEG, transform: `translateX(${Math.max(viewIndex, 0) * SEG}px)` }}
+                                    style={{ width: "var(--seg)", transform: `translateX(calc(var(--seg) * ${Math.max(viewIndex, 0)}))` }}
                                 />
                                 {VIEWS.map((v) => (
                                     <button
@@ -862,7 +918,7 @@ export function CalendarApp() {
                                         onClick={() => pickView(v.id)}
                                         onPointerEnter={v.id === "month" ? ahead(Month) : undefined}
                                         title={`${v.label} · ${calendarKeyHint(v.id)}`}
-                                        style={{ width: SEG }}
+                                        style={{ width: "var(--seg)" }}
                                         data-touch-target=""
                                         className={cn(
                                             "relative h-6 rounded-md text-ui-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
@@ -903,7 +959,7 @@ export function CalendarApp() {
                     {failed ? (
                         // Over the grid, where an empty view says it is empty.
                         <div className="absolute inset-0 z-40 flex items-start justify-center bg-sheet/90 pt-16" data-calendar-failed="">
-                            <ErrorState subject="your calendar" onRetry={refresh} />
+                            <ErrorState subject="your calendar" onRetry={refresh} detail={calendarAwayDetail(eventsError)} />
                         </div>
                     ) : null}
                     {/* One wrapper per period: a new period slides in from the side it came from. */}
@@ -1008,7 +1064,7 @@ export function CalendarApp() {
             {cardUsed ? (
                 <Card.View
                     fallback={null}
-                    render={(m) => <m.EventPopover event={selectedEvent} anchor={selected?.el ?? null} now={now} onClose={() => setSelected(null)} onOpenFull={openFull} />}
+                    render={(m) => <m.EventPopover event={selectedEvent} anchor={selected?.el ?? null} now={now} onClose={() => setSelected(null)} onOpenFull={openFull} selfId={selfId} phone={isMobile} askScope={askScope} mutateEvents={mutateEvents} holdOpen={!!scopePrompt} />}
                 />
             ) : null}
             {quickUsed ? (
@@ -1044,6 +1100,7 @@ export function CalendarApp() {
                     )}
                 />
             ) : null}
+            {scopePrompt}
             {dialogUsed ? (
                 <EventDialog.View
                     fallback={null}

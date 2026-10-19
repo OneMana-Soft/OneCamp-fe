@@ -18,6 +18,8 @@ interface MembersListPropInterface {
     handleMakeAdmin: (id: string) => void
     handleRemoveAdmin: (id: string) => void
     handleRemoveMember: (id: string) => void
+    /** A row's control for what they may do (a project's roles), given whether it is the creator's. */
+    renderRole?: (user: UserProfileDataInterface, isCreator: boolean) => React.ReactNode
 }
 
 /** How many people a list holds before it offers to find one among them. */
@@ -25,7 +27,7 @@ const FIND_FROM = 8
 
 import { useDebounce } from "@/hooks/useDebounce";
 
-const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForUUID, usersList, isLoading, handleMakeAdmin, handleRemoveAdmin, handleRemoveMember}) => {
+const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForUUID, usersList, isLoading, handleMakeAdmin, handleRemoveAdmin, handleRemoveMember, renderRole}) => {
 
     const [query, setQuery] = useState('')
     const debouncedQuery = useDebounce(query, 300)
@@ -96,6 +98,7 @@ const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForU
                                 handleMakeAdmin={handleMakeAdmin} 
                                 handleRemoveAdmin={handleRemoveAdmin} 
                                 blockedUUID={s}
+                                roleControl={renderRole?.(user, s)}
                             />
                         </div>
                     )

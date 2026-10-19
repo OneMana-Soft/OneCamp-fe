@@ -5,8 +5,11 @@ import { NO_BUS } from "@/components/docEditor/registry/commandBus"
 import type { ActionContext } from "@/components/docEditor/registry/types"
 import { MORE_GROUPS, SHEET_GROUPS } from "@/components/docEditor/actions/doc"
 import "./register"
-import "./contributions"
+import { offerPageActions } from "./contributions"
 import { setFacts } from "./pageFacts"
+
+// What the page guard offers once it has handed the router over (PageGuard).
+offerPageActions()
 
 const gate = { ai: false }
 const ctx = (docId: string, canEdit: boolean): ActionContext => ({ docId, editor: null, canEdit, bus: NO_BUS, gate, state: { desktop: true } })

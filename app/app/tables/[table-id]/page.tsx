@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   Download,
   Trash2,
+  RotateCcw,
   Search,
   Eye,
   EyeOff,
@@ -29,16 +30,13 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useToast } from "@/hooks/use-toast"
 import { DataTableGrid } from "@/components/table/DataTableGrid"
-import { BoardGroupBy, DataTableBoard } from "@/components/table/DataTableBoard"
-import { CalendarMonthNav, DataTableCalendar, monthOf } from "@/components/table/DataTableCalendar"
-import { DataTableChart } from "@/components/table/DataTableChart"
-import { RecordPanel } from "@/components/table/RecordPanel"
 import { TableRowList } from "@/components/table/TableRowList"
-import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
+import { BoardPart, CalendarPart, ChartPart, PublishPart, RecordPart, SharePart, TrashPart, warmView } from "@/components/table/lazyParts"
+import { warmCellPickers } from "@/components/table/cellPickerPart"
+import { monthOf } from "@/lib/tables/month"
 import {
   createRow,
   deleteTable,
@@ -50,10 +48,12 @@ import {
   parseViewConfig,
   type TableRow,
 } from "@/services/tableService"
-import { applyViewRules, fitRules, keepInSight, KEPT_NOTE, kindOfField, loadViewRules, NO_RULES, OPS_FOR, saveViewRules, searchRows, type ViewRules } from "@/lib/tables/viewRules"
-import { ROWS_HELD_MAX, useTableRows } from "@/lib/tables/useTableRows"
+import { applyViewRules, fitRules, keepInSight, KEPT_NOTE, loadViewRules, NO_RULES, OPS_FOR, saveViewRules, searchRows, type ViewRules } from "@/lib/tables/viewRules"
+import { fieldKind, filterKind } from "@/lib/fieldTypes/registry"
+import { ROWS_HELD_MAX } from "@/lib/tables/useTableRows"
+import { useRowWindow } from "@/hooks/useRowWindow"
 import { usePageName } from "@/lib/utils/pageName"
-import { isComposingKey } from "@/lib/keys/ime"
+import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
 import { ToastAction } from "@/components/ui/toast"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { ViewRulesBar } from "@/components/table/ViewRulesBar"
@@ -66,8 +66,13 @@ import { viewFromQuery, type ViewChoice } from "@/lib/tables/tableView"
 import { SaveDot, type SaveState } from "@/components/docEditor/SaveDot"
 import { DEFAULT_DISPLAY, ROW_HEIGHTS, listByDefault, loadDisplay, saveDisplay, type TableDisplay } from "@/lib/tables/display"
 import { useCellCommit } from "@/lib/tables/useCellCommit"
-import { FIELD_GLYPH } from "@/components/table/gridCells"
 import { toCsv } from "@/lib/tables/csv"
+import { tablePath, tablesPath } from "@/lib/tables/route"
+import { fieldOrder } from "@/lib/tables/fieldOrder"
+import { redoChange, restoreTable, undoChange, undoneNote } from "@/lib/tables/ledger"
+import { onMac, undoKey } from "@/lib/tables/undoKeys"
+import { useUndoToast } from "@/components/table/ledger/useUndoToast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { ix } from "@/lib/ui/interactive"
 
 const VIEW_TABS: { type: ViewType | "chart"; label: string; icon: typeof LayoutGrid }[] = [
@@ -127,6 +132,8 @@ function ViewTabs({ active, onPick, hue }: { active: ViewChoice; onPick: (v: Vie
             data-view={tab.type}
             data-touch-target=""
             onClick={() => onPick(tab.type)}
+            onPointerEnter={() => warmView(tab.type)}
+            onFocus={() => warmView(tab.type)}
             aria-pressed={on}
             {...ix("tab")}
             className={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-ui-sm font-medium", on ? "text-ink" : "text-ink-3 hover:text-ink-2 [&>svg]:text-ink-4")}
@@ -155,9 +162,25 @@ export default function TableDetailPage() {
   const { toast } = useToast()
 
   // The bundle, and every row the page holds past its first 500, kept live.
-  const held = useTableRows(tableId)
+  const held = useRowWindow(tableId)
   usePageName(held.bundle?.table?.name)
   const { bundle, isLoading, isError, refresh } = held
+  // A row's record and a cell's picker are a click away: their chunks load
+  // once the table is drawn and the page is idle.
+  const loaded = !!bundle
+  React.useEffect(() => {
+    if (!loaded) return
+    const warm = () => {
+      void RecordPart.warm().catch(() => {})
+      warmCellPickers()
+    }
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm)
+      return () => window.cancelIdleCallback(id)
+    }
+    const id = window.setTimeout(warm, 1500)
+    return () => window.clearTimeout(id)
+  }, [loaded])
   const reload = React.useCallback(() => void refresh(), [refresh])
   // A change to one row asks for that row's page; one without, for everything held.
   const changed = React.useCallback((rowId?: string) => void refresh(rowId), [refresh])
@@ -176,13 +199,27 @@ export default function TableDetailPage() {
   }, [])
   const [calendarMonth, setCalendarMonth] = React.useState(() => monthOf(new Date()))
   const [publishing, setPublishing] = React.useState(false)
+  // The publish dialog's chunk mounts the first time it opens, and stays for
+  // its closing.
+  const [publishSeen, setPublishSeen] = React.useState(false)
+  React.useEffect(() => {
+    if (publishing) setPublishSeen(true)
+  }, [publishing])
   const [sharing, setSharing] = React.useState(false)
+  const [trashOpen, setTrashOpen] = React.useState(false)
+  // A deleted table's Undo brings it back, and opens it again.
+  const offerTableUndo = useUndoToast(React.useCallback(() => {}, []))
   const [openRow, setOpenRowState] = React.useState<string | null>(() => searchParams.get("row"))
+  // A thread on the open row a link named (a notice, a copied link): its
+  // record opens at it, once; stepping to another row lets go of it.
+  const [openThread, setOpenThread] = React.useState<string | null>(() => searchParams.get("thread"))
   const setOpenRow = React.useCallback((id: string | null) => {
     setOpenRowState(id)
+    setOpenThread(null)
     const url = new URL(window.location.href)
     if (id) url.searchParams.set("row", id)
     else url.searchParams.delete("row")
+    url.searchParams.delete("thread")
     window.history.replaceState(window.history.state, "", url)
   }, [])
   const [query, setQuery] = React.useState("")
@@ -366,6 +403,30 @@ export default function TableDetailPage() {
   const focused = React.useCallback(() => setFocusRow(null), [])
   const nearEnd = React.useCallback(() => holdMore(), [holdMore])
 
+  // ⌘Z undoes the reader's latest change to the table, ⌘⇧Z redoes it (A2),
+  // when they aren't typing into a field, whose text the browser undoes.
+  React.useEffect(() => {
+    if (!bundle?.table) return
+    const mac = onMac()
+    const onKey = (e: KeyboardEvent) => {
+      const want = undoKey(e, mac)
+      if (!want) return
+      e.preventDefault()
+      void (async () => {
+        try {
+          const r = want === "undo" ? await undoChange(tableId) : await redoChange(tableId)
+          toast(undoneNote(r, want === "redo"))
+        } catch (err) {
+          toast({ title: apiErrorMessage(err, want === "undo" ? "Couldn't undo that" : "Couldn't redo that") })
+        } finally {
+          reload()
+        }
+      })()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [bundle?.table, tableId, toast, reload])
+
   // R adds a row, / searches (T05).
   React.useEffect(() => {
     if (!bundle?.table) return
@@ -423,13 +484,13 @@ export default function TableDetailPage() {
   if (!bundle?.table) {
     // Not yours, gone, or not loaded, said as every screen says it
     // (LoadFailureState): a dropped connection isn't a missing table.
-    return <LoadFailureState error={isError} noun="table" onRetry={reload} back={{ label: "Back to tables", href: "/app/tables" }} className="pt-20" />
+    return <LoadFailureState error={isError} noun="table" onRetry={reload} back={{ label: "Back to tables", href: tablesPath() }} className="pt-20" />
   }
 
   const t = bundle.table
   const fields = bundle.fields || []
   const rows = held.rows
-  const sortedFields = [...fields].sort((a, b) => a.position - b.position)
+  const sortedFields = fieldOrder(fields)
   const hidden = new Set(display.hidden)
 
   // Stable payload the templates gallery replays on install (structure only).
@@ -469,13 +530,17 @@ export default function TableDetailPage() {
   const removeTable = () =>
     confirm({
       title: `Delete the table "${t.name}"?`,
-      description: "Its rows and columns are removed for everyone. This can't be undone.",
+      description: "It's removed for everyone, and kept in the trash with its rows and columns.",
       confirmText: "Delete table",
       destructive: true,
       onConfirm: async () => {
         try {
           await deleteTable(tableId)
-          router.push("/app/tables")
+          router.push(tablesPath())
+          offerTableUndo("Table deleted", async () => {
+            await restoreTable(tableId)
+            router.push(tablePath(tableId))
+          })
         } catch {
           // surfaced
         }
@@ -493,12 +558,13 @@ export default function TableDetailPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onBlur={() => !query && setSearching(false)}
-            onKeyDown={(e) => {
+            data-escape-own=""
+            onKeyDown={fieldKeyDown((e) => {
               if (e.key === "Escape") {
                 setQuery("")
                 setSearching(false)
               }
-            }}
+            })}
             aria-label="Search rows"
             placeholder="Search rows"
             className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-3"
@@ -525,7 +591,7 @@ export default function TableDetailPage() {
             <PopoverContent align="end" className="content-float w-64 rounded-xl p-1 shadow-e3">
               <p className="flex h-7 items-center px-2 text-meta font-medium text-ink-3">Fields</p>
               {sortedFields.map((f, i) => {
-                const G = FIELD_GLYPH[f.type] ?? FIELD_GLYPH.text
+                const G = fieldKind(f.type).glyph
                 const off = hidden.has(f.id)
                 return (
                   <button
@@ -573,8 +639,12 @@ export default function TableDetailPage() {
           </Button>
         </>
       ) : null}
-      {activeView === "board" ? <BoardGroupBy fields={fields} groupFieldId={display.boardGroup ?? undefined} onPick={(id) => changeDisplay({ boardGroup: id })} /> : null}
-      {activeView === "calendar" && fields.some((f) => f.type === "date") ? <CalendarMonthNav month={calendarMonth} onMonth={setCalendarMonth} /> : null}
+      {activeView === "board" ? (
+        <BoardPart.View fallback={null} render={(m) => <m.BoardGroupBy fields={fields} groupFieldId={display.boardGroup ?? undefined} onPick={(id) => changeDisplay({ boardGroup: id })} />} />
+      ) : null}
+      {activeView === "calendar" && fields.some((f) => f.type === "date") ? (
+        <CalendarPart.View fallback={null} render={(m) => <m.CalendarMonthNav month={calendarMonth} onMonth={setCalendarMonth} />} />
+      ) : null}
     </>
   )
 
@@ -584,7 +654,7 @@ export default function TableDetailPage() {
       <header className="flex h-[52px] shrink-0 items-center gap-2 px-4 sm:px-6">
         <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1 text-ui-sm">
           <Link
-            href="/app/tables"
+            href={tablesPath()}
             aria-label="Back to tables"
             className="hidden shrink-0 rounded-md px-1.5 py-1 text-ink-3 transition-colors hover:bg-hover hover:text-ink sm:inline-flex"
           >
@@ -595,14 +665,37 @@ export default function TableDetailPage() {
           <span className="truncate px-1 font-medium text-ink max-sm:hidden">{t.name}</span>
           <SaveDot state={saveState} savedAt={savedAt ?? new Date(t.updated_at)} onRetry={reload} className="ml-1" />
         </nav>
+        {bundle.can_manage ? null : (
+          // Rows anyone may write come back from the trash; its columns are a manager's.
+          <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted rows" onPointerEnter={() => void TrashPart.warm().catch(() => {})} onFocus={() => void TrashPart.warm().catch(() => {})} onClick={() => setTrashOpen(true)}>
+            <RotateCcw className="size-4" />
+          </Button>
+        )}
         {bundle.can_manage && (
           <>
-            <Button variant="secondary" size="sm" onClick={() => setSharing(true)} className="gap-1.5" aria-label="Share" title="Share externally">
+            <Button
+              variant="secondary"
+              size="sm"
+              onPointerEnter={() => void SharePart.warm().catch(() => {})}
+              onFocus={() => void SharePart.warm().catch(() => {})}
+              onClick={() => setSharing(true)}
+              className="gap-1.5"
+              aria-label="Share"
+              title="Share externally"
+            >
               <Share2 className="size-3.5" /> <span className="max-sm:hidden">Share</span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="More">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="More"
+                  onPointerEnter={() => {
+                    void TrashPart.warm().catch(() => {})
+                    void PublishPart.warm().catch(() => {})
+                  }}
+                >
                   <MoreHorizontal className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -617,6 +710,9 @@ export default function TableDetailPage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => void exportCsv()}>
                   <Download /> Export CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTrashOpen(true)}>
+                  <RotateCcw /> Trash
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={removeTable} className="text-danger-ink focus:text-danger-ink">
@@ -726,7 +822,7 @@ export default function TableDetailPage() {
                 onSort={(id, dir) => changeRules({ ...rules, sort: [{ field: id, dir }, ...rules.sort.filter((s) => s.field !== id)].slice(0, 3) })}
                 onFilter={(id) => {
                   const f = fields.find((x) => x.id === id)
-                  if (f) changeRules({ ...rules, filters: [...rules.filters, { field: id, op: OPS_FOR[kindOfField(f)][0].op, value: "" }] })
+                  if (f) changeRules({ ...rules, filters: [...rules.filters, { field: id, op: OPS_FOR[filterKind(f)][0].op, value: "" }] })
                 }}
                 onHide={(id) => changeDisplay({ hidden: [...display.hidden, id] })}
                 onOpenRow={setOpenRow}
@@ -744,51 +840,75 @@ export default function TableDetailPage() {
           {(activeView === "board" || activeView === "calendar") && noMatch ? (
             noHit
           ) : activeView === "board" ? (
-            <DataTableBoard
-              tableId={tableId}
-              fields={fields}
-              rows={shownRows}
-              canManage={bundle.can_manage}
-              groupFieldId={display.boardGroup ?? undefined}
-              onChange={changed}
-              onCreated={onCreated}
-              onOpenRow={setOpenRow}
-              onOpenGrid={() => showView("grid")}
+            <BoardPart.View
+              fallback={<ViewSkeleton view="board" />}
+              render={(m) => (
+                <m.DataTableBoard
+                  tableId={tableId}
+                  fields={fields}
+                  rows={shownRows}
+                  canManage={bundle.can_manage}
+                  groupFieldId={display.boardGroup ?? undefined}
+                  onChange={changed}
+                  onCreated={onCreated}
+                  onOpenRow={setOpenRow}
+                  onOpenGrid={() => showView("grid")}
+                />
+              )}
             />
           ) : activeView === "calendar" ? (
-            <DataTableCalendar
-              tableId={tableId}
-              fields={fields}
-              rows={shownRows}
-              canManage={bundle.can_manage}
-              onChange={reload}
-              onCreated={onCreated}
-              month={calendarMonth}
-              onOpenGrid={() => showView("grid")}
-              onOpenRow={setOpenRow}
-              compact={narrow}
+            <CalendarPart.View
+              fallback={<ViewSkeleton view="calendar" />}
+              render={(m) => (
+                <m.DataTableCalendar
+                  tableId={tableId}
+                  fields={fields}
+                  rows={shownRows}
+                  canManage={bundle.can_manage}
+                  onChange={reload}
+                  onCreated={onCreated}
+                  month={calendarMonth}
+                  onOpenGrid={() => showView("grid")}
+                  onOpenRow={setOpenRow}
+                  compact={narrow}
+                />
+              )}
             />
           ) : null}
-          {activeView === "chart" && <DataTableChart tableId={tableId} fields={fields} dataVersion={chartDataVersion} />}
+          {activeView === "chart" && (
+            <ChartPart.View fallback={<ViewSkeleton view="chart" />} render={(m) => <m.DataTableChart tableId={tableId} fields={fields} dataVersion={chartDataVersion} />} />
+          )}
         </div>
       </div>
 
       {openRow && shownRows.some((r) => r.id === openRow) ? (
-        <RecordPanel
-          tableId={tableId}
-          tableName={t.name}
-          fields={fields}
-          rows={shownRows}
-          rowId={openRow}
-          canManage={bundle.can_manage}
-          commit={commit}
-          onStep={setOpenRow}
-          onClose={() => setOpenRow(null)}
-          onChange={reload}
+        <RecordPart.View
+          fallback={null}
+          render={(m) => (
+            <m.RecordPanel
+              tableId={tableId}
+              tableName={t.name}
+              fields={fields}
+              rows={shownRows}
+              rowId={openRow}
+              canManage={bundle.can_manage}
+              commit={commit}
+              onStep={setOpenRow}
+              onClose={() => setOpenRow(null)}
+              onChange={reload}
+              focusThread={openThread}
+            />
+          )}
         />
       ) : null}
 
-      <PublishTemplateDialog open={publishing} onOpenChange={setPublishing} kind="table" payload={templatePayload} defaultName={t.name} defaultIcon={t.icon || undefined} />
+      {publishSeen ? (
+        <PublishPart.View
+          fallback={null}
+          render={(m) => <m.PublishTemplateDialog open={publishing} onOpenChange={setPublishing} kind="table" payload={templatePayload} defaultName={t.name} defaultIcon={t.icon || undefined} />}
+        />
+      ) : null}
+      {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TableTrash tableId={tableId} fields={fields} onClose={() => setTrashOpen(false)} onRestored={reload} />} /> : null}
 
       <Dialog open={sharing} onOpenChange={setSharing}>
         <DialogContent className="sm:max-w-md">
@@ -796,7 +916,10 @@ export default function TableDetailPage() {
             <DialogTitle className="text-heading">Share “{t.name}”</DialogTitle>
             <DialogDescription>Give people outside your workspace a read-only link to this table.</DialogDescription>
           </DialogHeader>
-          <GuestLinkSection resourceType="table" resourceId={tableId} canShare={bundle.can_manage} />
+          <SharePart.View
+            fallback={<Skeleton className="h-24 w-full rounded-xl" />}
+            render={(m) => <m.GuestLinkSection resourceType="table" resourceId={tableId} canShare={bundle.can_manage} />}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -832,6 +955,16 @@ function TablePageSkeleton({ view = "grid" }: { view?: ViewChoice }) {
           <Skeleton className="h-3.5 w-14 rounded" />
           <Skeleton className="h-3.5 w-12 rounded" />
         </div>
+        <ViewSkeleton view={view} />
+      </div>
+    </div>
+  )
+}
+
+/** A view's shape while it loads: the page's, and a view whose chunk is on its way. */
+function ViewSkeleton({ view }: { view: ViewChoice }) {
+  return (
+    <>
         {view === "board" ? (
           <div className={cn("flex gap-3", TABLE_VIEW_INSET)}>
             {[3, 2, 1].map((cards, c) => (
@@ -868,7 +1001,6 @@ function TablePageSkeleton({ view = "grid" }: { view?: ViewChoice }) {
             </div>
           ))
         )}
-      </div>
-    </div>
+    </>
   )
 }

@@ -6,6 +6,7 @@ import type { RootState } from "@/store/store"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { goArmed, isTyping } from "@/lib/goKeys"
 import { listKey, rangeOf, stepAcross, stepIn, type ListField } from "@/lib/listKeys"
+import { onEscape } from "@/lib/keys/onEscape"
 import type { SelectionStore } from "@/lib/listSelection"
 
 const ITEM = "[data-task-id]"
@@ -119,12 +120,6 @@ export function useListKeyboard({
           e.preventDefault()
           store.toggle(current)
           return
-        case "clear":
-          if (s.selected.size > 0) {
-            e.preventDefault()
-            store.clear()
-          } else store.highlight(null)
-          return
         case "edit":
           if (!onEdit || e.repeat) return
           if (s.selected.size === 0) {
@@ -162,11 +157,20 @@ export function useListKeyboard({
       store.highlight(id)
     }
 
+    // Esc clears the selection; with none, it lets go of the highlight and passes the press on.
+    const stopEscape = onEscape("page", (e) => {
+      if (isTyping(e.target as Element | null) || goArmed() || !ours(e.target)) return false
+      const selected = store.get().selected.size > 0
+      if (selected) store.clear()
+      else store.highlight(null)
+      return selected
+    })
     document.addEventListener("keydown", onKey)
     box.addEventListener("focusin", onFocusIn)
     box.addEventListener("mousedown", onMouseDown, true)
     box.addEventListener("click", onClick, true)
     return () => {
+      stopEscape()
       document.removeEventListener("keydown", onKey)
       box.removeEventListener("focusin", onFocusIn)
       box.removeEventListener("mousedown", onMouseDown, true)

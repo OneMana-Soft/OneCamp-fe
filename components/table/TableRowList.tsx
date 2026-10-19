@@ -6,14 +6,15 @@ import "./table.css"
 import { ChevronRight, Plus } from "@/lib/icons"
 import { TABLE_VIEW_BODY } from "@/components/table/TableViewFrame"
 import { optionsOf, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
-import { OptionChip, chipsTinted } from "@/components/table/optionChip"
+import { OptionChip, tintedFields } from "@/components/table/optionChip"
 import { formatNumber, listText, numberFormatOf, shortDay } from "@/lib/tables/cellFormat"
 import { dayOf } from "@/components/table/gridCells"
 import { showFormulaValue } from "@/lib/tables/formula"
+import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { computedOf } from "@/services/tableService"
 
 /** A value as one short line of text, for a list row's meta. */
-function brief(f: TableField, v: unknown): React.ReactNode {
+function brief(f: TableField, v: unknown, tinted: boolean): React.ReactNode {
   if (v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length)) return null
   switch (f.type) {
     case "number": {
@@ -33,7 +34,7 @@ function brief(f: TableField, v: unknown): React.ReactNode {
       return (
         <span className="inline-flex gap-1">
           {labels.slice(0, 2).map((l) => (
-            <OptionChip key={l} label={l} color={opts.find((o) => o.label === l)?.color} tinted={chipsTinted(f)} className="h-5" />
+            <OptionChip key={l} label={l} color={opts.find((o) => o.label === l)?.color} tinted={tinted} className="h-5" />
           ))}
         </span>
       )
@@ -85,8 +86,10 @@ export function TableRowList({
   /** A row to bring into view (one just added), with the window's own scroll. */
   scrollTo?: string | null
 }) {
-  const sorted = React.useMemo(() => [...fields].sort((a, b) => a.position - b.position), [fields])
+  const sorted = React.useMemo(() => fieldOrder(fields), [fields])
   const [primary, ...rest] = sorted
+  // As the grid tints them (optionChip tintedFields).
+  const tinted = React.useMemo(() => tintedFields(fields), [fields])
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -124,7 +127,7 @@ export function TableRowList({
             if (!r) return null
             const values = parseRowValues(r)
             const meta = rest
-              .map((f) => ({ f, node: brief(f, values[f.id]) }))
+              .map((f) => ({ f, node: brief(f, values[f.id], tinted.has(f.id)) }))
               .filter((m) => m.node !== null)
               .slice(0, 3)
             return (

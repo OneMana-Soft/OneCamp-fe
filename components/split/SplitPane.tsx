@@ -1,18 +1,19 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useDispatch, useSelector } from "react-redux"
+import { useSelector } from "react-redux"
+import { usePathname } from "next/navigation"
 import type { RootState } from "@/store/store"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 import { ArrowLeftRight, CheckSquare, FileText, FolderKanban, Hash, Maximize2, MessageSquare, Minimize2, Users, Video, X } from "@/lib/icons"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { InSplitPaneContext } from "@/hooks/useLinkTarget"
 import { cn } from "@/lib/utils/helpers/cn"
-import { isCallPane, type Pane, type PaneKind } from "@/lib/split"
+import { type Pane, type PaneKind } from "@/lib/split"
+import { canSwapBeside } from "@/lib/callConversation"
 import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary"
-import { replacePane } from "@/store/slice/splitSlice"
-import { useConversationMoved } from "@/hooks/useConversationMoved"
 import { FocusPill } from "@/components/split/FocusPill"
+import { ConversationView, useDmConversation } from "@/components/conversation/ConversationView"
 
 // Each view loads only when it is first split, so the split costs nothing until used.
 const Loading = () => <div className="h-full w-full animate-pulse bg-press" />
@@ -72,7 +73,7 @@ export function paneTitle(s: NameSources, pane: Pane): string | null {
     }
     case "group": {
       const d = (sb.userChats || []).find((d) => d?.dm_grouping_id === pane.id)
-      if (d) return d.dm_participants.map((u) => userDisplayName(u)).filter(Boolean).join(", ") || null
+      if (d) return d.dm_name || d.dm_participants.map((u) => userDisplayName(u)).filter(Boolean).join(", ") || null
       break
     }
   }
@@ -87,12 +88,13 @@ function PaneBody({ pane, onClose }: { pane: Pane; onClose: () => void }) {
       return <CallView kind="chat" id={pane.id} onLeave={onClose} embedded />
     case "call-group":
       return <CallView kind="group" id={pane.id} onLeave={onClose} embedded />
+    // A conversation beside the page sits in its host, as the page's does (chat A1).
     case "channel":
-      return <ChannelView channelId={pane.id} />
+      return <ConversationView conversation={{ kind: "channel", id: pane.id }}><ChannelView channelId={pane.id} /></ConversationView>
     case "chat":
-      return <ChatView chatId={pane.id} />
+      return <DmPane other={pane.id} />
     case "group":
-      return <GroupChatView grpId={pane.id} />
+      return <ConversationView conversation={{ kind: "group", id: pane.id }}><GroupChatView grpId={pane.id} /></ConversationView>
     case "doc":
       return <DocView docId={pane.id} />
     case "project":
@@ -100,6 +102,11 @@ function PaneBody({ pane, onClose }: { pane: Pane; onClose: () => void }) {
     case "task":
       return <TaskInfoPanel taskUUID={pane.id} />
   }
+}
+
+/** A DM beside the page, in its host once who reads it is known. */
+function DmPane({ other }: { other: string }) {
+  return <ConversationView conversation={useDmConversation(other)}><ChatView chatId={other} /></ConversationView>
 }
 
 const barButton =
@@ -117,12 +124,11 @@ const barButton =
  */
 export function SplitPane({ pane, index, active, focused }: { pane: Pane; index: number; active: boolean; focused: boolean }) {
   const run = useSplitActions()
-  const dispatch = useDispatch()
-  // A group beside the page follows it to its new id when someone is added.
-  useConversationMoved(pane.kind === "group" ? "group" : null, pane.id, (to) => dispatch(replacePane({ index, pane: { ...pane, id: to } })))
   const { label, icon: Icon } = KIND[pane.kind]
   const what = label.toLowerCase()
   const name = useSelector((s: RootState) => paneTitle(s, pane))
+  // Beside a call's own page, or a call itself: a swap would move the call (useSplitActions).
+  const pathname = usePathname() ?? ""
   return (
     <section
       aria-label={`${label}, side by side`}
@@ -145,7 +151,7 @@ export function SplitPane({ pane, index, active, focused }: { pane: Pane; index:
           <button type="button" onClick={() => run({ type: "focus" }, index)} aria-label={focused ? "Show every view" : `Focus this ${what}`} title={focused ? "Show every view (Ctrl+Alt+Enter)" : "Focus: this view alone (Ctrl+Alt+Enter)"} className={barButton}>
             {focused ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
-          {!isCallPane(pane) && (
+          {canSwapBeside(pane, pathname) && (
             <button type="button" onClick={() => run({ type: "swap" }, index)} aria-label={`Make this ${what} the main view`} title="Swap with the main view (Ctrl+Alt+S)" className={barButton}>
               <ArrowLeftRight className="h-4 w-4" />
             </button>

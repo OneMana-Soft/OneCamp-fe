@@ -2,6 +2,13 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { pinTestClock } from "@/lib/testing/testClock"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { Cycle } from "@/lib/tasks/cycles"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The celebrations' bursts are a chunk fetched when the page is idle
+// (lib/celebrateSoon): here they are in before anything finishes.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 const remove = vi.fn(async () => {})
 const complete = vi.fn(async () => ({ done: 0, carried: 0 }))

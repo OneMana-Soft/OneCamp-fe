@@ -7,7 +7,10 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, D
 
 /**
  * One of the page chrome's dialogs (B6): a v3 dialog on a wide screen, the
- * phone's sheet on a phone, with the same title, body and buttons.
+ * phone's sheet on a phone, with the same title, body and buttons. In the
+ * sheet the title and the buttons stay put and the body between them is the
+ * one thing that scrolls (the share list's own height cap made a second
+ * scroller in it: e2e/sheetLayout).
  */
 export function ChromeSheet({
   open = true,
@@ -35,13 +38,13 @@ export function ChromeSheet({
     return (
       <Drawer open={open} onOpenChange={(o) => !o && onClose()} detent="medium">
         <DrawerContent {...rest}>
-          <DrawerHeader className="pb-2">
+          <DrawerHeader className="shrink-0 pb-2">
             <DrawerTitle className="text-title-3 text-ink">{title}</DrawerTitle>
             {description ? <DrawerDescription className="text-ui-sm text-ink-2">{description}</DrawerDescription> : null}
           </DrawerHeader>
-          <div className="flex flex-col gap-4 px-4 pb-2">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-2">{children}</div>
           {footer || tertiary ? (
-            <DrawerFooter className="flex-row flex-wrap items-center justify-end gap-2">
+            <DrawerFooter className="shrink-0 flex-row flex-wrap items-center justify-end gap-2">
               {tertiary ? <div className="mr-auto flex items-center gap-2">{tertiary}</div> : null}
               {footer}
             </DrawerFooter>

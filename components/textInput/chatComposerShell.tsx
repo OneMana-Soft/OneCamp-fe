@@ -3,6 +3,8 @@
 import * as React from "react"
 import { EditorContent, useEditorState, type Editor } from "@tiptap/react"
 import { cn } from "@/lib/utils/helpers/cn"
+import { useComposerTarget } from "@/components/conversation/ComposerHost"
+import { keyOf } from "@/lib/conversation/types"
 import { ShieldCheck, Upload } from "@/lib/icons"
 import { useBotKindMap } from "@/hooks/useBotKinds"
 import { isAIBot } from "@/lib/botCopy"
@@ -201,13 +203,19 @@ export const ChatComposerShell = React.forwardRef<HTMLDivElement, ChatComposerSh
                 </div>
     ), [compact, showStrip, dictation, editor, onUpload, onFiles, openClip, agents, onDraftWithAI, formatOpen, toggleFormat, overLimit, asking, nothingToSend, buttonLabel, send, onSchedule, schedule])
 
+    // Which conversation or thread this box writes to (its ComposerHost): what
+    // reaches a composer reaches the one on the surface it was typed in.
+    const target = useComposerTarget()
     return (
         <div className={cn("w-full", className)}>
             {scheduled && <ScheduledChip at={scheduled} onUndo={onUndoSchedule ? () => onUndoSchedule(scheduled) : undefined} onDone={() => setScheduled(null)} />}
             <div
                 ref={ref}
                 data-composer=""
+                data-composer-target={target ? keyOf(target) : undefined}
                 data-asking-agent={asking ? "" : undefined}
+                // While a dictation goes, Esc stops it, and a dialog round the box stays (lib/keys/escapeOwn).
+                data-escape-own={dictation.recording ? "" : undefined}
                 onKeyDownCapture={onKeyDownCapture}
                 onDragEnter={(e) => {
                     if (onFiles && e.dataTransfer?.types?.includes("Files")) setDragging(true)

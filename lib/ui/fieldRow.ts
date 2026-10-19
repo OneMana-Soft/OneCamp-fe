@@ -45,6 +45,15 @@ export const inlineInput =
 export const inlineSelect =
   "-ml-2 h-8 w-fit min-w-0 max-w-full gap-1.5 border-transparent bg-transparent px-2 font-normal shadow-none hover:border-transparent hover:bg-highlight data-[state=open]:border-transparent data-[state=open]:bg-highlight [&>svg]:opacity-0 [&>svg]:transition-opacity hover:[&>svg]:opacity-100 focus-visible:[&>svg]:opacity-100 data-[state=open]:[&>svg]:opacity-100"
 
+/**
+ * A Select used as a value that says it opens (the Event Form's Show as and
+ * reminders): its chevron always there, as a time zone's and the card's
+ * reminders' are, the row's tint on hover and while open, and 44 px under a
+ * finger. Where values read as text until hovered (a task's), inlineSelect.
+ */
+export const inlineChoice =
+  "-ml-2 h-8 w-fit min-w-0 max-w-full gap-1.5 border-transparent bg-transparent px-2 font-normal shadow-none hover:border-transparent hover:bg-highlight data-[state=open]:border-transparent data-[state=open]:bg-highlight [&>svg]:size-3.5 [&>svg]:text-ink-3 pointer-coarse:h-11"
+
 /** A section under the fields (Attachments, Linked, Dependencies, Subtasks): its name. */
 export const sectionTitle = "text-sm font-medium text-foreground"
 

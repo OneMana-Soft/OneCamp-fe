@@ -1,47 +1,26 @@
 "use client"
 
 import React, {useCallback, useMemo, useRef} from "react"
-import { createContext, useContext, useEffect } from "react"
+import { useEffect } from "react"
 import {useMqttConnection} from "@/hooks/useMqttConnection";
 import {useMqttMessageHandler} from "@/hooks/useMqttMessageHandler";
 import {useMessageSyncManager} from "@/hooks/useMessageSyncManager";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {DynamicTopicManager, mqttConfigRes, MqttConnectionState, TopicSubscription} from "@/types/mqtt";
+import {DynamicTopicManager, mqttConfigRes, TopicSubscription} from "@/types/mqtt";
 import {useDispatch, useSelector} from "react-redux";
 import {updateUserConnectedDeviceCount, UserEmojiInterface} from "@/store/slice/userSlice";
 import { pruneStaleTyping } from "@/store/slice/typingSlice";
 import { TYPING_EXPIRY_MS, TYPING_STALE_MS } from "@/lib/typingTiming";
 import type {RootState} from "@/store/store";
+import { RealtimeContext } from "@/lib/realtime/context";
+import { createRealtimeSubscriptions } from "@/lib/realtime/subscriptions";
+import { MqttContext, type MqttContextValue } from "@/components/mqtt/mqttContext";
 
-interface MqttContextValue {
-    connectionState: MqttConnectionState
-    publish: (topic: string, message: string) => Promise<void>
-    connect: () => void
-    disconnect: () => void
-    /** Tries to reconnect now, rather than when the next wait is up. */
-    reconnect: () => void
-    subscribeToTopic: (topic: string, callback: (message: string, topic: string) => void) => string
-    unsubscribeFromTopic: (subscriptionId: string) => void
-}
-
-
-const MqttContext = createContext<MqttContextValue | null>(null)
-
-/** The live connection's state, or undefined outside the signed-in app (no provider there). */
-export const useMqttConnectionState = () => useContext(MqttContext)?.connectionState
-
-/** Reconnect now (the pill's action), or undefined outside the signed-in app. */
-export const useMqttReconnect = () => useContext(MqttContext)?.reconnect
-
-export const useMqtt = () => {
-    const context = useContext(MqttContext)
-    if (!context) {
-        throw new Error("useMqtt must be used within MqttProvider")
-    }
-    return context
-}
+// The context and its readers live in mqttContext.ts, so a reader needn't
+// bring this provider's handlers; they're re-exported here for the app's own.
+export { useMqtt, useMqttConnectionState, useMqttReconnect } from "@/components/mqtt/mqttContext"
 
 interface MqttProviderProps {
     children: React.ReactNode
@@ -149,6 +128,22 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         userUuid,
         refreshTopics,
     })
+
+    // Subscriptions by conversation (lib/realtime/subscriptions): a surface
+    // showing one the settings don't name has them asked for again.
+    const conversationTopicsRef = useRef<Record<string, string[]> | undefined>(undefined)
+    const refreshTopicsRef = useRef(refreshTopics)
+    useEffect(() => {
+        conversationTopicsRef.current = mqttConfigRes.data?.data?.conversation_topics
+        refreshTopicsRef.current = refreshTopics
+    })
+    const conversations = useMemo(() => createRealtimeSubscriptions({
+        names: (key) => {
+            const named = conversationTopicsRef.current
+            return named ? key in named : undefined
+        },
+        refresh: () => refreshTopicsRef.current(),
+    }), [])
 
     // SYNC MANAGER: Tracks connection health and forces API refetch after stale reconnection
     const syncManager = useMessageSyncManager()
@@ -371,5 +366,9 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         unsubscribeFromTopic: handleUnsubscribeFromTopic,
     }), [connectionState, publish, connect, disconnect, reconnect, handleSubscribeToTopic, handleUnsubscribeFromTopic])
 
-    return <MqttContext.Provider value={contextValue}>{children}</MqttContext.Provider>
+    return (
+        <MqttContext.Provider value={contextValue}>
+            <RealtimeContext.Provider value={conversations}>{children}</RealtimeContext.Provider>
+        </MqttContext.Provider>
+    )
 }

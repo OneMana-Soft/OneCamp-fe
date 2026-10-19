@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { canRollUp, rollupOptions, tableRelations } from "@/lib/tables/links"
-import { kindOfField } from "@/lib/tables/viewRules"
+import { filterKind } from "@/lib/fieldTypes/registry"
 import { computedOf, fieldProblem, isComputed, relationOf, rollupOf, type TableField } from "@/services/tableService"
 
 const field = (id: string, type: TableField["type"], config: object = {}): TableField => ({
@@ -47,7 +47,7 @@ describe("a field's settings, as the server sends them", () => {
     expect(rollupOf(spend)).toEqual({ relation: "budget", field: "cost", aggregate: "sum", result: "number", error: undefined })
     expect(isComputed(spend)).toBe(true)
     expect(computedOf(spend).result).toBe("number")
-    expect(kindOfField(spend)).toBe("number")
+    expect(filterKind(spend)).toBe("number")
     const broken = field("gone", "rollup", { relation: "x", aggregate: "count", result: "number", error: "The relation this adds up has been deleted" })
     expect(fieldProblem(broken)).toBe("The relation this adds up has been deleted")
     expect(fieldProblem(field("v", "relation", { relation_target: "table", table_id: "v", error: "The table this links to has been deleted" }))).toBe(

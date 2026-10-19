@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from 'react'
+import { onEscape } from '@/lib/keys/onEscape'
 
 type ResizeDirection = 'left' | 'right'
 export type ElementDimensions = { width: number; height: number }
@@ -96,20 +97,14 @@ export function useDragResize({
     [onDimensionsChange, dimensions]
   )
 
-  const handleKeydown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopPropagation()
-        updateDimensions({
-          width: Math.max(initialDimensions.width, minWidth),
-          height: Math.max(initialDimensions.height, minHeight)
-        })
-        setResizeDirection(undefined)
-      }
-    },
-    [initialDimensions, minWidth, minHeight]
-  )
+  // Esc puts the size back: the drag layer of the one Escape (lib/keys/escape).
+  const cancelResize = useCallback(() => {
+    updateDimensions({
+      width: Math.max(initialDimensions.width, minWidth),
+      height: Math.max(initialDimensions.height, minHeight)
+    })
+    setResizeDirection(undefined)
+  }, [initialDimensions, minWidth, minHeight])
 
   const initiateResize = useCallback(
     (direction: ResizeDirection) => (event: React.PointerEvent<HTMLDivElement>) => {
@@ -129,17 +124,17 @@ export function useDragResize({
 
   useEffect(() => {
     if (resizeDirection) {
-      document.addEventListener('keydown', handleKeydown)
+      const stopEscape = onEscape('drag', cancelResize)
       document.addEventListener('pointermove', handlePointerMove)
       document.addEventListener('pointerup', handlePointerUp)
 
       return () => {
-        document.removeEventListener('keydown', handleKeydown)
+        stopEscape()
         document.removeEventListener('pointermove', handlePointerMove)
         document.removeEventListener('pointerup', handlePointerUp)
       }
     }
-  }, [resizeDirection, handleKeydown, handlePointerMove, handlePointerUp])
+  }, [resizeDirection, cancelResize, handlePointerMove, handlePointerUp])
 
   return {
     initiateResize,

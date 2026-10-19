@@ -19,7 +19,7 @@ import { NoticeBar, noticeActionClass } from "@/components/banner/NoticeBar"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { SpotImported } from "@/components/ui/graphics"
-import { celebrate } from "@/lib/celebrate"
+import { celebrate } from "@/lib/celebrateSoon"
 import {
   IMPORT_OUTCOMES_KEY,
   importProviderLabel,

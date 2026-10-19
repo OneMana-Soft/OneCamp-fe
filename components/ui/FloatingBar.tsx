@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { escapeTaken, takeEscape } from "@/lib/keys/escapeOwn"
 
 /**
  * A toolbar that floats over content (content.md §1.5): the doc's selection
@@ -31,12 +32,14 @@ export const FloatingBar = React.forwardRef<HTMLDivElement, FloatingBarProps>(fu
 ) {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     onKeyDown?.(e)
-    if (e.defaultPrevented) return
     if (e.key === "Escape") {
-      e.preventDefault()
-      onEscape?.()
+      // One a sheet over the page handed on is the bar's; one its owner used isn't (escapeTaken).
+      if (escapeTaken(e.nativeEvent) || !onEscape) return
+      takeEscape(e.nativeEvent)
+      onEscape()
       return
     }
+    if (e.defaultPrevented) return
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return
     const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-bar-item]:not([disabled])"))
     if (!items.length) return
@@ -56,6 +59,7 @@ export const FloatingBar = React.forwardRef<HTMLDivElement, FloatingBarProps>(fu
       aria-label={label}
       aria-orientation="horizontal"
       data-floating-bar=""
+      data-escape-own={!!onEscape ? "" : undefined}
       onKeyDown={handleKeyDown}
       className={cn(
         "content-float z-[var(--z-popover)] inline-flex h-[34px] items-center gap-0.5 rounded-[10px] bg-pop p-[3px] text-ink shadow-e3",

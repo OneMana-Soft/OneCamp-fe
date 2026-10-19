@@ -180,6 +180,9 @@ export enum GetEndpointUrl {
     GetTableRows = "/tables",   // append /{id}/rows
     GetTableFields = "/tables", // append /{id}/fields
     PickTableRows = "/tables",  // append /{id}/rows/pick?q=
+    GetTableRowHistory = "/tables", // append /{id}/rows/{rowId}/history?before=
+    GetTableTrash = "/tables",  // append /{id}/trash?before=
+    GetTablesTrash = "/tables/trash",
     // External data sources (read-only connectors)
     GetDataSources = "/data-sources",              // management list (agent.manage)
     GetDataSourceSchema = "/data-sources",         // append /{id}/schema
@@ -367,6 +370,12 @@ export enum PostEndpointUrl {
     ChangeTableLinks = "/tables",            // append /{id}/rows/{rowId}/links
     PreviewTableFormula = "/tables",         // append /{id}/formula/preview
     DeleteTableRow = "/tables",              // append /{id}/rows/{rowId}/delete
+    BatchTableRows = "/tables",              // append /{id}/rows/batch (up to 1,000 rows, one change set)
+    MoveTableRows = "/tables",               // append /{id}/rows/move
+    UndoTableChange = "/tables",             // append /{id}/undo
+    RedoTableChange = "/tables",             // append /{id}/redo
+    RestoreTableTrash = "/tables",           // append /{id}/trash/restore
+    RestoreTable = "/tables",                // append /{id}/restore
     AggregateTable = "/tables",              // append /{id}/aggregate (read-only)
     RunTableQueryPlan = "/tables",           // append /{id}/query-plan (read-only, multi-step)
     CreateTableField = "/tables",            // append /{id}/fields
@@ -422,7 +431,6 @@ export enum PostEndpointUrl {
     AddTeamMember = "/team/addMember",
     RemoveTeam = "/admin/deleteTeam",
     UnDeletedTeam = "/admin/unDeleteTeam",
-    AddDmMember = "/groupChat/addParticipant",
     AddFavChannel = "/user/addFavChannel",
     RemoveFavChannel = "/user/removeFavChannel",
     UpdateProjectNotification = "/user/updateUserProjectNotification",

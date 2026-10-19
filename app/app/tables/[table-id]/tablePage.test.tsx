@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { hueFor } from "@/lib/campHue"
@@ -38,6 +38,9 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
   listRows,
 }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => {} }))
+// The row ledger's calls (tables A2): an undo, a redo.
+const { undoChange, redoChange } = vi.hoisted(() => ({ undoChange: vi.fn(), redoChange: vi.fn() }))
+vi.mock("@/lib/tables/ledger", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/tables/ledger")>()), undoChange, redoChange }))
 const { confirm } = vi.hoisted(() => ({ confirm: vi.fn() }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 // The save dot has its own tests; it needs the app's tooltip providers.
@@ -70,6 +73,13 @@ vi.mock("@/components/guest/GuestLinkSection", () => ({ GuestLinkSection: () => 
 
 import TableDetailPage from "./page"
 import { Toaster } from "@/components/ui/toaster"
+import { loadColumnMenus } from "@/components/table/ColumnMenu"
+import { cellPickers } from "@/components/table/cellPickerPart"
+import { loadTablePageParts } from "@/components/table/lazyParts"
+
+// The column menus, the cell pickers and the page's views, record and dialogs are chunks of their own
+// (lazyView): loaded once, before these tests, they draw at once.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), loadTablePageParts()]))
 
 beforeEach(() => {
   window.history.replaceState(null, "", `/app/tables/${TABLE_ID}`)

@@ -4,7 +4,8 @@ import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData"
 import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction"
 import { cn } from "@/lib/utils/helpers/cn"
 import { nameList } from "@/lib/utils/format/nameList"
-import { celebrate, springPop } from "@/lib/celebrate"
+import { celebrate } from "@/lib/celebrateSoon"
+import { springPop } from "@/lib/spring"
 import { RollingCount } from "@/components/message/rollingCount"
 
 interface reactionPillProps {

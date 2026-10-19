@@ -273,6 +273,9 @@ export {
   EyeOff,
   Smile,
   SmilePlus,
+  PawPrint,
+  Apple,
+  Trophy,
 } from "lucide-react";
 
 // ─── System / Settings ──────────────────────────────────────

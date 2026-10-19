@@ -39,6 +39,19 @@ describe("useTouchReveal", () => {
     expect(screen.queryByRole("toolbar")).toBeNull()
   })
 
+  // Overlays (one press, one thing: lib/keys/escape). Escape puts the tools
+  // away and marks the press used, so a toast or a panel waits for the next.
+  it("puts the tools away on Escape, as one press", () => {
+    render(<Row />)
+    up(screen.getByText("Load test is running now."), "touch")
+    const esc = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    act(() => {
+      document.body.dispatchEvent(esc)
+    })
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(esc.defaultPrevented, "the press was used").toBe(true)
+  })
+
   it("leaves a mouse to hover, and a tap on a link to the link", () => {
     render(<Row />)
     up(screen.getByText("Load test is running now."), "mouse")

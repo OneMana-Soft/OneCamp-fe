@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import * as React from "react"
 
@@ -12,6 +12,12 @@ const { search } = vi.hoisted(() => ({ search: vi.fn() }))
 vi.mock("@/services/searchService", () => ({ useGlobalSearch: () => ({ search }) }))
 
 import { RelationCell } from "@/components/table/RelationCell"
+import { loadColumnMenus } from "@/components/table/ColumnMenu"
+import { cellPickers } from "@/components/table/cellPickerPart"
+
+// The column menus, the cell pickers are chunks of their own
+// (lazyView): loaded once, before these tests, they draw at once.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm()]))
 
 afterEach(() => {
   cleanup()

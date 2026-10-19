@@ -18,14 +18,18 @@ import {
   MoreVertical,
   PhoneOff,
   Sparkles,
+  Smile,
   SquareUser,
+  Users,
   Video,
   VideoOff,
 } from "@/lib/icons"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { CALL_REACTIONS, REACTION_NAMES, type CallReaction } from "@/lib/calls/signals"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils/helpers/cn"
-import { springPop } from "@/lib/celebrate"
+import { springPop } from "@/lib/spring"
 import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig"
 import { toast } from "@/hooks/use-toast"
 import { formatElapsed } from "./callLevels"
@@ -79,7 +83,7 @@ const DOCK_BUTTON =
 
 interface DockButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   label: string
-  /** The short word under the button on a phone. */
+  /** The short word under the button: on a phone, and on a stage of 1280 px or more. */
   short?: string
   shortcut?: string
   state?: DockState
@@ -90,6 +94,19 @@ interface DockButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElem
   badge?: React.ReactNode
   /** The tooltip's words in place of the name and key: why the control can't work here. */
   hint?: string
+}
+
+/**
+ * A control's word under it: on a phone, where the bar has room for five,
+ * and again on a stage of 1280 px or more, as Zoom's says each control's name.
+ * Between those widths the tooltip says it.
+ */
+function DockWord({ children }: { children: React.ReactNode }) {
+  return (
+    <span data-dock-word="" className="text-micro font-medium leading-none text-ink-2 @3xl:hidden @7xl:block">
+      {children}
+    </span>
+  )
 }
 
 /** One dock control: 44px, a 20px icon, its state as shape and colour, its name and key in the tooltip. */
@@ -126,7 +143,7 @@ export function DockButton({ label, short, shortcut, state = "on", icon, menu, p
         {menu ? <span className="hidden @3xl:flex">{menu}</span> : null}
         {badge}
       </span>
-      {short ? <span className="text-micro font-medium leading-none text-ink-2 @3xl:hidden">{short}</span> : null}
+      {short ? <DockWord>{short}</DockWord> : null}
     </span>
   )
 }
@@ -211,6 +228,10 @@ export interface CallDockProps {
   onToggleAI?: () => void
   isAIOpen?: boolean
   aiUnreadCount?: number
+  /** Who is in the call: how many, and the list beside the stage. */
+  people?: { count: number; open: boolean; onToggle: () => void }
+  /** Sends a reaction to everyone in the call (lib/calls/signals). */
+  onReact?: (emoji: CallReaction) => void
 }
 
 /**
@@ -267,6 +288,7 @@ export function CallDock(p: CallDockProps) {
               // touch screen that has no hover, say why.
               <DockButton
                 label="Share screen"
+                short="Share"
                 aria-disabled
                 icon={<MonitorUp />}
                 onClick={() => showCallFailure({ title: p.shareUnavailable!, description: "Share from a computer instead." })}
@@ -275,6 +297,7 @@ export function CallDock(p: CallDockProps) {
             ) : (
               <DockButton
                 label={p.sharing ? "Stop sharing" : "Share screen"}
+                short="Share"
                 shortcut={CONTROL_KEYS.share}
                 state={p.sharing ? "active" : "on"}
                 pressed={!!p.sharing}
@@ -288,6 +311,7 @@ export function CallDock(p: CallDockProps) {
           <span className="hidden @3xl:flex">
             <DockButton
               label={captionsAction(p)}
+              short="Captions"
               shortcut={CONTROL_KEYS.captions}
               state={!p.captionsOff && p.showCaptions ? "active" : "on"}
               pressed={!p.captionsOff && !!p.showCaptions}
@@ -317,15 +341,30 @@ export function CallDock(p: CallDockProps) {
               }
             />
         ) : null}
-        {p.onChatToggle ? (
+        {p.people ? (
           <span className="hidden @3xl:flex">
-            <DockButton label="Chat" state={p.isChatOpen ? "active" : "on"} pressed={!!p.isChatOpen} icon={<MessageSquare />} onClick={p.onChatToggle} />
+            <DockButton
+              label={`Participants, ${p.people.count}`}
+              short="People"
+              state={p.people.open ? "active" : "on"}
+              pressed={p.people.open}
+              icon={<Users />}
+              onClick={p.people.onToggle}
+              badge={<PeopleCount count={p.people.count} />}
+            />
           </span>
         ) : null}
+        {p.onChatToggle ? (
+          <span className="hidden @3xl:flex">
+            <DockButton label="Chat" short="Chat" state={p.isChatOpen ? "active" : "on"} pressed={!!p.isChatOpen} icon={<MessageSquare />} onClick={p.onChatToggle} />
+          </span>
+        ) : null}
+        {p.onReact ? <ReactButton onReact={p.onReact} /> : null}
         {p.onLayoutChange ? (
           <span className="hidden @3xl:flex">
             <DockButton
               label={p.layout === "grid" ? "Switch to speaker view" : "Switch to grid view"}
+              short="Layout"
               shortcut={CONTROL_KEYS.layout}
               icon={p.layout === "grid" ? <LayoutGrid /> : <SquareUser />}
               onClick={() => p.onLayoutChange?.(p.layout === "grid" ? "speaker" : "grid")}
@@ -333,8 +372,9 @@ export function CallDock(p: CallDockProps) {
           </span>
         ) : null}
         {p.onToggleRecording ? (
-          <span className="hidden @3xl:flex">
+          <span className="hidden flex-col items-center gap-1 @3xl:flex">
             <RecordButton recording={!!p.isRecording} loading={!!p.isRecordingLoading} elapsed={elapsed} onClick={p.onToggleRecording} />
+            <DockWord>Record</DockWord>
           </span>
         ) : null}
         <MoreMenu {...p} />
@@ -361,6 +401,70 @@ export function CallDock(p: CallDockProps) {
         </span>
       </div>
     </TooltipProvider>
+  )
+}
+
+/** How many are in the call, on People: a quiet count, not an alert. */
+function PeopleCount({ count }: { count: number }) {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-[9px] bg-[#3A3B41] px-1 text-3xs font-semibold leading-none tabular-nums text-[#EEEEF0] ring-2 ring-[#1F2024]"
+    >
+      {count}
+    </span>
+  )
+}
+
+/**
+ * React: a tray of six above the dock. A pick goes to everyone and the tray
+ * closes, as Zoom's does; Escape or a press outside closes it too.
+ */
+function ReactButton({ onReact }: { onReact: (emoji: CallReaction) => void }) {
+  const [open, setOpen] = React.useState(false)
+  const anchor = React.useRef<HTMLSpanElement>(null)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <span ref={anchor} className="flex">
+          <DockButton
+            label="React"
+            short="React"
+            state={open ? "active" : "on"}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            icon={<Smile />}
+            onClick={() => setOpen((o) => !o)}
+          />
+        </span>
+      </PopoverAnchor>
+      <PopoverContent
+        side="top"
+        sideOffset={10}
+        className="w-auto rounded-[14px] border-0 bg-[#1F2024] p-1.5 shadow-e3"
+        // The React button itself toggles; a press on it is not "outside".
+        onPointerDownOutside={(e) => {
+          if (anchor.current?.contains(e.target as Node)) e.preventDefault()
+        }}
+      >
+        <div role="group" aria-label="Reactions" className="flex gap-1">
+          {CALL_REACTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              aria-label={REACTION_NAMES[emoji]}
+              onClick={() => {
+                onReact(emoji)
+                setOpen(false)
+              }}
+              className="grid size-11 place-items-center rounded-[10px] text-2xl leading-none transition-[background-color,transform] duration-150 hover:bg-[#34353B] active:scale-[0.92] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -406,7 +510,7 @@ function RecordButton({ recording, loading, elapsed, onClick }: { recording: boo
 
 /** The phone's "More": everything the bottom bar has no room for, as 52px rows. */
 function MoreMenu(p: CallDockProps) {
-  const any = p.onToggleShare || p.onToggleRecording || p.onToggleCaptions || p.onLayoutChange || p.onChatToggle
+  const any = p.onToggleShare || p.onToggleRecording || p.onToggleCaptions || p.onLayoutChange || p.onChatToggle || p.people
   if (!any) return null
   return (
     <span className="flex flex-col items-center gap-1 @3xl:hidden">
@@ -438,6 +542,13 @@ function MoreMenu(p: CallDockProps) {
             <DropdownMenuItem onClick={p.onToggleCaptions} className="h-[52px]">
               {!p.captionsOff && p.showCaptions ? <CaptionsOff /> : <Captions />}
               {captionsAction(p)}
+            </DropdownMenuItem>
+          ) : null}
+          {p.people ? (
+            <DropdownMenuItem onClick={p.people.onToggle} className="h-[52px]">
+              <Users />
+              <span className="flex-1">Participants</span>
+              <span className="tabular-nums text-ink-3">{p.people.count}</span>
             </DropdownMenuItem>
           ) : null}
           {p.onChatToggle ? (

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 // AI on (hooks/useClientConfig reads the server's config).
@@ -13,6 +13,12 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
 
 import { ColumnHeader, type ColumnPage } from "@/components/table/ColumnMenu"
 import type { TableField } from "@/services/tableService"
+import { loadColumnMenus } from "@/components/table/ColumnMenu"
+import { cellPickers } from "@/components/table/cellPickerPart"
+
+// The column menus, the cell pickers are chunks of their own
+// (lazyView): loaded once, before these tests, they draw at once.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm()]))
 
 // The server keeps what a column's save leaves out. Each save from the menu
 // sent the page copy's name with it, so a setting changed in a tab read

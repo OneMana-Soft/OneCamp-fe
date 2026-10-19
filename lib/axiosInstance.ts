@@ -55,8 +55,8 @@ let isLoggingOut = false;
 /**
  * The pages for someone outside the workspace, with no session at all: what a
  * guest link shares (/guest/d|t|b|c|m|p/<token>), a booking page and a booked
- * meeting (/book/<slug>, /booking/<token>), an intake form (/f/<token>) and
- * unsubscribing. A 401 there is expected, never a session that ran out, so
+ * meeting (/book/<slug>, /booking/<token>), an intake form (/f/<token>), an
+ * invitation to an event by email (/rsvp/<token>) and unsubscribing. A 401 there is expected, never a session that ran out, so
  * nothing there refreshes a session or signs the browser out and sends it to
  * the sign-in page. That took a guest off the doc they were reading whenever a
  * node view asked the API for something, and, four minutes in, the refresh
@@ -64,7 +64,7 @@ let isLoggingOut = false;
  * this client (the root layout's theme sync reaches it).
  */
 export function onVisitorPage(pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''): boolean {
-    return /^\/(guest|book|booking|f|unsubscribe)(\/|$)/.test(pathname);
+    return /^\/(guest|book|booking|f|rsvp|unsubscribe)(\/|$)/.test(pathname);
 }
 
 // Proactive refresh that fails closed: if the refresh token itself is dead

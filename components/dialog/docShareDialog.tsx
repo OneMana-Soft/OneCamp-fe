@@ -539,7 +539,8 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
           ))}
         </div>
       ) : null}
-      <div className="flex max-h-[min(62dvh,560px)] flex-col gap-5 overflow-y-auto" role={publish ? "tabpanel" : undefined}>
+      {/* Its own scroller in the dialog only: in the phone's sheet the sheet's body scrolls it (ChromeSheet). */}
+      <div className="flex flex-col gap-5 sm:max-h-[min(62dvh,560px)] sm:overflow-y-auto" role={publish ? "tabpanel" : undefined}>
         {tab === "publish" && publish ? <PanelOutlet kind="doc.publish" docId={docId} gate={gate} /> : shareTab}
       </div>
     </ChromeSheet>

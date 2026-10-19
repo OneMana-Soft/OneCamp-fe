@@ -1,14 +1,15 @@
 /**
  * The Conversation model's shapes on the web (chat programme, PROGRAM.md §4.2
- * #22; A1 builds the model): a channel, a DM and a group are one
- * ConversationRef, a thread is a ThreadRef in one, and every surface reads one
- * message shape whichever of today's three stacks the message came from. The
- * API names the same kinds (business/Conversation: channel, dm, group,
- * thread).
+ * #22, chat A1): a channel, a DM and a group are one ConversationRef, a thread
+ * is a ThreadRef in one, and every surface reads one message shape whichever
+ * of today's three stacks the message came from. The API names the same kinds
+ * (business/Conversation: channel, dm, group, thread).
  *
- * The package that builds the model owns its final shape: A1 adds the exact
- * cursor, the anchor, drafts and the per-kind adapters here, and moves the
- * message shape in beside them.
+ * A1 step 1 (this): the exact cursor, the anchor, a list's key and the
+ * per-kind adapter (lib/conversation/adapters), over today's endpoints and
+ * rows. The stacks' own components and slices still hold the messages; the
+ * hosts (components/conversation, store/conversations) stand in front of them
+ * until CHAT-A1B moves them in.
  */
 
 import type { BaseMessage } from '@/components/message/baseMessageCard'
@@ -39,6 +40,23 @@ export type Target = ConversationRef | ThreadRef
  */
 export type Message = BaseMessage
 
+/**
+ * An exact place in a conversation's history: a message's time as the server
+ * wrote it and its id, so a page that starts beside it never skips another
+ * message written in the same second (lib/chat/pageEdge, the server's
+ * helpers.PageEdge).
+ */
+export interface Cursor {
+  at: string
+  id: string
+}
+
+/**
+ * Where a conversation opens: at its newest messages, where the reader's
+ * unread ones start, or at one message (a link to it, with its thread).
+ */
+export type Anchor = { at: 'latest' } | { at: 'unread' } | { at: 'message'; id: string }
+
 /** What useConversation answers for a conversation. */
 export interface ConversationState {
   /** Oldest first. */
@@ -50,4 +68,20 @@ export interface ConversationState {
   status: 'loading' | 'ready' | 'error'
   /** Asks again. */
   retry(): void
+}
+
+/** Whether a target is a thread. Pure. */
+export function isThread(target: Target): target is ThreadRef {
+  return 'root' in target
+}
+
+/**
+ * The one key a conversation or thread is held by, whichever surface shows it:
+ * "channel:<uuid>", "dm:<grouping id>", "group:<grouping id>", and a thread's
+ * "<its conversation's key>/thread:<root>". The server names a conversation's
+ * live topics by the same key (business/Mqtt conversationKey). Pure.
+ */
+export function keyOf(target: Target): string {
+  if (isThread(target)) return `${keyOf(target.in)}/thread:${target.root}`
+  return `${target.kind}:${target.id}`
 }

@@ -250,3 +250,47 @@ describe("the channel's Details sheet", () => {
     expect(openChannelDetails("c1")).toEqual({ type: "ui/openUI", payload: { key: "channelDetails", data: { channelUUID: "c1" } } })
   })
 })
+
+// One press, one thing (rule 7; lib/keys/escapeOwn): Esc in the description
+// being written cancels the edit and leaves the details open; the next press
+// closes them. Radix hears Esc first, in the document, so the field's own
+// handler came too late: one press cancelled the edit and closed the sheet.
+describe("Esc in the details", () => {
+  it("cancels the description being written, and closes the details on the next press", () => {
+    admin = true
+    const onOpenChange = vi.fn()
+    render(
+      <Provider store={store}>
+        <TooltipProvider>
+          <ChannelDetailsSheet channelId="c1" open onOpenChange={onOpenChange} />
+        </TooltipProvider>
+      </Provider>,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Edit description" }))
+    fireEvent.keyDown(screen.getByLabelText("Description"), { key: "Escape" })
+    expect(screen.queryByLabelText("Description")).toBeNull()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})
+
+describe("Esc in a new name", () => {
+  it("cancels the name being typed, and closes the details on the next press", () => {
+    admin = true
+    const onOpenChange = vi.fn()
+    render(
+      <Provider store={store}>
+        <TooltipProvider>
+          <ChannelDetailsSheet channelId="c1" open onOpenChange={onOpenChange} />
+        </TooltipProvider>
+      </Provider>,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Rename channel" }))
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Name" }), { key: "Escape" })
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})

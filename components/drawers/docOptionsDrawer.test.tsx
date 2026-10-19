@@ -21,10 +21,12 @@ vi.mock("@/lib/export/contentIO", async (importOriginal) => ({
 }))
 
 import { DocOptionsDrawer } from "./docOptionsDrawer"
-// B6's page actions, which the doc page's guard registers as it loads (Delete among them).
-import "@/components/docEditor/chrome/contributions"
+// B6's page actions, which the doc page's guard offers once drawn (Delete among them).
+import { offerPageActions } from "@/components/docEditor/chrome/contributions"
 import { createDocCommandBus, holdBus, provideActionContext } from "@/components/docEditor/registry/commandBus"
 import type { ActionContext } from "@/components/docEditor/registry/types"
+
+offerPageActions()
 
 const EDITOR = { isEmpty: false, isActive: () => false, can: () => ({ undo: () => false }) } as unknown as ActionContext["editor"]
 

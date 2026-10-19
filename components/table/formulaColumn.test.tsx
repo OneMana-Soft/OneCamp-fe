@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 const createField = vi.fn().mockResolvedValue({})
@@ -17,6 +17,12 @@ vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 
 import { DataTableGrid } from "@/components/table/DataTableGrid"
 import type { TableField, TableRow } from "@/services/tableService"
+import { loadColumnMenus } from "@/components/table/ColumnMenu"
+import { cellPickers } from "@/components/table/cellPickerPart"
+
+// The column menus, the cell pickers are chunks of their own
+// (lazyView): loaded once, before these tests, they draw at once.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm()]))
 
 const fields: TableField[] = [
   { id: "price", table_id: "t", name: "Price", type: "number", config: "{}", position: 0 },

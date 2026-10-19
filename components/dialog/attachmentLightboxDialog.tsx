@@ -274,7 +274,7 @@ export function MediaLightboxDialog({
                 if (!dialogOpenState) return
                 if (e.key === "ArrowLeft") handlePrevious()
                 if (e.key === "ArrowRight") handleNext()
-                if (e.key === "Escape") closeModal()
+                // Esc is the dialog's own: Radix closes it (onOpenChange).
             }
 
             window.addEventListener("keydown", handleKeyDown)

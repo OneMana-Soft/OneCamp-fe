@@ -98,7 +98,7 @@ export function GroupChatOptionsDrawer({
 
                     <DrawerItem
                         icon={Users}
-                        label="Group members"
+                        label="People and details"
                         onClick={() => {
                             closeDrawer()
                             dispatch(openUI({ key: "editDmMember", data: { grpId } }))

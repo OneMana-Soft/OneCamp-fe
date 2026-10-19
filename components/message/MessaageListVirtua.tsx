@@ -6,12 +6,13 @@ import { Virtualizer } from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ArrowDown, Loader2 } from "@/lib/icons";
 import { arrivedKeys } from "@/components/message/arrival";
+import { onEscape } from "@/lib/keys/onEscape";
 import { RowBoundary } from "@/components/message/rowBoundary";
 import { RollingCount } from "@/components/message/rollingCount";
 import { changedAtStart } from "@/components/message/listShift";
 import { rowMeta } from "@/components/message/rowMeta";
 import { followAfterScroll, READER_INPUT_MS } from "@/components/message/followEnd";
-import { prefersReducedMotion } from "@/lib/celebrate";
+import { prefersReducedMotion } from "@/lib/reducedMotion";
 import { ix } from "@/lib/ui/interactive"
 import { ErrorState } from "@/components/ui/error-state";
 
@@ -329,15 +330,12 @@ export const MessageListVirtua = <T,>({
     // Escape while the pill shows takes the reader to the end (Discord).
     useEffect(() => {
         if (isScrolledToBottom) return
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key !== "Escape" || e.defaultPrevented) return
+        return onEscape("page", (e) => {
             const t = e.target as HTMLElement | null
-            if (t?.closest("[role=dialog],[role=menu],[contenteditable=true],input,textarea")) return
-            if (!scrollerRef.current?.contains(document.activeElement) && document.activeElement !== document.body) return
+            if (t?.closest("[role=dialog],[role=menu],[contenteditable=true],input,textarea")) return false
+            if (!scrollerRef.current?.contains(document.activeElement) && document.activeElement !== document.body) return false
             jumpToLatest()
-        }
-        window.addEventListener("keydown", onKey)
-        return () => window.removeEventListener("keydown", onKey)
+        })
     }, [isScrolledToBottom, jumpToLatest])
 
     // How many unread rows the reader opened onto, for "NEW · 14".
@@ -514,6 +512,14 @@ export const MessageListVirtua = <T,>({
                             </div>
                         )
                     }
+                    if (item.type === "shared") {
+                        return (
+                            <div key={item.key}>
+                                {head}
+                                <div role="listitem"><SharedHistoryHeading /></div>
+                            </div>
+                        )
+                    }
                     const meta = rowMeta(index, items.length, item.continued, arrived.has(item.key))
                     return (
                         <div key={item.key}>
@@ -603,6 +609,22 @@ function UnreadDivider({ count, seen }: { count: number; seen: boolean }) {
             <div className="h-px flex-1 origin-right bg-brand/45 animate-line-draw" />
             <span className={cn("text-micro font-semibold leading-none tracking-[0.02em] text-brand-text transition-opacity duration-[600ms]", quiet && "opacity-60")}>
                 NEW{count > 10 ? <span className="tabular-nums"> · {count}</span> : null}
+            </span>
+        </div>
+    )
+}
+
+/**
+ * Above the messages a shared history copied into this conversation
+ * (lib/conversation/sharedHistory): the day pill's shape, the hairline in the
+ * brand, so the copies read as what they are without a box around each one.
+ */
+function SharedHistoryHeading() {
+    return (
+        <div data-shared-history="" role="separator" aria-label="Shared from the earlier conversation" className="relative flex w-full justify-center pb-1.5 pt-2.5">
+            <div aria-hidden="true" className="absolute inset-x-5 top-[calc(50%+2px)] h-px bg-brand/30" />
+            <span className="relative flex h-6 items-center rounded-xl bg-sheet px-2.5 text-meta font-medium text-brand-text shadow-e1">
+                Shared from the earlier conversation
             </span>
         </div>
     )

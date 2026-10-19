@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { OverlaySheet } from "./overlaySheet"
-import { escapeBelongsToLayer, useEscapeClosesPanel } from "@/hooks/useEscapeClosesPanel"
+import { useEscapeClosesPanel } from "@/hooks/useEscapeClosesPanel"
+import { escapeBelongsToLayer } from "@/lib/keys/escape"
 
 afterEach(cleanup)
 

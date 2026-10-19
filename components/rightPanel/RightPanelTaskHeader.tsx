@@ -1,12 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react"
 import Link from "next/link"
 import { useDispatch } from "react-redux"
 
-import { celebrateTask, prefersReducedMotion } from "@/lib/celebrate"
+import { celebrateTask } from "@/lib/celebrateSoon"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { Button } from "@/components/ui/button"
-import { ArrowUpRight, EllipsisVertical, GitBranch, Github, Link as LinkIcon, Trash, Unlink, X } from "@/lib/icons"
+import { ArrowUpRight, ChevronRight, EllipsisVertical, GitBranch, Github, Link as LinkIcon, Trash, Unlink, X } from "@/lib/icons"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -24,9 +25,13 @@ import { PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
 import { SaveForLaterButton } from "@/components/later/SaveForLater"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type HeaderActionsProps = {
+    /** This person may change the task (lib/work/access canEditTask). */
     isAdmin: boolean
+    /** This person may delete it (canDeleteTask); its changers when not said. */
+    canDelete?: boolean
     /** The task is open (not done), and this person may complete it. */
     canMarkComplete: boolean
     onMarkComplete: () => void
@@ -45,6 +50,8 @@ type HeaderActionsProps = {
     onPage?: boolean
     /** In the trash: nothing to complete or delete until it is brought back (it read "Completed" beside the deleted banner). */
     deleted?: boolean
+    /** A subtask's parent: the path's second step, after the project. */
+    parent?: { name: string; onOpen: () => void }
 }
 
 /**
@@ -58,8 +65,40 @@ type HeaderActionsProps = {
  * with the moss check, and pointing at it offers "Mark as not done", which
  * never celebrates.
  */
+/** Whether a crumb's name is cut short where it stands: truncated, or down to its tile (an sr-only name is 1 px wide). */
+function cutShort(el: HTMLElement | null): boolean {
+    const name = el?.matches("[data-crumb-name]") ? el : el?.querySelector<HTMLElement>("[data-crumb-name]")
+    return !!name && name.scrollWidth > name.clientWidth + 1
+}
+
+/**
+ * A crumb whose name the header cuts short (the 452 px panel, a phone) shows
+ * it whole in a tip under it; a name that fits shows none. The shared tooltip
+ * is portalled, so the panel's edge never clips it, and it closes on Escape;
+ * with lib/keys/escape the press goes on to the page.
+ */
+function CrumbTip({ name, children }: { name: string; children: ReactElement }) {
+    const trigger = useRef<HTMLElement | null>(null)
+    // A link or a button: the ref takes either.
+    const setTrigger = useCallback((el: HTMLElement | null) => {
+        trigger.current = el
+    }, [])
+    const [open, setOpen] = useState(false)
+    return (
+        <Tooltip open={open} onOpenChange={(next) => setOpen(next && cutShort(trigger.current))}>
+            <TooltipTrigger asChild ref={setTrigger}>
+                {children}
+            </TooltipTrigger>
+            <TooltipContent side="bottom" align="start">
+                {name}
+            </TooltipContent>
+        </Tooltip>
+    )
+}
+
 export function RightPanelTaskHeader({
     isAdmin,
+    canDelete = isAdmin,
     canMarkComplete,
     onMarkComplete,
     onReopen,
@@ -72,6 +111,7 @@ export function RightPanelTaskHeader({
     scrolled = false,
     onPage = false,
     deleted = false,
+    parent,
 }: HeaderActionsProps) {
     const post = usePost()
     const dispatch = useDispatch()
@@ -111,19 +151,55 @@ export function RightPanelTaskHeader({
         <div
             data-task-header=""
             className={cn(
-                "flex h-[52px] shrink-0 items-center gap-2 border-b pl-5 pr-2.5 transition-colors",
+                "@container/taskhead flex h-[52px] shrink-0 items-center gap-2 border-b pl-5 pr-2.5 transition-colors",
                 scrolled ? "border-line" : "border-transparent",
             )}
         >
-            {/* The crumb: the project's tile and name, a link to the project. */}
+            {/* Where it sits: the project (its tile and name, a link to it), then
+                a subtask's parent. The parent took a line of the body before.
+                Under 40rem of header (the panel, a phone) a subtask's project is
+                its tile, its name kept for screen readers, so the parent's reads. */}
             {projectName && projectUUID ? (
-                <Link
-                    href={`${app_project_path}/${projectUUID}`}
-                    className="flex min-w-[96px] shrink items-center gap-1.5 rounded-sm text-ui-sm text-ink-2 transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-                >
-                    <ProjectTile id={projectUUID} size={16} />
-                    <span className="truncate">{projectName}</span>
-                </Link>
+                <nav aria-label="Where this task sits" className="flex min-w-0 shrink items-center">
+                    {/* Under a finger the crumbs stand apart: a tile alone (16 px)
+                        reaches 14 px past each side (phone.css F3), and so does a
+                        parent named in two letters. */}
+                    <TooltipProvider>
+                    <ol className="flex min-w-0 items-center gap-1 pointer-coarse:gap-3">
+                        <li className={cn("flex shrink items-center", parent ? "@[40rem]/taskhead:min-w-[96px]" : "min-w-[96px]")}>
+                            <CrumbTip name={projectName}>
+                                <Link
+                                    href={`${app_project_path}/${projectUUID}`}
+                                    data-touch-target=""
+                                    className="flex min-w-0 items-center gap-1.5 rounded-sm text-ui-sm text-ink-2 transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                                >
+                                    <ProjectTile id={projectUUID} size={16} />
+                                    <span data-crumb-name="" className={cn("truncate", parent && "@max-[40rem]/taskhead:sr-only")}>
+                                        {projectName}
+                                    </span>
+                                </Link>
+                            </CrumbTip>
+                        </li>
+                        {parent ? (
+                            <li className="flex min-w-0 shrink-[2] items-center gap-1 pointer-coarse:gap-3">
+                                <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-4" />
+                                <CrumbTip name={parent.name}>
+                                    <button
+                                        type="button"
+                                        onClick={parent.onOpen}
+                                        data-touch-target=""
+                                        data-crumb-name=""
+                                        aria-label={`Open ${parent.name}, the task this one is part of`}
+                                        className="min-w-0 truncate rounded-sm text-ui-sm text-ink-2 transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                                    >
+                                        {parent.name}
+                                    </button>
+                                </CrumbTip>
+                            </li>
+                        ) : null}
+                    </ol>
+                    </TooltipProvider>
+                </nav>
             ) : (
                 <span className="min-w-0" />
             )}
@@ -166,7 +242,7 @@ export function RightPanelTaskHeader({
                     </Button>
                 )}
                 {laterButton}
-                {isDesktop && isAdmin && onDeleteTask && !deleted && (
+                {isDesktop && (isAdmin || canDelete) && onDeleteTask && !deleted && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className={iconButton} aria-label="More task actions">
@@ -174,7 +250,7 @@ export function RightPanelTaskHeader({
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
-                            {!hasGitHubLink && (
+                            {isAdmin && !hasGitHubLink && (
                                 <>
                                     <DropdownMenuItem onClick={() => dispatch(openUI({ key: "githubLinkTask", data: { taskId: taskUUID } }))}>
                                         <Github className="mr-2 h-4 w-4" />
@@ -186,7 +262,7 @@ export function RightPanelTaskHeader({
                                     </DropdownMenuItem>
                                 </>
                             )}
-                            {hasGitHubLink && (
+                            {isAdmin && hasGitHubLink && (
                                 <DropdownMenuItem
                                     onClick={async () => {
                                         try {
@@ -200,11 +276,13 @@ export function RightPanelTaskHeader({
                                     Unlink GitHub
                                 </DropdownMenuItem>
                             )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem variant="destructive" onClick={onDeleteTask} className="text-danger-ink">
-                                <Trash className="mr-2 h-4 w-4" />
-                                Delete task
-                            </DropdownMenuItem>
+                            {isAdmin && canDelete && <DropdownMenuSeparator />}
+                            {canDelete && (
+                                <DropdownMenuItem variant="destructive" onClick={onDeleteTask} className="text-danger-ink">
+                                    <Trash className="mr-2 h-4 w-4" />
+                                    Delete task
+                                </DropdownMenuItem>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )}

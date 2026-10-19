@@ -3,10 +3,11 @@
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
+import { OverlayBody, OverlayFooter, useSheetMode } from "@/components/ui/overlay";
 import { PresenceDot } from "@/components/ui/presenceDot";
 import { usePauseNotifications } from "@/hooks/usePauseNotifications";
 import { lastAnchorRect, SIDEBAR_FOOT } from "@/lib/hub/lastAnchor";
-import { springPop } from "@/lib/celebrate";
+import { springPop } from "@/lib/spring";
 import { cn } from "@/lib/utils/helpers/cn";
 import * as React from "react";
 import {ReactionPicker} from "@/components/reactionPicker/reactionPicker";
@@ -22,9 +23,8 @@ import { uniqueBy } from 'remeda'
 import {useStatusIsExpired} from "@/hooks/useStatusIsExpired";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {isStandardReaction} from "@/lib/utils/reaction/checker";
-import {useMedia} from "@/context/MediaQueryContext";
-import CustomExpirationCalendarDialog from "@/components/dialog/customExpirationCalendarDialog";
-import {addHours} from "date-fns";
+import {DateField, TimeField, timeValueOf} from "@/components/ui/date-field";
+import {format} from "date-fns";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {usePost} from "@/hooks/usePost";
@@ -96,6 +96,13 @@ const CLEAR_CHIPS: { code: StatusTime | 'custom'; label: string }[] = [
   { code: 'custom', label: 'Custom' },
 ]
 
+/** A custom end's first offer: an hour from now, on the next quarter hour (the time list's steps). */
+function anHourOn(now = new Date()): Date {
+  const at = new Date(now.getTime() + 3_600_000)
+  at.setHours(0, Math.ceil((at.getHours() * 60 + at.getMinutes()) / 15) * 15, 0, 0)
+  return at
+}
+
 /** When a status clears, as a person says it: "30 minutes", "This week", "Until 12 Oct, 5:00 PM". Pure. */
 export function expiryWords(code: string | null | undefined, at?: Date): string {
   if (code === 'custom' && at && !Number.isNaN(at.getTime())) return `Until ${shortDateTime(at)}`
@@ -136,7 +143,6 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
   const [message, setMessage] = useState(defaultState.message)
   const [expiresIn, setExpiresIn] = useState<StatusTime | null>(defaultState.expiration_setting)
   const [expiresAt, setExpiresAt] = useState<Date | undefined>(defaultState.expires_at)
-  const [customExpirationCalendarDialogOpen, setCustomExpirationCalendarDialogOpen] = useState(false)
 
   const emojiData = useEmojiMartData()
   // Focus time from the calendar is the one automatic status the app knows.
@@ -162,8 +168,33 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
   // words, and says when they are past the limit.
   const textProblem = statusTextProblem(message)
   const tooLong = statusTextLength(message) > STATUS_TEXT_MAX
+  // A custom end is a day and a time in the status itself, the shared date
+  // and time fields (D14); one that has passed can't be saved.
+  const custom = expiresIn === 'custom'
+  // Picked, the day and time come into view: in a short sheet (a phone in
+  // landscape) they appeared under the footer's fade.
+  const customRow = React.useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (custom) customRow.current?.scrollIntoView?.({ block: "nearest" })
+  }, [custom])
+  const customPassed = custom && (!expiresAt || expiresAt.getTime() <= Date.now())
+  const setCustomPart = (part: 'day' | 'time', value: string) => {
+    const [a, b, c] = value.split(/[-:]/).map(Number)
+    if (Number.isNaN(a) || Number.isNaN(b)) return
+    const next = new Date(expiresAt ?? anHourOn())
+    if (part === 'day') next.setFullYear(a, b - 1, c)
+    else next.setHours(a, b, 0, 0)
+    setExpiresAt(next)
+  }
 
-  const { isMobile } = useMedia()
+  // A sheet where overlays are sheets (components/ui/overlay: a phone, in
+  // portrait or landscape), a popover elsewhere. Width alone gave a phone in
+  // landscape the popover, 166px tall with the keyboard up and Set status
+  // 324px down its scroll (design/drawers-v3/ANALYSIS.md §1.2).
+  const sheet = useSheetMode()
+  // The field takes focus as the menu opens under a mouse only: on a touch
+  // screen it would raise the keyboard over the menu before it was read.
+  const [finePointer] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: fine)").matches)
 
   const suggestedStatuses = useMemo(() => {
     const presets = [
@@ -181,14 +212,13 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
   }, [recentStatusesResp.data])
 
   const closeModal = useCallback(() => {
-    setCustomExpirationCalendarDialogOpen(false);
     setOpenState(false)
   }, [setOpenState])
 
   // Saved at once: the status shows beside the name as the dialog closes, and
   // goes back to what it was if the server refuses it (the request says why).
   function onSave() {
-    if (statusTextProblem(message)) return
+    if (statusTextProblem(message) || customPassed) return
     const previous = currentStatus
     // The store keeps the end as the server sends it (ISO), and the request
     // carries it in epoch seconds: the store once kept the seconds, which no
@@ -235,7 +265,6 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
 
   const contents = (
       <div data-status-menu="" className="flex flex-col gap-3">
-        <h2 className="sr-only">Set a status</h2>
         <div className="hub-field flex h-10 items-center gap-1 rounded-[10px] pl-1.5 pr-3">
           <ReactionPicker
               onReactionSelect={(reaction) => {
@@ -249,7 +278,7 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
             </Button>
           </ReactionPicker>
           <input
-              autoFocus={!isMobile}
+              autoFocus={!sheet && finePointer}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="What’s your status?"
@@ -279,7 +308,12 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
             </div>
         ) : null}
 
-        <div className="-mx-1 flex max-h-[40vh] flex-col overflow-y-auto" role="group" aria-label="Suggestions">
+        {/* The suggestions flow in the menu, and in the sheet's one scroller on
+            a phone: a list of its own with a height cap (40vh) was a second
+            scroller there, squeezed its rows under 44px on a short phone, and
+            its -4px sides ran past the sheet, which then scrolled sideways
+            ("both scroll bars"). */}
+        <div className="flex flex-col" role="group" aria-label="Suggestions">
           {suggestedStatuses?.map((preset) => {
             const emojiFound = findEmojiMartEmojiByEmojiID(emojiData.data, preset.status_user_emoji_id)
             return (
@@ -287,7 +321,7 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                     type="button"
                     data-status-suggestion=""
                     key={`${preset.status_user_emoji_id}|${preset.status_user_emoji_desc}`}
-                    className="flex h-[34px] items-center gap-2.5 rounded-md px-2 text-left text-ui transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:outline-brand max-sm:h-12"
+                    className="flex h-[34px] items-center gap-2.5 rounded-md px-2 text-left text-ui transition-colors duration-100 hover:bg-hover focus-visible:outline-2 focus-visible:outline-brand pointer-coarse:h-12"
                     onClick={() => {
                       setEmoji(preset.status_user_emoji_id)
                       setMessage(preset.status_user_emoji_desc)
@@ -308,7 +342,10 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
 
         <div>
           <p id="status-clears-label" className="mb-1.5 text-meta font-medium text-ink-3">Clear after</p>
-          <div role="radiogroup" aria-labelledby="status-clears-label" className="flex flex-wrap gap-1.5">
+          {/* One row in the 360px popover; three by two in a sheet, a finger's
+              44px each, where one row can't fit and "Custom" wrapped onto a
+              line of its own (and did in the popover too, by 7px). */}
+          <div role="radiogroup" aria-labelledby="status-clears-label" className={sheet ? "grid grid-cols-3 gap-2" : "flex flex-nowrap gap-1"}>
             {CLEAR_CHIPS.map((c) => {
               const on = (expiresIn ?? '30m') === c.code
               return (
@@ -319,50 +356,73 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                       aria-checked={on}
                       data-clear-after={c.code}
                       onClick={() => {
-                        if (c.code === 'custom') {
-                          setCustomExpirationCalendarDialogOpen(true)
-                          return
-                        }
                         setExpiresIn(c.code)
-                        setExpiresAt(defaultState.expires_at)
+                        // Custom keeps a day and time still to come, or offers an hour on.
+                        setExpiresAt(c.code === 'custom' ? (at) => (at && at.getTime() > Date.now() ? at : anHourOn()) : defaultState.expires_at)
                       }}
                       className={cn(
-                          // 8px sides: the six fit the 360px popover on one line (hub.md
-                          // P3); at 10 "Custom" wrapped to a line of its own. A
-                          // finger's 44px on a phone, where the sheet has the room.
-                          "inline-flex h-[26px] items-center rounded-[13px] px-2 text-meta font-medium transition-colors max-sm:h-11 max-sm:rounded-[22px] max-sm:px-3",
+                          // 7px sides and 4px apart: the six fit the 360px popover on
+                          // one line (hub.md P3). In a sheet, a finger's 44px.
+                          "inline-flex items-center justify-center whitespace-nowrap text-meta font-medium transition-colors",
+                          sheet ? "h-11 rounded-[22px] px-3" : "h-[26px] rounded-[13px] px-[7px] pointer-coarse:h-9 pointer-coarse:rounded-[18px]",
                           on ? "bg-raised text-foreground shadow-sel" : "hub-chip-rest text-ink-2 hover:text-foreground",
                       )}
                   >
-                    {c.code === 'custom' && on && expiresAt ? expiryWords('custom', expiresAt) : c.label}
+                    {c.label}
                   </button>
               )
             })}
           </div>
+          {/* Custom: the day and the time, in the status itself. Each field
+              opens the shared picker, a popover by it on a computer and a
+              sheet of its own over this one on a phone, never a dialog laid
+              over the menu (it took the focus from the popover and closed it,
+              and on a phone it sat over the sheet with no name). */}
+          {custom ? (
+              <div ref={customRow} data-status-custom="" className="mt-2 grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-2">
+                <DateField
+                    aria-label="Clears on"
+                    value={expiresAt ? format(expiresAt, 'yyyy-MM-dd') : ''}
+                    min={format(new Date(), 'yyyy-MM-dd')}
+                    required
+                    aria-invalid={customPassed || undefined}
+                    aria-describedby={customPassed ? 'status-custom-passed' : undefined}
+                    onChange={(v) => setCustomPart('day', v)}
+                />
+                <TimeField
+                    aria-label="Clears at"
+                    value={expiresAt ? timeValueOf(expiresAt) : ''}
+                    after={expiresAt && expiresAt.toDateString() === new Date().toDateString() ? timeValueOf(new Date()) : undefined}
+                    aria-invalid={customPassed || undefined}
+                    aria-describedby={customPassed ? 'status-custom-passed' : undefined}
+                    onChange={(v) => setCustomPart('time', v)}
+                />
+              </div>
+          ) : null}
+          {customPassed ? (
+              <p id="status-custom-passed" className="mt-1.5 px-1 text-meta text-danger-ink">That time has passed. Pick a later one.</p>
+          ) : null}
         </div>
 
-        <div className="flex items-center gap-2 pt-1">
-          {hasStatus ? (
-              <Button variant="ghost" size="sm" onClick={clearStatus}>
-                Clear status
-              </Button>
-          ) : null}
-          <Button size="sm" className="ml-auto" onClick={onSave} disabled={!!textProblem}>
-            {hasStatus ? 'Save' : 'Set status'}
-          </Button>
-        </div>
-        {/* Inside the menu: a dialog beside it took the focus from the
-            popover on a computer, which closed it, the dialog with it, and
-            no custom time could be set. */}
-        <CustomExpirationCalendarDialog
-            dialogOpenState={customExpirationCalendarDialogOpen}
-            setOpenState={setCustomExpirationCalendarDialogOpen}
-            initialDate={expiresAt ?? addHours(new Date(), 1)}
-            onChange={(date) => {
-              setExpiresIn('custom')
-              setExpiresAt(date)
-            }}
-        />
+      </div>
+  )
+
+  // The actions, in the footer slot of either form, never in the scroller:
+  // pinned under the list, in view whatever the window's height and on the
+  // keyboard while the field has it. In a sheet a thumb's 44px across its
+  // width; in the menu a small pair at its foot. At the end of the list Set
+  // status sat under the screen's edge on an iPhone, and 34px under the fold
+  // of a 480px window (design/drawers-v3/ANALYSIS.md §1.2).
+  const actions = (
+      <div data-status-actions="" className="flex w-full items-center gap-2">
+        {hasStatus ? (
+            <Button variant={sheet ? "secondary" : "ghost"} size={sheet ? "lg" : "sm"} className={sheet ? "h-11 flex-1" : undefined} onClick={clearStatus}>
+              Clear status
+            </Button>
+        ) : null}
+        <Button size={sheet ? "lg" : "sm"} className={sheet ? "h-11 flex-1" : "ml-auto"} onClick={onSave} disabled={!!textProblem || customPassed}>
+          {hasStatus ? 'Save' : 'Set status'}
+        </Button>
       </div>
   )
 
@@ -371,15 +431,23 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
 
   return (
       <>
-        {isMobile ? (
+        {sheet ? (
+            // The title is the sheet's pinned header and the actions its pinned
+            // footer; between them the body is the one thing that scrolls. Its
+            // space is the content's, inside the body: on the sheet itself
+            // (pb-6) it took the home-indicator strip's place, and at the
+            // body's very sides the field's halo was cut off. A custom end's
+            // day and time open as panels of this sheet (components/ui/drawer).
             <Drawer open={dialogOpenState} onOpenChange={onOpenChange}>
-              <DrawerContent className="px-4 pb-6">
-                <DrawerTitle className="py-3 text-heading font-semibold">Set a status</DrawerTitle>
-                {contents}
+              <DrawerContent header={<DrawerTitle className="text-title-3 text-ink">Set a status</DrawerTitle>} footer={actions}>
+                <div className="px-4 pb-2">{contents}</div>
               </DrawerContent>
             </Drawer>
         ) : (
-            // A popover, not a modal: setting a status is a two-second job.
+            // A popover, not a modal: setting a status is a two-second job. Its
+            // body scrolls on a window too short for it, at most the room the
+            // window leaves, and the actions stay at its foot
+            // (components/ui/overlay).
             <Popover open={dialogOpenState} onOpenChange={onOpenChange} modal={false}>
               <PopoverAnchor asChild>
                 <span aria-hidden data-status-anchor="" style={{ position: "fixed", left: box.left, top: box.top, width: box.width, height: box.height, pointerEvents: "none" }} />
@@ -393,7 +461,9 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                   aria-label="Set a status"
                   className="hub-pop w-[360px] rounded-2xl bg-pop p-3 shadow-e3"
               >
-                {contents}
+                <h2 className="sr-only">Set a status</h2>
+                <OverlayBody>{contents}</OverlayBody>
+                <OverlayFooter className="pt-3">{actions}</OverlayFooter>
               </PopoverContent>
             </Popover>
         )}

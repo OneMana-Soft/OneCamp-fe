@@ -261,3 +261,15 @@
 .table-sub-in {
   animation: table-sub-in var(--content-float-in-duration, 180ms) var(--ease-out) both;
 }
+
+/* A row's page (rows as pages): the doc's own editor inside the record, its
+   text in line with the fields above it, and no room left below it for a
+   page's length (the comments follow). The block handle keeps its margin. */
+.row-page .minimal-tiptap-editor.doc-editor .ProseMirror {
+  padding: 0 1.5rem 0.5rem;
+}
+/* The record is the page's measure: a doc's reading column, centred, set the
+   text in from the fields once the record opened as a page. */
+.row-page :is(.doc-measure, .doc-measure-full) {
+  max-width: none;
+}

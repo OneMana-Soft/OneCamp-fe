@@ -2,6 +2,7 @@ import {UserProfileDataInterface} from "@/types/user";
 import {TaskInfoInterface} from "@/types/task";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {TeamInfoInterface} from "@/types/team";
+import type {WorkAccess} from "@/lib/work/types";
 
 export interface ProjectInfoInterface {
     uid: string;
@@ -28,6 +29,7 @@ export interface ProjectInfoInterface {
     project_task_count: number;
     project_is_admin: boolean;
     project_is_member: boolean;
+    project_access?: WorkAccess;
     project_members: UserProfileDataInterface[];
     project_admins: UserProfileDataInterface[];
     project_created_by: UserProfileDataInterface;

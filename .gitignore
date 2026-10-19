@@ -52,3 +52,8 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 /e2e/.auth/
+
+# What `next dev` writes for AI coding agents (next.config's agentRules is off;
+# app/agentRules.test.ts). Only the root's: the skills' AGENTS.md are tracked.
+/AGENTS.md
+/CLAUDE.md

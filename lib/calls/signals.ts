@@ -71,3 +71,57 @@ export function readCaption(payload: Uint8Array, sender: SignalSender | undefine
   }
   return { ...line, participantIdentity: sender.identity, participantName: sender.name || sender.identity }
 }
+
+/*
+ * The call's own signals, between the people in it: one topic, each signal a
+ * kind and its payload, from the sender LiveKit names. What a packet says
+ * about who sent it counts for nothing (readSignal). The Call State package
+ * (#29, shared with chat B7) takes this layer over; until it lands a signal
+ * is UI only, and nothing is kept.
+ */
+export const CALL_SIGNAL_TOPIC = "oc.signal"
+
+export interface CallSignal<P = unknown> {
+  kind: string
+  payload: P
+  from: { identity: string; name: string }
+}
+
+/** A signal to send: its kind and payload, as the bytes LiveKit carries. Pure. */
+export function encodeSignal(kind: string, payload: unknown): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify({ kind, payload }))
+}
+
+/** A signal from a person in the call, on the call's own topic, or null. Pure. */
+export function readCallSignal(payload: Uint8Array, sender: SignalSender | undefined, received: string | undefined): CallSignal | null {
+  if (received !== CALL_SIGNAL_TOPIC || !sender) return null
+  const raw = readSignal<{ kind?: unknown; payload?: unknown }>(payload, sender, { topic: CALL_SIGNAL_TOPIC, from: "participant", received })
+  if (!raw || typeof raw.kind !== "string" || !raw.kind) return null
+  return { kind: raw.kind, payload: raw.payload ?? null, from: { identity: sender.identity, name: sender.name || sender.identity } }
+}
+
+/** What a call can react with, in the tray's order. */
+export const CALL_REACTIONS = ["👍", "❤️", "😂", "🎉", "👏", "😮"] as const
+export type CallReaction = (typeof CALL_REACTIONS)[number]
+
+/** Each reaction's name: its button's, and what the stage's live region says. */
+export const REACTION_NAMES: Record<CallReaction, string> = {
+  "👍": "Thumbs up",
+  "❤️": "Heart",
+  "😂": "Laughing",
+  "🎉": "Celebrate",
+  "👏": "Clapping",
+  "😮": "Surprised",
+}
+
+/**
+ * A reaction from a person in the call. Only an emoji the tray offers is
+ * read, so a packet never puts words or markup on everyone's stage. Pure.
+ */
+export function readReaction(payload: Uint8Array, sender: SignalSender | undefined, received: string | undefined): { emoji: CallReaction; identity: string; name: string } | null {
+  const s = readCallSignal(payload, sender, received)
+  if (!s || s.kind !== "reaction") return null
+  const emoji = (s.payload as { emoji?: unknown } | null)?.emoji
+  if (typeof emoji !== "string" || !(CALL_REACTIONS as readonly string[]).includes(emoji)) return null
+  return { emoji: emoji as CallReaction, ...s.from }
+}

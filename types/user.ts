@@ -7,6 +7,7 @@ import {ChatInfo} from "@/types/chat";
 import {RecordingInfoInterface} from "@/types/recording";
 import {DocSidebarInfo} from "@/types/doc";
 import {BoardSidebarInfo} from "@/types/board";
+import type {Role} from "@/lib/work/types";
 
 export interface UserProfileDataInterface {
     uid?: string;
@@ -17,6 +18,7 @@ export interface UserProfileDataInterface {
     user_full_name?: string;
     /** Their @handle; only on their own profile. */
     user_handle?: string;
+    user_project_role?: Role;
     user_tasks?: TaskInfoInterface[];
     user_tasks_todo?: TaskInfoInterface[];
     user_tasks_in_progress?: TaskInfoInterface[];
@@ -78,6 +80,7 @@ export const USER_STATUS_OFFLINE = "offline"
 
 export interface UserDMInterface {
     dm_grouping_id: string
+    dm_name?: string
     dm_chats?: ChatInfo[]
     dm_unread: number
     dm_participants: UserProfileDataInterface[]

@@ -14,6 +14,7 @@ import {
 import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {CreateTaskInterface, TaskInfoInterface} from "@/types/task"
+import { canEditTask } from "@/lib/work/access"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { PhoneListSkeleton } from "@/components/task/phoneListSkeleton"
 import { TaskListTask } from "@/components/task/taskListTask"
@@ -210,7 +211,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
             <TaskListTask
                 showAssignee={false}
                 taskInfo={taskInfo}
-                isAdmin={taskInfo.task_project.project_is_admin || false}
+                isAdmin={canEditTask(taskInfo)}
                 onToggleStatus={handleToggleStatusWithAnimation}
                 isAnimating={animatingSubtasks.has(taskInfo.task_uuid)}
             />

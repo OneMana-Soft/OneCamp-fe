@@ -176,11 +176,12 @@ describe("the More sheet's You section", () => {
     // The sheet unmounts when it closes, and the pause sheet lived inside it:
     // the row opened it and closed the sheet in one go, so on a phone
     // "Pause notifications…" did nothing at all.
-    it("hands over to the pause sheet, and closes only once that is done", () => {
+    it("hands over to the pause sheet, and closes only once that is done", async () => {
         const setOpen = vi.fn()
         render(<UserProfileDrawer drawerOpenState={true} setOpenState={setOpen} />)
         fireEvent.click(screen.getByRole("button", { name: "Pause notifications…" }))
-        expect(screen.getByTestId("pause-sheet")).toBeTruthy()
+        // The pause sheet loads with its first open (next/dynamic).
+        expect(await screen.findByTestId("pause-sheet")).toBeTruthy()
         expect(setOpen).not.toHaveBeenCalled()
         act(() => pauseSheet!.onOpenChange(false))
         expect(setOpen).toHaveBeenCalledWith(false)

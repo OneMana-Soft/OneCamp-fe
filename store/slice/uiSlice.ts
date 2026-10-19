@@ -37,7 +37,6 @@ interface RootUIState {
   // guests, notifications, settings and the danger zone.
   channelDetails: SingleUIState<{ channelUUID: string }>;
   channelCheckIns: SingleUIState;
-  editTeamMember: SingleUIState;
   editDmMember: SingleUIState;
   editProjectMember: SingleUIState;
   editTeamName: SingleUIState;
@@ -84,7 +83,6 @@ interface RootUIState {
   reactionPickerDrawer: SingleUIState;
   taskFilterDrawer: SingleUIState;
   projectTaskFilterDrawer: SingleUIState;
-  taskOptionsDrawer: SingleUIState;
   myTaskOptionsDrawer: SingleUIState;
   taskOptionDrawer: SingleUIState;
   teamOptionDrawer: SingleUIState;
@@ -106,11 +104,9 @@ interface RootUIState {
   channelFileUpload: SingleUIState;
   channelCommentFileUpload: SingleUIState;
   taskCommentFileUpload: SingleUIState;
-  docCommentFileUpload: SingleUIState;
   chatCommentFileUpload: SingleUIState;
   groupChatCommentFileUpload: SingleUIState;
   chatFileUpload: SingleUIState;
-  fwdMsgFileUpload: SingleUIState;
   groupChatFileUpload: SingleUIState;
 
   // Popovers
@@ -125,7 +121,6 @@ const initialState: RootUIState = {
   createDoc: { isOpen: false, data: null },
   channelDetails: { isOpen: false, data: { channelUUID: "" } },
   channelCheckIns: { isOpen: false, data: { channelUUID: "" } },
-  editTeamMember: { isOpen: false, data: { teamUUID: "" } },
   editDmMember: { isOpen: false, data: { grpId: "" } },
   editProjectMember: { isOpen: false, data: { projectUUID: "" } },
   editTeamName: { isOpen: false, data: { teamUUID: "" } },
@@ -173,7 +168,6 @@ const initialState: RootUIState = {
   reactionPickerDrawer: { isOpen: false, data: null },
   taskFilterDrawer: { isOpen: false, data: null },
   projectTaskFilterDrawer: { isOpen: false, data: { projectUUID: "" } },
-  taskOptionsDrawer: { isOpen: false, data: null },
   myTaskOptionsDrawer: { isOpen: false, data: null },
   taskOptionDrawer: { isOpen: false, data: { taskId: "" } },
   calendarOptionsDrawer: { isOpen: false, data: null },
@@ -194,11 +188,9 @@ const initialState: RootUIState = {
   channelFileUpload: { isOpen: false, data: null },
   channelCommentFileUpload: { isOpen: false, data: null },
   taskCommentFileUpload: { isOpen: false, data: null },
-  docCommentFileUpload: { isOpen: false, data: null },
   chatCommentFileUpload: { isOpen: false, data: null },
   groupChatCommentFileUpload: { isOpen: false, data: null },
   chatFileUpload: { isOpen: false, data: null },
-  fwdMsgFileUpload: { isOpen: false, data: null },
   groupChatFileUpload: { isOpen: false, data: null },
 
   // Popovers

@@ -3,9 +3,9 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react"
 import { Editor } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
 
-const hoisted = vi.hoisted(() => ({ doc: undefined as Record<string, unknown> | undefined, toasts: [] as { title?: string }[] }))
+const hoisted = vi.hoisted(() => ({ doc: undefined as Record<string, unknown> | undefined, toasts: [] as { title?: string }[], push: vi.fn() }))
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: hoisted.push }) }))
 vi.mock("./useDoc", () => ({ useDoc: () => hoisted.doc }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => ({ data: { data: { places: [{ resource_uuid: "g1" }] } } }),
@@ -14,7 +14,7 @@ vi.mock("@/hooks/useFetch", () => ({
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: { title?: string }) => hoisted.toasts.push(t) }))
 
 import PageGuard from "./PageGuard"
-import { factsOf, setFacts } from "./pageFacts"
+import { factsOf, navigate, setFacts } from "./pageFacts"
 import { SoftLock } from "./softLock"
 
 // The doc page's editor is made with the soft lock (chrome/register.ts); the
@@ -70,5 +70,16 @@ describe("the page guard (B6)", () => {
     expect(factsOf("g2")).toEqual({})
     expect(editor.state.plugins).toBe(plugins)
     expect(editor.isEditable).toBe(true)
+  })
+
+  // N32: More's Delete waits for its answer, then leaves the page. When the
+  // guard had gone in the meantime (its editor remade), the page was left by
+  // a full page load, and the Undo toast went with the page (2 runs in 12).
+  it("hands the router over for good: an action still running after the guard has gone leaves the page in the app", () => {
+    hoisted.doc = { doc_edit_access: 1 }
+    const view = render(<PageGuard docId="g3" editor={make("g3")} />)
+    view.unmount()
+    navigate("/app/doc")
+    expect(hoisted.push).toHaveBeenCalledWith("/app/doc")
   })
 })

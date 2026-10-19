@@ -25,6 +25,7 @@ import type { ImageUploadOptions } from '@/components/minimal-tiptap/extensions/
 import type { Message, Target } from '@/lib/conversation/types'
 import type { CalendarEvent } from '@/lib/calendar/types'
 import type { CalendarView } from '@/components/calendar/calendarApp'
+import type { WorkAccess, WorkTask } from '@/lib/work/types'
 
 /** The editors a block can ship in. The guest viewer's schema always equals the doc editor's (I4). */
 export type EditorKind = 'doc' | 'guest' | 'chat' | 'task'
@@ -540,3 +541,134 @@ export interface CalendarSlotProps {
 
 /** One package's piece of a calendar slot. */
 export type CalendarSlotContribution = SlotContribution<CalendarSlot, CalendarSlotProps>
+
+// --------------------------------------------------------------------- tables
+
+/**
+ * Tables' surfaces (tables programme, PROGRAM.md §5; A6 and A8 build them): the
+ * table's toolbar, a row's menu (the gutter's and the record's ⋯ are one list),
+ * a cell's menu, the record panel's header and the view switcher. The palette
+ * is shared.
+ */
+export type TableSurface =
+  | 'tableToolbar'
+  | 'tableRowMenu'
+  | 'tableCellMenu'
+  | 'tableRecordPanel'
+  | 'tableViewSwitcher'
+  | 'palette'
+
+/**
+ * The commands a table's bus carries: today each is one of the table page's
+ * own handlers (open a row's record, add a row; R adds one), which A6 moves
+ * onto the bus, with A2's undo and redo.
+ */
+export interface TableCommands {
+  /** Open a row's record. */
+  openRow: { id: string }
+  /** Add a row, after a row or at the end. */
+  addRow: { after?: string }
+  undo: Record<string, never>
+  redo: Record<string, never>
+}
+
+/** What a table action knows when it runs. */
+export interface TableActionContext {
+  tableId: string
+  /** The row it is on: none on the toolbar and the view switcher. */
+  rowId?: string
+  /** The field it is on: a cell's menu. */
+  fieldId?: string
+  /** The person may write the table's rows. */
+  canEdit: boolean
+  /** The person may change the table itself: fields, views, settings. */
+  canManage: boolean
+  bus: SurfaceCommandBus<TableCommands>
+  /** Whether the AI gate is open where it shows. */
+  gate?: { ai: boolean }
+}
+
+// ----------------------------------------------------------------------- work
+
+/**
+ * The projects programme's surfaces (PROGRAM.md §4.2 #90 and D-PJ-18; A6 builds
+ * them): a task's menu (its row's, its card's and the panel's ⋯ are one list),
+ * the selection's bar on lists and boards, a view's toolbar, the task panel's
+ * header, a project's header and its ⋯, the phone's action sheet. The palette
+ * is shared, and its commands act on the selection.
+ */
+export type WorkSurface =
+  | 'taskMenu'
+  | 'selectionBar'
+  | 'viewToolbar'
+  | 'taskPanelHeader'
+  | 'projectHeader'
+  | 'projectMore'
+  | 'workSheet'
+  | 'palette'
+
+/**
+ * The commands a work view's bus carries: today each is the view's own
+ * handler (the board's quick add, the list's selection, the panel's opening),
+ * which A6 moves onto the bus.
+ */
+export interface WorkCommands {
+  /** Open a task beside the view, or on a phone its page. */
+  openTask: { id: string }
+  /** Start a new task: in a column (a status), under a parent, or plain. */
+  newTask: { status?: string; parent?: string }
+  /** Select these tasks, adding to what is selected or not. */
+  select: { ids: string[]; add?: boolean }
+  /** Move the keyboard's place by this many rows. */
+  moveFocus: { by: number }
+}
+
+/** What a work action knows when it runs. */
+export interface WorkActionContext {
+  /** The tasks it acts on: the one it is on, or the selection. */
+  tasks: WorkTask[]
+  /** The project they are in, when one view shows one project. */
+  projectId?: string
+  /** What the person may do there, as the server said (A1). */
+  access?: WorkAccess
+  bus: SurfaceCommandBus<WorkCommands>
+  /** Whether the AI gate is open where it shows. */
+  gate?: { ai: boolean }
+}
+
+/** One table action, on the table surfaces it lists. */
+export type TableAction = SurfaceAction<TableActionContext, TableSurface>
+
+/** A table's slots, which Wave B fills without editing its hosts: the toolbar, the record panel and a row's menu. */
+export type TableSlot = 'toolbar' | 'recordPanel' | 'rowMenu'
+
+/** What a table slot's component is given. */
+export interface TableSlotProps {
+  tableId: string
+  /** The row shown, when there is one. */
+  rowId?: string
+}
+
+/** One package's piece of a table slot. */
+export type TableSlotContribution = SlotContribution<TableSlot, TableSlotProps>
+
+/** One work action, on the work surfaces it lists. */
+export type WorkAction = SurfaceAction<WorkActionContext, WorkSurface>
+
+/**
+ * The task panel's sections and a project's places, which packages fill
+ * without editing their hosts (D-PJ-18): the panel's properties, its sections
+ * below them, a project's header chips and its tabs.
+ */
+export type WorkSlot = 'taskProperties' | 'taskSections' | 'projectHeaderChips' | 'projectTabs'
+
+/** What a work slot's component is given. */
+export interface WorkSlotProps {
+  /** The task shown, in the panel's slots. */
+  task?: WorkTask
+  projectId?: string
+  access?: WorkAccess
+}
+
+/** One package's piece of a work slot. */
+export type WorkSlotContribution = SlotContribution<WorkSlot, WorkSlotProps>

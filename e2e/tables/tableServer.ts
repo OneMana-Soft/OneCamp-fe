@@ -46,6 +46,10 @@ export class TableServer {
   readonly fields: Field[]
   rows: Row[]
   readonly writes: { kind: "create" | "patch" | "update" | "table"; rowId?: string; body: Record<string, unknown> }[] = []
+  /** Rows' pages (rows as pages), by row: none until one is made, or a test seeds one. */
+  readonly pages = new Map<string, { doc: string; body: string }>()
+  /** The rows whose pages were made here. */
+  readonly pagesMade: string[] = []
 
   constructor(fields: Field[], rows: Values[]) {
     this.fields = fields
@@ -114,6 +118,22 @@ export class TableServer {
       const r: Row = { id: `00000000-0000-4000-9000-${String(this.rows.length).padStart(12, "0")}`, position: typeof body.position === "number" ? body.position : at, values: (body.values as Values) ?? {}, updated_at: new Date().toISOString() }
       this.rows.push(r)
       return json(201, { data: this.rowJson(r) })
+    }
+    if (parts.length === 5 && parts[2] === "rows" && parts[4] === "page") {
+      // A row's page (GET reads it with the row, POST makes it once).
+      const r = this.rows.find((x) => x.id === parts[3])
+      if (!r) return json(404, { msg: "row not found" })
+      let page = this.pages.get(r.id)
+      if (req.method() === "POST") {
+        const made = !page
+        if (!page) {
+          page = { doc: `d0c00000-0000-4000-8000-${String(this.pages.size + 1).padStart(12, "0")}`, body: "" }
+          this.pages.set(r.id, page)
+          this.pagesMade.push(r.id)
+        }
+        return json(200, { data: { doc_uuid: page.doc, made } })
+      }
+      return json(200, { data: page ? { doc_uuid: page.doc, body: page.body, level: "edit" } : { level: "edit" } })
     }
     if (parts.length === 5 && parts[2] === "rows" && req.method() === "POST") {
       const r = this.rows.find((x) => x.id === parts[3])

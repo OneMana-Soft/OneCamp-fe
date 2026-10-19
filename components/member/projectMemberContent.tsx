@@ -8,6 +8,13 @@ import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {ProjectInfoRawInterface, ProjectMemberAddOrRemoveInterface} from "@/types/project";
 import AddProjectMemberCombobox from "@/components/combobox/addProjectMemberCombobox";
+import {useState} from "react";
+import {ProjectRolePicker} from "@/components/member/ProjectRolePicker";
+import {useToast} from "@/hooks/use-toast";
+import {apiErrorMessage} from "@/lib/utils/apiError";
+import {accessOf} from "@/lib/work/access";
+import type {Role} from "@/lib/work/types";
+import {setMemberRole} from "@/services/workAccessService";
 
 
 interface memberContentProp {
@@ -20,9 +27,36 @@ export const ProjectMemberContent: React.FC<memberContentProp> = ({projectId}) =
 
     const dispatch = useDispatch()
 
-    // Project and team admins may add people (the server's rule); only they
-    // ask who could be added, so nobody else meets a refusal for looking.
-    const canAdd = Boolean(projectInfo.data?.data.project_is_admin || projectInfo.data?.data.project_team?.team_is_admin)
+    // Project and team admins manage its people (the server's rule, in
+    // project_access); only they ask who could be added, so nobody else meets
+    // a refusal for looking.
+    const access = accessOf(projectInfo.data?.data)
+    const canAdd = access.manage_people
+    const {toast} = useToast()
+    const [changing, setChanging] = useState("")
+
+    // A role shows at once and goes back, with the server's words, if refused.
+    const changeRole = async (id: string, role: Role) => {
+        if (!projectInfo.data) return
+        const before = projectInfo.data
+        setChanging(id)
+        void projectInfo.mutate({
+            ...before,
+            data: {
+                ...before.data,
+                project_members: before.data.project_members?.map((m) =>
+                    m.user_uuid === id ? {...m, user_project_role: role, user_is_admin: role === "admin"} : m),
+            },
+        }, false)
+        try {
+            await setMemberRole(projectId, id, role)
+        } catch (err) {
+            void projectInfo.mutate(before, false)
+            toast({title: apiErrorMessage(err, "Couldn't change their role."), variant: "destructive"})
+        } finally {
+            setChanging("")
+        }
+    }
     const usersList = useFetch<UserListInterfaceResp>(projectId && canAdd ? GetEndpointUrl.UserListNotBelongToProjectButBelongsToTeam + '/' + projectId : '')
 
     const handleMakeAdmin = (id: string) => {
@@ -183,9 +217,13 @@ export const ProjectMemberContent: React.FC<memberContentProp> = ({projectId}) =
     return (
         <div className='h-full flex flex-col gap-y-6'>
             {canAdd && <AddProjectMemberCombobox handleAddMember={handleAddMember} projectId={projectId}/>}
-            <MembersList isAdmin={projectInfo.data?.data.project_is_admin || projectInfo.data?.data.project_team.team_is_admin || false} usersList={projectInfo.data?.data.project_members || []}
+            <MembersList isAdmin={access.manage_people} usersList={projectInfo.data?.data.project_members || []}
                         handleMakeAdmin={handleMakeAdmin} handleRemoveAdmin={handleRemoveAdmin}
-                        handleRemoveMember={handleRemoveMember} blockExitForUUID={projectInfo.data?.data.project_created_by.user_uuid}/>
+                        handleRemoveMember={handleRemoveMember} blockExitForUUID={projectInfo.data?.data.project_created_by?.user_uuid}
+                        renderRole={(user, isCreator) => (
+                            <ProjectRolePicker member={user} canChange={access.manage_people} isCreator={isCreator}
+                                busy={changing === user.user_uuid} onChoose={(role) => void changeRole(user.user_uuid, role)}/>
+                        )}/>
 
         </div>
     )

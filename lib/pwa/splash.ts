@@ -6,11 +6,13 @@
  * dark app. Each image must match the device's screen exactly, so there is
  * one per current iPhone size, in light and dark.
  *
- * They are the frame's colour and nothing else (--frame: #F3F4F6, #0B0C0E):
- * the app's own splash (shell L1) paints only the frame for its first 150ms
- * and then draws the ring, so a launch image with the ring on it would show
- * the ring, lose it, and draw it again. This way the launch runs straight into
- * the splash with no seam.
+ * They are the ground the app starts on and nothing else (lib/pwa/grounds:
+ * an iPhone's is the sheet, #FFFFFF and #131416, as the phone's app is the
+ * sheet edge to edge): the splash's glow and scene arrive on that ground from
+ * its first paint, so a launch image with the ring on it would show the ring,
+ * lose it, and assemble it again. Flat, the launch runs straight into the
+ * splash with no seam. scripts/generate-launch-screens.mjs writes them from
+ * the tokens; lib/pwa/grounds.test.ts holds them to it.
  */
 export interface SplashDevice {
   /** CSS px, portrait. */

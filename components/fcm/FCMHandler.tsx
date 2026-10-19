@@ -12,8 +12,10 @@ function initialsOf(title: string): string {
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("")
 }
-import { getFCMToken, isFirebaseConfigured, messaging } from "@/lib/firebase"
-import { onMessage } from "firebase/messaging"
+// The Firebase SDK (lib/firebase) is fetched by the effects below, never with
+// the first screen: the config check needs none of it.
+import { isFirebaseConfigured } from "@/lib/push/firebaseConfig"
+import { whenIdle } from "@/lib/whenIdle"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { toast } from "@/hooks/use-toast"
@@ -84,6 +86,8 @@ export function FCMHandler() {
       inFlight = true
 
       try {
+        const { getFCMToken } = await import("@/lib/firebase")
+        if (isCancelled) return
         const token = await getFCMToken()
         if (!token) {
           console.warn("[FCM] Token was null: permission denied or config issue")
@@ -133,15 +137,22 @@ export function FCMHandler() {
     }
   }, [makeRequest])
 
-  // Effect 3: Foreground message listener (runs once when messaging is available)
+  // Effect 3: Foreground message listener, subscribed once the page is idle
+  // and the SDK has come (it is not on the first screen; a push in the first
+  // moments of a visit still shows in the Inbox).
   useEffect(() => {
-    if (!messaging || isDesktopApp()) return
+    if (!isFirebaseConfigured || isDesktopApp()) return
 
-    const unsubscribe = onMessage(messaging, (payload: any) => {
+    let cancelled = false
+    let unsubscribe: (() => void) | undefined
+    const onPush = (payload: any) => {
       // Do Not Disturb: suppress the in-app notification toast entirely while
       // a DND window is active (set via /dnd). The push itself is still
       // recorded server-side; we just don't interrupt the user.
       if (isDndActive()) return
+      // A calendar reminder shows as its own toast, with Join or Snooze,
+      // from the live notice the server raises beside the push (calendar A5).
+      if (payload.data?.type === "calendar" && String(payload.data?.tag ?? "").startsWith("reminder:")) return
 
       const title = payload.notification?.title || payload.data?.title || "New Notification"
       const body = payload.notification?.body || payload.data?.body || ""
@@ -191,10 +202,19 @@ export function FCMHandler() {
           </ToastAction>
         ) : undefined,
       })
-    });
+    }
+    const cancelIdle = whenIdle(() => {
+      void import("@/lib/firebase")
+        .then(({ onForegroundMessage }) => {
+          if (!cancelled) unsubscribe = onForegroundMessage(onPush)
+        })
+        .catch((e) => console.warn("[FCM] Web push's SDK never arrived; previews stay off this visit:", e))
+    }, 2000)
 
     return () => {
-      unsubscribe()
+      cancelled = true
+      cancelIdle()
+      unsubscribe?.()
     }
   }, [router, store])
 

@@ -6,13 +6,16 @@ import { TableGlyph } from "./TableGlyph"
 afterEach(cleanup)
 
 describe("a table's icon", () => {
-  it("is the emoji its owner chose, on the sunken ground (the emoji brings its own colour)", () => {
+  // A list of tables read as two sets, grey emoji tiles beside hue tiles
+  // (the rivals review, 16 Oct 2026): every tile is the table's hue.
+  it("is the emoji its owner chose, on the table's own hue tile", () => {
     const { container } = render(<TableGlyph icon="💰" id="t1" />)
     expect(container.textContent).toBe("💰")
     const tile = container.querySelector("[data-table-glyph]") as HTMLElement
     expect(tile.getAttribute("data-table-glyph")).toBe("emoji")
-    expect(tile.className).toContain("bg-sunken")
-    expect(tile.hasAttribute("data-hue")).toBe(false)
+    expect(tile.getAttribute("data-hue")).toBe(hueFor("t1"))
+    expect(tile.className).toContain("bg-hue-tint")
+    expect(tile.className).not.toContain("bg-sunken")
   })
   it("is otherwise a tint tile in the table's own hue, the same on every screen", () => {
     const id = "8d78abe2-ad66-493c-9fe0-85a27b66a8bc"

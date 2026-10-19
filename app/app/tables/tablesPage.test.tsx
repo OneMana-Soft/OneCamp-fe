@@ -18,6 +18,7 @@ const { updateTable } = vi.hoisted(() => ({ updateTable: vi.fn() }))
 vi.mock("@/services/tableService", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/tableService")>()), updateTable }))
 
 import TablesPage from "./page"
+import { onEscape } from "@/lib/keys/onEscape"
 
 afterEach(() => {
   cleanup()
@@ -77,6 +78,36 @@ describe("renaming a table from the list", () => {
     fireEvent.change(input, { target: { value: "Launch budget 2027" } })
     fireEvent.keyDown(input, { key: "Enter" })
     await waitFor(() => expect(updateTable).toHaveBeenCalledWith(BUDGET.id, { name: "Launch budget 2027" }))
+  })
+})
+
+// One press, one thing (lib/keys/escape): Esc in a rename puts the name back,
+// and the press is the rename's. It went on to the page's own Esc: a toast
+// showing closed with it, and a list's selection let go.
+describe("Esc in a rename", () => {
+  it("puts the name back, and nothing else on the page hears it", async () => {
+    updateTable.mockClear()
+    const toast = vi.fn(() => true)
+    const page = vi.fn(() => true)
+    const stops = [onEscape("toast", toast), onEscape("page", page)]
+    try {
+      render(<TablesPage />)
+      const more = screen.getByRole("button", { name: "More for Launch budget" })
+      fireEvent.pointerDown(more, { button: 0, ctrlKey: false, pointerType: "mouse" })
+      fireEvent.keyDown(more, { key: "Enter" })
+      const rename = screen.getByRole("menuitem", { name: "Rename" })
+      fireEvent.pointerDown(rename)
+      fireEvent.click(rename)
+      const input = await screen.findByRole("textbox", { name: "Table name" })
+      fireEvent.change(input, { target: { value: "Launch budget 2027" } })
+      fireEvent.keyDown(input, { key: "Escape" })
+      expect(screen.queryByRole("textbox", { name: "Table name" })).toBeNull()
+      expect(updateTable).not.toHaveBeenCalled()
+      expect(toast).not.toHaveBeenCalled()
+      expect(page).not.toHaveBeenCalled()
+    } finally {
+      stops.forEach((stop) => stop())
+    }
   })
 })
 

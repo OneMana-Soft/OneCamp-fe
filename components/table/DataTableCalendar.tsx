@@ -14,6 +14,8 @@ import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { TableViewState, TABLE_VIEW_BODY } from "@/components/table/TableViewFrame"
 import { cardTitle } from "@/lib/tables/formula"
+import { fieldOrder } from "@/lib/tables/fieldOrder"
+import { monthOf } from "@/lib/tables/month"
 import {
   TableField,
   TableRow,
@@ -46,7 +48,7 @@ interface DataTableCalendarProps {
 }
 
 /** The first of the month a date is in. */
-export const monthOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1)
+export { monthOf }
 
 /** Rows a day shows; the rest are behind "+N more", as the Calendar's month does. */
 export const DAY_FIRST = 3
@@ -103,10 +105,7 @@ export function DataTableCalendar({
   const [ownCursor, setCursor] = React.useState(() => monthOf(new Date()))
   const cursor = month ?? ownCursor
 
-  const sortedFields = React.useMemo(
-    () => [...fields].sort((a, b) => a.position - b.position),
-    [fields],
-  )
+  const sortedFields = React.useMemo(() => fieldOrder(fields), [fields])
 
   const dateField = React.useMemo(() => {
     if (dateFieldId) {
@@ -116,10 +115,8 @@ export function DataTableCalendar({
     return fields.find((f) => f.type === "date")
   }, [fields, dateFieldId])
 
-  const titleField = React.useMemo(
-    () => sortedFields.find((f) => f.type === "text") || sortedFields[0],
-    [sortedFields],
-  )
+  // An event's title is the row's name: its primary field (fieldOrder leads with it).
+  const titleField = sortedFields[0]
 
   const rowsByDay = React.useMemo(() => {
     const map: Record<string, TableRow[]> = {}

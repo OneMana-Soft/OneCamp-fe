@@ -7,7 +7,7 @@
 
 import * as React from "react"
 import { AlertTriangle, ChevronRight } from "@/lib/icons"
-import { FIELD_GLYPH } from "@/components/table/gridCells"
+import { fieldKind } from "@/lib/fieldTypes/registry"
 import { FORMULA_FUNCTIONS, fieldRef, insertAt, showFormulaValue, type FormulaShown } from "@/lib/tables/formula"
 import { previewFormula, type FormulaPreview, type FormulaResult, type TableField } from "@/services/tableService"
 
@@ -167,7 +167,7 @@ export function FormulaEditor({
           <p className="text-meta font-medium text-ink-3">Fields</p>
           <div className="flex flex-wrap gap-1">
             {others.map((f) => {
-              const Glyph = FIELD_GLYPH[f.type] ?? FIELD_GLYPH.text
+              const Glyph = fieldKind(f.type).glyph
               return (
                 <button
                   key={f.id}

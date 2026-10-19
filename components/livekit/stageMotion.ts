@@ -7,7 +7,7 @@
  *
  * Tiles are matched by data-flip-key (a participant's identity and source).
  */
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 
 export type TileRects = Map<string, DOMRect>
 

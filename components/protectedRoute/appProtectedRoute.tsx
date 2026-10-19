@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { appBootShowing, endAppBoot } from "@/lib/appBoot";
+import { APP_BOOT_RETRY_ATTR, appBootState, endAppBoot, hasAppBoot, holdAppBoot, leaveAppBoot, rememberMember, slowAppBoot } from "@/lib/appBoot";
 
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
@@ -13,11 +13,9 @@ import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus}
 import { UserProfileResponseSchema } from "@/lib/validations/schemas";
 import axios from "axios";
 import { ErrorState } from "@/components/ui/error-state";
-import { Button } from "@/components/ui/button";
 import { SpotCrash } from "@/components/error/shellSpots";
-import { SplashFrame, SplashRing, serverHost } from "@/components/protectedRoute/Splash";
+import { OwnSplash, SplashFrame } from "@/components/protectedRoute/Splash";
 import { WorkspaceName } from "@/hooks/useWorkspaceName";
-import { SkeletonShell } from "@/components/protectedRoute/SkeletonShell";
 import { endSession, onSessionEndedElsewhere } from "@/lib/sessionEnd";
 // The store registers its own reset for endSession; importing it makes sure
 // that registration has run.
@@ -45,17 +43,35 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
     // Guard against double-firing the redirect under StrictMode and against
     // the effect re-running while we wait on the BE logout.
     const handledRef = useRef(false);
-    // Whether the splash (or the skeleton shell) was on screen, so the shell
-    // fades in after it and only after it.
-    const splashShown = useRef(false);
-    if (!userProfile.data?.data) splashShown.current = true;
-    const [reopening] = useState(openedBefore);
-    // The first paint's static splash (lib/appBoot) is on screen: this one
-    // takes over from it as it is, ring drawn, and it goes as this draws.
-    const [continued] = useState(appBootShowing);
-    useLayoutEffect(() => endAppBoot(), []);
+    const ready = !!userProfile.data?.data;
+    const failed = !!userProfile.isError && !sessionGone(userProfile.isError);
+    // The splash (lib/appBoot): the layout's, on screen since the first paint
+    // or put up now if the app was opened from the sign-in page, held while
+    // the profile is asked for, and faded out over the app once it is there,
+    // wherever its motion has got to. It used to be taken over by a copy that
+    // drew the ring again (or snapped it shut), swapped for a skeleton of
+    // another shell on a reload, and followed by the shell fading up from the
+    // page's own colour. Where the layout has none, this draws the same scene.
+    const [own] = useState(() => !hasAppBoot());
+    useLayoutEffect(() => {
+        if (!own && !ready) holdAppBoot();
+        // If the app goes before it is ready (Back, during the wait, to a page
+        // outside it that came in without a reload), the splash it holds goes
+        // with it: no other page would take it down.
+        return () => {
+            const state = appBootState();
+            if (!own && (state === "held" || state === "slow")) endAppBoot();
+        };
+        // Once, as the app first draws.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    // The app is drawn whole under it (no fade of its own: the page's colour
+    // showed through that), or an error takes its place on the same ground.
+    useLayoutEffect(() => {
+        if (ready || failed) leaveAppBoot();
+    }, [ready, failed]);
     const [slow, setSlow] = useState(false);
-    const waiting = !userProfile.data?.data && !userProfile.isError;
+    const waiting = !ready && !userProfile.isError;
     useEffect(() => {
         if (!waiting) {
             setSlow(false);
@@ -64,6 +80,19 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
         const t = setTimeout(() => setSlow(true), SPLASH_SLOW_MS);
         return () => clearTimeout(t);
     }, [waiting]);
+    useEffect(() => {
+        if (!own) slowAppBoot(slow);
+    }, [own, slow]);
+    // The layout's splash says Try again while it is slow; this answers it.
+    const retry = userProfile.mutate;
+    useEffect(() => {
+        if (own) return;
+        const onClick = (event: MouseEvent) => {
+            if ((event.target as Element | null)?.closest?.(`[${APP_BOOT_RETRY_ATTR}]`)) void retry();
+        };
+        document.addEventListener("click", onClick);
+        return () => document.removeEventListener("click", onClick);
+    }, [own, retry]);
 
     // Signed out in another tab: that tab has told this one, which has let go
     // of the member's things (lib/sessionEnd). A full load of the login page
@@ -140,11 +169,9 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
         }
 
         if(userProfile.data?.data) {
-            try {
-                sessionStorage.setItem(OPENED_KEY, "1");
-            } catch {
-                /* private mode: the splash shows each time, which is fine */
-            }
+            // The start page opens on the splash in this browser from now on
+            // (lib/appBoot): the installed app and the desktop app open there.
+            rememberMember();
             // The reducer ignores empty/undefined emoji-status payloads
             // (profile-fetch responses omit the field when no active
             // status exists, and we don't want that absence to clobber
@@ -158,61 +185,27 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
 
     }, [userProfile.isError, userProfile.isLoading, userProfile.isValidating, userProfile.data, userProfile.mutate, router, dispatch]);
 
-    if (userProfile.data?.data) {
-        // After the splash, the shell fades up once (160ms, opacity). Straight
-        // from the cache it simply appears.
-        return splashShown.current ? <div className="shell-enter">{children}</div> : children;
-    }
+    if (ready) return children;
 
     // The profile couldn't be read, but the session is fine: say so, and try
     // again (SWR also retries on its own). On the splash's frame, so the
-    // moment does not jump to a white page.
-    if (userProfile.isError && !sessionGone(userProfile.isError)) {
+    // moment does not jump to a white page. One spot, the crash spot: the
+    // error state's own is hidden (it drew a second one under it once its
+    // icon became an illustration).
+    if (failed) {
         return (
             <SplashFrame data-splash-error="">
                 <div className="flex flex-col items-center">
                     <SpotCrash />
-                    <ErrorState subject="your workspace" onRetry={() => void userProfile.mutate()} retrying={userProfile.isValidating} className="py-4 [&_[data-empty-icon]]:hidden" />
+                    <ErrorState subject="your workspace" onRetry={() => void userProfile.mutate()} retrying={userProfile.isValidating} className="py-4 [&_[data-empty-illustration]]:hidden" />
                 </div>
             </SplashFrame>
         );
     }
 
-    return <AppSplash slow={slow} onRetry={() => void userProfile.mutate()} reopening={reopening} continued={continued} />;
-}
-
-/** Whether this tab has opened the app before: then a reload shows the skeleton shell, not the splash. */
-const OPENED_KEY = "onecamp:opened";
-function openedBefore(): boolean {
-    try {
-        return sessionStorage.getItem(OPENED_KEY) === "1";
-    } catch {
-        return false;
-    }
+    // Waiting: the layout's splash is on screen over this, or this one's own.
+    return own ? <OwnSplash name={<WorkspaceName />} slow={slow} onRetry={() => void userProfile.mutate()} /> : null;
 }
 
 /** How long the splash waits before it says it is still connecting. */
 export const SPLASH_SLOW_MS = 8000;
-
-/**
- * The app opening (design v3, shell §L1). Never a centred spinner: the frame,
- * then from 150ms the glow and the ring drawn once with "Opening <workspace>";
- * past 8s it says it is still connecting, with a way to try again. A tab that
- * has opened the app before shows the skeleton shell instead.
- */
-export function AppSplash({ slow, onRetry, reopening, continued = false }: { slow: boolean; onRetry: () => void; reopening: boolean; continued?: boolean }) {
-    if (reopening && !slow) return <SkeletonShell />;
-    return (
-        <SplashFrame role="status" aria-live="polite" data-continued={continued ? "" : undefined}>
-            <SplashRing draw={!continued} />
-            {slow ? (
-                <div className="flex flex-col items-center gap-2">
-                    <p className="text-xs text-ink-3">Still connecting to {serverHost()}…</p>
-                    <Button variant="ghost" size="sm" onClick={onRetry}>Try again</Button>
-                </div>
-            ) : (
-                <p className="splash-line text-xs text-ink-3">Opening <WorkspaceName /></p>
-            )}
-        </SplashFrame>
-    );
-}

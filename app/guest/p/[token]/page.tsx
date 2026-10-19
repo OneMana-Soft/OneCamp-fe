@@ -38,6 +38,7 @@ import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import { GuestUpdates } from "@/components/guest/GuestUpdates"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
 import { useStoredState } from "@/hooks/useStoredState"
+import { onEscape } from "@/lib/keys/onEscape"
 import type { TimelineTask } from "@/lib/timeline"
 import { Textarea } from "@/components/ui/textarea"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
@@ -282,19 +283,15 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
 
   // The first Escape leaves a field (a half-written comment stays in it), the
   // next closes the panel, as Escape does across the app.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return
-      const target = e.target as HTMLElement | null
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        target.blur()
-        return
-      }
-      onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
+  useEffect(
+    () =>
+      onEscape("panel", (e) => {
+        const target = e.target as HTMLElement | null
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) target.blur()
+        else onClose()
+      }),
+    [onClose],
+  )
 
   return (
     <aside aria-label="Task" className="flex w-full min-w-0 flex-col border-l md:w-[28rem]">

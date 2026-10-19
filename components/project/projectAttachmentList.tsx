@@ -38,13 +38,13 @@ export function ProjectAttachmentList({ projectId, searchQuery }: ProjectAttachm
             ) : noMatch ? (
                 <ProjectFilesNoMatch query={query} className="min-h-[40vh]" />
             ) : empty ? (
-                <ProjectFilesEmpty onAdd={p.isAdmin ? pickFiles : undefined} className="min-h-[40vh]" />
+                <ProjectFilesEmpty onAdd={p.canAdd ? pickFiles : undefined} className="min-h-[40vh]" />
             ) : (
                 <div className="grid">
                     {/* Upload, where the list starts: a phone had no way to add a
                         file once the project had one (the empty state's button
                         was the only one). */}
-                    {p.isAdmin ? (
+                    {p.canAdd ? (
                         <div className="flex items-center justify-between pb-1" data-files-phone-bar="">
                             <span className="text-meta text-ink-3 tabular-nums">
                                 {shown.length === 1 ? "1 file" : `${shown.length} files`}
@@ -73,7 +73,7 @@ export function ProjectAttachmentList({ projectId, searchQuery }: ProjectAttachm
                     ))}
                 </div>
             )}
-            {p.isAdmin && (
+            {p.canAdd && (
                 <input
                     ref={fileInputRef}
                     type="file"

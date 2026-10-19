@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 const patchRow = vi.fn()
@@ -28,6 +28,12 @@ vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 import { DataTableGrid, groupedNumber } from "@/components/table/DataTableGrid"
 import { optionColorClass } from "@/components/table/optionChip"
 import type { TableField, TableRow } from "@/services/tableService"
+import { loadColumnMenus } from "@/components/table/ColumnMenu"
+import { cellPickers } from "@/components/table/cellPickerPart"
+
+// The column menus, the cell pickers are chunks of their own
+// (lazyView): loaded once, before these tests, they draw at once.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm()]))
 
 const fields: TableField[] = [
   { id: "item", table_id: "t", name: "Item", type: "text", config: "{}", position: 0 },
@@ -239,13 +245,23 @@ describe("a grid's cells at rest", () => {
     expect(groupedNumber("12 boxes")).toBeNull()
   })
 
-  it("draws a chosen option as a neutral chip with a dot in its hue, the way a guest sees it", () => {
-    render(<DataTableGrid tableId="t" fields={typed} rows={one({ kind: "Events", tags: ["Urgent"] })} canManage onChange={() => {}} />)
+  // A table's first select is tinted until it says otherwise (optionChip
+  // tintedFields): switched off, it is the neutral chip and dot.
+  it("draws a chosen option as a neutral chip with a dot in its hue in a column switched off, the way a guest sees it", () => {
+    const off = typed.map((f) => (f.id === "kind" ? { ...f, config: JSON.stringify({ ...JSON.parse(f.config), tinted: false }) } : f))
+    render(<DataTableGrid tableId="t" fields={off} rows={one({ kind: "Events", tags: ["Urgent"] })} canManage onChange={() => {}} />)
     const chips = [...document.querySelectorAll("[data-option-chip]")] as HTMLElement[]
     const events = chips.find((c) => c.textContent === "Events")!
     for (const cls of optionColorClass("berry").split(" ")) expect(events.className).toContain(cls)
     expect(events.className).toContain("bg-hover")
     expect(events.querySelector("[data-chip-dot]")?.getAttribute("class")).toContain("hue-berry")
+  })
+
+  it("tints a table's first select by default, the column a board groups by, and not a multi-select", () => {
+    render(<DataTableGrid tableId="t" fields={typed} rows={one({ kind: "Events", tags: ["Urgent"] })} canManage onChange={() => {}} />)
+    const chips = [...document.querySelectorAll("[data-option-chip]")] as HTMLElement[]
+    for (const cls of optionColorClass("berry", true).split(" ")) expect(chips.find((c) => c.textContent === "Events")!.className).toContain(cls)
+    expect(chips.find((c) => c.textContent === "Urgent")!.className).not.toContain("bg-hue-tint")
   })
 
   it("tints a column's chips when the column opts in", () => {
@@ -451,5 +467,34 @@ describe("a text cell's lines", () => {
     expect(site.tagName).toBe("TEXTAREA")
     expect(site.value).toBe("https://a.example\nhttps://b.example")
     expect(site.parentElement?.textContent).toContain("Edit in full")
+  })
+})
+
+// A row people are talking about carries a mark, and its open button says how
+// many comments its open threads hold (tables A8).
+describe("a row with comments in the grid", () => {
+  it("is marked, and its open button counts its comments", () => {
+    const rows = rowsOf(2)
+    rows[1] = { ...rows[1], comments: 3 }
+    render(<DataTableGrid tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} onOpenRow={() => {}} />)
+    expect(document.querySelectorAll("[data-row-comments]")).toHaveLength(1)
+    expect(document.querySelector('[data-row-comments="3"]')?.getAttribute("title")).toBe("3 comments")
+    expect(screen.getByRole("button", { name: "Open row 2, 3 comments" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Open row 1" })).toBeTruthy()
+  })
+})
+
+// A row with a page of its own carries a page mark, and its open button says
+// so (tables T2, rows as pages).
+describe("a row with a page in the grid", () => {
+  it("is marked, and its open button says it has a page", () => {
+    const rows = rowsOf(3)
+    rows[0] = { ...rows[0], page: "d1" }
+    rows[2] = { ...rows[2], page: "d2", comments: 1 }
+    render(<DataTableGrid tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} onOpenRow={() => {}} />)
+    expect(document.querySelectorAll("[data-row-page]")).toHaveLength(2)
+    expect(screen.getByRole("button", { name: "Open row 1, which has a page" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Open row 2" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Open row 3, 1 comment, which has a page" })).toBeTruthy()
   })
 })

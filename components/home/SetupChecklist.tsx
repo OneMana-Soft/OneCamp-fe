@@ -34,7 +34,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Circle, X, CheckCircle2, Users, Sparkles, Mail, Globe, Shield, Download } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
-import { celebrate } from "@/lib/celebrate"
+import { celebrate } from "@/lib/celebrateSoon"
 import { cn } from "@/lib/utils/helpers/cn"
 import {
     getOnboardingStatus,

@@ -1,13 +1,20 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import type { TaskInfoInterface } from "@/types/task"
 
 const celebrateTask = vi.fn((_el: Element) => 8)
 vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrateTask(el), prefersReducedMotion: () => false }))
+vi.mock("@/lib/reducedMotion", () => ({ prefersReducedMotion: () => false }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import { TaskListTask } from "@/components/task/taskListTask"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The check's sparks are a chunk the page fetches when idle: here it is in.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 afterEach(() => {
   cleanup()

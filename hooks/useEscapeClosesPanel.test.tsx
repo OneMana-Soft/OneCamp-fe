@@ -19,7 +19,8 @@ vi.mock("@/hooks/useBotKinds", () => ({ useBotKind: () => undefined }))
 vi.mock("@/components/ui/botTag", () => ({ BotTag: () => null }))
 
 const { mentionSuggestionOptions } = await import("@/components/minimal-tiptap/extensions/mention-list/mentionList")
-const { useEscapeClosesPanel, escapeBelongsToLayer, editableTargetOf } = await import("./useEscapeClosesPanel")
+const { useEscapeClosesPanel, editableTargetOf } = await import("./useEscapeClosesPanel")
+const { escapeBelongsToLayer } = await import("@/lib/keys/escape")
 const { default: ResizeableTextInput } = await import("@/components/resizeableTextInput/resizeableTextInput")
 const { useDebounce } = await import("@/hooks/useDebounce")
 

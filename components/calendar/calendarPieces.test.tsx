@@ -160,3 +160,49 @@ describe("the agenda (C17)", () => {
     expect(rows[1]).toMatch(/^Until .*9:30.*Launch day/)
   })
 })
+
+// Step 3, part 2 (the rivals review, 16 Oct): Join is a call's, and only
+// while there is a call to join. Any link in the notes was a call ("Join
+// call" on a doc's link), and after the event it read "Join call · starts
+// ended".
+describe("the event popover's Join", () => {
+  const anchorEl = () => {
+    const a = document.createElement("button")
+    document.body.appendChild(a)
+    return a
+  }
+  const at = (fromH: number, fromM: number, toH: number, description: string) => ({
+    event_uuid: "e2",
+    event_title: "Pricing sync",
+    event_start_time: new Date(2026, 9, 15, fromH, fromM).toISOString(),
+    event_end_time: new Date(2026, 9, 15, toH, 0).toISOString(),
+    event_description: description,
+  })
+  const MEET = "<p>Join https://meet.example.com/abc</p>"
+
+  it("is the primary from ten minutes before until the end", () => {
+    render(<EventPopover event={at(10, 5, 11, MEET)} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const join = screen.getByRole("link", { name: "Join call" })
+    expect(join.className).toMatch(/bg-brand/)
+  })
+
+  it("is a quiet Join call before then, that leaves when to the line above it", () => {
+    render(<EventPopover event={at(11, 0, 12, MEET)} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const join = screen.getByRole("link", { name: "Join call" })
+    expect(join.textContent).toBe("Join call")
+    expect(join.className).not.toMatch(/bg-brand/)
+  })
+
+  it("is gone once the event has ended; the link is still in More", () => {
+    render(<EventPopover event={at(8, 0, 9, MEET)} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    expect(screen.queryByRole("link", { name: /Join call/ })).toBeNull()
+    expect(screen.getByRole("dialog", { name: "Pricing sync" }).textContent).not.toMatch(/starts/)
+  })
+
+  it("never offers a doc's link as a call, and finds the call after it, its &amp; read as &", () => {
+    expect(joinLinkOf({ event_description: "<p>Notes: https://docs.example.com/d/1</p>" })).toBeNull()
+    expect(joinLinkOf({ event_description: '<p>Agenda https://docs.example.com/x, then <a href="https://zoom.us/j/1?pwd=a&amp;x=1">Zoom</a></p>' })).toBe("https://zoom.us/j/1?pwd=a&x=1")
+    render(<EventPopover event={at(10, 5, 11, "<p>Notes: https://docs.example.com/d/1</p>")} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    expect(screen.queryByRole("link", { name: /Join call/ })).toBeNull()
+  })
+})

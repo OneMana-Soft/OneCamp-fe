@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { applyViewRules, fitRules, keepInSight, kindOfField, loadViewRules, NO_RULES, saveViewRules, searchRows, type ViewRules } from "@/lib/tables/viewRules"
+import { applyViewRules, fitRules, keepInSight, loadViewRules, NO_RULES, saveViewRules, searchRows, type ViewRules } from "@/lib/tables/viewRules"
+import { filterKind } from "@/lib/fieldTypes/registry"
 import type { TableField, TableRow } from "@/services/tableService"
 
 const field = (id: string, type: TableField["type"], config: object = {}): TableField => ({
@@ -110,9 +111,9 @@ describe("filtering a table", () => {
 
 describe("a formula field", () => {
   it("is sorted and filtered by what it gives", () => {
-    expect(kindOfField(fields[6])).toBe("number")
-    expect(kindOfField(field("late", "formula", { result: "checkbox" }))).toBe("checkbox")
-    expect(kindOfField(field("when", "formula", { result: "date" }))).toBe("date")
+    expect(filterKind(fields[6])).toBe("number")
+    expect(filterKind(field("late", "formula", { result: "checkbox" }))).toBe("checkbox")
+    expect(filterKind(field("when", "formula", { result: "date" }))).toBe("date")
   })
 })
 

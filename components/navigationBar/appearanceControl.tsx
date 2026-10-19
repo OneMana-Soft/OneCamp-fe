@@ -14,7 +14,7 @@ import type React from "react"
 import { useTheme } from "next-themes"
 
 import { useThemeConfig } from "@/components/activeTheme/activeTheme"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { useSlidingKnob } from "@/lib/hub/slidingKnob"
 import { cn } from "@/lib/utils/helpers/cn"
 

@@ -69,6 +69,16 @@ export interface TableField {
   type: FieldType
   config: string // raw JSON object
   position: number
+  /** What the field is for: its header's tooltip and the record show it. */
+  description?: string | null
+  /** A row made through the API, an AI tool or a form must give it; the grid's new row needn't. */
+  required?: boolean
+  /** What a new row's cell starts as, stored as the field's kind stores a value. */
+  default_value?: unknown
+  /** The field that names the table's rows, and its first column: one per table. */
+  primary?: boolean
+  /** When it was deleted: a field in its table's trash. */
+  deleted_at?: string | null
 }
 
 export interface TableRow {
@@ -76,11 +86,46 @@ export interface TableRow {
   table_id: string
   values: string // raw JSON object keyed by field id
   position: number
+  /** The row's number in its table, in the order rows were made, never given twice. */
+  row_no?: number
   created_by?: string | null
   created_at: string
   updated_at: string
   /** AI columns whose cell in this row a person wrote: a fill leaves them be until someone asks for it again. */
   ai_kept?: string[]
+  /** How many times the row has been written: a write may name the one it read (the row ledger). */
+  version?: number
+  /** The row's place among its table's rows, which come in this order. */
+  position_key?: string
+  /** Who last changed the row. */
+  updated_by?: string | null
+  /** How many comments the row's open threads hold (a member's read alone; none when there are none). */
+  comments?: number
+  /** The row's page, the doc it hosts, once someone has written in it (a member's read alone). */
+  page?: string
+}
+
+/**
+ * A row's page as its record reads it (GET /tables/{id}/rows/{rowId}/page):
+ * the doc it hosts and its saved body, which the editor shows until its live
+ * copy syncs (no doc_uuid while the row has none), and what the person may do
+ * with it: read it, or write in it and make it.
+ */
+export interface RowPage {
+  doc_uuid?: string
+  body?: string
+  level: "view" | "edit"
+}
+
+/** The address a row's page is read and made at. */
+export function rowPagePath(tableId: string, rowId: string): string {
+  return `${GetEndpointUrl.GetTableRows}/${tableId}/rows/${rowId}/page`
+}
+
+/** A row's page, made now when it has none: for someone who may edit the row. */
+export async function ensureRowPage(tableId: string, rowId: string): Promise<{ doc_uuid: string; made: boolean }> {
+  const res = await axiosInstance.post(rowPagePath(tableId, rowId), {})
+  return res.data?.data as { doc_uuid: string; made: boolean }
 }
 
 export interface TableView {
@@ -474,6 +519,12 @@ export interface FieldPatch {
   type?: FieldType
   config?: Record<string, unknown>
   position?: number
+  description?: string
+  required?: boolean
+  /** null takes the default away. */
+  default_value?: unknown
+  /** true makes it the primary field; a field stops being it only by another becoming it. */
+  primary?: true
 }
 
 /**

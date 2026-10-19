@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { Bar } from "@/components/ui/progress"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { cn } from "@/lib/utils/helpers/cn"
 import { paceGap, paceLine, percent, type GoalSummary } from "@/lib/goals"
 

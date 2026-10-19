@@ -4,7 +4,7 @@ import * as React from "react"
 
 import { ChevronDown } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { DateProperty } from "@/components/task/taskDateField"
 import { DueLabel } from "@/components/task/DueLabel"

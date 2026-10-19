@@ -13,19 +13,18 @@
  * the browser has no Web Animations.
  */
 import { CAMP_HUES } from "@/lib/campHue"
-import { feedback, type FeedbackKind } from "@/lib/ui/feedback"
+import { buzz, campFinish, taskFinish, type CampKind } from "@/lib/celebrateSoon"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { localDay } from "@/lib/utils/timeZone"
+
+export { prefersReducedMotion } from "@/lib/reducedMotion"
+export { springPop } from "@/lib/spring"
+export { hasCelebrated, sparkedRecently } from "@/lib/celebrateSoon"
 
 /** A four-point spark, the motif's (components/ui/graphics/Spark). */
 const SPARK = "M5 0Q5.6 4.4 10 5Q5.6 5.6 5 10Q4.4 5.6 0 5Q4.4 4.4 5 0Z"
 const SVG = "http://www.w3.org/2000/svg"
 const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)"
-
-/** True when there is no window to animate in, or the person asked for less motion. */
-export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches
-}
 
 export interface CelebrateOptions {
   /** How many sparks, 6 to 10 (8 by default); 3 to 10 for a small burst. */
@@ -111,18 +110,6 @@ export function celebrate(el: Element | null | undefined, { count = 8, hue: only
   return n
 }
 
-/**
- * The springy check: 1 -> 1.12 -> 1 over 220 ms on the house curve. For an
- * element the click itself changed; a check that was already ticked when the
- * page loaded never bounces. Returns the animation, or null when it did nothing.
- */
-export function springPop(el: Element | null | undefined): Animation | null {
-  if (!el || prefersReducedMotion() || typeof (el as HTMLElement).animate !== "function") return null
-  return (el as HTMLElement).animate([{ scale: "1" }, { scale: "1.12", offset: 0.45 }, { scale: "1" }], {
-    duration: 220,
-    easing: EASE,
-  })
-}
 
 /**
  * The day's one celebration for a surface (hub.md §1.1, `celebrate`): the guide
@@ -152,18 +139,10 @@ export function celebrateOnce(
  * THE WORK AREA'S THREE TIERS (work.md W04). Nothing else in the area
  * celebrates: components/task/celebrateCallers.test.ts holds the callers to
  * a list. Never on load, a teammate's or an agent's change arriving live, a
- * bulk change, an import or an undo.
+ * bulk change, an import or an undo. What each tier notes and decides (a
+ * spark's streak, the Camp moment had once, the buzz) is lib/celebrateSoon's,
+ * so the screens that load this module on the side keep the same books.
  */
-
-const coarse = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
-// The tiers' buzz goes through feedback() (mobile F3), vibration only: the
-// sparks are the visual. A spark is a selection tick, a ring an impact, the
-// Camp moment a success.
-const buzz = (kind: FeedbackKind) => {
-  if (coarse()) feedback(kind)
-}
-
-let lastSpark = 0
 
 /**
  * Spark: a task or subtask finished by this click or drop. 8 sparks from the
@@ -171,33 +150,13 @@ let lastSpark = 0
  * of ticks feels lively, not noisy.
  */
 export function celebrateTask(el: Element | null | undefined): number {
-  const now = Date.now()
-  const streak = now - lastSpark < 2000
-  lastSpark = now
-  if (!streak) buzz("selection")
-  return celebrate(el, { count: streak ? 6 : 8 })
-}
-
-/** Whether this person finished something in the last few seconds: a bigger finish that follows is theirs. */
-export function sparkedRecently(withinMs = 4000): boolean {
-  return lastSpark > 0 && Date.now() - lastSpark < withinMs
+  return celebrate(el, { count: taskFinish() })
 }
 
 /** Ring: the last open subtask of a task ticked, or a cycle's last task done. 10 sparks from the bar's end. */
 export function celebrateRing(el: Element | null | undefined): number {
   buzz("impact")
   return celebrate(el, { count: 10 })
-}
-
-const CELEBRATED = "oc_celebrated"
-
-/** Whether this person has had the Camp moment for this project or goal. */
-export function hasCelebrated(kind: "project" | "goal" | "cycle", uuid: string): boolean {
-  try {
-    return window.localStorage.getItem(`${CELEBRATED}:${kind}:${uuid}`) === "1"
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -207,14 +166,14 @@ export function hasCelebrated(kind: "project" | "goal" | "cycle", uuid: string):
  * had it already, so the caller says nothing; true when it is theirs now
  * (the caller shows the one-line toast, which reduced motion keeps).
  */
-export function celebrateCamp(el: Element | null | undefined, kind: "project" | "goal" | "cycle", uuid: string): boolean {
-  if (!uuid || hasCelebrated(kind, uuid)) return false
-  try {
-    window.localStorage.setItem(`${CELEBRATED}:${kind}:${uuid}`, "1")
-  } catch {
-    /* private mode: it may repeat, which is harmless */
-  }
-  buzz("success")
+export function celebrateCamp(el: Element | null | undefined, kind: CampKind, uuid: string): boolean {
+  if (!campFinish(kind, uuid)) return false
+  campBurst(el)
+  return true
+}
+
+/** The Camp moment's burst, once it is this person's (lib/celebrateSoon's campFinish): the two rings and the sparks. */
+function campBurst(el: Element | null | undefined): void {
   if (el && !prefersReducedMotion() && typeof document !== "undefined") {
     const box = el.getBoundingClientRect()
     for (let i = 0; i < 2; i++) {
@@ -246,5 +205,4 @@ export function celebrateCamp(el: Element | null | undefined, kind: "project" | 
     }
   }
   celebrate(el, { count: 10 })
-  return true
 }

@@ -22,8 +22,7 @@ const DocShareDialog = dynamic(() => import("@/components/dialog/docShareDialog"
 const CreateChatMessageDialog = dynamic(() => import("@/components/dialog/createChatMessageDialog"), { ssr: false });
 const ChannelDetailsSheet = dynamic(() => import("@/components/channel/details/channelDetailsSheet"), { ssr: false });
 const ChannelCheckInsDialog = dynamic(() => import("@/components/dialog/channelCheckInsDialog"), { ssr: false });
-const EditTeamMemberDialog = dynamic(() => import("@/components/dialog/editTeamMembers"), { ssr: false });
-const EditDmMemberDialog = dynamic(() => import("@/components/dialog/editDmMembers"), { ssr: false });
+const ConversationDetailsSheet = dynamic(() => import("@/components/conversation/details/conversationDetailsSheet"), { ssr: false });
 const MediaLightboxDialog = dynamic(() => import("@/components/dialog/attachmentLightboxDialog").then(mod => mod.MediaLightboxDialog), { ssr: false });
 const ForwardMessage = dynamic(() => import("@/components/dialog/forwardMessage").then(mod => mod.ForwardMessage), { ssr: false });
 const EditTeamNameDialog = dynamic(() => import("@/components/dialog/editTeamNameDialog"), { ssr: false });
@@ -63,7 +62,6 @@ const DocOptionsDrawer = dynamic(() => import("@/components/drawers/docOptionsDr
 const EmojiPickerDrawer = dynamic(() => import("@/components/drawers/emojiPickerDrawer").then(mod => mod.EmojiPickerDrawer), { ssr: false });
 const TaskFilterDrawer = dynamic(() => import("@/components/drawers/taskFilterDrawer").then(mod => mod.TaskFilterDrawer), { ssr: false });
 const ProjectTaskFilterDrawer = dynamic(() => import("@/components/drawers/projectTaskFilterDrawer").then(mod => mod.ProjectTaskFilterDrawer), { ssr: false });
-const TaskOptionsDrawer = dynamic(() => import("@/components/drawers/taskOptionsDrawer").then(mod => mod.TaskOptionsDrawer), { ssr: false });
 const TeamOptionsDrawer = dynamic(() => import("@/components/drawers/teamOptionsDrawer").then(mod => mod.TeamOptionsDrawer), { ssr: false });
 const MyTaskOptionsDrawer = dynamic(() => import("@/components/drawers/myTaskOptionsDrawer").then(mod => mod.MyTaskOptionsDrawer), { ssr: false });
 const CalendarOptionsDrawer = dynamic(() => import("@/components/drawers/calendarOptionsDrawer").then(mod => mod.CalendarOptionsDrawer), { ssr: false });
@@ -204,19 +202,14 @@ export function UnifiedUIManager() {
         />
       )}
 
-      {ui.editTeamMember.isOpen && (
-        <EditTeamMemberDialog
-          teamId={ui.editTeamMember.data.teamUUID}
-          dialogOpenState={ui.editTeamMember.isOpen}
-          setOpenState={() => dispatch(closeUI('editTeamMember'))}
-        />
-      )}
-
+      {/* A DM's or group's details and Add people (chat A9): data names it by
+          its grouping id, a DM's with kind "dm". */}
       {ui.editDmMember.isOpen && (
-          <EditDmMemberDialog
-              grpId={ui.editDmMember.data.grpId}
-              dialogOpenState={ui.editDmMember.isOpen}
-              setOpenState={() => dispatch(closeUI('editDmMember'))}
+          <ConversationDetailsSheet
+              place={{ kind: ui.editDmMember.data.kind === "dm" ? "dm" : "group", id: ui.editDmMember.data.grpId }}
+              adding={!!ui.editDmMember.data.adding}
+              open={ui.editDmMember.isOpen}
+              onOpenChange={(open) => { if (!open) dispatch(closeUI('editDmMember')) }}
           />
       )}
 
@@ -580,13 +573,6 @@ export function UnifiedUIManager() {
           drawerOpenState={ui.projectTaskFilterDrawer.isOpen}
           setOpenState={() => dispatch(closeUI('projectTaskFilterDrawer'))}
           projectId={ui.projectTaskFilterDrawer.data.projectUUID}
-        />
-      )}
-
-      {ui.taskOptionsDrawer.isOpen && (
-        <TaskOptionsDrawer
-          drawerOpenState={ui.taskOptionsDrawer.isOpen}
-          setOpenState={() => dispatch(closeUI('taskOptionsDrawer'))}
         />
       )}
 

@@ -78,26 +78,3 @@ export function SheetSkeleton({
     </div>
   )
 }
-
-/**
- * The whole shell, before anything in it has arrived: the frame with a
- * sidebar's skeleton, and an empty sheet on it (shell §L1, the step between the
- * splash and the real shell). On a phone, only the sheet.
- */
-export function SkeletonShell() {
-  return (
-    <div data-skeleton-shell="" className="app-frame flex h-dvh overflow-hidden">
-      <div className="hidden w-[248px] shrink-0 flex-col px-2 pb-2 pt-2.5 md:flex">
-        <div className="flex h-10 items-center gap-2.5 px-1.5">
-          <div className="sk size-[26px] rounded-md" />
-          <div className="sk h-2.5 w-24" />
-        </div>
-        <div className="sk mt-2 h-8 rounded-md" />
-        <SidebarSkeleton className="mt-1" />
-      </div>
-      <div className="app-sheet m-0 flex-1 md:my-2 md:mr-2">
-        <SheetSkeleton rows={0} />
-      </div>
-    </div>
-  )
-}

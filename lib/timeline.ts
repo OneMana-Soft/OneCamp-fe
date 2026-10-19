@@ -24,8 +24,6 @@ import {
 import { NO_ASSIGNEE, groupByAssignee } from "@/lib/board/groupBy"
 import { colorDot, isClosedStatus, statusOptionOf, type StatusCategory, type StatusOption, type TaskStatusFields } from "@/lib/taskStatus"
 import { endsOf, wayKept, wayOf, type DependencyFacets } from "@/lib/tasks/dependency"
-import type { CampHue } from "@/lib/campHue"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { taskDate } from "@/lib/tasks/taskDate"
 
 /** A task as GET /project/{id}/timeline sends it. */
@@ -447,26 +445,10 @@ type TimelineRow =
   | { kind: "group"; key: string; id: string; label: string; count: number; collapsed: boolean; dot?: string; status?: StatusOption }
   | { kind: "task"; key: string; task: TimelineTask; span: Span }
 
-/**
- * A bar's hue (design v3, work.md W24): its status's. In progress is sun, in
- * review dusk, done moss, and a project's own status its chosen camp hue; a
- * status with no hue of its own (to do, backlog) takes the project's, so a
- * chart is never grey and the project still reads as itself. The bar is the
- * hue's tint at full strength, a 30 % hairline of its strong cut, a 3 px cap
- * in the strong cut and its name in the hue's ink.
+/*
+ * A bar's hue is its project's (step 3, part 3): ProjectTimeline gives every
+ * bar the project's hue, and the bar shows its status in its glyphs.
  */
-const CATEGORY_HUE: Partial<Record<StatusCategory, CampHue>> = { inProgress: "sun", inReview: "dusk", done: "moss" }
-
-export function barHue(t: TaskStatusFields, options: StatusOption[], projectHue: CampHue): CampHue {
-  const o = statusOptionOf(t, options)
-  const category = o?.category ?? (t.task_status as StatusCategory) ?? "todo"
-  if (category === "done") return o?.hue && o.hue !== "neutral" ? o.hue : "moss"
-  if (o?.hue && o.hue !== "neutral") return o.hue
-  return CATEGORY_HUE[category] ?? projectHue
-}
-
-/** A bar's classes: its hue made current (hue-*), so its tint, ink and strong cut follow. */
-export const barColor = (t: TaskStatusFields, options: StatusOption[], projectHue: CampHue = "sky") => HUE_CLASS[barHue(t, options, projectHue)]
 
 /** A built-in status's dot: the status tokens the task list's dots use (types/table). */
 const DOT: Record<StatusCategory, string> = {

@@ -21,7 +21,8 @@
 
 import * as React from "react"
 import { useEffect, useRef, useState } from "react"
-import { celebrate, springPop } from "@/lib/celebrate"
+import { celebrate } from "@/lib/celebrateSoon"
+import { springPop } from "@/lib/spring"
 import { SourceMark, StateWord, RowMenu, type RowMenuItem, type StateTone } from "@/components/admin/connectParts"
 import { AlertTriangle, Sparkles } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"

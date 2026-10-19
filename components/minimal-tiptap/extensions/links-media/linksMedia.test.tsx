@@ -188,9 +188,13 @@ describe("a file", () => {
     await act(async () => void editor.commands.insertFileBlocks([file("plan.pdf", "application/pdf", 2048)]))
     await tick()
     expect(editor.getJSON().content?.[0]).toMatchObject({ type: "fileBlock", attrs: { kind: "pdf", name: "plan.pdf", size: 2048, src: null } })
-    const bar = await screen.findByRole("progressbar", { name: "Uploading plan.pdf" }, { timeout: 10_000 })
+    await screen.findByRole("progressbar", { name: "Uploading plan.pdf" }, { timeout: 10_000 })
     act(() => calls[0].options?.onProgress?.(0.5))
-    expect(bar).toHaveAttribute("aria-valuenow", "50")
+    // What the person sees. The block's view is a chunk of its own: on a loaded
+    // machine it came while the query waited, and the bar it drew listens for
+    // progress from the moment after (useSyncExternalStore subscribes in an
+    // effect, then reads again), so read at once it still said 0.
+    await screen.findByRole("progressbar", { name: "Uploading plan.pdf", value: { now: 50 } }, { timeout: 10_000 })
     await act(async () => calls[0].reject(new Error("network")))
     await tick()
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't upload it")

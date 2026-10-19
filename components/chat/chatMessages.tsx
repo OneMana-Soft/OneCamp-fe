@@ -18,7 +18,11 @@ import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector, useStore} from "react-redux";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
-import {MessageListVirtua} from "@/components/message/MessaageListVirtua";
+import { MessageList } from "@/components/conversation/MessageList"
+import { isSystemLine } from "@/lib/conversation/systemLine"
+import { withSharedHistory } from "@/lib/conversation/sharedHistory"
+import { SystemLineRow } from "@/components/message/systemLineRow"
+import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import { mentionsUser } from "@/components/message/tintMentions";
 import {VListHandle} from "virtua";
 import {RootState} from "@/store/store";
@@ -268,7 +272,9 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             });
         });
         // Same author within five minutes: drawn as one turn (lib/messageGrouping).
-        return withContinuation(items, (c) => ({ author: c.chat_from?.user_uuid, at: c.chat_created_at, isBot: !!c.chat_from?.is_bot, standalone: !!(c.chat_reply_to || c.chat_fwd_msg_post || c.chat_fwd_msg_chat) }))
+        // A system line is nobody's turn, so nothing groups with it; a shared
+        // history's copies sit under their heading (lib/conversation).
+        return withContinuation(withSharedHistory(items, (c) => !!c.chat_copy_of), (c) => ({ author: isSystemLine(c.chat_kind) ? null : c.chat_from?.user_uuid, at: c.chat_created_at, isBot: !!c.chat_from?.is_bot, standalone: !!(c.chat_reply_to || c.chat_fwd_msg_post || c.chat_fwd_msg_chat) }))
     }, [groupedChats, unreadAnchor]);
 
     // Read receipts: whose they are (a DM by the other person, a group by its id).
@@ -276,7 +282,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
 
     const renderItem = useCallback((chat: ChatInfo, { priority, isLast, continued, arrived }: RowMeta) => (
         <div>
-            {isMobile ?
+            {isSystemLine(chat.chat_kind) ? <SystemLineRow html={chat.chat_body_text} facts={chat.chat_system} /> : isMobile ?
                 <>
                     <ChatMessageMobile
                         chatInfo={chat}
@@ -311,7 +317,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     const selfIdForPill = selfProfile.data?.data?.user_uuid
     const isForMe = useCallback((m: ChatInfo) => mentionsUser(m.chat_body_text, selfIdForPill), [selfIdForPill])
     // What a screen reader hears of each message, and whose sends are the reader's (SD-53, SD-54).
-    const rowLabel = useCallback((m: ChatInfo) => messageSummary({ from: m.chat_from, at: m.chat_created_at, html: m.chat_body_text, files: m.chat_attachments?.length }), [])
+    const rowLabel = useCallback((m: ChatInfo) => isSystemLine(m.chat_kind) ? htmlToPreviewText(m.chat_body_text, 400) : messageSummary({ from: m.chat_from, at: m.chat_created_at, html: m.chat_body_text, files: m.chat_attachments?.length }), [])
     const isOwn = useCallback((m: ChatInfo) => !!selfIdForPill && m.chat_from?.user_uuid === selfIdForPill, [selfIdForPill])
 
     const containerRef = useRef<VListHandle>(null);
@@ -361,7 +367,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         //     newMessageLoading={isNewMsgLoading}
         // />
 
-    <MessageListVirtua
+    <MessageList
         items={flatItems}
         renderItem={renderItem}
         rawText={rawText}

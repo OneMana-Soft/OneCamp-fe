@@ -1,5 +1,6 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
+import { tablePath } from "@/lib/tables/route"
 
 // Templates client: shareable templates (agents, workflows, tables and docs).
 // Publish something you built, browse, and install a copy. All mutations are
@@ -52,7 +53,7 @@ export async function installTemplate(id: string): Promise<InstallResult> {
 export function installedPath(res: InstallResult): string {
   switch (res.kind) {
     case "table":
-      return `/app/tables/${res.entity_id}`
+      return tablePath(res.entity_id)
     case "agent":
       return `/app/settings/agents`
     case "workflow":

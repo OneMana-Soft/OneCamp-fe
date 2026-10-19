@@ -4,6 +4,7 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { PanelsContext, type Panel } from "@/components/ui/sheetPanels"
 
 /**
  * The phone's sheet (design v3, mobile C5). Every sheet declares how tall it
@@ -13,31 +14,51 @@ import { cn } from "@/lib/utils/helpers/cn"
  *           menu (channel, doc, task, calendar options). It dims the page.
  *   medium  as tall as its content, at most 92dvh, with the grabber: most
  *           sheets. It dims the page.
+ *   half    half the screen (50dvh, at least 20rem), with the grabber: a
+ *           picker whose long list scrolls in it (the emoji picker, a time).
+ *           It dims the page.
  *   large   92dvh, with the grabber, and the page behind steps back as a card
  *           (scaled to .94, rounded, dimmed; vaul scales
  *           [data-vaul-drawer-wrapper], the phone's viewport, and app/phone.css
- *           rounds and dims it): the More sheet, a picker, filters.
+ *           rounds and dims it): the More sheet, filters, a long form.
  *
  * The surface is the pop step at r20 (top corners) and e4, no border, over a
  * scrim of 32% ink (55% black in dark). It rises in 420ms and goes in 300ms on
- * the iOS sheet curve (app/phone.css).
+ * the iOS sheet curve (app/phone.css). A sheet opened from inside another
+ * (a field's own sheet in a form) is vaul's nested sheet: it leaves the page's
+ * scroll lock to the one under it, which iOS lost when the top one closed, and
+ * its scrim lies over that one too (app/phone.css).
+ *
+ * The on-screen keyboard is app/phone.css's, not vaul's: vaul's input
+ * repositioning wrote a height and a bottom on the sheet and, once the keyboard
+ * went, left them there (vaul #538, #650): the status sheet stayed lifted, cut
+ * off at the top and scrolling (the owner, 17 Oct, on a phone). While the
+ * keyboard is up every sheet stands on it, from lib/ui/visualViewport's
+ * measure; once it goes nothing was written on the sheet to undo.
  */
-export type SheetDetent = "menu" | "medium" | "large"
+export type SheetDetent = "menu" | "medium" | "half" | "large"
 
 const DetentContext = React.createContext<SheetDetent>("medium")
+const InSheet = React.createContext(false)
 
 const Drawer = ({
   detent = "medium",
   shouldScaleBackground,
+  repositionInputs = false,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root> & { detent?: SheetDetent }) => (
-  <DetentContext.Provider value={detent}>
-    <DrawerPrimitive.Root
-      shouldScaleBackground={shouldScaleBackground ?? detent === "large"}
-      {...props}
-    />
-  </DetentContext.Provider>
-)
+}: React.ComponentProps<typeof DrawerPrimitive.Root> & { detent?: SheetDetent }) => {
+  const nested = React.useContext(InSheet)
+  return (
+    <DetentContext.Provider value={detent}>
+      <DrawerPrimitive.Root
+        shouldScaleBackground={shouldScaleBackground ?? detent === "large"}
+        nested={nested}
+        repositionInputs={repositionInputs}
+        {...props}
+      />
+    </DetentContext.Provider>
+  )
+}
 Drawer.displayName = "Drawer"
 
 const DrawerTrigger = DrawerPrimitive.Trigger
@@ -108,10 +129,14 @@ const DrawerOverlay = React.forwardRef<
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
+// A panel's header, loaded with the first panel (components/ui/sheet-panel).
+const PanelHeader = React.lazy(() => import("@/components/ui/sheet-panel"))
+
 /** How tall each detent may be. dvh, never vh (see below). */
 const DETENT_HEIGHT: Record<SheetDetent, string> = {
   menu: "max-h-[60dvh]",
   medium: "max-h-[92dvh]",
+  half: "h-[max(50dvh,20rem)] max-h-[92dvh]",
   large: "h-[92dvh] max-h-[92dvh]",
 }
 
@@ -128,16 +153,62 @@ const DrawerContent = React.forwardRef<
      * above it), which the body's overflow would clip.
      */
     above?: React.ReactNode
+    /**
+     * The sheet's header (design v3, mobile C5: a 52px row, its title at
+     * 17/590 centred), pinned over its one scroller as shadcn's drawer keeps
+     * its header out of the part that scrolls: what the sheet is for stays in
+     * sight while what it holds scrolls under it, the keyboard up or not.
+     */
+    header?: React.ReactNode
+    /**
+     * The sheet's actions (Save, Set status), pinned under its one scroller
+     * above the home-indicator strip, as shadcn's DrawerFooter sits outside
+     * its scroll region: in reach of a thumb while the rest scrolls, and on
+     * the keyboard while a field has it. At the end of the scroller the
+     * status sheet's Set status sat under the screen's edge on an iPhone.
+     */
+    footer?: React.ReactNode
   }
->(({ className, children, overlayClassName, handleClassName, above, ...props }, ref) => {
+>(({ className, children, overlayClassName, handleClassName, above, header, footer, onEscapeKeyDown, ...props }, ref) => {
   const detent = React.useContext(DetentContext)
   const settles = useCloseSettles(ref)
+  // Its panels (components/ui/sheetPanels); focus and scroll come back as the last closes.
+  const [stack, setStack] = React.useState<Panel[]>([])
+  const [host, setHost] = React.useState<HTMLDivElement | null>(null)
+  const body = React.useRef<HTMLDivElement>(null)
+  const was = React.useRef<{ focus: Element | null; scroll: number } | null>(null)
+  const top = stack[stack.length - 1] ?? null
+  const ops = React.useMemo(
+    () => ({
+      push: (p: Panel) =>
+        setStack((s) => {
+          if (!s.length) was.current = { focus: document.activeElement, scroll: body.current?.scrollTop ?? 0 }
+          return [...s.filter((x) => x.key !== p.key), p]
+        }),
+      pop: (key: string) => setStack((s) => s.filter((x) => x.key !== key)),
+    }),
+    [],
+  )
+  const panels = React.useMemo(() => ({ ...ops, top, host }), [ops, top, host])
+  React.useLayoutEffect(() => {
+    const b = body.current
+    if (host && b) {
+      b.scrollTop = 0
+      host.focus({ preventScroll: true })
+    } else if (!top && was.current && b) {
+      b.scrollTop = was.current.scroll
+      if (was.current.focus instanceof HTMLElement && was.current.focus.isConnected) was.current.focus.focus({ preventScroll: true })
+      was.current = null
+    }
+  }, [host, top])
+  const titleId = React.useId()
   return (
     <DrawerPortal>
       <DrawerOverlay className={overlayClassName} />
       <DrawerPrimitive.Content
         ref={settles}
         data-v3-sheet=""
+        data-overlay="sheet"
         data-detent={detent}
         className={cn(
           // The pop surface at e4, no border; the r20 top corners are
@@ -173,6 +244,15 @@ const DrawerContent = React.forwardRef<
           detent === "menu" && "pt-2",
           className
         )}
+        // One layer a press: a panel, then the sheet.
+        onEscapeKeyDown={(event) => {
+          if (top) {
+            event.preventDefault()
+            top.onBack()
+            return
+          }
+          onEscapeKeyDown?.(event)
+        }}
         {...props}
       >
         {above}
@@ -184,9 +264,38 @@ const DrawerContent = React.forwardRef<
         {detent !== "menu" && (
           <div aria-hidden="true" data-drawer-handle="" data-v3-grabber="" className={cn("mx-auto mt-1.5 mb-1 shrink-0", handleClassName)} />
         )}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-          {children}
-        </div>
+        {/* The sheet's one scroller, up and down only. Scrolling one way made
+            it scroll the other too (an overflow that isn't visible turns the
+            other to auto), so the status sheet's suggestions, 4px past each
+            side, gave it a sideways bar beside its own. A row meant to go
+            sideways scrolls itself (overflow-x-auto, overflow-y-hidden), and
+            nothing in here scrolls up and down beside the body
+            (e2e/phoneSheets.spec.ts). */}
+        <InSheet.Provider value>
+            <PanelsContext.Provider value={panels}>
+              {header || top ? (
+                <div data-sheet-header="" className="flex min-h-13 shrink-0 flex-col items-center justify-center px-4 text-center">
+                  {header ? <div className={top ? "hidden" : "contents"}>{header}</div> : null}
+                  {top ? (
+                    <React.Suspense fallback={<span className="h-11" />}>
+                      <PanelHeader id={titleId} title={top.title} onBack={top.onBack} />
+                    </React.Suspense>
+                  ) : null}
+                </div>
+              ) : null}
+              <div ref={body} data-sheet-body="" className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain">
+                <div data-sheet-base="" className={top ? "hidden" : "contents"}>
+                  {children}
+                </div>
+                {top ? <div key={top.key} ref={setHost} data-sheet-panel="" role="region" aria-labelledby={titleId} tabIndex={-1} className="sheet-panel-in flex min-h-0 flex-col outline-none" /> : null}
+              </div>
+              {footer ? (
+                <div data-sheet-footer="" className="relative shrink-0 px-4 pb-4 pt-3">
+                  {footer}
+                </div>
+              ) : null}
+            </PanelsContext.Provider>
+        </InSheet.Provider>
       </DrawerPrimitive.Content>
     </DrawerPortal>
   )
@@ -214,12 +323,17 @@ const SheetCancel = ({ label = "Cancel", className }: { label?: string; classNam
 )
 SheetCancel.displayName = "SheetCancel"
 
+/**
+ * Centred: the v3 sheet's header has its title centred (mobile C5), as
+ * shadcn's drawer centres its header on a phone. The 10 Oct primitives pass
+ * set it left, the day before v3 was approved.
+ */
 const DrawerHeader = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("grid gap-1.5 p-4 text-left", className)}
+    className={cn("grid gap-1.5 p-4 text-center", className)}
     {...props}
   />
 )
@@ -239,13 +353,13 @@ DrawerFooter.displayName = "DrawerFooter"
 const DrawerTitle = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Title>
->(({ className, ...props }, ref) => (
+>(({ className, asChild, ...props }, ref) => (
   <DrawerPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-lg font-semibold leading-tight text-balance",
-      className
-    )}
+    asChild={asChild}
+    // With asChild the child is the title (a heading the sheet's content
+    // already draws, as the event card's), and it keeps its own look.
+    className={asChild ? className : cn("text-lg font-semibold leading-tight text-balance", className)}
     {...props}
   />
 ))

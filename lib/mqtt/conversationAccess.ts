@@ -8,15 +8,14 @@ import { GetEndpointUrl } from "@/services/endPoints"
  * The app holds the topics its settings named when it connected
  * (/config/mqttConfig). A DM or group started, a channel made, joined or added
  * to since wasn't among them, so nothing in it streamed until a reload; one
- * removed from stayed among them. A group that took someone in has a new id
- * (its members' hash) that no open app held. So:
+ * removed from stayed among them. A group never changes its id: adding
+ * someone opens the group of the new set, which arrives here like any new
+ * conversation (chat A9). So:
  *   - the settings are fetched again, and the connection subscribes to what's
  *     new and lets go of what's gone, without reconnecting
  *     (hooks/useMqttConnection);
  *   - the lists that show conversations are fetched again, so a new one
- *     appears with the message that started it, and one taken away goes;
- *   - a group view open on the old id moves to the new one
- *     (CONVERSATION_MOVED_EVENT).
+ *     appears with the message that started it, and one taken away goes.
  */
 
 export type ConversationKind = "channel" | "dm" | "group"
@@ -25,17 +24,6 @@ export interface ConversationAccess {
   kind: ConversationKind
   id: string
   change: "added" | "dropped"
-  /** The id the conversation had until now, when it changed. */
-  previous_id?: string
-}
-
-/** A window event: a conversation's id changed, from `from` to `to`. */
-export const CONVERSATION_MOVED_EVENT = "conversation-moved"
-
-export interface ConversationMoved {
-  kind: ConversationKind
-  from: string
-  to: string
 }
 
 /** The event's data, or null when it isn't one this app can act on. */
@@ -45,12 +33,7 @@ export function readConversationAccess(data: unknown): ConversationAccess | null
   const kinds: ConversationKind[] = ["channel", "dm", "group"]
   if (!kinds.includes(d.kind as ConversationKind) || typeof d.id !== "string" || !d.id) return null
   if (d.change !== "added" && d.change !== "dropped") return null
-  return {
-    kind: d.kind as ConversationKind,
-    id: d.id,
-    change: d.change,
-    ...(typeof d.previous_id === "string" && d.previous_id ? { previous_id: d.previous_id } : {}),
-  }
+  return { kind: d.kind as ConversationKind, id: d.id, change: d.change }
 }
 
 /** The cached lists a change of this kind of conversation shows in. */
@@ -75,8 +58,4 @@ export function applyConversationAccess(
   // The key alone: each list is fetched again and keeps what it shows until
   // the answer lands.
   void deps.mutate((key: unknown) => typeof key === "string" && showing(key))
-  if (access.previous_id && typeof window !== "undefined") {
-    const moved: ConversationMoved = { kind: access.kind, from: access.previous_id, to: access.id }
-    window.dispatchEvent(new CustomEvent(CONVERSATION_MOVED_EVENT, { detail: moved }))
-  }
 }

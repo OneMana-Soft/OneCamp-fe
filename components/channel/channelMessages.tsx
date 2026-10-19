@@ -30,7 +30,11 @@ import {updateChatScrollPosition} from "@/store/slice/chatSlice";
 import { useDispatch, useSelector, useStore } from "react-redux"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
-import { MessageListVirtua } from "@/components/message/MessaageListVirtua"
+import { MessageList } from "@/components/conversation/MessageList"
+import { isSystemLine } from "@/lib/conversation/systemLine"
+import { withSharedHistory } from "@/lib/conversation/sharedHistory"
+import { SystemLineRow } from "@/components/message/systemLineRow"
+import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import { mentionsUser } from "@/components/message/tintMentions"
 import type { VListHandle } from "virtua"
 import type { RootState } from "@/store/store"
@@ -275,13 +279,15 @@ export const ChannelMessages = ({
 
         // Same author within five minutes: drawn as one turn (lib/messageGrouping).
 
-        return withContinuation(items, (p) => ({ author: p.post_by?.user_uuid, at: p.post_created_at, isBot: !!p.post_by?.is_bot, standalone: !!(p.post_reply_to || p.post_fwd_msg_post || p.post_fwd_msg_chat) }))
+        // A system line is nobody's turn, so nothing groups with it; a shared
+        // history's copies sit under their heading (lib/conversation).
+        return withContinuation(withSharedHistory(items, (p) => !!p.post_copy_of), (p) => ({ author: isSystemLine(p.post_kind) ? null : p.post_by?.user_uuid, at: p.post_created_at, isBot: !!p.post_by?.is_bot, standalone: !!(p.post_reply_to || p.post_fwd_msg_post || p.post_fwd_msg_chat) }))
     }, [groupedPosts, unreadAnchor])
 
     const renderItem = useCallback(
         (post: PostsRes, { priority, continued, arrived }: RowMeta) => (
             <div>
-                {isMobile ? (
+                {isSystemLine(post.post_kind) ? <SystemLineRow html={post.post_text} facts={post.post_system} /> : isMobile ? (
                     <>
                         <ChannelMessageMobile
                             postInfo={post}
@@ -327,7 +333,7 @@ export const ChannelMessages = ({
     const selfIdForPill = selfProfile.data?.data?.user_uuid
     const isForMe = useCallback((m: PostsRes) => mentionsUser(m.post_text, selfIdForPill), [selfIdForPill])
     // What a screen reader hears of each message, and whose sends are the reader's (SD-53, SD-54).
-    const rowLabel = useCallback((m: PostsRes) => messageSummary({ from: m.post_by, at: m.post_created_at, html: m.post_text, files: m.post_attachments?.length }), [])
+    const rowLabel = useCallback((m: PostsRes) => isSystemLine(m.post_kind) ? htmlToPreviewText(m.post_text, 400) : messageSummary({ from: m.post_by, at: m.post_created_at, html: m.post_text, files: m.post_attachments?.length }), [])
     const isOwn = useCallback((m: PostsRes) => !!selfIdForPill && m.post_by?.user_uuid === selfIdForPill, [selfIdForPill])
 
     const containerRef = useRef<VListHandle>(null)
@@ -375,7 +381,7 @@ export const ChannelMessages = ({
         //     newMessageLoading={isNewMsgLoading}
         // />
 
-        <MessageListVirtua
+        <MessageList
             items={flatItems}
             renderItem={renderItem}
             rawText={rawText}

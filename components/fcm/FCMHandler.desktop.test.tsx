@@ -10,8 +10,8 @@ import { Provider } from "react-redux"
 let subscribed = false
 const registered = vi.fn<(o: unknown) => Promise<object>>(async () => ({}))
 const router = { push: vi.fn() }
-vi.mock("@/lib/firebase", () => ({ getFCMToken: async () => "token-1", isFirebaseConfigured: true, messaging: {} }))
-vi.mock("firebase/messaging", () => ({ onMessage: () => { subscribed = true; return () => {} } }))
+vi.mock("@/lib/firebase", () => ({ getFCMToken: async () => "token-1", onForegroundMessage: () => { subscribed = true; return () => {} } }))
+vi.mock("@/lib/push/firebaseConfig", () => ({ isFirebaseConfigured: true }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: registered, isSubmitting: false }) }))
 vi.mock("@/hooks/use-toast", () => ({ toast: () => ({ dismiss: () => {} }) }))
 vi.mock("next/navigation", () => ({ useRouter: () => router }))

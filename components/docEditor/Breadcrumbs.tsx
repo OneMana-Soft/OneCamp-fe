@@ -207,6 +207,7 @@ function DocCrumb({ docId, title, icon, canEdit }: { docId: string; title: strin
         aria-label="Doc title"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => void save()}
+        data-escape-own=""
         onKeyDown={(e) => {
           if (isComposingKey({ isComposing: e.nativeEvent.isComposing, keyCode: e.keyCode })) return
           if (e.key === "Enter") {

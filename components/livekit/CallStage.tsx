@@ -22,7 +22,7 @@ import { Captions, MicOff } from "@/lib/icons"
 import { type CampHue } from "@/lib/campHue"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { cn } from "@/lib/utils/helpers/cn"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { RING_OFF, formatElapsed, guestName, levelToBars, ringOpacity, type RingState } from "./callLevels"
 import { captionsLabel, captionsWhereText, type CallTranscription } from "./callState"
 

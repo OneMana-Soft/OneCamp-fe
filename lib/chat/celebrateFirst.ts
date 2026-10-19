@@ -1,5 +1,5 @@
-import { celebrate, prefersReducedMotion } from "@/lib/celebrate"
-
+import { celebrate } from "@/lib/celebrateSoon"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 /**
  * The first message in a conversation (design v3 chat, C60): the burst comes
  * from where the eye has gone, the new row's avatar, 200 ms after the row

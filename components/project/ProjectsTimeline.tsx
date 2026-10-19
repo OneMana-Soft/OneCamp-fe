@@ -27,7 +27,7 @@ const timelineOf = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid
 /**
  * Every project as one bar across the days its tasks run (design v3, work.md
  * W40): the one place bars are saturated, each in its project's gradient
- * (a1 to a2) with its name in white, and how much is done as a lighter band
+ * (a2 to a1) with its name in white on the a2 end, and how much is done as a darker band
  * from the left. A bar opens the project's own timeline. The projects come
  * sorted and filtered as the overview's table has them.
  */
@@ -99,10 +99,11 @@ export function ProjectsTimeline({ projects, compact = false, tools }: { project
                             aria-hidden
                             data-grown={g["data-grown"]}
                             className="absolute inset-0 overflow-hidden rounded-md"
-                            style={{ ...g.style, backgroundImage: "linear-gradient(140deg, var(--hue-a1), var(--hue-a2))", boxShadow: "inset 0 1px 0 rgb(255 255 255 / .2)" }}
+                            style={{ ...g.style, backgroundImage: "linear-gradient(140deg, var(--hue-a2), var(--hue-a1))", boxShadow: "inset 0 1px 0 rgb(255 255 255 / .2)" }}
                           >
-                            {/* How much is done: a white band, 20 %, from the left. */}
-                            <span data-done-band="" className="absolute inset-y-0 left-0 origin-left bg-white/20" style={{ width: "100%", transform: `scaleX(${pct / 100})` }} />
+                            {/* How much is done: a darker band from the left, under the
+                                white name (a white one took it under AA). */}
+                            <span data-done-band="" className="absolute inset-y-0 left-0 origin-left bg-black/15" style={{ width: "100%", transform: `scaleX(${pct / 100})` }} />
                           </span>
                           {box.width > 64 && (
                             <span className="sticky z-[1] truncate px-2.5 text-2xs font-[590] text-white" style={{ left: nameWidth + 4 }}>

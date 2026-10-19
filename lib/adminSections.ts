@@ -228,11 +228,12 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
   {
     key: "permissions",
     label: "Permissions",
-    description: "Who may make channels, projects and invitations.",
+    description: "Who may make channels, projects and invitations, and who changes tasks.",
     href: admin("permissions"),
     icon: KeyRound,
     hue: SETTINGS_GROUP_HUE.workspace,
     group: "workspace",
+    keywords: ["who can change tasks", "roles", "projects"],
   },
   {
     key: "email-settings",

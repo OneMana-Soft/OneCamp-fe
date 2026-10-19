@@ -1,6 +1,6 @@
 import * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { pinTestClock } from "@/lib/testing/testClock"
 import { Label } from "@/components/ui/label"
@@ -13,7 +13,12 @@ import { DateProperty } from "@/components/task/taskDateField"
 // boxes. Their panels are chunks of their own, loaded on first open.
 const LOAD = { timeout: 8000 }
 
-afterEach(cleanup)
+afterEach(async () => {
+  cleanup()
+  // Radix gives focus back from a closed popover's scope a tick after it
+  // unmounts: let it, or it lands in the next test's open picker.
+  await new Promise((r) => setTimeout(r, 10))
+})
 // The fields open on the month of their value, or of today.
 pinTestClock()
 
@@ -48,9 +53,10 @@ describe("the date field", () => {
     )
     fireEvent.click(screen.getByRole("button", { name: "Create" }))
     expect(submit).not.toHaveBeenCalled()
-    // Open, with the keyboard in the month (the picker's own first focus).
+    // Open, with the keyboard in the month (the picker's own first focus, a
+    // moment after it opens: components/ui/date-field-panels).
     const grid = await screen.findByRole("grid", {}, LOAD)
-    expect(grid.contains(document.activeElement)).toBe(true)
+    await waitFor(() => expect(grid.contains(document.activeElement)).toBe(true))
   })
 })
 
@@ -64,6 +70,34 @@ describe("the time field", () => {
     fireEvent.change(box, { target: { value: "9:30" } })
     fireEvent.keyDown(box, { key: "Enter" })
     expect(change).toHaveBeenCalledWith("09:30")
+  })
+
+  it("offers only the times after `after`, saying nothing more beside them", { timeout: 20000 }, async () => {
+    render(<TimeField value="13:00" onChange={() => {}} aria-label="Clears at" after="12:05" />)
+    fireEvent.click(screen.getByRole("button", { name: /^Clears at/ }))
+    const list = await screen.findByRole("listbox", { name: "Time" }, LOAD)
+    const options = Array.from(list.querySelectorAll("[role='option']"))
+    expect(options[0].textContent).toBe(screen.getByText(/^12:15|^12:15 PM/).textContent)
+    expect(options[0].querySelectorAll("span")).toHaveLength(1)
+  })
+
+  // On a phone it was a popover with a 160px scroller of its own, over
+  // whatever sheet held the field (the status sheet's custom end, 17 Oct).
+  it("opens in a half sheet of its own on a phone, the quarter hours flowing in its one scroller", { timeout: 20000 }, async () => {
+    const real = window.matchMedia
+    window.matchMedia = ((q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {}, onchange: null, addListener() {}, removeListener() {}, dispatchEvent: () => false })) as unknown as typeof window.matchMedia
+    try {
+      render(<TimeField value="10:00" onChange={() => {}} aria-label="At" />)
+      fireEvent.click(screen.getByRole("button", { name: /^At/ }))
+      const list = await screen.findByRole("listbox", { name: "Time" }, LOAD)
+      const sheet = list.closest("[data-vaul-drawer]")
+      expect(sheet?.getAttribute("data-detent")).toBe("half")
+      expect(list.className).not.toMatch(/\bh-40\b|overflow-y-auto/)
+      expect(list.querySelector("[role='option']")!.className).toContain("h-11")
+      expect(document.querySelector("[data-radix-popper-content-wrapper]")).toBeNull()
+    } finally {
+      window.matchMedia = real
+    }
   })
 
   it("lists the quarter hours after a start, each with how long it makes", { timeout: 20000 }, async () => {
@@ -93,7 +127,7 @@ describe("a form with two empty required dates", () => {
     const grid = await screen.findByRole("grid", {}, LOAD)
     expect(document.getElementById("first")!.getAttribute("aria-expanded")).toBe("true")
     expect(document.getElementById("second")!.getAttribute("aria-expanded")).toBe("false")
-    expect(grid.contains(document.activeElement)).toBe(true)
+    await waitFor(() => expect(grid.contains(document.activeElement)).toBe(true))
   })
 })
 

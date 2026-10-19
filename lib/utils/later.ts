@@ -9,6 +9,7 @@
 import { format } from "date-fns"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { clockTime } from "@/lib/utils/date/clock"
+import { route } from "@/lib/conversation/route"
 
 export type LaterItemType = "post" | "comment" | "chat" | "task" | "doc" | "project" | "board" | "reminder"
 
@@ -83,8 +84,8 @@ export function reminderLabel(at: Date, now: Date): { text: string; due: boolean
 /** Where a saved message opens: its thread, which shows the message itself. */
 export function messageLink(opts: { channelUUID?: string; postUUID?: string; chatUUID?: string; groupUUID?: string; chatMessageID?: string }): string | null {
   const { channelUUID, postUUID, chatUUID, groupUUID, chatMessageID } = opts
-  if (channelUUID && postUUID) return `/app/channel/${channelUUID}/${postUUID}`
-  if (groupUUID && chatMessageID) return `/app/chat/group/${groupUUID}/${chatMessageID}`
+  if (channelUUID && postUUID) return route({ conversation: { kind: "channel", id: channelUUID }, message: postUUID })
+  if (groupUUID && chatMessageID) return route({ conversation: { kind: "group", id: groupUUID }, message: chatMessageID })
   if (chatUUID && chatMessageID) return `/app/chat/${chatUUID}/${chatMessageID}`
   return null
 }

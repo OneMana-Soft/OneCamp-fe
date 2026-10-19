@@ -17,7 +17,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
 
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { captureRects, playFlip, type Rects } from "@/lib/hub/flip"
 
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect

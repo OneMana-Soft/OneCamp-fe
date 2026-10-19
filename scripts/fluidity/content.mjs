@@ -32,6 +32,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { launch, demoContext, enterDemo, mark, since, keyStats, median, FE, BE } from "./lib.mjs"
+import { check, missed as missedOf } from "./budgets.mjs"
 
 const args = process.argv.slice(2)
 const opt = (name, dflt) => {
@@ -369,19 +370,22 @@ const M = {
   popCardMs: perRun((r) => stepOf(r, "calendar: open an event's card")?.inp),
   bookingFirstDayMs: perRun((r) => stepOf(r, "booking: first bookable day")?.ready),
   bookingScriptKB: perRun((r) => stepOf(r, "booking: first bookable day")?.scriptKB),
+  // React renders, which no CPU slowdown or busy machine changes (17 Oct 2026,
+  // CAL-LEAD): per press of J, the busiest of the view switches, and the card.
+  rendersPerNextPeriod: perRun((r) => {
+    const n = stepOf(r, "calendar: next week (J ×5)")?.renders
+    return typeof n === "number" ? Math.round(n / 5) : undefined
+  }),
+  rendersPerViewSwitch: perRun((r) => {
+    const ns = r.filter((s) => s.step.startsWith("calendar: switch to") && !s.error && typeof s.renders === "number").map((s) => s.renders)
+    return ns.length ? Math.max(...ns) : undefined
+  }),
+  popCardRenders: perRun((r) => stepOf(r, "calendar: open an event's card")?.renders),
 }
-const checks = []
-let missed = 0
-for (const [metric, b] of Object.entries(BUDGETS.budgets)) {
-  if (!ONLY.includes(b.scenario)) continue
-  const at = b[`cpu${CPU}`] ?? b
-  if (at.max === undefined) continue
-  const value = M[metric] ?? null
-  const ok = value === null ? null : value <= at.max
-  const enforced = b.enforce !== false
-  if (enforced && ok !== true) missed++
-  checks.push({ metric, value, max: at.max, target: at.target ?? null, owner: b.owner ?? "", ok, enforced })
-}
+// The one checker (budgets.mjs): a budget of a scenario that ran, at this CPU;
+// one with no value missed it when enforced.
+const checks = check(BUDGETS, M, { cpu: CPU, scenarios: ONLY })
+const missed = missedOf(checks)
 if (checks.length) {
   console.log(`\n${"budget".padEnd(20)} ${"value".padStart(7)} ${"max".padStart(7)} ${"target".padStart(7)}  owner verdict`)
   for (const c of checks) {
@@ -389,6 +393,8 @@ if (checks.length) {
     console.log(`${c.metric.padEnd(20)} ${String(c.value).padStart(7)} ${String(c.max).padStart(7)} ${String(c.target ?? "").padStart(7)}  ${c.owner.padEnd(5)} ${verdict}`)
   }
   writeFileSync(join(OUT, `content-${LABEL}-budgets.json`), JSON.stringify({ cpu: CPU, metrics: M, checks }, null, 2))
+  // The rows as run.mjs reads them (scenarios.json).
+  if (opt("result", null)) writeFileSync(opt("result"), JSON.stringify({ scenario: "content", cpu: CPU, metrics: M, checks }, null, 2))
   if (missed) {
     console.log(`${missed} budget(s) missed or not measured`)
     process.exit(1)

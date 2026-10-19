@@ -116,6 +116,7 @@ export function BoardName({
         aria-label="Board name"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
+        data-escape-own=""
         onKeyDown={(e) => {
           if (e.key === "Enter") commit()
           if (e.key === "Escape") {

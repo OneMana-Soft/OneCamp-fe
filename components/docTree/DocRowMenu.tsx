@@ -92,6 +92,7 @@ export function DocRowMenu({ doc, canEdit, onAddInside, className, focusable = f
       aria-label={label}
       tabIndex={focusable ? 0 : -1}
       data-doc-row-menu=""
+      data-touch-target=""
       onClick={(e) => {
         // The row opens the doc; the button only opens its menu.
         e.stopPropagation()

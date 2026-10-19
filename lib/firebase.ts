@@ -1,22 +1,12 @@
 import { FirebaseApp, initializeApp } from "firebase/app";
-import { getMessaging, getToken, Messaging } from "firebase/messaging";
+import { getMessaging, getToken, onMessage, type Messaging, type MessagePayload } from "firebase/messaging";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
+import { firebaseConfig, isFirebaseConfigured } from "@/lib/push/firebaseConfig";
 
-// Check if Firebase is properly configured
-export const isFirebaseConfigured = !!(
-  firebaseConfig.apiKey &&
-  firebaseConfig.projectId &&
-  firebaseConfig.messagingSenderId &&
-  firebaseConfig.appId
-);
+// The Firebase SDK, for web push. Nothing on a first screen imports this file:
+// components/fcm/FCMHandler fetches it once the page is idle, and asks
+// lib/push/firebaseConfig (no SDK) whether push is set up at all.
+export { isFirebaseConfigured };
 
 let app: FirebaseApp | undefined;
 export let messaging: Messaging | undefined;
@@ -140,3 +130,11 @@ export const getFCMToken = async (): Promise<string | null> => {
   }
 };
 
+/**
+ * Calls `fn` with each push that arrives while the app is in front; returns
+ * the unsubscribe. Nothing is called where Firebase didn't start.
+ */
+export function onForegroundMessage(fn: (payload: MessagePayload) => void): () => void {
+  if (!messaging) return () => {};
+  return onMessage(messaging, fn);
+}

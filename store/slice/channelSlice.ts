@@ -195,6 +195,7 @@ interface CreatePost {
     fwdChat?: ChatInfo
     replyTo?: PostsRes
     attachments: AttachmentMediaReq[]
+    system?: Pick<PostsRes, "post_kind" | "post_system">
 }
 
 
@@ -601,7 +602,7 @@ const channelSlice = createSlice({
         },
 
         createPost: (state, action: {payload: CreatePost}) => {
-            const {postId, postText, postCreatedAt, channelId, postBy, fwdPost, fwdChat, replyTo, attachments} = action.payload;
+            const {postId, postText, postCreatedAt, channelId, postBy, fwdPost, fwdChat, replyTo, attachments, system} = action.payload;
             // MQTT delivery is not guaranteed to be ordered. A create that
             // arrives after its delete must not resurrect the soft-deleted row.
             if (postId && isTombstoned(state.deletedPosts, channelId, postId)) return;
@@ -610,7 +611,7 @@ const channelSlice = createSlice({
             }
             // The echo of a post this tab is still sending: it becomes that
             // post, in its place, rather than a second copy below it.
-            const echoed = !fwdPost && !fwdChat ? indexOfEchoed(state.channelPosts[channelId], POST_ACCESS, postBy?.user_uuid, postText) : -1;
+            const echoed = !fwdPost && !fwdChat && !system ? indexOfEchoed(state.channelPosts[channelId], POST_ACCESS, postBy?.user_uuid, postText) : -1;
             if (echoed >= 0) {
                 const p = state.channelPosts[channelId][echoed]
                 p.post_uuid = postId
@@ -632,6 +633,7 @@ const channelSlice = createSlice({
                 post_fwd_msg_chat: fwdChat,
                 post_reply_to: replyTo,
                 post_comment_count: 0,
+                ...system,
             })
 
             state.channelPosts[channelId].sort((a, b) =>

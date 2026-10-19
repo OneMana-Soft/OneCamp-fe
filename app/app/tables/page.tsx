@@ -8,7 +8,8 @@ import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Loader2, Search, MoreHorizontal, Pencil, Trash2, ArrowUpRight } from "@/lib/icons"
+import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
+import { Plus, Loader2, Search, MoreHorizontal, Pencil, Trash2, ArrowUpRight, RotateCcw } from "@/lib/icons"
 import { DataTable, createTable, deleteTable, updateTable } from "@/services/tableService"
 import { useConfirm } from "@/hooks/useConfirm"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -19,6 +20,10 @@ import { SpotImported, SpotSearch } from "@/components/ui/graphics"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { cn } from "@/lib/utils/helpers/cn"
+import { tablePath } from "@/lib/tables/route"
+import { restoreTable } from "@/lib/tables/ledger"
+import { useUndoToast } from "@/components/table/ledger/useUndoToast"
+import { TablesTrash } from "@/components/table/trash/TablesTrash"
 
 /** A key on the page that isn't typed into a field. */
 function pageKey(e: KeyboardEvent): boolean {
@@ -42,6 +47,8 @@ export default function TablesPage() {
   const [creating, setCreating] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [renaming, setRenaming] = React.useState<string | null>(null)
+  const [trashOpen, setTrashOpen] = React.useState(false)
+  const offerUndo = useUndoToast(React.useCallback(() => void mutate(), [mutate]))
   const renameNext = React.useRef<string | null>(null)
   const searchRef = React.useRef<HTMLInputElement>(null)
 
@@ -56,7 +63,7 @@ export default function TablesPage() {
     setCreating(true)
     try {
       const t = await createTable({ name: "Untitled table", visibility: "workspace" })
-      router.push(`/app/tables/${t.id}`)
+      router.push(tablePath(t.id))
     } catch {
       // surfaced by interceptor
     } finally {
@@ -83,13 +90,13 @@ export default function TablesPage() {
   const handleDelete = (t: DataTable) => {
     confirm({
       title: `Delete the table "${t.name}"?`,
-      description: "Its rows and columns are removed for everyone. This can't be undone.",
+      description: "It's removed for everyone, and kept in the trash with its rows and columns.",
       confirmText: "Delete table",
       destructive: true,
       onConfirm: async () => {
         try {
           await deleteTable(t.id)
-          toast({ title: "Table deleted" })
+          offerUndo("Table deleted", () => restoreTable(t.id))
           mutate()
         } catch {
           // surfaced
@@ -129,24 +136,29 @@ export default function TablesPage() {
             ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
+            data-escape-own=""
+            onKeyDown={fieldKeyDown((e) => {
               if (e.key === "Escape") {
                 setQuery("")
                 e.currentTarget.blur()
               }
-            }}
+            })}
             aria-label="Search tables"
             placeholder="Search tables"
             className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-ink-3"
           />
           <kbd className="kbd">/</kbd>
         </label>
+        <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted tables" onClick={() => setTrashOpen(true)}>
+          <RotateCcw className="size-4" />
+        </Button>
         <Button onClick={handleCreate} disabled={creating} size="sm" className="gap-1.5">
           {creating ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
           New table
           <kbd className="kbd ml-0.5 hidden sm:inline-flex">T</kbd>
         </Button>
       </div>
+      {trashOpen ? <TablesTrash onClose={() => setTrashOpen(false)} onRestored={() => void mutate()} /> : null}
 
       {isLoading ? (
         <div role="status" aria-label="Loading tables">
@@ -205,16 +217,17 @@ export default function TablesPage() {
                     aria-label="Table name"
                     maxLength={120}
                     onBlur={(e) => void handleRename(t, e.target.value)}
-                    onKeyDown={(e) => {
+                    data-escape-own=""
+                    onKeyDown={fieldKeyDown((e) => {
                       if (e.key === "Enter") e.currentTarget.blur()
                       if (e.key === "Escape") setRenaming(null)
-                    }}
+                    })}
                     className="h-8 min-w-0 flex-1 rounded-lg bg-raised px-2 text-ui font-medium shadow-e1 outline-none focus:focus-halo"
                   />
                 </div>
               ) : (
                 <Link
-                  href={`/app/tables/${t.id}`}
+                  href={tablePath(t.id)}
                   className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-2 outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 >
                   <TableGlyph icon={t.icon} id={t.id} />
@@ -253,7 +266,7 @@ export default function TablesPage() {
                   }}
                 >
                   <DropdownMenuItem asChild>
-                    <Link href={`/app/tables/${t.id}`}>
+                    <Link href={tablePath(t.id)}>
                       <ArrowUpRight /> Open
                     </Link>
                   </DropdownMenuItem>

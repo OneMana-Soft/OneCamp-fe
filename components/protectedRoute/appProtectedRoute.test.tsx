@@ -15,6 +15,7 @@ vi.mock("@/store/store", () => ({ default: { dispatch: vi.fn() }, persistor: { p
 
 import { AppProtectedRoute, sessionGone } from "@/components/protectedRoute/appProtectedRoute"
 import { SESSION_ENDED_KEY, onSessionEnd } from "@/lib/sessionEnd"
+import { APP_BOOT_LEAVE_MS, APP_BOOT_RETRY_ATTR, APP_BOOT_SCREEN_ATTR, MEMBER_KEY, appBootState, endAppBoot } from "@/lib/appBoot"
 
 const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { response: { status } })
 const page = () => render(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
@@ -134,40 +135,78 @@ describe("whether a failure means the session is gone", () => {
 })
 
 // Design v3 (shell §L1): the app opens on a splash, never a centred spinner.
+// 17 Oct 2026: one splash from the first paint to the app. The layout's
+// splash (lib/appBoot) is held while the profile loads, put up if the app was
+// opened from the sign-in page, and cross-fades into the app; where the
+// layout has none, the app draws the same scene itself.
 describe("the splash while the profile loads", () => {
-  beforeEach(() => sessionStorage.clear())
+  const loading = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+  const ready = { isLoading: false, isValidating: false, isError: undefined, data: { data: { user_uuid: "u", user_name: "Sam" } } }
+  let boot: HTMLElement
+  beforeEach(() => {
+    sessionStorage.clear()
+    boot = document.createElement("div")
+    boot.className = "app-boot"
+    boot.setAttribute(APP_BOOT_SCREEN_ATTR, "")
+    boot.setAttribute("hidden", "")
+    boot.innerHTML = `<button type="button" ${APP_BOOT_RETRY_ATTR}="">Try again</button>`
+    document.body.appendChild(boot)
+  })
   afterEach(() => {
     vi.useRealTimers()
+    endAppBoot()
+    boot.remove()
     sessionStorage.clear()
+    localStorage.removeItem(MEMBER_KEY)
   })
-
-  it("draws the ring and names the workspace, with no spinner anywhere", async () => {
-    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
-    const view = page()
-    await act(async () => {})
-    expect(screen.getByRole("status").textContent).toMatch(/^Opening /)
-    expect(view.container.querySelector("[data-splash-ring] .splash-ring-draw")).toBeTruthy()
-    expect(view.container.querySelector(".animate-spin, svg.lucide-loader-circle, svg.lucide-loader")).toBeNull()
-    expect(view.container.querySelector(".app-frame.splash")).toBeTruthy()
-  })
-
-  // The first paint's static splash (lib/appBoot) was on screen: this one
-  // takes over as it is, ring drawn, and the static one goes as it draws.
-  it("takes over from the first paint's splash without drawing the ring again", async () => {
+  const firstPaint = () => {
     document.documentElement.setAttribute("data-app-boot", "")
-    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+    boot.removeAttribute("hidden")
+  }
+
+  it("holds the first paint's splash, drawing nothing of its own and no spinner", async () => {
+    firstPaint()
+    profile = loading
     const view = page()
     await act(async () => {})
-    expect(document.documentElement.hasAttribute("data-app-boot")).toBe(false)
-    const frame = view.container.querySelector(".app-frame.splash")!
-    expect(frame.hasAttribute("data-continued")).toBe(true)
-    expect(frame.querySelector(".splash-ring-draw")).toBeNull()
+    expect(appBootState()).toBe("held")
+    expect(view.container.querySelector("[data-splash]")).toBeNull()
+    expect(view.container.querySelector(".animate-spin, svg.lucide-loader-circle, svg.lucide-loader")).toBeNull()
+  })
+
+  it("puts the same splash up when the app opens from the sign-in page", async () => {
+    profile = loading
+    page()
+    await act(async () => {})
+    expect(appBootState()).toBe("held")
+    expect(boot.hidden).toBe(false)
+  })
+
+  it("draws the same scene itself where the layout has no splash, naming the workspace", async () => {
+    boot.remove()
+    profile = loading
+    const view = page()
+    await act(async () => {})
     expect(screen.getByRole("status").textContent).toMatch(/^Opening /)
+    expect(view.container.querySelector(".app-frame.splash [data-splash-scene]")).toBeTruthy()
+    expect(view.container.querySelector(".animate-spin, svg.lucide-loader-circle, svg.lucide-loader")).toBeNull()
   })
 
   it("says it is still connecting after 8 seconds, and Try again asks again", async () => {
     vi.useFakeTimers()
-    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+    firstPaint()
+    profile = loading
+    page()
+    await act(async () => void vi.advanceTimersByTime(8100))
+    expect(appBootState()).toBe("slow")
+    boot.querySelector("button")!.click()
+    expect(mutate).toHaveBeenCalled()
+  })
+
+  it("says so in its own splash too, where the layout has none", async () => {
+    vi.useFakeTimers()
+    boot.remove()
+    profile = loading
     page()
     await act(async () => void vi.advanceTimersByTime(8100))
     expect(screen.getByText(/Still connecting to/)).toBeTruthy()
@@ -175,29 +214,70 @@ describe("the splash while the profile loads", () => {
     expect(mutate).toHaveBeenCalled()
   })
 
-  it("shows the skeleton shell instead in a tab that has opened the app before", async () => {
+  // A reload swapped the first paint's splash for a skeleton of a shell that
+  // didn't match the real one (a fixed 248 px sidebar; on a phone an empty
+  // sheet): two screens and a jump. A reload opens as any open does.
+  it("is the same splash on a reload, never a skeleton shell", async () => {
     sessionStorage.setItem("onecamp:opened", "1")
-    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+    firstPaint()
+    profile = loading
     const view = page()
     await act(async () => {})
-    expect(view.container.querySelector("[data-skeleton-shell]")).toBeTruthy()
-    expect(view.container.querySelector("[data-splash-ring]")).toBeNull()
+    expect(view.container.querySelector("[data-skeleton-shell]")).toBeNull()
+    expect(appBootState()).toBe("held")
   })
 
-  it("puts an error on the same frame, with the crash spot", async () => {
+  it("puts an error on the same frame, with the crash spot, as the splash goes", async () => {
+    firstPaint()
     profile = { isLoading: false, isValidating: false, isError: new Error("Network Error"), data: undefined }
     const view = page()
     await act(async () => {})
     expect(view.container.querySelector("[data-splash-error] [data-spot-crash]")).toBeTruthy()
+    // One spot: the error state's own illustration is hidden, by the attribute it really has.
+    const state = view.container.querySelector("[data-splash-error] [data-empty-illustration]")!.closest("[class*='data-empty-illustration']")
+    expect(state?.className).toContain("[&_[data-empty-illustration]]:hidden")
+    expect(appBootState()).toBe("leaving")
   })
 
-  it("fades the shell in after the splash", async () => {
-    profile = { isLoading: true, isValidating: true, isError: undefined, data: undefined }
+  // The splash went at once and the shell faded up from nothing over the
+  // page's own colour, so the frame's glow vanished and the screen dipped to
+  // white (in light) on the way in. The app is drawn whole at once now, and
+  // the splash fades out over it.
+  it("cross-fades into the app: the app drawn at once under it, then the splash leaves", async () => {
+    vi.useFakeTimers()
+    firstPaint()
+    profile = loading
     const view = page()
     await act(async () => {})
-    profile = { isLoading: false, isValidating: false, isError: undefined, data: { data: { user_uuid: "u", user_name: "Sam" } } }
+    profile = ready
     view.rerender(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
     await act(async () => {})
-    expect(screen.getByText("the app").parentElement?.className).toBe("shell-enter")
+    expect(screen.getByText("the app").closest(".shell-enter")).toBeNull()
+    expect(appBootState()).toBe("leaving")
+    vi.advanceTimersByTime(APP_BOOT_LEAVE_MS)
+    expect(appBootState()).toBeNull()
+  })
+
+  // The app went before it was ready: Back, during the wait, to a page
+  // outside it that came in without a reload. No other page takes the splash
+  // down, so the app lets it go as it leaves.
+  it("lets the splash go when the app goes before it is ready", async () => {
+    firstPaint()
+    profile = loading
+    const view = page()
+    await act(async () => {})
+    expect(appBootState()).toBe("held")
+    view.unmount()
+    expect(appBootState()).toBeNull()
+    expect(boot.hidden).toBe(true)
+  })
+
+  // The start page shows the splash from its first paint in a browser a
+  // member has used (lib/appBoot): this is where that is known.
+  it("remembers that a member uses this browser", async () => {
+    profile = ready
+    page()
+    await act(async () => {})
+    expect(localStorage.getItem(MEMBER_KEY)).toBe("1")
   })
 })

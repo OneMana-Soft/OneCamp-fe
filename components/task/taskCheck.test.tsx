@@ -1,16 +1,25 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 const celebrateTask = vi.fn((_el: Element) => 8)
 let reduced = false
-vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrateTask(el), prefersReducedMotion: () => reduced }))
+vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrateTask(el) }))
+vi.mock("@/lib/reducedMotion", () => ({ prefersReducedMotion: () => reduced }))
 
 import { TaskCheck, TaskTitle } from "@/components/task/TaskCheck"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The sparks are a chunk the page fetches when idle (lib/celebrateSoon): in
+// these tests it is in before the first click.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 afterEach(() => {
   cleanup()
   celebrateTask.mockClear()
   reduced = false
+  vi.unstubAllGlobals()
 })
 
 const todo = { value: "todo", label: "To do", category: "todo" as const }
@@ -59,6 +68,49 @@ describe("the task check", () => {
   it("strikes a finished title", () => {
     const { container } = render(<TaskTitle done>Plan the load test</TaskTitle>)
     expect(container.querySelector("[data-strike]")).not.toBeNull()
+  })
+})
+
+describe("the task check, before its sparks are in", () => {
+  // A page whose sparks haven't loaded: a fresh lib/celebrateSoon, nothing fetched.
+  const fresh = async () => {
+    vi.resetModules()
+    return { ...(await import("@/components/task/TaskCheck")), ...(await import("@/lib/celebrateSoon")) }
+  }
+
+  it("completes at once and skips the sparks, which the next finish has", async () => {
+    const { TaskCheck, sparkedRecently, warmBursts } = await fresh()
+    const onToggle = vi.fn()
+    render(<TaskCheck done={false} status={todo} taskName="T" onToggle={onToggle} />)
+    fireEvent.click(screen.getByRole("button"))
+    expect(onToggle).toHaveBeenCalledWith(true, screen.getByRole("button"))
+    expect(celebrateTask).not.toHaveBeenCalled()
+    // The finish is noted all the same: a project's Camp moment that follows is this person's.
+    expect(sparkedRecently()).toBe(true)
+    await act(async () => {
+      await warmBursts()
+    })
+    fireEvent.click(screen.getByRole("button"))
+    expect(celebrateTask).toHaveBeenCalledTimes(1)
+  })
+
+  it("fetches them when the page is idle, once, so the first finish after a load bursts", async () => {
+    const idle: (() => void)[] = []
+    vi.stubGlobal("requestIdleCallback", (cb: () => void) => idle.push(cb))
+    const { TaskCheck } = await fresh()
+    render(
+      <>
+        <TaskCheck done={false} status={todo} taskName="A" onToggle={vi.fn()} />
+        <TaskCheck done={false} status={todo} taskName="B" onToggle={vi.fn()} />
+      </>,
+    )
+    expect(idle).toHaveLength(1)
+    await act(async () => {
+      idle[0]()
+      await vi.dynamicImportSettled()
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Mark A complete" }))
+    expect(celebrateTask).toHaveBeenCalledTimes(1)
   })
 })
 

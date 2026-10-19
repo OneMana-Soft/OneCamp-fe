@@ -4,8 +4,10 @@ import * as React from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useMqttTopic } from "@/hooks/useMqttTopic"
+import { commentsMessageRow, rowCommentsChanged } from "@/lib/tables/rowComments"
 import { readPages } from "@/lib/http/readPages"
 import { eachRowOnce, listRows, tableBundleKey, type TableBundle, type TableRow } from "@/services/tableService"
+import type { RowsChanged } from "@/lib/tables/types"
 
 /** Rows the bundle carries, and each page read after it. */
 export const ROW_PAGE = 500
@@ -34,7 +36,17 @@ interface Job {
 const NO_ROWS: TableRow[] = []
 
 const sameRow = (a: TableRow, b: TableRow) =>
-  a.values === b.values && a.updated_at === b.updated_at && a.position === b.position && String(a.ai_kept ?? "") === String(b.ai_kept ?? "")
+  a.values === b.values &&
+  a.updated_at === b.updated_at &&
+  a.position === b.position &&
+  a.position_key === b.position_key &&
+  a.version === b.version &&
+  String(a.ai_kept ?? "") === String(b.ai_kept ?? "")
+
+/** Whether a change of many rows only changed rows' cells, which their pages read again alone. */
+function onlyUpdated(m: Omit<Partial<RowsChanged>, "action">): boolean {
+  return !m.more && !m.moved && !m.created?.length && !m.deleted?.length && !m.restored?.length && Array.isArray(m.updated) && m.updated.length > 0
+}
 
 /** Fresh copies put in place of the rows held: only rows already held change, in their places. */
 export function putBack(held: TableRow[], fresh: TableRow[]): TableRow[] {
@@ -201,20 +213,31 @@ export function useTableRows(tableId: string) {
   // The table's live topic, once a burst settles: a row changed (the page
   // holding it), a row was added or the table's own settings changed (the
   // bundle: a new row is the last), or anything else (everything held: rows
-  // went, or a column's cells changed).
+  // went, or a column's cells changed). A change of many rows at once (the
+  // row ledger's "changed") names them: rows only changed are read again
+  // where they're held; rows made, deleted, brought back or moved, and a
+  // change too big to name, read everything held again.
   const heardJob = React.useRef<Job>({ bundle: false, pages: false, rows: new Set() })
   const heardTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const heard = React.useCallback(
     (message: string) => {
-      let data: { action?: unknown; row_id?: unknown } | undefined
+      let data: ({ action?: unknown; row_id?: unknown } & Omit<Partial<RowsChanged>, "action">) | undefined
       try {
         data = (JSON.parse(message) as { data?: typeof data })?.data
       } catch {
         // not one of ours: everything is asked for again
       }
       const j = heardJob.current
-      if (data?.action === "updated" && typeof data.row_id === "string" && data.row_id) j.rows.add(data.row_id)
+      // A row's threads changed: its page is read again for its comment
+      // count, and whatever shows its threads reads them again. A row
+      // changed, or given a page (its record's doc), is read again too.
+      const commented = commentsMessageRow(data)
+      if (commented) {
+        j.rows.add(commented)
+        rowCommentsChanged(commented)
+      } else if ((data?.action === "updated" || data?.action === "page") && typeof data.row_id === "string" && data.row_id) j.rows.add(data.row_id)
       else if (data?.action === "created" || data?.action === "table") j.bundle = true
+      else if (data?.action === "changed" && onlyUpdated(data)) for (const id of data.updated ?? []) j.rows.add(id)
       else j.bundle = j.pages = true
       if (heardTimer.current) clearTimeout(heardTimer.current)
       heardTimer.current = setTimeout(() => {

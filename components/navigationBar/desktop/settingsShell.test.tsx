@@ -123,6 +123,17 @@ describe("the settings shell", () => {
     expect(nav.push).toHaveBeenCalledWith("/app/channel/abc")
   })
 
+  // Page modes (one press, one thing: lib/keys/escape). Going back uses the
+  // press, so a toast showing doesn't close on it as well.
+  it("goes back on Esc as one press", () => {
+    rememberAppRoute("/app/channel/abc")
+    render(<SettingsNav isAdmin />)
+    const esc = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    window.dispatchEvent(esc)
+    expect(nav.push).toHaveBeenCalledWith("/app/channel/abc")
+    expect(esc.defaultPrevented, "the press was used").toBe(true)
+  })
+
   it("leaves Esc to a field that has focus", () => {
     render(<SettingsNav isAdmin />)
     const box = screen.getByRole("searchbox", { name: "Search settings" })

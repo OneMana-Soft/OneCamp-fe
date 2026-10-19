@@ -13,7 +13,7 @@ import { HEADER_ICON, HuddleBanner, HuddleButton, NotificationSubmenu } from "@/
 import { ChatFace } from "@/components/message/chatFace";
 import { WithTooltip } from "@/components/common/withTooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Search, ShieldCheck } from "@/lib/icons";
+import { MoreHorizontal, Search, ShieldCheck, UserPlus, Users } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
 import { SendHorizontal, Clapperboard } from "@/lib/icons";
@@ -145,6 +145,16 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                         </WithTooltip>
                         <DropdownMenuContent align="end" className="pop-surface w-64 p-1">
                             <NotificationSubmenu value={notification.level} onChange={notification.choose} busy={notification.busy} />
+                            {!isBotPeer && selfProfile.data?.data?.user_uuid && (
+                                <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'editDmMember', data: { grpId: getGroupingId(selfProfile.data!.data.user_uuid, chatId), kind: 'dm', adding: true } }))}>
+                                    <UserPlus className="text-ink-3" aria-hidden="true" /> Add people
+                                </DropdownMenuItem>
+                            )}
+                            {selfProfile.data?.data?.user_uuid && (
+                                <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'editDmMember', data: { grpId: getGroupingId(selfProfile.data!.data.user_uuid, chatId), kind: 'dm' } }))}>
+                                    <Users className="text-ink-3" aria-hidden="true" /> Details
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem asChild>
                                 <Link href={chatRecordingHref}><Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings</Link>
                             </DropdownMenuItem>

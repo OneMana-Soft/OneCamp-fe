@@ -93,6 +93,13 @@ const CASES: { name: string; data: PushNotificationData; expected: string }[] = 
     expected: "/app/task/task-2",
   },
   { name: "doc_comment opens the doc", data: { type: "doc_comment", type_id: "doc-1" }, expected: "/app/doc/doc-1" },
+  {
+    name: "table_row opens the row in its table",
+    data: { type: "table_row", type_id: "8a8a8a8a-0000-4000-8000-000000000001", thread_id: "7b7b7b7b-0000-4000-8000-000000000002" },
+    expected: "/app/tables/8a8a8a8a-0000-4000-8000-000000000001?row=7b7b7b7b-0000-4000-8000-000000000002",
+  },
+  { name: "table_row with no row opens the table", data: { type: "table_row", type_id: "t-1" }, expected: "/app/tables/t-1" },
+  { name: "table_row with no table falls back", data: { type: "table_row", thread_id: "r-1" }, expected: "/app" },
   { name: "reminder just focuses the app", data: { type: "reminder", type_id: SELF }, expected: "/app" },
   { name: "later opens the saved item", data: { type: "later", type_id: "/app/task/t-1" }, expected: "/app/task/t-1" },
   { name: "later keeps a thread link", data: { type: "later", type_id: "/app/channel/c-1/p-2" }, expected: "/app/channel/c-1/p-2" },
@@ -101,6 +108,9 @@ const CASES: { name: string; data: PushNotificationData; expected: string }[] = 
   { name: "later with no link opens Later", data: { type: "later" }, expected: "/app/later" },
   // CAL-BUG-5: a booking made or cancelled on your page; it fell back to /app.
   { name: "a booking opens the calendar", data: { type: "calendar", type_id: "e-1" }, expected: "/app/calendar" },
+  { name: "an invitation opens its event", data: { type: "calendar", type_id: "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d" }, expected: "/app/calendar/event/0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d" },
+  { name: "a change to one instance opens that instance", data: { type: "calendar", type_id: "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d_20261020T081500Z" }, expected: "/app/calendar/event/0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d_20261020T081500Z" },
+  { name: "an id with a path in it opens the calendar alone", data: { type: "calendar", type_id: "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d/../../admin" }, expected: "/app/calendar" },
   { name: "approval opens Home, where approvals lead", data: { type: "approval" }, expected: "/app/home" },
 ]
 

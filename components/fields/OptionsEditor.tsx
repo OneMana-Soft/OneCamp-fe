@@ -133,6 +133,9 @@ export function OptionsEditor<O extends ChoiceOption>({
                   maxLength={maxLength}
                   aria-label="Option name"
                   aria-describedby={typed ? `${key}-renames` : undefined}
+                  // Esc puts a changed name back, and the menu or dialog round it
+                  // stays (lib/keys/escapeOwn); with nothing to put back, it closes that.
+                  data-escape-own={renaming?.key === key && renaming.text !== o.label ? "" : undefined}
                   aria-keyshortcuts={reorder ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
                   disabled={busy}
                   onChange={(e) => setRenaming({ key, text: e.target.value })}
@@ -143,7 +146,7 @@ export function OptionsEditor<O extends ChoiceOption>({
                       e.preventDefault()
                       e.currentTarget.blur()
                     } else if (e.key === "Escape") {
-                      // Its name back (a menu or dialog it sits in closes as well).
+                      // Its name back.
                       e.currentTarget.value = o.label
                       setRenaming(null)
                     } else if (reorder && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {

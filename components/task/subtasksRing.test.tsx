@@ -1,8 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { warmBursts } from "@/lib/celebrateSoon"
+
+// The celebrations' bursts are a chunk fetched when the page is idle
+// (lib/celebrateSoon): here they are in before anything finishes.
+beforeAll(async () => {
+  await warmBursts()
+})
 
 const celebrateRing = vi.fn()
 vi.mock("@/lib/celebrate", () => ({ celebrateRing: (el: Element) => celebrateRing(el), prefersReducedMotion: () => false }))
+vi.mock("@/lib/reducedMotion", () => ({ prefersReducedMotion: () => false }))
 vi.mock("@/components/task/taskSubTaskAssignee", () => ({ default: () => null }))
 vi.mock("@/components/resizeableTextInput/resizeableTextInput", () => ({ default: ({ content }: { content: string }) => <span>{content}</span> }))
 

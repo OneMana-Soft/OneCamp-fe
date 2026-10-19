@@ -1,5 +1,9 @@
 import type { SearchResult } from "@/services/searchService"
 import { chatPath } from "@/lib/routes/conversationRoute"
+import { route } from "@/lib/conversation/route"
+
+/** A channel, at one of its messages when there is one (the Link Router). */
+const channelPath = (channel: string, message?: string) => route({ conversation: { kind: "channel", id: channel }, ...(message ? { message } : {}) })
 
 /**
  * Where a search result opens, as an app path, or null for a result that
@@ -17,7 +21,7 @@ export function resultPath(result: SearchResult, selfUUID: string): string | nul
       return chatPath(result.chat?.chat_grp_id, selfUUID, result.chat?.chat_id)
     case "post": {
       const ch = result.post?.post_ch_id || result.post?.post_channel_id
-      return ch ? `/app/channel/${ch}/${result.post.post_id}` : "/app/posts"
+      return ch ? channelPath(ch, result.post.post_id) : "/app/posts"
     }
     case "doc":
       return `/app/doc/${result.doc?.doc_uuid}`
@@ -30,7 +34,7 @@ export function resultPath(result: SearchResult, selfUUID: string): string | nul
       if (c.comment_doc_id) return `/app/doc/${c.comment_doc_id}/comment`
       if (c.comment_chat_grp_id) return chatPath(c.comment_chat_grp_id, selfUUID, c.comment_chat_id)
       if (c.comment_task_id) return `/app/task/${c.comment_task_id}`
-      if (c.comment_post_id) return `/app/channel/${c.comment_channel_id}/${c.comment_post_id}`
+      if (c.comment_post_id) return channelPath(c.comment_channel_id, c.comment_post_id)
       return null
     }
     case "attachment": {
@@ -38,7 +42,7 @@ export function resultPath(result: SearchResult, selfUUID: string): string | nul
       if (a.attachment_doc_id) return `/app/doc/${a.attachment_doc_id}/comment`
       if (a.attachment_chat_grp_id) return chatPath(a.attachment_chat_grp_id, selfUUID, a.attachment_chat_id)
       if (a.attachment_task_id) return `/app/task/${a.attachment_task_id}`
-      if (a.attachment_post_id) return `/app/channel/${a.attachment_channel_id}/${a.attachment_post_id}`
+      if (a.attachment_post_id) return channelPath(a.attachment_channel_id, a.attachment_post_id)
       return null
     }
     case "project":
@@ -46,7 +50,7 @@ export function resultPath(result: SearchResult, selfUUID: string): string | nul
     case "team":
       return `/app/team/${result.team?.team_id}`
     case "channel":
-      return `/app/channel/${result.channel?.ch_id}`
+      return channelPath(result.channel?.ch_id)
     default:
       return null
   }

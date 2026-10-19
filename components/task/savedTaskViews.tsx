@@ -33,6 +33,10 @@ export function SavedTaskViewsPanel({ scope, current, apply, withColumns = true,
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault()
+    // In the phone's filter sheet this form sits inside the filters' own:
+    // its submit reached that one too, which applied the filters and closed
+    // the sheet as a view was named.
+    e.stopPropagation()
     const trimmed = name.trim()
     if (!trimmed) return
     const replacing = views.some((v) => v.name.toLowerCase() === trimmed.toLowerCase())
@@ -87,7 +91,7 @@ export function SavedTaskViewsPanel({ scope, current, apply, withColumns = true,
           maxLength={60}
           placeholder={active ? `Save as… (showing “${active.name}”)` : "Name this view"}
           aria-label="View name"
-          className="h-8 min-w-0 flex-1 text-sm"
+          className="h-8 min-w-0 flex-1"
         />
         <Button type="submit" size="sm" className="h-8" disabled={!name.trim() || busy}>
           Save

@@ -63,7 +63,8 @@ export function usePageFacts(docId: string): PageFacts {
 export const softLocked = (f: PageFacts) => f.lock === "soft" && !f.unlockedForMe
 
 // The app's router, for the actions that run outside React (a copy opens, a
-// deleted doc's page is left): the doc's page hands it over (PageGuard).
+// deleted doc's page is left): the doc's page hands it over (PageGuard) and
+// it stays. A page load is only for a tab no doc page has opened yet.
 let push: ((href: string) => void) | null = null
 export const provideNavigate = (fn: ((href: string) => void) | null) => void (push = fn)
 export function navigate(href: string) {

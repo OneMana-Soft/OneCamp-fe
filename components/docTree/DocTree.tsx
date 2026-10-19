@@ -184,7 +184,9 @@ export function DocTree({
           // open, or a page being added inside it, keeps them there.
           const held = menuFor === row.id || busy === `tree:${row.id}`
           return (
-            <span data-tree-actions="" className={cn("items-center gap-0.5", held ? "flex" : "hidden group-hover:flex group-focus-within:flex [@media(hover:none)]:flex")}>
+            // Under a finger (the phone's Pages sheet) each takes a tap across
+            // 44 px, and the two stand apart so neither takes the other's (phone.css F3, F3b).
+            <span data-tree-actions="" data-touch-group="20" className={cn("items-center gap-0.5", held ? "flex" : "hidden group-hover:flex group-focus-within:flex [@media(hover:none)]:flex")}>
               {canEdit && (
                 <button
                   type="button"
@@ -193,6 +195,7 @@ export function DocTree({
                   title="Add a page inside"
                   disabled={!!busy}
                   data-tree-add=""
+                  data-touch-target=""
                   onClick={(e) => {
                     e.stopPropagation()
                     addInside(row)

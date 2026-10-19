@@ -12,6 +12,7 @@ import { VideoConference } from "@/components/livekit/VideoConference"
 import { CallEndScreen } from "@/components/livekit/CallEndScreen"
 import { useCallLifecycle } from "@/components/livekit/useCallLifecycle"
 import { peopleInCall, type CallStateRead } from "@/components/livekit/callState"
+import { useCallChat } from "@/components/livekit/callChat"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -92,6 +93,8 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
     ),
   )
   const state = useCallState(kind, id, life.phase === "prejoin" || life.phase === "joining")
+  // The conversation the call belongs to, beside it: the dock's Chat.
+  const chat = useCallChat(kind, id)
 
   // The request itself, so a refusal can be said in the call (CALL-BUG-9's
   // silent spinner): the dock reads the rejection.
@@ -127,6 +130,8 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   }
   return (
     <VideoConference
+      onChatToggle={chat.onChatToggle}
+      isChatOpen={chat.isChatOpen}
       token={life.token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || ""}
       onDisconnect={life.onDisconnect}

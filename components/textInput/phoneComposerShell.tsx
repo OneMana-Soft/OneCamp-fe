@@ -3,12 +3,14 @@
 import * as React from "react"
 import { EditorContent, useEditorState, type Editor } from "@tiptap/react"
 import { cn } from "@/lib/utils/helpers/cn"
+import { useComposerTarget } from "@/components/conversation/ComposerHost"
+import { keyOf } from "@/lib/conversation/types"
 import { ArrowUp, Maximize2, Minimize2, Paperclip, Sparkles, Type, Video, AtSign } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { EmojiReactionPicker } from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker"
 import { SectionTwo } from "@/components/minimal-tiptap/components/section/two"
 import { SectionFour } from "@/components/minimal-tiptap/components/section/four"
-import { prefersReducedMotion } from "@/lib/celebrate"
+import { prefersReducedMotion } from "@/lib/reducedMotion"
 import {
     ClipRecorderHost,
     ComposerPlusMenu,
@@ -76,11 +78,14 @@ export const PhoneComposerShell = React.forwardRef<HTMLDivElement, PhoneComposer
         editor.chain().focus().insertContent(before && !/\s/.test(before) ? " @" : "@").run()
     }
 
+    // Which conversation or thread this box writes to (its ComposerHost).
+    const target = useComposerTarget()
     return (
         <div className="px-3 pb-3 pt-1">
             <div
                 ref={ref}
                 data-phone-composer=""
+                data-composer-target={target ? keyOf(target) : undefined}
                 data-focused={focused || undefined}
                 onFocusCapture={() => setFocused(true)}
                 onBlurCapture={(e) => {

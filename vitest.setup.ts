@@ -3,6 +3,12 @@
 // and friends without re-importing them per file.
 import "@testing-library/jest-dom/vitest"
 import { afterEach, expect } from "vitest"
+import { listenForEscape } from "@/lib/keys/escape"
+
+// The one Escape, started as the root providers start it for every page: a
+// component that answers Escape registers with onEscape and is heard here.
+// Not in a file that runs in node, which has no window.
+if (typeof window !== "undefined") listenForEscape()
 
 // jsdom has no ResizeObserver, and Radix's checkbox, select and popover
 // measure themselves with one. A no-op stands in, so a test can render them.

@@ -1,4 +1,4 @@
-import type { Page, TestInfo } from "@playwright/test"
+import type { Page, Request, TestInfo } from "@playwright/test"
 
 import { leavesApp } from "../scripts/fluidity/appServers.mjs"
 
@@ -41,19 +41,38 @@ function statusOf(answer: unknown): { status: number; json: unknown } {
  * header, the settings it keeps), answered with nothing, as the fluidity fake
  * (scripts/fluidity/fakeApp.mjs) answers them. Left to the 404, each failed
  * into a "Not found · Not in this test" toast at some moment of a test, and a
- * toast is a Radix layer: one that came while a table cell's picker was open
- * was the top layer, and took the Escape meant for the picker (cellTargets, on
- * a loaded machine). A test that needs one of them answers it itself.
+ * toast was a Radix layer then: one that came while a table cell's picker was
+ * open was the top layer, and took the Escape meant for the picker
+ * (cellTargets, on a loaded machine). A test that needs one of them answers it
+ * itself.
  */
 const SHELL_READS: Array<[RegExp, unknown]> = [
   [/\/task\/time\/running$/, { msg: "ok", data: null }],
+  // A doc page's own reads, as a doc nobody has followed, starred, linked to
+  // or commented on, with no folder above it.
+  [/\/content-io\/capabilities$/, { capabilities: { export: true, export_formats: ["md", "html", "pdf", "docx"], import_extensions: [".md", ".html", ".txt"], max_import_bytes: 10485760, max_direct_bytes: 5242880 } }],
+  [/\/follows$/, { msg: "ok", data: { resource_kind: "doc", resource_uuid: "", mode: "all", chosen: false, default: "all" } }],
+  [/\/places$/, { msg: "ok", data: { places: [] } }],
+  [/\/threads$/, { msg: "ok", data: { threads: [] } }],
+  [/\/doc\/exportConsent$/, { consent: { allowed: true, owner: true, private: true } }],
+  [/\/doc\/ancestors\/[^/]+$/, { msg: "ok", data: { ancestors: [], truncated: false } }],
+  [/\/doc\/backlinks\/[^/]+$/, { msg: "ok", data: { tasks: [], projects: [], docs: [], count: 0 } }],
   [/\/(user\/notificationPreferences|user\/sidebarNav|user\/botKinds|config\/mqttConfig|config\/client|auth\/providers|me\/capabilities|later|doc\/children)$/, { msg: "ok", data: {} }],
 ]
 
 /**
+ * The writes a page makes on its own, nobody waiting on them (a doc's or a
+ * board's view recorded), answered as done. Left to the 404, a doc's view
+ * record raised a "Not found" toast in every doc test, which the app no longer
+ * does for a write that asks for no error toast (hooks/usePost).
+ */
+const SHELL_WRITES: Array<[RegExp, unknown]> = [[/\/(doc|board)\/recordView$/, { msg: "ok" }]]
+
+/**
  * Answers the app's API calls: `answers` by path prefix (the longest that
  * matches; withStatus for one that isn't a 200; a function of the URL for one
- * that depends on its query), the profile, the shell's own reads, and 404 for
+ * that depends on its query, and of the request for one that depends on what
+ * was sent), the profile, the shell's own reads, and 404 for
  * everything else (never 401: that signs the browser out).
  */
 export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answers = {}) {
@@ -78,12 +97,13 @@ export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answe
       const hit = prefixes.find((p) => path.startsWith(p) || path.includes(p))
       if (hit) {
         const answer = answers[hit]
-        // An answer may depend on the query (a page, a page size): a function of the URL.
-        const { status, json } = statusOf(typeof answer === "function" ? (answer as (url: URL) => unknown)(new URL(request.url())) : answer)
+        // An answer may depend on the query (a page, a page size) or on what a
+        // write sent: a function of the URL and the request.
+        const { status, json } = statusOf(typeof answer === "function" ? (answer as (url: URL, request: Request) => unknown)(new URL(request.url()), request) : answer)
         return status === 0 ? route.abort("failed") : route.fulfill({ status, headers, json })
       }
       if (/\/user\/profile$/.test(path)) return route.fulfill({ status: 200, headers, json: { msg: "ok", data: SAM } })
-      const shell = request.method() === "GET" ? SHELL_READS.find(([re]) => re.test(path)) : undefined
+      const shell = (request.method() === "GET" ? SHELL_READS : SHELL_WRITES).find(([re]) => re.test(path))
       if (shell) return route.fulfill({ status: 200, headers, json: shell[1] })
       return route.fulfill({ status: 404, headers, json: { msg: "Not in this test" } })
     },

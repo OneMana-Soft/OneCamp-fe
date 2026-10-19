@@ -48,6 +48,10 @@ const DEVELOPER_TEXT = /^failed to\b/i
  */
 export const DEMO_REFUSAL_TITLE = "The demo is shared"
 
+// A 503 that says why (the calendar moving to its one store) is a refusal for
+// now, not a fault.
+const UNAVAILABLE_TITLE = "Not available right now"
+
 /**
  * What a status means in the person's words, for a failure the server sent no
  * words for; undefined for a status with none of its own. Pure.
@@ -75,8 +79,8 @@ export function saysWhy(msg: string, status: number): boolean {
 export function errorToastCopy(status: number | undefined, serverMsg: unknown, code?: unknown): ErrorCopy {
   const base = (status && BY_STATUS[status]) || (status && status >= 500 ? SERVER_TROUBLE : UNKNOWN)
   const msg = typeof serverMsg === "string" ? serverMsg.trim() : ""
-  const title = code === "demo" && msg ? DEMO_REFUSAL_TITLE : base.title
-  return saysWhy(msg, status ?? 0) ? { title, description: msg } : base
+  if (!saysWhy(msg, status ?? 0)) return base
+  return { title: code === "demo" ? DEMO_REFUSAL_TITLE : status === 503 ? UNAVAILABLE_TITLE : base.title, description: msg }
 }
 
 /** Whether a failed request is the demo explaining itself, whose words are best left as they are. Pure. */
