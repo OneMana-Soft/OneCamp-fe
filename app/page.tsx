@@ -18,7 +18,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils/helpers/cn"
 import { AuthDivider, AuthField, AuthHeading, AuthNotice, AuthPlaceholder, AuthShell, IdentityChip, PasswordField, authControl } from "@/components/auth/AuthShell"
 import { SpotPlug } from "@/components/ui/graphics/spots"
-import { holdAppBoot, leaveAppBoot } from "@/lib/appBoot"
+import { forgetMember, holdAppBoot, leaveAppBoot } from "@/lib/appBoot"
 import { SignInSide } from "@/components/auth/SignInSide"
 import { landingPath } from "@/lib/landing"
 import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
@@ -230,7 +230,7 @@ export default function SignInPage() {
     try {
       const result = await authService.loginAsDemo();
       if (result.ok) {
-        router.push(app_home_path);
+        enterApp(app_home_path);
         // Still loading until the app's page replaces this one: clearing it here
         // drew the sign-in page under a visitor already on their way in.
         return;
@@ -241,7 +241,7 @@ export default function SignInPage() {
       setDemoError("The demo didn't start. Try again.");
     }
     setIsDemoLoading(false);
-  }, [router]);
+  }, [enterApp]);
 
   useEffect(() => {
     let cancelled = false;
@@ -290,6 +290,7 @@ export default function SignInPage() {
         }
 
         if (adminRequired) {
+          leaveAppBoot();
           router.push('/admin-setup');
         } else {
           setIsChecking(false);
@@ -322,9 +323,12 @@ export default function SignInPage() {
         if (loggedIn) {
           // Live session. Redirect and stop; don't flip isChecking so the
           // login UI never flashes before the route change completes.
-          if (!cancelled) router.push(app_home_path);
+          if (!cancelled) enterApp(app_home_path);
           return;
         }
+        // Not a member's browser after all (the session has ended): the next
+        // start is the sign-in page from its first paint, with no splash.
+        forgetMember();
       }
       await resolveLoginUI();
     };
@@ -334,7 +338,7 @@ export default function SignInPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, enterApp]);
 
   const handleLogin = async (action: () => Promise<void>) => {
     setIsLoading(true);

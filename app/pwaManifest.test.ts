@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
+import { THEME_COLOR_METAS } from "@/lib/pwa/grounds"
 
 /**
  * OneCamp is installed as a PWA on phones and on desktops, so the manifest is
@@ -44,9 +45,12 @@ describe("the installed app", () => {
     it("keeps the theme colour equal to the pre-hydration one", () => {
         // They must match or the install splash flashes a different colour into
         // the app shell, which is the first thing a new user sees.
+        // The layout's theme colour is lib/pwa/grounds' (THEME_COLOR_METAS): the
+        // light ground without a media query, as the manifest's.
         const layout = readFileSync("app/layout.tsx", "utf8")
-        const themed = layout.match(/themeColor:\s*"([^"]+)"/)
-        expect(themed, "layout declares no themeColor").not.toBeNull()
-        expect(String(manifest.theme_color).toLowerCase()).toBe(String(themed![1]).toLowerCase())
+        expect(layout, "layout takes its theme colour from lib/pwa/grounds").toMatch(/themeColor:\s*THEME_COLOR_METAS/)
+        const light = THEME_COLOR_METAS.find((m) => !m.media)
+        expect(light, "no theme colour without a media query").toBeTruthy()
+        expect(String(manifest.theme_color).toLowerCase()).toBe(light!.color.toLowerCase())
     })
 })

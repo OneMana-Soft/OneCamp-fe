@@ -112,7 +112,7 @@ describe("no list draws a check of its own", () => {
       "components/entityLink/EntityLinkPicker.tsx": 1,
       "components/minimal-tiptap/extensions/simple-table/TableMenu.tsx": 2,
       "components/searchDropdown/selectUserToMessageDropdown/selectUserToMessageDropdown.tsx": 1,
-      "components/table/gridCells.tsx": 1,
+      "components/table/cellPickers.tsx": 1,
       "components/task/cyclesSwitcher.tsx": 1,
     }
     const counted: Record<string, number> = {}
