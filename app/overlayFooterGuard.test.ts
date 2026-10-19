@@ -38,27 +38,17 @@ const PRIMARY_VARIANTS = new Set(["default", "destructive", "dangerSolid", "dang
  */
 const PENDING: Record<string, string[]> = {
   "admin and settings": [
-    "components/admin/AgentEditDialog.tsx",
     "components/admin/ApiTokensCard.tsx",
     "components/admin/AppsCard.tsx",
-    "components/admin/DataSourceEditDialog.tsx",
     "components/admin/ImportInviteDialog.tsx",
     "components/admin/ImportPlanDialog.tsx",
     "components/admin/MarketplaceCard.tsx",
-    "components/admin/McpServerEditDialog.tsx",
-    "components/admin/SkillLibraryDialog.tsx",
     "components/admin/SlackImportPlanDialog.tsx",
     "components/admin/WorkflowEditDialog.tsx",
     "components/profile/ChangePasswordSection.tsx",
     "components/profile/TwoFactorSection.tsx",
   ],
   ai: [
-    "components/ai/AiScheduleDialog.tsx",
-    "components/ai/ComposerAIButton.tsx",
-    "components/ai/ExtractTasksDialog.tsx",
-    "components/ai/ReleaseNotesDialog.tsx",
-    "components/ai/SaveToMemoryButton.tsx",
-    "components/ai/SocialComposeDialog.tsx",
   ],
   calendar: ["components/calendar/quickCreateCard.tsx"],
   "tasks and projects": [
