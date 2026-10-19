@@ -47,8 +47,6 @@ type Host = "page" | "dialog" | "popover" | "sheet"
 const FORMS: Array<{ file: string; host: Host; field: "DateField" | "TimeField" | "DatePicker" }> = [
   { file: "app/f/[token]/page.tsx", host: "page", field: "DateField" },
   { file: "app/invoice/[project]/page.tsx", host: "page", field: "DateField" },
-  { file: "components/admin/AgentEditDialog.tsx", host: "dialog", field: "TimeField" },
-  { file: "components/ai/SaveToMemoryButton.tsx", host: "popover", field: "DateField" },
   { file: "components/calendar/bookingSettings.tsx", host: "page", field: "TimeField" },
   { file: "components/calendar/repeat/customRepeatSheet.tsx", host: "dialog", field: "DateField" },
   { file: "components/checkins/ChannelCheckIns.tsx", host: "dialog", field: "TimeField" },

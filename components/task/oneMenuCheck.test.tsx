@@ -102,7 +102,6 @@ describe("no list draws a check of its own", () => {
     // moves each and takes it off here; once this is empty the rule is strict.
     const notYet: Record<string, number> = {
       "components/admin/AddAdminDialog.tsx": 1,
-      "components/booking/BookingFlow.tsx": 1,
       "components/ui/zonePicker.tsx": 1,
       "components/calendar/calendarsPopover.tsx": 1,
       "components/doc/DocsToolbar.tsx": 1,
@@ -112,7 +111,7 @@ describe("no list draws a check of its own", () => {
       "components/entityLink/EntityLinkPicker.tsx": 1,
       "components/minimal-tiptap/extensions/simple-table/TableMenu.tsx": 2,
       "components/searchDropdown/selectUserToMessageDropdown/selectUserToMessageDropdown.tsx": 1,
-      "components/table/gridCells.tsx": 1,
+      "components/table/cellPickers.tsx": 1,
       "components/task/cyclesSwitcher.tsx": 1,
     }
     const counted: Record<string, number> = {}
