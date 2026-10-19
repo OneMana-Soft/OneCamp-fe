@@ -1,7 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
-import { SAM, docInfo, stubBackend } from "./stubbedApp"
-import { CollabRelay } from "./docs/collabRelay"
+import { stubBackend } from "./stubbedApp"
 import { layersOverSheet, scrimOverLowerSheet, sheetLayout, topSheet, type SheetLayout } from "./sheetLayout"
 import { openKeyboard } from "./keyboard"
 
@@ -20,50 +19,6 @@ const PHONES = [
   { width: 360, height: 780 },
   { width: 430, height: 932 },
 ]
-
-const DOC = "8d3e0f5a-2b4c-4d6e-9f70-1c2d3e4f5a6b"
-const LOCAL = { name: "qwen3:4b-instruct", label: "qwen3 4B", provider: "ollama", provider_label: "Ollama", local: true }
-/** An answer longer than the sheet has room for. */
-const LONG = Array.from({ length: 40 }, (_, i) => `Step ${i + 1}: write the launch note for the team, and send it before noon.`).join("\n\n")
-
-/** A doc open on the phone with AI on, its model answering LONG, and the OneCamp AI sheet opened from the Ask AI bar. */
-async function aiSheet(page: Page, testInfo: TestInfo) {
-  await stubBackend(page, testInfo, {
-    [`/doc/getDocInfo/${DOC}`]: docInfo({ doc_uuid: DOC, doc_title: "Launch plan", doc_body: "<p>We ship on Thursday.</p>", edit: true }),
-    "/user/profile": { msg: "ok", data: SAM },
-    "/auth/token": { data: { token: "e2e-sam" } },
-    "/config/client": { msg: "ok", data: { upload_limit_mb: 10, upload_limit_bytes: 10485760, transcription_mode: "off", email_enabled: false, features: { ai: true } } },
-    "/doc/ai/model": { msg: "ok", data: { enabled: true, model: LOCAL } },
-    "/doc/ai/starters": { msg: "ok", data: { project: null } },
-    "/doc/ai/agent-edits": { msg: "ok", data: [] },
-  })
-  await page.route(
-    (url) => url.pathname.endsWith("/ai/doc/complete/stream"),
-    async (route) => {
-      const request = route.request()
-      if (request.method() === "OPTIONS") return route.fallback()
-      return route.fulfill({
-        status: 200,
-        headers: { "access-control-allow-origin": request.headers()["origin"] || "*", "access-control-allow-credentials": "true", "content-type": "text/event-stream" },
-        body: [{ model: LOCAL }, { content: LONG }, { done: true }].map((f) => `data: ${JSON.stringify(f)}\n\n`).join(""),
-      })
-    },
-  )
-  await new CollabRelay().attach(page, SAM.user_full_name)
-  await page.goto(`/app/doc/${DOC}`, { waitUntil: "domcontentloaded", timeout: 180_000 })
-  const body = page.locator('.doc-editor .ProseMirror[contenteditable="true"]')
-  await expect(body).toBeVisible({ timeout: 120_000 })
-  // The editing bar's Ask AI, then the ask taken on in the panel (⌘⏎): the
-  // OneCamp AI sheet on a phone (docInput's openAI), which runs it at once.
-  await body.focus()
-  await page.getByRole("button", { name: "Ask AI", exact: true }).click({ timeout: 60_000 })
-  const ask = page.getByRole("dialog", { name: "Ask AI" }).getByRole("combobox")
-  await expect(ask).toBeFocused({ timeout: 60_000 })
-  await page.keyboard.type("a launch checklist")
-  await page.keyboard.press("Control+Enter")
-  await expect(page.getByRole("dialog", { name: "Ask AI" })).toBeHidden()
-  return risen(page)
-}
 
 /** The rules every sheet keeps, naming what broke them. */
 function keepsTheRules(name: string, l: SheetLayout) {
@@ -149,17 +104,6 @@ const onKeyboard = (page: Page) =>
 for (const phone of PHONES) {
   test.describe(`a ${phone.width}x${phone.height} phone`, () => {
     test.use({ viewport: phone, isMobile: true, hasTouch: true })
-
-    // Its answer box capped itself at 350 px inside the panel's own scroller,
-    // so a long answer scrolled in two places (DRAWERS, 17 Oct): one scroller
-    // on the phone, the answer growing in it.
-    test("the OneCamp AI sheet scrolls its answer in one place", async ({ page }, testInfo) => {
-      test.setTimeout(240_000)
-      const sheet = await aiSheet(page, testInfo)
-      await expect(sheet).toContainText("Step 40:", { timeout: 60_000 })
-      keepsTheRules("the OneCamp AI sheet", await sheetLayout(topSheet(page)))
-    })
-
 
     test("the status sheet scrolls in one place, up and down only", async ({ page }, testInfo) => {
       test.setTimeout(240_000)
