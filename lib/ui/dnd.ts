@@ -129,6 +129,9 @@ export const DRAG_INSTRUCTIONS = {
   draggable: "To pick it up, press Space. Move it with the arrow keys, drop it with Space or Enter, or press Escape to put it back.",
 }
 
+/** A DragOverlay's class: the drag's cursor is on it, under the pointer (app/interaction.css), never on the root or on every element. */
+export const DRAG_OVERLAY = "ix-drag-overlay"
+
 /** Everything a DndContext takes from here: spread it, add the drag handlers from useDragState. */
 export function useDndSetup(words: DragWords, coordinateGetter?: KeyboardCoordinateGetter) {
   const sensors = useDndSensors(coordinateGetter)

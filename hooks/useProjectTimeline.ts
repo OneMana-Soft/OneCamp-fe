@@ -10,7 +10,8 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { timelineKey } from "@/lib/timelineKey"
 import { shiftedPatches, type ShiftedTask, type TaskDates, type TimelineData, type TimelineTask } from "@/lib/timeline"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsPost } from "@/services/endpoints/projects"
 
 /** How long the keyboard waits after the last nudge before saving, so a run of presses is one change. */
 const NUDGE_SAVE_MS = 700
@@ -72,7 +73,7 @@ export function useProjectTimeline(projectId: string) {
         .then(() => {
           sent = new Map(versions.current)
           return axiosInstance.post<{ data?: { shifted?: ShiftedTask[] } }>(
-            PostEndpointUrl.UpdateTaskDates,
+            ProjectsPost.UpdateTaskDates,
             { task_uuid: id, ...dates, shift_dependents: shift, tz: browserTZ() },
             OWN_ERRORS,
           )

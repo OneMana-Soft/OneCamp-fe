@@ -9,7 +9,8 @@ import { withWay, type DependencyWay } from "@/lib/tasks/dependency"
 import { timelineKey } from "@/lib/timelineKey"
 import type { TimelineData } from "@/lib/timeline"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsPost } from "@/services/endpoints/projects"
 import type { TaskInfoInterface } from "@/types/task"
 
 const FINISH_TO_START: DependencyWay = { kind: "fs", lag: 0 }
@@ -58,7 +59,7 @@ export function useTaskDependencies(projectId: string) {
       let ok = true
       try {
         await axiosInstance.post(
-          remove ? PostEndpointUrl.RemoveTaskDependency : PostEndpointUrl.AddTaskDependency,
+          remove ? ProjectsPost.RemoveTaskDependency : ProjectsPost.AddTaskDependency,
           remove ? { task_uuid: taskId, blocked_by_uuid: blockerId } : { task_uuid: taskId, blocked_by_uuid: blockerId, kind: way.kind, lag: way.lag },
           OWN_ERRORS,
         )

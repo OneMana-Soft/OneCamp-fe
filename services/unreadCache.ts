@@ -37,18 +37,20 @@ import type { UserProfileInterface } from "@/types/user";
  */
 
 /**
- * Zero one entry in a list, matched on an id field, leaving the rest alone.
- * The same list back when that entry has nothing to clear, so a correction
- * that changes nothing is no correction (lib/swrMutate patchCached).
+ * Set one entry's count in a list (0 unless said), matched on an id field,
+ * leaving the rest alone. The same list back when that entry has that count
+ * already, so a correction that changes nothing is no correction
+ * (lib/swrMutate patchCached).
  */
-function zeroOne<T extends Record<string, unknown>>(
+function setOne<T extends Record<string, unknown>>(
     list: T[] | undefined,
     idField: keyof T,
     id: string,
     countField: keyof T,
+    count = 0,
 ): T[] | undefined {
-    if (!list?.some((item) => item[idField] === id && item[countField])) return list;
-    return list.map((item) => (item[idField] === id ? { ...item, [countField]: 0 } : item));
+    if (!list?.some((item) => item[idField] === id && (item[countField] || 0) !== count)) return list;
+    return list.map((item) => (item[idField] === id ? { ...item, [countField]: count } : item));
 }
 
 /** obj with field set to value, or obj itself when it has that value already. */
@@ -67,16 +69,17 @@ function patchSidenav(update: (data: Sidenav) => Sidenav) {
 }
 
 /**
- * A channel has been read.
+ * A channel has been read, or, with count, has that many unread (Mark unread,
+ * or another tab's read: read.moved).
  *
  * Favourites are patched too: a favourite channel appears in user_fav_channels
  * as well, and the nav badge sums over both lists.
  */
-export function clearChannelUnread(channelId: string): void {
+export function clearChannelUnread(channelId: string, count = 0): void {
     if (!channelId) return;
 
     const zeroChannel = (list: ChannelInfoInterface[] | undefined) =>
-        zeroOne(list as unknown as Rows, "ch_uuid", channelId, "unread_post_count") as unknown as ChannelInfoInterface[];
+        setOne(list as unknown as Rows, "ch_uuid", channelId, "unread_post_count", count) as unknown as ChannelInfoInterface[];
 
     patchSidenav((data) =>
         withField(withField(data, "user_channels", zeroChannel(data.user_channels)), "user_fav_channels", zeroChannel(data.user_fav_channels)),
@@ -91,14 +94,15 @@ export function clearChannelUnread(channelId: string): void {
 }
 
 /**
- * A DM or group chat has been read. Keyed on the grouping id, which is what
- * both the sidebar and the chat list carry, and what the server counts against.
+ * A DM or group chat has been read, or, with count, has that many unread.
+ * Keyed on the grouping id, which is what both the sidebar and the chat list
+ * carry, and what the server counts against.
  */
-export function clearChatUnread(groupingId: string): void {
+export function clearChatUnread(groupingId: string, count = 0): void {
     if (!groupingId) return;
 
     const zeroDms = (data: Sidenav) =>
-        withField(data, "user_dms", zeroOne(data.user_dms as unknown as Rows, "dm_grouping_id", groupingId, "dm_unread") as unknown as Sidenav["user_dms"]);
+        withField(data, "user_dms", setOne(data.user_dms as unknown as Rows, "dm_grouping_id", groupingId, "dm_unread", count) as unknown as Sidenav["user_dms"]);
 
     patchSidenav(zeroDms);
 

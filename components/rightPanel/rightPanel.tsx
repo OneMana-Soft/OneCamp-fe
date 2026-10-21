@@ -1,5 +1,7 @@
 import {useEffect} from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { app_inbox_path } from "@/types/paths";
 import {useDispatch, useSelector} from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { useEscapeClosesPanel } from "@/hooks/useEscapeClosesPanel";
@@ -12,49 +14,41 @@ import { GetEndpointUrl } from "@/services/endPoints";
 import { getGroupingId } from "@/lib/utils/getGroupingId";
 import type { UserProfileInterface } from "@/types/user";
 
-// What the panel shows loads the first time it's opened, not with every
-// page: a thread's reply box brings the whole editor (ProseMirror, code
-// highlighting, Yjs), several hundred KB the first screen doesn't need. Once
-// the app is idle they're fetched anyway (below), so opening one rarely waits.
-// A conversation's thread is the ThreadPanel host's (chat A1), which loads its
-// kind's panel the same way.
-const loaders = {
+// Each panel's code is its own chunk, fetched ahead by PreloadPanels.
+export const panelLoaders = {
     task: () => import("@/components/rightPanel/taskInfoPanel"),
     doc: () => import("@/components/rightPanel/docCommentList"),
     event: () => import("@/components/rightPanel/eventInfoPanel"),
     ai: () => import("@/components/ai/AiChatPanel"),
     docAi: () => import("@/components/ai/DocAiAssistantPanel"),
 };
+const loaders = panelLoaders;
 const TaskInfoPanel = dynamic(loaders.task);
 const DocCommentList = dynamic(() => loaders.doc().then((m) => m.DocCommentList));
 const EventInfoPanel = dynamic(loaders.event);
 const AiChatPanel = dynamic(loaders.ai);
 const DocAiAssistantPanel = dynamic(() => loaders.docAi().then((m) => m.DocAiAssistantPanel));
 
-/** How long the panels wait for a first touch or key before fetching anyway. */
-const PRELOAD_AFTER_MS = 5000
+export const PRELOAD_AFTER_MS = 5000
+// Places whose code came only at the press (inbox 210 KB, Settings 161 KB),
+// fetched in full: "auto" stops at the layout, without the page's own code.
+export const PRELOAD_ROUTES = [app_inbox_path, "/app/settings"]
+const FULL = { kind: "full" } as never
 
-/**
- * Fetches every panel's code once the app has nothing better to do: after the
- * first touch, click or key (the page has painted and is being used), or 5 s,
- * whichever comes first, and then at the next idle moment. It used to start
- * at the first idle moment, which on a doc's first load was still part of the
- * load (perf 2.4).
- */
+// Their code and the panels', after the first press or 5 s, once quiet.
 function usePreloadPanels() {
+    const router = useRouter()
     useEffect(() => {
-        let idle = 0
+        let live = true
         let started = false
-        const preload = () => {
-            Object.values(loaders).forEach((load) => void load().catch(() => {}))
-            preloadThreadPanels()
-        }
+        let cancel = () => {}
         const start = () => {
             if (started) return
             started = true
             stop()
-            if (typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(preload, { timeout: 5000 })
-            else idle = window.setTimeout(preload, 0)
+            void import("@/lib/ui/whenQuiet").then(({ runWhenQuiet }) => {
+                if (live) cancel = runWhenQuiet([...PRELOAD_ROUTES.map((href) => () => router.prefetch(href, FULL)), ...Object.values(loaders), preloadThreadPanels])
+            }, () => {})
         }
         const events = ["pointerdown", "keydown"] as const
         const stop = () => {
@@ -64,11 +58,17 @@ function usePreloadPanels() {
         const timer = window.setTimeout(start, PRELOAD_AFTER_MS)
         events.forEach((e) => window.addEventListener(e, start, { capture: true, once: true }))
         return () => {
+            live = false
             stop()
-            if (typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle)
-            window.clearTimeout(idle)
+            cancel()
         }
-    }, []);
+    }, [router]);
+}
+
+// The shell's, open or not: RightPanel mounts only while open.
+export function PreloadPanels() {
+    usePreloadPanels();
+    return null;
 }
 
 export const RightPanel = () => {
@@ -77,7 +77,6 @@ export const RightPanel = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState);
     // A DM's thread is in the conversation of the two of you.
     const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid;
-    usePreloadPanels();
     const dispatch = useDispatch();
     // Escape closes a thread, task, comments or event panel, once no popup,
     // menu or dialog is open over the page. The AI panels keep Escape for

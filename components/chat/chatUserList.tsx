@@ -77,6 +77,8 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
         [post],
     )
 
+    useEffect(() => debouncedSearch.cancel, [debouncedSearch])
+
     const renderDmList = useMemo(() => {
         return dmSearchText ? searchDmList : userChatListState
     }, [dmSearchText, searchDmList, userChatListState])

@@ -4,13 +4,13 @@
 // project link. Shown only once a client has given a verdict.
 
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import type { GuestReview } from "@/services/guestService"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 
 export function TaskClientReview({ taskUUID }: { taskUUID: string }) {
-  const { data } = useFetch<{ data: GuestReview | null }>(taskUUID ? `${GetEndpointUrl.TaskClientReview}/${taskUUID}` : "")
+  const { data } = useFetch<{ data: GuestReview | null }>(taskUUID ? `${ProjectsGet.TaskClientReview}/${taskUUID}` : "")
   const review = data?.data
   if (!review) return null
   return (

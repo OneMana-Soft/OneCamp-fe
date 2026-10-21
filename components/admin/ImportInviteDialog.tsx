@@ -38,7 +38,7 @@ import {
   type ImportPeople,
   type InviteRun,
 } from "@/services/importService"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { emailLine, initialSelection, inviteSummary, MANY_TO_INVITE, notListedLine, roomForAnother, roomSelection, seatLine } from "@/lib/importInvites"
 
 interface Props {
@@ -87,7 +87,7 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
     setRun(result)
     void mutate()
     void appMutate(IMPORT_OUTCOMES_KEY)
-    void appMutate(GetEndpointUrl.GetAdminInvitationList)
+    void appMutate(AdminGet.GetAdminInvitationList)
   }
 
   const sending = progress !== null

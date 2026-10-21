@@ -31,7 +31,7 @@ import GitHubIntegrationCard from "@/components/admin/GitHubIntegrationCard"
 import GitHubWebhookHealth from "@/components/admin/GitHubWebhookHealth"
 import SlackBridgeCard from "@/components/admin/SlackBridgeCard"
 import OAuthConfigCard from "@/components/admin/OAuthConfigCard"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 
 afterEach(() => {
   cleanup()
@@ -40,7 +40,7 @@ afterEach(() => {
 })
 
 const status = (connected: boolean, linked_repos: unknown[] = []) => ({
-  [GetEndpointUrl.GetGitHubStatus]: { data: { status: { connected, linked_repos } } },
+  [AdminGet.GetGitHubStatus]: { data: { status: { connected, linked_repos } } },
 })
 
 // Design v3 (A18): a state is the connection card's StateWord (a 6px dot and
@@ -56,7 +56,7 @@ describe("GitHub", () => {
   })
 
   it("draws a status line and the list's rows while it loads", () => {
-    reads.current = { [GetEndpointUrl.GetGitHubStatus]: { isLoading: true } }
+    reads.current = { [AdminGet.GetGitHubStatus]: { isLoading: true } }
     render(<GitHubIntegrationCard />)
     const loading = screen.getByRole("status", { name: "Loading the GitHub connection" })
     expect(loading.querySelectorAll("[data-connection-skeleton-row]").length).toBe(2)
@@ -66,7 +66,7 @@ describe("GitHub", () => {
   })
 
   it("says a failed read in the compact form, with the server's reason", () => {
-    reads.current = { [GetEndpointUrl.GetGitHubStatus]: { isError: { response: { status: 502, data: { msg: "GitHub didn't answer." } } } } }
+    reads.current = { [AdminGet.GetGitHubStatus]: { isError: { response: { status: 502, data: { msg: "GitHub didn't answer." } } } } }
     render(<GitHubIntegrationCard />)
     expect(screen.getByText("Couldn't load the GitHub connection status")).toBeTruthy()
     expect(screen.getByText("GitHub didn't answer.")).toBeTruthy()
@@ -98,7 +98,7 @@ describe("GitHub's automation rules", () => {
 
 describe("GitHub's webhook deliveries", () => {
   it("is titled without a tile, and says Healthy with the status word", () => {
-    reads.current = { [GetEndpointUrl.GetGitHubWebhookHealth]: { data: { health: { completed_24h: 3, failed_24h: 0, processing_24h: 0 } } } }
+    reads.current = { [AdminGet.GetGitHubWebhookHealth]: { data: { health: { completed_24h: 3, failed_24h: 0, processing_24h: 0 } } } }
     render(<GitHubWebhookHealth />)
     const heading = screen.getByRole("heading", { level: 3, name: "Webhook deliveries" })
     expect(heading.querySelector("[class*='hue-']")).toBeNull()
@@ -106,13 +106,13 @@ describe("GitHub's webhook deliveries", () => {
   })
 
   it("says failures with the status word", () => {
-    reads.current = { [GetEndpointUrl.GetGitHubWebhookHealth]: { data: { health: { completed_24h: 3, failed_24h: 2, processing_24h: 0 } } } }
+    reads.current = { [AdminGet.GetGitHubWebhookHealth]: { data: { health: { completed_24h: 3, failed_24h: 2, processing_24h: 0 } } } }
     render(<GitHubWebhookHealth />)
     expect(word("2 failed in 24 hours")).toBe("danger")
   })
 
   it("says a failed read in the compact form, with Try again", () => {
-    reads.current = { [GetEndpointUrl.GetGitHubWebhookHealth]: { isError: new Error("Network Error") } }
+    reads.current = { [AdminGet.GetGitHubWebhookHealth]: { isError: new Error("Network Error") } }
     render(<GitHubWebhookHealth />)
     expect(screen.getByText("Couldn't load the webhook deliveries")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()

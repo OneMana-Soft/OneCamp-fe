@@ -34,8 +34,8 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { ConfirmAlertDialog } from "@/components/dialog/confirmAlertDialog"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
-import { useMqtt } from "@/components/mqtt/mqttProvider"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { useMqtt } from "@/components/mqtt/mqttContext"
+import { AdminGet } from "@/services/endpoints/admin"
 import { Upload, RefreshCw, RotateCcw, Users, AlertTriangle, HardDrive } from "@/lib/icons"
 import { PlayCircle } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -49,6 +49,7 @@ import {
   deleteStagedZip,
   rollbackSlackImport,
   runSlackImport,
+  apiReadOf,
   type SlackImportJob,
 } from "@/services/slackImportService"
 import { importProblemOf } from "@/services/importService"
@@ -81,6 +82,7 @@ const POLL_INTERVAL_MS = 6000
 const POLL_CAP_MS = 10 * 60 * 1000
 
 const STAGE_LABELS: Record<string, string> = {
+  reading: "through Slack's API",
   validating: "Validating",
   planned: "Planned",
   queued: "Queued",
@@ -106,11 +108,11 @@ const SlackImportCard: React.FC = () => {
   const isMqttHealthy = mqttState.isConnected
 
   const { data, isLoading, isError, mutate: refetch } = useFetch<{ jobs: SlackImportJob[] }>(
-    GetEndpointUrl.GetSlackImportJobs,
+    AdminGet.GetSlackImportJobs,
   )
 
   const jobs = useMemo(() => data?.jobs ?? [], [data])
-  const runningJobs = useMemo(() => jobs.filter((j) => isLive(j.status)), [jobs])
+  const runningJobs = useMemo(() => jobs.filter(isLive), [jobs])
 
   // -------- Polling fallback --------
   // useResilientPolling does the heavy lifting: pause on hidden tabs,
@@ -149,9 +151,29 @@ const SlackImportCard: React.FC = () => {
     return () => window.removeEventListener(SLACK_IMPORT_NEW_EVENT, open)
   }, [])
 
+  // The guided run's Slack tile (ImportCard's FIRST_RUN_SLACK_HREF) brings the
+  // admin here with ?slack=new: the upload opens, and the address loses the
+  // ask, so a reload doesn't open it again.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get("slack") !== "new") return
+    url.searchParams.delete("slack")
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash)
+    setUploadOpen(true)
+    document.getElementById("import-slack")?.scrollIntoView?.({ block: "start" })
+  }, [])
+
   const onUploaded = (jobId: string) => {
     setUploadOpen(false)
     setPlanJobId(jobId)
+    refetch()
+  }
+
+  // A read through Slack's API runs on the server: marked in the list, which
+  // shows how far it is, and planned from there when it finishes.
+  const onReading = (jobId: string) => {
+    setUploadOpen(false)
+    setHighlightId(jobId)
     refetch()
   }
 
@@ -359,6 +381,7 @@ const SlackImportCard: React.FC = () => {
           onUploaded={onUploaded}
           onShowExisting={onShowExisting}
           onChanged={() => refetch()}
+          onReading={onReading}
         />
         {planJobId && (
           <SlackImportPlanDialog
@@ -443,7 +466,10 @@ interface JobRowProps {
 export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors, onInvite, onDiscard }) => {
   const stageLabel = (job.stage && STAGE_LABELS[job.stage]) || job.stage || ""
   const total = Math.max(1, job.chunks_total)
-  const pct = job.status === "completed" ? 100 : Math.round((job.chunks_done / total) * 100)
+  // A read through Slack's API: how far it is, while it reads and once it has.
+  const reading = isReading(job)
+  const read = apiReadOf(job)
+  const pct = job.status === "completed" ? 100 : reading ? Math.round(((read?.conversations ?? 0) / Math.max(1, read?.of ?? 0)) * 100) : Math.round((job.chunks_done / total) * 100)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -454,7 +480,14 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
 
   const done = job.status === "completed" || job.status === "failed" || job.status === "cancelled" || job.status === "rolled_back"
   const ran = job.status === "running" || job.status === "completed" || job.status === "paused"
-  const meta = [`${job.started_at ? "Started" : "Uploaded"} ${shortDateTime(new Date(job.started_at ?? job.created_at))}`]
+  const began = job.started_at || reading ? "Started" : job.source === "api" ? "Read" : "Uploaded"
+  const meta = [`${began} ${shortDateTime(new Date(job.started_at ?? job.created_at))}`]
+  if (read && !ran) {
+    if (reading && read.of > 0) meta.push(`${read.conversations.toLocaleString()} of ${count(read.of, "conversation", "conversations")}`)
+    else if (!reading) meta.push(count(read.conversations, "conversation", "conversations"))
+    meta.push(count(read.messages + read.replies, "message", "messages"))
+    if (read.files > 0) meta.push(count(read.files, "file", "files"))
+  }
   if (ran) meta.push(count(job.items_imported, "item", "items"), partsLine(job.chunks_done, job.chunks_total))
   if (ran && job.chunks_failed > 0) meta.push(`${count(job.chunks_failed, "part", "parts")} failed`)
 
@@ -475,7 +508,7 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
       vendor="slack"
       vendorName="Slack"
       name={job.slack_workspace_name}
-      status={job.status}
+      status={reading ? "reading" : job.status}
       stage={stageLabel}
       meta={meta}
       pct={pct}
@@ -527,8 +560,14 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
   )
 }
 
-function isLive(status: SlackImportJob["status"]): boolean {
-  return status === "validating" || status === "planned" || status === "running" || status === "paused"
+function isLive(job: SlackImportJob): boolean {
+  const s = job.status
+  return isReading(job) || s === "validating" || s === "planned" || s === "running" || s === "paused"
+}
+
+/** A read through Slack's API under way. Pure. */
+function isReading(job: Pick<SlackImportJob, "status" | "stage">): boolean {
+  return job.status === "pending" && job.stage === "reading"
 }
 
 export default SlackImportCard

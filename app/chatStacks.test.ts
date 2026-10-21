@@ -72,7 +72,7 @@ const STACKS: Record<string, string[]> = {
     "hooks/useChatMessageHandlers.ts",
   ],
   // Today's virtual list, which the stacks reach through the MessageList host.
-  list: ["components/message/MessaageListVirtua.tsx"],
+  list: ["components/message/MessageListVirtua.tsx"],
 }
 
 /** What may reach into any stack: the hosts, and the store that registers the slices. */
@@ -190,6 +190,6 @@ describe("the chat stacks (chat A1, until CHAT-A1B folds them into the Conversat
     // The rule's own check: the split pane reaches the views (baselined), and
     // the hosts' MessageList reaches today's list, which isn't counted.
     expect(found.get("components/views/ChannelView.tsx")?.has("components/split/SplitPane.tsx")).toBe(true)
-    expect(found.get("components/message/MessaageListVirtua.tsx")).toBeUndefined()
+    expect(found.get("components/message/MessageListVirtua.tsx")).toBeUndefined()
   })
 })

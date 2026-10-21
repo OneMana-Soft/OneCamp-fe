@@ -232,3 +232,17 @@ describe("a notice about a table's row", () => {
     expect(noticeHref(row("table_row.mentioned", { data: {} }))).toBeNull()
   })
 })
+
+describe("a rule's notices", () => {
+  it("name the task and open it only for a reader who may open it", () => {
+    const told = notice("work.rule", { resource_kind: "task", resource_uuid: "t1", title: "Fix SSO", can_open: true })
+    expect(noticeWords(told)).toMatchObject({ verb: "A rule asks you to look at", place: "Fix SSO" })
+    expect(noticeHref(told)).toBe("/app/task/t1")
+    expect(noticeHref({ ...told, title: undefined, can_open: false })).toBeNull()
+  })
+  it("take a stopped rule's owner to the project's Rules", () => {
+    const stopped = notice("work.rule.paused", { resource_kind: "rule", resource_uuid: "r1", title: "Triage", can_open: true, data: { project_id: "p1" } })
+    expect(noticeWords(stopped).place).toBe("Triage")
+    expect(noticeHref(stopped)).toBe("/app/project/p1?tool=rules")
+  })
+})

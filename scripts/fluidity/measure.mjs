@@ -31,7 +31,7 @@
 // component.
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { launch, demoContext, enterDemo, fakeWrite, mark, since, keyStats, median, FE } from "./lib.mjs"
+import { launch, demoContext, enterDemo, fakeWrite, mark, since, keyStats, median, startFrames, stopFrames, FE } from "./lib.mjs"
 import { longChannel, longThread, manyMembers } from "./synth.mjs"
 
 const args = process.argv.slice(2)
@@ -427,16 +427,7 @@ async function runOnce(browser, run, storage) {
       const box = await page.getByText("Who is on call Thursday").first().boundingBox()
       if (!box) throw new Error("no message list")
       await page.mouse.move(box.x + 40, box.y)
-      await page.evaluate(() => {
-        const f = (window.__fluFrames = [])
-        let last = performance.now()
-        const tick = (t) => {
-          f.push(t - last)
-          last = t
-          if (f.length < 2000 && window.__fluFrames === f) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
-      })
+      await startFrames(page, 2000)
       for (let i = 0; i < 40; i++) {
         await page.mouse.wheel(0, -350)
         await page.waitForTimeout(40)
@@ -446,20 +437,12 @@ async function runOnce(browser, run, storage) {
     null,
     { settle: 300 },
   )
-  const frames = await page.evaluate(() => {
-    const f = window.__fluFrames || []
-    window.__fluFrames = null
-    return f
-  })
+  const frames = await stopFrames(page)
   const channelColours = await page.evaluate(colourAudit, "[data-split-view='-1']").catch(() => null)
   const longRow = steps.find((s) => s.n === 15)
   if (longRow && channelColours) longRow.colours = channelColours
   const last = steps.find((s) => s.n === 15.1)
-  if (last && frames.length) {
-    last.frames = frames.length
-    last.slowFrames = frames.filter((d) => d > 34).length
-    last.worstFrame = Math.round(Math.max(...frames))
-  }
+  if (last && frames.frames) Object.assign(last, { frames: frames.frames, slowFrames: frames.slow, worstFrame: frames.worst, frameP95: frames.p95 })
 
   // 16. A list of coloured avatars: the channel's members, 200 of them, none
   // with a photo, so each is a camp-hue fallback. Then scroll it.
@@ -486,16 +469,7 @@ async function runOnce(browser, run, storage) {
       const dialog = await page.locator("[role='dialog']").first().boundingBox()
       if (!dialog) throw new Error("no dialog")
       await page.mouse.move(dialog.x + dialog.width / 2, (box?.y ?? dialog.y + dialog.height / 2) - 40)
-      await page.evaluate(() => {
-        const f = (window.__fluFrames = [])
-        let last = performance.now()
-        const tick = (t) => {
-          f.push(t - last)
-          last = t
-          if (f.length < 2000 && window.__fluFrames === f) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
-      })
+      await startFrames(page, 2000)
       for (let i = 0; i < 20; i++) {
         await page.mouse.wheel(0, i < 10 ? -300 : 300)
         await page.waitForTimeout(40)
@@ -505,17 +479,9 @@ async function runOnce(browser, run, storage) {
     null,
     { settle: 300 },
   )
-  const peopleFrames = await page.evaluate(() => {
-    const f = window.__fluFrames || []
-    window.__fluFrames = null
-    return f
-  })
+  const peopleFrames = await stopFrames(page)
   const scrollRow = steps.find((s) => s.n === 16.1)
-  if (scrollRow && peopleFrames.length) {
-    scrollRow.frames = peopleFrames.length
-    scrollRow.slowFrames = peopleFrames.filter((d) => d > 34).length
-    scrollRow.worstFrame = Math.round(Math.max(...peopleFrames))
-  }
+  if (scrollRow && peopleFrames.frames) Object.assign(scrollRow, { frames: peopleFrames.frames, slowFrames: peopleFrames.slow, worstFrame: peopleFrames.worst, frameP95: peopleFrames.p95 })
   await page.keyboard.press("Escape")
 
   // 17. Completing a task: the playful layer's celebration (sparks from the
@@ -537,16 +503,7 @@ async function runOnce(browser, run, storage) {
     await phonePage.getByRole("button", { name: "Mark as complete" }).first().waitFor({ timeout: 30000 }).catch(() => {})
     await phonePage.waitForTimeout(1200)
     const sample = () =>
-      phonePage.evaluate(() => {
-        const f = (window.__fluFrames = [])
-        let last = performance.now()
-        const tick = (t) => {
-          f.push(t - last)
-          last = t
-          if (f.length < 600 && window.__fluFrames === f) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
-      })
+      startFrames(phonePage, 600)
     await step(
       17,
       "complete a task (celebrate)",
@@ -557,15 +514,10 @@ async function runOnce(browser, run, storage) {
       () => readyWhen(phonePage, exists, { sel: "[data-celebrate]" }, 5000),
       { settle: 900, on: { page: phonePage, guard: phone.__guard } },
     )
-    const burst = await phonePage
-      .evaluate(() => {
-        const f = window.__fluFrames || []
-        window.__fluFrames = null
-        return { frames: f.length, slow: f.filter((d) => d > 34).length, worst: Math.round(Math.max(0, ...f)), left: document.querySelectorAll("[data-celebrate]").length }
-      })
-      .catch(() => null)
+    const burst = await stopFrames(phonePage).catch(() => null)
+    const left = await phonePage.evaluate(() => document.querySelectorAll("[data-celebrate]").length).catch(() => null)
     const row = steps.find((s) => s.n === 17)
-    if (row && burst) Object.assign(row, { frames: burst.frames, slowFrames: burst.slow, worstFrame: burst.worst, layersLeft: burst.left })
+    if (row && burst) Object.assign(row, { frames: burst.frames, slowFrames: burst.slow, worstFrame: burst.worst, frameP95: burst.p95, layersLeft: left })
     await phone.close()
   }
 

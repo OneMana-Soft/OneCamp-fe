@@ -6,6 +6,8 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import { readSystemLine, systemLineLink } from "@/lib/conversation/systemLine"
+import { useComposerTarget } from "@/components/conversation/ComposerHost"
+import { isThread } from "@/lib/conversation/types"
 import type { UserProfileInterface } from "@/types/user"
 
 /**
@@ -19,7 +21,10 @@ import type { UserProfileInterface } from "@/types/user"
 export const SystemLineRow = memo(function SystemLineRow({ html, facts }: { html: string; facts?: string }) {
     const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid
     const words = useMemo(() => htmlToPreviewText(html, 400), [html])
-    const link = useMemo(() => systemLineLink(readSystemLine(facts), self), [facts, self])
+    // The conversation the line is in, for a line that leads into it (a pin).
+    const target = useComposerTarget()
+    const here = target && isThread(target) ? target.in : target
+    const link = useMemo(() => systemLineLink(readSystemLine(facts), self, here), [facts, self, here])
     return (
         <div data-system-line="" className="flex justify-center px-5 py-2">
             <p className="max-w-[640px] text-center text-meta text-ink-2 [overflow-wrap:anywhere]">

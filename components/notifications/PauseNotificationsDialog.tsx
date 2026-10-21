@@ -6,14 +6,17 @@
 //
 // DESIGN V3 (hub.md P5): a popover in the status menu's family, beside what
 // opened it, with 34px rows that each say when the pause would end; a bottom
-// sheet on a phone. The note "Mentions from agents wait too" waits for the
-// backend to confirm the notification rules (AGENT_MENTIONS_WAIT below).
+// sheet of 48px rows on a phone held either way (components/ui/overlayMode),
+// Custom's Pause pinned in its footer. The note "Mentions from agents wait
+// too" waits for the backend to confirm the notification rules
+// (AGENT_MENTIONS_WAIT below).
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
-import { useMedia } from "@/context/MediaQueryContext"
+import { OverlayBody } from "@/components/ui/overlay"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { useToast } from "@/hooks/use-toast"
 import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import { formatSendAt, toLocalInputValue } from "@/lib/messages/schedulePresets"
@@ -36,11 +39,17 @@ export function pauseEndLabel(at: Date, now: Date = new Date()): string {
 export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { pausedUntil, focusUntil, pause, resume, busy } = usePauseNotifications()
   const { toast } = useToast()
-  const { isMobile } = useMedia()
+  const sheet = useSheetMode()
   // Beside what was pressed; from the profile menu's Custom… (gone with its
   // menu), beside the sidebar foot the menu rose from.
   const [anchor] = React.useState(() => lastAnchorRect(SIDEBAR_FOOT))
   const [customOpen, setCustomOpen] = React.useState(false)
+  // Custom's field in view as it opens: on a phone held sideways it came
+  // below the fold, under the sheet's pinned Pause.
+  const customRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (customOpen) customRef.current?.scrollIntoView?.({ block: "nearest" })
+  }, [customOpen])
   const now = new Date()
   const [custom, setCustom] = React.useState(() => toLocalInputValue(new Date(now.getTime() + 60 * 60 * 1000)))
   const customAt = custom ? new Date(custom) : null
@@ -60,7 +69,12 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
     }
   }
 
-  const row = "flex h-[34px] w-full items-center gap-2.5 rounded-md px-2 text-left text-ui transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50 max-sm:h-12"
+  const row = `flex ${sheet ? "h-12" : "h-[34px]"} w-full items-center gap-2.5 rounded-md px-2 text-left text-ui transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50`
+  const pauseCustom = (
+    <Button size={sheet ? "lg" : "sm"} className={sheet ? "h-11 w-full" : "self-end"} disabled={!customOk || busy} onClick={() => customAt && void onPick(customAt)}>
+      Pause
+    </Button>
+  )
   const contents = (
     <div data-pause-menu="" className="flex flex-col gap-1">
       <h2 className="px-2 pb-1 pt-0.5 text-heading font-semibold">Pause notifications</h2>
@@ -87,7 +101,7 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
         </button>
       </div>
       {customOpen ? (
-        <div data-schedule-custom="" className="flex flex-col gap-1.5 px-2 pb-1">
+        <div ref={customRef} data-schedule-custom="" className="flex flex-col gap-1.5 px-2 pb-1">
           <input
             type="datetime-local"
             aria-label="Pause until"
@@ -97,9 +111,7 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
             onChange={(e) => setCustom(e.target.value)}
             className="hub-field h-8 w-full min-w-0 rounded-md px-2 text-ui-sm"
           />
-          <Button size="sm" className="self-end" disabled={!customOk || busy} onClick={() => customAt && void onPick(customAt)}>
-            Pause
-          </Button>
+          {sheet ? null : pauseCustom}
         </div>
       ) : null}
       <p className="px-2 pt-1 text-meta text-ink-3">Messages still arrive in OneCamp.</p>
@@ -107,13 +119,17 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
     </div>
   )
 
-  if (isMobile) {
+  if (sheet) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="px-2">
+        <DrawerContent className="px-2" footer={customOpen ? pauseCustom : undefined}>
           <DrawerTitle className="sr-only">Pause notifications</DrawerTitle>
-          {/* Its bottom space in the body: on the sheet (pb-6) it took the home-indicator strip's place. */}
-          <div className="pb-6">{contents}</div>
+          {/* Its bottom space in the body: on the sheet (pb-6) it took the
+              home-indicator strip's place. The one scroller: the pinned Pause
+              draws its hairline while there is more below. */}
+          <OverlayBody asChild className="mx-0 px-0 pt-0 pb-6">
+            <div>{contents}</div>
+          </OverlayBody>
         </DrawerContent>
       </Drawer>
     )

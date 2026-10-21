@@ -1,5 +1,5 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminPost } from "@/services/endpoints/admin"
 
 // MCP (Model Context Protocol) server admin client. An MCP server is an
 // external endpoint exposing tools; once registered and introspected, its tools
@@ -126,7 +126,7 @@ export interface McpCatalogEntry {
 // that must be entered again under the field it is about), so these two opt
 // out of the interceptor's toast.
 export async function createMcpServer(input: McpServerInput): Promise<McpServer> {
-  const res = await axiosInstance.post(PostEndpointUrl.CreateMcpServer, input, OWN_ERRORS)
+  const res = await axiosInstance.post(AdminPost.CreateMcpServer, input, OWN_ERRORS)
   return res.data?.data as McpServer
 }
 
@@ -136,7 +136,7 @@ export async function updateMcpServer(
   updateSecret: boolean,
 ): Promise<McpServer> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.UpdateMcpServer}/${id}/update`,
+    `${AdminPost.UpdateMcpServer}/${id}/update`,
     { ...input, update_secret: updateSecret },
     OWN_ERRORS,
   )
@@ -144,11 +144,11 @@ export async function updateMcpServer(
 }
 
 export async function setMcpServerEnabled(id: string, enabled: boolean): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.SetMcpServerEnabled}/${id}/enabled`, { enabled })
+  await axiosInstance.post(`${AdminPost.SetMcpServerEnabled}/${id}/enabled`, { enabled })
 }
 
 export async function deleteMcpServer(id: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.DeleteMcpServer}/${id}/delete`)
+  await axiosInstance.post(`${AdminPost.DeleteMcpServer}/${id}/delete`)
 }
 
 // testMcpServer introspects the server live and returns its tools. The endpoint
@@ -157,7 +157,7 @@ export async function deleteMcpServer(id: string): Promise<void> {
 export async function testMcpServer(
   id: string,
 ): Promise<{ ok: boolean; tools?: McpTool[]; msg?: string }> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.TestMcpServer}/${id}/test`)
+  const res = await axiosInstance.post(`${AdminPost.TestMcpServer}/${id}/test`)
   return { ok: !!res.data?.ok, tools: res.data?.data as McpTool[], msg: res.data?.msg }
 }
 

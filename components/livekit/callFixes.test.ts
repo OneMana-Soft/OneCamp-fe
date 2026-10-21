@@ -148,6 +148,8 @@ describe("CALL-BUG-11: only the server can say someone was removed", () => {
     expect(readRemovalPacket(packet({ v: 1, t: "removed", by: "Maya Chen", reason: "host" }), { identity: "jonas" })).toBeNull()
     expect(readRemovalPacket(packet({ t: "other" }), undefined)).toBeNull()
     expect(readRemovalPacket(packet({ t: "removed", reason: "made-up" }), undefined)).toEqual({ reason: "unknown", by: undefined })
+    // Put out because it couldn't be checked (fail closed, 21 Oct).
+    expect(readRemovalPacket(packet({ v: 1, t: "removed", reason: "unconfirmed" }), undefined)).toEqual({ reason: "unconfirmed", by: undefined })
   })
 
   it("tells a member they can't come back, and never tells a guest so", () => {
@@ -156,6 +158,9 @@ describe("CALL-BUG-11: only the server can say someone was removed", () => {
     expect(removedText({ reason: "link_revoked" }).title).toBe("Your invite was turned off")
     expect(removedText({ reason: "not_member" }).detail).toContain("no longer a member")
     expect(removedText(null).title).toBe("You were removed from the call")
+    // Never "removed you" for a check that couldn't answer: they can come back.
+    expect(removedText({ reason: "unconfirmed" })).toEqual({ title: "You left the call", detail: "We couldn't confirm you can be in this call just now. Join again in a moment." })
+    expect(removedText({ reason: "unconfirmed" }, true).detail).toBe("We couldn't confirm you can be in this meeting just now. Join again in a moment.")
   })
 })
 
@@ -165,8 +170,9 @@ describe("CALL-BUG-20 and 21: the room's options", () => {
     expect(o.adaptiveStream).toBe(true)
     expect(o.dynacast).toBe(true)
     expect(o.publishDefaults?.audioPreset).toEqual(AudioPresets.speech)
-    // Off until the client can fall back on a server without it (Wave A).
+    // Two peer connections unless the server said it takes one (lib/calls/onePeerConnection).
     expect(o.singlePeerConnection).toBe(false)
+    expect(callRoomOptions({}, false, true).singlePeerConnection).toBe(true)
     // LiveKit's own capture defaults stay underneath: nothing turns voice isolation off.
     expect(o.audioCaptureDefaults).not.toHaveProperty("voiceIsolation")
     expect(o.audioCaptureDefaults).not.toHaveProperty("noiseSuppression")

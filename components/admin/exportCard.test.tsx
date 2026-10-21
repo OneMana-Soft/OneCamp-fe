@@ -13,7 +13,7 @@ vi.mock("@/hooks/useFetch", () => ({
   },
 }))
 vi.mock("@/hooks/useResilientPolling", () => ({ useResilientPolling: () => {} }))
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
+vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<object>()), useMqtt: () => ({ connectionState: { isConnected: true } }) }))
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 const start = vi.fn(async () => ({}))

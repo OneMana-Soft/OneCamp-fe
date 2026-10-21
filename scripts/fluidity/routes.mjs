@@ -153,8 +153,10 @@ if (isMain) {
       const gzipKB = w ? Math.round(w.bytes / 1024) : undefined
       proposal[file] = {
         ...was,
-        // Never above what the table already says: a ceiling only goes down.
-        source: Math.min(was.source ?? Infinity, roomy(source, 1.5, 1000)),
+        // The room rule (route-ceilings.json's header): the measure plus
+        // 2,000 B, rounded up to the next 1,000, for a new route and for a
+        // line lowered after its route shrinks; never above the line it has.
+        source: Math.min(was.source ?? Infinity, Math.ceil((source + 2000) / 1000) * 1000),
         ...(gzipKB !== undefined ? { gzipKB: Math.min(was.gzipKB ?? Infinity, roomy(gzipKB, 1.5, 1)) } : {}),
       }
     }

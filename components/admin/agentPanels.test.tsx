@@ -9,7 +9,7 @@ vi.mock("@/services/agentService", async (orig) => ({
 vi.mock("@/hooks/useAgentWorkEvents", () => ({ useAgentWorkEvents: () => {} }))
 vi.mock("@/hooks/useStreamGapResync", () => ({ useStreamGapResync: () => {} }))
 vi.mock("@/hooks/useResilientPolling", () => ({ useResilientPolling: () => {} }))
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
+vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<object>()), useMqtt: () => ({ connectionState: { isConnected: true } }) }))
 vi.mock("@/components/ai/AgentWorkRow", () => ({
   AgentWorkRow: ({ item }: { item: { title: string } }) => <li>{item.title}</li>,
   sortAgentWork: (items: unknown[]) => items,

@@ -6,7 +6,7 @@ import {MobileChat} from "@/components/mobileChatMessage/mobileChat";
 import {MobileChatMessageTextInput} from "@/components/textInput/mobileChatMessageTextInput";
 import {useDispatch, useSelector} from "react-redux";
 import {useFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import type {RootState} from "@/store/store";
 import {useEffect} from "react";
 import {CreateChatPaginationResRaw} from "@/types/chat";
@@ -21,7 +21,7 @@ export default function Page() {
 
     const dispatch = useDispatch();
 
-    const getNewPostsWithCurrentPost = useFetch<CreateChatPaginationResRaw>(chatId ? GetEndpointUrl.GetNewChatIncludingCurrentChat + '/' + chatId + '/' + chatMessageId: '')
+    const getNewPostsWithCurrentPost = useFetch<CreateChatPaginationResRaw>(chatId ? ChatGet.GetNewChatIncludingCurrentChat + '/' + chatId + '/' + chatMessageId: '')
 
     const chatMessageState = useSelector((state: RootState) => state.chat.chatMessages[chatId] || []);
 

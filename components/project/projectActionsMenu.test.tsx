@@ -38,8 +38,10 @@ describe("the project header's actions", () => {
     render(<ProjectActionsMenu projectId="q4-1" isAdmin={false} isMember onRename={() => {}} onMembers={() => {}} />)
     fireEvent.click(screen.getByRole("button", { name: "Time logged on this project" }))
     expect(await screen.findByTestId("time")).toBeTruthy()
-    // A member has nothing else to do here, so there is no empty menu.
-    expect(screen.queryByRole("button", { name: "Project actions" })).toBeNull()
+    // A member's menu holds the project's rules, which they read (package 9).
+    openMenu()
+    expect(screen.getByRole("menuitem", { name: "Rules that run work" })).toBeTruthy()
+    expect(screen.queryByRole("menuitem", { name: "Forms that make tasks" })).toBeNull()
   })
 
   it("lists every admin action by name, and each one does what it says", async () => {
@@ -100,7 +102,8 @@ describe("the project header's actions", () => {
 
   it("offers no archive to a member who isn't an admin", () => {
     render(<ProjectActionsMenu projectId="q4-1" isAdmin={false} isMember onRename={() => {}} onMembers={() => {}} />)
-    expect(screen.queryByRole("button", { name: "Project actions" })).toBeNull()
+    openMenu()
+    expect(screen.queryByRole("menuitem", { name: /Archive/ })).toBeNull()
   })
 
   it("shows nothing to someone outside the project", () => {

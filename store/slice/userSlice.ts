@@ -595,22 +595,23 @@ const userSlice = createSlice({
       state.userSidebar.totalUnreadActivityCount = action.payload.count;
     },
 
-    resetUserChatUnread: (state, action: {payload: {dm_grouping_id: string}}) => {
-      const {dm_grouping_id} = action.payload;
+    // count: the server's number (Mark unread); none is read.
+    resetUserChatUnread: (state, action: {payload: {dm_grouping_id: string; count?: number}}) => {
+      const {dm_grouping_id, count = 0} = action.payload;
       state.userSidebar.userChats = state.userSidebar.userChats.map((item) => {
         if(item.dm_grouping_id == dm_grouping_id) {
-          item.dm_unread = 0;
+          item.dm_unread = count;
         }
         return item;
       });
     },
 
-    resetUserChannelUnread: (state, action: {payload: {ch_uuid: string}}) => {
-      const {ch_uuid} = action.payload;
+    resetUserChannelUnread: (state, action: {payload: {ch_uuid: string; count?: number}}) => {
+      const {ch_uuid, count = 0} = action.payload;
       state.userSidebar.userChannels = state.userSidebar.userChannels.map((item) => {
         if(item.ch_uuid == ch_uuid) {
-          item.unread_post_count = 0;
-          item.unread_mention_count = 0;
+          item.unread_post_count = count;
+          if (!count) item.unread_mention_count = 0;
         }
         return item;
       });

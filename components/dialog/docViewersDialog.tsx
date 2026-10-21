@@ -3,7 +3,7 @@
 // DocViewersDialog: "Viewed by" for a document. Thin wrapper over the generic,
 // paginated ResourceViewersDialog.
 
-import { GetEndpointUrl } from "@/services/endPoints"
+import { DocsGet } from "@/services/endpoints/docs"
 import ResourceViewersDialog from "@/components/dialog/resourceViewersDialog"
 
 interface DocViewersDialogProps {
@@ -17,7 +17,7 @@ export function DocViewersDialog({ open, onOpenChange, docId }: DocViewersDialog
     <ResourceViewersDialog
       open={open}
       onOpenChange={onOpenChange}
-      viewersEndpoint={GetEndpointUrl.GetDocViewers}
+      viewersEndpoint={DocsGet.GetDocViewers}
       idParam="doc_uuid"
       resourceId={docId}
       noun="doc"

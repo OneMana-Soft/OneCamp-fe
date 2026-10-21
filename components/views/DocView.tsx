@@ -15,6 +15,7 @@ import type { Editor } from "@tiptap/react";
 import {cn} from "@/lib/utils/helpers/cn";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { ProjectsPost } from "@/services/endpoints/projects";
 import { UserProfileInterface } from "@/types/user";
 import * as React from 'react';
 import {generateColorFromUUID} from "@/lib/utils/generateColorFromUUID";
@@ -118,7 +119,7 @@ export function DocView({ docId }: { docId: string }) {
         if (viewRecordedRef.current === docId) return;
         viewRecordedRef.current = docId;
         recordDocView({
-            apiEndpoint: PostEndpointUrl.RecordDocView,
+            apiEndpoint: ProjectsPost.RecordDocView,
             payload: { doc_uuid: docId },
             showErrorToast: false,
         }).catch(() => {

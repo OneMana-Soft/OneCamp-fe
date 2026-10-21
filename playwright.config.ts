@@ -1,3 +1,4 @@
+import { availableParallelism } from "node:os"
 import { defineConfig, devices } from "@playwright/test"
 
 // Playwright E2E config for OneCamp FE.
@@ -28,7 +29,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCI, // .only must not land in CI
   retries: isCI ? 2 : 0,
-  workers: isCI ? 1 : undefined,
+  // Half the CPUs this process may use: Playwright's own default is half of
+  // os.cpus(), which ignores taskset, so a heavy.sh slot of 8 CPUs ran 16
+  // workers and a cold first page overran its 30 s (docs/pageChrome).
+  workers: isCI ? 1 : Math.max(1, Math.floor(availableParallelism() / 2)),
   reporter: isCI ? [["github"], ["html", { open: "never" }]] : "list",
 
   use: {

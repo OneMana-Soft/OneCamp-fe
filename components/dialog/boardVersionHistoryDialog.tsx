@@ -11,7 +11,7 @@ import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { BoardsGet, BoardsPost } from "@/services/endpoints/boards"
 import type { BoardSnapshot, BoardSnapshotContributor, BoardSnapshotListResponse } from "@/types/board"
 import {
   Dialog,
@@ -49,7 +49,7 @@ const REASON_META: Record<BoardSnapshot["reason"], { label: string; warning: boo
 
 export function BoardVersionHistoryDialog({ open, onOpenChange, boardId }: BoardVersionHistoryDialogProps) {
   // Fetch only while open so closing the dialog drops the request.
-  const endpoint = open && boardId ? `${GetEndpointUrl.GetBoardSnapshots}?board_uuid=${boardId}` : ""
+  const endpoint = open && boardId ? `${BoardsGet.GetBoardSnapshots}?board_uuid=${boardId}` : ""
   const { data, isLoading, mutate } = useFetch<BoardSnapshotListResponse>(endpoint)
   const { makeRequest, isSubmitting } = usePost()
   const [restoringId, setRestoringId] = React.useState<string | null>(null)
@@ -61,7 +61,7 @@ export function BoardVersionHistoryDialog({ open, onOpenChange, boardId }: Board
       if (isSubmitting) return
       setRestoringId(snapshotId)
       makeRequest({
-        apiEndpoint: PostEndpointUrl.RestoreBoardSnapshot,
+        apiEndpoint: BoardsPost.RestoreBoardSnapshot,
         payload: { board_uuid: boardId, snapshot_id: snapshotId },
         showToast: true,
       })

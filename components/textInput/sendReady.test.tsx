@@ -81,9 +81,12 @@ describe("every composer with a Send button and a paperclip", () => {
   // 13 since B7: the doc's comment list and the phone's no longer hold a
   // composer of their own (rightPanel/docCommentList, docMobileCommentList);
   // a doc's comments are written in docComments/CommentComposer, which counts
-  // its own files (its tests hold Send ready with only a file).
+  // its own files (its tests hold Send ready with only a file). 11 since chat
+  // P5: a channel's, a DM's and a group's thread panel write in one reply box
+  // (conversation/ThreadReplyBox), which passes hasAttachments as each did.
   it("were found", () => {
-    expect(composers.length).toBeGreaterThanOrEqual(13)
+    expect(composers.length).toBeGreaterThanOrEqual(11)
+    expect(composers.some((f) => f.endsWith("conversation/ThreadReplyBox.tsx"))).toBe(true)
   })
 
   it.each(composers.map((f) => [f.slice(ROOT.length + 1)]))("%s passes hasAttachments", (f) => {

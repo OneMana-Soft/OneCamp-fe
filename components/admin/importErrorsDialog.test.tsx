@@ -79,7 +79,7 @@ describe("how an import's error log reads", () => {
     getImportErrors.mockResolvedValue([])
     render(<ImportErrorsDialog jobId="j1" open onOpenChange={() => {}} />)
     expect(await screen.findByText("Nothing was logged")).toBeTruthy()
-    expect(document.querySelector(".hue-sun")).toBeTruthy()
+    expect(document.querySelector(".hue-ink")).toBeTruthy()
     expect(document.querySelector("p.rounded-md")).toBeNull()
   })
 

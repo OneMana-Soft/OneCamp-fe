@@ -1,5 +1,5 @@
 import * as React from "react"
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react"
@@ -184,8 +184,13 @@ describe("the layout's rules (app/overlay.css)", () => {
   const rules = css("app/overlay.css")
 
   it("makes a floating root that holds a body a column that never scrolls, a popover's at most the room left", () => {
-    expect(rules).toMatch(/\[data-overlay="float"\]:has\(> \[data-overlay-body\][^{]*\{\s*display: flex;\s*flex-direction: column;\s*overflow: hidden;/)
-    expect(rules).toMatch(/\[data-radix-popper-content-wrapper\] > \[data-overlay="float"\]:has\([^{]*\{\s*max-height: var\(--radix-popover-content-available-height\);/)
+    expect(rules).toMatch(/\[data-overlay="float"\]\[data-overlay-holds-body\] \{\s*display: flex;\s*flex-direction: column;\s*overflow: hidden;/)
+    expect(rules).toMatch(/\[data-radix-popper-content-wrapper\] > \[data-overlay="float"\]\[data-overlay-holds-body\] \{\s*max-height: var\(--radix-popover-content-available-height\);/)
+  })
+
+  it("lets a box between the root and its body join the column, and a sheet's body that holds one stop scrolling, by the marks the body sets", () => {
+    expect(rules).toMatch(/\[data-overlay\] > \[data-overlay-column\]:not\(\[data-overlay-body\], \[data-sheet-base\]\),\s*\[data-overlay\] > \* > \[data-overlay-column\]:not\(\[data-overlay-body\], \[data-sheet-base\]\) \{\s*display: flex;\s*flex-direction: column;\s*flex: 1 1 auto;\s*min-height: 0;/)
+    expect(rules).toMatch(/\[data-sheet-body\]\[data-overlay-holds-body\] \{\s*overflow: hidden;/)
   })
 
   it("makes the body the one scroller, up and down only", () => {
@@ -226,5 +231,116 @@ describe("an overlay's footer part", () => {
   it("is marked, so the guard and the rules know it", () => {
     render(<OverlayFooter data-testid="f" />)
     expect(screen.getByTestId("f").hasAttribute("data-overlay-footer")).toBe(true)
+  })
+})
+
+// The marks app/overlay.css reads in place of :has() (app/selectorKeyGuard.test.ts):
+// the body sets them on what holds it and on the boxes between, so each rule
+// matches exactly what its :has() matched, and nothing else.
+describe("the marks a body sets for the layout", () => {
+  // The rules as app/overlay.css had them, each :has() list written out one
+  // relative selector at a time: jsdom reads a list inside :has() wrongly (its
+  // later entries lose their leading >), which a browser doesn't.
+  const has = (subject: string, ...relative: string[]) => relative.map((r) => `${subject}:has(${r})`).join(", ")
+  const OLD = {
+    root: has('[data-overlay="float"]', "> [data-overlay-body]", "> * > [data-overlay-body]", "> * > * > [data-overlay-body]"),
+    popper: has('[data-radix-popper-content-wrapper] > [data-overlay="float"]', "> [data-overlay-body]", "> * > [data-overlay-body]", "> * > * > [data-overlay-body]"),
+    box: [
+      has("[data-overlay] > :not([data-overlay-body], [data-sheet-base])", "> [data-overlay-body]", "> * > [data-overlay-body]"),
+      has("[data-overlay] > * > :not([data-overlay-body], [data-sheet-base])", "> [data-overlay-body]"),
+    ].join(", "),
+    sheet: has("[data-sheet-body]", "> [data-overlay-body]", "> [data-sheet-base] > [data-overlay-body]"),
+  }
+  const NEW = {
+    root: '[data-overlay="float"][data-overlay-holds-body]',
+    popper: '[data-radix-popper-content-wrapper] > [data-overlay="float"][data-overlay-holds-body]',
+    box: "[data-overlay] > [data-overlay-column]:not([data-overlay-body], [data-sheet-base]), [data-overlay] > * > [data-overlay-column]:not([data-overlay-body], [data-sheet-base])",
+    sheet: "[data-sheet-body][data-overlay-holds-body]",
+  }
+  /** Each element of `root` the rule matches, by its id: old (:has) beside new (the marks). */
+  const matches = (root: Element) =>
+    Object.fromEntries(
+      (Object.keys(OLD) as (keyof typeof OLD)[]).map((rule) => [
+        rule,
+        { old: [...root.querySelectorAll(OLD[rule])].map((e) => e.id), new: [...root.querySelectorAll(NEW[rule])].map((e) => e.id) },
+      ]),
+    )
+  const same = (root: Element) => {
+    const m = matches(root)
+    for (const [rule, { old, new: now }] of Object.entries(m)) expect(now, `${rule}: what the :has() matched`).toEqual(old)
+    return m
+  }
+
+  it("marks what the :has() rules matched, in every shape they matched, and nothing else", () => {
+    const shapes: React.ReactNode[] = [
+      // A popover's body, one, two, three and four boxes down; a header and a footer beside it.
+      <div key="w1" id="w1" data-radix-popper-content-wrapper=""><div id="r1" data-overlay="float"><OverlayBody id="b1" /></div></div>,
+      <div key="r2" id="r2" data-overlay="float"><div id="h2" data-overlay-header="" /><form id="f2"><OverlayBody id="b2" /><div id="t2" data-overlay-footer="" /></form></div>,
+      <div key="r3" id="r3" data-overlay="float"><div id="p3"><form id="f3"><OverlayBody id="b3" /></form></div><div id="t3" data-overlay-footer="" /></div>,
+      <div key="r4" id="r4" data-overlay="float"><div id="a4"><div id="c4"><div id="d4"><OverlayBody id="b4" /></div></div></div></div>,
+      // A sheet's body holding one through its base, and directly; and a sheet's own box.
+      <div key="r5" id="r5" data-overlay="sheet"><div id="s5" data-sheet-body=""><div id="e5" data-sheet-base="" style={{ display: "contents" }}><OverlayBody id="b5" /></div></div></div>,
+      <div key="r6" id="r6" data-overlay="sheet"><div id="s6" data-sheet-body=""><OverlayBody id="b6" /></div></div>,
+      // Not in an overlay at all.
+      <div key="n7" id="n7"><div id="m7"><OverlayBody id="b7" /></div></div>,
+    ]
+    for (const shape of shapes) {
+      const { container, unmount } = render(<>{shape}</>)
+      same(container)
+      unmount()
+    }
+    // The ones that matter, by name: the popover's root, its box, the sheet's body.
+    const { container } = render(<div id="r8" data-overlay="float"><div id="p8"><form id="f8"><OverlayBody id="b8" /></form></div></div>)
+    expect(same(container)).toMatchObject({ root: { new: ["r8"] }, box: { new: ["p8", "f8"] } })
+  })
+
+  it("keeps a mark while another body still needs it, and takes it off with the last", () => {
+    function Two({ both }: { both: boolean }) {
+      return (
+        <div id="r" data-overlay="float">
+          <form id="f">
+            <OverlayBody id="b1" />
+            {both ? <OverlayBody id="b2" /> : null}
+          </form>
+        </div>
+      )
+    }
+    const { container, rerender, unmount } = render(<Two both />)
+    same(container)
+    rerender(<Two both={false} />)
+    expect(same(container)).toMatchObject({ root: { new: ["r"] }, box: { new: ["f"] } })
+    unmount()
+    expect(document.querySelectorAll("[data-overlay-holds-body], [data-overlay-column]")).toHaveLength(0)
+  })
+
+  it("leaves a mark written by hand alone (a body that isn't the component marks its own root)", () => {
+    const { container, unmount } = render(
+      <div id="r" data-overlay="float" data-overlay-holds-body="">
+        <div id="raw" data-overlay-body="" />
+        <div id="x"><OverlayBody id="b" /></div>
+      </div>,
+    )
+    same(container)
+    unmount()
+  })
+
+  it("is written by hand wherever a body is: every data-overlay-body outside the component marks its root", () => {
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const name of readdirSync(dir)) {
+        if (name === "node_modules" || name.startsWith(".")) continue
+        const p = join(dir, name)
+        if (statSync(p).isDirectory()) walk(p, out)
+        else if (/\.tsx$/.test(name) && !/\.(test|spec)\./.test(name)) out.push(p)
+      }
+      return out
+    }
+    const unmarked = ["components", "app"]
+      .flatMap((d) => walk(join(ROOT, d)))
+      .filter((f) => !f.endsWith(join("components", "ui", "overlay.tsx")))
+      .filter((f) => {
+        const src = readFileSync(f, "utf8")
+        return /data-overlay-body=/.test(src) && !/data-overlay-holds-body/.test(src)
+      })
+    expect(unmarked, "a body written by hand: put data-overlay-holds-body on the root that holds it").toEqual([])
   })
 })

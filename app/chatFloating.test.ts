@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest"
 // surface at e3 (r12, r10 for a toolbar). Five layers once had five radius and
 // shadow pairs.
 const FILES = [
-  "components/popover/reactionPickerPopover.tsx",
+  // The reaction picker's surface is drawn by its lazy panel since it loads on first use.
+  "components/popover/reactionPickerPanel.tsx",
   // The @ list and the slash menu are content's CommandList (content.md D24),
   // which is the pop surface; the integration (11 Oct) moved the check there.
   "components/ui/CommandList.tsx",
@@ -25,7 +26,7 @@ describe("the floating material in a conversation", () => {
   })
 
   it("draws the @ list and the slash menu with the CommandList", () => {
-    for (const f of ["components/minimal-tiptap/extensions/mention-list/mentionList.tsx", "components/minimal-tiptap/extensions/slash-command/slashCommand.tsx"]) {
+    for (const f of ["components/minimal-tiptap/extensions/mention-list/mentionListView.tsx", "components/minimal-tiptap/extensions/slash-command/slashCommand.tsx"]) {
       expect(readFileSync(f, "utf8"), f).toMatch(/<CommandList\b/)
     }
   })

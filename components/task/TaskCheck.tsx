@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MouseEvent } from "react"
 
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { statusKindOf, useStatusLabel, type StatusLike } from "@/components/task/taskStatusCell"
@@ -8,6 +8,9 @@ import { celebrateTask, warmBurstsWhenIdle } from "@/lib/celebrateSoon"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { feedback } from "@/lib/ui/feedback"
 import { cn } from "@/lib/utils/helpers/cn"
+
+// Why it is disabled, in the portalled tooltip, fetched when first needed.
+const Tip = lazy(() => import("@/components/ui/disabledTip"))
 
 /**
  * The completable check (design v3, work.md W03): the task's status glyph,
@@ -85,8 +88,11 @@ export function TaskCheck({
   )
 
   const label = done ? `Mark ${taskName} as not done` : `Mark ${taskName} complete`
-  const tip = disabled ? disabledReason : done ? "Mark as not done" : statusName ? `${statusName} · click to complete` : "Complete"
-  return (
+  // Disabled, the reason is the app's portalled tooltip, which no clip around
+  // the row cuts (the top row of a list cut it to "project's members can
+  // change it"); the CSS tip says the rest.
+  const tip = disabled ? "" : done ? "Mark as not done" : statusName ? `${statusName} · click to complete` : "Complete"
+  const check = (
     <button
       ref={ref}
       type="button"
@@ -102,7 +108,7 @@ export function TaskCheck({
       onPointerLeave={press.up}
       className={cn(
         "work-tip group/check relative inline-flex shrink-0 items-center justify-center rounded-sm outline-none",
-        "focus-visible:after:hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         disabled ? "cursor-default" : "cursor-pointer",
         className,
       )}
@@ -149,6 +155,7 @@ export function TaskCheck({
       </span>
     </button>
   )
+  return disabled && disabledReason ? <Suspense fallback={check}><Tip reason={disabledReason}>{check}</Tip></Suspense> : check
 }
 
 /**

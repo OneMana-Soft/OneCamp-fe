@@ -24,6 +24,7 @@ vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-re
 
 import GitHubIntegrationCard from "@/components/admin/GitHubIntegrationCard"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 
 afterEach(() => {
   cleanup()
@@ -45,9 +46,9 @@ const link = {
 
 function given(connected: boolean, links: unknown[] = []) {
   fetched.current = {
-    [GetEndpointUrl.GetGitHubStatus]: { status: { connected, linked_repos: links } },
+    [AdminGet.GetGitHubStatus]: { status: { connected, linked_repos: links } },
     [GetEndpointUrl.GetUserProjectList]: { data: { user_projects: [{ project_uuid: "p1", project_name: "Website" }] } },
-    [GetEndpointUrl.GetGitHubWebhookHealth]: { health: { completed_24h: 0, failed_24h: 0, processing_24h: 0 } },
+    [AdminGet.GetGitHubWebhookHealth]: { health: { completed_24h: 0, failed_24h: 0, processing_24h: 0 } },
   }
 }
 
@@ -114,7 +115,7 @@ describe("the GitHub integration", () => {
   it("asks for a project beside its picker, and moves there", async () => {
     given(true, [])
     makeRequest.mockImplementation(async (o: { apiEndpoint: string }) =>
-      o.apiEndpoint === GetEndpointUrl.GetGitHubRepos
+      o.apiEndpoint === AdminGet.GetGitHubRepos
         ? { repos: [{ full_name: "acme/site", owner: "acme", name: "site", description: "", private: false, html_url: "" }] }
         : undefined,
     )

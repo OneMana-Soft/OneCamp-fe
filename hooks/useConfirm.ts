@@ -45,26 +45,25 @@ interface ConfirmOptions {
   onConfirm: () => unknown
 }
 
+export function confirmAction(opts: ConfirmOptions) {
+  return openUI({
+    key: "confirmAlert",
+    data: {
+      title: opts.title,
+      description: opts.description,
+      confirmText: opts.confirmText || "Confirm",
+      cancelText: opts.cancelText,
+      destructive: opts.destructive === true,
+      icon: opts.icon,
+      requireText: opts.requireText,
+      onConfirm: opts.onConfirm,
+    },
+  })
+}
+
 export function useConfirm() {
   const dispatch = useDispatch()
-  return useCallback(
-    (opts: ConfirmOptions) => {
-      dispatch(
-        openUI({
-          key: "confirmAlert",
-          data: {
-            title: opts.title,
-            description: opts.description,
-            confirmText: opts.confirmText || "Confirm",
-            cancelText: opts.cancelText,
-            destructive: opts.destructive === true,
-            icon: opts.icon,
-            requireText: opts.requireText,
-            onConfirm: opts.onConfirm,
-          },
-        }),
-      )
-    },
-    [dispatch],
-  )
+  return useCallback((opts: ConfirmOptions) => {
+    dispatch(confirmAction(opts))
+  }, [dispatch])
 }

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "@/lib/icons"
 import { CURRENCIES, centsOf, fromCents, type ProjectRates } from "@/lib/rates"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import type { ProjectInfoRawInterface } from "@/types/project"
 
 export function ProjectRatesDialog({
@@ -33,7 +34,7 @@ export function ProjectRatesDialog({
   onSaved: () => void
 }) {
   const { toast } = useToast()
-  const url = `${GetEndpointUrl.ProjectRates}/${projectId}/rates`
+  const url = `${ProjectsGet.ProjectRates}/${projectId}/rates`
   const rates = useFetch<{ data: ProjectRates }>(open ? url : "")
   const members = useFetch<ProjectInfoRawInterface>(open ? `${GetEndpointUrl.GetProjectMembers}/${projectId}` : "")
   const [currency, setCurrency] = useState("USD")

@@ -1,9 +1,8 @@
 import type { HTMLAttributes, ReactNode } from "react"
 
-import type { CampHue } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 
-import { HUE_CLASS } from "./hues"
+import { HUE_CLASS, type MarkHue } from "./hues"
 
 /**
  * Three sizes on the 4-pt scale. 32 and 40 take the card radius (10); at 24 a
@@ -21,7 +20,7 @@ const SIZES = {
 export type TileSize = keyof typeof SIZES
 
 export interface TileProps extends HTMLAttributes<HTMLSpanElement> {
-  hue: CampHue
+  hue: MarkHue
   size?: TileSize
   children?: ReactNode
 }

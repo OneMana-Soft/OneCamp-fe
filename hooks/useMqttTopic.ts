@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import {useMqtt} from "@/components/mqtt/mqttProvider";
+import {useMqtt} from "@/components/mqtt/mqttContext";
 
 interface UseMqttTopicOptions {
     topic: string

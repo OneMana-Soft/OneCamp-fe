@@ -36,7 +36,8 @@ import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { PublicGone } from "@/components/guest/publicStates"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import { GuestUpdates } from "@/components/guest/GuestUpdates"
-import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
+import dynamic from "next/dynamic"
+import { TabLoading } from "@/components/task/TabLoading"
 import { useStoredState } from "@/hooks/useStoredState"
 import { onEscape } from "@/lib/keys/onEscape"
 import type { TimelineTask } from "@/lib/timeline"
@@ -48,6 +49,12 @@ import { useProjectHue } from "@/lib/projectHue"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { GuestCard, GuestStatusGlyph, awaitsReview } from "@/components/guest/GuestReview"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+
+// The timeline is one tab of three, so it arrives when a guest opens it
+// rather than with the board everyone sees first.
+const ProjectTimeline = dynamic(() => import("@/components/project/timeline/ProjectTimeline").then((m) => m.ProjectTimeline), {
+  loading: () => <TabLoading kind="timeline" className="min-h-0 px-0 pt-1" />,
+})
 
 // A board changes slower than a conversation.
 const BOARD_POLL_MS = GUEST_POLL_MS * 3
@@ -187,7 +194,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
                 <p className="py-16 text-center text-sm text-ink-2">No tasks here yet.</p>
               ) : tab === "timeline" ? (
                 <div className="h-[calc(100dvh-15rem)] min-h-[24rem] px-4 pt-3 sm:px-7">
-                  <ProjectTimeline projectId="" viewKey={`guest:${token}`} tasks={timelineTasks} compact={narrow} onOpenTask={setOpen} />
+                  <ProjectTimeline projectId="" hue={projectHue} viewKey={`guest:${token}`} tasks={timelineTasks} compact={narrow} onOpenTask={setOpen} />
                 </div>
               ) : tab === "review" && reviewing.length === 0 ? (
                 <p className="py-16 text-center text-sm text-ink-2">Nothing waits on you. Thank you.</p>

@@ -15,6 +15,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { useCopy } from "@/components/ui/settingsControls"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { toast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -94,7 +95,7 @@ function tokenDates(t: ApiToken) {
  */
 const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCreatingChange: (open: boolean) => void }) => {
   const confirm = useConfirm()
-  const { data, isLoading, isError, mutate } = useFetch<{ data: ApiToken[] }>(GetEndpointUrl.GetApiTokens)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: ApiToken[] }>(AdminGet.GetApiTokens)
   // The agents endpoint already returns only agents the caller may manage, so
   // every option offered here is one the server will accept.
   const { data: agentsData } = useFetch<{ data: Agent[] }>(GetEndpointUrl.GetAgents)
@@ -293,7 +294,7 @@ function NewTokenForm({
   closeGuard: MutableRefObject<() => boolean>
 }) {
   const confirm = useConfirm()
-  const { data: scopesData } = useFetch<{ data: string[] }>(GetEndpointUrl.GetApiTokenScopes)
+  const { data: scopesData } = useFetch<{ data: string[] }>(AdminGet.GetApiTokenScopes)
   const availableScopes = scopesData?.data || []
   // Only ACTIVE agents are passed in: binding to a deactivated one is refused by the
   // server, since the credential would be rejected on every call.

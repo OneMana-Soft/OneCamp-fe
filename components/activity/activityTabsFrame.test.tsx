@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -108,7 +108,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   useSearchParams: () => new URLSearchParams(search),
 }))
-vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
+// The Inbox reads the right panel (the reading pane): closed here.
+vi.mock("react-redux", () => ({ useDispatch: () => () => {}, useSelector: () => undefined }))
 vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
 vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => {} }))
 vi.mock("@/components/ai/InboxNudges", () => ({ default: () => null }))
@@ -141,6 +142,13 @@ function renderTab(tab: (typeof TABS)[number]) {
   return render(<ActivityListTabs />)
 }
 
+/** A tab, once it has drawn: the AI tab's record is a chunk of its own (app/firstLoad.test.ts, the Inbox). */
+async function renderedTab(tab: (typeof TABS)[number]) {
+  const out = renderTab(tab)
+  await waitFor(() => expect(out.container.querySelector("[data-feed-frame]")).toBeTruthy())
+  return out
+}
+
 /** The frame a tab drew, and the parts of it every tab must have. */
 function frameOf(container: HTMLElement) {
   const frames = container.querySelectorAll("[data-feed-frame]")
@@ -154,8 +162,8 @@ function frameOf(container: HTMLElement) {
 }
 
 describe("every Activity tab", () => {
-  it.each(TABS)("%s draws in the shared frame, with its toolbar row", (tab) => {
-    const { container } = renderTab(tab)
+  it.each(TABS)("%s draws in the shared frame, with its toolbar row", async (tab) => {
+    const { container } = await renderedTab(tab)
     const { frame, toolbar, body } = frameOf(container)
     // The list's column: bounded, starting at the panel's edge, never centred.
     // The hub's column (A1): 760px at most, start-aligned, never centred.
@@ -169,19 +177,20 @@ describe("every Activity tab", () => {
     expect(container.querySelector(".rounded-lg.border.bg-card")).toBeNull()
   })
 
-  it("draws the same frame and toolbar on all four", () => {
-    const seen = TABS.map((tab) => {
-      const { container, unmount } = renderTab(tab)
+  it("draws the same frame and toolbar on all four", async () => {
+    const seen: string[] = []
+    for (const tab of TABS) {
+      const { container, unmount } = await renderedTab(tab)
       const { frame, toolbar } = frameOf(container)
-      const out = `${frame.className}|${toolbar!.className}`
+      seen.push(`${frame.className}|${toolbar!.className}`)
       unmount()
-      return out
-    })
+    }
     expect(new Set(seen).size).toBe(1)
   })
 
-  it.each(TABS)("%s draws its rows with the feed's one row", (tab) => {
-    const { container } = renderTab(tab)
+  it.each(TABS)("%s draws its rows with the feed's one row", async (tab) => {
+    const { container } = await renderedTab(tab)
+    await waitFor(() => expect(container.querySelector("[data-feed-body] [data-feed-row]")).toBeTruthy())
     const row = container.querySelector("[data-feed-body] [data-feed-row]") as HTMLElement
     expect(row, "a row").toBeTruthy()
     // The feed HubRow, led by a 32px mark with its kind badge.

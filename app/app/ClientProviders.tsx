@@ -13,6 +13,7 @@ import { SWRConfig } from "swr";
 import { SWRMutateBridge } from "@/components/providers/SWRMutateBridge";
 import { localStorageProvider } from "@/lib/swrCache";
 import { sweepTTLKeys } from "@/lib/utils/helpers/ttlStorage";
+import dynamic from "next/dynamic";
 import "@/lib/env"; // Trigger validation on load
 // Initialise i18next on the client. Side-effect import ONLY: the module
 // runs i18n.use(initReactI18next).init({...}) at evaluation time. Without
@@ -23,6 +24,9 @@ import "@/lib/env"; // Trigger validation on load
 import "@/lib/utils/i18n";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+
+// The one chip for every data-tip label (components/ui/tipLayer), in a chunk of its own.
+const TipLayer = dynamic(() => import("@/components/ui/tipLayer"), { ssr: false });
 
 export default function ClientProviders({
   children,
@@ -63,6 +67,7 @@ export default function ClientProviders({
               <GlobalCommandHost />
               <LaterDueHost />
               <AiQuickInvoke />
+              <TipLayer />
             </MqttProvider>
           </TooltipProvider>
         </LoadingProvider>

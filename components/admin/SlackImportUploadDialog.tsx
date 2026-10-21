@@ -14,6 +14,14 @@
  * dialog refused to close); an export uploaded before says so and offers to
  * show that import (it was a red toast, and then the plan dialog opened on an
  * import that had already finished).
+ *
+ * Two ways in (chat item 2). A workspace export holds the public channels
+ * alone unless the team pays for Slack's Business+ or Enterprise, so the
+ * dialog can also read through Slack's API with a token: every public
+ * channel, and the private channels, DMs and group DMs of the person whose
+ * token it is. The read runs on the server and shows in the import history;
+ * it is planned when it finishes. The token is held in the server's memory
+ * for the read alone, and stored nowhere, here or there.
  */
 
 import React, { useRef, useState } from "react"
@@ -31,8 +39,10 @@ import { Field } from "@/components/ui/field"
 import { useToast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
 import { AlertCircle, FileArchive } from "@/lib/icons"
-import { ImportStepper, SLACK_STEPS } from "@/components/admin/importParts"
-import { SLACK_IMPORT_LIMITS_KEY, uploadSlackExport, uploadSlackExportPresigned } from "@/services/slackImportService"
+import { ImportStepper, SLACK_READ_STEPS, SLACK_STEPS } from "@/components/admin/importParts"
+import { SlackTokenHelp } from "@/components/admin/slackTokenHelp"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { SLACK_IMPORT_LIMITS_KEY, readSlackWorkspace, uploadSlackExport, uploadSlackExportPresigned } from "@/services/slackImportService"
 import { importProblemOf } from "@/services/importService"
 import { useFetch } from "@/hooks/useFetch"
 import { readableBytes } from "@/lib/readableBytes"
@@ -45,6 +55,16 @@ interface Props {
   onShowExisting?: (jobId: string) => void
   /** The history changed behind the dialog: a stopped large upload leaves an unfinished import there. */
   onChanged?: () => void
+  /** A read through Slack's API started: it reads in the history, and is planned when it finishes. */
+  onReading?: (jobId: string) => void
+}
+
+/** How the workspace comes in: an export file, or a read through Slack's API. */
+type WayIn = "file" | "api"
+
+/** Whether s looks like a Slack token: a person's (xoxp-) or an app's (xoxb-). Pure. */
+export function isSlackToken(s: string): boolean {
+  return /^xox[pb]-[A-Za-z0-9-]{8,}$/.test(s.trim())
 }
 
 // 50 GB is the practical ceiling for the presigned PUT path on most
@@ -73,8 +93,12 @@ const PRESIGN_THRESHOLD = 2 * 1024 * 1024 * 1024 // 2 GB
 
 type Problem = { message: string; existing?: string }
 
-export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, onUploaded, onShowExisting, onChanged }) => {
+export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, onUploaded, onShowExisting, onChanged, onReading }) => {
   const { toast } = useToast()
+  const [way, setWay] = useState<WayIn>("file")
+  const [token, setToken] = useState("")
+  const [tokenError, setTokenError] = useState("")
+  const [starting, setStarting] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [workspaceName, setWorkspaceName] = useState("")
   const [uploading, setUploading] = useState(false)
@@ -88,6 +112,11 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
   const maxBytes = exportLimit(limits?.max_bytes)
 
   const reset = () => {
+    setWay("file")
+    // The token goes with the dialog: it is kept nowhere.
+    setToken("")
+    setTokenError("")
+    setStarting(false)
     setFile(null)
     setWorkspaceName("")
     setUploading(false)
@@ -202,6 +231,40 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
     }
   }
 
+  // A read through Slack's API: started here, run on the server.
+  const handleRead = async () => {
+    const name = workspaceName.trim()
+    if (!name || starting) return
+    if (!isSlackToken(token)) {
+      setTokenError("That isn't a Slack token. A person's starts xoxp-, an app's xoxb-.")
+      return
+    }
+    setStarting(true)
+    setProblem(null)
+    try {
+      const res = await readSlackWorkspace(name, token.trim())
+      toast({ title: "Reading from Slack", description: "It shows in the import history. Plan it when the read finishes: nothing is imported until you run it." })
+      onReading?.(res.job_id)
+      reset()
+      onOpenChange(false)
+    } catch (err) {
+      const e = err as { response?: { status?: number; data?: { code?: string } } }
+      const status = e?.response?.status
+      const code = e?.response?.data?.code
+      if (status === 400 && code === "bad_token") {
+        setTokenError("That isn't a Slack token. A person's starts xoxp-, an app's xoxb-.")
+      } else if (status === 409 && code === "active_job") {
+        setProblem({ message: "Another import of this workspace is waiting or running. Finish or cancel it, then start the read again." })
+      } else if (status === 429) {
+        setProblem({ message: "That's a few reads in a minute. Wait a moment, then start it again." })
+      } else {
+        setProblem({ message: importProblemOf(err, "The read didn't start. Try again.").message })
+      }
+    } finally {
+      setStarting(false)
+    }
+  }
+
   const showExisting = (jobId: string) => {
     onShowExisting?.(jobId)
     reset()
@@ -214,15 +277,40 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
         <DialogHeader>
           {/* No tile beside the title: a hue is identity, and a dialog is not
               one (design v3, §1.5). */}
-          <DialogTitle>Upload a Slack export</DialogTitle>
+          <DialogTitle>{way === "file" ? "Upload a Slack export" : "Read a Slack workspace"}</DialogTitle>
           <DialogDescription>
-            The .zip file you downloaded from Slack&apos;s Workspace settings
-            {maxBytes !== null && <> (up to {readableBytes(maxBytes)} on this server)</>}. OneCamp reads it and shows
-            what would come across before anything is imported.
+            {way === "file" ? (
+              <>
+                The .zip file you downloaded from Slack&apos;s Workspace settings
+                {maxBytes !== null && <> (up to {readableBytes(maxBytes)} on this server)</>}. OneCamp reads it and shows
+                what would come across before anything is imported.
+              </>
+            ) : (
+              <>
+                OneCamp reads the workspace through Slack&apos;s API with your token, and shows what would come across
+                before anything is imported.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        <ImportStepper steps={SLACK_STEPS} current={0} />
+        <ImportStepper steps={way === "file" ? SLACK_STEPS : SLACK_READ_STEPS} current={0} />
+
+        <SegmentedControl<WayIn>
+          className="w-fit"
+          aria-label="How it comes in"
+          value={way}
+          onValueChange={(v) => {
+            if (uploading || starting) return
+            setWay(v)
+            setProblem(null)
+          }}
+          disabled={uploading || starting}
+          options={[
+            { value: "file", label: "An export file" },
+            { value: "api", label: "Slack's API" },
+          ]}
+        />
 
         <div className="space-y-4 py-2">
           <Field
@@ -233,41 +321,67 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
               placeholder="Acme Inc.…"
               value={workspaceName}
               onChange={(e) => setWorkspaceName(e.target.value)}
-              disabled={uploading}
+              disabled={uploading || starting}
               maxLength={120}
               autoComplete="off"
             />
           </Field>
 
-          <Field label="Export file" help="A .zip, from Slack's Workspace settings, under Import/Export Data." error={fileError}>
-            <Input type="file" accept=".zip,application/zip" onChange={handleFileChange} disabled={uploading} />
-          </Field>
-          {file && (
-            <div className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <FileArchive className="h-4 w-4" aria-hidden="true" />
-              <span>
-                {file.name}, {readableBytes(file.size)}
-              </span>
-              {file.size > PRESIGN_THRESHOLD && (
-                <span className="text-info-ink">A large file goes straight to storage: keep this tab open until it finishes.</span>
+          {way === "api" ? (
+            <>
+              <Field
+                label="Slack token"
+                help="A user token (xoxp-) reads every public channel, and the private channels, DMs and group DMs you're in. A bot token (xoxb-) reads only the channels its app was added to. It's held in memory for this read alone, and never stored."
+                error={tokenError}
+              >
+                <Input
+                  type="password"
+                  placeholder="xoxp-…"
+                  value={token}
+                  onChange={(e) => {
+                    setToken(e.target.value)
+                    setTokenError("")
+                  }}
+                  disabled={starting}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </Field>
+              <SlackTokenHelp />
+            </>
+          ) : (
+            <>
+              <Field label="Export file" help="A .zip, from Slack's Workspace settings, under Import/Export Data." error={fileError}>
+                <Input type="file" accept=".zip,application/zip" onChange={handleFileChange} disabled={uploading} />
+              </Field>
+              {file && (
+                <div className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <FileArchive className="h-4 w-4" aria-hidden="true" />
+                  <span>
+                    {file.name}, {readableBytes(file.size)}
+                  </span>
+                  {file.size > PRESIGN_THRESHOLD && (
+                    <span className="text-info-ink">A large file goes straight to storage: keep this tab open until it finishes.</span>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-          {uploading && (
-            <div>
-              <div className="mb-1 text-xs text-muted-foreground" aria-live="polite">
-                Uploading {progress}%…
-              </div>
-              <Progress value={progress} className="h-2" aria-label="Upload progress" />
-            </div>
-          )}
+              {uploading && (
+                <div>
+                  <div className="mb-1 text-xs text-muted-foreground" aria-live="polite">
+                    Uploading {progress}%…
+                  </div>
+                  <Progress value={progress} className="h-2" aria-label="Upload progress" />
+                </div>
+              )}
 
-          {stopped && (
-            <p role="status" className="text-sm text-muted-foreground">
-              Upload stopped. Nothing was imported.
-              {stopped === "direct" && " The unfinished upload is in the import history: discard it there."}
-            </p>
+              {stopped && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Upload stopped. Nothing was imported.
+                  {stopped === "direct" && " The unfinished upload is in the import history: discard it there."}
+                </p>
+              )}
+            </>
           )}
 
           {problem && (
@@ -281,13 +395,24 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
             </div>
           )}
 
-          <div className="cx-imp-note flex gap-2 text-xs">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
-            <p className="text-muted-foreground">
-              Workspace exports include public channels only. Direct messages and private channels need a Corporate
-              (Plus or Enterprise) export. The plan shows exactly what is in your file before anything is imported.
-            </p>
-          </div>
+          {way === "file" && (
+            <div className="cx-imp-note flex gap-2 text-xs">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
+              <p className="text-muted-foreground">
+                Workspace exports include public channels only. Direct messages and private channels need a Corporate
+                (Plus or Enterprise) export, or{" "}
+                <button
+                  type="button"
+                  className="font-medium text-brand-text underline-offset-2 hover:underline"
+                  onClick={() => setWay("api")}
+                  disabled={uploading}
+                >
+                  a read through Slack&apos;s API
+                </button>
+                . The plan shows exactly what is in your file before anything is imported.
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -300,9 +425,15 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
               Cancel
             </Button>
           )}
-          <Button onClick={handleSubmit} disabled={!file || !workspaceName.trim() || uploading}>
-            {uploading ? "Uploading…" : "Upload and plan"}
-          </Button>
+          {way === "api" ? (
+            <Button onClick={handleRead} disabled={!workspaceName.trim() || !token.trim() || starting}>
+              {starting ? "Starting…" : "Start the read"}
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={!file || !workspaceName.trim() || uploading}>
+              {uploading ? "Uploading…" : "Upload and plan"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

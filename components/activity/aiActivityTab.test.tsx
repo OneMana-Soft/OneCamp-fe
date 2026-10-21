@@ -19,7 +19,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: () => {} }),
   useSearchParams: () => new URLSearchParams(search),
 }))
-vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
+// The Inbox reads the right panel (the reading pane): closed here.
+vi.mock("react-redux", () => ({ useDispatch: () => () => {}, useSelector: () => undefined }))
 vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
 vi.mock("@/services/activityService", () => ({ markActivitySeen: async () => {} }))
 vi.mock("@/components/activity/activityFeedList", () => ({

@@ -10,7 +10,7 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { formatCents } from "@/lib/rates"
 import { STATUS_LABEL, outstanding, shownStatus, type SavedInvoice, type ShownStatus } from "@/lib/invoice/saved"
 import { localDay } from "@/lib/utils/timeZone"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 
 // A status as a dot and its word, like a task's: the uppercase badges (DRAFT,
@@ -28,7 +28,7 @@ const shortDay = (iso: string) => shortDate(new Date(`${iso}T00:00:00`))
 export function ProjectInvoices({ projectId }: { projectId: string }) {
   // Says its own failure, below the heading; the toast stays quiet.
   const { data, isLoading, isError } = useFetch<{ data: { invoices: SavedInvoice[]; next_number: string } }>(
-    `${GetEndpointUrl.ProjectInvoices}/${projectId}/invoices`,
+    `${ProjectsGet.ProjectInvoices}/${projectId}/invoices`,
     undefined,
     undefined,
     OWN_ERRORS,

@@ -16,7 +16,8 @@ import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field"
 import {usePost} from "@/hooks/usePost";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { PostEndpointUrl } from "@/services/endPoints";
+import { ProjectsGet } from "@/services/endpoints/projects";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList} from "@/components/ui/command";
 import {useEffect, useMemo, useState} from "react";
@@ -94,7 +95,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
   const [skipWeekends, setSkipWeekends] = useState(true)
   const { toast } = useToast()
 
-  const teamsInfo = useFetch<TeamListResponseInterface>(GetEndpointUrl.TeamListUserIsAdmin)
+  const teamsInfo = useFetch<TeamListResponseInterface>(ProjectsGet.TeamListUserIsAdmin)
 
   const dispatch = useDispatch()
   const router = useRouter()

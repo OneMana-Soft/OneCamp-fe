@@ -243,6 +243,15 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
   React.useImperativeHandle(ref, () => ({ onKeyDown }), [onKeyDown])
 
   // The cursor pill follows the highlighted row (one element, translateY).
+  // Measured again once laid out: a row measured at 0 opened unlit.
+  const [laidOut, relayout] = React.useReducer((n: number) => n + 1, 0)
+  React.useEffect(() => {
+    const box = scrollRef.current
+    if (!box || typeof ResizeObserver === "undefined") return
+    const ro = new ResizeObserver(relayout)
+    ro.observe(box)
+    return () => ro.disconnect()
+  }, [])
   React.useLayoutEffect(() => {
     const row = rowRefs.current[index]
     if (!row) {
@@ -256,7 +265,7 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
       else if (row.offsetTop + row.offsetHeight > box.scrollTop + box.clientHeight)
         box.scrollTop = row.offsetTop + row.offsetHeight - box.clientHeight + 4
     }
-  }, [index, signature])
+  }, [index, signature, laidOut])
 
   let lastGroup: string | undefined
   const active = items[index]

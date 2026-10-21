@@ -15,6 +15,7 @@ import { BotTag } from "@/components/ui/botTag"
 import { ChatFace } from "@/components/message/chatFace"
 import { DetailsRow as Row, DetailsSection as Section, InlineConfirm } from "@/components/channel/details/detailsParts"
 import { AddPeoplePanel } from "@/components/conversation/details/addPeoplePanel"
+import { PinnedSection } from "@/components/conversation/pins/PinnedSection"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
 import { useChannelNameCheck } from "@/hooks/useChannelNameCheck"
@@ -24,6 +25,7 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { channelSlug, nameProblem } from "@/lib/validation/names"
 import { chatPath } from "@/lib/routes/conversationRoute"
+import { chatRef } from "@/lib/conversation/route"
 import { leaveGroup, makePrivateChannel, renameGroup, setHidden, type ChatPlace, type Opened } from "@/lib/conversation/conversationApi"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { hideSidebarChat, nameSidebarChat } from "@/lib/conversation/sidebarChats"
@@ -61,6 +63,8 @@ export default function ConversationDetailsSheet({ place, adding = false, open, 
     const peopleKey = `${GetEndpointUrl.GetDmGroupParticipants}/${encodeURIComponent(place.id)}`
     const info = useFetch<RawUserDMInterface>(place.id ? peopleKey : "")
     const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid
+    // The conversation its pins are of (chat B25): a DM's names the person beside the reader.
+    const pinsOf = useMemo(() => chatRef(place.id, self), [place.id, self])
     const people = useMemo(() => info.data?.data?.dm_participants ?? [], [info.data])
     const others = people.filter((p) => p.user_uuid !== self)
     const name = info.data?.data?.dm_name ?? ""
@@ -179,6 +183,17 @@ export default function ConversationDetailsSheet({ place, adding = false, open, 
                             <Section title="About">
                                 <GroupNameRow name={name} onRename={rename} />
                             </Section>
+                        )}
+
+                        {pinsOf && (
+                            <PinnedSection
+                                conversation={pinsOf}
+                                onOpenMessage={(messageId) => {
+                                    const to = chatPath(place.id, self, messageId)
+                                    onOpenChange(false)
+                                    if (to) router.push(to)
+                                }}
+                            />
                         )}
 
                         <Section

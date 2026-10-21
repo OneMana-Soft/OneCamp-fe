@@ -1,8 +1,8 @@
 import { displayNameOf } from "@/lib/personName"
 import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
+import { PinnedMenuItem } from "@/components/conversation/pins/PinnedMenuItem";
 import { searchWithinHref } from "@/lib/search/within";
-import { useOpenBeside } from "@/hooks/useSplitView";
-import { useMedia } from "@/context/MediaQueryContext";
+import { useOpenBeside } from "@/hooks/useOpenBeside";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
@@ -102,8 +102,8 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
 
     // A call opens beside the group, so the conversation stays in view.
     // Above the early returns: a hook runs on every render or none.
-    const { isMobile } = useMedia();
-    const openBeside = useOpenBeside(!isMobile);
+    // Where views can't sit side by side (a phone, a tablet) it opens the call's page.
+    const openBeside = useOpenBeside();
 
     if(dmParticipantsInfo.isLoading && !grpChatCreatedLocally.participants) return <LoadingStateCircle />
 
@@ -166,6 +166,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                             {dmParticipantsInfo.data?.data && (
                                 <NotificationSubmenu value={notification.level} onChange={notification.choose} busy={notification.busy} />
                             )}
+                            <PinnedMenuItem conversation={{ kind: "group", id: grpId }} onOpen={() => dispatch(openUI({ key: 'editDmMember', data: { grpId, kind: 'group' } }))} />
                             <DropdownMenuItem onClick={() => router.push(`/app/chat/group/${grpId}/recording`)}>
                                 <Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings
                             </DropdownMenuItem>

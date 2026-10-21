@@ -81,7 +81,7 @@ describe("sign-in providers", () => {
     http.get.mockResolvedValue({ data: { data: { ...status, google_configured: false, google_has_client_secret: false, google_source: "none", google_client_id: "" } } })
     const { unmount } = render(<OAuthConfigCard />)
     expect(await screen.findByText("No sign-in provider is set up")).toBeTruthy()
-    expect(document.querySelector("[data-empty-illustration] svg.hue-lake")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration] svg.hue-ink")).toBeTruthy()
     unmount()
     http.get.mockResolvedValue({ data: { data: status } })
     render(<OAuthConfigCard />)

@@ -16,7 +16,7 @@ describe("a share dialog on a phone", () => {
     const sheet = readFileSync("components/docEditor/chrome/Sheet.tsx", "utf8")
     expect(dialog).toMatch(/<ChromeSheet/)
     expect(dialog).toMatch(/footer=\{/)
-    expect(sheet).toMatch(/if \(isMobile\)[\s\S]*<Drawer[\s\S]*<DrawerFooter/)
+    expect(sheet).toMatch(/if \(sheet\)[\s\S]*<Drawer[\s\S]*footer=\{[\s\S]*<OverlayBody/)
   })
   it("lets the token input shrink and keeps the footer above the safe area", () => {
     expect(parts).toMatch(/min-w-0 flex-1 flex-wrap/)

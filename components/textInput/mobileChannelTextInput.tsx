@@ -20,6 +20,8 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { ChannelInfoInterfaceResp } from "@/types/channel";
 import { GetEndpointUrl } from "@/services/endPoints";
 import CommandSurface from "@/components/command/CommandSurface";
+import { useBroadcastConfirm } from "@/hooks/useBroadcastConfirm"
+import { useNotToldPrompt } from "@/hooks/useNotToldPrompt"
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
 
@@ -41,10 +43,6 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
     const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
     const uploadFile = useUploadFile()
     // A first message here bursts from the new row's avatar (C60).
-    const send = useStableCallback((latestContent?: string) => {
-        if (handleSend(latestContent)) celebrateFirstMessage()
-    })
-
     const channelInputState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || NO_DRAFT);
 
     // Resolve the channel display name with the same fallback chain as
@@ -61,6 +59,18 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
     );
     const channelDisplayName =
         sidebarName || channelInfo.data?.channel_info?.ch_name || "channel";
+    // A broadcast to a channel of six or more asks first (D-T12).
+    const confirmBroadcast = useBroadcastConfirm()
+    const notTold = useNotToldPrompt()
+    const send = useStableCallback((latestContent?: string) => {
+        const html = latestContent ?? (channelInputState as { inputTextHTML?: string }).inputTextHTML
+        const name = sidebarName || channelInfo.data?.channel_info?.ch_name || ""
+        void confirmBroadcast(channelId, name, html, () => {
+            const sent = handleSend(latestContent)
+            if (sent) celebrateFirstMessage()
+            if (sent !== false) void notTold(channelId, name, html)
+        })
+    })
     // The composer only exists for someone who can post, i.e. a member.
     const channelAgents = useChannelAgents(channelId, true);
 

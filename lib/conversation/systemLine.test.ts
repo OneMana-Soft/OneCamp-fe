@@ -59,6 +59,13 @@ describe("where a line leads", () => {
     })
   })
 
+  it("from a pin's line to the message pinned, in the conversation the line is in", () => {
+    const pinned = readSystemLine(facts({ kind: "message.pinned", actor: MAYA, to: "m-7" }))
+    expect(systemLineLink(pinned, SAM, { kind: "channel", id: "ch-1" })).toEqual({ href: "/app/channel/ch-1/m-7", label: "See the message" })
+    // Nowhere until the conversation is known.
+    expect(systemLineLink(pinned, SAM)).toBeNull()
+  })
+
   it("nowhere for a name, a share, a channel's first line or a kind it doesn't know", () => {
     for (const kind of ["group.renamed", "history.shared", "channel.from_group", "member.joined"]) {
       expect(systemLineLink(readSystemLine(facts({ kind, actor: MAYA, from: "old", to: "new" })), SAM)).toBeNull()

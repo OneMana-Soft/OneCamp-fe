@@ -32,24 +32,67 @@ export interface CallRecording {
   egressId?: string
 }
 
+/** Who locked the call, so nobody new can join it, and when (unix ms). */
+export interface CallLock {
+  by?: string
+  since?: number
+}
+
+/** Who is in everyone's spotlight, and who put them there. */
+export interface CallSpotlight {
+  identity: string
+  by?: string
+}
+
 export interface CallMetadata {
   recording: CallRecording
   transcription: CallTranscription
+  /** What the people running the call set (business/CallControl). */
+  locked?: CallLock
+  spotlight?: CallSpotlight
+  /** People join this call muted. */
+  muteOnEntry: boolean
 }
 
-/** The green room's read of a call it hasn't joined yet (and the guest link's status). */
+/** A guest link's read of its meeting, and an instant meeting's own page. */
 export interface CallStateRead {
   room?: string
   active?: boolean
   recording?: { on: boolean; by?: string }
   transcription?: CallTranscription
   participants?: { id: string; name: string }[]
-  /** Whether this person may remove others from the call. */
-  can_remove?: boolean
   expires_at?: number | string
 }
 
-const OFF: CallMetadata = { recording: { on: false }, transcription: { on: false } }
+/** Someone in a call, as a member's read of it says (GET /calls/current). */
+export interface CallSessionPerson {
+  identity: string
+  user_uuid?: string
+  name: string
+  role: string
+  guest?: boolean
+  in_call: boolean
+}
+
+/**
+ * A member's read of a call (GET /calls/current): whether one is going on,
+ * the call itself, what is switched on in it, and the reader's own part,
+ * with why the call won't let them in now when it won't.
+ */
+export interface CallSessionRead {
+  live: boolean
+  session: { id: string; people: CallSessionPerson[]; locked?: { by: string } | null } | null
+  recording?: { on: boolean; by?: string }
+  transcription?: CallTranscription
+  you?: { role?: string; can: string[]; refusal?: { code: string; msg: string } }
+}
+
+/** The people in a call now, from a member's read, for the green room's line. Pure. */
+export function peopleOfSession(read: CallSessionRead | undefined): CallStateRead["participants"] {
+  return read?.session?.people.filter((p) => p.in_call).map((p) => ({ id: p.identity, name: p.name }))
+}
+
+const OFF: CallMetadata = { recording: { on: false }, transcription: { on: false }, muteOnEntry: false }
 
 /**
  * Who is in the call, for the green room's line. The server names a guest
@@ -87,7 +130,16 @@ export function readCallMetadata(raw: string | null | undefined): CallMetadata {
     return OFF
   }
   const recording: CallRecording = m.isRecording === true ? { on: true, by: str(m.recordingStartedBy), egressId: str(m.egressID) } : { on: false }
-  return { recording, transcription: readTranscription(m.transcription) }
+  const meta: CallMetadata = { recording, transcription: readTranscription(m.transcription), muteOnEntry: m.muteOnEntry === true }
+  if (m.locked && typeof m.locked === "object") {
+    const l = m.locked as Record<string, unknown>
+    meta.locked = { by: str(l.by), since: typeof l.since === "number" ? l.since : undefined }
+  }
+  if (m.spotlight && typeof m.spotlight === "object") {
+    const id = str((m.spotlight as Record<string, unknown>).identity)
+    if (id) meta.spotlight = { identity: id, by: str((m.spotlight as Record<string, unknown>).by) }
+  }
+  return meta
 }
 
 /**
@@ -166,7 +218,10 @@ export function joinLanguage(nav?: { languages?: readonly string[]; language?: s
 /** The data topic the server uses to tell one person why they are leaving. */
 export const CALL_TOPIC = "oc.call"
 
-export type RemovalReason = "host" | "link_revoked" | "not_member" | "unknown"
+// unconfirmed: whether they may be in the call couldn't be checked as they
+// connected, so the server put them out rather than let them stay (fail
+// closed, 21 Oct); they can join again once it can be.
+export type RemovalReason = "host" | "link_revoked" | "not_member" | "locked" | "unconfirmed" | "ended" | "unknown"
 
 export interface CallRemoval {
   reason: RemovalReason
@@ -181,8 +236,70 @@ export interface CallRemoval {
 export function readRemovalPacket(payload: Uint8Array, sender: SignalSender | undefined): CallRemoval | null {
   const m = readSignal<Record<string, unknown>>(payload, sender, { topic: CALL_TOPIC, from: "server" })
   if (m?.t !== "removed") return null
-  const reason = m.reason === "host" || m.reason === "link_revoked" || m.reason === "not_member" ? m.reason : "unknown"
+  const reason = m.reason === "host" || m.reason === "link_revoked" || m.reason === "not_member" || m.reason === "locked" || m.reason === "unconfirmed" ? m.reason : "unknown"
   return { reason, by: str(m.by) }
+}
+
+/**
+ * What the server tells one person, or everyone, about the call
+ * (business/CallControl): someone running it muted you, asked you to unmute,
+ * gave you a part in it, or ended it for everyone.
+ */
+export type CallControlPacket =
+  | { t: "muted"; by?: string; source: "microphone" | "camera" | "screen_share"; all: boolean }
+  | { t: "ask_unmute"; by?: string; all: boolean }
+  | { t: "role"; role: "host" | "cohost" | "participant"; by?: string; handedOn: boolean }
+  | { t: "ended"; by?: string }
+
+/**
+ * The server's word on what happened to you in the call, or null. Only the
+ * server may send it (lib/calls/signals): a packet from a participant is
+ * never believed, or anyone could mute your screen or end your call with a
+ * message. Pure.
+ */
+export function readControlPacket(payload: Uint8Array, sender: SignalSender | undefined): CallControlPacket | null {
+  const m = readSignal<Record<string, unknown>>(payload, sender, { topic: CALL_TOPIC, from: "server" })
+  if (!m || typeof m.t !== "string") return null
+  const by = str(m.by)
+  switch (m.t) {
+    case "muted": {
+      const source = m.source === "camera" || m.source === "screen_share" ? m.source : "microphone"
+      return { t: "muted", by, source, all: m.reason === "all" }
+    }
+    case "ask_unmute":
+      return { t: "ask_unmute", by, all: m.reason === "all" }
+    case "role":
+      if (m.role !== "host" && m.role !== "cohost" && m.role !== "participant") return null
+      return { t: "role", role: m.role, by, handedOn: m.reason === "handed_on" }
+    case "ended":
+      return { t: "ended", by }
+  }
+  return null
+}
+
+/**
+ * What a person reads when the server tells them something about the call:
+ * who did it, and what they can do now. Pure.
+ */
+export function controlNotice(p: CallControlPacket): { title: string; detail?: string } {
+  const who = p.by ?? "Someone running the call"
+  switch (p.t) {
+    case "muted":
+      if (p.source === "camera") return { title: `${who} turned off your camera`, detail: "Turn it back on when you're ready." }
+      if (p.source === "screen_share") return { title: `${who} stopped your screen share` }
+      return p.all
+        ? { title: `${who} muted everyone`, detail: "Unmute when you want to speak." }
+        : { title: `${who} muted you`, detail: "Unmute when you want to speak." }
+    case "ask_unmute":
+      return { title: `${who} asks you to unmute`, detail: "Your microphone stays off unless you turn it on." }
+    case "role":
+      if (p.handedOn) return { title: "You're the host now", detail: "The people running the call left, so it's yours to run." }
+      if (p.role === "cohost") return { title: `${who} made you a co-host`, detail: "You can now mute, remove and lock for everyone." }
+      if (p.role === "host") return { title: `${who} made you a host` }
+      return { title: `${who} removed you as a co-host` }
+    case "ended":
+      return { title: `${who} ended the call for everyone` }
+  }
 }
 
 /**
@@ -205,6 +322,20 @@ export function removedText(r: CallRemoval | null, guest = false): { title: stri
       return { title: "Your invite was turned off", detail: "The link you joined with no longer works, so you can't rejoin this call." }
     case "not_member":
       return { title: "You left the call", detail: "You're no longer a member of this conversation, so you can't rejoin its call." }
+    case "unconfirmed":
+      return {
+        title: guest ? "You left the meeting" : "You left the call",
+        detail: `We couldn't confirm you can be in this ${guest ? "meeting" : "call"} just now. Join again in a moment.`,
+      }
+    case "locked":
+      return guest
+        ? { title: "This meeting is locked", detail: "Its host locked it before you got in, so nobody new can join. Ask them to unlock it." }
+        : { title: "This call is locked", detail: "Someone running it locked it before you got in, so nobody new can join. Ask them to unlock it." }
+    case "ended":
+      return {
+        title: guest ? "The meeting has ended" : "The call has ended",
+        detail: r.by ? `${r.by} ended it for everyone.` : "It was ended for everyone.",
+      }
     default:
       return guest
         ? { title: "You were removed from the meeting", detail: "The host removed you from this meeting." }

@@ -11,7 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { UserProfileDataInterface } from "@/types/user"
 import axiosInstance from "@/lib/axiosInstance"
 import { usePost } from "@/hooks/usePost"
@@ -52,7 +53,7 @@ export async function loadEveryMember(get: (url: string) => Promise<Page>): Prom
   // 100 pages of 100 is far past any workspace this runs; the bound only stops
   // a server that always says "more" from looping forever.
   for (let page = 0; page < 100; page++) {
-    const res = await get(`${GetEndpointUrl.GetAdminUserList}?pageIndex=${page}&pageSize=${PAGE_SIZE}`)
+    const res = await get(`${AdminGet.GetAdminUserList}?pageIndex=${page}&pageSize=${PAGE_SIZE}`)
     out.push(...(res.data ?? []))
     if (!res.has_more) break
   }
@@ -146,7 +147,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
     let cancelled = false
     setLoaded({ state: "loading" })
     const get = (url: string) => axiosInstance.get(url).then((r) => r.data as Page)
-    Promise.all([loadEveryMember(get), get(`${GetEndpointUrl.GetAdminAdminList}?pageIndex=0&pageSize=500`)])
+    Promise.all([loadEveryMember(get), get(`${AdminGet.GetAdminAdminList}?pageIndex=0&pageSize=500`)])
       .then(([members, admins]) => {
         if (!cancelled) setLoaded({ state: "ready", candidates: adminCandidates(members, admins.data ?? []) })
       })

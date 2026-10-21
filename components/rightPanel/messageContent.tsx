@@ -1,11 +1,14 @@
 "use client"
 
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
+import { displayNameOf } from "@/lib/personName"
+import { useMessageReactions } from "@/hooks/useMessageReactions"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
 import { TIME_TIP } from "@/components/MessageDesktopHover/actionTip"
 import { useBotKind, useBotKindMap } from "@/hooks/useBotKinds"
 import { isAIBot } from "@/lib/botCopy"
 import { agentIdsOf, mentionsUser } from "@/components/message/tintMentions"
+import { useKeywordsFor } from "@/hooks/useMyKeywords"
 import { AgentProvenance, type AgentAsker } from "@/components/message/agentProvenance"
 import { ReplyLine } from "@/components/message/replyLine"
 import { scrollToMessage } from "@/lib/utils/scrollToMessage"
@@ -17,7 +20,7 @@ import { MessagePreview } from "@/components/message/MessagePreview"
 import { cn } from "@/lib/utils/helpers/cn"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { BotTag } from "@/components/ui/botTag"
-import {UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
+import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import {ForwardedMessageData} from "@/types/rightPanel";
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
@@ -149,33 +152,10 @@ export const MessageContent = ({
 
     const showActions = !isMessageEditEnabled && !isGuest && (actionsWanted || isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed)
 
-    const handleEmojiClick = (emojiId: string) => {
-        if(userSelectedOption.emojiId == emojiId) {
-            removeReaction(userSelectedOption.reactionId)
-            return
-        }
-
-        addReaction(emojiId, userSelectedOption.reactionId)
-    }
-
-    // Derived from the reactions, not copied into state by an effect: the
-    // effect drew every reply twice as it mounted (once bare, once with its
-    // reactions) and twice more whenever they changed.
+    // Several emoji a person, each once (lib/chat/reactions, D-M7).
     const selfUserUuid = selfProfile.data?.data?.user_uuid
-    const { userSelectedOption, reactions } = useMemo(() => {
-        const mine = {} as UserSelectedOptionInterface
-        const byEmoji: { [key: string]: string[] } = {}
-        if (rawReactions && selfUserUuid) {
-            for (const reaction of rawReactions) {
-                if (reaction.reaction_added_by.user_uuid == selfUserUuid) {
-                    mine.reactionId = reaction.uid
-                    mine.emojiId = reaction.reaction_emoji_id
-                }
-                ;(byEmoji[reaction.reaction_emoji_id] ??= []).push(reaction.reaction_added_by.user_name)
-            }
-        }
-        return { userSelectedOption: mine, reactions: byEmoji }
-    }, [rawReactions, selfUserUuid])
+    const reacted = useMessageReactions(rawReactions, selfUserUuid, addReaction, removeReaction)
+    const handleEmojiClick = reacted.toggle
 
     const handleSelectAttachment = (attachment: AttachmentMediaReq) => {
 
@@ -199,8 +179,10 @@ export const MessageContent = ({
     const botKinds = useBotKindMap()
     const authorKind = useBotKind(userInfo?.user_uuid, !!userInfo?.is_bot)
     const isAgent = !asGuest && !!userInfo?.is_bot && isAIBot(authorKind)
-    const forMe = useMemo(() => mentionsUser(content, selfUserUuid), [content, selfUserUuid])
-    const mentionContext = useMemo(() => ({ me: selfUserUuid, agentIds: agentIdsOf(botKinds) }), [selfUserUuid, botKinds])
+    const forMe = useMemo(() => mentionsUser(content, selfUserUuid, userInfo?.user_uuid), [content, selfUserUuid, userInfo?.user_uuid])
+    // A thread's channel post marks the reader's keywords; its replies don't (chat P3).
+    const markKeywords = useKeywordsFor(!!channelUUID && !!root && !!postUUID, userInfo?.user_uuid, selfUserUuid)
+    const mentionContext = useMemo(() => ({ me: selfUserUuid, agentIds: agentIdsOf(botKinds), markKeywords }), [selfUserUuid, botKinds, markKeywords])
     const busy = isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed
     const authorName = (asGuest ? guestDisplayName : userStatusState?.userName || userInfo?.user_name) || ''
 
@@ -343,7 +325,7 @@ export const MessageContent = ({
 
                 {isAgent && !isMessageEditEnabled && <AgentProvenance asker={asker} />}
 
-                {!isMessageEditEnabled && !isGuest && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId} selfName={selfProfile.data?.data?.user_name}/>}
+                {!isMessageEditEnabled && !isGuest && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reacted.byEmoji} selectedEmojiIds={reacted.selected} selfName={displayNameOf(selfProfile.data?.data)} burstEmojiId={reacted.burstEmojiId}/>}
 
             </div>
             {/* After the reply in the DOM, so Tab reaches the actions after

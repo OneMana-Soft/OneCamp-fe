@@ -3,6 +3,7 @@
 import { displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import {
   AdminListResponseInterface,
   AdminCreateOrRemoveInterface,
@@ -27,7 +28,7 @@ const AdminCard = () => {
   const [search, setSearch] = useState("")
 
   const adminList = useFetch<AdminListResponseInterface>(
-    `${GetEndpointUrl.GetAdminAdminList}?pageIndex=${pageIndex}&pageSize=20`
+    `${AdminGet.GetAdminAdminList}?pageIndex=${pageIndex}&pageSize=20`
   )
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
     GetEndpointUrl.SelfProfile,

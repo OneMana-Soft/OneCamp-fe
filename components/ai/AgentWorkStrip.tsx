@@ -33,10 +33,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useStreamGapResync } from "@/hooks/useStreamGapResync"
 import { useAgentWorkEvents } from "@/hooks/useAgentWorkEvents"
-import { useMqtt } from "@/components/mqtt/mqttProvider"
+import { useMqtt } from "@/components/mqtt/mqttContext"
 import { AgentWorkRow, sortAgentWork } from "@/components/ai/AgentWorkRow"
 import { applyAgentWorkEvent } from "@/lib/utils/agentWork"
-import { listAgentWorkForEntity, type ActiveWorkItem } from "@/services/agentService"
+import type { ActiveWorkItem } from "@/services/agentService"
 import { withAI } from "@/components/common/withFeature"
 
 // Fallback interval, used only while MQTT is disconnected and something is
@@ -66,6 +66,8 @@ const AgentWorkStripUngated: React.FC<{
   const load = useCallback(async () => {
     if (!entityId) return
     try {
+      // The agents' service (50 KB) comes with the first read, not with the page.
+      const { listAgentWorkForEntity } = await import("@/services/agentService")
       setItems(await listAgentWorkForEntity(entityId))
     } catch {
       // A failed read must never break the surface it decorates: keep whatever

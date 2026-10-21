@@ -69,17 +69,16 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { HEADER_HEIGHT, TimelineHeader } from "./TimelineHeader"
 import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { SpotCalendar } from "@/components/ui/graphics/spots"
-import { STICK_INSET, TimelineBar } from "./TimelineBar"
+import { STICK_INSET } from "./TimelineBar"
+import { GROUP_HEIGHT, ROW_HEIGHT, TimelineGroupRow, TimelineTaskRow } from "./TimelineRows"
 import { UNSCHEDULED_DRAG, UnscheduledPanel } from "./UnscheduledPanel"
 import { ZoomSwitch } from "./ZoomSwitch"
 import { useProjectHue } from "@/lib/projectHue"
+import type { CampHue } from "@/lib/campHue"
 import { edgeScroller } from "@/lib/ui/edgeScroll"
 
-const ROW_HEIGHT = 36
 /** The drop target a task from Unscheduled lands on: the grid of days. */
 const GRID = "timeline-grid"
-/** A group's row: shorter than a task's, on the sunken step (work.md W23). */
-const GROUP_HEIGHT = 32
 /** How long after a move the view watches for bars the move pushed along, to FLIP them. */
 const WATCH_MS = 4000
 
@@ -164,6 +163,7 @@ export function ProjectTimeline({
   compact = false,
   className,
   leading,
+  hue,
 }: {
   projectId: string
   /** Draw these instead of fetching the project's, read-only: a client's view of a project shared with them. */
@@ -176,6 +176,8 @@ export function ProjectTimeline({
   className?: string
   /** First in the tool row: a page's own switch (the client view's Board and Timeline). */
   leading?: React.ReactNode
+  /** The project's colour where it has no id to read it by: a client's view (T-1). */
+  hue?: CampHue
 }) {
   const fetched = useProjectTimeline(given ? "" : projectId)
   const { isLoading, isError, mutate, reschedule } = fetched
@@ -211,7 +213,8 @@ export function ProjectTimeline({
   const canEdit = !!data?.can_edit && !compact
   const dayWidth = DAY_WIDTH[zoom]
   const nameWidth = compact ? 140 : 260
-  const projectHue = useProjectHue(projectId)
+  const ownHue = useProjectHue(projectId)
+  const projectHue = hue ?? ownHue
 
   const { rows, unscheduled, spans } = useMemo(
     () => timelineRows(tasks, { grouping, statuses, showDone, collapsed }),
@@ -305,7 +308,7 @@ export function ProjectTimeline({
     if (landTimer.current) clearTimeout(landTimer.current)
   }, [])
 
-  const onBarPointerDown = useCallback(
+  const onBarPointerDown = useStableCallback(
     (e: PointerEvent, task: TimelineTask, kind: EditKind) => {
       // A finger scrolls the timeline; on touch screens a tap opens the task.
       if (!canEdit || e.button !== 0 || e.pointerType === "touch" || isPending(task)) return
@@ -361,7 +364,6 @@ export function ProjectTimeline({
       window.addEventListener("pointerup", up)
       window.addEventListener("pointercancel", cancel)
     },
-    [canEdit, dayWidth, nameWidth, reschedule, shiftAlong, land],
   )
 
   // ---- Drawing a dependency --------------------------------------------------------
@@ -370,7 +372,7 @@ export function ProjectTimeline({
   )
   // From the handle at a bar's end to the bar of the task that waits on it,
   // as Linear and ClickUp draw them. The keyboard's way is the task's panel.
-  const onLinkStart = useCallback(
+  const onLinkStart = useStableCallback(
     (e: PointerEvent, task: TimelineTask) => {
       if (!canEdit || e.button !== 0 || e.pointerType === "touch" || isPending(task)) return
       e.preventDefault()
@@ -412,17 +414,15 @@ export function ProjectTimeline({
       window.addEventListener("pointerup", up)
       window.addEventListener("pointercancel", cancel)
     },
-    [canEdit, nameWidth, setDependency, waitsOn],
   )
 
-  const onBarClick = useCallback(
+  const onBarClick = useStableCallback(
     (task: TimelineTask) => {
       if (!isPending(task)) onOpenTask(task.task_uuid)
     },
-    [onOpenTask],
   )
 
-  const onBarKeyDown = useCallback(
+  const onBarKeyDown = useStableCallback(
     (e: KeyboardEvent, task: TimelineTask) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault()
@@ -439,7 +439,6 @@ export function ProjectTimeline({
       watch.current = { until: Date.now() + WATCH_MS, skip: null }
       void reschedule(task, next, { later: true, shift: shiftAlong })
     },
-    [canEdit, onOpenTask, reschedule, shiftAlong],
   )
 
   // ---- Dropping a task with no dates on a day ------------------------------------
@@ -549,12 +548,14 @@ export function ProjectTimeline({
   const liftedTask = lifted ? unscheduled.find((t) => t.task_uuid === lifted.id) : undefined
   const liftedStatus = liftedTask ? statusOptionOf(liftedTask, statuses) : undefined
 
-  const toggleGroup = (id: string) =>
+  const toggleGroup = useStableCallback((id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
       if (!next.delete(id)) next.add(id)
       return next
-    })
+    }),
+  )
+  const openTask = useStableCallback(onOpenTask)
 
   // ---- Drawing --------------------------------------------------------------------
   // The tool row and the frame are there from the first paint, as on every tab
@@ -866,29 +867,19 @@ export function ProjectTimeline({
               const top = item.start - HEADER_HEIGHT
               if (row.kind === "group") {
                 return (
-                  <div
+                  <TimelineGroupRow
                     key={row.key}
-                    data-timeline-group=""
-                    className={cn("absolute left-0 flex bg-sunken", item.index > 0 && "border-t border-line")}
-                    style={{ top, height: GROUP_HEIGHT, width: nameWidth + gridWidth }}
-                  >
-                    <button
-                      type="button"
-                      aria-expanded={!row.collapsed}
-                      onClick={() => toggleGroup(row.id)}
-                      className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-line bg-sunken px-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                      style={{ width: nameWidth }}
-                    >
-                      {row.status ? (
-                        <StatusGlyph status={statusKindOf(row.status)} hue={row.status.hue} />
-                      ) : null}
-                      <span className="truncate text-xs font-[510]">{row.label}</span>
-                      <span className="text-xs tabular-nums text-ink-3">{row.count}</span>
-                      <ChevronDown
-                        className={cn("ml-auto size-3.5 shrink-0 text-ink-3 transition-transform duration-[180ms]", row.collapsed && "-rotate-90")}
-                      />
-                    </button>
-                  </div>
+                    id={row.id}
+                    top={top}
+                    width={nameWidth + gridWidth}
+                    nameWidth={nameWidth}
+                    first={item.index === 0}
+                    label={row.label}
+                    count={row.count}
+                    collapsed={row.collapsed}
+                    status={row.status}
+                    onToggle={toggleGroup}
+                  />
                 )
               }
               const { task } = row
@@ -897,58 +888,43 @@ export function ProjectTimeline({
               const origin = barBox(row.span, range, dayWidth)
               const box = barBox(span, range, dayWidth)
               const isMove = moving?.kind === "move"
-              const done = task.task_status === "done"
               const late = !moving && isLate(task, today)
-              const status = statusOptionOf(task, statuses)
-              const milestone = !taskDate(task.task_start_date) && !!taskDate(task.task_due_date)
-              const taskIndex = item.index
+              const pending = isPending(task)
               return (
-                <div key={row.key} className="group/trow absolute left-0 flex" style={{ top, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
-                  <div
-                    className="sticky left-0 z-10 flex shrink-0 items-center gap-2.5 border-r border-line bg-sheet px-5 transition-colors group-hover/trow:bg-[color-mix(in_oklab,var(--sheet),var(--ink)_4%)]"
-                    style={{ width: nameWidth }}
-                  >
-                    {status && <TaskStatusCell status={status} label="tip" />}
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => !isPending(task) && onOpenTask(task.task_uuid)}
-                      className={cn("truncate text-left text-sm leading-5", done ? "text-ink-3" : "text-foreground")}
-                      title={task.task_name}
-                    >
-                      {task.task_name}
-                    </button>
-                  </div>
-                  <div className="relative transition-colors group-hover/trow:bg-hover" style={{ width: gridWidth }}>
-                    <TimelineBar
-                      task={task}
-                      left={isMove ? origin.left : box.left}
-                      width={isMove ? origin.width : box.width}
-                      shift={isMove ? box.left - origin.left : 0}
-                      ghost={moving ? origin : null}
-                      hue={projectHue}
-                      label={spanLabel(span, today)}
-                      bubble={moving ? bubbleLabel(span) : undefined}
-                      late={late}
-                      lateTail={late ? todayLeft + dayWidth - (box.left + box.width) : 0}
-                      done={done}
-                      milestone={milestone}
-                      canEdit={canEdit && !isPending(task)}
-                      stickAt={nameWidth + STICK_INSET}
-                      blocked={task.task_blocked_open ?? 0}
-                      onLinkStart={given ? undefined : onLinkStart}
-                      linkTarget={linking?.target === task.task_uuid}
-                      selected={opened === task.task_uuid}
-                      landed={landed.has(task.task_uuid)}
-                      grow={grow.bar(taskIndex)}
-                      helpId={helpId}
-                      onPointerDown={onBarPointerDown}
-                      onKeyDown={onBarKeyDown}
-                      onClick={onBarClick}
-                      onHover={setHovered}
-                    />
-                  </div>
-                </div>
+                <TimelineTaskRow
+                  key={row.key}
+                  top={top}
+                  nameWidth={nameWidth}
+                  gridWidth={gridWidth}
+                  status={statusOptionOf(task, statuses)}
+                  pending={pending}
+                  onOpen={openTask}
+                  task={task}
+                  left={isMove ? origin.left : box.left}
+                  width={isMove ? origin.width : box.width}
+                  shift={isMove ? box.left - origin.left : 0}
+                  ghost={moving ? origin : null}
+                  hue={projectHue}
+                  label={spanLabel(span, today)}
+                  bubble={moving ? bubbleLabel(span) : undefined}
+                  late={late}
+                  lateTail={late ? todayLeft + dayWidth - (box.left + box.width) : 0}
+                  done={task.task_status === "done"}
+                  milestone={!taskDate(task.task_start_date) && !!taskDate(task.task_due_date)}
+                  canEdit={canEdit && !pending}
+                  stickAt={nameWidth + STICK_INSET}
+                  blocked={task.task_blocked_open ?? 0}
+                  onLinkStart={given ? undefined : onLinkStart}
+                  linkTarget={linking?.target === task.task_uuid}
+                  selected={opened === task.task_uuid}
+                  landed={landed.has(task.task_uuid)}
+                  grow={grow.bar(item.index)}
+                  helpId={helpId}
+                  onPointerDown={onBarPointerDown}
+                  onKeyDown={onBarKeyDown}
+                  onClick={onBarClick}
+                  onHover={setHovered}
+                />
               )
             })}
 

@@ -8,6 +8,7 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminPost } from "@/services/endpoints/admin"
 
 /** What the server answers when an invitation is made or sent again. */
 export interface InvitationAnswer {
@@ -30,7 +31,7 @@ export type InviteOutcome =
 /** The server's reason for a failure, or a plain one when there is none to read. */
 const reason = (err: unknown) => apiErrorMessage(err, "Couldn't send the invitation. Try again in a moment.")
 
-async function post(endpoint: PostEndpointUrl, email: string): Promise<InviteOutcome> {
+async function post(endpoint: string, email: string): Promise<InviteOutcome> {
   try {
     const res = await axiosInstance.post(endpoint, { email }, OWN_ERRORS)
     return { ok: true, answer: (res.data ?? {}) as InvitationAnswer }
@@ -44,10 +45,10 @@ async function post(endpoint: PostEndpointUrl, email: string): Promise<InviteOut
  * let invite people use their own.
  */
 export function invite(email: string, asAdmin: boolean): Promise<InviteOutcome> {
-  return post(asAdmin ? PostEndpointUrl.AddInvitation : PostEndpointUrl.CreateInvitation, email.trim().toLowerCase())
+  return post(asAdmin ? PostEndpointUrl.AddInvitation : AdminPost.CreateInvitation, email.trim().toLowerCase())
 }
 
 /** Sends an invitation again with a new link; the old link stops working. */
 export function resendInvitation(email: string): Promise<InviteOutcome> {
-  return post(PostEndpointUrl.ResendInvitation, email)
+  return post(AdminPost.ResendInvitation, email)
 }

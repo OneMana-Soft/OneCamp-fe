@@ -21,7 +21,7 @@
  */
 
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "./endPoints"
+import { AiPost } from "@/services/endpoints/ai"
 
 /** How often to ask again while the answer is being written. */
 export const ANSWER_POLL_MS = 2000
@@ -59,7 +59,7 @@ export function nextRecoveryStep(live: boolean, waitedMs: number): RecoveryStep 
 export async function stopAnswer(sessionId: string | undefined): Promise<void> {
     if (!sessionId) return
     try {
-        await axiosInstance.post(PostEndpointUrl.AIAskStop, { session_id: sessionId })
+        await axiosInstance.post(AiPost.AIAskStop, { session_id: sessionId })
     } catch {
         /* the abort still happens */
     }

@@ -1,5 +1,6 @@
 
 import { displayNameOf } from "@/lib/personName"
+import { useMessageReactions } from "@/hooks/useMessageReactions"
 import { useLongPress } from "@/hooks/useLongPress";
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar";
 import { ReplyLine } from "@/components/message/replyLine";
@@ -9,7 +10,7 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
 import { MessagePreview } from "@/components/message/MessagePreview";
 import { ForwardedMessageData } from "@/types/rightPanel";
-import { UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface } from "@/types/user";
+import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import { MessageAttachments } from "@/components/message/MessageAttachments";
 import { GetEndpointUrl } from "@/services/endPoints";
@@ -21,7 +22,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GroupedReaction, StandardReaction, SyncCustomReaction } from "@/types/reaction";
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
-import { useCallback, useEffect, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useRef, memo } from "react";
 import { useEditInPlace } from "@/hooks/useEditInPlace";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { app_user } from "@/types/paths";
@@ -73,8 +74,6 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
     // Route internal /app deep links through client navigation; off while editing.
     const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
 
-    const [userSelectedOption, setUserSelectedOption] = useState<UserSelectedOptionInterface>({} as UserSelectedOptionInterface)
-    const [reactions, setReactions] = useState<{ [key: string]: string[] }>({});
 
     // A channel guest's or Slack person's message or reply is drawn as theirs (see lib/relayedAuthor).
     const relayed = useRelayedAuthor(userInfo, content)
@@ -92,36 +91,9 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
-    useEffect(() => {
-        setUserSelectedOption({} as UserSelectedOptionInterface)
-        setReactions({})
-        if (selfProfile.data?.data && rawReactions) {
-            rawReactions.forEach((reaction) => {
-                if (reaction.reaction_added_by.user_uuid == selfProfile.data?.data.user_uuid) {
-                    setUserSelectedOption({
-                        reactionId: reaction.uid,
-                        emojiId: reaction.reaction_emoji_id
-                    })
-                }
-                setReactions(prevReactions => ({
-                    ...prevReactions,
-                    [reaction.reaction_emoji_id]: [...(prevReactions[reaction.reaction_emoji_id] || []), displayNameOf(reaction.reaction_added_by)]
-                }));
-
-            })
-        }
-
-
-    }, [rawReactions, selfProfile.data?.data]);
-
-    const handleEmojiClick = useCallback((emojiId: string) => {
-        if(userSelectedOption.emojiId == emojiId) {
-            removeReaction(userSelectedOption.reactionId)
-            return
-        }
-
-        addReaction(emojiId, userSelectedOption.reactionId)
-    }, [userSelectedOption.emojiId, userSelectedOption.reactionId, removeReaction, addReaction]);
+    // Several emoji a person, each once (lib/chat/reactions, D-M7).
+    const reacted = useMessageReactions(rawReactions, selfProfile.data?.data?.user_uuid, addReaction, removeReaction)
+    const handleEmojiClick = reacted.toggle
 
     const addEmojiReaction = useCallback((drawerToClose?: string) => {
         if (drawerToClose) {
@@ -399,7 +371,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                         }
 
 
-                        { !isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId} selfName={selfProfile.data?.data?.user_name}/>}
+                        { !isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reacted.byEmoji} selectedEmojiIds={reacted.selected} selfName={displayNameOf(selfProfile.data?.data)} burstEmojiId={reacted.burstEmojiId}/>}
 
                     </div>
                 </div>

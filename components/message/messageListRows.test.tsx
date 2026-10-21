@@ -3,7 +3,7 @@ import { createRef, useCallback } from "react"
 import { act, cleanup, render } from "@testing-library/react"
 import type { VListHandle } from "virtua"
 import type { FlatItem, RowMeta } from "@/types/virtual"
-import { MessageListVirtua } from "./MessaageListVirtua"
+import { MessageListVirtua } from "./MessageListVirtua"
 
 // A message row re-draws only when what it draws changes. Its memo compared
 // the row's index and the list's length, so a new message (length) re-drew

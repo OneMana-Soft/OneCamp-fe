@@ -36,6 +36,8 @@ const card = () => screen.queryByRole("region", { name: "Finish setting up your 
 
 beforeEach(() => {
   localStorage.clear()
+  // The guided run opens on its own once; these tests are about the card.
+  localStorage.setItem("oc_first_run_shown", "1")
   svc.getOnboardingStatus.mockReset()
   svc.dismissOnboarding.mockReset().mockResolvedValue()
   svc.setStepSkipped.mockReset().mockResolvedValue()

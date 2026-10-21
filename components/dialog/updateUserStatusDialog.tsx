@@ -21,7 +21,8 @@ import {
 } from "@/types/user";
 import { uniqueBy } from 'remeda'
 import {useStatusIsExpired} from "@/hooks/useStatusIsExpired";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { PeopleGet } from "@/services/endpoints/people";
 import {isStandardReaction} from "@/lib/utils/reaction/checker";
 import {DateField, TimeField, timeValueOf} from "@/components/ui/date-field";
 import {format} from "date-fns";
@@ -136,7 +137,7 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
   const memberStatus = userStatusState.emojiStatus?.status_user_emoji_id ? userStatusState.emojiStatus : null;
 
   const memberStatusIsExpired = useStatusIsExpired(memberStatus)
-  const recentStatusesResp = useFetch<UserStatusRespInterface>(GetEndpointUrl.GetUserStatuses)
+  const recentStatusesResp = useFetch<UserStatusRespInterface>(PeopleGet.GetUserStatuses)
   const currentStatus = memberStatusIsExpired ? undefined : memberStatus
 
   const [emoji, setEmoji] = useState(defaultState.emoji)

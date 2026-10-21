@@ -2,7 +2,7 @@ import { describe, expect, it, afterEach, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
 import MyAIActivityCard from "@/components/ai/MyAIActivityCard"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AiGet } from "@/services/endpoints/ai"
 
 // The card gates itself on AI availability, as every AI component rendered from
 // outside components/ai must — the repo's own guard enforces it. Without this the
@@ -43,7 +43,7 @@ describe("a member's own AI record", () => {
   it("reads the member-scoped endpoint, never the admin one", () => {
     render(<MyAIActivityCard />)
     expect(fetchCalls.length).toBe(1)
-    expect(fetchCalls[0]).toContain(GetEndpointUrl.MyAIActivity)
+    expect(fetchCalls[0]).toContain(AiGet.MyAIActivity)
     expect(fetchCalls[0]).not.toContain("/admin/")
   })
 

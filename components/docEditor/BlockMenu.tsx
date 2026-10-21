@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import type { SlotProps } from "@/components/docEditor/registry/types"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { answerBlockMenu, type BlockMenuRequest } from "@/components/minimal-tiptap/extensions/block-commands/menuRequest"
 import { useBlockLinks } from "@/components/minimal-tiptap/extensions/block-link/useBlockLinks"
 
@@ -43,8 +44,9 @@ export default function BlockMenuHost({ docId, editor }: SlotProps) {
     return answerBlockMenu(editor, setRequest)
   }, [editor])
 
-  // A phone (MediaQueryContext's isMobile: under 640 px) gets the sheet; read here, so the host needs no provider.
-  const sheet = !!request && (request.via === "press" || (typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches))
+  // A phone held either way gets the sheet (components/ui/overlayMode, no provider needed), and so does a long press.
+  const sheetMode = useSheetMode()
+  const sheet = !!request && (request.via === "press" || sheetMode)
   const close = React.useCallback(
     (refocus: boolean) => {
       setRequest(null)

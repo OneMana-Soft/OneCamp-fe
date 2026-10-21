@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { usePost } from "@/hooks/usePost"
 import { ErrorState } from "@/components/ui/error-state"
 import { ExternalUserList, ExternalUserItem, matchesExternalUser } from "./ExternalUserList"
@@ -26,7 +26,7 @@ const ExternalUsersCard = () => {
   const [searchQuery, setSearchQuery] = useState("")
 
   const userList = useFetch<ExternalUsersResponse>(
-    `${GetEndpointUrl.GetExternalUsers}?pageIndex=${pageIndex}&pageSize=20`
+    `${AdminGet.GetExternalUsers}?pageIndex=${pageIndex}&pageSize=20`
   )
   const post = usePost()
   const confirm = useConfirm()
@@ -75,7 +75,7 @@ const ExternalUsersCard = () => {
 
     post
       .makeRequest<{ user_uuid: string }>({
-        apiEndpoint: PostEndpointUrl.UnlinkExternalUser,
+        apiEndpoint: AdminPost.UnlinkExternalUser,
         payload: { user_uuid: userUUID },
       })
       .then(() => {

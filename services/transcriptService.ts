@@ -1,5 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "./endPoints"
+import { CallsPost } from "@/services/endpoints/calls"
 
 interface TranscriptLineInput {
     room_name: string
@@ -23,7 +23,7 @@ interface TranscriptLineInput {
 export async function persistTranscriptLine(line: TranscriptLineInput): Promise<void> {
     if (!line.room_name || !line.text.trim()) return
     try {
-        await axiosInstance.post(PostEndpointUrl.SaveMyTranscript, line, {
+        await axiosInstance.post(CallsPost.SaveMyTranscript, line, {
             // @ts-expect-error — suppress the global loading bar for this background write
             silent: true,
         })
@@ -45,7 +45,7 @@ export async function persistTranscriptLine(line: TranscriptLineInput): Promise<
 export async function reportTranscriptionCapability(roomName: string, canTranscribe: boolean): Promise<void> {
     if (!roomName) return
     try {
-        await axiosInstance.post(PostEndpointUrl.ReportTranscriptionCapability, {
+        await axiosInstance.post(CallsPost.ReportTranscriptionCapability, {
             room_name: roomName,
             can_transcribe: canTranscribe,
         }, {

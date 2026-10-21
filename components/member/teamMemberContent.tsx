@@ -1,7 +1,8 @@
 "use client"
 import MembersList from "@/components/member/membersList";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { PeopleGet } from "@/services/endpoints/people";
 import {usePost} from "@/hooks/usePost";
 import {UserListInterfaceResp, type UserProfileInterface} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
@@ -20,7 +21,7 @@ interface memberContentProp {
 }
 
 export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
-    const teamInfo = useFetch<TeamInfoRawInterface>(teamId ? GetEndpointUrl.GetTeamMemberInfo + '/' + teamId : '')
+    const teamInfo = useFetch<TeamInfoRawInterface>(teamId ? PeopleGet.GetTeamMemberInfo + '/' + teamId : '')
     const post = usePost()
 
     const dispatch = useDispatch()
@@ -30,7 +31,7 @@ export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
     // so only they ask who could be added: for anyone else the server refuses,
     // and the refusal used to show as an error just for opening the team.
     const canAdd = Boolean(teamInfo.data?.data.team_is_admin || selfProfile.data?.data.user_is_admin)
-    const usersList = useFetch<UserListInterfaceResp>(teamId && canAdd ? GetEndpointUrl.UsersListWhoDontBelongToTheTeam + '/' + teamId : '')
+    const usersList = useFetch<UserListInterfaceResp>(teamId && canAdd ? PeopleGet.UsersListWhoDontBelongToTheTeam + '/' + teamId : '')
 
     const handleMakeAdmin = (id: string) => {
         if(!id) return

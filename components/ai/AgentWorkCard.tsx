@@ -3,7 +3,7 @@
 import { withAI } from "@/components/common/withFeature"
 import { Spark } from "@/components/ui/graphics/motifs"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AiGet } from "@/services/endpoints/ai"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
@@ -47,7 +47,7 @@ export function liveJobs(items: ActivityItem[]): ActivityItem[] {
  * Activity > Agents and the agent's record, so Home no longer lists history.
  */
 function AgentWorkCardInner({ className }: { className?: string }) {
-    const { data: activity } = useFetch<{ data: ActivityItem[] }>(`${GetEndpointUrl.GetAgentActivity}?limit=5`, undefined, {
+    const { data: activity } = useFetch<{ data: ActivityItem[] }>(`${AiGet.GetAgentActivity}?limit=5`, undefined, {
         refreshInterval: 20_000,
     })
     const jobs = liveJobs(activity?.data ?? [])

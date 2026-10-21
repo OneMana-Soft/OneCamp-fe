@@ -15,7 +15,8 @@ import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Bar } from "@/components/ui/progress"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsPost } from "@/services/endpoints/projects"
 
 /** The most an estimate can be: a thousand hours, as the server allows. */
 const MAX_ESTIMATE_MINUTES = 1000 * 60
@@ -60,7 +61,7 @@ export function TaskEstimateField({
     if (next === (minutes ?? 0)) return
     patch(next)
     try {
-      await axiosInstance.post(PostEndpointUrl.UpdateTaskEstimate, { task_uuid: taskUUID, task_estimate_minutes: next }, OWN_ERRORS)
+      await axiosInstance.post(ProjectsPost.UpdateTaskEstimate, { task_uuid: taskUUID, task_estimate_minutes: next }, OWN_ERRORS)
     } catch (err) {
       patch(minutes ?? 0)
       toast({ variant: "destructive", title: "The estimate wasn't saved", description: apiErrorMessage(err, "Try again in a moment.") })

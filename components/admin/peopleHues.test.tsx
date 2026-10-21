@@ -41,10 +41,10 @@ const ZERO = "0001-01-01T00:00:00Z"
 describe("the people group's hue", () => {
   // The empty and no-match states are the tab's (PeopleFrame), drawn by the card.
   // Design v3 (A2): a search that matched nobody is the magnifier spot, in the people hue.
-  it("draws an admin search that matched nobody with the sky magnifier spot", () => {
+  it("draws an admin search that matched nobody with the neutral magnifier spot (people name no area)", () => {
     render(<AdminCard />)
     fireEvent.change(screen.getByRole("searchbox", { name: "Search admins" }), { target: { value: "zzzz" } })
-    expect(document.querySelector("[data-people-state] [data-empty-illustration] svg.hue-sky")).toBeTruthy()
+    expect(document.querySelector("[data-people-state] [data-empty-illustration] svg.hue-ink")).toBeTruthy()
   })
 
   it("draws an admin's avatar without an orange shield", () => {
@@ -61,10 +61,10 @@ describe("the people group's hue", () => {
     expect(document.querySelector("li .bg-primary")).toBeNull()
   })
 
-  it("welcomes the first invitations with a sky illustration, and an action", () => {
+  it("welcomes the first invitations with a neutral illustration, and an action", () => {
     render(<InvitationCard />)
     const empty = document.querySelector("[data-people-state]") as HTMLElement
-    expect(empty.querySelector("[data-empty-illustration] svg.hue-sky")).toBeTruthy()
+    expect(empty.querySelector("[data-empty-illustration] svg.hue-ink")).toBeTruthy()
     expect(within(empty).getByRole("button", { name: "Invite people" })).toBeTruthy()
   })
 
@@ -72,22 +72,22 @@ describe("the people group's hue", () => {
     render(<InvitationCard />)
     fireEvent.change(screen.getByRole("searchbox", { name: "Search invitations" }), { target: { value: "zzzz" } })
     const empty = document.querySelector("[data-people-state]") as HTMLElement
-    expect(empty.querySelector("[data-empty-illustration] svg.hue-sky")).toBeTruthy()
+    expect(empty.querySelector("[data-empty-illustration] svg.hue-ink")).toBeTruthy()
   })
 
-  it("puts the add-admin dialog's title icon on a sky tile, not in the accent", async () => {
+  it("puts the add-admin dialog's title icon on a neutral tile, not in the accent", async () => {
     await act(async () => {
       render(<AddAdminDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} />)
     })
     const title = document.querySelector("[role='dialog'] h2")!
-    expect(title.querySelector(".hue-sky svg")).toBeTruthy()
+    expect(title.querySelector(".hue-ink svg")).toBeTruthy()
     expect(title.querySelector(".text-primary")).toBeNull()
   })
 
-  it("puts the invite dialog's title icon on a sky tile, not in the accent", () => {
+  it("puts the invite dialog's title icon on a neutral tile, not in the accent", () => {
     render(<AddInvitationDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} />)
     const title = document.querySelector("[role='dialog'] h2")!
-    expect(title.querySelector(".hue-sky svg")).toBeTruthy()
+    expect(title.querySelector(".hue-ink svg")).toBeTruthy()
     expect(title.querySelector(".text-primary")).toBeNull()
   })
 

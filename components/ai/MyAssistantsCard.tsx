@@ -35,7 +35,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bot, Loader2, Lock, MoreHorizontal, Plus, ShieldCheck } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { AiGet } from "@/services/endpoints/ai"
 import { scopeLabel } from "@/services/apiTokenService"
 import { mcpConnectRecipes, mcpEndpointUrl } from "@/lib/utils/mcpEndpoint"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -149,7 +150,7 @@ function ConnectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
 
 /** `withTitle={false}` under a page header that already names it, as the settings page is. */
 function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean }) {
-  const res = useFetch<MyAssistantsResponse>(GetEndpointUrl.MyAssistants)
+  const res = useFetch<MyAssistantsResponse>(AiGet.MyAssistants)
   const post = usePost()
   const [connecting, setConnecting] = React.useState(false)
   const [confirming, setConfirming] = React.useState<string | null>(null)

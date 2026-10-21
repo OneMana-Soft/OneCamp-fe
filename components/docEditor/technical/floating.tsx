@@ -8,14 +8,16 @@
  * panels load on first use, never with the doc.
  *
  * A panel sits under its anchor (above it when there is no room), inside the
- * viewport (the shared Popover); on a phone it is the shared Drawer, a menu
- * sheet with its scrim. Escape and a click outside close it, and focus goes
- * back where it was (or to the editor).
+ * viewport (the shared Popover); on a phone (the one sheet rule, a phone in
+ * landscape too) it is the shared Drawer, a menu sheet with its scrim. Escape
+ * and a click outside close it, and focus goes back where it was (or to the
+ * editor).
  */
 
 import * as React from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { PHONE_QUERY } from "@/context/MediaQueryContext"
+import { useSheetMode } from "@/components/ui/overlayMode"
+import { anchorTo } from "@/components/ui/anchor"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -67,7 +69,13 @@ export function openFloating(render: Render, options: FloatingOptions): () => vo
 }
 
 function Floating({ options, close, render, host }: { options: FloatingOptions; close: () => void; render: Render; host: HTMLElement }) {
-  const phone = React.useMemo(() => !!options.sheetOnPhone && typeof window !== "undefined" && !!window.matchMedia?.(PHONE_QUERY).matches, [options.sheetOnPhone])
+  // Sheet or popover is decided once, as it opens.
+  const sheet = useSheetMode()
+  const [phone] = React.useState(sheet && !!options.sheetOnPhone)
+  // The block's place, read again as the page moves: a block that left the
+  // page (a collaborator deleted it) leaves the panel where it was last seen,
+  // never off the screen with the focus in it (components/ui/anchor).
+  const anchor = React.useMemo(() => ({ current: anchorTo(options.anchor) }), [options])
   const onOpenChange = (on: boolean) => !on && close()
 
   if (phone)
@@ -80,8 +88,6 @@ function Floating({ options, close, render, host }: { options: FloatingOptions; 
       </Drawer>
     )
 
-  // A virtual anchor: the block draws itself in plain DOM, and the rect is read again as the page moves.
-  const anchor = { current: { getBoundingClientRect: () => options.anchor() ?? new DOMRect(-9999, -9999, 0, 0) } }
   return (
     <Popover open onOpenChange={onOpenChange}>
       <PopoverAnchor virtualRef={anchor} />

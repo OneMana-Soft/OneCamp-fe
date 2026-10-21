@@ -1,8 +1,7 @@
 "use client"
 
 import { useSelector } from "react-redux"
-import type { RootState } from "@/store/store"
-import { useSplitActions } from "@/hooks/useSplitView"
+import { selectSplit, useSplitActions } from "@/hooks/useSplitView"
 import { isCallPane } from "@/lib/split"
 
 /**
@@ -12,7 +11,7 @@ import { isCallPane } from "@/lib/split"
  */
 export function FocusPill() {
   const run = useSplitActions()
-  const { panes, focused } = useSelector((s: RootState) => s.split)
+  const { panes, focused } = useSelector(selectSplit)
   if (focused === null || panes.length === 0) return null
   const callHidden = panes.some((p, i) => isCallPane(p) && i !== focused)
   return (

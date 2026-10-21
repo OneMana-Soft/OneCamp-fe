@@ -1,6 +1,6 @@
 import { PERMISSIONS_POLICY } from "./lib/security/permissionsPolicy";
 import type { NextConfig } from "next";
-import { cspFromEnv, reportingEndpointsFromEnv } from "./lib/security/csp";
+import { CALL_PAGES, cspFromEnv, reportingEndpointsFromEnv } from "./lib/security/csp";
 import { imageRemotePatterns, mediaOriginWarning } from "./lib/security/mediaOrigin";
 
 const isProd = process.env.NODE_ENV === "production";
@@ -24,10 +24,12 @@ const isProd = process.env.NODE_ENV === "production";
  * X-Frame-Options is also set by middleware on auth routes; this
  * default catches every other path (e.g. static assets).
  */
+// Report-only for now. See the note above before enforcing.
+const CSP_HEADER = "Content-Security-Policy-Report-Only";
+
 const securityHeaders = [
     {
-        // Report-only for now. See the note above before enforcing.
-        key: "Content-Security-Policy-Report-Only",
+        key: CSP_HEADER,
         value: cspFromEnv(),
     },
     {
@@ -96,6 +98,13 @@ const nextConfig: NextConfig = {
     reactStrictMode: false,
     generateBuildId: async () => buildId,
     env: { NEXT_PUBLIC_BUILD_ID: buildId },
+    experimental: {
+        // Every build starts from nothing. Next 16.3 starts `next build` from
+        // Turbopack's cache in .next/cache/turbopack, and Vercel restores
+        // .next/cache before each deploy: on 21 Oct 2026 that shipped
+        // stylesheets from before their change (app/agentRules.test.ts).
+        turbopackFileSystemCacheForBuild: false,
+    },
     // Strip console.log / console.debug from prod bundles to avoid
     // accidentally leaking request bodies, user objects, or tokens
     // via DevTools. We keep console.error / console.warn so the
@@ -119,6 +128,17 @@ const nextConfig: NextConfig = {
             {
                 source: "/:path*",
                 headers: securityHeaders,
+            },
+            // The pages a call can be on may compile WebAssembly, for the call
+            // effects (lib/calls/processors); every other page may not. A later
+            // rule's header replaces an earlier one's of the same name.
+            ...CALL_PAGES.map((source) => ({ source, headers: [{ key: CSP_HEADER, value: cspFromEnv({ wasm: true }) }] })),
+            // The call effects' WebAssembly and model (lib/calls/processors):
+            // every path names its version or its hash, so a browser keeps
+            // them for good rather than fetch 9 MB again for every call.
+            {
+                source: "/calls/:dir(vendor|models)/:path*",
+                headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
             },
         ];
     },

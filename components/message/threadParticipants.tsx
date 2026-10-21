@@ -12,8 +12,10 @@ import { relayedAuthorOf } from "@/lib/relayedAuthor";
  * thread, shown next to the "N replies" badge (Slack-parity polish).
  *
  * Participants are derived from the reply authors already present in the
- * message's comment list — no extra fetch. Deduped by uuid, capped, with a
- * "+N" overflow chip. Avatars are intentionally small to sit inline.
+ * message's comment list — no extra fetch: a page brings up to three of a
+ * thread's people (domain/Message KeepRepliers, chat P2), and a reply written
+ * in the session joins them. Deduped by uuid, newest first, three at most.
+ * Avatars are intentionally small to sit inline.
  */
 
 export interface ThreadParticipant {
@@ -91,20 +93,19 @@ export function ThreadParticipants({ participants, maxShown = 3, className, size
 
     if (unique.length === 0) return null;
 
+    // The newest people, and no "+N" (STEP5_PLAN spec A): a page brings at most
+    // three of a thread's people, so a count of the rest would count only
+    // those who replied while it was open.
     const shown = unique.slice(0, maxShown);
-    const remaining = unique.length - shown.length;
 
     return (
-        // Overlapping 6px on a 2px ring of the sheet (design v3, §3.9 stacks).
-        <div data-participants="" className={cn("flex items-center -space-x-1.5", className)}>
+        // Overlapping 4px on a 2px ring of the sheet, so every initial stays
+        // whole: at 6px the next face's ring covered part of a "P" or an "M"
+        // (DESIGN-BUILD-2, 18 Oct).
+        <div data-participants="" className={cn("flex items-center -space-x-1", className)}>
             {shown.map((p) => (
                 <ParticipantAvatar key={p.uuid} p={p} size={size} />
             ))}
-            {remaining > 0 && (
-                <span className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-sunken text-3xs font-medium tabular-nums text-ink-2 ring-2 ring-sheet">
-                    +{remaining}
-                </span>
-            )}
         </div>
     );
 }

@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl } from "@/services/endPoints";
 import type { UserProfileInterface } from "@/types/user";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { useSheetMode } from "@/components/ui/overlayMode";
+import { OverlayBody } from "@/components/ui/overlay";
 import { Button } from "@/components/ui/button";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { submitOnModEnter } from "@/lib/keys/chord";
@@ -82,6 +85,67 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
     };
 
     const self = selfProfile.data?.data?.user_uuid;
+    // On a phone, the sheet (the phone rule): its footer pinned under the one scroller.
+    const sheet = useSheetMode();
+    const formId = useId();
+    const description = "Add it to your calendar, and to your guests’ calendars too.";
+    const buttons = (
+        <>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancel
+            </Button>
+            <Button type="submit" form={formId} disabled={submitting} aria-busy={submitting || undefined}>
+                {submitting ? "Creating…" : "Create event"}
+            </Button>
+        </>
+    );
+    const body = (
+        <>
+            <EventForm
+                values={values}
+                onChange={setValues}
+                full={full}
+                organiser
+                exclude={self ? [self] : []}
+                creating
+                googleConnected={isGCalConnected}
+                problem={problem}
+                autoFocusTitle
+            />
+            {tellPrompt}
+            {scopePrompt}
+        </>
+    );
+    const onSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        void submit();
+    };
+
+    if (sheet) {
+        return (
+            <Drawer open={open} onOpenChange={onOpenChange} detent="large">
+                <DrawerContent
+                    data-event-dialog=""
+                    header={
+                        <>
+                            <DrawerTitle className="text-title-3 text-ink">New event</DrawerTitle>
+                            <DrawerDescription className="sr-only">{description}</DrawerDescription>
+                        </>
+                    }
+                    footer={<div className="flex flex-col-reverse gap-2 [&>*]:h-11">{buttons}</div>}
+                >
+                    {/* The sheet's one scroller (components/ui/overlay): the pinned footer
+                        draws its hairline while there is more of the form below. */}
+                    <OverlayBody asChild className="mx-0 px-4 pb-2">
+                        <form id={formId} onSubmit={onSubmit} onKeyDown={submitOnModEnter}>
+                            {body}
+                        </form>
+                    </OverlayBody>
+                </DrawerContent>
+            </Drawer>
+        );
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* No padding of its own (the body and footer pad themselves), so --dlg-pad says 0:
@@ -89,38 +153,10 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                 out past the dialog's edge. */}
             <DialogContent className="gap-0 p-0 [--dlg-pad:0px] sm:max-w-[560px]" data-event-dialog="">
                 <DialogTitle className="sr-only">New event</DialogTitle>
-                <DialogDescription className="sr-only">Add it to your calendar, and to your guests&apos; calendars too.</DialogDescription>
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        void submit();
-                    }}
-                    onKeyDown={submitOnModEnter}
-                    className="flex max-h-[85dvh] flex-col"
-                >
-                    <div className="overflow-y-auto px-6 pb-2 pt-6">
-                        <EventForm
-                            values={values}
-                            onChange={setValues}
-                            full={full}
-                            organiser
-                            exclude={self ? [self] : []}
-                            creating
-                            googleConnected={isGCalConnected}
-                            problem={problem}
-                            autoFocusTitle
-                        />
-                    </div>
-                    {tellPrompt}
-                    {scopePrompt}
-                    <DialogFooter className="border-t border-line px-6 py-3">
-                        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={submitting} aria-busy={submitting || undefined}>
-                            {submitting ? "Creating…" : "Create event"}
-                        </Button>
-                    </DialogFooter>
+                <DialogDescription className="sr-only">{description}</DialogDescription>
+                <form id={formId} onSubmit={onSubmit} onKeyDown={submitOnModEnter} className="flex max-h-[85dvh] flex-col">
+                    <div className="overflow-y-auto px-6 pb-2 pt-6">{body}</div>
+                    <DialogFooter className="border-t border-line px-6 py-3">{buttons}</DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>

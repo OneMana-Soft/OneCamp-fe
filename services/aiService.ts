@@ -1,4 +1,5 @@
-import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { AiGet, AiPost } from "@/services/endpoints/ai";
 import axiosInstance from "@/lib/axiosInstance";
 import { stopAnswer } from "@/services/answerRecovery";
 import { usePost } from "@/hooks/usePost";
@@ -174,7 +175,7 @@ export const useAskAIStream = () => {
                 // authedStreamFetch refreshes an expired access token and
                 // retries once, so a stream started after the short-lived
                 // Authorization cookie lapsed doesn't hard-fail with a 401.
-                const response = await authedStreamFetch(PostEndpointUrl.AIAskStream, {
+                const response = await authedStreamFetch(AiPost.AIAskStream, {
                     jsonBody: {
                         question,
                         session_id: sessionId,
@@ -343,7 +344,7 @@ export const useDocAI = () => {
     const complete = useCallback(
         async (action: DocAIAction, text: string, docId?: string, customPrompt?: string, context?: string): Promise<DocAIResponse | undefined> => {
             try {
-                const response = await authedStreamFetch(PostEndpointUrl.AIDocComplete, {
+                const response = await authedStreamFetch(AiPost.AIDocComplete, {
                     jsonBody: {
                         action,
                         text,
@@ -393,7 +394,7 @@ export const useExecuteAction = () => {
     const executeAction = useCallback(
         async (toolName: string, params: Record<string, string>): Promise<ExecuteActionResponse | undefined> => {
             return makeRequest<{ tool_name: string; params: Record<string, string> }, ExecuteActionResponse>({
-                apiEndpoint: PostEndpointUrl.AIExecuteAction,
+                apiEndpoint: AiPost.AIExecuteAction,
                 payload: { tool_name: toolName, params },
                 showToast: true,
             });
@@ -429,7 +430,7 @@ export const useAnalyzeImage = () => {
                 { obj_uuid: string; src_key: string; src_ref: string; prompt?: string },
                 AnalyzeImageResponse
             >({
-                apiEndpoint: PostEndpointUrl.AIAnalyzeImage,
+                apiEndpoint: AiPost.AIAnalyzeImage,
                 payload: { obj_uuid: objUuid, src_key: srcKey, src_ref: srcRef, prompt },
                 showToast: true,
             });
@@ -460,7 +461,7 @@ export const useAnalyzeDocument = () => {
                 { obj_uuid: string; src_key: string; src_ref: string; prompt?: string },
                 AnalyzeImageResponse
             >({
-                apiEndpoint: PostEndpointUrl.AIAnalyzeDocument,
+                apiEndpoint: AiPost.AIAnalyzeDocument,
                 payload: { obj_uuid: objUuid, src_key: srcKey, src_ref: srcRef, prompt },
                 showToast: true,
             });
@@ -485,7 +486,7 @@ interface TranslateResponse {
 // show the mic when it will work. Best-effort: false on any error.
 export async function getVoiceInputAvailable(): Promise<boolean> {
     try {
-        const res = await axiosInstance.get(GetEndpointUrl.AIVoiceInput, {
+        const res = await axiosInstance.get(AiGet.AIVoiceInput, {
             // @ts-expect-error — background probe, no global loading bar
             silent: true,
         })
@@ -500,7 +501,7 @@ export async function getVoiceInputAvailable(): Promise<boolean> {
 export async function transcribeAudio(blob: Blob, filename = "audio.webm"): Promise<string> {
     const form = new FormData()
     form.append("audio", blob, filename)
-    const res = await axiosInstance.post(PostEndpointUrl.AITranscribe, form)
+    const res = await axiosInstance.post(AiPost.AITranscribe, form)
     return (res.data?.data?.text as string) || ""
 }
 
@@ -513,7 +514,7 @@ export const useTranslateText = () => {
                 { text: string; target_language?: string },
                 TranslateResponse
             >({
-                apiEndpoint: PostEndpointUrl.AITranslate,
+                apiEndpoint: AiPost.AITranslate,
                 payload: { text, target_language: targetLanguage },
                 showToast: true,
             });
@@ -548,7 +549,7 @@ interface ChatSessionMessage {
 
 /** A person's conversations, most recently active first. */
 export async function listChatSessions(config?: AxiosRequestConfig): Promise<ChatSessionSummary[]> {
-    const res = await axiosInstance.get(GetEndpointUrl.AIChatSessions, config)
+    const res = await axiosInstance.get(AiGet.AIChatSessions, config)
     return (res.data?.data as ChatSessionSummary[]) || []
 }
 
@@ -565,7 +566,7 @@ interface ChatSessionState {
 }
 
 export async function getChatSessionState(sessionId: string): Promise<ChatSessionState> {
-    const res = await axiosInstance.get(`${GetEndpointUrl.AIChatSessions}/${sessionId}`)
+    const res = await axiosInstance.get(`${AiGet.AIChatSessions}/${sessionId}`)
     return {
         messages: (res.data?.data as ChatSessionMessage[]) || [],
         live: Boolean(res.data?.live),
@@ -574,5 +575,5 @@ export async function getChatSessionState(sessionId: string): Promise<ChatSessio
 
 /** Removes a conversation from the list. */
 export async function deleteChatSession(sessionId: string): Promise<void> {
-    await axiosInstance.delete(`${GetEndpointUrl.AIChatSessions}/${sessionId}`)
+    await axiosInstance.delete(`${AiGet.AIChatSessions}/${sessionId}`)
 }

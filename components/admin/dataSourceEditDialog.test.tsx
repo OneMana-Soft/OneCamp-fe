@@ -22,7 +22,7 @@ describe("the data source dialog", () => {
   it("puts its title icon on the AI group's tile, not in the accent", () => {
     render(<DataSourceEditDialog source={null} open onClose={() => {}} onSaved={() => {}} />)
     const title = screen.getByRole("heading", { name: "Add a data source" })
-    expect(title.querySelector(".hue-dusk")).toBeTruthy()
+    expect(title.querySelector(".hue-agent")).toBeTruthy()
     expect(title.querySelector(".text-primary")).toBeNull()
   })
 

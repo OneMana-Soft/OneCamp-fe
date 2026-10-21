@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { SearchField } from "@/components/search/searchField";
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import { ProjectAttachmentList } from "@/components/project/projectAttachmentList";
@@ -27,6 +27,8 @@ export const ProjectListTabContent = ({
             }, 500),
         [],
     )
+
+    useEffect(() => debouncedSearch.cancel, [debouncedSearch])
 
     const handleSearchChange = (q: string) => {
         setInputValue(q)

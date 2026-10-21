@@ -56,6 +56,19 @@ describe("Home for a member in no channel", () => {
     expect(screen.queryByRole("button", { name: /^Join #/ })).toBeNull()
   })
 
+  it("never offers to join a channel it can't name", () => {
+    // An answer without a usable channel (a list, no name, no id) is no suggestion: the
+    // first run's shots showed "Join #undefined" on a new admin's Home.
+    for (const odd of [[], {}, { ch_uuid: GENERAL.ch_uuid }, { ch_uuid: GENERAL.ch_uuid, ch_name: "  " }, { ch_name: "general" }]) {
+      state.suggested = odd
+      const { unmount } = render(<NoChannelsYet />)
+      expect(screen.queryByRole("button", { name: /^Join/ }), JSON.stringify(odd)).toBeNull()
+      expect(document.body.textContent).not.toMatch(/undefined/)
+      expect(screen.getByRole("link", { name: "Browse channels" })).toBeTruthy()
+      unmount()
+    }
+  })
+
   it("says nothing to a member of a channel, or before it knows", () => {
     state.sidenav = { data: { user_channels: [GENERAL] } }
     const { container, rerender } = render(<NoChannelsYet />)

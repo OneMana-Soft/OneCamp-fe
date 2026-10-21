@@ -4,7 +4,7 @@
 import {useParams} from "next/navigation";
 import {useDispatch, useSelector} from "react-redux";
 import {useFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import type {RootState} from "@/store/store";
 import {useEffect} from "react";
 import {CreateChatPaginationResRaw} from "@/types/chat";
@@ -21,7 +21,7 @@ export default function Page() {
 
     const dispatch = useDispatch();
 
-    const getNewPostsWithCurrentPost = useFetch<CreateChatPaginationResRaw>(grpId && chatMessageId ? GetEndpointUrl.GetNewGroupChatIncludingCurrentChat + '/' + grpId + '/' + chatMessageId: '')
+    const getNewPostsWithCurrentPost = useFetch<CreateChatPaginationResRaw>(grpId && chatMessageId ? ChatGet.GetNewGroupChatIncludingCurrentChat + '/' + grpId + '/' + chatMessageId: '')
 
     const chatMessageState = useSelector((state: RootState) => state.groupChat.chatMessages[grpId] || []);
 

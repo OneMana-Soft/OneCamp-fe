@@ -129,7 +129,7 @@ export async function saveLegacyChange(deps: SaveDeps, id: string, v: EventFormV
   const { start, end } = whenOf({ ...v, allDay: false })
   try {
     await deps.makeRequest({
-      apiEndpoint: `${PostEndpointUrl.UpdateCalendarEvent}/${id}` as PostEndpointUrl,
+      apiEndpoint: `${PostEndpointUrl.UpdateCalendarEvent}/${id}` as string,
       payload: {
         title: v.title.trim(),
         description: savedNotes(v),

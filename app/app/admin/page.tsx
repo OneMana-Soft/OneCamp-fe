@@ -34,6 +34,7 @@ const WebhooksCard = dynamic(() => import("@/components/admin/WebhooksCard"), { 
 const GitHubIntegrationCard = dynamic(() => import("@/components/admin/GitHubIntegrationCard"), { loading: AdminCardSkeleton })
 const OAuthConfigCard = dynamic(() => import("@/components/admin/OAuthConfigCard"), { loading: AdminCardSkeleton })
 const ArchiveCard = dynamic(() => import("@/components/admin/ArchiveCard"), { loading: AdminCardSkeleton })
+const DocHistoryCard = dynamic(() => import("@/components/admin/DocHistoryCard"), { loading: AdminCardSkeleton })
 const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsersCard"), { loading: () => <PeopleTabSkeleton hasAction={false} /> })
 const SlackImportCard = dynamic(() => import("@/components/admin/SlackImportCard"), { loading: AdminCardSkeleton })
 const SlackBridgeCard = dynamic(() => import("@/components/admin/SlackBridgeCard"), { loading: AdminCardSkeleton })
@@ -305,7 +306,10 @@ const AdminPage = () => {
                 <ExternalUsersCard />
               </TabsContent>
               <TabsContent value="archive" className="mt-0">
-                <ArchiveCard />
+                <div className={ADMIN_SECTION_STACK}>
+                  <ArchiveCard />
+                  <DocHistoryCard />
+                </div>
               </TabsContent>
               <TabsContent value="import" className="mt-0">
                 <div className={ADMIN_SECTION_STACK}>

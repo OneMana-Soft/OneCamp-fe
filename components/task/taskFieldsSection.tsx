@@ -31,7 +31,8 @@ import { DateProperty } from "@/components/task/taskDateField"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { dayDate, localDay } from "@/lib/utils/timeZone"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsPost } from "@/services/endpoints/projects"
 import type { UserProfileDataInterface } from "@/types/user"
 
 type Save = (field: TaskField, value: FieldValue | null) => Promise<void>
@@ -76,7 +77,7 @@ function useSaveField(taskUUID: string, projectUUID: string, values: FieldValues
       const newest = () => seq.current.get(field.id) === mine
       show(field.id, value)
       try {
-        const res = await axiosInstance.post(PostEndpointUrl.SetTaskField, { task_uuid: taskUUID, field_id: field.id, value }, OWN_ERRORS)
+        const res = await axiosInstance.post(ProjectsPost.SetTaskField, { task_uuid: taskUUID, field_id: field.id, value }, OWN_ERRORS)
         if (newest()) show(field.id, (res.data as { data: { value: FieldValue | null } }).data.value ?? null)
       } catch (err) {
         if (!newest()) return

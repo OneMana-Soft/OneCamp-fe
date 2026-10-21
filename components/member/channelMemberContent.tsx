@@ -1,7 +1,8 @@
 "use client"
 import {useFetch} from "@/hooks/useFetch";
 import {ChannelInfoInterfaceResp, ChannelMemberUpdateInterface} from "@/types/channel";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { PeopleGet } from "@/services/endpoints/people";
 import {usePost} from "@/hooks/usePost";
 import {UserListInterfaceResp} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
@@ -14,7 +15,7 @@ import {useDispatch} from "react-redux";
  * Details sheet (components/channel/details).
  */
 export function useChannelMembers(channelId: string) {
-    const channelInfo = useFetch<ChannelInfoInterfaceResp>(channelId ? GetEndpointUrl.ChannelMemberInfoWithAdminFlagInfo + '/' + channelId : '')
+    const channelInfo = useFetch<ChannelInfoInterfaceResp>(channelId ? PeopleGet.ChannelMemberInfoWithAdminFlagInfo + '/' + channelId : '')
     const post = usePost()
 
     const dispatch = useDispatch()

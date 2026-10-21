@@ -1,4 +1,5 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import type { OnboardingSample } from "@/services/onboardingSampleService"
 
 // What this workspace still needs before it is useful.
 //
@@ -34,11 +35,13 @@ export interface OnboardingState {
     complete: boolean
     /** How many were set aside, so the card can offer to show them again. */
     skipped: number
+    /** The live sample project, when the guided run made one. */
+    sample?: OnboardingSample
 }
 
 // One definition of the path, because the reader's SWR cache key and the writer's
 // target have to be the same string.
-const onboardingUrl = "/admin/onboarding"
+export const onboardingUrl = "/admin/onboarding"
 
 export async function getOnboardingStatus(): Promise<OnboardingState | undefined> {
     // The checklist is a hint on Home: when it can't load, Home goes on without

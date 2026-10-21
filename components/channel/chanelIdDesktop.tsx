@@ -1,5 +1,5 @@
-import { useOpenBeside } from "@/hooks/useSplitView";
-import { useMedia } from "@/context/MediaQueryContext";
+import { useOpenBeside } from "@/hooks/useOpenBeside";
+import { PinnedMenuItem } from "@/components/conversation/pins/PinnedMenuItem";
 import { searchWithinHref } from "@/lib/search/within";
 import {useFetch} from "@/hooks/useFetch";
 import { ChannelWelcome, useWelcomeSend } from "@/components/onboarding/ChannelWelcome";
@@ -28,6 +28,8 @@ import {usePost} from "@/hooks/usePost";
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react";
 import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
 import type { Content } from "@tiptap/react";
+import { useBroadcastConfirm } from "@/hooks/useBroadcastConfirm"
+import { useNotToldPrompt } from "@/hooks/useNotToldPrompt"
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import {openUI} from "@/store/slice/uiSlice";
@@ -91,8 +93,8 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
 
     // A call opens beside the channel, so the conversation stays in view.
     // Above the early returns: a hook runs on every render or none.
-    const { isMobile } = useMedia();
-    const openBeside = useOpenBeside(!isMobile);
+    // Where views can't sit side by side (a phone, a tablet) it opens the call's page.
+    const openBeside = useOpenBeside();
 
     if(!channelId) return
 
@@ -180,6 +182,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                 channelId={channelId}
                 handleSend={handleSend}
                 placeholder={channelComposerPlaceholder(channelDisplayName, channelAgents.map((a) => a.name))}
+                channelName={channelDisplayName}
                 focusComposer={focusComposer}
                 agents={channelAgents}
             />
@@ -270,6 +273,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                                     <Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings
                                 </Link>
                             </DropdownMenuItem>
+                            <PinnedMenuItem conversation={{ kind: "channel", id: channelId }} onOpen={openDetails} />
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={openDetails}>
                                 <Info className="text-ink-3" aria-hidden="true" /> Details
@@ -307,8 +311,10 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
  * the channel that changes as someone types: the draft is read here, so the
  * header and the conversation above it no longer re-render as it changes.
  */
-const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, placeholder, focusComposer, agents: channelAgents }: {
+const ChannelComposer = memo(function ChannelComposer({ channelId, channelName, handleSend, placeholder, focusComposer, agents: channelAgents }: {
     channelId: string
+    /** For the question a broadcast asks first ("Notify 42 people?"). */
+    channelName?: string
     handleSend: (latestContent?: string) => boolean | void
     placeholder: string
     focusComposer?: boolean
@@ -329,8 +335,17 @@ const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, p
     const [aiOpen, setAiOpen] = useState(false)
     const openAi = useCallback(() => setAiOpen(true), [])
     const undoSchedule = useUndoSchedule(scheduleSend?.target)
+    // A broadcast to a channel of six or more asks first (D-T12).
+    const confirmBroadcast = useBroadcastConfirm()
+    // Someone named who isn't in the channel wasn't told: it says so (MC-83).
+    const notTold = useNotToldPrompt()
     const send = useStableCallback((latestContent?: string) => {
-        if (handleSend(latestContent)) celebrateFirstMessage()
+        const html = latestContent ?? channelState.inputTextHTML
+        void confirmBroadcast(channelId, channelName ?? "", html, () => {
+            const sent = handleSend(latestContent)
+            if (sent) celebrateFirstMessage()
+            if (sent !== false) void notTold(channelId, channelName ?? "", html)
+        })
     })
     const onChange = useStableCallback((content: Content) => {
         publishTyping(content as string)

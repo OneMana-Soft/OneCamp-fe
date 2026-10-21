@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { PinnedSection } from "@/components/conversation/pins/PinnedSection"
 import { useMemo, useState } from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useDispatch } from "react-redux"
@@ -20,6 +21,7 @@ import ChannelAITeammates from "@/components/member/channelAITeammates"
 import ChannelAIBudget from "@/components/member/channelAIBudget"
 import { useChannelMembers } from "@/components/member/channelMemberContent"
 import { ChannelWeeklyReportSetting } from "@/components/ai/ChannelWeeklyReportSetting"
+import { BroadcastSetting } from "@/components/channel/details/broadcastSetting"
 import { MemberRow } from "@/components/channel/details/memberRow"
 import { DetailsRow as Row, DetailsSection as Section, InlineConfirm } from "@/components/channel/details/detailsParts"
 import { ChannelNameRow } from "@/components/channel/details/channelNameRow"
@@ -319,6 +321,14 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                             )}
                         </Section>
 
+                        <PinnedSection
+                            conversation={{ kind: "channel", id: channelId }}
+                            onOpenMessage={(messageId) => {
+                                onOpenChange(false)
+                                router.push(`${app_channel_path}/${channelId}/${messageId}`)
+                            }}
+                        />
+
                         <Section
                             title={<>Members{memberCount === undefined ? null : <> <span className="font-normal text-ink-3">· {memberCount}</span></>}</>}
                             action={(isAdmin || (isMember && !info?.ch_private)) && !archived ? (
@@ -428,6 +438,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                                         )}
                                     />
                                 </Row>
+                                <BroadcastSetting channelId={channelId} />
                                 <ChannelWeeklyReportSetting channelUUID={channelId} />
                             </Section>
                         )}

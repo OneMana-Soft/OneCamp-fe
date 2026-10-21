@@ -12,6 +12,7 @@ import { formatCount } from "@/lib/utils/helpers/formatCount"
 import { UserProfileDrawer } from "@/components/drawers/userProfileDrawer"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { LucideIcon } from "lucide-react"
+import { areaHue, type Area } from "@/lib/areas"
 
 interface NavItem {
     icon: LucideIcon
@@ -25,15 +26,17 @@ interface NavItem {
     unreadAs?: "count" | "dot"
     /** Glyphs with an inside (the house, the tray) fill in the accent when active; the rest stroke in it. */
     fills?: boolean
+    /** Its area (lib/areas): a plain dot wears the area's hue. */
+    area?: Area
 }
 
 const NAV_ITEMS: NavItem[] = [
     { icon: Home, label: "Home", page: "app/home", fills: true },
-    { icon: Hash, label: "Channels", page: "app/channel", unreadKey: "channel", unreadAs: "dot" },
+    { icon: Hash, label: "Channels", page: "app/channel", unreadKey: "channel", unreadAs: "dot", area: "chat" },
     // The place is "Direct messages" (the page title says so); the bar has 72px
     // a cell at 360 wide, where those words at 11px run to about 80, so the
     // label is the desktop sidebar's short form and the full name is spoken.
-    { icon: MessageCircle, label: "DMs", name: "Direct messages", page: "app/chat", unreadKey: "dm" },
+    { icon: MessageCircle, label: "DMs", name: "Direct messages", page: "app/chat", unreadKey: "dm", area: "chat" },
     // Deliberately NO Search tab. Search already has a first-class entry point on
     // mobile: the phone top bar's search opens the palette (design v3), which
     // runs the same unified search as desktop and hands off to /app/search
@@ -87,11 +90,12 @@ function useFresh(shown: boolean): boolean {
     return fresh
 }
 
-function TabMark({ unread, as }: { unread: number; as: "count" | "dot" }) {
+/** A count is about you (the brand); an area tab's plain dot wears its area's hue. */
+function TabMark({ unread, as, area }: { unread: number; as: "count" | "dot"; area?: Area }) {
     const fresh = useFresh(unread > 0)
     if (unread <= 0) return null
     return as === "dot"
-        ? <span data-tab-dot="" data-fresh={fresh || undefined} className="phone-tab-dot" />
+        ? <span data-tab-dot="" data-area={area} data-hue={area && areaHue(area)} data-fresh={fresh || undefined} className="phone-tab-dot" />
         : <span data-tab-badge="" data-fresh={fresh || undefined} className="phone-tab-badge">{formatCount(unread)}</span>
 }
 
@@ -185,7 +189,7 @@ export function MobileBottomNavigationBar() {
                     the inbox tray); its label goes ink. The rest are ink-3.
                     No grey block flashes across a cell: the capsule dips. */}
                 <ul className="grid grid-cols-5 items-stretch h-14 w-full">
-                    {NAV_ITEMS.map(({ icon: Icon, label, name, page, unreadKey, unreadAs = "count", fills }) => {
+                    {NAV_ITEMS.map(({ icon: Icon, label, name, page, unreadKey, unreadAs = "count", fills, area }) => {
                         const isActive = currentTab === page
                         const unread = getUnreadCount(unreadKey)
                         return (
@@ -223,7 +227,7 @@ export function MobileBottomNavigationBar() {
                                                 isActive && fills && "fill-brand",
                                             )}
                                         />}
-                                        <TabMark unread={unread} as={unreadAs} />
+                                        <TabMark unread={unread} as={unreadAs} area={area} />
                                     </span>
                                     <span className="phone-tab-label text-3xs font-medium">
                                         {label}

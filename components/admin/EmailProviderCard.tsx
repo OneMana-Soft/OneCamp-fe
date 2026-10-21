@@ -24,7 +24,7 @@ import { Loader2, Mail } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { updateWorkspaceSettings, useWorkspaceSettings } from "@/services/settingsService"
 
 export default function EmailProviderCard() {
@@ -34,7 +34,7 @@ export default function EmailProviderCard() {
     // by pasting a key that is already there.
     const { settings, isLoading, isError, mutate } = useWorkspaceSettings()
     // Where mail comes from: the invitation card reads the same key.
-    const { data: emailConfig } = useFetch<{ data?: { sender_email?: string; default_sender?: string } }>(GetEndpointUrl.GetEmailConfig)
+    const { data: emailConfig } = useFetch<{ data?: { sender_email?: string; default_sender?: string } }>(AdminGet.GetEmailConfig)
     const [key, setKey] = useState("")
     const [replacing, setReplacing] = useState(false)
     const [saving, setSaving] = useState(false)

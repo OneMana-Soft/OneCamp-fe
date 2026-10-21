@@ -33,7 +33,7 @@ class FakeResizeObserver {
   unobserve() {}
 }
 
-const { MessageListVirtua } = await import("./MessaageListVirtua")
+const { MessageListVirtua } = await import("./MessageListVirtua")
 
 type Msg = { id: string; by: string; text: string }
 const msg = (id: string, by = "Maya Chen", text = `said ${id}`): Msg => ({ id, by, text })
@@ -97,6 +97,49 @@ describe("the message list to a screen reader", () => {
     rerender(list([msg("m1"), msg("m2", "Jonas Weber", "ok"), msg("m3", "Jonas Weber", "ok")]))
     expect(document.querySelector("[data-announcer]")!.textContent).not.toBe(first)
     expect(announced()).toBe("Jonas Weber: ok")
+  })
+})
+
+describe("the message list to a keyboard", () => {
+  it("is one Tab stop, a region named for its conversation around the list", () => {
+    render(list([msg("m1"), msg("m2")]))
+    const region = screen.getByRole("region", { name: "Messages in #design" })
+    expect(region.tabIndex).toBe(0)
+    expect(region.contains(screen.getByRole("list", { name: "Messages in #design" }))).toBe(true)
+  })
+
+  it("is named Messages when the list has no name of its own", () => {
+    render(list([msg("m1")], { label: undefined }))
+    expect(screen.getByRole("region", { name: "Messages" }).tabIndex).toBe(0)
+  })
+
+  it("pages through the history with Page Up and Page Down, and End goes to the latest", () => {
+    render(list([msg("m1"), msg("m2"), msg("m3")]))
+    const region = screen.getByRole("region", { name: "Messages in #design" })
+    const scrollBy = vi.fn()
+    Object.defineProperty(region, "scrollBy", { value: scrollBy, configurable: true })
+    Object.defineProperty(region, "clientHeight", { value: 600, configurable: true })
+
+    fireEvent.keyDown(region, { key: "PageUp" })
+    expect(scrollBy).toHaveBeenLastCalledWith(expect.objectContaining({ top: -552 }))
+    fireEvent.keyDown(region, { key: "PageDown" })
+    expect(scrollBy).toHaveBeenLastCalledWith(expect.objectContaining({ top: 552 }))
+
+    handle.scrollToIndex.mockClear()
+    fireEvent.keyDown(region, { key: "End" })
+    // The last of the four rows (the day, then three messages), at its end.
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(3, expect.objectContaining({ align: "end" }))
+  })
+
+  it("leaves a key typed in a field inside it alone", () => {
+    render(list([msg("m1")]))
+    const region = screen.getByRole("region", { name: "Messages in #design" })
+    const scrollBy = vi.fn()
+    Object.defineProperty(region, "scrollBy", { value: scrollBy, configurable: true })
+    const field = document.createElement("textarea")
+    region.appendChild(field)
+    fireEvent.keyDown(field, { key: "PageDown" })
+    expect(scrollBy).not.toHaveBeenCalled()
   })
 })
 

@@ -8,14 +8,14 @@
 import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { type Ending, type Health, type ProjectUpdate, type UpdateDraft } from "@/lib/projectUpdates"
 import { browserTZ } from "@/lib/utils/timeZone"
 
 /** The list the tab, the header chip and the reminder share (one request). */
 export const UPDATES_SHOWN = 20
 
-const base = (projectId: string) => `${GetEndpointUrl.ProjectUpdates}/${projectId}/updates`
+const base = (projectId: string) => `${ProjectsGet.ProjectUpdates}/${projectId}/updates`
 
 /** What the update composer posts: a project update, or a goal's check-in. */
 export interface UpdateInput {
@@ -45,7 +45,7 @@ export function useProjectUpdates(projectId: string | undefined) {
   }, [projectId])
 
   const aiDraft = useCallback(async (): Promise<UpdateDraft> => {
-    const res = await axiosInstance.post(GetEndpointUrl.AiProjectUpdateDraft, { project_uuid: projectId, tz: browserTZ() })
+    const res = await axiosInstance.post(ProjectsGet.AiProjectUpdateDraft, { project_uuid: projectId, tz: browserTZ() })
     return (res.data as { data: UpdateDraft }).data
   }, [projectId])
 

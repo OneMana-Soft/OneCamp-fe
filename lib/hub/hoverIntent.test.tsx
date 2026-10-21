@@ -99,7 +99,8 @@ describe("where people show", () => {
   const src = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
   it("is on message authors, mentions, member lists and assignee chips", () => {
     expect(src("components/message/baseMessageCard.tsx").match(/\{\.\.\.authorHover\}/g)).toHaveLength(2)
-    expect(src("components/minimal-tiptap/extensions/mention-list/MentionNodeView.tsx")).toContain("{...hover}")
+    // A person's chip only: a room's or a team's has no profile to show (chat P3).
+    expect(src("components/minimal-tiptap/extensions/mention-list/MentionNodeView.tsx")).toContain("{...(personal ? hover : {})}")
     expect(src("components/textInput/textInput.tsx")).toContain("{...mentionHover}")
     expect(src("components/admin/AdminUserList.tsx")).toContain("useProfileHover(user.user_uuid)")
     expect(src("components/admin/AdminAdminList.tsx")).toContain("useProfileHover(admin.user_uuid)")

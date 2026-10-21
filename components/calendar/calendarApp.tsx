@@ -18,7 +18,9 @@ import { usePost } from "@/hooks/usePost";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useMedia } from "@/context/MediaQueryContext";
+import { useSheetMode } from "@/components/ui/overlayMode";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { CalendarGet } from "@/services/endpoints/calendar";
 import type { UserProfileInterface } from "@/types/user";
 import type { CalendarEventInterface, CreateEventPayload, GetEventsResponse } from "@/types/calendar";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -144,6 +146,9 @@ export function periodTitle(view: CalendarView, anchor: Date): string {
 export function CalendarApp() {
     const dispatch = useDispatch();
     const { isMobile } = useMedia();
+    // Whether an overlay is a sheet: the one rule (components/ui/overlayMode),
+    // a phone in landscape too, where isMobile (the layout's width) is false.
+    const sheet = useSheetMode();
     const router = useRouter();
     const wide = useWide();
     const now = useMinute();
@@ -206,9 +211,10 @@ export function CalendarApp() {
     const [draftAnchor, setDraftAnchor] = useState<HTMLElement | null>(null);
     const [fullOpen, setFullOpen] = useState(false);
     const [fullInitial, setFullInitial] = useState<EventDraftValues | null>(null);
-    // A phone opens the full dialog alone (no quick create, Calendars or Go to
-    // there), the event's card as a sheet, and its month view.
-    useWhenIdle(() => [...(isMobile ? [EventDialog, Card, Month, Copier] : [QuickCreate, EventDialog, Calendars, GoTo, Menu, Card, Month, Copier]), Series, ScopePromptView, Booked, Deleting].forEach((surface) => ahead(surface)()));
+    // A phone opens the full form alone, as a sheet (no quick create), the
+    // event's card as a sheet, and its month view; Calendars and Go to are the
+    // wide layout's.
+    useWhenIdle(() => [...(sheet ? [] : [QuickCreate]), ...(isMobile ? [] : [Calendars, GoTo, Menu]), EventDialog, Card, Month, Copier, Series, ScopePromptView, Booked, Deleting].forEach((surface) => ahead(surface)()));
     // Quick create and the dialog stay mounted from their first use on, so
     // each keeps its state and plays its closing motion.
     const [quickUsed, setQuickUsed] = useState(false);
@@ -233,7 +239,7 @@ export function CalendarApp() {
     // Every task of the grid, page by page: it asked for 100 and showed them as the month (FE-F-1).
     const { data: tasksRes, isLoading: isLoadingTasks, isError: tasksError, mutate: mutateTasks } = useAssignedTasks(rangeQuery, OWN_ERRORS);
     const { data: gcalStatus, mutate: mutateGcalStatus } = useFetch<{ data: { isConnected: boolean; accountEmail?: string } }>(GetEndpointUrl.GoogleCalendarStatus);
-    const { data: bookingRes } = useFetch<{ data: unknown[] }>(calendarsOpen || railShown ? GetEndpointUrl.GetBookingPages : "");
+    const { data: bookingRes } = useFetch<{ data: unknown[] }>(calendarsOpen || railShown ? CalendarGet.GetBookingPages : "");
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const selfId = selfProfile?.data?.data?.user_uuid;
     const loading = isLoadingEvents || isLoadingTasks;
@@ -272,7 +278,7 @@ export function CalendarApp() {
     }, []);
 
     const handleConnectGCal = async () => {
-        const res = await post.makeRequest<undefined, { url: string }>({ method: "GET", apiEndpoint: GetEndpointUrl.GoogleCalendarAuthUrl as unknown as PostEndpointUrl });
+        const res = await post.makeRequest<undefined, { url: string }>({ method: "GET", apiEndpoint: GetEndpointUrl.GoogleCalendarAuthUrl as unknown as string });
         if (res?.url) window.location.href = res.url;
     };
     const handleUnlinkGCal = async () => {
@@ -451,7 +457,7 @@ export function CalendarApp() {
     /** An event's new times, through the existing update call. */
     const sendTimes = useCallback((e: CalendarEventInterface, start: Date, end: Date) =>
         post.makeRequest<CreateEventPayload>({
-            apiEndpoint: (PostEndpointUrl.UpdateCalendarEvent + `/${e.event_uuid}`) as PostEndpointUrl,
+            apiEndpoint: (PostEndpointUrl.UpdateCalendarEvent + `/${e.event_uuid}`) as string,
             payload: {
                 title: e.event_title,
                 description: e.event_description,
@@ -556,13 +562,13 @@ export function CalendarApp() {
             pickView("day");
             return;
         }
-        if (isMobile) {
+        if (sheet) {
             openDialog({ title: "", start: d.start, end: d.end, isFocus: false, guests: [] });
             return;
         }
         setDraft(d);
         setDraftAnchor(el);
-    }, [isMobile, shownView, goTo, pickView, openDialog]);
+    }, [isMobile, sheet, shownView, goTo, pickView, openDialog]);
 
     // Delete, from its key (and the menu): only your own OneCamp events, asked
     // first and sent as the event's panel asks and sends it.
@@ -1064,7 +1070,7 @@ export function CalendarApp() {
             {cardUsed ? (
                 <Card.View
                     fallback={null}
-                    render={(m) => <m.EventPopover event={selectedEvent} anchor={selected?.el ?? null} now={now} onClose={() => setSelected(null)} onOpenFull={openFull} selfId={selfId} phone={isMobile} askScope={askScope} mutateEvents={mutateEvents} holdOpen={!!scopePrompt} />}
+                    render={(m) => <m.EventPopover event={selectedEvent} anchor={selected?.el ?? null} now={now} onClose={() => setSelected(null)} onOpenFull={openFull} selfId={selfId} phone={sheet} askScope={askScope} mutateEvents={mutateEvents} holdOpen={!!scopePrompt} />}
                 />
             ) : null}
             {quickUsed ? (
@@ -1076,16 +1082,12 @@ export function CalendarApp() {
                             anchor={draftAnchor}
                             onDraftChange={(d) => {
                                 setDraft(d);
-                                // The parse moved the draft: show its period, and let the card follow the ghost.
+                                // The parse moved the draft: show its period. The card follows the ghost on its own.
                                 if (shownView === "day" && !isSameDay(d.start, anchor)) setAnchor(d.start);
                                 if (shownView === "week") {
                                     const off = differenceInCalendarDays(d.start, weekStart);
                                     if (off < 0 || off > 6) setAnchor(d.start);
                                 }
-                                requestAnimationFrame(() => {
-                                    const g = document.querySelector<HTMLElement>("[data-calendar-ghost]");
-                                    if (g) setDraftAnchor(g);
-                                });
                             }}
                             onClose={() => setDraft(null)}
                             onCreated={() => {

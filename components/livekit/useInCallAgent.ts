@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRoomContext, useLocalParticipant } from "@livekit/components-react";
 import { RoomEvent, RemoteParticipant, DataPacket_Kind } from "livekit-client";
-import { PostEndpointUrl } from "@/services/endPoints";
+import { CallsPost } from "@/services/endpoints/calls";
 import { authedStreamFetch } from "@/lib/utils/streamFetch";
 import { readSignal, senderOf } from "@/lib/calls/signals";
 
@@ -223,7 +223,7 @@ export function useInCallAgent(roomId: string, getTranscript: () => string) {
 
             try {
                 const transcript = getTranscript();
-                const response = await authedStreamFetch(PostEndpointUrl.AIInCallAskStream, {
+                const response = await authedStreamFetch(CallsPost.AIInCallAskStream, {
                     jsonBody: {
                         room_id: roomId,
                         question,

@@ -12,9 +12,12 @@ import { RollingCount } from "@/components/message/rollingCount";
 import { changedAtStart } from "@/components/message/listShift";
 import { rowMeta } from "@/components/message/rowMeta";
 import { followAfterScroll, READER_INPUT_MS } from "@/components/message/followEnd";
+import { listKeyAction } from "@/components/message/listKeys";
 import { prefersReducedMotion } from "@/lib/reducedMotion";
 import { ix } from "@/lib/ui/interactive"
 import { ErrorState } from "@/components/ui/error-state";
+import { highlightMessage } from "@/lib/utils/scrollToMessage";
+import { clockTime } from "@/lib/utils/date/clock";
 
 interface MessageRowProps<T> extends RowMeta {
     data: T
@@ -101,6 +104,9 @@ export const MessageListVirtua = <T,>({
                                           rowLabel,
                                           isOwn,
                                           retryOlder,
+                                          anchor,
+                                          timeOf,
+                                          onMarkRead,
                                       }: Omit<VirtualizedListProps<T>, 'onScroll'> & {
                                           initialTopMostItemIndex?: number,
                                           initialScrollOffsetFromTop?: number,
@@ -133,6 +139,17 @@ export const MessageListVirtua = <T,>({
                                            * conversation's start would be, and asks for no more (SD-BUG-1).
                                            */
                                           retryOlder?: () => void,
+                                          /**
+                                           * The message a link opened the conversation at (its row's key): the
+                                           * list goes to it, in the middle of the screen, and lights it up a
+                                           * moment (chat A1: "every link opens the message in place,
+                                           * highlighted"). It wins over where the reader last left the list.
+                                           */
+                                          anchor?: string,
+                                          /** A message's time, for the unread banner's "since 10:14" (chat B27). */
+                                          timeOf?: (item: T) => string | undefined,
+                                          /** Marks the conversation read, from the unread banner (chat B27). */
+                                          onMarkRead?: () => void,
                                       }) => {
     const scrollerRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -148,8 +165,8 @@ export const MessageListVirtua = <T,>({
     // second window after opening with retries at 50 and 150 ms, then nothing:
     // a message that arrived while you watched landed below the fold, and the
     // list faded in over 300 ms to hide its own settling.
-    const restoring = initialTopMostItemIndex !== undefined
-    const atBottomRef = useRef(!restoring)
+    const restoring = !anchor && initialTopMostItemIndex !== undefined
+    const atBottomRef = useRef(!restoring && !anchor)
     const [unseen, setUnseen] = useState(0)
     // Only the reader leaves the end (components/message/followEnd): when they
     // last scrolled, pressed or touched the list, and how big the content was
@@ -169,6 +186,8 @@ export const MessageListVirtua = <T,>({
     // Each message's summary, worked out once per message (an edited one is
     // a new object): the list renders on every scroll.
     const labels = useMemo(() => new WeakMap<object, string>(), [rowLabel])
+    // Every row, kept mounted (below).
+    const everyRow = useMemo(() => Array.from({ length: items.length }, (_, i) => i), [items.length])
     const labelOf = (data: T | undefined): string | undefined => {
         if (!rowLabel || data === undefined) return undefined
         const key = data as unknown as object
@@ -286,6 +305,8 @@ export const MessageListVirtua = <T,>({
         [calculateVisibleDateIndex],
     )
 
+    useEffect(() => debouncedUpdateVisibleDateIndex.cancel, [debouncedUpdateVisibleDateIndex])
+
     // A conversation shorter than the screen loads what is next to it.
     useLayoutEffect(() => {
         if (!ref.current || items.length === 0) return
@@ -303,6 +324,25 @@ export const MessageListVirtua = <T,>({
             setHasRestored(true)
         }
     }, [restoring, initialTopMostItemIndex, initialScrollOffsetFromTop, hasRestored, items.length, ref])
+
+    // A link's message: once its row is in the list, the list goes to it and it
+    // lights up. Until the reader takes the list (a wheel, a touch, a key),
+    // older messages loading above it keep it in the middle, so it opens with
+    // what led to it as well as what followed.
+    const anchoredTo = useRef<{ key: string; at: number } | undefined>(undefined)
+    useLayoutEffect(() => {
+        if (!anchor || !ref.current) return
+        const index = items.findIndex((i) => i.key === anchor)
+        if (index < 0) return
+        const was = anchoredTo.current
+        const first = was?.key !== anchor
+        if (!first && readerInputAt.current > was!.at) return
+        anchoredTo.current = { key: anchor, at: first ? performance.now() : was!.at }
+        atBottomRef.current = false
+        setIsScrolledToBottom(false)
+        ref.current.scrollToIndex(index, { align: "center" })
+        if (first) requestAnimationFrame(() => highlightMessage(anchor))
+    }, [anchor, items, ref])
 
     // Messages added at the end: followed when at the bottom, counted when not.
     const lastKey = items.length ? items[items.length - 1].key : undefined
@@ -338,11 +378,46 @@ export const MessageListVirtua = <T,>({
         })
     }, [isScrolledToBottom, jumpToLatest])
 
+    // WHERE A CONVERSATION OPENS (chat B27, D-SD6). At the newest message,
+    // with the line drawn from the marker; but with more than a screen
+    // unread, at the first unread, its line at the top, and a banner that
+    // says how many since when, with Jump and Mark as read. Once, as it opens;
+    // never over a link's message or the place the reader left it.
+    const [banner, setBanner] = useState(false)
+    const [lineRead, setLineRead] = useState(false)
+    const opened = useRef(false)
+    useLayoutEffect(() => {
+        if (opened.current || anchor || restoring || !ref.current || items.length === 0) return
+        opened.current = true
+        const at = items.findIndex((i) => i.type === "unread")
+        if (at < 0) return
+        const frame = requestAnimationFrame(() => {
+            const v = ref.current
+            if (!v || v.getItemOffset(at) >= v.scrollOffset) return
+            atBottomRef.current = false
+            setIsScrolledToBottom(false)
+            v.scrollToIndex(at, { align: "start" })
+            setBanner(true)
+        })
+        return () => cancelAnimationFrame(frame)
+    }, [items, anchor, restoring, ref])
+    // Reaching the end has read it: the banner goes.
+    useEffect(() => {
+        if (isScrolledToBottom) setBanner(false)
+    }, [isScrolledToBottom])
+
     // How many unread rows the reader opened onto, for "NEW · 14".
     const unreadCount = useMemo(() => {
         const at = items.findIndex((i) => i.type === "unread")
         return at < 0 ? 0 : items.slice(at + 1).filter((i) => i.type === "item").length
     }, [items])
+
+    const unreadSince = useMemo(() => {
+        if (!banner || !timeOf) return undefined
+        const at = items.findIndex((i) => i.type === "unread")
+        const first = at < 0 ? undefined : items.slice(at + 1).find((i) => i.type === "item" && i.data !== undefined)
+        return first?.data !== undefined ? timeOf(first.data) : undefined
+    }, [banner, items, timeOf])
 
     // Anything that grows the conversation while the reader is at the bottom
     // (an image loading, a code block laying out, a reaction) keeps them there.
@@ -379,13 +454,42 @@ export const MessageListVirtua = <T,>({
         }
     }, [])
 
+    // Page Up and Down, Home and End on the viewport (listKeys): the keyboard's
+    // way through the history, without tabbing through every message.
+    const onViewportKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        const scroller = scrollerRef.current
+        const action = scroller ? listKeyAction(e, scroller.clientHeight) : null
+        if (!scroller || !action) return
+        e.preventDefault()
+        readerInputAt.current = performance.now()
+        if ("scrollBy" in action) {
+            if (typeof scroller.scrollBy === "function") scroller.scrollBy({ top: action.scrollBy, behavior: prefersReducedMotion() ? "auto" : "smooth" })
+            else scroller.scrollTop += action.scrollBy
+        } else if (action.to === "end") {
+            jumpToLatest()
+        } else if (items.length > 0) {
+            // The oldest message loaded; reaching the top asks for older ones.
+            ref.current?.scrollToIndex(0, { align: "start" })
+        }
+    }
+
     return (
         <div
             ref={scrollerRef}
+            // One Tab stop for the whole history, named for a screen reader
+            // (INTERACTION_SPEC §7.3): Page Up and Down scroll it from here.
+            // Named for its conversation, so two side by side (split view)
+            // are told apart.
+            role="region"
+            aria-label={label ?? "Messages"}
+            tabIndex={0}
+            data-message-viewport=""
+            onKeyDown={onViewportKey}
             // A column, so a conversation shorter than the screen sits at its
             // end, just above the composer, as chat reads (the content's
-            // mt-auto); a longer one scrolls as before.
-            className={cn(containerClassName, "flex touch-pan-y flex-col w-full min-w-0 flex-1 min-h-0 md:pb-0 pb-[150px]")}
+            // mt-auto); a longer one scrolls as before. Its focus ring sits
+            // inside it, where the panes around it can't clip it.
+            className={cn(containerClassName, "flex touch-pan-y flex-col w-full min-w-0 flex-1 min-h-0 md:pb-0 pb-[150px] focus-visible:outline-offset-[calc(var(--ix-ring)*-1)]")}
             style={{
                 overflowY: "auto", overflowX: "hidden", overflowAnchor: "none", WebkitOverflowScrolling: "touch", touchAction: "pan-y"
             }}
@@ -401,7 +505,7 @@ export const MessageListVirtua = <T,>({
                         showDay ? "opacity-100" : "opacity-0",
                     )}
                 />
-                <div className={cn("absolute inset-x-0 top-2.5 flex justify-center transition-opacity duration-[140ms]", showDay ? "opacity-100" : "opacity-0")}>
+                <div className={cn("absolute inset-x-0 top-2.5 flex justify-center transition-opacity duration-[140ms]", showDay && !banner ? "opacity-100" : "opacity-0")}>
                     <DayPill
                         floating
                         label={visibleDateIndex > -1 ? getDateHeading(dateKeys[visibleDateIndex]) : ""}
@@ -411,6 +515,21 @@ export const MessageListVirtua = <T,>({
                     />
                 </div>
             </div>
+            {banner && (
+                <UnreadBanner
+                    count={unreadCount}
+                    since={unreadSince}
+                    onJump={() => {
+                        const at = items.findIndex((i) => i.type === "unread")
+                        if (at >= 0) ref.current?.scrollToIndex(at, { align: "start" })
+                    }}
+                    onMarkRead={onMarkRead && (() => {
+                        onMarkRead()
+                        setBanner(false)
+                        setLineRead(true)
+                    })}
+                />
+            )}
             {olderMessageLoading && !showDay && (
                 <div className="pointer-events-none sticky top-2.5 z-[var(--z-sticky)] flex h-0 justify-center overflow-visible" role="status" aria-label="Loading older messages">
                     <span className="flex h-6 items-center rounded-xl bg-sheet px-2.5 shadow-e1">
@@ -439,10 +558,16 @@ export const MessageListVirtua = <T,>({
                 ref={ref}
                 scrollRef={scrollerRef}
                 shift={shift}
-                // Every message stays mounted (overscan counts rows, not
-                // pixels): a jump to a quoted message finds it in the page,
-                // and a message's own height never has to be guessed.
+                // Every message stays mounted: a jump to a quoted message
+                // finds it in the page, and a message's own height never has
+                // to be guessed. Overscan alone didn't keep them: the
+                // virtualiser keeps it only ahead of a scroll, so scrolling
+                // down took out every row above the screen and they all
+                // mounted afresh when it stopped (opening a thread at the foot
+                // of a channel read back by six pages remounted 341 rows,
+                // 8,383 components: fluid-04, 20 Oct).
                 overscan={500}
+                keepMounted={everyRow}
                 onScroll={(offset) => {
                     if (onScroll && ref.current) {
                         const index = ref.current.findStartIndex()
@@ -508,7 +633,7 @@ export const MessageListVirtua = <T,>({
                         return (
                             <div key={item.key}>
                                 {head}
-                                <div role="listitem"><UnreadDivider count={unreadCount} seen={isScrolledToBottom && !scrolling} /></div>
+                                {lineRead ? null : <div role="listitem"><UnreadDivider count={unreadCount} seen={isScrolledToBottom && !scrolling} /></div>}
                             </div>
                         )
                     }
@@ -586,6 +711,28 @@ export const MessageListVirtua = <T,>({
                     </button>
                 </div>
             )}
+        </div>
+    )
+}
+
+/**
+ * The unread banner (chat B27, D-SD6): a conversation opened onto more than a
+ * screen of unread says how many since when, with Jump (back to the line) and
+ * Mark as read. A sticky strip of no height at the list's top, as the day pill.
+ */
+function UnreadBanner({ count, since, onJump, onMarkRead }: { count: number; since?: string; onJump: () => void; onMarkRead?: () => void }) {
+    const words = `${count} new ${count === 1 ? "message" : "messages"}${since ? ` since ${clockTime(new Date(since))}` : ""}`
+    return (
+        <div className="sticky top-0 z-[var(--z-sticky)] h-0 overflow-visible" data-unread-banner="">
+            <div role="status" className="absolute inset-x-0 top-2.5 flex justify-center px-4">
+                <div className="flex h-8 items-center gap-1 rounded-xl bg-sheet pl-3 pr-1 text-ui-sm text-ink shadow-e2 ring-1 ring-line">
+                    <span className="font-medium tabular-nums">{words}</span>
+                    <button type="button" onClick={onJump} {...ix("button")} className="ml-1 h-6 rounded-md px-2 font-medium text-brand-text">Jump</button>
+                    {onMarkRead && (
+                        <button type="button" onClick={onMarkRead} {...ix("button")} className="h-6 rounded-md px-2 font-medium text-ink-2">Mark as read</button>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }

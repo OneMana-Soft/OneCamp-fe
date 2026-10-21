@@ -15,21 +15,23 @@
 /* 1. A floating root that holds a body, up to three boxes down: a column
    that never scrolls itself. A popover's column is at most the room the
    window leaves it. A phone's sheet is a column already; its own body is the
-   scroller unless it holds one (below). */
-[data-overlay="float"]:has(> [data-overlay-body], > * > [data-overlay-body], > * > * > [data-overlay-body]) {
+   scroller unless it holds one (below). The body marks what holds it and
+   the boxes between (components/ui/overlay markOverlayColumn): a :has() here
+   was tried on every element of every page (app/selectorKeyGuard.test.ts). */
+[data-overlay="float"][data-overlay-holds-body] {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-[data-radix-popper-content-wrapper] > [data-overlay="float"]:has(> [data-overlay-body], > * > [data-overlay-body], > * > * > [data-overlay-body]) {
+[data-radix-popper-content-wrapper] > [data-overlay="float"][data-overlay-holds-body] {
   max-height: var(--radix-popover-content-available-height);
 }
 
 /* 2. A box between the root and its body joins the column, and lets it
    shrink. A sheet's base (display: contents, hidden under a panel) keeps its
    own display. */
-[data-overlay] > :not([data-overlay-body], [data-sheet-base]):has(> [data-overlay-body], > * > [data-overlay-body]),
-[data-overlay] > * > :not([data-overlay-body], [data-sheet-base]):has(> [data-overlay-body]) {
+[data-overlay] > [data-overlay-column]:not([data-overlay-body], [data-sheet-base]),
+[data-overlay] > * > [data-overlay-column]:not([data-overlay-body], [data-sheet-base]) {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -39,7 +41,7 @@
 [data-sheet-body] {
   scroll-padding-bottom: 20px;
 }
-[data-sheet-body]:has(> [data-overlay-body], > [data-sheet-base] > [data-overlay-body]) {
+[data-sheet-body][data-overlay-holds-body] {
   overflow: hidden;
 }
 

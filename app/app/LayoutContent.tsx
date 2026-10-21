@@ -7,6 +7,7 @@ import { AdminBanners } from "@/components/banner/AdminBanners";
 import { FeaturesNotice } from "@/components/banner/FeaturesNotice";
 import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
+import { evenOut, setRoom, setSizes } from "@/store/slice/splitActions";
 import { useDispatch } from "react-redux";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
@@ -14,9 +15,9 @@ import { UserProfileInterface } from "@/types/user";
 import { MobileNavigationBar } from "@/components/navigationBar/mobile/mobileNavigationBar";
 import { DesktopNavigationBar } from "@/components/navigationBar/desktop/desktopNavigationBar";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { ImperativePanelHandle, getPanelGroupElement } from "react-resizable-panels";
+import { ImperativePanelHandle, type ImperativePanelGroupHandle, getPanelGroupElement } from "react-resizable-panels";
 import { cn } from "@/lib/utils/helpers/cn";
-import { RightPanel } from "@/components/rightPanel/rightPanel";
+import { PreloadPanels, RightPanel } from "@/components/rightPanel/rightPanel";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { useRef, useEffect, useLayoutEffect, useState } from "react";
@@ -28,13 +29,12 @@ import { RunningTimerChip } from "@/components/time/RunningTimerChip";
 import { useOpenFromUrl } from "@/hooks/useOpenFromUrl";
 import { useSplitView } from "@/hooks/useSplitView";
 import { useGoKeys } from "@/hooks/useGoKeys";
-import { SplitPane } from "@/components/split/SplitPane";
-import { MeetingSplit } from "@/components/split/MeetingSplit";
+import { FocusPill, MeetingSplit, SplitArrange, SplitPane, TuckedViews } from "@/components/split/lazy";
 import { Seam } from "@/components/split/Seam";
-import { FocusPill } from "@/components/split/FocusPill";
+import { MAIN, MAIN_KEY, MAX_PANES, keyOf } from "@/lib/split";
+import { MIN_VIEW_PX, SEAM_PX, shares, shownViews, viewRow, viewsThatFit } from "@/lib/splitLayout";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
 import { KeyboardTip } from "@/components/onboarding/KeyboardTip";
-import { Fragment } from "react";
 import { useBotKinds } from "@/hooks/useBotKinds";
 import { followKeyboard } from "@/lib/ui/visualViewport";
 import { followHistory, noteRouteChange } from "@/lib/navigation/back";
@@ -74,11 +74,12 @@ const percentOf = (px: number, groupWidth: number) => Math.ceil((px / groupWidth
  * The page's sheet: r12 on e-sheet, the brightest thing on screen. A column,
  * so a notice above the work takes its own height and the work below shrinks
  * to fit, never clipped at the bottom. With views side by side, the one the
- * keys act on wears a 1.5px brand top edge inside its radius (keysHere).
+ * keys act on wears a 1.5px brand top edge inside its radius (keysHere); the
+ * sheet is then a named view, with a grip at its top to move it by.
  */
-function PageSheet({ isAdmin, keysHere, focusPill, children }: { isAdmin?: boolean; keysHere: boolean; focusPill: React.ReactNode; children: React.ReactNode }) {
+function PageSheet({ isAdmin, keysHere, focusPill, split, children }: { isAdmin?: boolean; keysHere: boolean; focusPill: React.ReactNode; split?: string; children: React.ReactNode }) {
   return (
-    <div data-main-sheet="" className={cn("app-sheet relative flex h-full flex-col overflow-hidden", keysHere && "shell-sheet-focused")}>
+    <div data-main-sheet="" data-split-sheet={MAIN_KEY} role={split ? "region" : undefined} aria-label={split} className={cn("app-sheet relative flex h-full flex-col overflow-hidden", keysHere && "shell-sheet-focused")}>
       {/* Work in progress: a brand light along the sheet's top edge (L2). */}
       <SheetProgressBar />
       {/* Notices: the top of the sheet, inside it, two at most (T2). The
@@ -105,8 +106,23 @@ function PageSheet({ isAdmin, keysHere, focusPill, children }: { isAdmin?: boole
   );
 }
 
-export function LayoutContent({ children }: { children: React.ReactNode }) {
+// The query is read in this leaf, so a write to it (a date, a tab, a filter)
+// doesn't render the shell (app/app/shellAddress.test.ts).
+function OpenFromUrl() {
   useOpenFromUrl();
+  return null;
+}
+
+export function LayoutContent({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <OpenFromUrl />
+      <Shell>{children}</Shell>
+    </>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
   // While the on-screen keyboard is up, the app fits what is left of the
   // screen (lib/ui/visualViewport.ts). Outside React: nothing re-renders.
   useEffect(() => followKeyboard(), []);
@@ -116,13 +132,15 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   const { isMobile } = useMedia();
   // A tablet's shell (design v3, mobile T1): the rail, and the right panel as
   // a sheet over the page.
-  const tablet = isTabletBand(useShellBand());
+  const band = useShellBand();
+  const tablet = isTabletBand(band);
   // Where the right panel opens: beside the page from 1100px up, over it in a
   // narrower window and on a tablet (lib/ui/shellBand).
   const panelOver = usePanelPlacement() === "over";
-  // Split view is for a screen with room for it, and a pointer (mobile T3:
-  // it stays a desktop feature; a tablet has the list beside the page).
-  const { panes, active, focused } = useSplitView(!isMobile && !tablet);
+  // Split view: a computer or a tablet in landscape; never a phone, nor a
+  // tablet in portrait (views already open stay there, one at a time).
+  const splitOn = !isMobile && band !== "tablet-compact";
+  const { panes, order, active, focused, used, sizes, evened } = useSplitView(splitOn);
   useGoKeys(!isMobile);
   // Which bots are agents, read before the first message draws its tag.
   useBotKinds();
@@ -212,6 +230,37 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     };
   }, [rightPanelState.isOpen, isMobile, inMeeting, panelOver]);
 
+  // Many views (design/split, rules W, T, S): the width holds 360px a view
+  // (`room`: opening past it closes the least recently used, with Undo); on
+  // screen are those that fit beside the right panel's 360 when it's open,
+  // the rest tucked, mounted, as chips. Each keeps its width; none under 360.
+  const fitAll = groupWidth > 0 ? viewsThatFit(groupWidth) : MAX_PANES + 1
+  useEffect(() => {
+    dispatch(setRoom(fitAll - 1))
+  }, [fitAll, dispatch])
+  const rightBeside = !panelOver && rightPanelState.isOpen
+  const fitNow = band === "tablet-compact" ? 1 : groupWidth > 0 ? viewsThatFit(groupWidth - (rightBeside ? RIGHT_PANEL_MIN_PX + SEAM_PX : 0)) : MAX_PANES + 1
+  const row = viewRow(panes, order)
+  const onScreen = shownViews(panes, row, used, active, fitNow)
+  const keyOfView = (v: number) => keyOf(panes, v)
+  const shownKeys = onScreen.map(keyOfView)
+  const shownRef = useRef(shownKeys)
+  shownRef.current = shownKeys
+  const tucked = row.filter((v) => !onScreen.includes(v)).map(keyOfView).join(",")
+  const lastShown = onScreen[onScreen.length - 1]
+  const minPct = groupWidth > 0 ? Math.min(100, percentOf(MIN_VIEW_PX, groupWidth)) : 0
+  const widths = shares(shownKeys, sizes, 100 - (rightBeside ? rightOpenSize(groupWidth) : 0), minPct)
+  // Even out (a seam's double-click, Ctrl+Alt+=, a menu): equal shares.
+  const groupRef = useRef<ImperativePanelGroupHandle>(null)
+  useEffect(() => {
+    const g = groupRef.current
+    if (!evened || !g) return
+    const n = shownRef.current.length
+    const now = g.getLayout()
+    const each = (100 - now.slice(n).reduce((a, x) => a + x, 0)) / n
+    g.setLayout(now.map((x, i) => (i < n ? each : x)))
+  }, [evened])
+
   const isTaskPage = !!(path.length > 2 && path[2] === "task" && path[3]);
 
   if (isMobile) {
@@ -236,11 +285,16 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   // its Chat opens it (MeetingSplit). Always the same frame, so opening the
   // conversation never remounts the call, which would hang it up.
   if (inMeeting) {
-    return <MeetingSplit pathname={pathname} enabled={!tablet}>{children}</MeetingSplit>;
+    return <MeetingSplit pathname={pathname} enabled={splitOn}>{children}</MeetingSplit>;
   }
 
   const pageSheet = (
-    <PageSheet isAdmin={isAdmin} keysHere={split && focused === null && active === -1} focusPill={focused === -1 && <FocusPill />}>
+    <PageSheet
+      isAdmin={isAdmin}
+      keysHere={split && focused === null && active === MAIN}
+      split={split ? `Main view, ${row.indexOf(MAIN) + 1} of ${row.length}` : undefined}
+      focusPill={focused === MAIN ? <FocusPill /> : lastShown === MAIN && tucked ? <TuckedViews keys={tucked} /> : null}
+    >
       {children}
     </PageSheet>
   );
@@ -279,70 +333,84 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     </OverlaySheet>
   ) : null;
 
-  // A tablet (design v3, mobile T4): the page's sheet takes the width, and
-  // the right panel opens over it.
-  if (tablet) {
-    return (
-      <DesktopNavigationBar>
-        <AgentNoteOnOpen />
-        <RunningTimerChip />
-        {pageSheet}
-        {panelOverlay}
-        <ShortcutsDialog />
-      </DesktopNavigationBar>
-    );
+  // A view's panel. Views sit by CSS order and the panels' order, never by
+  // DOM place: a moved element loses its scroll, focus and iframes (measured
+  // 20 Oct 2026). FLIP (SplitArrange) shows a move. Tucked: last, size 0.
+  const viewProps = (v: number) => {
+    const pos = onScreen.indexOf(v)
+    const order = pos >= 0 ? pos * 2 + 2 : 20 + row.indexOf(v)
+    return {
+      order,
+      style: { order },
+      defaultSize: pos >= 0 ? widths[pos] : 0,
+      minSize: pos >= 0 ? minPct : 0,
+      "data-flip-id": keyOfView(v),
+      hidden: pos < 0 || !shows(v),
+    }
   }
-
-  // Split view: two views share the width 50/50; three take 40/30/30. Every
-  // view keeps at least 360px.
-  const mainSize = panes.length === 0 ? 100 : panes.length === 1 ? 50 : 40
-  const paneSize = panes.length === 1 ? 50 : 30
-  const paneMin = groupWidth > 0 ? Math.min(45, percentOf(RIGHT_PANEL_MIN_PX, groupWidth)) : 22
+  const main = viewProps(MAIN)
 
   return (
     <DesktopNavigationBar>
       <AgentNoteOnOpen />
       <RunningTimerChip />
+      <PreloadPanels />
       <ResizablePanelGroup
         id={PANEL_GROUP_ID}
+        ref={groupRef}
         direction="horizontal"
+        data-split-row=""
+        // The keys resize 32px a step (Shift: to the limit).
+        keyboardResizeBy={groupWidth > 0 ? percentOf(32, groupWidth) : null}
         onLayout={(sizes) => {
           if (timeoutRef.current) clearTimeout(timeoutRef.current);
           timeoutRef.current = setTimeout(() => {
             document.cookie = `react-resizable-root-panels:layout:mail=${JSON.stringify(sizes)}`;
             // The right panel's width, in pixels, for the next time it opens.
-            const right = sizes[sizes.length - 1];
+            const right = sizes[shownRef.current.length];
             if (!panelOver && rightPanelState.isOpen && right > 0 && groupWidthRef.current > 0) {
               document.cookie = `${RIGHT_PANEL_COOKIE}=${Math.round((right / 100) * groupWidthRef.current)}; path=/; max-age=31536000`;
             }
+            // Each view's width, kept with it (S).
+            if (shownRef.current.length > 1) dispatch(setSizes(Object.fromEntries(shownRef.current.map((k, i) => [k, sizes[i]]))));
           }, 300);
         }}
         className="h-full"
+        style={split ? { overflow: "visible" } : undefined}
       >
+        {/* While split, the page's grip rides its sheet's top edge: the panel
+            lets it out above, and only it (.split-main-panel's notch). */}
         <ResizablePanel
-          defaultSize={Math.max(30, (rightPanelState.isOpen && !panelOver ? 100 - rightOpenSize(groupWidth) : 100) - (100 - mainSize))}
-          minSize={30}
           id="main-panel"
-          order={1}
+          order={main.order}
+          style={split ? { ...main.style, overflow: "visible" } : main.style}
+          defaultSize={main.defaultSize}
+          minSize={main.minSize}
+          data-flip-id={main["data-flip-id"]}
           // No transition on its size: flex-basis is layout, and animating
           // it laid the whole page out again on every frame the right panel
           // took to open. The panel's sheet slides in instead (below).
-          className={cn("h-full relative w-full min-w-0", !shows(-1) && "hidden")}
+          className={cn("h-full relative w-full min-w-0", split && "split-main-panel", main.hidden && "hidden")}
         >
           {pageSheet}
+          {split && <span data-split-handle={MAIN_KEY} className="split-grip-slot" />}
         </ResizablePanel>
         {/* Split view: what was opened beside the page, each on its own sheet. */}
-        {panes.map((pane, i) => (
-          <Fragment key={`${pane.kind}:${pane.id}`}>
-            <Seam label="Resize the views" onDragging={setIsDragging} hidden={focused !== null} />
-            <ResizablePanel id={`split-${pane.kind}-${pane.id}`} order={2 + i} defaultSize={paneSize} minSize={paneMin} className={cn("h-full min-w-0", !shows(i) && "hidden")}>
-              <SplitPane pane={pane} index={i} active={split && active === i} focused={focused === i} />
+        {panes.map((pane, i) => {
+          const { hidden, ...view } = viewProps(i)
+          return (
+            <ResizablePanel key={`${pane.kind}:${pane.id}`} id={`split-${pane.kind}-${pane.id}`} {...view} className={cn("h-full min-w-0", hidden && "hidden")}>
+              <SplitPane pane={pane} index={i} at={row.indexOf(i)} count={row.length} active={split && active === i} focused={focused === i} shown={onScreen.includes(i)} tucked={lastShown === i && tucked ? tucked : undefined} />
             </ResizablePanel>
-          </Fragment>
+          )
+        })}
+        {onScreen.slice(1).map((_, k) => (
+          <Seam key={`seam-${k}`} order={k * 2 + 3} label={`Resize views ${k + 1} and ${k + 2}`} onDragging={setIsDragging} hidden={focused !== null} onReset={() => dispatch(evenOut())} />
         ))}
         {/* Beside the page from 1100px up; under that it opens over it (below). */}
         {!panelOver && (<>
         <Seam
+          order={9}
           label="Resize the panel"
           hidden={!rightPanelState.isOpen}
           onDragging={setIsDragging}
@@ -357,6 +425,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           maxSize={rightMax}
           id="right-panel"
           order={10}
+          style={{ order: 10 }}
           className={cn("relative min-w-0", !rightPanelState.isOpen && "pointer-events-none")}
         >
           {/* The right panel is a sheet of its own (design v3, shell V1): the
@@ -383,8 +452,9 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         </>)}
       </ResizablePanelGroup>
       {panelOver && panelOverlay}
+      {splitOn && split && focused === null && <SplitArrange shown={shownKeys.join(",")} />}
       <ShortcutsDialog />
-      <KeyboardTip />
+      {!tablet && <KeyboardTip />}
     </DesktopNavigationBar>
   );
 }

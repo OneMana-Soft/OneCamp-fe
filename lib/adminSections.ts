@@ -39,7 +39,8 @@ import {
   Webhook,
   Zap,
 } from "@/lib/icons"
-import type { CampHue } from "@/lib/campHue"
+import type { MarkHue } from "@/components/ui/graphics/hues"
+import { AREA_HUE } from "@/lib/areas"
 import { SETTINGS_SECTIONS, type SettingsSection } from "@/lib/settingsSections"
 
 export type SettingsGroupKey = "you" | "workspace" | "ai" | "connections" | "records" | "system"
@@ -52,7 +53,7 @@ export interface SettingsPlace {
   description: string
   href: string
   icon: LucideIcon
-  hue: CampHue
+  hue: MarkHue
   group: SettingsGroupKey
   /** Cards on the page a search can land on: their titles and anchor ids. */
   cards?: { title: string; id: string }[]
@@ -75,13 +76,13 @@ export const SETTINGS_GROUP_LABEL: Record<SettingsGroupKey, string> = {
   system: "System",
 }
 
-/** The hue of each admin group: one per group, as ADMIN_GROUP_HUE set them. */
-export const SETTINGS_GROUP_HUE: Record<Exclude<SettingsGroupKey, "you">, CampHue> = {
-  workspace: "sky",
-  ai: "dusk",
-  connections: "lake",
-  records: "sun",
-  system: "moss",
+/** Each admin group's hue: AI is the agents', the rest ink (lib/areas). */
+export const SETTINGS_GROUP_HUE: Record<Exclude<SettingsGroupKey, "you">, MarkHue> = {
+  workspace: "ink",
+  ai: AREA_HUE.agents,
+  connections: "ink",
+  records: "ink",
+  system: "ink",
 }
 
 const admin = (tab: string) => `/app/admin?tab=${tab}`
@@ -112,7 +113,7 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
     description: "Your name, photo, appearance and how you sign in.",
     href: PROFILE_HREF,
     icon: User,
-    hue: "sky",
+    hue: "ink",
     group: "you",
     cards: [
       { title: "Name and handle", id: "profile-details" },
@@ -132,10 +133,11 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
       { title: "Email", id: "notifications-email" },
       { title: "Digest", id: "notifications-digest" },
       { title: "Quiet hours", id: "notifications-quiet" },
+      { title: "Keywords and VIPs", id: "notifications-keywords" },
       { title: "Daily note", id: "notifications-daily-note" },
       { title: "Read receipts", id: "notifications-read-receipts" },
     ],
-    keywords: ["push", "mute", "pause", "do not disturb"],
+    keywords: ["push", "mute", "pause", "do not disturb", "keyword", "vip"],
   }),
   fromSettings("/app/settings/connectors", { keywords: ["gmail", "google calendar", "github"] }),
   fromSettings("/app/settings/assistants", { icon: Bot, keywords: ["chatgpt", "claude", "grok", "mcp"] }),

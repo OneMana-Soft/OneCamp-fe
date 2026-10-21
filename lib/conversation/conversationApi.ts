@@ -1,4 +1,5 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { conversationPath } from "@/lib/conversation/conversationPath"
 
 /**
  * The conversation service's calls (business/Conversation, chat A9): adding
@@ -9,11 +10,6 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
  * failure to the screen that made it (OWN_ERRORS), which says it through
  * apiErrorMessage.
  */
-
-// The service's base path (router/chatConversations.go). It sits here, not in
-// services/endPoints.ts, which every route's first load carries
-// (app/firstLoad.test.ts); only the chat screens reach this file.
-const CONVERSATIONS_PATH = "/conversations"
 
 /** A DM or group, as the service names it: a DM by both people's ids with a space between, a group by its id. */
 export interface ChatPlace {
@@ -46,8 +42,8 @@ export interface Opened {
 }
 
 /** The service's path for a place: /conversations/{kind}/{id}/{rest}, the id escaped (a DM's holds a space). Pure. */
-export function placePath(place: ChatPlace, rest: string): string {
-  return `${CONVERSATIONS_PATH}/${place.kind}/${encodeURIComponent(place.id)}/${rest}`
+export function placePath(place: { kind: "channel" | "dm" | "group"; id: string }, rest: string): string {
+  return conversationPath(place.kind, place.id, rest)
 }
 
 /** The key "Share earlier messages?" reads its choices from. Pure. */

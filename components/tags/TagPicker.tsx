@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { MAX_TAGS, MAX_TAG_LENGTH, joinTags, splitTags } from "@/lib/tags"
 import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
@@ -19,7 +19,7 @@ export interface ProjectTag {
 
 /** The tags in use in a project, most used first (GET /project/{id}/tags). */
 export function useProjectTags(projectId: string | undefined) {
-  const { data, mutate } = useFetch<{ data: ProjectTag[] }>(projectId ? `${GetEndpointUrl.ProjectTime}/${projectId}/tags` : "")
+  const { data, mutate } = useFetch<{ data: ProjectTag[] }>(projectId ? `${ProjectsGet.ProjectTime}/${projectId}/tags` : "")
   return { tags: data?.data ?? [], refresh: mutate }
 }
 

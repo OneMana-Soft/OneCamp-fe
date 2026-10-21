@@ -1,7 +1,8 @@
 "use client"
 import MembersList from "@/components/member/membersList";
 import {useFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { ProjectsGet } from "@/services/endpoints/projects";
 import {usePost} from "@/hooks/usePost";
 import {UserListInterfaceResp} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
@@ -57,7 +58,7 @@ export const ProjectMemberContent: React.FC<memberContentProp> = ({projectId}) =
             setChanging("")
         }
     }
-    const usersList = useFetch<UserListInterfaceResp>(projectId && canAdd ? GetEndpointUrl.UserListNotBelongToProjectButBelongsToTeam + '/' + projectId : '')
+    const usersList = useFetch<UserListInterfaceResp>(projectId && canAdd ? ProjectsGet.UserListNotBelongToProjectButBelongsToTeam + '/' + projectId : '')
 
     const handleMakeAdmin = (id: string) => {
         if(!id) return

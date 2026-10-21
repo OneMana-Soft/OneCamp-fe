@@ -9,7 +9,7 @@
 
 import axiosInstance from "@/lib/axiosInstance"
 import { sharedRequest } from "@/lib/utils/sharedRequest"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AiGet, AiPost } from "@/services/endpoints/ai"
 import { browserTZ } from "@/lib/utils/timeZone"
 
 export type MemoryKind = "decision" | "commitment" | "question" | "glossary"
@@ -56,14 +56,14 @@ export async function listWorkspaceMemory(
   if (statuses && statuses.length) params.set("status", statuses.join(","))
   if (channelUUID) params.set("channel", channelUUID)
   const qs = params.toString()
-  const url = qs ? `${GetEndpointUrl.GetWorkspaceMemory}?${qs}` : GetEndpointUrl.GetWorkspaceMemory
+  const url = qs ? `${AiGet.GetWorkspaceMemory}?${qs}` : AiGet.GetWorkspaceMemory
   const res = await axiosInstance.get(url)
   return res.data?.data ?? { items: [], counts: {} }
 }
 
 export async function updateMemoryStatus(id: string, status: MemoryStatus): Promise<void> {
   await axiosInstance.post(
-    `${PostEndpointUrl.UpdateMemoryStatus}/${encodeURIComponent(id)}/status`,
+    `${AiPost.UpdateMemoryStatus}/${encodeURIComponent(id)}/status`,
     { status },
   )
 }
@@ -81,7 +81,7 @@ export interface CaptureMemoryInput {
 
 // captureMemory saves a message as a structured memory item (user-initiated).
 export async function captureMemory(input: CaptureMemoryInput): Promise<MemoryItem> {
-  const res = await axiosInstance.post(PostEndpointUrl.CaptureMemory, input)
+  const res = await axiosInstance.post(AiPost.CaptureMemory, input)
   return res.data?.data
 }
 
@@ -89,7 +89,7 @@ export async function captureMemory(input: CaptureMemoryInput): Promise<MemoryIt
 // due date. Only valid for commitments; the backend rejects other kinds.
 export async function updateMemoryDue(id: string, due: string): Promise<void> {
   await axiosInstance.post(
-    `${PostEndpointUrl.UpdateMemoryStatus}/${encodeURIComponent(id)}/due`,
+    `${AiPost.UpdateMemoryStatus}/${encodeURIComponent(id)}/due`,
     { due },
   )
 }
@@ -107,7 +107,7 @@ export async function createTaskFromMemory(
   input: { project_uuid: string; assignee_uuid?: string; priority?: string },
 ): Promise<MemoryActionResult> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.MemoryCreateTask.replace("{id}", encodeURIComponent(id))}`,
+    `${AiPost.MemoryCreateTask.replace("{id}", encodeURIComponent(id))}`,
     input,
   )
   return res.data?.data
@@ -115,7 +115,7 @@ export async function createTaskFromMemory(
 
 export async function remindAboutMemory(id: string, startTime: string): Promise<MemoryActionResult> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.MemoryRemind.replace("{id}", encodeURIComponent(id))}`,
+    `${AiPost.MemoryRemind.replace("{id}", encodeURIComponent(id))}`,
     { start_time: startTime },
   )
   return res.data?.data
@@ -171,7 +171,7 @@ export function getBriefing(): Promise<BriefingResult> {
 }
 
 async function fetchBriefing(tz: string): Promise<BriefingResult> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAIBriefing}?tz=${encodeURIComponent(tz)}`)
+  const res = await axiosInstance.get(`${AiGet.GetAIBriefing}?tz=${encodeURIComponent(tz)}`)
   const d = res.data?.data
   // Normalize every collection to an array regardless of the payload shape.
   // A Go nil slice marshals to JSON `null`, and an older/cached backend or a
@@ -219,7 +219,7 @@ export function getAttention(): Promise<AttentionResult> {
 }
 
 async function fetchAttention(tz: string): Promise<AttentionResult> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAIAttention}?tz=${encodeURIComponent(tz)}`)
+  const res = await axiosInstance.get(`${AiGet.GetAIAttention}?tz=${encodeURIComponent(tz)}`)
   const d = res.data?.data
   // Normalize the shape so the card never crashes on a null/omitted slice
   // (Go nil slice → JSON null) or a partial response — see getBriefing.
@@ -234,7 +234,7 @@ async function fetchAttention(tz: string): Promise<AttentionResult> {
 
 export async function getChannelMemoryExclusion(channelUUID: string): Promise<boolean> {
   const res = await axiosInstance.get(
-    `${GetEndpointUrl.GetChannelMemoryExclusion}?channel=${encodeURIComponent(channelUUID)}`,
+    `${AiGet.GetChannelMemoryExclusion}?channel=${encodeURIComponent(channelUUID)}`,
     // silent: this read is access-gated to channel members/admins on the
     // backend. Callers (the memory panel) treat a 403/404 as "not an admin /
     // no access → just hide the toggle", so suppress the global error toast
@@ -245,12 +245,12 @@ export async function getChannelMemoryExclusion(channelUUID: string): Promise<bo
 }
 
 export async function setChannelMemoryExclusion(channelUUID: string, excluded: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetChannelMemoryExclusion, {
+  await axiosInstance.post(AiPost.SetChannelMemoryExclusion, {
     channel_uuid: channelUUID,
     excluded,
   })
 }
 
 export async function deleteMemoryItem(id: string): Promise<void> {
-  await axiosInstance.delete(`${PostEndpointUrl.DeleteMemoryItem}/${encodeURIComponent(id)}`)
+  await axiosInstance.delete(`${AiPost.DeleteMemoryItem}/${encodeURIComponent(id)}`)
 }

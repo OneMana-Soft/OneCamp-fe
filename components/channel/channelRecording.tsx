@@ -2,7 +2,8 @@
 
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ChatGet, ChatPost } from "@/services/endpoints/chat"
 import type { ChannelInfoInterfaceResp } from "@/types/channel"
 import type { RecordingPaginationResRaw } from "@/types/recording"
 import { RecordingsView } from "@/components/recording/RecordingsView"
@@ -18,7 +19,7 @@ export const ChannelRecording = ({ channelId }: { channelId: string }) => {
 
     return (
         <RecordingsView
-            listUrl={`${GetEndpointUrl.ChannelRecordingList}/${channelId}`}
+            listUrl={`${ChatGet.ChannelRecordingList}/${channelId}`}
             pick={fromChannel}
             playerUrls={() => ({
                 media: `${GetEndpointUrl.GetChannelRecordingMedia}/${channelId}`,
@@ -27,7 +28,7 @@ export const ChannelRecording = ({ channelId }: { channelId: string }) => {
             subtitle={name ? `Calls recorded in #${name}.` : "Calls recorded in this channel."}
             onDelete={
                 isAdmin
-                    ? (egressId) => post.makeRequest({ apiEndpoint: PostEndpointUrl.DeleteChannelRecording, appendToUrl: `/${egressId}`, showToast: true }).then((answer) => { if (!answer) throw new Error("not deleted") })
+                    ? (egressId) => post.makeRequest({ apiEndpoint: ChatPost.DeleteChannelRecording, appendToUrl: `/${egressId}`, showToast: true }).then((answer) => { if (!answer) throw new Error("not deleted") })
                     : undefined
             }
         />

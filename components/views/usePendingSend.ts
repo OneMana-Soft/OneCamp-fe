@@ -5,7 +5,6 @@ import { useDispatch, useStore } from "react-redux"
 import type { UnknownAction } from "@reduxjs/toolkit"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import type { AxiosRequestConfig } from "axios"
-import type { PostEndpointUrl } from "@/services/endPoints"
 import type { RootState } from "@/store/store"
 import type { Draft } from "@/lib/chat/unsentMessage"
 import type { PendingSendActions } from "@/components/message/sendStatus"
@@ -31,7 +30,7 @@ export function viewingLinkedMessage(param: "postId" | "messageId"): boolean {
  * to read a pending message back for Try again and Edit.
  */
 export interface PendingSendConfig<M, P, R> {
-    endpoint: PostEndpointUrl
+    endpoint: string
     /** Shows the message, marked as sending. */
     add: (message: M) => UnknownAction
     /** The server has it: its id and time, from its answer. */

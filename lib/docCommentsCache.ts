@@ -1,4 +1,4 @@
-import { GetEndpointUrl } from "@/services/endPoints"
+import { DocsGet } from "@/services/endpoints/docs"
 
 /**
  * The cached answer the old flat comment list was read from. Since B7 a doc's
@@ -6,4 +6,4 @@ import { GetEndpointUrl } from "@/services/endPoints"
  * nothing asks for this answer; lib/docCache still corrects it after a rename,
  * a restore and a share, which does nothing now (C12 may drop those lines).
  */
-export const docCommentsKey = (docId: string) => `${GetEndpointUrl.GetAllCommentOfDoc}/${docId}`
+export const docCommentsKey = (docId: string) => `${DocsGet.GetAllCommentOfDoc}/${docId}`

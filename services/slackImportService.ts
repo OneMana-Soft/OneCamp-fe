@@ -3,7 +3,7 @@
 // require an admin session.
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 
 // Mirrors backend adapter.JobOptions. Keep types pessimistic — backend
 // fills defaults if a field is omitted, so optional everywhere is fine.
@@ -107,7 +107,7 @@ export async function uploadSlackExport(
 
   // The upload dialog says a failed upload itself, in place (a duplicate, a
   // busy workspace, the server's limit), so the global toast stays quiet.
-  const res = await axiosInstance.post(PostEndpointUrl.SlackImportUpload, fd, {
+  const res = await axiosInstance.post(AdminPost.SlackImportUpload, fd, {
     ...OWN_ERRORS,
     headers: { "Content-Type": "multipart/form-data" },
     signal,
@@ -131,7 +131,7 @@ export async function planSlackImport(
   options: SlackImportOptions = {},
 ): Promise<SlackImportPlan> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.SlackImportPlan}/${encodeURIComponent(jobId)}`,
+    `${AdminPost.SlackImportPlan}/${encodeURIComponent(jobId)}`,
     { options },
     OWN_ERRORS,
   )
@@ -149,10 +149,44 @@ export async function runSlackImport(
   options?: SlackImportOptions,
 ): Promise<void> {
   await axiosInstance.post(
-    `${PostEndpointUrl.SlackImportRun}/${encodeURIComponent(jobId)}`,
+    `${AdminPost.SlackImportRun}/${encodeURIComponent(jobId)}`,
     options ? { options } : {},
     OWN_ERRORS,
   )
+}
+
+/**
+ * Reads a Slack workspace through Slack's API with a token, for what an export
+ * can't hold: a free or Pro plan's private channels, DMs and group DMs. The
+ * import's job comes back at once and reads in the background (stage
+ * "reading"), then waits to be planned as an upload's does. The token is used
+ * for the read and never kept. The dialog says a refusal itself (a token
+ * that isn't Slack's, a workspace with an import under way).
+ */
+export async function readSlackWorkspace(workspaceName: string, token: string): Promise<{ job_id: string }> {
+  const res = await axiosInstance.post(
+    AdminPost.SlackImportAPIRead,
+    { slack_workspace_name: workspaceName, token },
+    OWN_ERRORS,
+  )
+  return res.data
+}
+
+/** How far a read through Slack's API is (the job's progress.read). */
+export interface SlackAPIRead {
+  conversations: number
+  of: number
+  messages: number
+  replies: number
+  files: number
+}
+
+/** A job's read through Slack's API, while it reads or once it has. Pure. */
+export function apiReadOf(job: Pick<SlackImportJob, "source" | "progress">): SlackAPIRead | null {
+  const read = job.source === "api" ? (job.progress?.read as Partial<SlackAPIRead> | undefined) : undefined
+  if (!read || typeof read !== "object") return null
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0)
+  return { conversations: n(read.conversations), of: n(read.of), messages: n(read.messages), replies: n(read.replies), files: n(read.files) }
 }
 
 /** The SWR key of the largest export this server takes ({ max_bytes }). */
@@ -161,7 +195,7 @@ export const SLACK_IMPORT_LIMITS_KEY = "/admin/import/slack/limits"
 /** Stops a running Slack import, or discards an export still waiting to be planned or run. */
 export async function cancelSlackImport(jobId: string): Promise<void> {
   await axiosInstance.post(
-    `${PostEndpointUrl.SlackImportCancel}/${encodeURIComponent(jobId)}`,
+    `${AdminPost.SlackImportCancel}/${encodeURIComponent(jobId)}`,
   )
 }
 
@@ -172,7 +206,7 @@ export async function cancelSlackImport(jobId: string): Promise<void> {
  */
 export async function rollbackSlackImport(jobId: string): Promise<void> {
   await axiosInstance.post(
-    `${PostEndpointUrl.SlackImportRollback}/${encodeURIComponent(jobId)}`,
+    `${AdminPost.SlackImportRollback}/${encodeURIComponent(jobId)}`,
     undefined,
     OWN_ERRORS,
   )
@@ -189,7 +223,7 @@ export async function getSlackImportErrors(
   params.set("limit", String(limit))
   params.set("offset", String(offset))
   const res = await axiosInstance.get(
-    `${GetEndpointUrl.GetSlackImportErrors}/${encodeURIComponent(jobId)}/errors?${params.toString()}`,
+    `${AdminGet.GetSlackImportErrors}/${encodeURIComponent(jobId)}/errors?${params.toString()}`,
   )
   return res.data?.errors || []
 }

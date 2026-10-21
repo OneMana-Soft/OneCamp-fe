@@ -1,7 +1,8 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { readPages } from "@/lib/http/readPages"
 import { browserTZ } from "@/lib/utils/timeZone"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { TablesGet, TablesPost } from "@/services/endpoints/tables"
 import { numberSigns } from "@/lib/format/number"
 
 // Tables client: a first-class, Notion-style structured-data entity. A table
@@ -119,7 +120,7 @@ export interface RowPage {
 
 /** The address a row's page is read and made at. */
 export function rowPagePath(tableId: string, rowId: string): string {
-  return `${GetEndpointUrl.GetTableRows}/${tableId}/rows/${rowId}/page`
+  return `${TablesGet.GetTableRows}/${tableId}/rows/${rowId}/page`
 }
 
 /** A row's page, made now when it has none: for someone who may edit the row. */
@@ -346,7 +347,7 @@ export async function createTable(input: {
   icon?: string
   visibility?: Visibility
 }): Promise<DataTable> {
-  const res = await axiosInstance.post(PostEndpointUrl.CreateTable, input)
+  const res = await axiosInstance.post(TablesPost.CreateTable, input)
   return res.data?.data as DataTable
 }
 
@@ -360,18 +361,18 @@ export async function updateTable(
   id: string,
   change: { name?: string; description?: string; icon?: string; visibility?: Visibility },
 ): Promise<DataTable> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.UpdateTable}/${id}/update`, change)
+  const res = await axiosInstance.post(`${TablesPost.UpdateTable}/${id}/update`, change)
   return res.data?.data as DataTable
 }
 
 export async function deleteTable(id: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.DeleteTable}/${id}/delete`)
+  await axiosInstance.post(`${TablesPost.DeleteTable}/${id}/delete`)
 }
 
 // generateTable builds a full table (typed columns + seed rows) from a
 // natural-language prompt, server-side via AI, and returns it.
 export async function generateTable(prompt: string): Promise<DataTable> {
-  const res = await axiosInstance.post(PostEndpointUrl.GenerateTable, { prompt })
+  const res = await axiosInstance.post(TablesPost.GenerateTable, { prompt })
   return res.data?.data as DataTable
 }
 
@@ -385,7 +386,7 @@ export async function generateTable(prompt: string): Promise<DataTable> {
  * each row's place, to keep their order.
  */
 export async function createRow(tableId: string, values: Record<string, unknown>, position?: number): Promise<TableRow> {
-  const res = await axiosInstance.post(inZone(`${PostEndpointUrl.CreateTableRow}/${tableId}/rows`), position === undefined ? { values } : { values, position })
+  const res = await axiosInstance.post(inZone(`${TablesPost.CreateTableRow}/${tableId}/rows`), position === undefined ? { values } : { values, position })
   return res.data?.data as TableRow
 }
 
@@ -395,7 +396,7 @@ export async function createRow(tableId: string, values: Record<string, unknown>
  * row sent back from a copy put back what someone else had written since.
  */
 export async function patchRow(tableId: string, rowId: string, values: Record<string, unknown>): Promise<TableRow> {
-  const res = await axiosInstance.post(inZone(`${PostEndpointUrl.PatchTableRow}/${tableId}/rows/${rowId}/patch`), { values })
+  const res = await axiosInstance.post(inZone(`${TablesPost.PatchTableRow}/${tableId}/rows/${rowId}/patch`), { values })
   return res.data?.data as TableRow
 }
 
@@ -405,7 +406,7 @@ export async function patchRow(tableId: string, rowId: string, values: Record<st
  * page reading it says so where the rows would be.
  */
 export async function listRows(tableId: string, offset: number, limit: number, signal?: AbortSignal): Promise<TableRow[]> {
-  const res = await axiosInstance.get(inZone(`${GetEndpointUrl.GetTableRows}/${tableId}/rows?limit=${limit}&offset=${offset}`), { ...OWN_ERRORS, signal })
+  const res = await axiosInstance.get(inZone(`${TablesGet.GetTableRows}/${tableId}/rows?limit=${limit}&offset=${offset}`), { ...OWN_ERRORS, signal })
   return (res.data?.data as TableRow[] | null) ?? []
 }
 
@@ -439,7 +440,7 @@ export function eachRowOnce(rows: TableRow[]): TableRow[] {
 }
 
 export async function deleteRow(tableId: string, rowId: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.DeleteTableRow}/${tableId}/rows/${rowId}/delete`)
+  await axiosInstance.post(`${TablesPost.DeleteTableRow}/${tableId}/rows/${rowId}/delete`)
 }
 
 // ───────────── aggregate (chart view / analytics) ─────────────
@@ -495,7 +496,7 @@ export async function aggregateTable(
   config?: typeof OWN_ERRORS,
 ): Promise<AggregateResult> {
   const res = await axiosInstance.post(
-    inZone(`${PostEndpointUrl.AggregateTable}/${tableId}/aggregate`),
+    inZone(`${TablesPost.AggregateTable}/${tableId}/aggregate`),
     query,
     config,
   )
@@ -565,7 +566,7 @@ export async function runTableQueryPlan(
   plan: QueryPlanSpec,
 ): Promise<PlanResult> {
   const res = await axiosInstance.post(
-    inZone(`${PostEndpointUrl.RunTableQueryPlan}/${tableId}/query-plan`),
+    inZone(`${TablesPost.RunTableQueryPlan}/${tableId}/query-plan`),
     plan,
   )
   return res.data?.data as PlanResult
@@ -577,7 +578,7 @@ export async function createField(
   tableId: string,
   input: { name: string; type: FieldType; config?: Record<string, unknown>; position?: number },
 ): Promise<TableField> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.CreateTableField}/${tableId}/fields`, input)
+  const res = await axiosInstance.post(`${TablesPost.CreateTableField}/${tableId}/fields`, input)
   return res.data?.data as TableField
 }
 
@@ -612,7 +613,7 @@ export async function updateField(tableId: string, fieldId: string, patch: Field
   const body: Record<string, unknown> = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
   if (!Object.keys(body).length) return
   await axiosInstance.post(
-    `${PostEndpointUrl.UpdateTableField}/${tableId}/fields/${fieldId}/update`,
+    `${TablesPost.UpdateTableField}/${tableId}/fields/${fieldId}/update`,
     patch.type ? { ...body, ...numberSigns() } : body,
   )
 }
@@ -626,7 +627,7 @@ export interface FormulaPreview {
 }
 
 export async function previewFormula(tableId: string, formula: string, fieldId?: string): Promise<FormulaPreview> {
-  const res = await axiosInstance.post(inZone(`${PostEndpointUrl.PreviewTableFormula}/${tableId}/formula/preview`), {
+  const res = await axiosInstance.post(inZone(`${TablesPost.PreviewTableFormula}/${tableId}/formula/preview`), {
     formula,
     field_id: fieldId,
   })
@@ -646,12 +647,12 @@ export interface ConvertCounts {
  * before it asks. Quiet when it fails: the menu says so.
  */
 export async function previewConversion(tableId: string, fieldId: string, type: FieldType): Promise<ConvertCounts> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.UpdateTableField}/${tableId}/fields/${fieldId}/convert-preview`, { type, ...numberSigns() }, OWN_ERRORS)
+  const res = await axiosInstance.post(`${TablesPost.UpdateTableField}/${tableId}/fields/${fieldId}/convert-preview`, { type, ...numberSigns() }, OWN_ERRORS)
   return res.data?.data as ConvertCounts
 }
 
 export async function deleteField(tableId: string, fieldId: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.DeleteTableField}/${tableId}/fields/${fieldId}/delete`)
+  await axiosInstance.post(`${TablesPost.DeleteTableField}/${tableId}/fields/${fieldId}/delete`)
 }
 
 // fillTableAIColumn evaluates an AI column's prompt over each row (or the given
@@ -664,7 +665,7 @@ export async function fillTableAIColumn(
   rowIds?: string[],
 ): Promise<{ filled: number; skipped: number }> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.FillTableAIColumn}/${tableId}/fields/${fieldId}/ai-fill`,
+    `${TablesPost.FillTableAIColumn}/${tableId}/fields/${fieldId}/ai-fill`,
     rowIds && rowIds.length ? { row_ids: rowIds } : {},
   )
   return (res.data?.data as { filled: number; skipped: number }) || { filled: 0, skipped: 0 }
@@ -673,13 +674,13 @@ export async function fillTableAIColumn(
 // The key a table's fields are fetched under, for choosing what a rollup adds
 // up there.
 export function tableFieldsKey(tableId: string): string {
-  return `${GetEndpointUrl.GetTableFields}/${tableId}/fields`
+  return `${TablesGet.GetTableFields}/${tableId}/fields`
 }
 
 // A table's rows to link to, by name: those whose name holds the text, or the
 // first ones when it's empty.
 export async function pickRows(tableId: string, q: string): Promise<{ id: string; label: string }[]> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.PickTableRows}/${tableId}/rows/pick`, { params: { q } })
+  const res = await axiosInstance.get(`${TablesGet.PickTableRows}/${tableId}/rows/pick`, { params: { q } })
   return (res.data?.data as { id: string; label: string }[]) || []
 }
 
@@ -706,7 +707,7 @@ export async function changeLinks(
   fieldId: string,
   change: { add?: string[]; remove?: string[] },
 ): Promise<TableRow> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.ChangeTableLinks}/${tableId}/rows/${rowId}/links`, {
+  const res = await axiosInstance.post(`${TablesPost.ChangeTableLinks}/${tableId}/rows/${rowId}/links`, {
     field: fieldId,
     add: change.add ?? [],
     remove: change.remove ?? [],

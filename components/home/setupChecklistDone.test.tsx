@@ -38,6 +38,8 @@ async function show() {
 
 beforeEach(() => {
   localStorage.clear()
+  // The guided run opens on its own once; these tests are about the card.
+  localStorage.setItem("oc_first_run_shown", "1")
   fx.celebrate.mockClear()
   svc.getOnboardingStatus.mockReset()
   svc.dismissOnboarding.mockReset().mockResolvedValue()

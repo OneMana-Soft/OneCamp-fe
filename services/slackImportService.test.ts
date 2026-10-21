@@ -7,7 +7,7 @@ vi.mock("@/lib/axiosInstance", () => ({
 
 import axiosInstance from "@/lib/axiosInstance"
 import { deleteStagedZip, planSlackImport, rollbackSlackImport, runSlackImport, uploadSlackExport, uploadSlackExportPresigned } from "./slackImportService"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminPost } from "@/services/endpoints/admin"
 
 const ax = axiosInstance as unknown as { post: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> }
 const post = ax.post
@@ -24,13 +24,13 @@ describe("starting a Slack import", () => {
   it("leaves the screen to say what went wrong", async () => {
     post.mockResolvedValueOnce({ data: {} })
     await runSlackImport("job-1", { skip_subtypes: true })
-    expect(post).toHaveBeenCalledWith(`${PostEndpointUrl.SlackImportRun}/job-1`, { options: { skip_subtypes: true } }, { suppressErrorToast: true })
+    expect(post).toHaveBeenCalledWith(`${AdminPost.SlackImportRun}/job-1`, { options: { skip_subtypes: true } }, { suppressErrorToast: true })
   })
 
   it("sends no options when none are given", async () => {
     post.mockResolvedValueOnce({ data: {} })
     await runSlackImport("job-2")
-    expect(post).toHaveBeenCalledWith(`${PostEndpointUrl.SlackImportRun}/job-2`, {}, { suppressErrorToast: true })
+    expect(post).toHaveBeenCalledWith(`${AdminPost.SlackImportRun}/job-2`, {}, { suppressErrorToast: true })
   })
 })
 
@@ -41,13 +41,13 @@ describe("the other Slack import requests", () => {
   it("plans, leaving the plan dialog to say what went wrong", async () => {
     post.mockResolvedValueOnce({ data: { job_id: "job-1" } })
     await planSlackImport("job-1", { skip_subtypes: true })
-    expect(post).toHaveBeenCalledWith(`${PostEndpointUrl.SlackImportPlan}/job-1`, { options: { skip_subtypes: true } }, { suppressErrorToast: true })
+    expect(post).toHaveBeenCalledWith(`${AdminPost.SlackImportPlan}/job-1`, { options: { skip_subtypes: true } }, { suppressErrorToast: true })
   })
 
   it("rolls back, leaving the card to say what went wrong", async () => {
     post.mockResolvedValueOnce({ data: {} })
     await rollbackSlackImport("job-1")
-    expect(post).toHaveBeenCalledWith(`${PostEndpointUrl.SlackImportRollback}/job-1`, undefined, { suppressErrorToast: true })
+    expect(post).toHaveBeenCalledWith(`${AdminPost.SlackImportRollback}/job-1`, undefined, { suppressErrorToast: true })
   })
 
   it("deletes the staged file, leaving the card to say what went wrong", async () => {

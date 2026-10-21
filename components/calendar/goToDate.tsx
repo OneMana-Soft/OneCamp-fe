@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { anchorTo } from "@/components/ui/anchor";
 import { parseEventText } from "@/lib/calendar/parseEventText";
 import { parseDay } from "@/lib/calendar/route";
 import { fieldKeyDown } from "@/lib/keys/ime";
@@ -22,9 +23,11 @@ export function typedDay(text: string, now: Date): Date | undefined {
 export function GoToDate({ anchor, now, onGo, onClose }: { anchor: HTMLElement; now: Date; onGo: (day: Date) => void; onClose: () => void }) {
     const [text, setText] = useState("");
     const day = useMemo(() => typedDay(text, now), [text, now]);
+    // The period's title, or the one drawn in its place (components/ui/anchor).
+    const at = useMemo(() => ({ current: anchorTo(anchor, () => document.querySelector("[data-calendar-header] [data-period-title]")) }), [anchor]);
     return (
         <Popover open onOpenChange={(open) => !open && onClose()}>
-            <PopoverAnchor virtualRef={{ current: anchor }} />
+            <PopoverAnchor virtualRef={at} />
             <PopoverContent align="start" sideOffset={6} className="content-float w-[280px] rounded-xl bg-pop p-2 shadow-e3" data-go-to="">
                 <input
                     autoFocus

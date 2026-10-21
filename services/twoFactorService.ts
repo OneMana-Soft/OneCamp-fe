@@ -1,5 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
 
 /**
@@ -60,7 +60,7 @@ class TwoFactorService {
     /** Reads the caller's own 2FA state. */
     static async getStatus(): Promise<TwoFactorResult<TwoFactorStatus>> {
         try {
-            const res = await axiosInstance.get(GetEndpointUrl.GetTwoFactorStatus)
+            const res = await axiosInstance.get(AdminGet.GetTwoFactorStatus)
             const d = res.data?.data ?? {}
             return {
                 ok: true,
@@ -86,7 +86,7 @@ class TwoFactorService {
      */
     static async beginSetup(): Promise<TwoFactorResult<TwoFactorEnrollment>> {
         try {
-            const res = await axiosInstance.post(PostEndpointUrl.BeginTwoFactorSetup)
+            const res = await axiosInstance.post(AdminPost.BeginTwoFactorSetup)
             const d = res.data?.data ?? {}
             return { ok: true, data: { secret: String(d.secret ?? ""), uri: String(d.uri ?? "") } }
         } catch (error) {
@@ -104,7 +104,7 @@ class TwoFactorService {
      */
     static async confirmSetup(code: string): Promise<TwoFactorResult<string[]>> {
         try {
-            const res = await axiosInstance.post(PostEndpointUrl.ConfirmTwoFactorSetup, { code })
+            const res = await axiosInstance.post(AdminPost.ConfirmTwoFactorSetup, { code })
             const codes = res.data?.data?.recovery_codes
             return { ok: true, data: Array.isArray(codes) ? codes.map(String) : [] }
         } catch (error) {
@@ -115,7 +115,7 @@ class TwoFactorService {
     /** Turns the factor off. Requires a current code, since this is an attacker's first move. */
     static async disable(code: string): Promise<TwoFactorResult<null>> {
         try {
-            await axiosInstance.post(PostEndpointUrl.DisableTwoFactor, { code })
+            await axiosInstance.post(AdminPost.DisableTwoFactor, { code })
             return { ok: true, data: null }
         } catch (error) {
             return failure(error, "Could not turn off two-factor authentication.")
@@ -139,7 +139,7 @@ class TwoFactorService {
      */
     static async adminReset(userUuid: string): Promise<TwoFactorResult<{ wasEnrolled: boolean }>> {
         try {
-            const res = await axiosInstance.post(PostEndpointUrl.AdminResetTwoFactor, {
+            const res = await axiosInstance.post(AdminPost.AdminResetTwoFactor, {
                 user_uuid: userUuid,
             })
             return { ok: true, data: { wasEnrolled: res.data?.data?.was_enrolled === true } }

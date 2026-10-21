@@ -4,7 +4,7 @@ vi.mock("@/lib/axiosInstance", () => ({ default: { post: vi.fn() } }))
 
 import axiosInstance from "@/lib/axiosInstance"
 import { ANSWER_WAIT_MAX_MS, nextRecoveryStep, stopAnswer } from "./answerRecovery"
-import { PostEndpointUrl } from "./endPoints"
+import { AiPost } from "@/services/endpoints/ai"
 
 describe("nextRecoveryStep", () => {
     it("adopts what is recorded the moment the answer is no longer live", () => {
@@ -33,7 +33,7 @@ describe("stopAnswer", () => {
     it("tells the server which session to stop", async () => {
         vi.mocked(axiosInstance.post).mockResolvedValue({})
         await stopAnswer("sess-1")
-        expect(axiosInstance.post).toHaveBeenCalledWith(PostEndpointUrl.AIAskStop, { session_id: "sess-1" })
+        expect(axiosInstance.post).toHaveBeenCalledWith(AiPost.AIAskStop, { session_id: "sess-1" })
     })
 
     it("sends nothing when there is no session yet", async () => {

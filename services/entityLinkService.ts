@@ -8,7 +8,7 @@
 import { useCallback, useMemo } from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { DocsGet, DocsPost } from "@/services/endpoints/docs"
 import { useToast } from "@/hooks/use-toast"
 
 export type LinkSourceType = "task" | "project"
@@ -44,7 +44,7 @@ export function useEntityLinks(sourceType: LinkSourceType, sourceUUID: string) {
   const { toast } = useToast()
   const { makeRequest, isSubmitting: mutating } = usePost()
 
-  const key = sourceUUID ? `${GetEndpointUrl.GetSourceLinks}/${sourceType}/${sourceUUID}` : ""
+  const key = sourceUUID ? `${DocsGet.GetSourceLinks}/${sourceType}/${sourceUUID}` : ""
   const { data, isLoading, isError, mutate } = useFetch<LinksEnvelope>(key)
 
   const docs = useMemo<LinkedDoc[]>(() => data?.data?.docs ?? [], [data])
@@ -77,7 +77,7 @@ export function useEntityLinks(sourceType: LinkSourceType, sourceUUID: string) {
           { source_type: string; source_uuid: string; ref_type: string; ref_uuid: string },
           LinksPayload
         >({
-          apiEndpoint: PostEndpointUrl.AddEntityLink,
+          apiEndpoint: DocsPost.AddEntityLink,
           payload: { source_type: sourceType, source_uuid: sourceUUID, ref_type: refType, ref_uuid: refUUID },
           showErrorToast: false,
         })
@@ -103,7 +103,7 @@ export function useEntityLinks(sourceType: LinkSourceType, sourceUUID: string) {
           { source_type: string; source_uuid: string; ref_type: string; ref_uuid: string },
           LinksPayload
         >({
-          apiEndpoint: PostEndpointUrl.RemoveEntityLink,
+          apiEndpoint: DocsPost.RemoveEntityLink,
           payload: { source_type: sourceType, source_uuid: sourceUUID, ref_type: refType, ref_uuid: refUUID },
           showErrorToast: false,
         })

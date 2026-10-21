@@ -396,6 +396,7 @@ const DECORATIVE: Use[] = [
   { file: "app/app/tables/[table-id]/page.tsx", match: "[&>svg]:text-ink-4", why: "an off toggle's icon, beside its own label in ink-3" },
   { file: "app/app/tables/[table-id]/page.tsx", match: "<ChevronRight className=\"hidden size-3.5 shrink-0 text-ink-4", why: "a chevron, aria-hidden" },
   { file: "app/globals.css", match: ".shell-row[aria-disabled=\"true\"]", why: "a disabled sidebar row" },
+  { file: "app/globals.css", match: ".split-handle-glyph", why: "a split pane's grip glyph, aria-hidden: it says the bar drags, and the bar's name says what it is" },
   { file: "components/ai/aiActivityFeedRow.tsx", match: "place-items-center text-ink-4 opacity-0", why: "the chain check's glyph while it runs, aria-hidden; the row's words carry the result" },
   { file: "components/ai/aiActivityFeedRow.tsx", match: "<ChevronDown aria-hidden", why: "a chevron, aria-hidden" },
   { file: "components/board/excalidrawTheme.css", match: "[disabled] .ToolIcon__icon", why: "a disabled tool's icon" },

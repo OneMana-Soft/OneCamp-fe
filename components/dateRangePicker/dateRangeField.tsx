@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/drawer";
 import { DateRange } from "react-day-picker";
 import { useMedia } from "@/context/MediaQueryContext";
+import { useSheetMode } from "@/components/ui/overlayMode";
 import { shortDate } from "@/lib/utils/date/shortDate";
 
 /**
@@ -40,27 +41,33 @@ export const DateRangeField: React.FC<
   DateRangeFieldProps
 > = ({ dateRange, setDateRange, className }) => {
   const { isMobile } = useMedia();
+  // A sheet on a phone, held either way (components/ui/overlayMode); the
+  // layout's width sizes the button.
+  const sheet = useSheetMode();
   const [open, setOpen] = useState(false);
+  const trigger = (
+    <Button
+      variant={"outline"}
+      className={cn(
+        // A finger's 44px across a phone; a header control's height (h-9),
+        // as wide as its words, elsewhere.
+        "justify-start text-left font-normal px-3",
+        isMobile ? "w-full h-11" : "w-auto h-9",
+        !dateRange && "text-muted-foreground"
+      )}
+    >
+      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+      {dateRangeLabel(dateRange)}
+    </Button>
+  );
 
   return (
     <div className={cn("flex flex-col gap-2 md:flex-row md:items-center md:gap-0 md:space-x-2", className)}>
 
       {setDateRange &&
-        (isMobile ? (
+        (sheet ? (
           <Drawer detent="medium" open={open} onOpenChange={setOpen}>
-            <DrawerTrigger asChild>
-              <Button
-                variant={"outline"}
-                className={cn(
-                  // A finger's 44px on a phone.
-                  "w-full justify-start text-left font-normal h-11 px-3",
-                  !dateRange && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                {dateRangeLabel(dateRange)}
-              </Button>
-            </DrawerTrigger>
+            <DrawerTrigger asChild>{trigger}</DrawerTrigger>
             <DrawerContent>
               <DrawerTitle className="sr-only">Pick dates</DrawerTitle>
               <div className="mt-4 border-t pt-4 pb-4">
@@ -95,20 +102,7 @@ export const DateRangeField: React.FC<
           </Drawer>
         ) : (
           <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id="date"
-                variant={"outline"}
-                className={cn(
-                  // A header control's height (h-9), as wide as its words.
-                  "w-auto justify-start text-left font-normal h-9 px-3",
-                  !dateRange && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                {dateRangeLabel(dateRange)}
-              </Button>
-            </PopoverTrigger>
+            <PopoverTrigger asChild>{trigger}</PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
               <Calendar
                 initialFocus

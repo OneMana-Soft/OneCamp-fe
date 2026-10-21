@@ -54,3 +54,30 @@ describe("next dev's files for AI agents", () => {
     expect(ignored).toContain("/CLAUDE.md")
   })
 })
+
+// `next build` in Next 16.3 keeps Turbopack's work in .next/cache/turbopack
+// and starts the next build from it (turbopackFileSystemCacheForBuild, on by
+// default), and Vercel restores .next/cache before every deploy. On 21 Oct
+// 2026 that shipped stylesheets from before their change: the demo's editor
+// CSS had none of chat's .mention-room rules, which a clean build has, and a
+// split-view build served an old globals.css under the same hashed name. Every
+// build starts from nothing.
+describe("next build's stylesheets", () => {
+  it("are built fresh: next.config turns Turbopack's build cache off", () => {
+    const config = exportedConfig()
+    expect(config, "next.config.ts exports its config object").not.toBeNull()
+    const named = (props: ts.NodeArray<ts.ObjectLiteralElementLike>, name: string) =>
+      props.find((p): p is ts.PropertyAssignment => ts.isPropertyAssignment(p) && p.name.getText() === name)
+    const experimental = named(config!.properties, "experimental")?.initializer
+    expect(experimental && ts.isObjectLiteralExpression(experimental), "next.config.ts: experimental: { ... }").toBe(true)
+    const cache = named((experimental as ts.ObjectLiteralExpression).properties, "turbopackFileSystemCacheForBuild")
+    expect(cache?.initializer.kind, "next.config.ts: experimental.turbopackFileSystemCacheForBuild: false").toBe(ts.SyntaxKind.FalseKeyword)
+  })
+
+  it("are read off by that name in the Next this repo runs", () => {
+    // Renamed in a later Next, the key would be an unknown option and builds
+    // would reuse the cache again.
+    const shared = createRequire(join(ROOT, "package.json")).resolve("next/dist/server/config-shared.js")
+    expect(readFileSync(shared, "utf8")).toMatch(/turbopackFileSystemCacheForBuild: true/)
+  })
+})

@@ -51,7 +51,7 @@ describe("the agent inventory's states", () => {
     const none = await screen.findByText("No agents yet")
     const block = none.closest("div.flex-col") as HTMLElement
     expect(block.querySelector("[data-empty-icon]")).toBeTruthy()
-    expect(block.querySelector(".hue-dusk, [class*='hue-dusk']")).toBeTruthy()
+    expect(block.querySelector(".hue-agent, [class*='hue-agent']")).toBeTruthy()
     expect(screen.getByText("No live credentials")).toBeTruthy()
   })
 

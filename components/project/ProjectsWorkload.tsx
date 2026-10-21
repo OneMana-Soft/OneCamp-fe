@@ -47,6 +47,7 @@ import { app_task_path } from "@/types/paths"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { ix } from "@/lib/ui/interactive"
 import { personHue } from "@/lib/utils/getAvatarColor"
+import { areaHue } from "@/lib/areas"
 
 const STATUSES = statusOptions(null)
 const isMeasure = (v: unknown): v is Measure => v === "tasks" || v === "hours"
@@ -248,7 +249,7 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
       <div className={frame}>
         {toolsRow()}
         <WorkState>
-          <EmptyState illustration={<SpotWelcome hue="sky" />} title="No one is in these projects yet" description="Add people to a project and their weeks show here." />
+          <EmptyState illustration={<SpotWelcome hue={areaHue("projects")} />} title="No one is in these projects yet" description="Add people to a project and their weeks show here." />
         </WorkState>
       </div>
     )
@@ -282,7 +283,7 @@ export function ProjectsWorkload({ projects, compact = false, tools }: { project
             tabIndex={0}
             data-tip={explainer}
             aria-label={explainer}
-            className="work-tip inline-flex size-7 items-center justify-center rounded-md text-ink-3 outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::after]:w-[280px] [&::after]:whitespace-normal [&::after]:text-left"
+            className="work-tip inline-flex size-7 items-center justify-center rounded-md text-ink-3 outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring tip-wide"
           >
             <Info className="size-3.5" />
           </span>

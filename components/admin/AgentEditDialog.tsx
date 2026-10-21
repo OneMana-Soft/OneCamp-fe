@@ -25,6 +25,7 @@ import type { UserProfileInterface } from "@/types/user"
 import { AGENT_TEMPLATES, scheduleDaysFor, type AgentTemplate } from "@/lib/agentTemplates"
 import { governanceSentence } from "@/lib/agentCardCopy"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import type { ProjectInfoInterface } from "@/types/project"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { McpServer, parseMcpTools, mcpToolFullName } from "@/services/mcpService"
@@ -160,7 +161,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   const show = (s: AgentStep) => editing || step === s
 
   // Enabled MCP servers contribute extra tool groups (only fetched while open).
-  const { data: mcpData } = useFetch<{ data: McpServer[] }>(open ? GetEndpointUrl.GetMcpServers : "")
+  const { data: mcpData } = useFetch<{ data: McpServer[] }>(open ? AdminGet.GetMcpServers : "")
   const mcpServers = React.useMemo(
     () => (mcpData?.data || []).filter((s) => s.enabled && parseMcpTools(s).length > 0),
     [mcpData],

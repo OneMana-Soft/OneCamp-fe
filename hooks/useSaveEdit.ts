@@ -59,7 +59,7 @@ export function useSaveEdit(): (target: EditTarget, html: string) => Promise<boo
       const html = removeEmptyPTags(raw)
       if (!html) return true
       const s = store.getState()
-      const request = <T,>(apiEndpoint: PostEndpointUrl, payload: T) =>
+      const request = <T,>(apiEndpoint: string, payload: T) =>
         post.makeRequest<T>({ apiEndpoint, payload, showToast: false, showErrorToast: true, description: "Saving your edit" })
       let edit: Edit
       switch (target.kind) {

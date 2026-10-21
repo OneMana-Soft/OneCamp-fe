@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { Link2, MailPlus } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { InvitationListResponseInterface } from "@/types/user"
@@ -29,7 +30,7 @@ interface AddInvitationDialogProps {
  */
 export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({ open, onOpenChange, onSuccess }) => {
   const { email_enabled } = useClientConfig()
-  const { data: list, mutate } = useFetch<InvitationListResponseInterface>(GetEndpointUrl.GetAdminInvitationList)
+  const { data: list, mutate } = useFetch<InvitationListResponseInterface>(AdminGet.GetAdminInvitationList)
   const seats = useFetch<{ data: { used: number; limit: number } }>(open ? GetEndpointUrl.AdminSeats : "")
   const seat = seats.data?.data
   const seatsLeft = seat && seat.limit > 0 ? Math.max(0, seat.limit - seat.used) : undefined

@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig"
 import { useToast } from "@/hooks/use-toast"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AiGet } from "@/services/endpoints/ai"
 import { type AgentCard, setAgentActive, toolLabel } from "@/services/agentService"
 import { abilitiesPhrase, autonomyPhrase, reachPhrase, sponsorName, weekPhrase } from "@/lib/agentCardCopy"
 import { Button } from "@/components/ui/button"
@@ -26,7 +26,7 @@ export function AgentCardDetails({ botUserId, fallback }: { botUserId: string; f
   // edition) the profile still needs its plain About text, not an empty column.
   const aiAvailable = useFeature(FEATURE_AI)
   const { data, isLoading, mutate, isError } = useFetch<{ data: AgentCard }>(
-    aiAvailable && botUserId ? `${GetEndpointUrl.GetAgentCard}/${botUserId}` : "",
+    aiAvailable && botUserId ? `${AiGet.GetAgentCard}/${botUserId}` : "",
     undefined,
     { revalidateOnFocus: false, shouldRetryOnError: false },
     // A bot that is not an agent answers 404; that is the ordinary profile,

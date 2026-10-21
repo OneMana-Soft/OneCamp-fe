@@ -4,7 +4,8 @@
 import {useParams, useRouter} from "next/navigation";
 import {useFetch} from "@/hooks/useFetch";
 import {ChatInfoRes} from "@/types/chat";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { PostEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {PostsResRaw} from "@/types/post";
 import { ChannelAndUserListInterfaceResp, chat_forward_type, MessageFwdReq} from "@/types/user";
 import {clearFwdMsgInputState, createOrUpdateFwdMsg} from "@/store/slice/fwdMessageSlice";
@@ -35,8 +36,8 @@ export default function Page() {
     const router = useRouter();
 
 
-    const chatInfo = useFetch<ChatInfoRes>(chatUUID ? `${GetEndpointUrl.GetOnlyChatText}/${chatUUID}`: "")
-    const postInfo = useFetch<PostsResRaw>(channelUUID ? `${GetEndpointUrl.GetOnlyPostText}/${channelUUID}/${postUUID}` : "")
+    const chatInfo = useFetch<ChatInfoRes>(chatUUID ? `${ChatGet.GetOnlyChatText}/${chatUUID}`: "")
+    const postInfo = useFetch<PostsResRaw>(channelUUID ? `${ChatGet.GetOnlyPostText}/${channelUUID}/${postUUID}` : "")
 
 
     const [selectedUsersOrChannels, setSelectedUsersOrChannels] = useState<ChannelAndUserListInterfaceResp[]>([])

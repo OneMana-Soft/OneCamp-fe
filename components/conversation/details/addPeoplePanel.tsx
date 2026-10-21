@@ -7,7 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ChatGet } from "@/services/endpoints/chat"
 import { displayNameOf } from "@/lib/personName"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { addPeople, shareChoicesKey, type ChatPlace, type Opened, type Share, type ShareChoice } from "@/lib/conversation/conversationApi"
@@ -122,7 +122,7 @@ function PeoplePicker({ place, chosen, onToggle }: {
     onToggle: (user: UserProfileDataInterface) => void
 }) {
     const [open, setOpen] = useState(false)
-    const users = useFetch<UserListInterfaceResp>(`${GetEndpointUrl.UserListNotBelongToDm}/${encodeURIComponent(place.id)}`)
+    const users = useFetch<UserListInterfaceResp>(`${ChatGet.UserListNotBelongToDm}/${encodeURIComponent(place.id)}`)
     const picked = useMemo(() => new Set(chosen.map((u) => u.user_uuid)), [chosen])
     return (
         <Popover open={open} onOpenChange={setOpen}>

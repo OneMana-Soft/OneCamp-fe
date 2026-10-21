@@ -2,6 +2,7 @@
 
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { CallsGet } from "@/services/endpoints/calls"
 import type { RecordingInfoInterface } from "@/types/recording"
 import type { UserProfileInterface } from "@/types/user"
 import { RecordingsView } from "@/components/recording/RecordingsView"
@@ -37,7 +38,7 @@ export default function RecordingsPage() {
 
     return (
         <RecordingsView
-            listUrl={GetEndpointUrl.UserRecordingList}
+            listUrl={CallsGet.UserRecordingList}
             playerUrls={playerUrls}
             subtitle="Calls recorded in your channels and conversations."
             currentUserId={self}

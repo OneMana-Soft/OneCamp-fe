@@ -83,18 +83,20 @@ describe("CALL-BUG-13: the green room answers the keys its tooltips teach", () =
 })
 
 describe("CALL-BUG-12: a channel call says what it is doing before Join", () => {
+  // A member's read of the call (Call State, GET /calls/current).
   const state = {
     data: {
-      active: true,
+      live: true,
+      session: { id: "s1", people: [{ identity: "m", name: "Maya Chen", role: "host", in_call: true }, { identity: "j", name: "Jonas Weber", role: "participant", in_call: false }] },
       recording: { on: true, by: "Maya Chen" },
       transcription: { on: true, by: "Maya Chen", where: "browser", kept: true },
-      participants: [{ id: "m", name: "Maya Chen" }],
-      can_remove: true,
+      you: { can: [] },
     },
   }
+  const current = "/calls/current?kind=channel&id=c1"
 
   it("names who is recording and who turned captions on, and where speech goes", () => {
-    reads["/ch/callState/c1"] = { data: state }
+    reads[current] = { data: state }
     render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
     expect(screen.getByText("This call is being recorded by Maya Chen. Joining puts you in the recording.")).toBeInTheDocument()
     const captions = document.querySelector("[data-call-notices] [data-captions-notice]")!
@@ -103,15 +105,23 @@ describe("CALL-BUG-12: a channel call says what it is doing before Join", () => 
     expect(screen.getByText("Maya is in the call")).toBeInTheDocument()
   })
 
-  it("joins with the green room's choice and the person's language, and lets a moderator remove people", async () => {
-    reads["/ch/callState/c1"] = { data: state }
+  it("joins with the green room's choice and the person's language, and hands the call's id to the call", async () => {
+    reads[current] = { data: state }
     post.mockResolvedValueOnce({ data: { data: { token: "tok" } } })
     render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Mute" })))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
     expect(post).toHaveBeenCalledWith("/ch/getCallToken", expect.objectContaining({ channel_uuid: "c1", audio_enabled: false, video_enabled: true, language: "hi-IN" }), expect.anything())
     await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
-    expect(conference).toMatchObject({ token: "tok", audio: false, video: true, canRemove: true })
+    expect(conference).toMatchObject({ token: "tok", audio: false, video: true, sessionId: "s1" })
+  })
+
+  it("says before Join that a locked call won't let you in, and holds Join", () => {
+    const msg = "This call is locked, so nobody new can join it. Ask someone in the call to unlock it."
+    reads[current] = { data: { data: { ...state.data, you: { can: [], refusal: { code: "call_locked", msg } } } } }
+    render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
+    expect(document.querySelector("[data-refusal-notice]")!.textContent).toBe(msg)
+    expect(screen.getByRole("button", { name: "Join now" })).toBeDisabled()
   })
 })
 
@@ -203,7 +213,7 @@ describe("CALL-BUG-17 and 9: an instant meeting's own page", () => {
 
   it("lets its creator back in after leaving or reloading, with a fresh token", async () => {
     expect(peekMeetingHandoff("m2")).toBeUndefined()
-    reads["/meet/instant/m2"] = { data: { data: { active: true, can_remove: true } } }
+    reads["/meet/instant/m2"] = { data: { data: { active: true } } }
     joinInstantMeeting.mockResolvedValueOnce({ room: "meet-m2", host_token: "fresh" })
     render(<InstantMeetingView meetingId="m2" />)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join meeting" })))

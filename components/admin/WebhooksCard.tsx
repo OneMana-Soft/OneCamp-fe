@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, Trash2, RefreshCw, Copy, Eye, EyeOff, CheckCircle2, XCircle, ChevronDown, Pencil, Terminal } from "@/lib/icons";
 import { PlayCircle, ExternalLink, ArrowDownToLine, ArrowUpFromLine, FileJson, ListChecks } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { openUI } from "@/store/slice/uiSlice"
@@ -135,7 +135,7 @@ function DeliveryToolbar({ icon: Icon, label, action }: { icon: React.ComponentT
 
 const WebhooksCard = () => {
   const dispatch = useDispatch()
-  const { data: webhookData, isLoading, isError, mutate } = useFetch<{ webhooks: WebhookItem[] }>(GetEndpointUrl.GetAllWebhooks)
+  const { data: webhookData, isLoading, isError, mutate } = useFetch<{ webhooks: WebhookItem[] }>(AdminGet.GetAllWebhooks)
   const { toast } = useToast()
   const confirm = useConfirm()
 
@@ -156,7 +156,7 @@ const WebhooksCard = () => {
 
   const regenerateToken = async (webhookId: string) => {
     try {
-      await axiosInstance.post(`${PostEndpointUrl.RegenerateWebhookToken}/${webhookId}/regenerate-token`)
+      await axiosInstance.post(`${AdminPost.RegenerateWebhookToken}/${webhookId}/regenerate-token`)
       toast({ title: "Token regenerated", description: "Give the new token to anything that posts to this webhook." })
       mutate()
     } catch {
@@ -166,7 +166,7 @@ const WebhooksCard = () => {
 
   const regenerateSecret = async (webhookId: string) => {
     try {
-      await axiosInstance.post(`${PostEndpointUrl.RegenerateWebhookSecret}/${webhookId}/regenerate-secret`)
+      await axiosInstance.post(`${AdminPost.RegenerateWebhookSecret}/${webhookId}/regenerate-secret`)
       toast({ title: "Signing secret regenerated", description: "Give the new secret to the service that receives these deliveries." })
       mutate()
     } catch {
@@ -199,7 +199,7 @@ const WebhooksCard = () => {
 
   const handleTest = async (webhookId: string) => {
     try {
-      await axiosInstance.post(`${PostEndpointUrl.TestWebhook}/${webhookId}/test`)
+      await axiosInstance.post(`${AdminPost.TestWebhook}/${webhookId}/test`)
       toast({ title: "Test delivery sent", description: "It shows under Recent deliveries in a moment." })
       setShowLogs(webhookId)
       setTimeout(() => fetchLogs(webhookId, 1, true), 2000)
@@ -215,7 +215,7 @@ const WebhooksCard = () => {
     setSaving((m) => ({ ...m, [webhook.id]: true }))
     const events = parseEvents(webhook.events)
     try {
-      await axiosInstance.put(`${PostEndpointUrl.UpdateWebhook}/${webhook.id}`, {
+      await axiosInstance.put(`${AdminPost.UpdateWebhook}/${webhook.id}`, {
         name: webhook.name,
         description: webhook.description || undefined,
         target_url: webhook.target_url || undefined,
@@ -237,7 +237,7 @@ const WebhooksCard = () => {
     setLogsLoading(true)
     setLogsError(null)
     try {
-      const res = await axiosInstance.get(`${GetEndpointUrl.GetWebhookLogs}/${webhookId}/logs?page=${page}&page_size=${LOG_PAGE_SIZE}`)
+      const res = await axiosInstance.get(`${AdminGet.GetWebhookLogs}/${webhookId}/logs?page=${page}&page_size=${LOG_PAGE_SIZE}`)
       const newLogs: WebhookLog[] = res.data?.logs || []
       if (replace) setLogs(newLogs)
       else setLogs(prev => [...prev, ...newLogs])

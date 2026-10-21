@@ -23,7 +23,7 @@
 
 import React from "react"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AiGet } from "@/services/endpoints/ai"
 import { Sparkles } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
 
@@ -41,7 +41,7 @@ const ChannelMemoryIndicatorUngated: React.FC<{ channelUUID: string; isMember?: 
   // it a no-op so non-members never hit the access-gated endpoint.
   const { data } = useFetch<ExclusionResponse>(
     channelUUID && isMember
-      ? `${GetEndpointUrl.GetChannelMemoryExclusion}?channel=${encodeURIComponent(channelUUID)}`
+      ? `${AiGet.GetChannelMemoryExclusion}?channel=${encodeURIComponent(channelUUID)}`
       : "",
     undefined,
     { revalidateOnFocus: false, dedupingInterval: 60_000 },

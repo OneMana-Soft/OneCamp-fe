@@ -6,7 +6,8 @@ import { usePost } from "@/hooks/usePost"
 import { useToast } from "@/hooks/use-toast"
 import { appMutate as mutate } from "@/lib/swrMutate"
 import { formatSendAt } from "@/lib/messages/schedulePresets"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ChatPost } from "@/services/endpoints/chat"
 import type { ScheduleKind } from "@/context/ScheduleSendContext"
 
 export interface ScheduledMessage {
@@ -36,7 +37,7 @@ export function useScheduledMessages(target?: string) {
   const { toast } = useToast()
 
   const act = React.useCallback(
-    async (endpoint: PostEndpointUrl, payload: Record<string, unknown>, done: string) => {
+    async (endpoint: string, payload: Record<string, unknown>, done: string) => {
       const res = await post.makeRequest<Record<string, unknown>, unknown>({ apiEndpoint: endpoint, payload, showToast: true }).catch(() => undefined)
       refreshAll()
       if (res !== undefined) toast({ title: done })
@@ -48,10 +49,10 @@ export function useScheduledMessages(target?: string) {
   return {
     items,
     isLoading: list.isLoading,
-    cancel: (id: string) => act(PostEndpointUrl.CancelScheduledMessage, { id }, "Scheduled message deleted"),
-    sendNow: (id: string) => act(PostEndpointUrl.SendScheduledMessageNow, { id }, "Sent"),
+    cancel: (id: string) => act(ChatPost.CancelScheduledMessage, { id }, "Scheduled message deleted"),
+    sendNow: (id: string) => act(ChatPost.SendScheduledMessageNow, { id }, "Sent"),
     reschedule: (id: string, at: Date) =>
-      act(PostEndpointUrl.UpdateScheduledMessage, { id, send_at: at.toISOString() }, `Rescheduled for ${formatSendAt(at)}`),
+      act(ChatPost.UpdateScheduledMessage, { id, send_at: at.toISOString() }, `Rescheduled for ${formatSendAt(at)}`),
   }
 }
 
@@ -63,7 +64,7 @@ export function useScheduleMessage() {
     async (kind: ScheduleKind, body: Record<string, unknown>, at: Date) => {
       const res = await post
         .makeRequest<{ kind: ScheduleKind; body: Record<string, unknown>; send_at: string }, unknown>({
-          apiEndpoint: PostEndpointUrl.ScheduleMessage,
+          apiEndpoint: ChatPost.ScheduleMessage,
           payload: { kind, body, send_at: at.toISOString() },
           showToast: true,
         })

@@ -28,6 +28,7 @@ import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
 import { sanitizeImportedDocument } from "@/lib/sanitizeHtml"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -107,7 +108,7 @@ const sameForm = (a: EmailForm, b: EmailForm) =>
   a.sender_email === b.sender_email && a.subject === b.subject && a.template === b.template
 
 const EmailSettingsCard = () => {
-  const { data: configData, isLoading, isError, mutate } = useFetch<{ data: EmailConfigResponse }>(GetEndpointUrl.GetEmailConfig)
+  const { data: configData, isLoading, isError, mutate } = useFetch<{ data: EmailConfigResponse }>(AdminGet.GetEmailConfig)
   // The preview names whoever is looking as the one inviting.
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const post = usePost()
@@ -224,7 +225,7 @@ const EmailSettingsCard = () => {
   const handleRemoveLogo = async () => {
     try {
       await post.makeRequest({
-        apiEndpoint: PostEndpointUrl.DeleteEmailLogo,
+        apiEndpoint: AdminPost.DeleteEmailLogo,
         method: "DELETE",
         showToast: true
       })

@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
-import { useMedia } from "@/context/MediaQueryContext"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { copyDocLink } from "@/components/docEditor/docLink"
 import { returnFocusOnlyForKeys } from "@/lib/ui/inputModality"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -77,7 +77,8 @@ function useItems({ doc, canEdit, onAddInside }: Pick<DocRowMenuProps, "doc" | "
 }
 
 export function DocRowMenu({ doc, canEdit, onAddInside, className, focusable = false, open, onOpenChange }: DocRowMenuProps) {
-  const { isMobile } = useMedia()
+  // A sheet on a phone, held either way (components/ui/overlayMode).
+  const sheet = useSheetMode()
   const items = useItems({ doc, canEdit, onAddInside })
   const [ownOpen, setOwnOpen] = React.useState(false)
   const isOpen = open ?? ownOpen
@@ -97,7 +98,7 @@ export function DocRowMenu({ doc, canEdit, onAddInside, className, focusable = f
         // The row opens the doc; the button only opens its menu.
         e.stopPropagation()
         e.preventDefault()
-        if (isMobile) setOpen(true)
+        if (sheet) setOpen(true)
       }}
       onKeyDown={(e) => e.stopPropagation()}
       className={cn(
@@ -109,7 +110,7 @@ export function DocRowMenu({ doc, canEdit, onAddInside, className, focusable = f
     </button>
   )
 
-  if (isMobile) {
+  if (sheet) {
     return (
       <>
         {trigger}

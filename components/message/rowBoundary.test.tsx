@@ -27,7 +27,7 @@ describe("a row that can't be drawn", () => {
 
   it("wraps every row of every conversation, in the list itself", async () => {
     const { readFileSync } = await import("node:fs")
-    const src = readFileSync("components/message/MessaageListVirtua.tsx", "utf8")
+    const src = readFileSync("components/message/MessageListVirtua.tsx", "utf8")
     expect(src).toMatch(/<RowBoundary raw=\{raw\}>\{renderItem\(/)
   })
 })

@@ -9,7 +9,7 @@
 
 import { authedStreamFetch } from "@/lib/utils/streamFetch"
 import { readSSE } from "@/lib/ai/sseReader"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { AiPost } from "@/services/endpoints/ai"
 import type { DocAIActionId, DocAIModel } from "@/lib/ai/docAIActions"
 
 /** What an action runs on. */
@@ -64,7 +64,7 @@ export async function streamDocAI(req: DocAIRequest, handlers: DocAIStreamHandle
   const out: DocAIResult = { text: "", model: null, notice: "", stopped: false, error: "" }
   let response: Response
   try {
-    response = await authedStreamFetch(PostEndpointUrl.AIDocCompleteStream, { jsonBody: req, signal })
+    response = await authedStreamFetch(AiPost.AIDocCompleteStream, { jsonBody: req, signal })
   } catch (e) {
     if (signal?.aborted || (e as Error)?.name === "AbortError") return { ...out, stopped: true }
     return { ...out, error: UNREACHABLE }

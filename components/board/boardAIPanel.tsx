@@ -9,10 +9,11 @@
 import * as React from "react"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { usePost } from "@/hooks/usePost"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { BoardsPost } from "@/services/endpoints/boards"
 import { authedStreamFetch } from "@/lib/utils/streamFetch"
 import type { BoardDiagramType, BoardGenerateResult, BoardLaidComponent } from "@/types/board"
 import { BOARD_MAX_ELEMENTS } from "@/components/board/boardCanvas"
+import { CAPTURE, bumped } from "@/lib/board/binding"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Sparkles, X, Loader2, Workflow, Milestone, Route, Network, Users, Smartphone, Monitor, ChevronDown } from "@/lib/icons"
@@ -239,8 +240,9 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
       // deleted so the replacement supersedes them (and they sync as removed).
       const scene = api.getSceneElementsIncludingDeleted()
       const prevIds = opts?.replaceGenId && lastGenRef.current ? lastGenRef.current.elementIds : null
+      // Bumped, or neither undo nor the binding sees the removal.
       const existing = prevIds
-        ? scene.map((e) => (prevIds.has(e.id) ? { ...e, isDeleted: true } : e))
+        ? scene.map((e) => (prevIds.has(e.id) && !e.isDeleted ? bumped(e, { isDeleted: true }) : e))
         : scene
 
       // Offset: reuse the prior position on refine; else place to the right of
@@ -356,7 +358,8 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
         return
       }
 
-      api.updateScene({ elements: [...existing, ...generated] as never })
+      // One undo step (lib/board/binding).
+      api.updateScene({ elements: [...existing, ...generated] as never, captureUpdate: CAPTURE.IMMEDIATELY })
       try {
         api.scrollToContent(generated as never, { fitToContent: true, animate: true })
       } catch {
@@ -419,7 +422,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
       let finalResult: BoardGenerateResult | null = null
       let streamErr: string | null = null
       try {
-        const res = await authedStreamFetch(PostEndpointUrl.GenerateBoardDiagramStream, {
+        const res = await authedStreamFetch(BoardsPost.GenerateBoardDiagramStream, {
           jsonBody: { board_uuid: boardId, prompt: trimmed, type, detailed },
           signal: streamAbortRef.current!.signal,
         })
@@ -485,7 +488,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
     setPlan(null)
     setPlanLoading(true)
     makeRequest<{ board_uuid: string; prompt: string; type: string }, SidekickPlan>({
-      apiEndpoint: PostEndpointUrl.PlanBoardDiagram,
+      apiEndpoint: BoardsPost.PlanBoardDiagram,
       payload: { board_uuid: boardId, prompt: trimmed, type },
     })
       .then((res) => {
@@ -538,7 +541,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
     setSynthesis(null)
     setClustering(true)
     makeRequest<{ board_uuid: string; items: { id: string; text: string }[] }, BoardClusterResult>({
-      apiEndpoint: PostEndpointUrl.ClusterBoardContent,
+      apiEndpoint: BoardsPost.ClusterBoardContent,
       payload: { board_uuid: boardId, items },
     })
       .then((res) => {
@@ -576,7 +579,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
         },
         BoardGenerateResult
       >({
-        apiEndpoint: PostEndpointUrl.RefineBoardDiagram,
+        apiEndpoint: BoardsPost.RefineBoardDiagram,
         payload: {
           board_uuid: boardId,
           instruction: trimmed,

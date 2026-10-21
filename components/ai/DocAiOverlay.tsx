@@ -17,7 +17,7 @@ import * as React from "react"
 import type { Editor } from "@tiptap/core"
 import type { SlotProps } from "@/components/docEditor/registry/types"
 import { NO_BUS, useDocBus } from "@/components/docEditor/registry/commandBus"
-import { useMedia } from "@/context/MediaQueryContext"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
 import { aiBarOf, closeAiBar, panelPinOf, setPanelPin, subscribeAiBar, type BarRequest, type BarState } from "./docAiStore"
 import { pinRange, unpin } from "./docAiPlugin"
@@ -59,15 +59,16 @@ export default function DocAiOverlay({ editor, docId }: SlotProps) {
 
   const subscribe = React.useCallback((l: () => void) => (editor ? subscribeAiBar(editor, l) : noop()), [editor])
   const state = React.useSyncExternalStore(subscribe, () => (editor ? aiBarOf(editor) : CLOSED), () => CLOSED)
-  const { isMobile } = useMedia()
+  // A sheet on a phone, held either way (components/ui/overlayMode).
+  const sheet = useSheetMode()
 
   if (!editor || !state.open || !state.request || !docId) return null
   const bar = (
     <React.Suspense fallback={null}>
-      <DocAiBar key={state.seq} editor={editor} docId={docId} request={state.request} sheet={isMobile} />
+      <DocAiBar key={state.seq} editor={editor} docId={docId} request={state.request} sheet={sheet} />
     </React.Suspense>
   )
-  if (isMobile) {
+  if (sheet) {
     return (
       <Drawer open detent="medium" onOpenChange={(open) => !open && closeAiBar(editor)}>
         <DrawerContent>

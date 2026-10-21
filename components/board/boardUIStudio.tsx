@@ -11,7 +11,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { toPng } from "html-to-image"
 import { usePost } from "@/hooks/usePost"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { BoardsPost } from "@/services/endpoints/boards"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -114,7 +114,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
       }
       setError(null)
       makeRequest<{ board_uuid: string; prompt: string; device: Device }, { html: string; device: Device }>({
-        apiEndpoint: PostEndpointUrl.GenerateBoardUI,
+        apiEndpoint: BoardsPost.GenerateBoardUI,
         payload: { board_uuid: boardId, prompt: trimmed, device: d },
       })
         .then((res) => {
@@ -140,7 +140,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
         { board_uuid: string; html: string; instruction: string; device: Device },
         { html: string; device: Device }
       >({
-        apiEndpoint: PostEndpointUrl.RefineBoardUI,
+        apiEndpoint: BoardsPost.RefineBoardUI,
         payload: { board_uuid: boardId, html, instruction: instruction.trim(), device },
       })
         .then((res) => {

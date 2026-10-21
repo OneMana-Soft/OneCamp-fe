@@ -83,7 +83,7 @@ import { appMutate as mutate, patchCached } from "@/lib/swrMutate";
 import { optimistic } from "@/lib/optimistic";
 import { useDeleteTasks } from "@/hooks/useDeleteTasks";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
-import {useMqtt} from "@/components/mqtt/mqttProvider";
+import {useMqtt} from "@/components/mqtt/mqttContext";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import { SegmentedControl } from "@/components/ui/segmentedControl"

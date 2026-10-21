@@ -42,7 +42,7 @@ describe("the shell without a top bar", () => {
     expect(SEARCH).toMatch(/openPalette\(\{ mode: "search" \}\)/)
     // 3 the focus pill: in the focused pane's own bar, or the main sheet's corner.
     expect(SPLIT).toMatch(/<FocusPill \/>/)
-    expect(LAYOUT).toMatch(/focused === -1[\s\S]{0,200}<FocusPill \/>/)
+    expect(LAYOUT).toMatch(/focused === (?:-1|MAIN)[\s\S]{0,200}<FocusPill \/>/)
     // 4 the AI toggle: the spark beside the pill, behind FEATURE_AI.
     expect(SEARCH).toMatch(/<FeatureGate feature=\{FEATURE_AI\}>[\s\S]*aria-label="Ask OneCamp AI"/)
     // 5 the bell: retired into Inbox's badge and its From OneCamp AI group.

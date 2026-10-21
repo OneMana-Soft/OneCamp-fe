@@ -10,6 +10,7 @@ import { extensionsFor, loadBlocks } from "@/components/docEditor/registry/facto
 import { ALL_EDITIONS, bareContext } from "@/components/docEditor/registry/manifest"
 import { createDocCommandBus } from "@/components/docEditor/registry/commandBus"
 import ColourMenu, { chosenNow, colourRows, pickLabel } from "./ColourGrid"
+import { SCREENS, putOnScreen } from "@/lib/testing/screens"
 
 // The colour grid (B2): seven colours for text and for a background, each
 // row led by Default, the last used above them; over the text on a wider
@@ -22,11 +23,15 @@ vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => media }))
 beforeAll(() => loadBlocks("doc", ALL_EDITIONS), 30_000)
 
 const editors: Editor[] = []
+// A phone is a screen (lib/testing/screens): the sheet follows the one sheet rule, not isMobile.
+let offScreen = () => {}
 afterEach(() => {
   cleanup()
   while (editors.length) editors.pop()!.destroy()
   localStorage.clear()
   media.isMobile = false
+  offScreen()
+  offScreen = () => {}
 })
 
 function docEditor(content: string) {
@@ -131,6 +136,7 @@ describe("the grid over the text", () => {
 describe("the phone's sheet", () => {
   it("names each colour under its swatch and colours as it is tapped", async () => {
     media.isMobile = true
+    offScreen = putOnScreen(SCREENS["a phone in portrait"])
     const editor = docEditor("<p>tap a colour</p>")
     editor.commands.setTextSelection({ from: 1, to: 4 })
     open(editor)
@@ -141,5 +147,15 @@ describe("the phone's sheet", () => {
     act(() => (Array.from(background.querySelectorAll("button")).find((b) => b.getAttribute("aria-label") === "Yellow") as HTMLButtonElement).click())
     expect(editor.getHTML()).toContain('<mark data-color="sun">tap</mark>')
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
+  })
+
+  it("is the sheet on a phone in landscape too, wider than the layout's phone width", async () => {
+    offScreen = putOnScreen(SCREENS["a phone in landscape"])
+    media.isMobile = false
+    const editor = docEditor("<p>tap a colour</p>")
+    editor.commands.setTextSelection({ from: 1, to: 4 })
+    open(editor)
+    await settle()
+    expect(document.querySelector("[data-colour-sheet]")).toBeTruthy()
   })
 })

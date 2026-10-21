@@ -26,9 +26,8 @@ describe("the DM, group and thread composers' placeholders", () => {
     ["components/textInput/mobileChatTextInput.tsx", /placeholder=\{dmComposerPlaceholder\(/],
     ["components/groupChat/chatGrpIdDesktop.tsx", /placeholder=\{GROUP_COMPOSER_PLACEHOLDER\}/],
     ["components/textInput/mobileGroupChatTextInput.tsx", /placeholder=\{GROUP_COMPOSER_PLACEHOLDER\}/],
-    ["components/rightPanel/channelComments.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],
-    ["components/rightPanel/chatComments.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],
-    ["components/rightPanel/groupChatComments.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],
+    // Every thread panel's reply box (a channel's, a DM's and a group's).
+    ["components/conversation/ThreadReplyBox.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],
     ["components/textInput/mobileChannelPostTextInput.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],
     ["components/textInput/mobileChatMessageTextInput.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],
     ["components/textInput/mobileGroupChatMessageTextInput.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],

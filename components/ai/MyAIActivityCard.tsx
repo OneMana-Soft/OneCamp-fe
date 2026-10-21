@@ -24,7 +24,7 @@ import * as React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AiGet } from "@/services/endpoints/ai"
 import { Download, Loader2, Play, ShieldCheck } from "@/lib/icons"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { AIActivityRow } from "@/components/admin/AIActivityCard"
@@ -109,7 +109,7 @@ function MyAIActivityCard({ variant = "card" }: MyAIActivityCardProps) {
   // asks for a longer list as the reader scrolls.
   const [limit, setLimit] = React.useState(FEED_STEP)
   const { data, isLoading, isError, mutate } = useFetch<{ data: AIActivityItem[] }>(
-    `${GetEndpointUrl.MyAIActivity}?limit=${limit}`,
+    `${AiGet.MyAIActivity}?limit=${limit}`,
     undefined,
     // The rows already shown stay while the longer list loads.
     feed ? { keepPreviousData: true } : undefined,

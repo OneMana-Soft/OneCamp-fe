@@ -229,14 +229,13 @@ describe("a doc's share dialog", () => {
     expect(hoisted.answer).toHaveBeenCalledWith(req, { approve: true, level: "comment" })
   })
 
-  it("has one tab until C6 registers Publish", () => {
+  it("has no tabs: publishing lives in the link card; its footer copies the doc's own link", () => {
     serve(accessFor("full"))
-    const first = render(dialog())
-    expect(screen.queryByRole("tab")).toBeNull()
-    first.unmount()
     registerPanel({ kind: "doc.publish", title: "Publish", edition: "both", load: () => Promise.resolve({ default: () => null }) })
     render(dialog())
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Share", "Publish"])
+    expect(screen.queryByRole("tab")).toBeNull()
+    expect(screen.getByRole("button", { name: "Copy doc link" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Copy link" })).toBeNull()
   })
 })
 

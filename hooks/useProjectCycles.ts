@@ -8,11 +8,11 @@ import { useCallback } from "react"
 import { useSWRConfig } from "swr"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { holdsProjectTasks } from "@/lib/taskStatus"
 import type { Cycle } from "@/lib/tasks/cycles"
 
-const url = (projectId: string) => `${GetEndpointUrl.ProjectCycles}/${projectId}/cycles`
+const url = (projectId: string) => `${ProjectsGet.ProjectCycles}/${projectId}/cycles`
 
 
 export function useProjectCycles(projectId: string | undefined) {

@@ -6,6 +6,7 @@ import { useDispatch } from "react-redux"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { UserListResponseInterface, UserActivateOrDeactivateInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
@@ -58,7 +59,7 @@ const UserCard = () => {
 
   // Who is an admin, so the Role column can say so and Make admin is offered
   // only to those who are not. The admin list is short; one page of 500.
-  const adminList = useFetch<AdminListResponseInterface>(`${GetEndpointUrl.GetAdminAdminList}?pageIndex=0&pageSize=500`)
+  const adminList = useFetch<AdminListResponseInterface>(`${AdminGet.GetAdminAdminList}?pageIndex=0&pageSize=500`)
   const [madeAdmin, setMadeAdmin] = useState<string[]>([])
   const adminIds = useMemo(
     () => new Set([...(adminList.data?.data ?? []).map((a) => a.user_uuid), ...madeAdmin]),
@@ -69,7 +70,7 @@ const UserCard = () => {
   // again), so the app's error toast stays quiet: it said the same thing a
   // second time in the corner.
   const userList = useFetch<UserListResponseInterface>(
-    `${GetEndpointUrl.GetAdminUserList}?pageIndex=${pageIndex}&pageSize=${PAGE_SIZE}`,
+    `${AdminGet.GetAdminUserList}?pageIndex=${pageIndex}&pageSize=${PAGE_SIZE}`,
     undefined,
     undefined,
     OWN_ERRORS,

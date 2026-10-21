@@ -1,11 +1,11 @@
 "use client"
 
+import { isHeldUnread, releaseUnread } from "@/lib/conversation/unreadHold"
 import { useEffect, useRef } from "react"
 import { useFetch } from "@/hooks/useFetch"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { appMutate } from "@/lib/swrMutate"
 import type { ChatTarget } from "@/lib/chat/conversation"
-import { receiptsKey, withSeen, type Receipts } from "@/lib/chat/readReceipts"
+import { receiptsKey, type Receipts } from "@/lib/chat/readReceipts"
 import { clearChatUnread } from "@/services/unreadCache"
 
 /** Who has seen a conversation (lib/chat/readReceipts); kept live by MESSAGE_CHAT_SEEN. */
@@ -13,13 +13,17 @@ export function useChatReceipts(target: ChatTarget | null) {
   return useFetch<{ data: Receipts }>(target ? receiptsKey(target) : "")
 }
 
-/** Folds a live receipt (MESSAGE_CHAT_SEEN) into the open conversation's receipts. */
-export function applySeenEvent(key: string, userUUID: string, at: string) {
-  void appMutate(
-    key,
-    (current: { data?: Receipts } | undefined) => (current?.data ? { ...current, data: withSeen(current.data, userUUID, at) } : current),
-    { revalidate: false },
-  )
+
+/**
+ * Marks a DM or group seen now (key: its receipts key, lib/chat/readReceipts
+ * receiptsKey); once the server has it, its cached counts (groupingId) clear.
+ * Best-effort and silent, as every automatic mark.
+ */
+export function markChatSeen(key: string, groupingId: string): Promise<void> {
+  return axiosInstance
+    .post(key, {}, OWN_ERRORS)
+    .then(() => clearChatUnread(groupingId))
+    .catch(() => {})
 }
 
 /**
@@ -36,18 +40,19 @@ export function useMarkChatSeen(target: ChatTarget | null, arrived: string, grou
   const key = target ? receiptsKey(target) : ""
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Opening it reads it, even after a Mark unread (B27).
+  useEffect(() => {
+    if (groupingId) releaseUnread(groupingId)
+  }, [groupingId])
+
   useEffect(() => {
     if (!key) return
     const mark = () => {
-      if (document.visibilityState !== "visible") return
+      // Marked unread: nothing marks it read until it is opened again.
+      if (document.visibilityState !== "visible" || isHeldUnread(groupingId)) return
       if (timer.current) clearTimeout(timer.current)
       // A burst of messages is one mark.
-      timer.current = setTimeout(() => {
-        void axiosInstance
-          .post(key, {}, OWN_ERRORS)
-          .then(() => clearChatUnread(groupingId))
-          .catch(() => {})
-      }, 600)
+      timer.current = setTimeout(() => void markChatSeen(key, groupingId), 600)
     }
     mark()
     const onVisible = () => mark()

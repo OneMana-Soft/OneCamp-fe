@@ -52,9 +52,7 @@
   --ix-press: 90ms;
   --ix-lift: 160ms;
   --ix-settle: 200ms;
-  --ix-pop: 180ms;
   --ix-panel: 240ms;
-  --ix-tip-delay: 400ms;
   --ix-hover-a: 6%;
   --ix-hover-quiet-a: 4%;
   --ix-press-a: 10%;
@@ -109,6 +107,9 @@ body {
   [data-hue="dusk"] { --hue: var(--camp-dusk); --hue-tint: var(--camp-dusk-tint); --hue-ink: var(--camp-dusk-ink); --hue-a1: var(--camp-dusk-a1); --hue-a2: var(--camp-dusk-a2); --ix-hue: var(--camp-dusk); --ix-hue-mark: var(--camp-dusk-a2); }
   [data-hue="berry"] { --hue: var(--camp-berry); --hue-tint: var(--camp-berry-tint); --hue-ink: var(--camp-berry-ink); --hue-a1: var(--camp-berry-a1); --hue-a2: var(--camp-berry-a2); --ix-hue: var(--camp-berry); --ix-hue-mark: var(--camp-berry-a2); }
   [data-hue="agent"] { --hue: var(--agent); --hue-tint: var(--agent-muted); --hue-ink: var(--agent-ink); --hue-a1: var(--agent-a1); --hue-a2: var(--agent-a2); --ix-hue: var(--agent); --ix-hue-mark: var(--agent-a2); }
+  /* What names no area (v3.1, globals.css hue-ink): a neutral tint under the
+     pointer; the page you are on keeps the brand's mark. */
+  [data-hue="ink"] { --hue: var(--muted-foreground); --hue-tint: var(--muted); --hue-ink: var(--foreground); --hue-a1: var(--ink-3); --hue-a2: var(--ink-2); --ix-hue: var(--ink); }
   .dark [data-hue="sun"] { --ix-hue-mark: var(--camp-sun); }
   .dark [data-hue="moss"] { --ix-hue-mark: var(--camp-moss); }
   .dark [data-hue="lake"] { --ix-hue-mark: var(--camp-lake); }
@@ -360,42 +361,10 @@ body {
     opacity: var(--ix-disabled);
     cursor: not-allowed;
   }
-  :where([data-disabled-reason]) {
-    position: relative;
-  }
-  [data-disabled-reason]::after {
-    content: attr(data-disabled-reason);
-    position: absolute;
-    left: 50%;
-    bottom: calc(100% + 6px);
-    z-index: 60;
-    width: max-content;
-    max-width: 240px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: var(--tooltip-bg);
-    color: #fff;
-    font: 510 12px/16px var(--font-sans);
-    letter-spacing: 0;
-    text-align: center;
-    text-wrap: balance;
-    white-space: normal;
-    pointer-events: none;
-    opacity: 0;
-    translate: -50% 4px;
-    transition: opacity var(--ix-pop) var(--ix-ease), translate var(--ix-pop) var(--ix-ease);
-  }
-  @media (hover: hover) {
-    [data-disabled-reason]:hover::after {
-      opacity: 1;
-      translate: -50% 0;
-      transition-delay: var(--ix-tip-delay);
-    }
-  }
-  [data-disabled-reason]:focus-visible::after {
-    opacity: 1;
-    translate: -50% 0;
-  }
+  /* A reason (data-disabled-reason, from Button's disabledReason) is the
+     app's portalled tooltip (components/ui/disabledTip.tsx), never a pseudo-
+     element here: a ::after above its control was cut by any clip around it
+     (the new-task dialog's "a project first"), 18 Oct 2026. */
 
   /* REVEAL (§6.5, §7.2): a row or card with tools (data-reveal) shows them
      (data-tools) under the pointer and with focus inside it. On touch they
@@ -506,6 +475,18 @@ body {
     box-shadow: 0 0 0 2px var(--brand);
     background: var(--sheet);
   }
+  /* Standing between two views side by side (components/split/SplitArrange):
+     the same line, upright, its cap at the top, placed on the screen. */
+  [data-drop-line="col"] {
+    position: fixed;
+    z-index: var(--z-popover);
+    width: 2px;
+    inset-inline: auto;
+  }
+  [data-drop-line="col"]::before {
+    left: -2px;
+    top: -4px;
+  }
   @media (prefers-reduced-motion: no-preference) {
     [data-drag-state="lifted"] {
       scale: var(--ix-lift-scale);
@@ -522,8 +503,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   [data-interactive],
   [data-tools],
-  [data-drag-state],
-  [data-disabled-reason]::after {
+  [data-drag-state] {
     transition-duration: 0ms;
   }
 }

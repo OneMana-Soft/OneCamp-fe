@@ -88,6 +88,18 @@ describe("who is here, live", () => {
 
   afterEach(() => setPresenceControl(bus.key, null))
 
+  // Split view's design verdict (20 Oct): every header showed your own face.
+  it("shows other people's faces only, and none at all to someone alone in the doc", () => {
+    live()
+    const { unmount } = shell(<ActiveUsersBar users={[sam1, me]} />)
+    expect(screen.getByRole("img", { name: "Sam Rivera, editing" })).toBeTruthy()
+    expect(screen.queryByRole("img", { name: /^Priya Shah/ })).toBeNull()
+    expect(screen.getByRole("button", { name: "Here now: Sam Rivera" })).toBeTruthy()
+    unmount()
+    shell(<ActiveUsersBar users={[me]} />)
+    expect(document.querySelector("[data-presence-stack]")).toBeNull()
+  })
+
   it("says in each face's name whether they are editing, viewing or idle, and dots the idle one amber", () => {
     live()
     shell(<ActiveUsersBar users={[sam1, sam2, me]} />)

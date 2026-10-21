@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { BoardsPost } from "@/services/endpoints/boards";
 import { UserProfileInterface } from "@/types/user";
 import { BoardInfoResponse } from "@/types/board";
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
@@ -138,7 +139,7 @@ export default function BoardPage() {
     if (viewRecordedRef.current === boardId) return;
     viewRecordedRef.current = boardId;
     recordBoardView({
-      apiEndpoint: PostEndpointUrl.RecordBoardView,
+      apiEndpoint: BoardsPost.RecordBoardView,
       payload: { board_uuid: boardId },
       showErrorToast: false,
     }).catch(() => {
@@ -151,7 +152,7 @@ export default function BoardPage() {
       const finalTitle = newTitle.trim() || "Untitled board";
       if (!boardId || !boardInfo || finalTitle === boardInfo.board_title) return;
       updateBoard({
-        apiEndpoint: PostEndpointUrl.UpdateBoard,
+        apiEndpoint: BoardsPost.UpdateBoard,
         payload: { board_uuid: boardId, board_title: finalTitle },
       });
       dispatch(updateUserBoardTitle({ board_uuid: boardId, board_title: finalTitle }));

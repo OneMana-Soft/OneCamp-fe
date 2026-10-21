@@ -15,13 +15,17 @@ const parts = (container: HTMLElement) => {
 
 describe("the Activity feed's frame", () => {
   // Mentions had no toolbar row, so its rows started 36px higher than All's.
-  it("draws its toolbar row with or without anything in it, at one height", () => {
-    const bare = parts(render(<ActivityFeedFrame loading={false}>rows</ActivityFeedFrame>).container)
-    expect(bare.toolbar).toBeTruthy()
+  // A tab with nothing for it (Threads on a phone) left a blank band instead.
+  it("draws its toolbar row at one height whenever it holds something, and none when it holds nothing", () => {
+    const filtered = parts(render(<ActivityFeedFrame loading={false} filter={<span>who</span>}>rows</ActivityFeedFrame>).container)
+    expect(filtered.toolbar).toBeTruthy()
     cleanup()
     const full = parts(render(<ActivityFeedFrame loading={false} filter={<span>who</span>} actions={<button>act</button>}>rows</ActivityFeedFrame>).container)
-    expect(full.toolbar!.className).toBe(bare.toolbar!.className)
+    expect(full.toolbar!.className).toBe(filtered.toolbar!.className)
     expect(full.toolbar!.className).toContain("h-11")
+    cleanup()
+    const bare = parts(render(<ActivityFeedFrame loading={false}>rows</ActivityFeedFrame>).container)
+    expect(bare.toolbar).toBeNull()
   })
 
   // The empty and error states centred their column (mx-auto) while the
@@ -50,7 +54,7 @@ describe("the Activity feed's frame", () => {
     const quiet = render(<ActivityFeedFrame loading={false}>rows</ActivityFeedFrame>).container
     expect(quiet.querySelector("[data-feed-notice]")).toBeNull()
     cleanup()
-    const told = render(<ActivityFeedFrame loading={false} notice={<p>the drill ran</p>}>rows</ActivityFeedFrame>).container
+    const told = render(<ActivityFeedFrame loading={false} filter={<span>who</span>} notice={<p>the drill ran</p>}>rows</ActivityFeedFrame>).container
     const order = [...told.querySelector("[data-feed-frame]")!.children].map((c) => Object.keys((c as HTMLElement).dataset)[0])
     expect(order).toEqual(["feedToolbar", "feedNotice", "feedBody"])
   })

@@ -11,20 +11,21 @@ import { PreJoin } from "@/components/livekit/PreJoin"
 import { VideoConference } from "@/components/livekit/VideoConference"
 import { CallEndScreen } from "@/components/livekit/CallEndScreen"
 import { useCallLifecycle } from "@/components/livekit/useCallLifecycle"
-import { peopleInCall, type CallStateRead } from "@/components/livekit/callState"
+import { peopleInCall, peopleOfSession } from "@/components/livekit/callState"
+import { useCallSession } from "@/components/livekit/useCallSession"
 import { useCallChat } from "@/components/livekit/callChat"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { callStatePath } from "@/services/callService"
+import { callRefOf } from "@/services/callService"
 import type { CallTokenResponseInterface, RawUserDMInterface, UserProfileInterface } from "@/types/user"
 import type { ChannelInfoInterfaceResp } from "@/types/channel"
 
 export type CallKind = "channel" | "chat" | "group"
 
 /** Where each kind of call gets its token and records, and how it names the other side. */
-const CALLS: Record<CallKind, { token: PostEndpointUrl; start: PostEndpointUrl; stop: PostEndpointUrl; idField: string }> = {
+const CALLS: Record<CallKind, { token: string; start: string; stop: string; idField: string }> = {
   channel: {
     token: PostEndpointUrl.CreateChannelVideoCallToken,
     start: PostEndpointUrl.StartChannelCallRecording,
@@ -63,17 +64,6 @@ function usePlace(kind: CallKind, id: string, selfId?: string): { place?: string
   return { place: names.length ? `with ${names.join(", ")}` : undefined, isAdmin: true }
 }
 
-/**
- * The call as it is before joining (CALL-BUG-12): whether it is recorded or
- * captioned, and by whom, so the green room can say so before Join; who is in
- * it; and whether this person may remove others. Kept fresh while the green
- * room is open, since a recording can start while someone decides.
- */
-function useCallState(kind: CallKind, id: string, waiting: boolean): CallStateRead | undefined {
-  const { data } = useFetch<{ data?: CallStateRead }>(callStatePath(kind, id), undefined, { refreshInterval: waiting ? 10_000 : 0 }, OWN_ERRORS)
-  return data?.data
-}
-
 export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKind; id: string; onLeave: () => void; embedded?: boolean }) {
   const call = CALLS[kind]
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -92,7 +82,9 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
       [call, id],
     ),
   )
-  const state = useCallState(kind, id, life.phase === "prejoin" || life.phase === "joining")
+  const phase = life.phase === "prejoin" || life.phase === "joining" ? "waiting" : life.phase === "in-call" ? "in-call" : "over"
+  const read = useCallSession(callRefOf(kind, id, self.data?.data.user_uuid), phase)
+  const sessionId = read?.session?.id
   // The conversation the call belongs to, beside it: the dock's Chat.
   const chat = useCallChat(kind, id)
 
@@ -108,7 +100,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
     return <CallEndScreen call={life} onBack={onLeave} backLabel={backLabel} embedded={embedded} />
   }
   if (life.phase === "prejoin" || life.phase === "joining") {
-    const active = state?.active ?? live
+    const active = read ? read.live : live
     return (
       <PreJoin
         onJoin={life.join}
@@ -116,10 +108,11 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
         hueId={self.data?.data.user_uuid}
         place={place}
         live={!!active}
-        inCall={peopleInCall(state?.participants) ?? (kind === "channel" && active === false ? [] : undefined)}
-        recording={!!state?.recording?.on}
-        recordingBy={state?.recording?.on ? state.recording.by || null : null}
-        transcription={state?.transcription}
+        inCall={peopleInCall(peopleOfSession(read)) ?? (kind === "channel" && active === false ? [] : undefined)}
+        recording={!!read?.recording?.on}
+        recordingBy={read?.recording?.on ? read.recording.by || null : null}
+        transcription={read?.transcription}
+        refusal={read?.you?.refusal?.msg}
         joining={life.phase === "joining"}
         joinError={life.joinError}
         openUrl={typeof window === "undefined" ? undefined : new URL(`/app/meet/${kind === "channel" ? "ch" : kind === "chat" ? "chat" : "grp"}/${id}`, window.location.origin).href}
@@ -142,7 +135,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
       embedded={embedded}
       audio={life.choice.audio}
       video={life.choice.video}
-      canRemove={!!state?.can_remove}
+      sessionId={sessionId}
       transcriptionConfig={transcriptionConfig}
     />
   )

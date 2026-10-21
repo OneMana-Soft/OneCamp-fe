@@ -17,4 +17,3 @@ function subscribe(changed: () => void) {
 export function useSheetMode(): boolean {
   return React.useSyncExternalStore(subscribe, () => Boolean(query()?.matches), () => false)
 }
-

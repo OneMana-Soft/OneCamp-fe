@@ -7,7 +7,7 @@ pinTestClock()
 
 // SD-11: a message's full date and time was the browser's title on its clock:
 // an OS box a second late, never on keyboard focus. It is the toolbar's own
-// tip now (TIME_TIP): under the pointer after the tooltip delay, and at once
+// tip now (TIME_TIP, drawn by components/ui/tipLayer): under the pointer after the tooltip delay, and at once
 // while the row's own keyboard stop has the focus (the author's name, or a
 // continued row's gutter), which adds no tab stop of its own.
 
@@ -43,9 +43,11 @@ afterEach(cleanup)
 function expectTimeTip(time: HTMLElement, focusGroup: "name" | "gutter") {
   expect(time.dataset.tip).toBe(formatFullTimestamp(AT))
   expect(time.hasAttribute("title")).toBe(false)
-  expect(time.className).toContain("after:content-[attr(data-tip)]")
-  expect(time.className).toContain("hover:after:opacity-100")
-  expect(time.className).toContain(focusGroup === "name" ? "group-has-[:focus-visible]/name:after:opacity-100" : "group-focus-visible/gutter:after:opacity-100")
+  // Drawn by the page's one label chip (components/ui/tipLayer.tsx), which
+  // shows a tip-time under the pointer, and while its row's keyboard stop has
+  // the focus (tipLayer.test.tsx).
+  expect(time.className).toContain("tip-time")
+  expect(time.closest(focusGroup === "name" ? ".group\\/name" : ".group\\/gutter"), "inside its row's keyboard stop").not.toBeNull()
   expect(time.hasAttribute("tabindex")).toBe(false)
 }
 
@@ -100,7 +102,7 @@ describe("a message's full time", () => {
     const time = container.querySelector<HTMLElement>("time")!
     expectTimeTip(time, "gutter")
     // Held to its left edge, over the message, not off the row.
-    expect(time.className).toContain("after:left-0")
+    expect(time.className).toContain("tip-start")
     const gutter = time.parentElement!
     expect(gutter.className).toContain("group/gutter")
     expect(gutter.tabIndex).toBe(0)

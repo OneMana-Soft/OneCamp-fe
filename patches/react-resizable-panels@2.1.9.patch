@@ -1,0 +1,168 @@
+diff --git a/dist/react-resizable-panels.browser.cjs.js b/dist/react-resizable-panels.browser.cjs.js
+index 321d468be4e274f3994326093a075b43760c73d2..fd2a4ed5e3e7d5651738d00cd60a064efe5ea7bc 100644
+--- a/dist/react-resizable-panels.browser.cjs.js
++++ b/dist/react-resizable-panels.browser.cjs.js
+@@ -529,6 +529,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.browser.development.cjs.js b/dist/react-resizable-panels.browser.development.cjs.js
+index dc915a751c3d6296cdc6ea7aa1ce61a114881ebb..4754e32acb40a4d9422ad48c1d1af152f8f98463 100644
+--- a/dist/react-resizable-panels.browser.development.cjs.js
++++ b/dist/react-resizable-panels.browser.development.cjs.js
+@@ -535,6 +535,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.browser.development.esm.js b/dist/react-resizable-panels.browser.development.esm.js
+index 8a7d541e63311be99d4523de592305e785d9ae49..0fd20b78c3caa4da095107f7d148c57f5af20f38 100644
+--- a/dist/react-resizable-panels.browser.development.esm.js
++++ b/dist/react-resizable-panels.browser.development.esm.js
+@@ -512,6 +512,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.browser.esm.js b/dist/react-resizable-panels.browser.esm.js
+index 5a7297c9a54fb84fb629c014ce4f304f2d8a738e..576f5ddcd3f75aa6db30e232128d8d5a78058d37 100644
+--- a/dist/react-resizable-panels.browser.esm.js
++++ b/dist/react-resizable-panels.browser.esm.js
+@@ -506,6 +506,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.cjs.js b/dist/react-resizable-panels.cjs.js
+index a1808200101bb3bdd18b752be45a0846fdcaa4fe..202338b2a91fa723b536dd0d706b604890b95c32 100644
+--- a/dist/react-resizable-panels.cjs.js
++++ b/dist/react-resizable-panels.cjs.js
+@@ -531,6 +531,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.development.cjs.js b/dist/react-resizable-panels.development.cjs.js
+index 0e6d2598072792d5e243225caefb5deb59ac4058..cc1468072cbf6ff2197ae4863a29c5ed8f4bf55e 100644
+--- a/dist/react-resizable-panels.development.cjs.js
++++ b/dist/react-resizable-panels.development.cjs.js
+@@ -542,6 +542,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.development.esm.js b/dist/react-resizable-panels.development.esm.js
+index f112007074169f7296fff3a571eee9b8e91606ee..26960647f51fae4798476017974203e2d3351795 100644
+--- a/dist/react-resizable-panels.development.esm.js
++++ b/dist/react-resizable-panels.development.esm.js
+@@ -519,6 +519,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.development.node.cjs.js b/dist/react-resizable-panels.development.node.cjs.js
+index 71658134f48be1cb2cdede55aa28566dd6833c1d..b8418ddc030fe6e1d8ae13818cb4c5077f6677bf 100644
+--- a/dist/react-resizable-panels.development.node.cjs.js
++++ b/dist/react-resizable-panels.development.node.cjs.js
+@@ -505,6 +505,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.development.node.esm.js b/dist/react-resizable-panels.development.node.esm.js
+index 9e697d30c193ed4ec8e3817061e4b934aedd4e86..e6de6fe8cd6f1424f1b46f400efbc452db7c7b47 100644
+--- a/dist/react-resizable-panels.development.node.esm.js
++++ b/dist/react-resizable-panels.development.node.esm.js
+@@ -482,6 +482,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.esm.js b/dist/react-resizable-panels.esm.js
+index e8ea3b446bdf797b6c9d727684935690ffb545f2..4d20ea52f77cf6370fe1a228f8f3c44ddd270630 100644
+--- a/dist/react-resizable-panels.esm.js
++++ b/dist/react-resizable-panels.esm.js
+@@ -508,6 +508,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.node.cjs.js b/dist/react-resizable-panels.node.cjs.js
+index 265e6923b899149e7c5a7dd8b75921035cee39eb..9e947336f088b3eea0550b87dda6b03ad001a2d5 100644
+--- a/dist/react-resizable-panels.node.cjs.js
++++ b/dist/react-resizable-panels.node.cjs.js
+@@ -494,6 +494,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;
+diff --git a/dist/react-resizable-panels.node.esm.js b/dist/react-resizable-panels.node.esm.js
+index eae87aacd594dbc7950e63b7634881046b0a121b..19c82e31a053a3fa9c2f04c9ae737fc86308071c 100644
+--- a/dist/react-resizable-panels.node.esm.js
++++ b/dist/react-resizable-panels.node.esm.js
+@@ -471,6 +471,9 @@ function handlePointerMove(event) {
+     updateResizeHandlerStates("up", event);
+   }
+   if (!isPointerDown) {
++    // OneCamp: global cursor styles off, a bare move has nothing to do (a
++    // press finds its handle itself); it measured every handle, every move.
++    if (!enabled) return;
+     const {
+       target
+     } = event;

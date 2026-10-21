@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useState, type ReactNode } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { useDispatch } from "react-redux";
 
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,10 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { ACTION_TIP } from "@/components/MessageDesktopHover/actionTip";
 
 import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
+import { FollowMenuItem } from "@/components/conversation/FollowMenuItem";
+import { PinMenuItem } from "@/components/conversation/pins/PinMenuItem";
+import { MarkUnreadMenuItem } from "@/components/conversation/MarkUnreadMenuItem";
 import { AddReactionTrigger } from "@/components/reactionPicker/AddReactionTrigger";
-import { SaveToMemoryButton } from "@/components/ai/SaveToMemoryButton";
 import { SaveForLaterButton } from "@/components/later/SaveForLater";
 import { messageLink } from "@/lib/utils/later";
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
@@ -19,6 +21,11 @@ import { noteReaction, quickReactions, readRecentReactions, type QuickReaction }
 
 import { openUI } from "@/store/slice/uiSlice";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
+
+// Save to memory and its expiry field are fetched when the More menu first
+// draws them, not with every message (they were 23 KB of each conversation's
+// first screen).
+const SaveToMemoryButton = lazy(() => import("@/components/ai/SaveToMemoryButton").then((m) => ({ default: m.SaveToMemoryButton })));
 
 interface MessageDesktopHoverOptionProps {
     setIsDropdownOpen: (open: boolean) => void;
@@ -40,7 +47,6 @@ interface MessageDesktopHoverOptionProps {
     // onTranslate, when provided, translates this message in place (the surface
     // owns the translation state + inline render).
     onTranslate?: () => void;
-    getReplyNotification?: () => void;
     setEmojiPopupState?: (open: boolean) => void;
     editMessage: () => void;
     deleteMessage: () => void;
@@ -101,7 +107,6 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     authorName,
     deleteMessage,
     editMessage,
-    getReplyNotification,
     onReply,
     onTranslate,
     onReactionSelect,
@@ -187,13 +192,14 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
 
     // Save to memory, in the More menu: channel posts, group chats and DMs,
     // wherever the memory layer has a scope and a source for it.
-    const memorySlot = channelUUID && commentUUID ? (
+    const memoryItem = channelUUID && commentUUID ? (
         <SaveToMemoryButton asMenuItem messageText={messageText} channelUUID={channelUUID} sourceType="comment" sourceUUID={commentUUID} />
     ) : channelUUID && postUUID ? (
         <SaveToMemoryButton asMenuItem messageText={messageText} channelUUID={channelUUID} sourceType="post" sourceUUID={postUUID} />
     ) : (groupUUID || chatGrpID) && chatMessageID ? (
         <SaveToMemoryButton asMenuItem messageText={messageText} chatGrpID={groupUUID || chatGrpID} sourceType="chat" sourceUUID={chatMessageID} />
     ) : null;
+    const memorySlot = memoryItem ? <Suspense fallback={null}>{memoryItem}</Suspense> : null;
 
     return (
         // A floating toolbar on the pop surface (design v3 chat, C19): r10 at
@@ -246,7 +252,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 setIsDropdownOpen={setIsDropdownOpen}
                 deleteMessage={deleteMessage}
                 editMessage={editMessage}
-                getReplyNotification={getReplyNotification}
+                followSlot={laterID ? <FollowMenuItem root={laterID} /> : undefined}
                 onMakeTask={onMakeTask}
                 onReply={onReply}
                 onForward={postUUID || chatMessageID ? handleForward : undefined}
@@ -255,6 +261,8 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 laterTarget={laterTarget}
                 messageText={messageText}
                 memorySlot={memorySlot}
+                pinSlot={laterID ? <PinMenuItem messageId={laterID} /> : undefined}
+                unreadSlot={laterID ? <MarkUnreadMenuItem messageId={laterID} /> : undefined}
                 triggerClassName={TOOL_BUTTON}
             />
         </div>

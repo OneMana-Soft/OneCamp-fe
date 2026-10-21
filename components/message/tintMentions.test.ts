@@ -75,3 +75,22 @@ describe("the mention chip's style", () => {
     expect(css).toMatch(/\.chat-mention\.mention-agent \{[^}]*var\(--agent-muted\)/)
   })
 })
+
+// A room's mention and a team's (chat P3): their own chips, never a person's;
+// a room's reaches every reader but its writer.
+describe("rooms and teams", () => {
+    it("draws a room's chip and a team's as theirs, with no one's card", async () => {
+        const { mentionKind, mentionUserId } = await import("./tintMentions")
+        expect(mentionKind("broadcast:channel", { me: "u1" })).toBe("room")
+        expect(mentionKind("group:t-1", { me: "u1" })).toBe("team")
+        expect(mentionUserId("broadcast:here")).toBe("")
+        expect(mentionUserId("group:t-1")).toBe("")
+    })
+    it("reads a room's mention as for every reader but its writer", async () => {
+        const { mentionsUser } = await import("./tintMentions")
+        const html = '<p><span data-type="mention" data-id="broadcast:here">@here</span></p>'
+        expect(mentionsUser(html, "u1", "u2")).toBe(true)
+        expect(mentionsUser(html, "u2", "u2")).toBe(false)
+        expect(mentionsUser('<p><span data-type="mention" data-id="group:t-1">@design</span></p>', "u1", "u2")).toBe(false)
+    })
+})

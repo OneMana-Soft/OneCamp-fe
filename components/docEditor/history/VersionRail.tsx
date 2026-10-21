@@ -9,7 +9,8 @@
  */
 
 import * as React from "react"
-import { History, Pin } from "@/lib/icons"
+import { Button } from "@/components/ui/button"
+import { ChevronDown, History, Loader2, Pin } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
@@ -27,11 +28,13 @@ interface VersionRailProps {
   onSelect(id: string): void
   /** The phone's list: a row opens the version. */
   onOpen?(id: string): void
+  /** Earlier versions: the next page, while there is one. */
+  more?: { onMore(): void; loading: boolean; failed: string | null }
   /** Focus the selected row once the list is there (the sheet opening). */
   autoFocus?: boolean
 }
 
-export function VersionRail({ list, loading, failed, onRetry, selectedId, onSelect, onOpen, autoFocus }: VersionRailProps) {
+export function VersionRail({ list, loading, failed, onRetry, selectedId, onSelect, onOpen, autoFocus, more }: VersionRailProps) {
   const versions = React.useMemo(() => list?.versions ?? [], [list])
   const days = React.useMemo(() => byDay(versions), [versions])
   const boxRef = React.useRef<HTMLDivElement>(null)
@@ -110,8 +113,21 @@ export function VersionRail({ list, loading, failed, onRetry, selectedId, onSele
           ))}
         </div>
       ))}
+      {more ? (
+        <div className="px-1 pt-2">
+          <Button variant="ghost" size="sm" className="w-full justify-center gap-1.5 text-ink-2 max-md:h-11" onClick={more.onMore} disabled={more.loading} data-history-more="">
+            {more.loading ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <ChevronDown className="size-3.5" aria-hidden="true" />}
+            Show earlier versions
+          </Button>
+          {more.failed ? (
+            <p role="alert" className="px-2 pt-1 text-meta text-danger-ink">
+              {more.failed}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <p className="px-3 pb-2 pt-4 text-meta text-ink-3">
-        Every version is kept for a day, then one an hour for a week, then one a day. Named and pinned versions stay.
+        Every version is kept for a day, then one an hour for a week, then one a day, for as long as the workspace keeps history. Named and pinned versions stay.
       </p>
     </div>
   )

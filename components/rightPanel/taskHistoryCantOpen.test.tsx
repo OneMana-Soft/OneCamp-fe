@@ -39,7 +39,7 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false, isTablet: false }) }))
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
+vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<object>()), useMqtt: () => ({ connectionState: { isConnected: true } }) }))
 // The description's editor toolbar, as in components/textInput/noWriteOnOpen.test.tsx.
 vi.mock("@/components/minimal-tiptap/components/section/two", () => ({ SectionTwo: () => null }))
 vi.mock("@/components/minimal-tiptap/components/section/four", () => ({ SectionFour: () => null }))
@@ -52,6 +52,7 @@ const { READ_FAILURE_BEAT_MS } = await import("@/lib/http/loadFailure")
 const { default: store } = await import("@/store/store")
 const { default: TaskInfoPanel } = await import("@/components/rightPanel/taskInfoPanel")
 const { GetEndpointUrl } = await import("@/services/endPoints")
+const { ChatGet } = await import("@/services/endpoints/chat")
 const { TooltipProvider } = await import("@/components/ui/tooltip")
 
 const TASK = "7a6b5c4d-0000-4000-8000-000000000031"
@@ -88,7 +89,7 @@ const task = {
 let historyStatus = 404
 /** The server: a page of earlier history fails with historyStatus; every other read never answers, so what shows is the cached task. */
 const adapter: AxiosAdapter = (config: InternalAxiosRequestConfig) => {
-  if (!String(config.url).includes(`${GetEndpointUrl.GetTaskActivityList}/`)) return new Promise(() => {})
+  if (!String(config.url).includes(`${ChatGet.GetTaskActivityList}/`)) return new Promise(() => {})
   const response = { status: historyStatus, statusText: "", data: { msg: "the task isn't there" }, headers: {}, config }
   return Promise.reject(new AxiosError(`Request failed with status code ${historyStatus}`, "ERR_BAD_REQUEST", config, null, response))
 }

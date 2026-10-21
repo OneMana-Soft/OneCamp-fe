@@ -13,9 +13,12 @@ import {
   previewParts,
   priorityGroupOf,
   sentenceOf,
+  sharedDocs,
+  sharesWords,
   timeUnderDay,
 } from "@/lib/activity/notification"
 import { KIND_BADGE_TONE } from "@/components/ui/kindBadge"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 const post = (over: Record<string, unknown> = {}) => ({
   post_uuid: "p1",
@@ -109,6 +112,72 @@ describe("aggregate (A6)", () => {
     const rows = aggregate([inThread("2026-10-11T10:00:00Z"), inThread("2026-10-11T09:00:00Z"), inThread("2026-10-11T08:00:00Z")], activityKey)
     expect(rows).toHaveLength(1)
     expect(collapsedVerb(rows[0])).toBe("mentioned you 3 times in")
+  })
+})
+
+describe("one person's shares fold into one row (STEP4 #6)", () => {
+  const share = (n: number, by: string, at: string, over: Record<string, unknown> = {}) =>
+    ({
+      activity_type: "NOTICE",
+      time: at,
+      priority: "normal",
+      actor_kind: "person",
+      notice: {
+        id: `n-${n}`,
+        kind: "doc.shared",
+        resource_kind: "doc",
+        resource_uuid: `d-${n}`,
+        title: `Doc ${n}`,
+        can_open: true,
+        reason: "subject",
+        actor: { user_uuid: by, user_full_name: by },
+        data: { level: "edit" },
+        created_at: at,
+        ...over,
+      },
+    }) as unknown as UnifiedActivityItem
+  pinTestClock()
+  const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
+
+  // The demo's Inbox was twelve rows that said the same thing ("shared …
+  // With you. You can edit it."), Maya's and Jonas's interleaved.
+  it("folds each person's shares within a day, interleaved or not", () => {
+    const rows = aggregate([share(1, "jonas", at(0)), share(2, "maya", at(0)), share(3, "jonas", at(1)), share(4, "maya", at(1)), share(5, "jonas", at(2))], activityKey)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ collapsed: "shares" })
+    expect(rows[0].others.map((o) => o.notice?.id)).toEqual(["n-3", "n-5"])
+    expect(rows[1].others.map((o) => o.notice?.id)).toEqual(["n-4"])
+  })
+
+  it("says how many, and names the first three", () => {
+    const titles = ["Press kit notes", "Spec: Saved views", "Specs", "Roadmap", "Product"]
+    const rows = aggregate(titles.map((title, i) => share(i, "jonas", at(i), { title })), activityKey)
+    expect(sharesWords(rows[0])).toEqual({ place: "5 docs", preview: "Press kit notes, Spec: Saved views, Specs and 2 more" })
+    const two = aggregate(titles.slice(0, 2).map((title, i) => share(i, "jonas", at(i), { title })), activityKey)
+    expect(sharesWords(two[0])).toEqual({ place: "2 docs", preview: "Press kit notes and Spec: Saved views" })
+  })
+
+  it("lists each doc it folds: its name, where it opens and what you can do", () => {
+    const rows = aggregate([share(1, "jonas", at(0), { title: "Roadmap" }), share(2, "jonas", at(1), { title: "Specs", data: { level: "comment" } })], activityKey)
+    expect(sharedDocs(rows[0], activityKey)).toEqual([
+      { key: activityKey(rows[0].item), title: "Roadmap", href: "/app/doc/d-1", level: "Can edit" },
+      { key: activityKey(rows[0].others[0]), title: "Specs", href: "/app/doc/d-2", level: "Can comment" },
+    ])
+  })
+
+  it("names only the docs the reader can open now, and counts the rest", () => {
+    const rows = aggregate([share(1, "jonas", at(0), { title: "Roadmap" }), share(2, "jonas", at(1), { title: undefined, can_open: false })], activityKey)
+    expect(sharesWords(rows[0])).toEqual({ place: "2 docs", preview: "Roadmap and 1 more" })
+    expect(sharedDocs(rows[0], activityKey)[1]).toMatchObject({ title: "a page you can't open", href: null })
+  })
+
+  it("keeps a share from the day before, another kind of notice, and one with no sharer apart", () => {
+    const rows = aggregate(
+      [share(1, "jonas", at(0)), share(2, "jonas", at(60 * 25)), share(3, "jonas", at(3), { kind: "doc.mentioned" }), share(4, "", at(4), { actor: undefined })],
+      activityKey,
+    )
+    expect(rows).toHaveLength(4)
+    expect(rows.every((r) => !r.collapsed)).toBe(true)
   })
 })
 

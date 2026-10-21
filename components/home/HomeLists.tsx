@@ -21,7 +21,7 @@ import { CheckSquare, Columns2, FileText, MessageCircle, LayoutTemplate } from "
 import { paneFromHref } from "@/lib/split"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { cn } from "@/lib/utils/helpers/cn"
-import { openInSplit } from "@/store/slice/splitSlice"
+import { openInSplit, selectSplitOn } from "@/store/slice/splitActions"
 import { openUI } from "@/store/slice/uiSlice"
 import { useModKey } from "@/hooks/useModKey"
 import type { RootState } from "@/store/store"
@@ -30,13 +30,16 @@ import { RecentMark, recentHue } from "@/components/ui/graphics/recentMark"
 export function JumpBackIn({ className }: { className?: string }) {
   const dispatch = useDispatch()
   const items = useSelector((s: RootState) => s.recentItems.items)
+  // Offered only where views can sit side by side: on a phone or a tablet it
+  // opened a pane nobody could see.
+  const splitOn = useSelector(selectSplitOn)
   return (
     <section aria-labelledby="recent-title" className={className} data-jump-back-in="">
       <HubSectionHeader id="recent-title" title="Jump back in" action={<Link href="/app/search">Search</Link>} />
       {items.length > 0 ? (
         <div className="-mx-2.5">
           {items.slice(0, 6).map((item) => {
-            const pane = paneFromHref(item.path)
+            const pane = splitOn ? paneFromHref(item.path) : null
             return (
               <HubRow
                 key={`${item.type}-${item.id}`}

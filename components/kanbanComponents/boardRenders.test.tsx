@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Profiler, forwardRef, type ComponentProps } from "react"
 
 // Counts how often each card renders: the measure of a long board's cost.
@@ -96,5 +96,46 @@ describe("a board of 250 tasks", () => {
     )
     expect(onDrop).toBeLessThan(10)
     expect(total()).toBeLessThanOrEqual(2)
+  })
+})
+
+// Board columns in the project's order (columnDrag): the grip and the menu's
+// moves cost a card nothing, and a column moved renders none of its cards.
+describe("a board of 250 tasks its admin may reorder", () => {
+  const ordering = { order: VISIBLE.map((v) => v.value), closed: (v: string) => v === "done", onChange: vi.fn() }
+
+  it("still renders only the cards beside the line when a card is picked up", () => {
+    const { container } = render(<TaskBoard columns={BIG} visible={VISIBLE} canDrag={() => true} onMove={() => {}} boardKey="renders" columnOrder={ordering} />)
+    expect(total()).toBe(120)
+    renders.clear()
+    const card = container.querySelector<HTMLElement>('[data-task-id="todo-0"]')!
+    act(() => card.focus())
+    act(() => void fireEvent.keyDown(card, { key: " " }))
+    act(() => void fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" }))
+    expect(total()).toBeLessThanOrEqual(6)
+  })
+
+  it("renders no card while a column is picked up and moved, nor when the new order arrives", () => {
+    const { rerender } = render(<TaskBoard columns={BIG} visible={VISIBLE} canDrag={() => true} onMove={() => {}} boardKey="renders" columnOrder={ordering} />)
+    renders.clear()
+    const grip = screen.getByRole("button", { name: "Move the inProgress column" })
+    act(() => grip.focus())
+    fireEvent.keyDown(grip, { key: " " })
+    fireEvent.keyDown(grip, { key: "ArrowLeft" })
+    fireEvent.keyDown(grip, { key: " " })
+    expect(ordering.onChange).toHaveBeenCalledWith(["inProgress", "todo", "inReview", "done"])
+    expect(total()).toBe(0)
+    const moved = [VISIBLE[1], VISIBLE[0], VISIBLE[2], VISIBLE[3]]
+    rerender(
+      <TaskBoard
+        columns={BIG}
+        visible={moved}
+        canDrag={() => true}
+        onMove={() => {}}
+        boardKey="renders"
+        columnOrder={{ ...ordering, order: moved.map((v) => v.value) }}
+      />,
+    )
+    expect(total()).toBe(0)
   })
 })

@@ -1,22 +1,36 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { ActivityCard } from "@/components/activity/activityCard"
 import { ActivityFeedFrame } from "@/components/activity/activityFeedFrame"
 import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activity"
+import type { UserProfileInterface } from "@/types/user"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { useFetch } from "@/hooks/useFetch"
+import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { Button } from "@/components/ui/button"
 import { HubEmpty, HubError } from "@/components/activity/hubEmpty"
 import { HubSegmented } from "@/components/activity/hubFrame"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { actorFilters, matchesActor, parseActorFilter, type ActorFilter } from "@/lib/activity/actor"
+import { activityHref } from "@/lib/activity/activityHref"
 import { activityKey, collapseEchoes, hasSubject, inboxFeedKey, INBOX_PAGE_SIZE, mergeActivityPages, olderPageCursor } from "@/lib/activity/feedPages"
 import { isMention } from "@/lib/activity/notice"
 import { aggregate, dayGroupOf, priorityGroupOf, PRIORITY_GROUP_ORDER, type FeedEntry } from "@/lib/activity/notification"
+import { panelTargetOf, showsTarget } from "@/lib/activity/panelTarget"
+import { useInboxListKeys, type InboxPane } from "@/components/activity/useInboxListKeys"
+import { useInboxDensity } from "@/components/activity/inboxDensity"
 import { isUnread } from "@/lib/activity/readState"
+import { cn } from "@/lib/utils/helpers/cn"
+
+/** Where each viewer's row size is kept (components/activity/inboxDensity). */
+export { INBOX_DENSITY_KEY } from "@/components/activity/inboxDensity"
+
+export type { InboxPane } from "@/components/activity/useInboxListKeys"
+
+/** A feed entry's key: its row's data-feed-key. */
+const entryKey = (e: FeedEntry) => e.key
 
 /** A row of the feed list: a group header (A7, A8) or an entry. */
 type FeedListRow = { kind: "header"; label: string; unread: number } | { kind: "entry"; entry: FeedEntry; first: boolean }
@@ -61,6 +75,13 @@ const wantedFor = (view: FeedView) => (view === "priority" ? 1 : PAGE_SIZE)
  * said "No mentions yet" to everybody. Now every tab filters the items the
  * server built, so a mention is the same item, and the same row, wherever it
  * shows.
+ *
+ * READING BESIDE THE LIST (STEP4 #6). With a pane (any screen wider than a
+ * phone), a row that is a thread, a task or an event opens in the right
+ * panel and the Inbox stays: the row the panel shows is chosen. J and K (or
+ * the arrows) move through the rows, and while the panel shows one of them
+ * it follows; Enter opens the row, U marks it read or unread. Compact draws
+ * one line a row, chosen per viewer, never on a phone.
  */
 export function ActivityFeedList({
     view,
@@ -70,6 +91,7 @@ export function ActivityFeedList({
     onToggleRead,
     onUnreadKeys,
     onShowAll,
+    pane,
 }: {
     view: FeedView
     onViewAll?: () => void
@@ -82,11 +104,25 @@ export function ActivityFeedList({
     onUnreadKeys?: (keys: string[]) => void
     /** Turn the unread-only switch off. */
     onShowAll?: () => void
+    /** The reading pane, where the screen has room for it. */
+    pane?: InboxPane
 }) {
     const searchParams = useSearchParams()
     const router = useRouter()
     const pathname = usePathname()
     const aiAvailable = useAIAvailable()
+    const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data?.user_uuid
+    const { compact, densitySwitch } = useInboxDensity()
+    // Folds of shares that show their docs.
+    const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+    const toggleExpanded = useCallback((key: string) => {
+        setExpanded((prev) => {
+            const next = new Set(prev)
+            if (next.has(key)) next.delete(key)
+            else next.add(key)
+            return next
+        })
+    }, [])
     // People, agents or apps: kept in the URL so a reload or a shared link
     // shows the same slice of the feed.
     const who: ActorFilter = parseActorFilter(searchParams.get("who"))
@@ -163,6 +199,22 @@ export function ActivityFeedList({
         onUnreadKeys?.(unreadSig ? unreadSig.split(",") : [])
     }, [unreadSig, onUnreadKeys])
 
+    // The reading pane: where each row opens beside the list (null for a fold
+    // or a page the panel can't hold), and which row it shows now.
+    const targetOf = useCallback((e: FeedEntry) => (e.collapsed === "shares" ? null : panelTargetOf(activityHref(e.item, me), me)), [me])
+    const entries = useMemo(() => rows.flatMap((r) => (r.kind === "entry" ? [r.entry] : [])), [rows])
+    const box = useRef<HTMLDivElement>(null)
+    // J, K and U (useInboxListKeys): every tab of the Inbox walks its rows alike.
+    useInboxListKeys({
+        box,
+        entries,
+        keyOf: entryKey,
+        pane,
+        targetOf,
+        isUnread: (e) => [e.item, ...e.others].some(unreadOf),
+        setRead: onToggleRead ? (e, read) => onToggleRead([e.item, ...e.others].map(activityKey), read) : undefined,
+    })
+
     // What this view is looking for, and how many pages it has pulled for it.
     // Held against the view and filter it was asked under, so a new view or
     // filter starts afresh in the same render rather than one effect later.
@@ -211,6 +263,7 @@ export function ActivityFeedList({
     return (
         <ActivityFeedFrame
             filter={whoFilter}
+            actions={densitySwitch}
             // The first page is on its way, or a filtered view is still looking
             // deeper for its first row: a premature "all caught up" would be a claim.
             loading={!isError && visible.length === 0 && ((isLoading && loaded.length === 0) || searching)}
@@ -249,11 +302,13 @@ export function ActivityFeedList({
                 ) : null
             }
         >
+            <div ref={box} data-inbox-list="" data-density={compact ? "compact" : "comfortable"} className="h-full">
             <VirtualInfiniteScroll
                 items={rows}
                 renderItem={(row: FeedListRow) =>
                     row.kind === "header" ? (
-                        <div data-feed-group="" className="flex h-7 items-center pl-14 pr-4 text-meta font-medium text-ink-3">
+                        // The header's name starts where the rows' words do: past a 32px lead, or Compact's 24.
+                        <div data-feed-group="" className={cn("flex h-7 items-center pr-4 text-meta font-medium text-ink-3", compact ? "pl-12" : "pl-14")}>
                             <span className="flex-1">{row.label}</span>
                             {row.unread > 0 ? <span className="font-book tabular-nums">{row.unread} unread</span> : null}
                         </div>
@@ -265,6 +320,11 @@ export function ActivityFeedList({
                             underDay={view !== "priority"}
                             unread={read ? [row.entry.item, ...row.entry.others].some(unreadOf) : undefined}
                             onToggleRead={onToggleRead}
+                            compact={compact}
+                            onOpenInPanel={pane?.open}
+                            open={pane ? showsTarget(pane.panel, targetOf(row.entry)) : false}
+                            expanded={expanded.has(row.entry.key)}
+                            onToggleExpanded={() => toggleExpanded(row.entry.key)}
                         />
                     )
                 }
@@ -282,6 +342,7 @@ export function ActivityFeedList({
                 }
                 keyExtractor={(row: FeedListRow) => (row.kind === "header" ? `h:${row.label}` : row.entry.key)}
             />
+            </div>
         </ActivityFeedFrame>
     )
 }

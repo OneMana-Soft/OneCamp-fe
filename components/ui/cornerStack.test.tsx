@@ -110,7 +110,8 @@ describe("the corner stack", () => {
   })
 
   it("puts the toasts above whatever the right corner holds", () => {
-    expect(read("components/ui/toast.tsx")).toContain("sm:bottom-[calc(1.5rem+var(--corner-right-h,0px))]")
+    // Above the corner, or above a call's dock while one is on screen (max() with --call-dock-floor).
+    expect(read("components/ui/toast.tsx")).toContain("sm:bottom-[max(calc(1.5rem+var(--corner-right-h,0px)),var(--call-dock-floor,0px))]")
     expect(read("components/ui/CornerStack.tsx")).toContain("--corner-right-h")
   })
 })

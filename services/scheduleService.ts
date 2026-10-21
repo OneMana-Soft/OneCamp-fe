@@ -8,7 +8,7 @@
  */
 
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { AiPost } from "@/services/endpoints/ai"
 import { browserTZ } from "@/lib/utils/timeZone"
 
 export interface ScheduleParticipant {
@@ -48,7 +48,7 @@ export async function proposeSchedule(input: ScheduleProposeInput): Promise<Sche
   const utc_offset_mins = -new Date().getTimezoneOffset()
   // The zone itself, so business hours follow its clock across a daylight
   // saving change; the offset is only the older server's fallback (CAL-BUG-12).
-  const res = await axiosInstance.post(PostEndpointUrl.AISchedulePropose, {
+  const res = await axiosInstance.post(AiPost.AISchedulePropose, {
     ...input,
     utc_offset_mins,
     timezone: browserTZ(),
@@ -81,7 +81,7 @@ interface ScheduleConfirmResult {
 }
 
 export async function confirmSchedule(input: ScheduleConfirmInput): Promise<ScheduleConfirmResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIScheduleConfirm, input)
+  const res = await axiosInstance.post(AiPost.AIScheduleConfirm, input)
   return res.data?.data as ScheduleConfirmResult
 }
 
@@ -115,7 +115,7 @@ export async function proposeReschedule(
   opts: RescheduleInput = {},
 ): Promise<RescheduleResult> {
   const utc_offset_mins = -new Date().getTimezoneOffset()
-  const res = await axiosInstance.post(PostEndpointUrl.AIScheduleReschedule, {
+  const res = await axiosInstance.post(AiPost.AIScheduleReschedule, {
     event_uuid: eventUUID,
     utc_offset_mins,
     timezone: browserTZ(),
@@ -147,7 +147,7 @@ interface ConfirmRescheduleInput {
 // confirmReschedule moves the event to the chosen slot through the normal
 // calendar update path (creator-only, enforced server-side).
 export async function confirmReschedule(input: ConfirmRescheduleInput): Promise<ScheduleConfirmResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIScheduleRescheduleConfirm, input)
+  const res = await axiosInstance.post(AiPost.AIScheduleRescheduleConfirm, input)
   return res.data?.data as ScheduleConfirmResult
 }
 
@@ -165,7 +165,7 @@ export interface MeetingPrepResult {
 // event. Read-only; the server grounds the brief only in content the requester
 // can already see.
 export async function meetingPrep(eventUUID: string): Promise<MeetingPrepResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.AISchedulePrep, { event_uuid: eventUUID })
+  const res = await axiosInstance.post(AiPost.AISchedulePrep, { event_uuid: eventUUID })
   return (
     res.data?.data ?? {
       enabled: false,

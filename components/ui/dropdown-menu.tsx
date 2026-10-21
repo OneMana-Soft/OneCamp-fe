@@ -43,18 +43,23 @@ const DropdownMenuSubTrigger = React.forwardRef<
 DropdownMenuSubTrigger.displayName =
   DropdownMenuPrimitive.SubTrigger.displayName
 
+// A menu and a side menu. At most the room left below (or above) it, and
+// scrolling past that: on a 640px phone the board's Display menu ran 140px
+// off the screen, and its last rows (Done, Manage statuses…) could not be reached.
+const MENU = [
+  "max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overscroll-contain",
+  "z-[var(--z-dropdown)] min-w-[8rem] overflow-x-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-overlay pointer-events-auto",
+  "duration-[180ms] ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
+]
+
+// A side menu is portalled: inside its menu it was clipped away (menuPortalGuard.test.ts).
 const DropdownMenuSubContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.SubContent
-    ref={ref}
-    className={cn(
-        "z-[var(--z-dropdown)] min-w-[8rem] overflow-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-overlay pointer-events-auto duration-[180ms] ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
-      className
-    )}
-    {...props}
-  />
+>(({ className, collisionPadding = 8, ...props }, ref) => (
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.SubContent ref={ref} collisionPadding={collisionPadding} className={cn(MENU, className)} {...props} />
+  </DropdownMenuPrimitive.Portal>
 ))
 DropdownMenuSubContent.displayName =
   DropdownMenuPrimitive.SubContent.displayName
@@ -68,15 +73,7 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       collisionPadding={collisionPadding}
-      className={cn(
-        // At most the room left below (or above) it, and scrolling past that:
-        // on a 640px phone the board's Display menu ran 140px off the screen,
-        // and its last rows (Done, Manage statuses…) could not be reached.
-        "max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overscroll-contain",
-        "z-[var(--z-dropdown)] min-w-[8rem] overflow-x-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-overlay pointer-events-auto",
-        "duration-[180ms] ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
-        className
-      )}
+      className={cn(MENU, className)}
       {...props}
     />
   </DropdownMenuPrimitive.Portal>

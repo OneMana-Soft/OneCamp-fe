@@ -17,6 +17,10 @@ import type { Locator, Page } from "@playwright/test"
  *     a sheet of its own over it, whose scrim then lies over the one below.
  *   - As tall as what it holds: no empty slab under the content.
  *   - Nothing cut off at a scroller's edge: a field's 4px halo, a focus ring.
+ *   - Nothing squashed: a section of the sheet stands at its own height, and
+ *     the body scrolls past it. A flex column that shrinks its children to
+ *     fit cut the share sheet's General access to a 12px sliver on a phone
+ *     held sideways (DESIGN-BUILD-3, 20 Oct 2026).
  *   - Nothing written on it by script that outlives its moment (vaul's input
  *     repositioning left a height and a bottom once the keyboard went).
  */
@@ -41,6 +45,8 @@ export interface SheetLayout {
   clipped: string[]
   /** What script has written on the sheet's own height and bottom. */
   inline: { height: string; bottom: string }
+  /** Boxes a flex column squeezed below their content: what they hold, in the flow, runs past their bottom (cut off or spilling). */
+  squashed: string[]
 }
 
 /** The sheet on top: the last one open. */
@@ -131,6 +137,23 @@ export async function sheetLayout(sheet: Locator): Promise<SheetLayout> {
         if (short < -0.5) clipped.push(`${name(f)} by ${e.by}: ${Math.round(short)}px`)
       }
     }
+    const squashed: string[] = []
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>("*"))) {
+      const parent = el.parentElement
+      if (!parent || field(el)) continue
+      const s = getComputedStyle(el)
+      const p = getComputedStyle(parent)
+      if (!/flex/.test(p.display) || !p.flexDirection.startsWith("column") || s.display === "none" || s.display === "contents") continue
+      if (scrolls(s.overflowY) || (s.webkitLineClamp && s.webkitLineClamp !== "none")) continue
+      // Its own boxes in the flow, not a positioned one or a control's 44px reach (a ::before).
+      const bottom = el.getBoundingClientRect().bottom
+      const past = Array.from(el.children).filter((c) => {
+        const cs = getComputedStyle(c)
+        const r = c.getBoundingClientRect()
+        return cs.position !== "absolute" && cs.position !== "fixed" && r.height > 0 && r.bottom > bottom + 2
+      })
+      if (past.length) squashed.push(`${name(el)}: ${past.slice(0, 2).map((c) => `${name(c)} ${Math.round(c.getBoundingClientRect().bottom - bottom)}px past`).join(", ")}`)
+    }
     const wrapper = document.querySelector<HTMLElement>("[data-vaul-drawer-wrapper]")
     const cap = parseFloat(getComputedStyle(root).maxHeight)
     return {
@@ -145,6 +168,7 @@ export async function sheetLayout(sheet: Locator): Promise<SheetLayout> {
       pageScaled: !!wrapper && /scale\(/.test(wrapper.style.transform),
       clipped,
       inline: { height: root.style.height, bottom: root.style.bottom },
+      squashed,
     }
   })
 }

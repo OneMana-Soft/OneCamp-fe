@@ -15,7 +15,7 @@ import { useConfigSwitch } from "@/components/admin/ai/aiSwitch"
 import { SelfTestRows, useSelfTest } from "@/components/admin/ai/AISelfTestSection"
 import AgentActiveWorkPanel from "@/components/admin/AgentActiveWorkPanel"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { getAIUsage, setAIEnabled, type AIConfig, type AIUsage } from "@/services/aiModelService"
 import { getAgentInventory } from "@/services/agentService"
 import type { AIActivityItem } from "@/services/aiActivityService"
@@ -129,7 +129,7 @@ export default function OverviewTab({ onOpenTab }: { onOpenTab?: (t: AISubTab) =
       live = false
     }
   }, [])
-  const activity = useFetch<{ data: AIActivityItem[] }>(`${GetEndpointUrl.GetAIActivity}?limit=200`)
+  const activity = useFetch<{ data: AIActivityItem[] }>(`${AdminGet.GetAIActivity}?limit=200`)
   const counts = useMemo(() => countActivity(activity.data?.data ?? []), [activity.data])
 
   if (isLoading && !config) {

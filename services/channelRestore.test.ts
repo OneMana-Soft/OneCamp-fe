@@ -8,7 +8,8 @@ vi.mock("@/lib/axiosInstance", () => ({
 import axiosInstance from "@/lib/axiosInstance"
 import { bindAppMutate } from "@/lib/swrMutate"
 import { restoreChannel } from "@/services/channelService"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ChatPost } from "@/services/endpoints/chat"
 
 // The sidebar is read once and kept, so a channel restored from the Archived
 // tab stayed out of it until the next reload (SN-BUG-9). Restoring asks for
@@ -31,7 +32,7 @@ describe("restoring a channel", () => {
     post.mockResolvedValue({ data: {} })
     await restoreChannel("c1")
     // Each place that restores says a refusal itself, once (QA F-36).
-    expect(post).toHaveBeenCalledWith(PostEndpointUrl.RestoreChannel, { channel_uuid: "c1" }, { suppressErrorToast: true })
+    expect(post).toHaveBeenCalledWith(ChatPost.RestoreChannel, { channel_uuid: "c1" }, { suppressErrorToast: true })
     expect(mutate).toHaveBeenCalledWith(GetEndpointUrl.SelfProfileSideNav)
   })
 

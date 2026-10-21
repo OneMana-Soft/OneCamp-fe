@@ -41,7 +41,7 @@ describe("followAfterScroll", () => {
   })
 
   it("is what the message list decides by, not the position alone", () => {
-    const src = readFileSync(join(__dirname, "MessaageListVirtua.tsx"), "utf8")
+    const src = readFileSync(join(__dirname, "MessageListVirtua.tsx"), "utf8")
     expect(src).toContain("followAfterScroll(")
     expect(src).not.toMatch(/atBottomRef\.current\s*=\s*fromBottom\s*<=/)
   })

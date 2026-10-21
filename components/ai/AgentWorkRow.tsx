@@ -22,7 +22,7 @@ import React, { useState } from "react"
 import { Clock, AlertTriangle, CircleStop } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCount"
-import { stopAgentWork, type ActiveWorkItem, type ActiveWorkState } from "@/services/agentService"
+import type { ActiveWorkItem, ActiveWorkState } from "@/services/agentService"
 import { withAI } from "@/components/common/withFeature"
 
 // State presentation in one place: order (blocked first — it needs the viewer),
@@ -95,6 +95,7 @@ const AgentWorkRowUngated: React.FC<{
   const stop = async () => {
     setStopping(true)
     try {
+      const { stopAgentWork } = await import("@/services/agentService")
       await stopAgentWork(item.task_id)
       onChanged?.()
     } catch (e) {

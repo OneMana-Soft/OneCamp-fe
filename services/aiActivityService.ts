@@ -7,7 +7,7 @@
  */
 
 import axiosInstance from "@/lib/axiosInstance"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AiGet } from "@/services/endpoints/ai"
 import { downloadBlob } from "@/lib/utils/download"
 
 export type AIActivityKind = "agent_run" | "audit"
@@ -83,6 +83,6 @@ export function initiatorLabel(initiator?: string): string {
  * still means something away from this workspace.
  */
 export async function downloadMyAIRecord(): Promise<void> {
-    const res = await axiosInstance.get(GetEndpointUrl.MyAIActivityProof, { responseType: "blob" })
+    const res = await axiosInstance.get(AiGet.MyAIActivityProof, { responseType: "blob" })
     downloadBlob(res.data as BlobPart, "application/json", "onecamp-ai-record.json")
 }

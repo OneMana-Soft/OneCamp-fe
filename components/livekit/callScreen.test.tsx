@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Track } from "livekit-client"
@@ -23,6 +23,11 @@ vi.mock("@livekit/components-react", () => ({
   }),
 }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true, isTablet: false }) }))
+// The call asks its LiveKit whether it takes one peer connection (lib/calls/onePeerConnection): two, here.
+vi.mock("@/lib/calls/onePeerConnection", () => ({ onePeerConnection: async () => false }))
+// The effects draw on a canvas and run MediaPipe, neither of which jsdom has: what they answer, here.
+vi.mock("@/lib/calls/processors/backdrops", () => ({ backdropUrl: async (id: string) => `blob:${id}` }))
+vi.mock("@/lib/calls/processors/background", () => ({ backgroundUnavailable: async () => null, applyBackground: async () => undefined }))
 vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeature: () => false }))
 
 import { PreJoin, previewMessage } from "@/components/livekit/PreJoin"
@@ -30,6 +35,7 @@ import { CallRemoved, CameraOffFace, CaptionsOverlay, GREEN_ROOM_GROUND, LivePil
 import { CallDock, CONTROL_LABELS, VideoControls } from "@/components/livekit/VideoControls"
 import { whoIsHere } from "@/components/livekit/PreJoin"
 import { ParticipantKind } from "livekit-client"
+import { CallEndScreen } from "@/components/livekit/CallEndScreen"
 
 afterEach(() => {
   cleanup()
@@ -37,6 +43,20 @@ afterEach(() => {
 })
 
 describe("the pre-join screen", () => {
+  // Media Processors (#55): backgrounds and sound on the preview, before Join.
+  it("offers backgrounds and sound on the preview, and opens them there", async () => {
+    render(<PreJoin onJoin={() => {}} username="Sam Rivera" />)
+    // A piece of its own, loaded beside the preview (a still button holds its place).
+    const entry = await screen.findByRole("button", { name: "Backgrounds and sound" }, { timeout: 5000 })
+    expect(entry.closest("[data-prejoin-controls]")).toBeTruthy()
+    expect(entry.getAttribute("aria-expanded")).toBe("false")
+    await act(async () => fireEvent.click(entry))
+    expect(entry.getAttribute("aria-expanded")).toBe("true")
+    // The picker loads when first opened.
+    expect(await screen.findByRole("radiogroup", { name: "Background" }, { timeout: 5000 })).toBeTruthy()
+    expect(screen.getByRole("radiogroup", { name: "Noise reduction" })).toBeTruthy()
+  })
+
   // "Call in #engineering" arrived after the card had drawn, and the card is
   // centred, so the whole screen moved down.
   it("keeps the place's line open before the place arrives", () => {
@@ -298,4 +318,30 @@ describe("the call stage's frame", () => {
     const { STAGE_TYPE } = await import("@/components/livekit/VideoConference")
     expect(STAGE_TYPE).toBe("[--lk-font-family:var(--font-sans)]")
   }, 20_000)
+})
+
+// Put out because whether they may be in the call couldn't be checked as they
+// connected (fail closed, 21 Oct): the one removal they can come straight back
+// from, so it offers Join again and never says someone removed them.
+describe("a removal that couldn't be checked", () => {
+  afterEach(() => cleanup())
+  const ended = (reason: string, reset = vi.fn()) =>
+    ({ phase: "removed", end: { removed: { reason } }, minutes: 0, retry: vi.fn(), reset }) as unknown as Parameters<typeof CallEndScreen>[0]["call"]
+
+  it("offers Join again to a member and a guest", () => {
+    const reset = vi.fn()
+    render(<CallEndScreen call={ended("unconfirmed", reset)} />)
+    expect(screen.getByText("We couldn't confirm you can be in this call just now. Join again in a moment.")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Join again" }))
+    expect(reset).toHaveBeenCalled()
+    cleanup()
+    render(<CallEndScreen call={ended("unconfirmed")} guest noun="meeting" />)
+    expect(screen.getByRole("button", { name: "Join again" })).toBeTruthy()
+    expect(screen.queryByText(/You can close this tab/)).toBeNull()
+  })
+
+  it("offers no way back from a host's removal", () => {
+    render(<CallEndScreen call={ended("host")} />)
+    expect(screen.queryByRole("button", { name: "Join again" })).toBeNull()
+  })
 })

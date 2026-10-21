@@ -25,7 +25,6 @@ import messageResyncSlice from "@/store/slice/messageResyncSlice";
 import { commandSlice } from "@/store/slice/commandSlice";
 import nudgeSlice from "@/store/slice/nudgeSlice";
 import pendingActionSlice from "@/store/slice/pendingActionSlice";
-import splitSlice from "@/store/slice/splitSlice";
 import type { LazySlices } from "@/store/lazySlices";
 
 
@@ -54,7 +53,7 @@ const SLICES = [
     chatSlice, groupChatSlice, fwdMessageSlice, desktopRightPanelSlice, typingSlice,
     taskFilterSlice, channelCommentSlice, chatCommentSlice,
     mentionSlice, recentItemsSlice, messageResyncSlice, commandSlice, nudgeSlice,
-    pendingActionSlice, splitSlice,
+    pendingActionSlice,
 ] as const
 
 /** The names the static slices' state lives at. */
@@ -129,7 +128,6 @@ type StaticState = {
     [commandSlice.name]: ReturnType<typeof commandSlice.reducer>
     [nudgeSlice.name]: ReturnType<typeof nudgeSlice.reducer>
     [pendingActionSlice.name]: ReturnType<typeof pendingActionSlice.reducer>
-    [splitSlice.name]: ReturnType<typeof splitSlice.reducer>
 }
 
 /**

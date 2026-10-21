@@ -1,4 +1,6 @@
 import { chatPath } from "@/lib/routes/conversationRoute"
+import { route } from "@/lib/conversation/route"
+import type { ConversationRef } from "@/lib/conversation/types"
 import { app_channel_path } from "@/types/paths"
 
 /**
@@ -24,6 +26,7 @@ type SystemLineKind =
   | "history.shared"
   | "group.channel"
   | "channel.from_group"
+  | "message.pinned"
 
 /** A line's facts, as the server wrote them: people by their uuids. */
 export interface SystemLineFacts {
@@ -80,9 +83,12 @@ export interface SystemLineLink {
  * A DM's id is both people's ids, so its link needs who is reading; until
  * that's known it leads nowhere rather than to the wrong person. Pure.
  */
-export function systemLineLink(facts: SystemLineFacts | null, viewerUUID: string | null | undefined): SystemLineLink | null {
+export function systemLineLink(facts: SystemLineFacts | null, viewerUUID: string | null | undefined, here?: ConversationRef | null): SystemLineLink | null {
   if (!facts) return null
   switch (facts.kind) {
+    case "message.pinned":
+      // The message pinned, in the conversation the line is in (chat B25).
+      return facts.to && here ? { href: route({ conversation: here, message: facts.to }), label: "See the message" } : null
     case "group.continued": {
       const href = facts.to ? chatPath(facts.to, viewerUUID) : null
       return href ? { href, label: "Open the new conversation" } : null

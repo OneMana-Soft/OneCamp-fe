@@ -33,11 +33,15 @@ vi.mock("react-redux", () => ({ useDispatch: () => vi.fn(), useSelector: (pick: 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), useSearchParams: () => new URLSearchParams() }))
 
 import { CalendarApp } from "./calendarApp"
+import { SCREENS, putOnScreen } from "@/lib/testing/screens"
 
+let offScreen = () => {}
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
   mobile = false
+  offScreen()
+  offScreen = () => {}
 })
 
 const settle = () => act(async () => {})
@@ -50,7 +54,9 @@ describe("the calendar's surfaces", () => {
   })
 
   it("on a phone, fetch only the dialog, the event's card (its sheet) and the month it can open at the first quiet moment", async () => {
+    // A phone by both rules: the layout's width (isMobile) and the overlays' sheet rule.
     mobile = true
+    offScreen = putOnScreen(SCREENS["a phone in portrait"])
     vi.useFakeTimers()
     render(<CalendarApp />)
     await act(async () => {

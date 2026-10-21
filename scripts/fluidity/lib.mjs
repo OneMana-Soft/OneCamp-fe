@@ -14,7 +14,7 @@
 //   - The realtime socket passes the broker's messages in and drops any
 //     PUBLISH going out; the collaboration socket passes sign-in and the
 //     first sync request out and drops edits and presence.
-import { chromium } from "@playwright/test"
+import { readFileSync } from "node:fs"
 import { gzipSync } from "node:zlib"
 
 export const FE = "https://onecamp.onemana.dev"
@@ -24,7 +24,10 @@ const BE_HOST = new URL(BE).host
 // The storefront's API: the demo funnel and the subscribe prompt post there.
 const NEVER = ["backend.onemana.dev"]
 
+// Playwright is loaded when a browser is, so the pure helpers below can be
+// held by unit tests (app/fluidityBudgets.test.ts) without one.
 export async function launch() {
+  const { chromium } = await import("@playwright/test")
   return chromium.launch()
 }
 
@@ -44,6 +47,12 @@ function probe() {
     // Only in a profiling build (next build --profile): ms spent per component.
     selfMs: Object.create(null),
     origins: Object.create(null),
+    // Where a storm came from (CHAT-LEAD, 21 Oct): each subtree that mounted
+    // under a parent that only updated, as "parent > child" with the
+    // components it mounted, and the renders each origin started. A list
+    // remounting its rows shows as one big mount root.
+    mountRoots: Object.create(null),
+    storms: Object.create(null),
   })
   const watch = (type, fn, extra) => {
     try {
@@ -83,6 +92,44 @@ function probe() {
       })),
     }),
   )
+  // ResizeObservers: how many are alive, and how many elements they watch now.
+  // A virtual list measures each row with one; rows it never unobserves stay.
+  P.ro = { made: 0, live: 0, observed: 0 }
+  const RO = window.ResizeObserver
+  if (RO)
+    window.ResizeObserver = class extends RO {
+      constructor(cb) {
+        super(cb)
+        this.__flu = { on: true, n: 0, seen: new WeakSet() }
+        P.ro.made++
+        P.ro.live++
+      }
+      observe(t, o) {
+        if (!this.__flu.seen.has(t)) {
+          this.__flu.seen.add(t)
+          this.__flu.n++
+          P.ro.observed++
+        }
+        return super.observe(t, o)
+      }
+      unobserve(t) {
+        if (this.__flu.seen.delete(t)) {
+          this.__flu.n--
+          P.ro.observed--
+        }
+        return super.unobserve(t)
+      }
+      disconnect() {
+        P.ro.observed -= this.__flu.n
+        this.__flu.n = 0
+        this.__flu.seen = new WeakSet()
+        if (this.__flu.on) {
+          this.__flu.on = false
+          P.ro.live--
+        }
+        return super.disconnect()
+      }
+    }
   watch("layout-shift", (e) => {
     if (e.hadRecentInput) return
     const node = (s) => {
@@ -162,9 +209,14 @@ function probe() {
   // An origin is a component that rendered when the component above it did
   // not: its own state, store subscription or context changed. That is where
   // a render storm starts.
+  const owner = (f) => {
+    for (let x = f; x; x = x.return) if (COMPONENT.has(x.tag)) return nameOf(x.type)
+    return "root"
+  }
   const update = (next, prev, parentRendered) => {
     const isComponent = COMPONENT.has(next.tag)
     const rendered = isComponent && (next.flags & 1) === 1
+    let storm = null
     if (rendered) {
       tally(next)
       if (!parentRendered) {
@@ -181,14 +233,22 @@ function probe() {
           if (!e || d.memoizedValue !== e.memoizedValue) why.push("ctx:" + ((d.context && d.context.displayName) || "?"))
         const n = nameOf(next.type) + (why.length ? `#${why.slice(0, 4).join(",")}` : "")
         P.origins[n] = (P.origins[n] || 0) + 1
+        storm = { n, from: P.renders - 1 }
       }
     }
-    if (next.child === prev.child) return
-    const below = isComponent ? rendered : parentRendered
-    for (let c = next.child; c; c = c.sibling) {
-      if (c.alternate) update(c, c.alternate, below)
-      else mount(c)
+    if (next.child !== prev.child) {
+      const below = isComponent ? rendered : parentRendered
+      for (let c = next.child; c; c = c.sibling) {
+        if (c.alternate) update(c, c.alternate, below)
+        else {
+          const from = P.renders
+          mount(c)
+          const k = `${owner(next)} > ${nameOf(c.type)}`
+          if (P.renders > from) P.mountRoots[k] = (P.mountRoots[k] || 0) + (P.renders - from)
+        }
+      }
     }
+    if (storm) P.storms[storm.n] = (P.storms[storm.n] || 0) + (P.renders - storm.from)
   }
   const renderers = new Map()
   window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
@@ -384,7 +444,7 @@ export async function enterDemo(page) {
 export async function mark(page) {
   return page.evaluate(() => {
     const P = window.__flu
-    return { t: performance.now(), commits: P.commits.length, renders: P.renders, byName: { ...P.byName }, selfMs: { ...P.selfMs }, origins: { ...P.origins } }
+    return { t: performance.now(), commits: P.commits.length, renders: P.renders, byName: { ...P.byName }, selfMs: { ...P.selfMs }, origins: { ...P.origins }, mountRoots: { ...P.mountRoots }, storms: { ...P.storms } }
   })
 }
 
@@ -405,6 +465,16 @@ export async function since(page, from) {
       const d = v - ((from.origins || {})[k] || 0)
       if (d > 0) origins[k] = d
     }
+    const diff = (now, was) => {
+      const out = {}
+      for (const [k, v] of Object.entries(now || {})) {
+        const d = v - ((was || {})[k] || 0)
+        if (d > 0) out[k] = d
+      }
+      return out
+    }
+    const mountRoots = diff(P.mountRoots, from.mountRoots)
+    const storms = diff(P.storms, from.storms)
     const selfMs = {}
     for (const [k, v] of Object.entries(P.selfMs)) {
       const d = v - ((from.selfMs || {})[k] || 0)
@@ -415,12 +485,15 @@ export async function since(page, from) {
       events: P.events.filter(after),
       long: P.long.filter(after),
       loaf: P.loaf.filter(after),
+      ro: P.ro ? { ...P.ro } : null,
       shifts: P.shifts.filter(after),
       commits: P.commits.slice(from.commits),
       renders: P.renders - from.renders,
       byName,
       selfMs,
       origins,
+      mountRoots,
+      storms,
       lcp: P.lcp,
     }
   }, from)
@@ -440,10 +513,23 @@ export async function since(page, from) {
   const cost = new Map()
   for (const f of raw.loaf)
     for (const s of f.scripts) {
-      const k = `${s.fn || "(anonymous)"} @ ${s.src || s.inv}`
+      const k = `${s.fn || "(anonymous)"} @ ${s.src || "?"}${s.inv ? ` via ${s.inv}` : ""}`
       cost.set(k, (cost.get(k) || 0) + s.d)
     }
   const loafTop = [...cost.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, d]) => `${Math.round(d)}ms ${k}`)
+  // The three longest frames whole: what ran in each, what it was called by, and its render.
+  const loafWorst = [...raw.loaf]
+    .sort((a, b) => b.d - a.d)
+    .slice(0, 3)
+    .map((f) => ({
+      ms: Math.round(f.d),
+      blockMs: Math.round(f.block || 0),
+      renderMs: Math.round(f.render || 0),
+      scripts: f.scripts
+        .sort((a, b) => b.d - a.d)
+        .slice(0, 4)
+        .map((x) => `${x.d}ms ${x.fn || "(anonymous)"} @ ${x.src || "?"}${x.inv ? ` via ${x.inv}` : ""}${x.layout ? `, layout ${x.layout}ms` : ""}`),
+    }))
   const top = Object.entries(raw.byName)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
@@ -490,6 +576,8 @@ export async function since(page, from) {
     tbt: Math.round(tbt),
     loafCount: raw.loaf.length,
     loafTop,
+    loafWorst,
+    ro: raw.ro,
     cls: +raw.shifts.reduce((a, e) => a + e.v, 0).toFixed(4),
     shifts: raw.shifts,
     commits: raw.commits.length,
@@ -498,6 +586,8 @@ export async function since(page, from) {
     top,
     topApp,
     origins,
+    mountRoots: Object.entries(raw.mountRoots || {}).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${k} ×${v}`),
+    storms: Object.entries(raw.storms || {}).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${k} ×${v}`),
     slowest,
     motion: { composited, painted, layout: [...layout.entries()].map(([k, n]) => `${n}× ${k}`) },
     lcp: Math.round(raw.lcp),
@@ -518,4 +608,363 @@ export const median = (xs) => {
   if (!s.length) return null
   const mid = Math.floor(s.length / 2)
   return s.length % 2 ? s[mid] : Math.round(((s[mid - 1] + s[mid]) / 2) * 1000) / 1000
+}
+
+/** The value at quantile `q` (0 to 1) of numbers, nearest rank; null when there are none. */
+export const quantile = (xs, q) => {
+  const s = xs.filter((x) => typeof x === "number" && Number.isFinite(x)).sort((a, b) => a - b)
+  if (!s.length) return null
+  return s[Math.min(s.length - 1, Math.max(0, Math.ceil(s.length * q) - 1))]
+}
+export const p95 = (xs) => quantile(xs, 0.95)
+
+// ----------------------------------------------------------------------------
+// Frames, the host's load, and input the way a person gives it.
+// ----------------------------------------------------------------------------
+
+/**
+ * Starts sampling frames in the page: the time between one animation frame
+ * and the next, while a scroll or a drag runs. content.mjs and measure.mjs
+ * each had a copy of this sampler.
+ */
+export function startFrames(page, max = 4000) {
+  return page.evaluate((max) => {
+    const f = (window.__fluFrames = [])
+    let last = performance.now()
+    // A finger held still or lifted between strokes (fingerScroll) scrolls
+    // nothing: those frames aren't frames while scrolling, and aren't counted.
+    window.__fluFramesHeld = false
+    const tick = (t) => {
+      if (!window.__fluFramesHeld) f.push(t - last)
+      last = t
+      if (f.length < max && window.__fluFrames === f) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, max)
+}
+
+/** One display refresh at 60 Hz, the frame every budget here is held to. */
+export const VSYNC_MS = 1000 / 60
+
+/**
+ * Stops the sampler and sums the frames up: their count, frames a second,
+ * the p95 and worst frame, slow frames (over two refreshes) and the share of
+ * refreshes dropped. The first two frames straddle the start and are left out.
+ */
+export async function stopFrames(page) {
+  const all = await page.evaluate(() => {
+    const out = window.__fluFrames || []
+    window.__fluFrames = null
+    return out
+  })
+  const body = all.slice(2)
+  const total = body.reduce((a, b) => a + b, 0)
+  // A frame of d ms took round(d / refresh) refreshes; all but one were dropped.
+  const refreshes = body.reduce((a, d) => a + Math.max(1, Math.round(d / VSYNC_MS)), 0)
+  const dropped = refreshes - body.length
+  return {
+    frames: body.length,
+    fps: total ? Math.round((body.length / total) * 1000 * 10) / 10 : null,
+    p95: body.length ? Math.round(p95(body) * 10) / 10 : null,
+    slow: body.filter((d) => d > 34).length,
+    worst: body.length ? Math.round(Math.max(...body)) : null,
+    droppedPct: refreshes ? Math.round((dropped / refreshes) * 1000) / 10 : null,
+  }
+}
+
+/** The host's one-minute load average now: every run records it, and one above 16 is flagged. */
+export function hostLoad() {
+  try {
+    return Number(readFileSync("/proc/loadavg", "utf8").split(" ")[0])
+  } catch {
+    return null
+  }
+}
+/** The CPUs this process may run on (a heavy slot pins its job to eight), as Linux lists them. */
+export function cpusAllowed() {
+  try {
+    return /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+/** The CPUs in a list such as "0-7,12": each number. */
+const cpuList = (spec) =>
+  String(spec || "")
+    .split(",")
+    .flatMap((part) => {
+      const [a, b] = part.split("-").map(Number)
+      return Number.isFinite(b) ? Array.from({ length: b - a + 1 }, (_, i) => a + i) : Number.isFinite(a) ? [a] : []
+    })
+
+/**
+ * What the CPUs are doing now, for every run's record: the mean clock of the
+ * CPUs this process may use (MHz) and the package's temperature (°C), so a
+ * run slowed by heat or a power limit shows in the data. The machine's P-cores
+ * are CPUs 0-15 (to 5.4 GHz), its E-cores 16-31 (to 3.9 GHz).
+ */
+export function cpuState() {
+  const cpus = cpuList(cpusAllowed())
+  let sum = 0
+  let n = 0
+  for (const c of cpus) {
+    try {
+      sum += Number(readFileSync(`/sys/devices/system/cpu/cpu${c}/cpufreq/scaling_cur_freq`, "utf8")) / 1000
+      n++
+    } catch {
+      /* not readable here */
+    }
+  }
+  let tempC = null
+  for (let z = 0; z < 8; z++) {
+    try {
+      if (readFileSync(`/sys/class/thermal/thermal_zone${z}/type`, "utf8").trim() === "x86_pkg_temp") {
+        tempC = Number(readFileSync(`/sys/class/thermal/thermal_zone${z}/temp`, "utf8")) / 1000
+        break
+      }
+    } catch {
+      break
+    }
+  }
+  return { mhz: n ? Math.round(sum / n) : null, tempC, pcore: cpus.length > 0 && cpus.every((c) => c < 16) }
+}
+/** Load above this marks a run as taken on a busy machine (the brief's hygiene rule). */
+export const BUSY_LOAD = 16
+
+/**
+ * A wheel's scroll, through the browser's own gesture (DevTools'
+ * Input.synthesizeScrollGesture): wheel steps, as a computer gives them.
+ * Negative dy scrolls down. A finger is fingerScroll's: with a touch source
+ * this gesture moves nothing in headless Chromium (21 Oct 2026: 0 px on the
+ * phone's task list in every run, so the phone's scroll rows had been read
+ * from a wheel), so it is refused here.
+ */
+export async function scrollGesture(cdp, { x, y, dx = 0, dy = 0, speed = 1500, touch = false, repeat = 0 }) {
+  if (touch) throw new Error("synthesizeScrollGesture's touch moves nothing headless: a finger's scroll is fingerScroll()")
+  await cdp.send("Input.synthesizeScrollGesture", {
+    x: Math.round(x),
+    y: Math.round(y),
+    xDistance: Math.round(dx),
+    yDistance: Math.round(dy),
+    speed,
+    gestureSourceType: "mouse",
+    repeatCount: repeat,
+    repeatDelayMs: 50,
+    preventFling: true,
+  })
+}
+
+/**
+ * Where the box that scrolls under the point (x, y) stands: its nearest
+ * scrolling ancestor's, or the page's, { x: scrollLeft, y: scrollTop }. A step
+ * reads it before and after a gesture: a scroll that moved nothing measured
+ * an idle page (21 Oct 2026: the phone's had, under a touch gesture).
+ */
+export function scrollAt(page, { x, y }) {
+  return page.evaluate(
+    ({ x, y }) => {
+      const scrolls = (el) => {
+        const cs = getComputedStyle(el)
+        return (el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(cs.overflowY)) || (el.scrollWidth > el.clientWidth + 4 && /(auto|scroll)/.test(cs.overflowX))
+      }
+      let el = document.elementFromPoint(x, y)
+      while (el && el !== document.documentElement && el !== document.body && !scrolls(el)) el = el.parentElement
+      const box = !el || el === document.documentElement || el === document.body ? document.scrollingElement : el
+      return { x: Math.round(box.scrollLeft), y: Math.round(box.scrollTop) }
+    },
+    { x: Math.round(x), y: Math.round(y) },
+  )
+}
+
+/** The px a scroll moved, from two scrollAt readings. */
+export const movedPx = (a, b) => Math.abs(b.x - a.x) + Math.abs(b.y - a.y)
+
+/**
+ * The strokes a finger makes to scroll (dx, dy) — down and right positive —
+ * inside `box` ({ left, top, right, bottom }: the part of the scroller on
+ * screen). A finger can't leave the screen, so a long scroll is several
+ * strokes, each across most of the box, the last one the rest; the finger
+ * moves against the scroll (up to go down). Whole pixels, the strokes adding
+ * up to the scroll exactly. One axis at a time: dy's strokes, then dx's.
+ * @param {{ box: { left: number, top: number, right: number, bottom: number }, dx?: number, dy?: number }} o
+ * @returns {Array<{ from: { x: number, y: number }, to: { x: number, y: number } }>}
+ */
+export function touchStrokes({ box, dx = 0, dy = 0 }) {
+  const out = []
+  const cx = Math.round((box.left + box.right) / 2)
+  const cy = Math.round((box.top + box.bottom) / 2)
+  const axis = (d, lo, hi, at) => {
+    const size = hi - lo
+    const margin = Math.max(8, Math.round(size * 0.08))
+    const reach = Math.max(1, Math.floor(size - 2 * margin))
+    let left = Math.abs(Math.round(d))
+    while (left > 0) {
+      const len = Math.min(reach, left)
+      // Going forward (down or right), the finger starts near the far edge and moves back.
+      const from = d > 0 ? Math.round(hi - margin) : Math.round(lo + margin)
+      const to = d > 0 ? from - len : from + len
+      out.push(at(from, to))
+      left -= len
+    }
+  }
+  if (dy) axis(dy, box.top, box.bottom, (from, to) => ({ from: { x: cx, y: from }, to: { x: cx, y: to } }))
+  if (dx) axis(dx, box.left, box.right, (from, to) => ({ from: { x: from, y: cy }, to: { x: to, y: cy } }))
+  return out
+}
+
+/**
+ * A finger's scroll of (dx, dy) — down and right positive — inside `box`,
+ * through Input.dispatchTouchEvent, as a phone gets it: each stroke
+ * (touchStrokes) is a press, moves `stepMs` apart at `speed` px a second, a
+ * hold of `holdMs` with the finger still (so no fling follows, as
+ * preventFling did for the gesture) and a lift, then `gapMs` before the next.
+ * @returns {Promise<number>} the strokes made
+ */
+export async function fingerScroll(cdp, { box, dx = 0, dy = 0, speed = 1200, stepMs = 16, holdMs = 120, gapMs = 60 }) {
+  const at = (p) => [{ x: p.x, y: p.y, radiusX: 4, radiusY: 4, force: 1, id: 1 }]
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+  // The frame sampler (startFrames) leaves out the frames of a still finger.
+  const held = (on) => cdp.send("Runtime.evaluate", { expression: `window.__fluFramesHeld = ${on}` }).catch(() => {})
+  const strokes = touchStrokes({ box, dx, dy })
+  try {
+    for (const { from, to } of strokes) {
+      const len = Math.hypot(to.x - from.x, to.y - from.y)
+      const moves = Math.max(2, Math.ceil(len / Math.max(1, (speed * stepMs) / 1000)))
+      await held(false)
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(from) })
+      for (let i = 1; i <= moves; i++) {
+        await wait(stepMs)
+        const p = { x: Math.round(from.x + ((to.x - from.x) * i) / moves), y: Math.round(from.y + ((to.y - from.y) * i) / moves) }
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(p) })
+      }
+      await held(true)
+      await wait(holdMs)
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(to) })
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      await wait(gapMs)
+    }
+  } finally {
+    await held(false)
+  }
+  return strokes.length
+}
+
+/**
+ * A finger pressed on `from`, held `holdMs` (what a touch drag waits for
+ * before it lifts the card), moved to `to` in `steps` and lifted.
+ */
+export async function touchDrag(cdp, from, to, { steps = 12, holdMs = 300, stepMs = 16 } = {}) {
+  const at = (p) => [{ x: Math.round(p.x), y: Math.round(p.y), radiusX: 4, radiusY: 4, force: 1, id: 1 }]
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(from) })
+  await new Promise((r) => setTimeout(r, holdMs))
+  for (let i = 1; i <= steps; i++) {
+    const p = { x: from.x + ((to.x - from.x) * i) / steps, y: from.y + ((to.y - from.y) * i) / steps }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(p) })
+    await new Promise((r) => setTimeout(r, stepMs))
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+}
+
+/**
+ * CSS selector stats over `fn` (DevTools' "selector stats"): Chromium's
+ * SelectorStats trace events (category disabled-by-default-blink.debug), one
+ * per style recalculation, summed by selector: ms spent matching, attempts,
+ * matches and fast rejects. The trace slows style work, so a step that asks
+ * for them is a diagnosis: its times don't count (FLUIDITY-LEAD-2, 21 Oct
+ * 2026, for the phone list's ~50 µs of style an element).
+ * @returns {Promise<{ recalcs: number, totalMs: number, top: Array<{ selector: string, sheet: string, us: number, attempts: number, matches: number, fastRejects: number }> }>}
+ */
+export async function selectorStats(cdp, fn, { top = 15 } = {}) {
+  const events = []
+  const onData = (e) => {
+    for (const x of e.value) if (x.name === "SelectorStats") events.push(x)
+  }
+  cdp.on("Tracing.dataCollected", onData)
+  const done = new Promise((r) => cdp.once("Tracing.tracingComplete", r))
+  await cdp.send("Tracing.start", { traceConfig: { includedCategories: ["disabled-by-default-blink.debug"], recordMode: "recordAsMuchAsPossible" }, transferMode: "ReportEvents" })
+  try {
+    await fn()
+  } finally {
+    await cdp.send("Tracing.end")
+    await done
+    cdp.off("Tracing.dataCollected", onData)
+  }
+  return sumSelectors(events, top)
+}
+
+/** SelectorStats events summed by selector, slowest first (selectorStats). */
+export function sumSelectors(events, top = 15) {
+  const by = new Map()
+  for (const e of events) {
+    for (const t of e.args?.selector_stats?.selector_timings ?? []) {
+      const k = `${t.selector}\u0000${t.style_sheet_id ?? ""}`
+      const a = by.get(k) ?? { selector: t.selector, sheet: t.style_sheet_id ?? "", us: 0, attempts: 0, matches: 0, fastRejects: 0 }
+      a.us += t["elapsed (us)"] ?? 0
+      a.attempts += t.match_attempts ?? 0
+      a.matches += t.match_count ?? 0
+      a.fastRejects += t.fast_reject_count ?? 0
+      by.set(k, a)
+    }
+  }
+  const all = [...by.values()].sort((a, b) => b.us - a.us)
+  const totalUs = all.reduce((n, a) => n + a.us, 0)
+  return { recalcs: events.length, totalMs: Math.round(totalUs / 100) / 10, top: all.slice(0, top).map((a) => ({ ...a, us: Math.round(a.us) })) }
+}
+
+/**
+ * Counts what the page downloads, by kind, from the network's own numbers
+ * (bytes on the wire, compressed as served). `take()` returns the totals since
+ * the last take and starts again.
+ */
+export async function netBytes(cdp) {
+  await cdp.send("Network.enable")
+  const kinds = new Map()
+  const urls = new Map()
+  const fresh = () => ({ script: 0, other: 0, scripts: 0, requests: 0, files: [] })
+  let seen = fresh()
+  cdp.on("Network.responseReceived", (e) => {
+    kinds.set(e.requestId, e.type)
+    urls.set(e.requestId, e.response?.url ?? "")
+  })
+  cdp.on("Network.loadingFinished", (e) => {
+    const kind = kinds.get(e.requestId)
+    seen.requests++
+    if (kind === "Script") {
+      seen.script += e.encodedDataLength
+      seen.scripts++
+      seen.files.push({ file: scriptName(urls.get(e.requestId) ?? ""), kb: Math.round(e.encodedDataLength / 102.4) / 10 })
+    } else seen.other += e.encodedDataLength
+    kinds.delete(e.requestId)
+    urls.delete(e.requestId)
+  })
+  return {
+    take() {
+      const out = { scriptKB: Math.round(seen.script / 1024), otherKB: Math.round(seen.other / 1024), scripts: seen.scripts, requests: seen.requests, topScripts: topScripts(seen.files) }
+      seen = fresh()
+      return out
+    },
+  }
+}
+
+/** A script's name as the build has it: its path under /_next/static/, or its address. */
+const scriptName = (url) => {
+  try {
+    return new URL(url).pathname.replace(/^\/_next\/static\//, "")
+  } catch {
+    return url
+  }
+}
+
+/** The biggest scripts of a take, by KB on the wire. */
+const topScripts = (files, n = 12) => [...files].sort((a, b) => b.kb - a.kb).slice(0, n)
+
+/** Two of netBytes' takes as one (a step's bytes until useful, and in its settle). */
+export function addNet(a, b) {
+  return {
+    scriptKB: a.scriptKB + b.scriptKB,
+    otherKB: a.otherKB + b.otherKB,
+    scripts: a.scripts + b.scripts,
+    requests: a.requests + b.requests,
+    topScripts: topScripts([...(a.topScripts ?? []), ...(b.topScripts ?? [])]),
+  }
 }

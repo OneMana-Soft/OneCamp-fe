@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url"
 import { check } from "./budgets.mjs"
 import { USERS, fakeApp } from "./fakeApp.mjs"
 import { installProbe, keyStats, mark, median, since } from "./lib.mjs"
+import { CHANNELS, DMS, THREAD_REPLIES, chatFixtures } from "./workspace.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)
@@ -40,115 +41,15 @@ const RUNS = Number(opt("runs", 3))
 const RTT = Number(opt("rtt", 150))
 const DEVICE = opt("device", "desktop")
 const PHONE = DEVICE === "phone"
-const ONLY = new Set(String(opt("only", "open,switch,type,scroll")).split(","))
+const ONLY = new Set(String(opt("only", "open,switch,type,scroll,thread")).split(","))
 const BUDGETS = JSON.parse(readFileSync(opt("budgets", join(here, "chat-budgets.json")), "utf8"))
 const OUT = opt("out", null)
 const SWITCHES = 12
 
-// ---- the workspace ----
+// ---- the workspace (workspace.mjs: the shell around every surface has the same one) ----
 const ME = USERS.sam
-const person = (n, name, full) => ({ user_uuid: `5a7a1c11-0000-4000-8000-0000000001${String(n).padStart(2, "0")}`, user_name: name, user_full_name: full, user_email_id: `${name}@example.test` })
-const PEOPLE = [person(1, "maya", "Maya Chen"), person(2, "jonas", "Jonas Weber"), person(3, "priya", "Priya Shah"), person(4, "tomas", "Tomás Ruiz")]
-const SPEAKERS = [ME, ...PEOPLE]
-const chId = (n) => `c4a70000-0000-4000-8000-${String(n).padStart(12, "0")}`
-const CHANNELS = [
-  { id: chId(1), name: "general", size: 2000 },
-  { id: chId(2), name: "engineering", size: 80 },
-  { id: chId(3), name: "design", size: 80 },
-  { id: chId(4), name: "launch", size: 80 },
-  { id: chId(5), name: "support", size: 80 },
-  { id: chId(6), name: "random", size: 80 },
-]
 const LONG = CHANNELS[0]
-const PAGE = 50
-
-// Varied on purpose: rows of different heights are what makes a virtual list
-// measure (as synth.mjs's bodies, which the demo walk uses).
-const BODIES = [
-  "<p>Merged. The staging deploy is running now.</p>",
-  "<p>Can someone check the numbers on the pricing page against the plans before Thursday? The Business tier still says the old seat count in one place.</p>",
-  "<p>Notes from the sync:</p><ul><li><p>Load test moves to Wednesday morning</p></li><li><p>Rollback steps are in the Launch sync notes</p></li><li><p>Legal signed off on the terms</p></li></ul>",
-  "<p>Looks good to me.</p>",
-  "<p>The import ran in 4 minutes on the copy of production. Two channels had attachments over the limit, so they came across as links. Everything else matched, including the threads and reactions.</p>",
-  "<p>Who is on call Thursday? I want to put a name next to the rollback steps.</p>",
-]
-const NOW = Date.UTC(2026, 9, 17, 9, 0)
-const at = (i) => new Date(NOW - i * 7 * 60_000).toISOString()
-const postId = (c, i) => `${c.id.slice(0, 8)}-0000-4000-8000-${String(i).padStart(12, "0")}`
-
-/** A channel's message i, newest first (0 is the latest). */
-function post(c, i) {
-  return {
-    post_uuid: postId(c, i),
-    post_text: `${BODIES[i % BODIES.length].replace("</p>", ` (${c.name} ${i})</p>`)}`,
-    post_by: SPEAKERS[i % SPEAKERS.length],
-    post_created_at: at(i),
-    post_comment_count: i % 9 === 0 ? 2 : 0,
-    post_comments: [],
-    post_reactions: [],
-    post_attachments: [],
-  }
-}
-const pageOf = (c, from) => {
-  const posts = []
-  for (let i = from; i < Math.min(c.size, from + PAGE); i++) posts.push(post(c, i))
-  return { posts, has_more: from + PAGE < c.size }
-}
-const channelInfo = (c) => ({
-  ch_uuid: c.id,
-  ch_name: c.name,
-  ch_icon: "",
-  ch_private: false,
-  ch_is_user_fav: false,
-  ch_about: `Where the team talks about ${c.name}.`,
-  ch_call_active: false,
-  unread_post_count: 0,
-  ch_created_at: at(c.size + 10),
-  ch_is_member: true,
-  ch_posts: [],
-  ch_created_by: ME,
-  ch_member_count: SPEAKERS.length,
-  ch_recording: [],
-})
-const dmGroup = (p) => [ME.user_uuid, p.user_uuid].sort().join(" ")
-const chat = (p, i) => {
-  const mine = i % 2 === 1
-  return {
-    chat_uuid: `0c4a${p.user_uuid.slice(-4)}-0000-4000-8000-${String(i).padStart(12, "0")}`,
-    chat_from: mine ? ME : p,
-    chat_to: mine ? p : ME,
-    chat_created_at: at(i),
-    chat_body_text: BODIES[(i + 1) % BODIES.length],
-    chat_attachments: [],
-    chat_comment_count: 0,
-  }
-}
-const DMS = PEOPLE.slice(0, 3)
-
-const ok = (data) => ({ msg: "ok", data })
-const FIXTURES = [
-  [/\/user\/sidebarNav$/, ok({ ...ME, user_channels: CHANNELS.map(channelInfo), user_dms: DMS.map((p) => ({ dm_grouping_id: dmGroup(p), dm_unread: 0, dm_participants: [ME, p], dm_notification_type: "all", dm_chats: [chat(p, 0)] })) })],
-  [/\/ch\/channelBasicInfo\/[^/]+$/, (path) => ({ msg: "ok", channel_info: channelInfo(CHANNELS.find((c) => path.endsWith(c.id)) ?? CHANNELS[1]) })],
-  [/\/ch\/userActiveChannelsWithLatestPost/, { msg: "ok", channels_list: CHANNELS.map(channelInfo) }],
-  [/\/po\/latestPosts\/[^/]+$/, (path) => ok(pageOf(CHANNELS.find((c) => path.endsWith(c.id)) ?? CHANNELS[1], 0))],
-  // An older page: the messages before the oldest one shown, which the client
-  // names by its time in epoch seconds and, exactly, by ?at= (lib/chat/pageEdge).
-  [/\/po\/oldPosts\/[^/]+\/\d+/, (path, url) => {
-    const [, id, sec] = /\/po\/oldPosts\/([^/]+)\/(\d+)/.exec(path)
-    const c = CHANNELS.find((x) => x.id === id) ?? LONG
-    const at = url?.searchParams.get("at")
-    const ms = at && !Number.isNaN(Date.parse(at)) ? Date.parse(at) : Number(sec) * 1000
-    const from = Math.max(0, Math.round((NOW - ms) / (7 * 60_000)) + 1)
-    return ok(pageOf(c, from))
-  }],
-  [/\/dm\/latestChat\/[^/]+$/, (path) => {
-    const p = PEOPLE.find((x) => path.endsWith(x.user_uuid)) ?? PEOPLE[0]
-    return ok({ chats: Array.from({ length: 60 }, (_, i) => chat(p, i)), has_more: false })
-  }],
-  [/\/user\/profile\/[^/]+$/, (path) => ok(PEOPLE.find((x) => path.endsWith(x.user_uuid)) ?? PEOPLE[0])],
-  [/\/user\/dm-ai-suggestions$/, ok([])],
-  [/\/dm\/?$/, ok([])],
-]
+const FIXTURES = chatFixtures()
 // The collaboration server is never asked for on chat pages; fakeApp wants one.
 const NO_COLLAB = { connect: () => ({ receive() {}, closed() {} }) }
 
@@ -241,8 +142,10 @@ for (let r = 0; r < RUNS; r++) {
 
     // ---- typing in the composer ----
     if (ONLY.has("type")) {
-      const box = page.locator("[data-composer] [contenteditable='true']").first()
-      await box.click({ timeout: 15000 })
+      // A computer's composer, or a phone's (phoneComposerShell), tapped on a phone.
+      const box = page.locator("[data-composer] [contenteditable='true'], [data-phone-composer] [contenteditable='true']").first()
+      if (PHONE) await box.tap({ timeout: 15000 })
+      else await box.click({ timeout: 15000 })
       const SENTENCE = "The rollback steps are in the launch notes."
       const before = await mark(page)
       await page.keyboard.type(SENTENCE, { delay: 45 })
@@ -286,8 +189,72 @@ for (let r = 0; r < RUNS; r++) {
       const rows = await page.evaluate(() => document.querySelectorAll("[data-message-row]").length)
       result.scroll.push({ run: r, olderPages: log.filter((l) => l.includes("/po/oldPosts/")).length - pagesBefore, rows, tbtMs: m.tbt, longMs: m.longMs })
     }
+    // The heap after the switches and the read-back, as heapMB has always
+    // been taken (before the thread, which chat-budgets.json doesn't count).
     const heap = await page.evaluate(() => (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null))
     result.heapMB = [...(result.heapMB ?? []), heap]
+
+    // ---- a thread opened from the long channel, then typed in (fluid-04) ----
+    // The long channel's messages show their threads (workspace.mjs); each
+    // holds THREAD_REPLIES replies. From the click on "N replies" until the
+    // last reply is drawn in the panel.
+    if (ONLY.has("thread")) {
+      if (!page.url().includes(LONG.id)) {
+        await page.goto(`${BASE}/app/channel/${LONG.id}`, { waitUntil: "commit", timeout: 120000 })
+        await rowTime(page, 60000)
+        await page.waitForTimeout(1200)
+      }
+      const opener = page.locator("[data-thread-row]").last()
+      // The chip in view and the list settled first, as a reader's list is
+      // when they press it: the open is measured, not a scroll to it. A click
+      // scrolls its target into view, and the message list says it stopped
+      // scrolling 1.2 s after the last scroll (MessageListVirtua's idle), so
+      // the list is left 1.5 s.
+      await opener.scrollIntoViewIfNeeded({ timeout: 15000 }).catch(() => {})
+      await page.waitForTimeout(1500)
+      const before = await mark(page)
+      const t0 = await page.evaluate(() => performance.now())
+      let threadMs = null
+      try {
+        if (PHONE) await opener.tap({ timeout: 15000 })
+        else await opener.click({ timeout: 15000 })
+        const done = await page.waitForFunction(
+          ({ n, phone, channel }) => {
+            // On a phone the thread is a page of its own, /app/channel/{id}/{post}.
+            if (phone) {
+              const at = location.pathname.split("/").filter(Boolean)
+              if (at.length < 4 || at[2] !== channel) return false
+              return document.querySelectorAll("[data-message-row]").length >= Math.min(n, 10) ? performance.now() : false
+            }
+            const panel = document.querySelector("[data-right-panel-thread], [data-thread-root]")?.closest("[data-right-panel], [role=dialog], main") ?? document.querySelector("[data-right-panel-thread]")
+            const rows = panel ? panel.querySelectorAll("[data-message-row], [data-comment-row], [data-comment-id]") : []
+            return rows.length >= Math.min(n, 10) ? performance.now() : false
+          },
+          { n: THREAD_REPLIES, phone: PHONE, channel: LONG.id },
+          { polling: "raf", timeout: 20000 },
+        )
+        threadMs = Math.round((await done.jsonValue()) - t0)
+      } catch (e) {
+        result.errors.push(`run ${r}: thread: ${String(e?.message || e).split("\n")[0]}`)
+      }
+      await page.waitForTimeout(600)
+      const m = await since(page, before)
+      // Which components rendered, and where each storm started (names in a profiling build).
+      const row = { run: r, threadOpenMs: threadMs, renders: m.renders, longMs: m.longMs, topApp: m.topApp?.slice(0, 10), origins: m.origins?.slice(0, 8), slowest: m.slowest?.slice(0, 8), mountRoots: m.mountRoots, storms: m.storms, commits: m.commits, maxCommitRenders: m.maxCommitRenders }
+      // Typing a reply in the thread's composer.
+      const box = page.locator("[data-right-panel] [contenteditable='true'], [role=dialog] [contenteditable='true'], [data-phone-composer] [contenteditable='true']").last()
+      if (await box.isVisible().catch(() => false)) {
+        if (PHONE) await box.tap().catch(() => {})
+        else await box.click().catch(() => {})
+        const SENT = "Taking this one, notes by noon."
+        const b2 = await mark(page)
+        await page.keyboard.type(SENT, { delay: 45 })
+        await page.waitForTimeout(600)
+        const k = keyStats(await since(page, b2), SENT.length)
+        row.threadKeyP95 = k.p95
+      }
+      result.thread = [...(result.thread ?? []), row]
+    }
   } catch (e) {
     result.errors.push(`run ${r}: ${String(e?.message || e).split("\n")[0]}`)
   }
@@ -319,6 +286,11 @@ if (result.scroll.length) {
   M.scrollTbtMs = median(result.scroll.map((s) => s.tbtMs).filter((x) => x != null))
 }
 if (result.heapMB?.length) M.heapMB = median(result.heapMB.filter((x) => x != null))
+if (result.thread?.length) {
+  M.threadOpenMs = median(result.thread.map((t) => t.threadOpenMs).filter((x) => x != null))
+  M.threadOpenRenders = median(result.thread.map((t) => t.renders).filter((x) => x != null))
+  M.threadKeyP95Ms = median(result.thread.map((t) => t.threadKeyP95).filter((x) => x != null))
+}
 result.metrics = M
 
 const rows = check(BUDGETS, M, { cpu: CPU, skipMissing: true })

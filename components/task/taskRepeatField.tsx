@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useToast } from "@/hooks/use-toast"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet, ProjectsPost } from "@/services/endpoints/projects"
 import {
   WEEKDAYS,
   buildRule,
@@ -54,7 +54,7 @@ export function TaskRepeatField({
   isSubtask: boolean
   dueDate?: Date
 }) {
-  const url = taskUUID ? `${GetEndpointUrl.GetTaskRecurrence}/${taskUUID}` : ""
+  const url = taskUUID ? `${ProjectsGet.GetTaskRecurrence}/${taskUUID}` : ""
   const { data, mutate } = useFetch<{ data: TaskRecurrence | null }>(url)
   const { makeRequest, isSubmitting } = usePost()
   const { toast } = useToast()
@@ -72,7 +72,7 @@ export function TaskRepeatField({
   }
   const save = async (rule: string) => {
     const res = await makeRequest<{ task_uuid: string; rule: string; mode: string; tz: string }, TaskRecurrence | null>({
-      apiEndpoint: PostEndpointUrl.SetTaskRecurrence,
+      apiEndpoint: ProjectsPost.SetTaskRecurrence,
       // The days in the rule are this person's days: the server works the
       // next date out in their zone, not in UTC.
       payload: { task_uuid: taskUUID, rule, mode: spec.mode, tz: browserTZ() },

@@ -35,6 +35,45 @@ function watchScrolling() {
 
 type PartProps = React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }
 
+// How many bodies need each mark on an element: it comes off with the last.
+const marked = new WeakMap<Element, Map<string, number>>()
+function mark(el: Element | null | undefined, name: string, undo: Array<() => void>) {
+  if (!el) return
+  const counts = marked.get(el) ?? new Map<string, number>()
+  // A mark written by hand stays the page's own.
+  if (!counts.get(name) && el.hasAttribute(name)) return
+  marked.set(el, counts)
+  counts.set(name, (counts.get(name) ?? 0) + 1)
+  el.setAttribute(name, "")
+  undo.push(() => {
+    const n = (counts.get(name) ?? 1) - 1
+    counts.set(name, n)
+    if (n <= 0) el.removeAttribute(name)
+  })
+}
+
+/**
+ * What app/overlay.css lays out around a body, marked by the body instead of
+ * found by :has(), which Chrome tried on every element of every page
+ * (app/selectorKeyGuard.test.ts). The same shapes the :has() rules had: a
+ * floating root that holds the body up to three boxes down; a box one or two
+ * under a root with the body one or two under it (one, for a box two down),
+ * unless it is a sheet's base; a sheet's body that holds it directly or
+ * through its base. Returns the undo.
+ */
+export function markOverlayColumn(body: HTMLElement): () => void {
+  const undo: Array<() => void> = []
+  const [a1, a2, a3] = [body.parentElement, body.parentElement?.parentElement, body.parentElement?.parentElement?.parentElement]
+  const root = (el?: Element | null) => !!el?.hasAttribute("data-overlay")
+  const box = (el?: Element | null) => !!el && !el.hasAttribute("data-overlay-body") && !el.hasAttribute("data-sheet-base")
+  for (const el of [a1, a2, a3]) if (el?.getAttribute("data-overlay") === "float") mark(el, "data-overlay-holds-body", undo)
+  if (box(a1) && (root(a2) || root(a3))) mark(a1, "data-overlay-column", undo)
+  if (box(a2) && root(a3)) mark(a2, "data-overlay-column", undo)
+  if (a1?.hasAttribute("data-sheet-body")) mark(a1, "data-overlay-holds-body", undo)
+  else if (a1?.hasAttribute("data-sheet-base") && a2?.hasAttribute("data-sheet-body")) mark(a2, "data-overlay-holds-body", undo)
+  return () => undo.splice(0).forEach((u) => u())
+}
+
 /** Pinned over the body. */
 export const OverlayHeader = React.forwardRef<HTMLDivElement, PartProps>(({ asChild, className, ...props }, ref) => {
   const Comp = asChild ? Slot : "div"
@@ -50,9 +89,13 @@ OverlayHeader.displayName = "OverlayHeader"
 export const OverlayBody = React.forwardRef<HTMLDivElement, PartProps>(({ asChild, className, ...props }, ref) => {
   const Comp = asChild ? Slot : "div"
   const [node, setNode] = React.useState<HTMLDivElement | null>(null)
+  const unmark = React.useRef<() => void>(undefined)
   // One callback for the element's life, or React hands it null and back each commit.
+  // It marks the layout's column before the first paint (markOverlayColumn).
   const refs = React.useMemo(
     () => (el: HTMLDivElement | null) => {
+      unmark.current?.()
+      unmark.current = el ? markOverlayColumn(el) : undefined
       setNode(el)
       if (typeof ref === "function") ref(el)
       else if (ref) ref.current = el

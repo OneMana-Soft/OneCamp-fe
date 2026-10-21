@@ -11,11 +11,15 @@ import type { TaskInfoInterface } from "@/types/task"
 import { List } from "@/lib/icons";
 import { Kanban } from "@/lib/icons";
 import { MyTaskTable } from "@/components/myTask/myTaskTable"
-import { MyTaskKanban } from "@/components/myTask/myTaskKanban"
+import dynamic from "next/dynamic"
+import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
 import { useSearchParams } from "next/navigation"
 import { useState, useEffect, useCallback, useMemo, startTransition } from "react"
 import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
 import {useTranslation} from "react-i18next";
+
+// The board is its own chunk, fetched when its tab first opens, as on a project.
+const MyTaskKanban = dynamic(() => import("@/components/myTask/myTaskKanban").then((m) => m.MyTaskKanban), { loading: () => <BoardSkeleton /> })
 
 const VALID_TABS = ["list", "kanban"] as const
 type TabValue = (typeof VALID_TABS)[number]

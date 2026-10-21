@@ -289,8 +289,9 @@ const DrawerContent = React.forwardRef<
                 </div>
                 {top ? <div key={top.key} ref={setHost} data-sheet-panel="" role="region" aria-labelledby={titleId} tabIndex={-1} className="sheet-panel-in flex min-h-0 flex-col outline-none" /> : null}
               </div>
+              {/* overlay.css #4: a hairline while an OverlayBody has more below. */}
               {footer ? (
-                <div data-sheet-footer="" className="relative shrink-0 px-4 pb-4 pt-3">
+                <div data-sheet-footer="" data-overlay-footer="" className="relative shrink-0 px-4 pb-4 pt-3">
                   {footer}
                 </div>
               ) : null}

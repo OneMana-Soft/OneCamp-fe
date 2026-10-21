@@ -23,11 +23,13 @@ import * as Y from "yjs"
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID"
 import { Loader2 } from "@/lib/icons"
 import axiosInstance from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostFileUploadURL, PostEndpointUrl } from "@/services/endPoints"
+import { PostFileUploadURL } from "@/services/endPoints"
+import { BoardsGet, BoardsPost } from "@/services/endpoints/boards"
 import { useToast } from "@/hooks/use-toast"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
 import { sceneSignature, whenSceneReady } from "@/lib/board/scene"
+import { applyShared, cloneElement, liveCount } from "@/lib/board/binding"
 import { collaboratorColour } from "@/components/board/boardColours"
 import "@excalidraw/excalidraw/index.css"
 import "@/components/board/excalidrawTheme.css"
@@ -106,22 +108,6 @@ function isAllowedLibraryHost(url: string): boolean {
   }
 }
 
-// cloneElement returns an independent deep copy of an Excalidraw element before
-// it is written into Yjs. This is REQUIRED: Excalidraw mutates element objects
-// in place (e.g. it pushes points into the same `points` array while a freehand
-// stroke is being drawn and bumps `version` on the same object). If we stored
-// the live reference, `yElements.get(id)` would hand back that very object, so
-// the version gate would always see existing.version === el.version and block
-// every update after the first - persisting only a stroke's starting point and
-// losing the rest on reload. Cloning gives Yjs a stable snapshot per change.
-function cloneElement<T>(el: T): T {
-  try {
-    return structuredClone(el)
-  } catch {
-    return JSON.parse(JSON.stringify(el)) as T
-  }
-}
-
 // Soft and hard limits on the number of (non-deleted) elements a board holds.
 // Crossing the soft cap surfaces a one-time, non-blocking warning; the hard cap
 // is enforced by AI generation (which refuses to push a board past it). These
@@ -134,7 +120,7 @@ const BOARD_WARN_ELEMENTS = 4000
 // which Excalidraw loads as an image (no raw bytes in the Yjs document).
 function boardAttachmentURL(boardId: string, objectUuid: string): string {
   const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "")
-  return `${baseUrl}${GetEndpointUrl.GetBoardAttachment}/${boardId}/${objectUuid}`
+  return `${baseUrl}${BoardsGet.GetBoardAttachment}/${boardId}/${objectUuid}`
 }
 
 // uploadBoardImage sends a pasted/dropped image's bytes to the backend
@@ -183,6 +169,15 @@ function BoardCanvas({
   onApiReady,
 }: BoardCanvasProps) {
   const apiRef = React.useRef<ExcalidrawImperativeAPI | null>(null)
+  // Marks for e2e and scripts/fluidity, written to the DOM (no render):
+  // data-board-synced/-elements once the server's drawing is on, and
+  // data-board-remote, how often the document has changed the scene.
+  const wrapRef = React.useRef<HTMLDivElement>(null)
+  const remoteMergesRef = React.useRef(0)
+  const markRemoteMerge = React.useCallback(() => {
+    remoteMergesRef.current++
+    if (wrapRef.current) wrapRef.current.dataset.boardRemote = String(remoteMergesRef.current)
+  }, [])
   const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
   // Whether Excalidraw has finished loading its own (empty) scene. Until it
   // has, anything put on the canvas is wiped when it does (lib/board/scene,
@@ -291,7 +286,7 @@ function BoardCanvas({
       } as never)
       const objectUuid = await uploadBoardBlob(boardId, blob, "image/png")
       if (!objectUuid) return
-      await axiosInstance.post(PostEndpointUrl.UpdateBoard, {
+      await axiosInstance.post(BoardsPost.UpdateBoard, {
         board_uuid: boardId,
         board_thumbnail_key: objectUuid,
       })
@@ -427,20 +422,8 @@ function BoardCanvas({
       applyingRemoteRef.current = true
       try {
         resolveFileEntries(Array.from(yFiles.values()) as Record<string, unknown>[])
-        const local = api.getSceneElementsIncludingDeleted()
-        const merged = new Map<string, Record<string, unknown>>()
-        for (const el of local) merged.set((el as { id: string }).id, el as never)
-        yElements.forEach((remote) => {
-          const id = (remote as { id: string }).id
-          const cur = merged.get(id) as { version?: number } | undefined
-          const rv = (remote as { version?: number }).version ?? 0
-          // Clone so Excalidraw never receives (and mutates) the object Yjs
-          // still holds, which would alias the stored value and corrupt it.
-          if (!cur || (cur.version ?? 0) <= rv) merged.set(id, cloneElement(remote))
-        })
-        if (merged.size > 0) {
-          api.updateScene({ elements: Array.from(merged.values()) as never[] })
-        }
+        // Outside this person's undo (lib/board/binding).
+        if (applyShared(api, yElements.values() as never) > 0) markRemoteMerge()
         // What others drew is not a change of ours: Excalidraw's onChange for
         // it comes after this block, and would otherwise send it back and
         // upload a fresh thumbnail of a board the viewer only opened.
@@ -475,7 +458,7 @@ function BoardCanvas({
       yElements.unobserve(onElementsChange)
       yFiles.unobserve(onFilesChange)
     }
-  }, [api, sceneReady, yElements, yFiles, boardId])
+  }, [api, sceneReady, yElements, yFiles, boardId, markRemoteMerge])
 
   // Belt-and-suspenders: when the provider reports a completed sync, hydrate
   // once more. If the initial sync update arrived before the observers were
@@ -485,23 +468,18 @@ function BoardCanvas({
     if (!api || !synced || !sceneReady) return
     applyingRemoteRef.current = true
     try {
-      const local = api.getSceneElementsIncludingDeleted()
-      const merged = new Map<string, Record<string, unknown>>()
-      for (const el of local) merged.set((el as { id: string }).id, el as never)
-      yElements.forEach((remote) => {
-        const id = (remote as { id: string }).id
-        const cur = merged.get(id) as { version?: number } | undefined
-        const rv = (remote as { version?: number }).version ?? 0
-        if (!cur || (cur.version ?? 0) <= rv) merged.set(id, cloneElement(remote))
-      })
-      if (merged.size > 0) {
-        api.updateScene({ elements: Array.from(merged.values()) as never[] })
+      if (applyShared(api, yElements.values() as never) > 0) markRemoteMerge()
+      const scene = api.getSceneElementsIncludingDeleted()
+      lastSignatureRef.current = sceneSignature(scene as never)
+      const mark = wrapRef.current
+      if (mark) {
+        mark.dataset.boardSynced = "true"
+        mark.dataset.boardElements = String(liveCount(scene as never))
       }
-      lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted() as never)
     } finally {
       applyingRemoteRef.current = false
     }
-  }, [api, synced, sceneReady, yElements])
+  }, [api, synced, sceneReady, yElements, markRemoteMerge])
 
   // -------------------------------------------------------------------------
   // Camera restore: once the API is ready, put the user back where they were
@@ -663,17 +641,14 @@ function BoardCanvas({
       // Graceful size warning: count live (non-deleted) elements and warn once
       // when the board grows past the soft cap. Reset when it drops back below,
       // so a later growth can warn again.
-      let liveCount = 0
-      for (const el of elements) {
-        if (!(el as { isDeleted?: boolean }).isDeleted) liveCount++
-      }
-      if (liveCount >= BOARD_WARN_ELEMENTS && !warnedSizeRef.current) {
+      const live = liveCount(elements)
+      if (live >= BOARD_WARN_ELEMENTS && !warnedSizeRef.current) {
         warnedSizeRef.current = true
         toast({
           title: "This board is getting large",
-          description: `It has about ${liveCount} elements. Very large boards can slow down. Consider splitting it into multiple boards.`,
+          description: `It has about ${live} elements. Very large boards can slow down. Consider splitting it into multiple boards.`,
         })
-      } else if (liveCount < BOARD_WARN_ELEMENTS && warnedSizeRef.current) {
+      } else if (live < BOARD_WARN_ELEMENTS && warnedSizeRef.current) {
         warnedSizeRef.current = false
       }
 
@@ -757,7 +732,7 @@ function BoardCanvas({
   )
 
   return (
-    <div className="h-full w-full">
+    <div ref={wrapRef} className="h-full w-full" data-board-canvas="">
       <Excalidraw
         excalidrawAPI={handleApi}
         onChange={handleChange as never}

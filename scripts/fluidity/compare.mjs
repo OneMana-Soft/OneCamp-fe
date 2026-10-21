@@ -4,11 +4,16 @@
 //
 //   node scripts/fluidity/compare.mjs --before a.json b.json --after c.json d.json [--out table.md]
 //
+// surfaces.mjs results (--out files) are read too: every metric's median over
+// the runs that weren't busy (load over BUSY_LOAD, or E-cores), or over every
+// run when none was quiet, which the table then says. With --before alone it
+// prints one build's medians across its files (FLUIDITY-LEAD-2, 21 Oct 2026).
+//
 // Run the two builds alternately (before, after, before, after...) rather
 // than one after the other: a busy machine slows whichever runs during the
 // busy minutes, and alternating shares that out.
 import { readFileSync, writeFileSync } from "node:fs"
-import { median } from "./lib.mjs"
+import { BUSY_LOAD, median } from "./lib.mjs"
 
 const args = process.argv.slice(2)
 const list = (flag) => {
@@ -21,9 +26,42 @@ const list = (flag) => {
 const before = list("--before").map((f) => JSON.parse(readFileSync(f, "utf8")))
 const after = list("--after").map((f) => JSON.parse(readFileSync(f, "utf8")))
 const out = list("--out")[0]
+const surfaces = (r) => Array.isArray(r.runs) && !r.raw
+if (before.length && [...before, ...after].every(surfaces)) {
+  const md = surfacesTable(before, after)
+  if (out) writeFileSync(out, md)
+  console.log(md)
+  process.exit(0)
+}
 if (!before.length || !after.length) {
   console.error("usage: compare.mjs --before a.json [...] --after b.json [...] [--out file.md]")
   process.exit(2)
+}
+
+/**
+ * surfaces.mjs results, one column a build: each metric's median over the
+ * quiet runs (or every run, marked busy, when none was quiet), its runs' loads
+ * and the share of runs it was measured in.
+ */
+function surfacesTable(before, after) {
+  const side = (results) => {
+    const runs = results.flatMap((r) => r.runs)
+    const quiet = runs.filter((r) => !r.busy)
+    const use = quiet.length ? quiet : runs
+    const loads = runs.flatMap((r) => r.load ?? []).filter((x) => typeof x === "number")
+    return { runs, quiet, use, busy: !quiet.length, load: loads.length ? `${Math.min(...loads)}-${Math.max(...loads)}` : "-", where: [...new Set(results.map((r) => `${r.device} ${r.cpu}x ${r.base}`))].join(", ") }
+  }
+  const sides = [side(before), ...(after.length ? [side(after)] : [])]
+  const names = [...new Set(sides.flatMap((x) => x.runs.flatMap((r) => Object.keys(r.metrics ?? {}))))]
+  const cell = (x, k) => {
+    const vs = x.use.map((r) => r.metrics?.[k]).filter((v) => typeof v === "number" && Number.isFinite(v))
+    const m = median(vs)
+    return m === null ? "-" : `${Math.round(m * 10) / 10}${vs.length < x.use.length ? ` (${vs.length}/${x.use.length})` : ""}`
+  }
+  const head = sides.map((x, i) => `${after.length ? (i ? "after" : "before") : "median"}: ${x.where}; ${x.use.length} of ${x.runs.length} runs${x.busy ? `, all busy (load > ${BUSY_LOAD})` : " quiet"}, load ${x.load}`)
+  const lines = [...head.map((h) => `- ${h}`), "", `| metric | ${sides.map((_, i) => (after.length ? (i ? "after" : "before") : "median")).join(" | ")} |`, `|---|${sides.map(() => "---|").join("")}`]
+  for (const k of names) lines.push(`| ${k} | ${sides.map((x) => cell(x, k)).join(" | ")} |`)
+  return lines.join("\n") + "\n"
 }
 
 // Every run of a step, across files.

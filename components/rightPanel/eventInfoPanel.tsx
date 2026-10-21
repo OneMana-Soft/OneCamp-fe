@@ -6,7 +6,8 @@ import { format, parseISO, isSameDay } from "date-fns";
 import { shortDateTime } from "@/lib/utils/date/shortDate";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { CalendarPost } from "@/services/endpoints/calendar";
 import type { CalendarEventInterface, GetEventsResponse } from "@/types/calendar";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ErrorState } from "@/components/ui/error-state";
@@ -279,7 +280,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     const executeLeave = async () => {
         try {
             await post.makeRequest({
-                apiEndpoint: (PostEndpointUrl.LeaveEvent + `/${event?.event_uuid}`) as PostEndpointUrl,
+                apiEndpoint: (CalendarPost.LeaveEvent + `/${event?.event_uuid}`) as string,
                 payload: {},
                 showErrorToast: true,
                 failureTitle: "Couldn't leave the event",

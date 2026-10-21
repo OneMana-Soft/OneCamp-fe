@@ -10,10 +10,18 @@
 import { avatarSeed, personHue } from "@/lib/utils/getAvatarColor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createLocalVideoTrack, type LocalTrack } from "livekit-client";
-import { Captions, ChevronDown, Headphones, Loader2, Mic, MicOff, Video, VideoOff, Volume2 } from "@/lib/icons";
+import { Captions, ChevronDown, Headphones, Loader2, Lock, Mic, MicOff, Video, VideoOff, Volume2 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import dynamic from "next/dynamic";
+
+// Backgrounds and sound on the preview, a piece of its own: none of a call's
+// first load. Until it arrives, a still button keeps its place.
+const GreenRoomEffects = dynamic(() => import("@/components/call/effects/GreenRoomEffects"), {
+  ssr: false,
+  loading: () => <span aria-hidden className="grid size-12 place-items-center rounded-[12px] bg-[#2A2B30] @3xl:size-11" />,
+});
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
@@ -69,6 +77,12 @@ interface PreJoinProps {
   joining?: boolean;
   /** Why joining failed, said under the button. */
   joinError?: string;
+  /**
+   * Why the call won't let this person in now, before they press Join: it is
+   * locked, or someone running it put them out (Call Control). Join is off
+   * while it stands.
+   */
+  refusal?: string;
   /** The call's own page, for "Open the call in your browser" where this app can't make calls (the Linux desktop app). */
   openUrl?: string;
 }
@@ -110,6 +124,7 @@ export function PreJoin({
   transcription,
   joining = false,
   joinError,
+  refusal,
   openUrl,
 }: PreJoinProps) {
   const [videoEnabled, setVideoEnabled] = useState(true);
@@ -127,6 +142,11 @@ export function PreJoin({
   useEffect(() => setUnavailable(callsUnavailableHere()), []);
 
   const trackRef = useRef<LocalTrack | undefined>(undefined);
+  // Whether the call can join on one peer connection, asked now so Join needn't wait.
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+    if (url) void import("@/lib/calls/onePeerConnection").then((m) => m.onePeerConnection(url)).catch(() => undefined);
+  }, []);
 
   // The account's name arrives a moment after the page; until it is edited,
   // the field follows it.
@@ -282,6 +302,7 @@ export function PreJoin({
                 icon={videoEnabled ? <Video /> : <VideoOff />}
                 onClick={toggleVideo}
               />
+              <GreenRoomEffects preview={videoTrack} />
             </div>
             <NamePlate name={self} muted={!audioEnabled} className="max-md:hidden">
               {audioEnabled ? <MicMeter level={level} className="ml-0.5 h-3 w-4" /> : null}
@@ -337,8 +358,14 @@ export function PreJoin({
 
             {/* What the call is doing, said before Join rather than after:
                 people learned of a recording from the pill, already on it. */}
-            {recordingBy || recording || transcription?.on ? (
+            {recordingBy || recording || transcription?.on || refusal ? (
               <div className="mt-4 flex flex-col gap-2" data-call-notices="">
+                {refusal ? (
+                  <p role="note" className="flex items-start gap-2 rounded-[10px] bg-sunken px-3 py-2 text-ui-sm text-foreground ring-1 ring-inset ring-line" data-refusal-notice="">
+                    <Lock aria-hidden className="mt-0.5 size-4 shrink-0 text-ink-3" />
+                    <span>{refusal}</span>
+                  </p>
+                ) : null}
                 {recordingBy || recording ? (
                   <p role="note" className="flex items-start gap-2 rounded-[10px] bg-sunken px-3 py-2 text-ui-sm text-foreground ring-1 ring-inset ring-line" data-recording-notice="">
                     <span aria-hidden className="mt-[5px] size-2 shrink-0 rounded-[4px] bg-destructive" />
@@ -369,7 +396,7 @@ export function PreJoin({
               <Button
                 size="lg"
                 className="mt-4 w-full"
-                disabled={nameMissing || joining}
+                disabled={nameMissing || joining || !!refusal}
                 onClick={() => onJoin({ audioEnabled, videoEnabled, displayName: name.trim() })}
               >
                 {joining ? (

@@ -11,7 +11,8 @@
  */
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { AiGet, AiPost } from "@/services/endpoints/ai"
 import { authedStreamFetch } from "@/lib/utils/streamFetch"
 import { dedupeInFlight } from "@/lib/utils/inFlight"
 import type { AxiosRequestConfig } from "axios"
@@ -216,12 +217,12 @@ export async function getAIConfig(): Promise<AIConfig> {
 }
 
 export async function getAISystemStats(): Promise<SystemStats> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAISystemStats)
+  const res = await axiosInstance.get(AiGet.GetAISystemStats)
   return res.data?.data
 }
 
 export async function getReindexStatus(): Promise<ReindexStatus> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAIReindexStatus)
+  const res = await axiosInstance.get(AiGet.GetAIReindexStatus)
   return res.data?.data
 }
 
@@ -237,7 +238,7 @@ export interface AIUsage {
 }
 
 export async function getAIUsage(): Promise<AIUsage> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAIUsage)
+  const res = await axiosInstance.get(AiGet.GetAIUsage)
   return res.data?.data
 }
 
@@ -255,7 +256,7 @@ interface AIUserUsage {
 }
 
 export async function getAIUserUsage(limit = 25): Promise<AIUserUsage> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAIUserUsage}?limit=${limit}`)
+  const res = await axiosInstance.get(`${AiGet.GetAIUserUsage}?limit=${limit}`)
   return res.data?.data
 }
 
@@ -272,7 +273,7 @@ interface AIChannelUsage {
 }
 
 export async function getAIChannelUsage(limit = 25): Promise<AIChannelUsage> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAIChannelUsage}?limit=${limit}`)
+  const res = await axiosInstance.get(`${AiGet.GetAIChannelUsage}?limit=${limit}`)
   return res.data?.data
 }
 
@@ -286,7 +287,7 @@ export async function getAIChannelUsage(limit = 25): Promise<AIChannelUsage> {
  * never served from a shared non-refresh promise.
  */
 export async function listProviderModels(providerId: string, refresh = false): Promise<ModelView[]> {
-  const url = `${GetEndpointUrl.GetAIProviderModels}/${encodeURIComponent(providerId)}/models${refresh ? "?refresh=true" : ""}`
+  const url = `${AiGet.GetAIProviderModels}/${encodeURIComponent(providerId)}/models${refresh ? "?refresh=true" : ""}`
   return dedupeInFlight(url, async () => {
     const res = await axiosInstance.get(url)
     return res.data?.data?.models ?? []
@@ -303,7 +304,7 @@ export async function listProviderModels(providerId: string, refresh = false): P
  * remote manifest (bypassing its cache) — used by the "refresh" action.
  */
 export async function getOllamaCatalog(providerId: string, refresh = false): Promise<OllamaCatalog> {
-  const url = `${GetEndpointUrl.GetAIOllamaCatalog}/${encodeURIComponent(providerId)}/catalog${refresh ? "?refresh=true" : ""}`
+  const url = `${AiGet.GetAIOllamaCatalog}/${encodeURIComponent(providerId)}/catalog${refresh ? "?refresh=true" : ""}`
   // The catalog says a failure in its own toast, with the provider's reason.
   const res = await axiosInstance.get(url, OWN_ERRORS)
   return res.data?.data
@@ -319,7 +320,7 @@ interface CreateProviderInput {
 }
 
 export async function createProvider(input: CreateProviderInput): Promise<ProviderView> {
-  const res = await axiosInstance.post(PostEndpointUrl.CreateAIProvider, input)
+  const res = await axiosInstance.post(AiPost.CreateAIProvider, input)
   return res.data?.data
 }
 
@@ -333,14 +334,14 @@ interface UpdateProviderInput {
 
 export async function updateProvider(providerId: string, input: UpdateProviderInput): Promise<ProviderView> {
   const res = await axiosInstance.patch(
-    `${PostEndpointUrl.UpdateAIProvider}/${encodeURIComponent(providerId)}`,
+    `${AiPost.UpdateAIProvider}/${encodeURIComponent(providerId)}`,
     input,
   )
   return res.data?.data
 }
 
 export async function deleteProvider(providerId: string): Promise<void> {
-  await axiosInstance.delete(`${PostEndpointUrl.DeleteAIProvider}/${encodeURIComponent(providerId)}`)
+  await axiosInstance.delete(`${AiPost.DeleteAIProvider}/${encodeURIComponent(providerId)}`)
 }
 
 interface TestConnectionInput {
@@ -352,25 +353,25 @@ interface TestConnectionInput {
 }
 
 export async function testConnection(input: TestConnectionInput): Promise<TestConnectionResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.TestAIProvider, input)
+  const res = await axiosInstance.post(AiPost.TestAIProvider, input)
   return res.data?.data
 }
 // ─── Active selection ────────────────────────────────────────────────────
 
 export async function setChatModel(providerId: string, model: string): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIChatModel, { provider_id: providerId, model })
+  await axiosInstance.post(AiPost.SetAIChatModel, { provider_id: providerId, model })
 }
 
 // Sets or clears the optional vision (multimodal) model used for image
 // analysis. Passing empty strings clears the selection (image analysis off).
 export async function setVisionModel(providerId: string, model: string): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIVisionModel, { provider_id: providerId, model })
+  await axiosInstance.post(AiPost.SetAIVisionModel, { provider_id: providerId, model })
 }
 
 // Sets or clears the optional dedicated model the code-PR coding runner uses.
 // Passing empty strings clears it (code runs then fall back to the chat model).
 export async function setCodePRModel(providerId: string, model: string): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAICodePRModel, { provider_id: providerId, model })
+  await axiosInstance.post(AiPost.SetAICodePRModel, { provider_id: providerId, model })
 }
 
 /**
@@ -385,7 +386,7 @@ export async function setEmbeddingModel(
   dimension: number,
   reindex = false,
 ): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIEmbeddingModel, {
+  await axiosInstance.post(AiPost.SetAIEmbeddingModel, {
     provider_id: providerId,
     model,
     dimension,
@@ -394,42 +395,42 @@ export async function setEmbeddingModel(
 }
 
 export async function setAIEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIEnabled, { enabled })
+  await axiosInstance.post(AiPost.SetAIEnabled, { enabled })
 }
 
 export async function setAIRateLimit(rateLimitPerMin: number): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIRateLimit, { rate_limit_per_min: rateLimitPerMin })
+  await axiosInstance.post(AiPost.SetAIRateLimit, { rate_limit_per_min: rateLimitPerMin })
 }
 
 // Set the model context window (tokens). 0 = use the server env/default.
 export async function setAIContextWindow(contextWindowTokens: number): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIContextWindow, { context_window_tokens: contextWindowTokens })
+  await axiosInstance.post(AiPost.SetAIContextWindow, { context_window_tokens: contextWindowTokens })
 }
 
 // Set the workspace-wide daily AI token cap (0 = unlimited).
 export async function setAIWorkspaceTokenBudget(tokens: number): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIWorkspaceTokenBudget, { tokens })
+  await axiosInstance.post(AiPost.SetAIWorkspaceTokenBudget, { tokens })
 }
 
 // Set the per-user daily AI token cap (0 = unlimited).
 export async function setAIUserTokenBudget(tokens: number): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIUserTokenBudget, { tokens })
+  await axiosInstance.post(AiPost.SetAIUserTokenBudget, { tokens })
 }
 
 // Set the code-agent per-analysis file budget. 0 = use the built-in default.
 export async function setAICodeAnalysisMaxFiles(maxFiles: number): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAICodeAnalysisMaxFiles, { max_files: maxFiles })
+  await axiosInstance.post(AiPost.SetAICodeAnalysisMaxFiles, { max_files: maxFiles })
 }
 
 // Toggle "thinking"/reasoning mode for reasoning-capable models. false = faster.
 export async function setAIReasoning(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIReasoning, { enabled })
+  await axiosInstance.post(AiPost.SetAIReasoning, { enabled })
 }
 
 // Toggle local-only AI mode (data-residency guarantee: no content to a cloud
 // model). The backend refuses to enable it while an active endpoint is cloud.
 export async function setAILocalOnly(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAILocalOnly, { enabled })
+  await axiosInstance.post(AiPost.SetAILocalOnly, { enabled })
 }
 
 // Set the agent-to-agent delegation policy: whether one AI teammate may hand work
@@ -443,7 +444,7 @@ export async function setAIAgentDelegation(
   maxHops: number,
   surfaces: string,
 ): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIAgentDelegation, {
+  await axiosInstance.post(AiPost.SetAIAgentDelegation, {
     enabled,
     max_hops: maxHops,
     surfaces,
@@ -453,37 +454,37 @@ export async function setAIAgentDelegation(
 // Toggle PII redaction before cloud egress. When on, detected PII is scrubbed
 // from prompts before they reach a non-local model.
 export async function setAIPIIRedaction(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIPIIRedaction, { enabled })
+  await axiosInstance.post(AiPost.SetAIPIIRedaction, { enabled })
 }
 
 // Set the admin-defined PII redaction regexes (one per line). The backend
 // rejects the request if any line is an invalid regex.
 export async function setAIPIIPatterns(patterns: string): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIPIIPatterns, { patterns })
+  await axiosInstance.post(AiPost.SetAIPIIPatterns, { patterns })
 }
 
 export async function setMeetingRecapEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIMeetingRecap, { enabled })
+  await axiosInstance.post(AiPost.SetAIMeetingRecap, { enabled })
 }
 
 export async function setMeetingNotesDocEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIMeetingNotesDoc, { enabled })
+  await axiosInstance.post(AiPost.SetAIMeetingNotesDoc, { enabled })
 }
 
 export async function setMeetingRecapInstructions(instructions: string): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIMeetingRecapInstructions, { instructions })
+  await axiosInstance.post(AiPost.SetAIMeetingRecapInstructions, { instructions })
 }
 
 // Per-user personal AI custom instructions (ChatGPT/Notion-style). Shape how the
 // assistant answers YOU (tone, role, defaults, language); applied on top of the
 // workspace prompt for your requests only.
 export async function getMyAIInstructions(): Promise<string> {
-  const res = await axiosInstance.get(GetEndpointUrl.MyAIInstructions)
+  const res = await axiosInstance.get(AiGet.MyAIInstructions)
   return res.data?.data?.instructions || ""
 }
 
 export async function setMyAIInstructions(instructions: string): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetMyAIInstructions, { instructions })
+  await axiosInstance.post(AiPost.SetMyAIInstructions, { instructions })
 }
 
 interface WebSearchInput {
@@ -497,7 +498,7 @@ interface WebSearchInput {
 // setWebSearch configures the provider-agnostic web search. api_key is sent
 // only when (re)entered; clear_key removes a stored key.
 export async function setWebSearch(input: WebSearchInput): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIWebSearch, input)
+  await axiosInstance.post(AiPost.SetAIWebSearch, input)
 }
 
 interface SandboxConfigInput {
@@ -516,13 +517,13 @@ interface SandboxConfigInput {
 // image digest, daily budgets, on/off). runner_token is sent only when
 // (re)entered; clear_token removes a stored token.
 export async function setSandboxConfig(input: SandboxConfigInput): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAISandbox, input)
+  await axiosInstance.post(AiPost.SetAISandbox, input)
 }
 
 // setSandboxEnabled is the instant kill switch: toggles only the sandbox
 // master flag without touching runner config or budgets.
 export async function setSandboxEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAISandboxEnabled, { enabled })
+  await axiosInstance.post(AiPost.SetAISandboxEnabled, { enabled })
 }
 
 interface SandboxTestResult {
@@ -535,7 +536,7 @@ interface SandboxTestResult {
 // testSandbox runs a trivial probe against the configured code-runner sidecar
 // to validate the deployment (reachability, auth, execution) before enabling.
 export async function testSandbox(): Promise<SandboxTestResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.TestAISandbox, {})
+  const res = await axiosInstance.post(AiPost.TestAISandbox, {})
   return res.data.result as SandboxTestResult
 }
 
@@ -561,13 +562,13 @@ interface CodePRConfigInput {
 // coding time limit, daily minute/run budgets, on/off). runner_token is sent
 // only when (re)entered; clear_token removes a stored token.
 export async function setCodePRConfig(input: CodePRConfigInput): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAICodePR, input)
+  await axiosInstance.post(AiPost.SetAICodePR, input)
 }
 
 // setCodePREnabled is the instant kill switch: toggles only the code-PR master
 // flag without touching runner config or budgets.
 export async function setCodePREnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAICodePREnabled, { enabled })
+  await axiosInstance.post(AiPost.SetAICodePREnabled, { enabled })
 }
 
 // CodePRScorecard is the honest reliability view of the coding agent: counts,
@@ -603,8 +604,8 @@ export interface CodePRScorecard {
 export async function getCodePRScorecard(days?: number): Promise<CodePRScorecard> {
   const url =
     days && days > 0
-      ? `${GetEndpointUrl.GetAICodePRScorecard}?days=${days}`
-      : GetEndpointUrl.GetAICodePRScorecard
+      ? `${AiGet.GetAICodePRScorecard}?days=${days}`
+      : AiGet.GetAICodePRScorecard
   const res = await axiosInstance.get(url)
   return res.data.data as CodePRScorecard
 }
@@ -623,7 +624,7 @@ interface CodePRTestResult {
 // testCodePRRunner probes the configured coding runner (reachability + token)
 // without triggering a real coding run — the "is my runner wired?" check.
 export async function testCodePRRunner(): Promise<CodePRTestResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.TestAICodePR, {})
+  const res = await axiosInstance.post(AiPost.TestAICodePR, {})
   return res.data.result as CodePRTestResult
 }
 
@@ -644,22 +645,22 @@ export interface CodePRRunView {
 // getCodePRRuns fetches the most recent coding runs (newest first) for the admin
 // runs view.
 export async function getCodePRRuns(limit = 50): Promise<CodePRRunView[]> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAICodePRRuns}?limit=${limit}`)
+  const res = await axiosInstance.get(`${AiGet.GetAICodePRRuns}?limit=${limit}`)
   return (res.data.data as CodePRRunView[]) || []
 }
 
 export async function setMemoryLayerEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIMemoryLayer, { enabled })
+  await axiosInstance.post(AiPost.SetAIMemoryLayer, { enabled })
 }
 
 export async function setTeamReportEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAITeamReport, { enabled })
+  await axiosInstance.post(AiPost.SetAITeamReport, { enabled })
 }
 
 // Admin verify: run the weekly team report immediately (posts into active
 // channels), bypassing the Monday/hour schedule and the idempotency lock.
 export async function runTeamReportNow(): Promise<{ posted: number; processed: number; msg: string }> {
-  const res = await axiosInstance.post(PostEndpointUrl.RunAITeamReport, {})
+  const res = await axiosInstance.post(AiPost.RunAITeamReport, {})
   return {
     posted: res.data?.data?.posted ?? 0,
     processed: res.data?.data?.processed ?? 0,
@@ -669,20 +670,20 @@ export async function runTeamReportNow(): Promise<{ posted: number; processed: n
 
 // Admin verify: email the calling admin a one-off open-items digest now.
 export async function sendTestDigest(): Promise<string> {
-  const res = await axiosInstance.post(PostEndpointUrl.SendAITestDigest, {})
+  const res = await axiosInstance.post(AiPost.SendAITestDigest, {})
   return res.data?.msg ?? "Test digest sent."
 }
 
 export async function setNudgesEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAINudges, { enabled })
+  await axiosInstance.post(AiPost.SetAINudges, { enabled })
 }
 
 export async function setCoworkerEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAICoworker, { enabled })
+  await axiosInstance.post(AiPost.SetAICoworker, { enabled })
 }
 
 export async function setIssueTriageEnabled(enabled: boolean): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIIssueTriage, { enabled })
+  await axiosInstance.post(AiPost.SetAIIssueTriage, { enabled })
 }
 
 // ─── Authorized models (admin allowlist) ──────────────────────────────────
@@ -724,7 +725,7 @@ export async function getAuthorizedModels(config?: AxiosRequestConfig): Promise<
 
 export async function authorizeModel(providerId: string, model: string, label = "", config?: AxiosRequestConfig): Promise<AuthorizedModel> {
   const res = await axiosInstance.post(
-    PostEndpointUrl.AuthorizeAIModel,
+    AiPost.AuthorizeAIModel,
     {
       provider_id: providerId,
       model,
@@ -736,11 +737,11 @@ export async function authorizeModel(providerId: string, model: string, label = 
 }
 
 export async function setAuthorizedModelEnabled(id: string, enabled: boolean, config?: AxiosRequestConfig): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.SetAIAuthorizedModelEnabled}/${encodeURIComponent(id)}/enabled`, { enabled }, config)
+  await axiosInstance.post(`${AiPost.SetAIAuthorizedModelEnabled}/${encodeURIComponent(id)}/enabled`, { enabled }, config)
 }
 
 export async function revokeAuthorizedModel(id: string, config?: AxiosRequestConfig): Promise<void> {
-  await axiosInstance.delete(`${PostEndpointUrl.RevokeAIAuthorizedModel}/${encodeURIComponent(id)}`, config)
+  await axiosInstance.delete(`${AiPost.RevokeAIAuthorizedModel}/${encodeURIComponent(id)}`, config)
 }
 
 /** What a provider says about a model's own limits. 0 means the provider did not report
@@ -762,7 +763,7 @@ interface DiscoveredModelLimits {
  */
 export async function discoverAuthorizedModelLimits(id: string, config?: AxiosRequestConfig): Promise<DiscoveredModelLimits> {
   const res = await axiosInstance.get(
-    `${GetEndpointUrl.DiscoverAIModelLimits}/${encodeURIComponent(id)}/discover-limits`,
+    `${AiGet.DiscoverAIModelLimits}/${encodeURIComponent(id)}/discover-limits`,
     config,
   )
   return res.data?.data ?? { context_window_tokens: 0, max_output_tokens: 0 }
@@ -781,7 +782,7 @@ export async function setAuthorizedModelLimits(
   config?: AxiosRequestConfig,
 ): Promise<void> {
   await axiosInstance.post(
-    `${PostEndpointUrl.SetAIAuthorizedModelLimits}/${encodeURIComponent(id)}/limits`,
+    `${AiPost.SetAIAuthorizedModelLimits}/${encodeURIComponent(id)}/limits`,
     limits,
     config,
   )
@@ -809,7 +810,7 @@ export async function getMyModels(): Promise<UserModelsResponse> {
 
 // Set (or clear, when modelId is empty) the current user's model choice.
 export async function setMyModel(modelId: string): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.SetAIModelPreference, { model_id: modelId })
+  await axiosInstance.post(AiPost.SetAIModelPreference, { model_id: modelId })
 }
 
 // ─── AI self-test ("Test AI") ──────────────────────────────────────────────
@@ -836,11 +837,11 @@ export interface SelfTestStatus {
 // Start an async self-test. modelId targets a specific authorized model; pass
 // "" to test the workspace default. Returns immediately; poll getSelfTestStatus.
 export async function runAISelfTest(modelId = ""): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.RunAISelfTest, modelId ? { model_id: modelId } : {})
+  await axiosInstance.post(AiPost.RunAISelfTest, modelId ? { model_id: modelId } : {})
 }
 
 export async function getAISelfTestStatus(): Promise<SelfTestStatus> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAISelfTestStatus)
+  const res = await axiosInstance.get(AiGet.GetAISelfTestStatus)
   return res.data?.data
 }
 
@@ -865,7 +866,7 @@ interface AnalyzeCodeInput {
 // proposed fix. Read-only against GitHub. `deep` widens the file budget for a
 // "look harder" retry.
 export async function analyzeCodeIssue(input: AnalyzeCodeInput): Promise<CodeAnalysisResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.AnalyzeCode, input)
+  const res = await axiosInstance.post(AiPost.AnalyzeCode, input)
   return res.data?.data
 }
 
@@ -879,7 +880,7 @@ export interface ReleaseNotesResult {
 
 // Draft user-facing release notes from PRs merged on a repo in the last `days`.
 export async function draftReleaseNotes(owner: string, repo: string, days: number): Promise<ReleaseNotesResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.DraftReleaseNotes, { owner, repo, days })
+  const res = await axiosInstance.post(AiPost.DraftReleaseNotes, { owner, repo, days })
   return res.data?.data
 }
 
@@ -893,25 +894,25 @@ export interface SocialPostView {
 
 // Draft platform-tailored social posts (X / Reddit / ...) for a topic.
 export async function draftSocialPosts(topic: string, platforms: string[]): Promise<SocialPostView[]> {
-  const res = await axiosInstance.post(PostEndpointUrl.DraftSocialPosts, { topic, platforms })
+  const res = await axiosInstance.post(AiPost.DraftSocialPosts, { topic, platforms })
   return res.data?.data ?? []
 }
 
 // ─── Memory backfill ("rebuild memory") ──────────────────────────────────
 
 export async function rebuildAIMemory(): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.RebuildAIMemory, {})
+  await axiosInstance.post(AiPost.RebuildAIMemory, {})
 }
 
 export async function getMemoryBackfillStatus(): Promise<MemoryBackfillStatus> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAIMemoryRebuildStatus)
+  const res = await axiosInstance.get(AiGet.GetAIMemoryRebuildStatus)
   return res.data?.data
 }
 
 // ─── Local model install / delete ────────────────────────────────────────
 
 export async function deleteModel(providerId: string, model: string): Promise<void> {
-  await axiosInstance.post(PostEndpointUrl.DeleteAIModel, { provider_id: providerId, model })
+  await axiosInstance.post(AiPost.DeleteAIModel, { provider_id: providerId, model })
 }
 
 /**
@@ -936,7 +937,7 @@ export function pullModel(
   const controller = new AbortController()
 
   const promise = (async (): Promise<PullResult> => {
-    const resp = await authedStreamFetch(PostEndpointUrl.PullAIModel, {
+    const resp = await authedStreamFetch(AiPost.PullAIModel, {
       jsonBody: { provider_id: providerId, model },
       signal: controller.signal,
     })
@@ -1038,7 +1039,7 @@ export interface MCPServerSettings {
 }
 
 export async function getAIMCPServer(): Promise<MCPServerSettings> {
-    const res = await axiosInstance.get(GetEndpointUrl.GetAIMCPServer)
+    const res = await axiosInstance.get(AiGet.GetAIMCPServer)
     const data = (res.data as { data?: Partial<MCPServerSettings> })?.data
     return {
         // Defaults match the server's: off, exposing nothing. A malformed response must
@@ -1062,7 +1063,7 @@ export async function getAIMCPServer(): Promise<MCPServerSettings> {
  * than replacing with a generic failure.
  */
 export async function setAIMCPServer(enabled: boolean, toolGroups: string): Promise<void> {
-    await axiosInstance.post(PostEndpointUrl.SetAIMCPServer, {
+    await axiosInstance.post(AiPost.SetAIMCPServer, {
         enabled,
         tool_groups: toolGroups,
     })

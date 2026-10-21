@@ -41,7 +41,7 @@ describe("the tables list", () => {
     const primaries = screen.getAllByRole("button").filter((b) => /\bbg-brand\b/.test(b.className))
     expect(primaries).toHaveLength(1)
     const svg = document.querySelector("[data-empty-illustration] svg")
-    expect(svg?.getAttribute("class")).toContain("hue-moss")
+    expect(svg?.getAttribute("class")).toContain("hue-lake")
   })
 
   it("lists tables on the sheet with no box around them and no trash can on each row", () => {

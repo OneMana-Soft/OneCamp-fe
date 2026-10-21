@@ -34,7 +34,7 @@ describe("the GitHub return page", () => {
     expect(screen.getByRole("status")).toBeTruthy()
     // Design v3 (A22): the 64px plug spot in the connections hue, a spinner over it.
     const spot = document.querySelector("[data-callback-spot]") as HTMLElement
-    expect(spot.querySelector("svg[data-spot].hue-lake")?.getAttribute("width")).toBe("64")
+    expect(spot.querySelector("svg[data-spot].hue-ink")?.getAttribute("width")).toBe("64")
     expect(spot.querySelector("[data-spinner] .animate-spin")).toBeTruthy()
     expect(document.querySelector(".bg-gray-900")).toBeNull()
     expect(document.body.textContent).not.toMatch(/Please/)

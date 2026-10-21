@@ -7,6 +7,8 @@ import { RootState } from "@/store/store";
 import dynamic from "next/dynamic";
 import { closeUI } from "@/store/slice/uiSlice";
 import { appMutate as mutate } from "@/lib/swrMutate";
+// Not lazy (fluid-16): drawers/accountSheetOpen.test.tsx
+import { UserProfileDrawer } from "@/components/drawers/userProfileDrawer";
 
 // Lazy load dialogs/drawers to keep bundle size small
 const CreateChannelDialog = dynamic(() => import("@/components/dialog/createChannelDialog"), { ssr: false });
@@ -56,7 +58,6 @@ const CreateBranchDialog = dynamic(() => import("@/components/task/CreateBranchD
 // Drawers
 const OrgDrawer = dynamic(() => import("@/components/drawers/orgDrawer").then(mod => mod.OrgDrawer), { ssr: false });
 const TaskDrawer = dynamic(() => import("@/components/drawers/taskDrawer").then(mod => mod.TaskDrawer), { ssr: false });
-const UserProfileDrawer = dynamic(() => import("@/components/drawers/userProfileDrawer").then(mod => mod.UserProfileDrawer), { ssr: false });
 const ChannelOptionsDrawer = dynamic(() => import("@/components/drawers/channelOptionsDrawer").then(mod => mod.ChannelOptionsDrawer), { ssr: false });
 const ChatOptionsDrawer = dynamic(() => import("@/components/drawers/chatOptionsDrawer").then(mod => mod.ChatOptionsDrawer), { ssr: false });
 const GroupChatOptionsDrawer = dynamic(() => import("@/components/drawers/groupChatOptionsDrawer").then(mod => mod.GroupChatOptionsDrawer), { ssr: false });

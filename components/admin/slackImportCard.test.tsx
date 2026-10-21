@@ -8,7 +8,7 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => (loading ? { data: undefined, isLoading: true, isError: undefined, mutate: refetch } : { data: { jobs }, isLoading: false, isError: undefined, mutate: refetch }),
 }))
 vi.mock("@/hooks/useResilientPolling", () => ({ useResilientPolling: () => {} }))
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
+vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<object>()), useMqtt: () => ({ connectionState: { isConnected: true } }) }))
 const confirm = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 const toast = vi.fn()
@@ -62,6 +62,16 @@ afterEach(() => {
 })
 
 describe("the Slack import card", () => {
+  // The guided run's Slack tile brings the admin here with ?slack=new: the
+  // upload opens, and the address loses the ask, so a reload doesn't reopen it.
+  it("opens the upload when asked by the address, once", async () => {
+    window.history.replaceState(null, "", "/app/admin?tab=import&slack=new")
+    render(<SlackImportCard />)
+    // The upload dialog is its own chunk (lazy): it comes a moment later.
+    expect(await screen.findByRole("button", { name: "duplicate of a finished import" })).toBeTruthy()
+    expect(window.location.search).toBe("?tab=import")
+  })
+
   // Rolling back asked through the browser's own prompt to type ROLLBACK:
   // unstyled, blocking, and suppressed in some installed-app windows.
   it("asks for the workspace's name before rolling back, in its own dialog", async () => {

@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react"
 import type { AxiosError } from "axios"
 import axiosInstance from "@/lib/axiosInstance"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ChatGet } from "@/services/endpoints/chat"
 import type { TaskActivityInterface } from "@/types/task"
 
 /** History lines asked for at a time. */
@@ -60,7 +60,7 @@ export function useEarlierHistory(taskUUID: string, newest: TaskActivityInterfac
     setLoading(true)
     try {
       const res = await axiosInstance.get<{ data?: { task_activities?: TaskActivityInterface[]; task_activity_has_more?: boolean } }>(
-        `${GetEndpointUrl.GetTaskActivityList}/${taskUUID}?before=${encodeURIComponent(before)}&first=${EARLIER_PAGE}`,
+        `${ChatGet.GetTaskActivityList}/${taskUUID}?before=${encodeURIComponent(before)}&first=${EARLIER_PAGE}`,
       )
       const page = res.data?.data?.task_activities ?? []
       setEarlier((cur) => {

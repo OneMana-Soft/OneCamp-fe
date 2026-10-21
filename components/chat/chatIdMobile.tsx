@@ -7,6 +7,7 @@ import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "@/store/store";
 import { UserProfileInterface } from "@/types/user";
 import { GetEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import { getGroupingId } from "@/lib/utils/getGroupingId";
 import { Sparkles } from "@/lib/icons";
@@ -29,7 +30,7 @@ export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string,
     const composerEmpty = !chatBody || chatBody.replace(/<[^>]*>/g, "").trim().length === 0;
     const showSuggestions = isBotPeer && msgCount === 0 && composerEmpty;
     const aiSuggestions = useFetch<{ data: string[] }>(
-        showSuggestions ? `${GetEndpointUrl.GetDMAISuggestions}?peer=${chatId}` : "",
+        showSuggestions ? `${ChatGet.GetDMAISuggestions}?peer=${chatId}` : "",
     );
     const suggestions = (showSuggestions && aiSuggestions.data?.data) || [];
 

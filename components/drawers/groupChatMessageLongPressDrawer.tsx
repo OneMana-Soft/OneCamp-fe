@@ -48,6 +48,7 @@ export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState,
             isOwner={isOwner}
             isAdmin={isAdmin}
             messageText={messageText}
+            pin={{ conversation: { kind: "group", id: grpId }, messageId: chatUUID }}
         />
     )
 }

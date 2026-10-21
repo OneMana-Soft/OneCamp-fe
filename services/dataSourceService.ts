@@ -1,5 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 
 // Data-sources client: governed, READ-ONLY connections to external SQL
 // databases (Postgres to start). An admin/agent-manager registers a connection;
@@ -74,28 +74,28 @@ export interface DataSourceFilter {
 }
 
 export async function createDataSource(input: DataSourceInput): Promise<DataSource> {
-  const res = await axiosInstance.post(PostEndpointUrl.CreateDataSource, input)
+  const res = await axiosInstance.post(AdminPost.CreateDataSource, input)
   return res.data?.data as DataSource
 }
 
 export async function updateDataSource(id: string, input: DataSourceInput): Promise<DataSource> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.UpdateDataSource}/${id}/update`, input)
+  const res = await axiosInstance.post(`${AdminPost.UpdateDataSource}/${id}/update`, input)
   return res.data?.data as DataSource
 }
 
 export async function deleteDataSource(id: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.DeleteDataSource}/${id}/delete`)
+  await axiosInstance.post(`${AdminPost.DeleteDataSource}/${id}/delete`)
 }
 
 export async function setDataSourceEnabled(id: string, enabled: boolean): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.SetDataSourceEnabled}/${id}/enabled`, { enabled })
+  await axiosInstance.post(`${AdminPost.SetDataSourceEnabled}/${id}/enabled`, { enabled })
 }
 
 // testDataSource opens a read-only connection and pings it. Returns a friendly
 // error message on failure (so the card can show what went wrong).
 export async function testDataSource(id: string): Promise<{ ok: boolean; message: string }> {
   try {
-    const res = await axiosInstance.post(`${PostEndpointUrl.TestDataSource}/${id}/test`)
+    const res = await axiosInstance.post(`${AdminPost.TestDataSource}/${id}/test`)
     return { ok: true, message: (res.data?.msg as string) || "connection ok" }
   } catch (e: unknown) {
     const msg =
@@ -112,7 +112,7 @@ export async function testDataSourceConfig(
   input: DataSourceInput,
 ): Promise<{ ok: boolean; message: string }> {
   try {
-    const res = await axiosInstance.post(PostEndpointUrl.TestDataSourceConfig, input)
+    const res = await axiosInstance.post(AdminPost.TestDataSourceConfig, input)
     return { ok: true, message: (res.data?.msg as string) || "connection ok" }
   } catch (e: unknown) {
     const msg =
@@ -124,7 +124,7 @@ export async function testDataSourceConfig(
 }
 
 export async function getDataSourceSchema(id: string): Promise<DataSourceTable[]> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetDataSourceSchema}/${id}/schema`)
+  const res = await axiosInstance.get(`${AdminGet.GetDataSourceSchema}/${id}/schema`)
   return (res.data?.data as DataSourceTable[]) || []
 }
 
@@ -178,6 +178,6 @@ export async function runDataSourceQueryPlan(
   id: string,
   plan: DataSourceQueryPlan,
 ): Promise<DataSourcePlanResult> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.QueryPlanDataSource}/${id}/query-plan`, plan)
+  const res = await axiosInstance.post(`${AdminPost.QueryPlanDataSource}/${id}/query-plan`, plan)
   return res.data?.data as DataSourcePlanResult
 }

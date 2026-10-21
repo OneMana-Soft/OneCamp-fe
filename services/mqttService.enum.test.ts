@@ -34,4 +34,30 @@ describe("MQTT message types match the backend", () => {
     expect(MqttMessageType.Desktop_Notice).toBe(39)
     expect(MqttMessageType.Task_Changed).toBe(40)
   })
+
+  it("Pin is 41 (MESSAGE_PIN)", () => {
+    expect(MqttMessageType.Pin).toBe(41)
+  })
+
+  it("ReadMoved is 46 (MESSAGE_READ_MOVED, the integrator's allotment)", () => {
+    expect(MqttMessageType.ReadMoved).toBe(46)
+  })
+
+  it("Call_State is 42 (MESSAGE_CALL_STATE; 41 is chat's Pin)", () => {
+    expect(MqttMessageType.Call_State).toBe(42)
+  })
+
+  // The app tells messages apart by their number alone, so two types on one
+  // number are read as each other. An explicit number (Conversation_Access =
+  // 38, Call_State = 42) is how two could ever meet, as chat's Pin and
+  // Call_State both took 41 on 17 Oct 2026.
+  it("no two types share a number", () => {
+    const byNumber = new Map<number, string[]>()
+    for (const [name, value] of Object.entries(MqttMessageType)) {
+      if (typeof value !== "number") continue // a numeric enum maps numbers back to names too
+      byNumber.set(value, [...(byNumber.get(value) ?? []), name])
+    }
+    const shared = [...byNumber].filter(([, names]) => names.length > 1).map(([n, names]) => `${names.join(" and ")} are both ${n}`)
+    expect(shared, "append a new type at the end instead").toEqual([])
+  })
 })

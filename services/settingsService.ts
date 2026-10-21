@@ -14,6 +14,8 @@ export interface WorkspaceSettings {
     has_resend_api_key: boolean
     resend_source: "db" | "env" | "none"
     guest_access_enabled: boolean
+    /** Guest access's one sub-option: whether pages can be published to the web (docs C6). */
+    guest_publish_enabled?: boolean
     /** Read receipts in DMs and group chats; each person can still turn theirs off. */
     read_receipts_enabled: boolean
 }

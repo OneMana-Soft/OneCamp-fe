@@ -20,7 +20,7 @@ const ToastProvider = ToastPrimitives.Provider
  * MobileNavigationBar from --mobile-drawer-h), so it never sits over the box
  * the person is typing in; centred, min(100% - 32px, 360px) wide; swiped down
  * to go. While the keyboard is up it comes in under the top bar instead
- * (app/phone.css).
+ * (app/phone.css). Over a call, 12px above its dock (--call-dock-floor).
  *
  * The toasts inside stack: see globals.css, "V3 SHELL: TOASTS AND NOTICES".
  */
@@ -60,11 +60,11 @@ const ToastViewport = React.forwardRef<
     className={cn(
       "toast-viewport fixed z-[var(--z-toast)] m-0 list-none p-0 outline-none",
       // Phone: above the tab bar or the composer, centred.
-      "bottom-[calc(var(--phone-floor)+12px)] left-1/2 w-[min(100%-32px,360px)] -translate-x-1/2",
+      "bottom-[max(calc(var(--phone-floor)+12px),var(--call-dock-floor,0px))] left-1/2 w-[min(100%-32px,360px)] -translate-x-1/2",
       // sm and up: bottom right of the sheet, 356px wide: 16px inside its
       // edge, which is the right panel's while that is open, so a toast never
       // sits on the panel's composer (QA DSA-19). 24px with no panel.
-      "sm:left-auto sm:right-[calc(var(--shell-right-inset,8px)+16px)] sm:translate-x-0 sm:bottom-[calc(1.5rem+var(--corner-right-h,0px))] sm:w-[356px]",
+      "sm:left-auto sm:right-[calc(var(--shell-right-inset,8px)+16px)] sm:translate-x-0 sm:bottom-[max(calc(1.5rem+var(--corner-right-h,0px)),var(--call-dock-floor,0px))] sm:w-[356px]",
       className,
     )}
     {...props}

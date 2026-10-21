@@ -6,7 +6,7 @@ import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSec
 import { StatusWord } from "@/components/ui/statusWord"
 import { Switch } from "@/components/ui/switch"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { Plus, Trash2, Pencil, Database, Loader2, Play, ChevronRight, ChevronDown, Lock } from "@/lib/icons"
@@ -31,7 +31,7 @@ const ENGINE_LABELS: Record<string, string> = { postgres: "PostgreSQL", mysql: "
 
 
 const DataSourcesCard = () => {
-  const { data, isLoading, isError, mutate } = useFetch<{ data: DataSource[] }>(GetEndpointUrl.GetDataSources)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: DataSource[] }>(AdminGet.GetDataSources)
   const { toast } = useToast()
   const confirm = useConfirm()
   const [editing, setEditing] = useState<DataSource | null>(null)

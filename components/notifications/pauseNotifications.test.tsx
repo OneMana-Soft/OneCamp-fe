@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { SCREENS, putOnScreen, type ScreenName } from "@/lib/testing/screens"
+
 // Pause notifications, design v3 (hub.md P5): a popover of 34px rows, each
 // saying when it would end; Resume while paused; the agents note held back.
 
@@ -58,5 +60,35 @@ describe("the pause popover (P5)", () => {
     render(<PauseNotificationsDialog open onOpenChange={() => {}} />)
     expect(screen.queryByText("Mentions from agents wait too.")).toBeNull()
     expect(readFileSync(join(process.cwd(), "components/notifications/PauseNotificationsDialog.tsx"), "utf8")).toMatch(/AGENT_MENTIONS_WAIT \? /)
+  })
+})
+
+// ONE SHEET RULE (20 Oct 2026): a phone held sideways is a phone. At 844px it
+// is wider than isMobile's 640, so it got the popover of 34px rows; whether
+// it's a sheet is components/ui/overlayMode's useSheetMode now.
+describe("the pause menu, by screen", () => {
+  let off = () => {}
+  const on = (s: ScreenName) => {
+    off = putOnScreen(SCREENS[s])
+  }
+  afterEach(() => {
+    off()
+    off = () => {}
+  })
+
+  it("is a sheet on a phone held sideways, Custom's Pause pinned in its footer", () => {
+    on("a phone in landscape")
+    render(<PauseNotificationsDialog open onOpenChange={() => {}} />)
+    expect(document.querySelector("[data-v3-sheet] [data-pause-menu]")).toBeTruthy()
+    expect(document.querySelector("[data-pause-popover]")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Custom…" }))
+    expect(screen.getByRole("button", { name: "Pause" }).closest("[data-sheet-footer]")).toBeTruthy()
+  })
+
+  it("stays a popover on a tablet", () => {
+    on("a tablet")
+    render(<PauseNotificationsDialog open onOpenChange={() => {}} />)
+    expect(document.querySelector("[data-pause-popover]")).toBeTruthy()
+    expect(document.querySelector("[data-v3-sheet]")).toBeNull()
   })
 })

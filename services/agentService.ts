@@ -1,5 +1,6 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { AiGet, AiPost } from "@/services/endpoints/ai"
 
 // Agent Builder client. Mirrors workflowService: list via useFetch in the card,
 // mutations via these service functions. Types mirror the backend ai_agents /
@@ -521,32 +522,32 @@ export function toolLabel(name: string): string {
 }
 
 export async function createAgent(input: AgentInput): Promise<Agent> {
-  const res = await axiosInstance.post(PostEndpointUrl.CreateAgent, input)
+  const res = await axiosInstance.post(AiPost.CreateAgent, input)
   return res.data?.data as Agent
 }
 
 export async function updateAgent(id: string, input: AgentInput): Promise<Agent> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.UpdateAgent}/${id}/update`, input)
+  const res = await axiosInstance.post(`${AiPost.UpdateAgent}/${id}/update`, input)
   return res.data?.data as Agent
 }
 
 export async function setAgentActive(id: string, isActive: boolean): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.SetAgentActive}/${id}/active`, { is_active: isActive })
+  await axiosInstance.post(`${AiPost.SetAgentActive}/${id}/active`, { is_active: isActive })
 }
 
 export async function deleteAgent(id: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.DeleteAgent}/${id}/delete`)
+  await axiosInstance.post(`${AiPost.DeleteAgent}/${id}/delete`)
 }
 
 export async function runAgent(id: string, prompt: string, dryRun: boolean): Promise<AgentRunOutcome> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.RunAgent}/${id}/run`, { prompt, dry_run: dryRun })
+  const res = await axiosInstance.post(`${AiPost.RunAgent}/${id}/run`, { prompt, dry_run: dryRun })
   return res.data?.data as AgentRunOutcome
 }
 
 // listAgentRuns fetches recent run history (transcript + status + tokens) for
 // an agent the caller can manage. Powers the run-transparency view.
 export async function listAgentRuns(id: string, limit = 25): Promise<AgentRun[]> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgentRuns}/${id}/runs?limit=${limit}`)
+  const res = await axiosInstance.get(`${AiGet.GetAgentRuns}/${id}/runs?limit=${limit}`)
   return (res.data?.data as AgentRun[]) || []
 }
 
@@ -572,7 +573,7 @@ export interface AgentActivityItem {
 
 // listAgentActivity loads the recent cross-agent activity feed.
 export async function listAgentActivity(limit = 50): Promise<AgentActivityItem[]> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgentActivity}?limit=${limit}`, {
+  const res = await axiosInstance.get(`${AiGet.GetAgentActivity}?limit=${limit}`, {
     // @ts-expect-error — suppress the global loading bar for this background fetch
     silent: true,
   })
@@ -637,7 +638,7 @@ interface StopAgentWorkResult {
 // stopping something already stopping or finished reports what is true instead of
 // failing, so a double click is harmless.
 export async function stopAgentWork(taskId: string): Promise<StopAgentWorkResult> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.StopAgentWork}/${taskId}/stop`, {})
+  const res = await axiosInstance.post(`${AiPost.StopAgentWork}/${taskId}/stop`, {})
   return res.data?.data as StopAgentWorkResult
 }
 
@@ -659,7 +660,7 @@ export async function listActiveAgentWork(limit = 100): Promise<ActiveWorkItem[]
 // THEY may stop it. An empty list is the normal case.
 export async function listAgentWorkForEntity(entityId: string): Promise<ActiveWorkItem[]> {
   if (!entityId) return []
-  const res = await axiosInstance.get(`${GetEndpointUrl.AgentWorkForEntity}/${entityId}`, {
+  const res = await axiosInstance.get(`${AiGet.AgentWorkForEntity}/${entityId}`, {
     // @ts-expect-error — suppress the global loading bar for this background fetch
     silent: true,
   })
@@ -671,7 +672,7 @@ export async function listAgentWorkForEntity(entityId: string): Promise<ActiveWo
 // the member-facing "AI teammates" view. Needs no agent.manage capability;
 // strictly self-scoped server-side. Same ActiveWorkItem shape.
 export async function listMyAgentWork(limit = 100): Promise<ActiveWorkItem[]> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.MyAgentWork}?limit=${limit}`, {
+  const res = await axiosInstance.get(`${AiGet.MyAgentWork}?limit=${limit}`, {
     // @ts-expect-error — suppress the global loading bar for this background fetch
     silent: true,
   })
@@ -740,12 +741,12 @@ export async function checkRemoteBrain(input: {
     agent_id?: string
     protocol?: RemoteProtocol
 }): Promise<RemoteBrainResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.CheckRemoteBrain, input)
+  const res = await axiosInstance.post(AiPost.CheckRemoteBrain, input)
   return res.data?.data as RemoteBrainResult
 }
 
 export async function draftAgent(prompt: string): Promise<AgentDraft> {
-  const res = await axiosInstance.post(PostEndpointUrl.DraftAgent, { prompt })
+  const res = await axiosInstance.post(AiPost.DraftAgent, { prompt })
   return res.data?.data as AgentDraft
 }
 
@@ -794,18 +795,18 @@ export interface AgentRoutine {
 
 // listAgentRoutines fetches an agent's active routines (owner/admin only).
 export async function listAgentRoutines(id: string): Promise<AgentRoutine[]> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgentRuns}/${id}/routines`)
+  const res = await axiosInstance.get(`${AiGet.GetAgentRuns}/${id}/routines`)
   return (res.data?.data as AgentRoutine[]) || []
 }
 
 // setAgentRoutineEnabled pauses (false) or resumes (true) a routine.
 export async function setAgentRoutineEnabled(agentId: string, routineId: string, enabled: boolean): Promise<void> {
-  await axiosInstance.post(`${GetEndpointUrl.GetAgentRuns}/${agentId}/routines/${routineId}/enabled`, { enabled })
+  await axiosInstance.post(`${AiGet.GetAgentRuns}/${agentId}/routines/${routineId}/enabled`, { enabled })
 }
 
 // deleteAgentRoutine cancels (soft-deletes) a routine.
 export async function deleteAgentRoutine(agentId: string, routineId: string): Promise<void> {
-  await axiosInstance.delete(`${GetEndpointUrl.GetAgentRuns}/${agentId}/routines/${routineId}`)
+  await axiosInstance.delete(`${AiGet.GetAgentRuns}/${agentId}/routines/${routineId}`)
 }
 
 // AgentSignatureReport mirrors the backend check of an agent's signed actions
@@ -820,7 +821,7 @@ export interface AgentSignatureReport {
 }
 
 export async function getAgentSignatures(id: string): Promise<AgentSignatureReport> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgentRuns}/${id}/signatures`)
+  const res = await axiosInstance.get(`${AiGet.GetAgentRuns}/${id}/signatures`)
   return res.data?.data as AgentSignatureReport
 }
 
@@ -838,7 +839,7 @@ export function signatureSummary(r: AgentSignatureReport): { tone: "ok" | "warn"
 }
 
 export async function getAgentStats(id: string): Promise<AgentRunStats | null> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgentRuns}/${id}/stats`)
+  const res = await axiosInstance.get(`${AiGet.GetAgentRuns}/${id}/stats`)
   return (res.data?.data as AgentRunStats) || null
 }
 
@@ -1270,13 +1271,13 @@ export interface AgentInventory {
 
 /** Everything that can act here without being a person, and who answers for it. */
 export async function getAgentInventory(): Promise<AgentInventory> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetAgentInventory)
+  const res = await axiosInstance.get(AiGet.GetAgentInventory)
   return res.data?.data as AgentInventory
 }
 
 /** An admin revokes any live credential. Takes effect on its next request. */
 export async function revokeInventoryCredential(id: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.RevokeInventoryCredential}/${id}/revoke`)
+  await axiosInstance.post(`${AiPost.RevokeInventoryCredential}/${id}/revoke`)
 }
 
 /**

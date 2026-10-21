@@ -9,7 +9,7 @@
  */
 
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { ProjectsPost } from "@/services/endpoints/projects"
 
 export type ExtractSourceType = "channel" | "dm" | "group" | "meeting" | "text"
 
@@ -40,7 +40,7 @@ interface ExtractTasksInput {
 
 // quiet: for a suggestion nobody asked for, a failure shows nothing.
 export async function extractTasks(input: ExtractTasksInput, opts?: { quiet?: boolean }): Promise<ExtractTasksResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIExtractTasks, input, opts?.quiet ? ({ suppressErrorToast: true } as never) : undefined)
+  const res = await axiosInstance.post(ProjectsPost.AIExtractTasks, input, opts?.quiet ? ({ suppressErrorToast: true } as never) : undefined)
   return res.data?.data ?? { enabled: false, tasks: [] }
 }
 
@@ -53,7 +53,7 @@ export async function createTasksFromExtraction(
   projectUUID: string,
   tasks: ProposedTask[],
 ): Promise<CreateTasksResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIExtractTasksCreate, {
+  const res = await axiosInstance.post(ProjectsPost.AIExtractTasksCreate, {
     project_uuid: projectUUID,
     tasks,
   })

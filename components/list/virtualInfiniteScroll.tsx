@@ -134,6 +134,8 @@ export function VirtualInfiniteScroll<T>({
         [],
     )
 
+    useEffect(() => debouncedHandleScroll.cancel, [debouncedHandleScroll])
+
     // Empty state
     if (items.length === 0 && !isLoading && emptyComponent) {
         return (emptyComponent)

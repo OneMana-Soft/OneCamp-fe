@@ -4,6 +4,7 @@ import * as React from "react"
 import type { Editor } from "@tiptap/core"
 import { Check, ChevronRight, Search } from "@/lib/icons"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { heldBeside } from "@/components/ui/heldAnchor"
 import { CommandList, type CommandListHandle, type CommandListItem } from "@/components/ui/CommandList"
 import { cn } from "@/lib/utils/helpers/cn"
 import { isComposingKey } from "@/lib/keys/ime"
@@ -49,10 +50,23 @@ export default function BlockMenuPopover({ editor, docId, request, onClose }: { 
   const shown = React.useMemo(() => searchRows(rows, query), [rows, query])
   const listRows = list ? rows[list.kind] : []
   const blocks = blocksOf(editor, request) ?? []
-  const anchor = React.useMemo(
-    () => ({ getBoundingClientRect: () => new DOMRect(request.anchor.left, request.anchor.top, 1, Math.max(1, request.anchor.bottom - request.anchor.top)) }),
-    [request.anchor],
-  )
+  // Where the handle was, kept beside its block as the doc scrolls (components/ui/heldAnchor).
+  const anchor = React.useMemo(() => {
+    const { left, top, bottom } = request.anchor
+    const pos = request.blocks[0]
+    const block = pos === undefined || editor.isDestroyed ? null : editor.view.nodeDOM(pos)
+    return { current: heldBeside(new DOMRect(left, top, 1, Math.max(1, bottom - top)), block instanceof Element ? block : null) }
+  }, [editor, request.anchor, request.blocks])
+  // The doc's pane: the menu flips and shifts inside it, never over the app's
+  // header, and goes once its block has scrolled out of it (as Notion's does).
+  const pane = React.useMemo(() => (editor.isDestroyed ? null : editor.view.dom.closest<HTMLElement>(".doc-scroll")), [editor])
+  React.useEffect(() => {
+    const block = anchor.current.contextElement
+    if (!pane || !block || typeof IntersectionObserver === "undefined") return
+    const seen = new IntersectionObserver(([e]) => e && !e.isIntersecting && onClose(false), { root: pane })
+    seen.observe(block)
+    return () => seen.disconnect()
+  }, [anchor, pane, onClose])
 
   React.useEffect(() => setActive(0), [query])
 
@@ -113,13 +127,14 @@ export default function BlockMenuPopover({ editor, docId, request, onClose }: { 
 
   return (
     <Popover open onOpenChange={(open) => !open && onClose(false)}>
-      <PopoverAnchor virtualRef={{ current: anchor }} />
+      <PopoverAnchor virtualRef={anchor} />
       <PopoverContent
         data-block-menu=""
         side="bottom"
         align="start"
         sideOffset={6}
         collisionPadding={12}
+        collisionBoundary={pane}
         onOpenAutoFocus={(e) => {
           e.preventDefault()
           input?.focus()

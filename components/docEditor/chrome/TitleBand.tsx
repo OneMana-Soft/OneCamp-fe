@@ -6,7 +6,9 @@ import { ImageIcon, Lock, Smile } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { anchorTo } from "@/components/ui/anchor"
 import { useMedia } from "@/context/MediaQueryContext"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { toast } from "@/hooks/use-toast"
 import { useDocBus } from "@/components/docEditor/registry/commandBus"
 import { useTitle, type TitleStore } from "@/components/docEditor/docTitleStore"
@@ -89,11 +91,19 @@ export default function TitleBand({
   padded: string
 }) {
   const { isMobile } = useMedia()
+  // Its pickers: sheets on a phone held either way (components/ui/overlayMode);
+  // isMobile lays out the band.
+  const sheet = useSheetMode()
   const bus = useDocBus()
   const facts = usePageFacts(docId)
   const title = useTitle(store)
   const row = React.useRef<HTMLDivElement>(null)
   const iconEl = React.useRef<HTMLElement | null>(null)
+  // The icon as DocTitle draws it now: it may draw a new one while the picker is open (components/ui/anchor).
+  const iconAnchor = React.useMemo(
+    () => ({ current: anchorTo(() => iconEl.current, () => row.current?.closest("[data-doc-title-block]")?.querySelector("[data-doc-page-icon]") ?? null) }),
+    [],
+  )
   const [picker, setPicker] = React.useState<"icon" | "cover" | null>(null)
   const icon = doc?.doc_icon
   const cover = doc?.doc_cover_key
@@ -170,7 +180,7 @@ export default function TitleBand({
 
   const addIcon = () => void save({ doc_uuid: docId, icon: iconFor(title) }, "The icon wasn't added")
   const addCover = () =>
-    isMobile ? setPicker("cover") : void save({ doc_uuid: docId, cover: `gallery:${GALLERY[Math.floor(Math.random() * 6)].name}`, cover_offset: 50 }, "The cover wasn't added")
+    sheet ? setPicker("cover") : void save({ doc_uuid: docId, cover: `gallery:${GALLERY[Math.floor(Math.random() * 6)].name}`, cover_offset: 50 }, "The cover wasn't added")
   const pickIcon = (next: string) => {
     setPicker(null)
     void save({ doc_uuid: docId, icon: next }, "The icon didn't change")
@@ -242,7 +252,7 @@ export default function TitleBand({
 
       {canStyle && cover ? <DocCover docId={docId} cover={cover} offset={doc?.doc_cover_offset ?? 50} padded={padded} /> : null}
 
-      {isMobile ? (
+      {sheet ? (
         <Drawer open={picker !== null} onOpenChange={(o) => !o && setPicker(null)} detent="medium">
           <DrawerContent>
             <DrawerTitle className="sr-only">{picker === "cover" ? "Choose a cover" : "Choose an icon"}</DrawerTitle>
@@ -251,7 +261,7 @@ export default function TitleBand({
         </Drawer>
       ) : (
         <Popover open={picker === "icon"} onOpenChange={(o) => !o && setPicker(null)}>
-          <PopoverAnchor virtualRef={iconEl as React.RefObject<HTMLElement>} />
+          <PopoverAnchor virtualRef={iconAnchor} />
           <PopoverContent align="start" sideOffset={8} className="w-auto rounded-xl p-0 pt-1.5">
             {iconPicker}
           </PopoverContent>

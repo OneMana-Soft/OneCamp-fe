@@ -19,12 +19,15 @@ vi.mock("@/lib/ai/docAIApi", () => ({
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false }), useFetchOnlyOnce: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useClientConfig", async (orig) => ({ ...(await orig<typeof import("@/hooks/useClientConfig")>()), useAIAvailable: () => true }))
-vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: true, isTablet: false, isDesktop: false }) }))
+// The layout's width as the provider reads it: a phone's, unless a test turns it.
+const media = { isMobile: true, isTablet: false, isDesktop: false }
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => media }))
 
 import { Proposals } from "@/components/minimal-tiptap/extensions/proposals"
 import { DocAiMarkers } from "./docAiPlugin"
 import { aiBarOf, openAiBar } from "./docAiStore"
 import DocAiOverlay from "./DocAiOverlay"
+import { SCREENS, putOnScreen } from "@/lib/testing/screens"
 
 // The bar loads the first time it opens (React.lazy): here once, before the
 // test, so its first sight of the sheet waits on nothing a busy machine slows.
@@ -33,7 +36,11 @@ beforeAll(async () => {
 }, 60_000)
 
 let editor: Editor
+let offScreen = () => {}
 beforeEach(() => {
+  media.isMobile = true
+  media.isDesktop = false
+  offScreen = putOnScreen(SCREENS["a phone in portrait"])
   editor = new Editor({
     element: document.createElement("div"),
     extensions: [StarterKit, Proposals, DocAiMarkers.configure({ docId: "d1" })],
@@ -42,6 +49,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  offScreen()
   editor.destroy()
 })
 
@@ -57,5 +65,22 @@ describe("the doc AI bar on a phone", () => {
     expect(screen.getByRole("combobox").getAttribute("placeholder")).toBe("Ask AI to write, or pick an action…")
     fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" })
     expect(aiBarOf(editor).open).toBe(false)
+  })
+})
+
+// ONE SHEET RULE (20 Oct 2026): a phone held sideways (844px wide, so isMobile
+// said no) got the floating bar under the text, its rows 32px tall. It is the
+// sheet there too (components/ui/overlayMode's useSheetMode).
+describe("the doc AI bar on a phone held sideways", () => {
+  it("is a sheet, not the bar placed under the text", async () => {
+    offScreen()
+    offScreen = putOnScreen(SCREENS["a phone in landscape"])
+    media.isMobile = false
+    media.isDesktop = true
+    openAiBar(editor, { docId: "d1", from: 1, to: 1, mode: "actions", source: "action" })
+    render(<DocAiOverlay editor={editor} docId="d1" />)
+    const field = await screen.findByRole("combobox")
+    expect(field.closest("[data-v3-sheet]")).toBeTruthy()
+    expect(document.querySelector("[data-doc-ai-place]")).toBeNull()
   })
 })

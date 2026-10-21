@@ -17,7 +17,7 @@ import { SpotDocs } from "@/components/ui/graphics/spots"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { AlertCircle, Cpu, ShieldAlert } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { initiatorLabel, UNATTENDED_INITIATORS, type AIActivityItem } from "@/services/aiActivityService"
@@ -169,7 +169,7 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
 // settings card (r12, e1) holding the rows between inset hairlines. It was a
 // 1px grey box of rows on tinted tiles.
 const AIActivityCard = () => {
-  const { data, isLoading, isError, mutate } = useFetch<{ data: AIActivityItem[] }>(`${GetEndpointUrl.GetAIActivity}?limit=50`)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: AIActivityItem[] }>(`${AdminGet.GetAIActivity}?limit=50`)
   const items = data?.data || []
 
   return (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { SearchField } from "@/components/search/searchField"
 import { ChannelListTabActive } from "@/components/channel/channelListTabActive"
 import { ChannelListTabArchive } from "@/components/channel/channelListTabArchive"
@@ -18,6 +18,8 @@ export const ChannelListTabContent = ({ selectedTab, onDiscover }: { selectedTab
             }, 500),
         [],
     )
+
+    useEffect(() => debouncedSearch.cancel, [debouncedSearch])
 
     const handleChSearchOnChange = (chName: string) => {
         setInputValue(chName)

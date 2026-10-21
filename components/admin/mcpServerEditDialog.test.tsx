@@ -30,7 +30,7 @@ describe("the MCP server dialog", () => {
   it("puts its title icon on the AI group's tile, not in the accent", () => {
     render(<McpServerEditDialog server={null} open onClose={() => {}} onSaved={() => {}} />)
     const title = screen.getByRole("heading", { name: "Add an MCP server" })
-    expect(title.querySelector(".hue-dusk")).toBeTruthy()
+    expect(title.querySelector(".hue-agent")).toBeTruthy()
     expect(title.querySelector(".text-primary")).toBeNull()
   })
 

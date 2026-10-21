@@ -18,7 +18,7 @@ import { ConnectionCard, SourceMark, StateWord } from "@/components/admin/connec
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 
 interface OAuthConfigStatus {
     google_client_id: string
@@ -82,7 +82,7 @@ export default function OAuthConfigCard() {
     const load = () => {
         setState("loading")
         axiosInstance
-            .get(GetEndpointUrl.GetOAuthConfig)
+            .get(AdminGet.GetOAuthConfig)
             .then((res) => {
                 const s = (res.data as { data?: OAuthConfigStatus })?.data ?? null
                 if (!s) {
@@ -125,7 +125,7 @@ export default function OAuthConfigCard() {
                 if (draft[p.key].id !== (status[`${p.key}_client_id`] ?? "")) body[`${p.key}_client_id`] = draft[p.key].id
                 if (draft[p.key].secret) body[`${p.key}_client_secret`] = draft[p.key].secret
                 try {
-                    await axiosInstance.post(PostEndpointUrl.UpdateOAuthConfig, body, OWN_ERRORS)
+                    await axiosInstance.post(AdminPost.UpdateOAuthConfig, body, OWN_ERRORS)
                 } catch (e) {
                     toast({ title: `Couldn't save the ${p.name} sign-in`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
                     return

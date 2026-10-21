@@ -5,7 +5,7 @@
 import throttle from 'lodash/throttle';
 import { useCallback, useMemo } from 'react';
 import axiosInstance from '@/lib/axiosInstance';
-import { PostEndpointUrl } from '@/services/endPoints';
+import { ChatPost } from "@/services/endpoints/chat";
 import { TYPING_REPEAT_MS } from '@/lib/typingTiming';
 
 type PublishTypingTargetType = 'channel' | 'chat' | 'groupChat';
@@ -37,11 +37,11 @@ export const usePublishTyping = ({ targetType, targetId }: PublishTypingProps) =
         if (!targetId) return;
 
         if (targetType === 'channel') {
-            axiosInstance.post(PostEndpointUrl.PublishChannelTyping, { channel_id: targetId }).catch(() => {});
+            axiosInstance.post(ChatPost.PublishChannelTyping, { channel_id: targetId }).catch(() => {});
         } else if (targetType === 'chat') {
-            axiosInstance.post(PostEndpointUrl.PublishChatTyping, { user_uuid: targetId }).catch(() => {});
+            axiosInstance.post(ChatPost.PublishChatTyping, { user_uuid: targetId }).catch(() => {});
         } else if (targetType === 'groupChat') {
-            axiosInstance.post(PostEndpointUrl.PublishChatTyping, { grp_id: targetId }).catch(() => {});
+            axiosInstance.post(ChatPost.PublishChatTyping, { grp_id: targetId }).catch(() => {});
         }
     }, [targetType, targetId]);
 

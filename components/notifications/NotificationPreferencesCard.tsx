@@ -39,7 +39,8 @@ import {
 import { SavedTick, reasonOf, type SaveStatus } from "@/components/ui/saveStatus"
 import { useFetch } from "@/hooks/useFetch"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { InboxPost } from "@/services/endpoints/inbox"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { AlertTriangle, Moon } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -199,7 +200,7 @@ export function NotificationPreferencesCard() {
       set(statusKey, "saving")
       try {
         // The row says what went wrong itself, so the global toast stays quiet.
-        await axiosInstance.post(PostEndpointUrl.UpdateNotificationPreferences, patch, OWN_ERRORS)
+        await axiosInstance.post(InboxPost.UpdateNotificationPreferences, patch, OWN_ERRORS)
         const now = dataRef.current
         if (now) await mutate({ ...now, data: { ...now.data, ...patch } }, { revalidate: false })
         set(statusKey, "saved")

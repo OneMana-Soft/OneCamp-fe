@@ -68,3 +68,18 @@ describe("a version's day and name", () => {
     expect(attrValue('a"b\\c')).toBe('a\\"b\\\\c')
   })
 })
+
+describe("a history in pages (H1)", () => {
+  it("is one list, newest first, each version once, with the last page's cursor", async () => {
+    const { mergeVersionLists } = await import("./versions")
+    const v = (id: string) => ({ id, kind: "doc", pinned: false, contributors: null, created_at: "" })
+    expect(mergeVersionLists([undefined])).toBeUndefined()
+    const merged = mergeVersionLists([
+      { versions: [v("a"), v("b")], people: { maya: { name: "Maya" } }, next: "c1" },
+      { versions: [v("b"), v("c")], people: { sam: { name: "Sam" } } },
+    ])!
+    expect(merged.versions!.map((x) => x.id)).toEqual(["a", "b", "c"])
+    expect(Object.keys(merged.people!)).toEqual(["maya", "sam"])
+    expect(merged.next).toBeUndefined()
+  })
+})

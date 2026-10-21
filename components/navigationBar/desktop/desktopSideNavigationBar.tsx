@@ -1,10 +1,10 @@
 "use client";
 
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { Bot, BellOff, ChevronDown, Columns2, Hash, MoreHorizontal, Plus } from "@/lib/icons";
-import { openInSplit } from "@/store/slice/splitSlice";
+import { openInSplit, selectSplitOn } from "@/store/slice/splitActions";
 import { paneFromHref } from "@/lib/split";
 import { cn } from "@/lib/utils/helpers/cn";
 import { IntentLink } from "@/components/navigationBar/desktop/IntentLink";
@@ -14,7 +14,6 @@ import { DesktopNavigationEmojiStatus } from "@/components/navigationBar/desktop
 import { formatCount } from "@/lib/utils/helpers/formatCount";
 import { rowSignal, sectionSignal } from "@/lib/nav/sidebarSignal";
 import { useHeldOrder } from "@/lib/nav/heldOrder";
-import { useMedia } from "@/context/MediaQueryContext";
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 import { ChannelTile } from "@/components/ui/graphics/ChannelTile";
 import { placeHue, type PlaceHue } from "@/lib/placeHue";
@@ -131,14 +130,14 @@ export function placeLook(ch: DesktopChildrenNavType, botKinds?: Record<string, 
 }
 
 export const SideNavLink = memo(({ ch }: { ch: DesktopChildrenNavType }) => {
-  const { isMobile } = useMedia();
+  const splitOn = useSelector(selectSplitOn);
   const isActive = ch.variant === "sidebarActive";
   const signal = rowSignal(ch);
   const dispatch = useDispatch();
   const fade = useChipFade(isActive);
   const botKinds = useBotKindMap();
   // Channels, chats, docs and projects can open beside the page (split view).
-  const pane = !isMobile ? paneFromHref(String(ch.path || "")) : null;
+  const pane = splitOn ? paneFromHref(String(ch.path || "")) : null;
   const { glyph, hue } = placeLook(ch, botKinds);
 
   return (

@@ -45,7 +45,7 @@ describe("the member invite dialog's form and its end", () => {
   it("puts its title icon on a people tile, not in the accent", () => {
     render(<MemberInviteDialog open onOpenChange={vi.fn()} />)
     const title = screen.getByRole("heading", { name: "Invite people" })
-    const tile = title.querySelector("span.hue-sky")
+    const tile = title.querySelector("span.hue-ink")
     expect(tile).not.toBeNull()
     expect(title.querySelector(".text-primary")).toBeNull()
   })

@@ -7,6 +7,9 @@ import { stuckRoom } from "@/hooks/useTimelineView"
 
 export const HEADER_HEIGHT = 52
 
+// Half the "Today" pill's width (its word at 10 px, 6 px each side).
+const PILL_HALF = 22
+
 /**
  * The timeline's header: months over days, months over weeks, or years over
  * months, with today marked. It sticks to the top as the rows scroll, and a
@@ -33,6 +36,9 @@ export const TimelineHeader = memo(function TimelineHeader({
   const todayKey = zoom === "day" ? today.toISOString() : ""
   const gridWidth = range.days * dayWidth
   const todayShown = todayLeft >= 0 && todayLeft < gridWidth
+  // Where the "Today" pill begins, less 8 px: a month's name in the same row
+  // gives way before it, rather than touching it (DESIGN-BUILD-3, T-1).
+  const pillStop = todayShown ? todayLeft + dayWidth / 2 - PILL_HALF - 8 : null
   return (
     <div
       data-timeline-header=""
@@ -47,15 +53,29 @@ export const TimelineHeader = memo(function TimelineHeader({
         {nameLabel}
       </div>
       <div className="relative" style={{ width: gridWidth }} aria-hidden>
-        {top.map((t) => (
+        {top.map((t) => {
+          // The name's room ends at its month's end, or before the pill when the pill is in its month.
+          const end = pillStop !== null && pillStop > t.left && pillStop < t.left + t.width ? pillStop : t.left + t.width
+          return (
           <div key={t.key} className="absolute top-0 h-6" style={{ left: t.left, width: t.width }}>
             {t.width >= 36 && (
-              <span className="sticky inline-block truncate px-2 text-xs font-[510] leading-6 text-ink-2" style={{ left: nameWidth, maxWidth: `min(${t.width}px, ${stuckRoom(t.left + t.width)})` }}>
-                {t.label}
+              // Whole or not at all (T-1): a one-line box that wraps, after a
+              // line-tall empty first item, sends a name wider than the room left
+              // to its hidden second line, where "S…" stood at the chart's edge.
+              // The first item holds the line's height: with none, the first line
+              // was 0 px tall and the second showed ("Septer").
+              <span
+                data-month-label=""
+                className="sticky flex h-6 flex-wrap overflow-hidden px-2 text-xs font-[510] leading-6 text-ink-2"
+                style={{ left: nameWidth, maxWidth: `min(${end - t.left}px, ${stuckRoom(end)})` }}
+              >
+                <span aria-hidden="true" className="h-6 w-0" />
+                <span className="whitespace-nowrap">{t.label}</span>
               </span>
             )}
           </div>
-        ))}
+          )
+        })}
         {bottom.map((t) => {
           const isToday = zoom === "day" && t.key === todayKey
           return (

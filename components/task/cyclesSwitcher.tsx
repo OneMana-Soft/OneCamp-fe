@@ -19,6 +19,7 @@ import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cycleDates, cycleLabel, nextStart, percentDone, timeLeft, type Cycle } from "@/lib/tasks/cycles"
 import { SpotCalendar } from "@/components/ui/graphics/spots"
+import { areaHue } from "@/lib/areas"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { celebrateRing } from "@/lib/celebrateSoon"
@@ -53,7 +54,7 @@ export function CyclesSwitcher({
         <p className="p-2 text-sm text-ink-2">Loading…</p>
       ) : cycles.length === 0 ? (
         <div className="grid justify-items-center gap-2 px-2 pt-2 text-center" data-cycles-empty="">
-          <SpotCalendar size={64} hue="lake" />
+          <SpotCalendar size={64} hue={areaHue("projects")} />
           <p className="text-sm text-ink-2">
             Cycles are short, fixed stretches of work, a week or two each. Unfinished tasks move to the next one.
           </p>

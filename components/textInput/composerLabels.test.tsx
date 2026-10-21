@@ -85,7 +85,8 @@ describe("the composer's tools", () => {
       const b = screen.getByRole("button", { name })
       expect(b.getAttribute("title"), name).toBeNull()
       expect(b.getAttribute("data-tip"), name).toBeTruthy()
-      expect(b.className, name).toContain("after:bottom-full")
+      // Above the row, in the page's one label chip (components/ui/tipLayer.tsx).
+      expect(b.className, name).toContain("tip-above")
     }
   })
 })

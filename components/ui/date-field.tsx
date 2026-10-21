@@ -82,7 +82,7 @@ function PickerFrame({
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className={cn("content-float rounded-xl bg-pop p-0 shadow-e3", floatClassName)} align="start">
+      <PopoverContent data-overlay-holds-body="" className={cn("content-float rounded-xl bg-pop p-0 shadow-e3", floatClassName)} align="start">
         {/* The body (app/overlay.css): a short window scrolls it, never runs it off the screen. */}
         <div data-overlay-body="" className="-mx-1 min-h-0 p-1">
           {children}

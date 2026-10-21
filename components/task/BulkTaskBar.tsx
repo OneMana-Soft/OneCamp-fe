@@ -20,7 +20,7 @@ import { useDeleteTasks } from "@/hooks/useDeleteTasks"
 import { DatePanel } from "@/components/ui/date-field-panels"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { priorities } from "@/types/table"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { MAX_TAG_LENGTH, splitTags, tagTone } from "@/lib/tags"
 import { notDone, tagState, tasksCount, whyNotDone, type BulkChange } from "@/lib/bulkTasks"
 import type { ListField } from "@/lib/listKeys"
@@ -248,7 +248,7 @@ function OptionList({
 }
 
 function AssigneeList({ projectId, onPick }: { projectId: string; onPick: (user: UserProfileDataInterface | null) => void }) {
-  const info = useFetch<ProjectInfoRawInterface>(`${GetEndpointUrl.GetProjectMemberInfo}/${projectId}`)
+  const info = useFetch<ProjectInfoRawInterface>(`${ProjectsGet.GetProjectMemberInfo}/${projectId}`)
   const members = info.data?.data.project_members ?? []
   return (
     <Command>

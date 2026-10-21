@@ -16,11 +16,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useFetch } from "@/hooks/useFetch"
 import { cn } from "@/lib/utils/helpers/cn"
 import { browserTZ } from "@/lib/utils/timeZone"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { burndownChart, cycleDates, cycleLabel, loadNote, paceNote, velocityChart, type BurndownUnit, type BurndownView, type Cycle } from "@/lib/tasks/cycles"
 
 export const burndownKey = (projectId: string, cycleId: string, tz: string = browserTZ()) =>
-  `${GetEndpointUrl.ProjectCycles}/${projectId}/cycles/${cycleId}/burndown?tz=${encodeURIComponent(tz)}`
+  `${ProjectsGet.ProjectCycles}/${projectId}/cycles/${cycleId}/burndown?tz=${encodeURIComponent(tz)}`
 
 export function CycleBurndownDialog({
   projectId,

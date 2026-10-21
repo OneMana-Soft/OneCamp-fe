@@ -74,6 +74,16 @@ describe("the lazy sections", () => {
       expect(src).toMatch(/dynamic\(\(\) => import\("@\/components\/home\/ProjectsStrip"\)/)
     }
   })
+
+  // Only an admin with steps left sees the setup checklist, and its 22 KB of
+  // source rode in every member's Home. Its place is held where this browser
+  // last showed it (components/home/setupChecklistPlace), so it doesn't jump.
+  it("load the setup checklist on its own, holding its place while it comes", () => {
+    for (const src of [desktop, phone]) {
+      expect(src).not.toMatch(/from "@\/components\/home\/SetupChecklist"/)
+      expect(src).toMatch(/dynamic\(\(\) => import\("@\/components\/home\/SetupChecklist"\), \{ ssr: false, loading: ChecklistPlace \}\)/)
+    }
+  })
 })
 
 describe("Home's entrance", () => {

@@ -66,6 +66,12 @@ export function collabFor(docs, options = {}) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+const STATUS = Symbol("status")
+/** A fixture's answer with a status of its own (a 404, a 500). */
+export function status(code, json) {
+  return { [STATUS]: code, json }
+}
+
 // The app shell's reads whose "nothing" is not an empty object.
 const SHELL_FIXTURES = [
   [/\/task\/time\/running$/, { msg: "ok", data: null }],
@@ -115,8 +121,16 @@ export async function fakeApp(context, o) {
       if (!doc || (doc.levels?.[o.user.token] ?? "none") === "none") return json(404, { msg: "There's no such doc." })
       return json(200, { msg: "ok", data: docInfo(doc, o.user) })
     }
-    // A fixture that is a function is asked with the path and the whole URL (its query).
-    for (const [re, body] of [...(o.fixtures || []), ...SHELL_FIXTURES]) if (re.test(path)) return json(200, typeof body === "function" ? body(path, url) : body)
+    // A fixture that is a function is asked with the path, the whole URL (its
+    // query) and the request (its method and what a write sent); it may answer
+    // { status, json } for an answer that isn't a 200 (fakeApp.status).
+    for (const [re, body] of [...(o.fixtures || []), ...SHELL_FIXTURES]) {
+      if (!re.test(path)) continue
+      const answer = typeof body === "function" ? body(path, url, req) : body
+      if (answer === undefined) continue
+      if (answer && answer[STATUS]) return json(answer[STATUS], answer.json)
+      return json(200, answer)
+    }
     // Anything else the shell asks for: an empty object, which every reader
     // takes as "nothing here" (lists that need an array are fixed above).
     if (req.method() === "GET") return json(200, { msg: "ok", data: {} })

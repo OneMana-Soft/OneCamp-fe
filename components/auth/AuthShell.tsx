@@ -17,13 +17,14 @@
 // read from the page's own address, never written down (a literal hostname is
 // always somebody else's server: app/noHardcodedDeployment.test.ts).
 
-import { personHue } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
 import { useState } from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { AlertCircle, AlertTriangle, ArrowBigUp, Check, Eye, EyeOff, Info, ShieldCheck } from "@/lib/icons"
 import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
-import { avatarHueClass } from "@/components/ui/graphics"
+import { AuthAvatar } from "@/components/auth/AuthAvatar"
+
+export { AuthAvatar, initialsOf } from "@/components/auth/AuthAvatar"
 import { CampBand, CampCanvas, GradientRing, useHost } from "@/components/auth/CampArt"
 
 /** The product's site (release notes, docs, privacy), when the install names one. */
@@ -429,28 +430,6 @@ export function FormProblem({ children, id }: { children: React.ReactNode; id?: 
     <AuthNotice tone="error" id={id}>
       {children}
     </AuthNotice>
-  )
-}
-
-/** Up to two initials from an address's name part: "priya.r@x" is "PR". */
-export function initialsOf(text: string): string {
-  const name = text.split("@")[0] ?? ""
-  const parts = name.split(/[._\-+\s]+/).filter(Boolean)
-  const letters = parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 1)
-  return (letters || "?").toUpperCase()
-}
-
-/** A person's gradient avatar from an address or a name, initials in white. */
-export function AuthAvatar({ seed, size = 24, initials }: { seed: string; size?: number; initials?: string }) {
-  const shown = (initials ?? initialsOf(seed)).slice(0, size >= 28 ? 2 : 1)
-  return (
-    <span
-      className={cn("auth-avatar", avatarHueClass(personHue(seed.includes("@") ? { user_email_id: seed } : seed)))}
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.375) }}
-      aria-hidden="true"
-    >
-      {size >= 20 ? shown : null}
-    </span>
   )
 }
 

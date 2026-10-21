@@ -38,7 +38,7 @@ describe("empty lists have their spot", () => {
     ["components/project/projectTaskTable.tsx", /illustration=\{<SpotTasks hue=\{projectHue\} \/>\}/],
     ["components/myTask/myTaskTable.tsx", /illustration=\{<SpotTasks \/>\}/],
     ["components/myTask/myTaskList.tsx", /illustration=\{isFiltered \? undefined : <SpotTasks \/>\}/],
-    ["components/project/ProjectsOverview.tsx", /illustration=\{<SpotWelcome hue="sky" \/>\}/],
+    ["components/project/ProjectsOverview.tsx", /illustration=\{<SpotWelcome hue=\{areaHue\("projects"\)\} \/>\}/],
   ])("%s", (file, spot) => {
     expect(read(file)).toMatch(spot)
   })

@@ -268,7 +268,8 @@ describe("admin sections load ahead of the click", () => {
 describe("admin colours", () => {
     it("gives every admin group one hue", () => {
         const block = sectionsSource.slice(sectionsSource.indexOf("export const SETTINGS_GROUP_HUE"), sectionsSource.indexOf("}", sectionsSource.indexOf("export const SETTINGS_GROUP_HUE")))
-        const keys = [...block.matchAll(/^\s+(\w+): "/gm)].map((m) => m[1])
+        // A group's hue is a name or read from lib/areas (AI is the agents' area).
+        const keys = [...block.matchAll(/^\s+(\w+): (?:"|AREA_HUE\.)/gm)].map((m) => m[1])
         expect(keys).toEqual(["workspace", "ai", "connections", "records", "system"])
     })
 

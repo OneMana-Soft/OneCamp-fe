@@ -18,9 +18,9 @@ import { RealtimeContext } from "@/lib/realtime/context";
 import { createRealtimeSubscriptions } from "@/lib/realtime/subscriptions";
 import { MqttContext, type MqttContextValue } from "@/components/mqtt/mqttContext";
 
-// The context and its readers live in mqttContext.ts, so a reader needn't
-// bring this provider's handlers; they're re-exported here for the app's own.
-export { useMqtt, useMqttConnectionState, useMqttReconnect } from "@/components/mqtt/mqttContext"
+// The context and its readers live in mqttContext.ts, and every reader imports
+// them from there: a page importing this file carries all its handlers
+// (app/firstLoad.test.ts, "the realtime provider").
 
 interface MqttProviderProps {
     children: React.ReactNode

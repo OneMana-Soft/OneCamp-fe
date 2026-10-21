@@ -34,6 +34,7 @@ import { CURRENCIES, buildInvoice, defaultPeriod, money, round2, suggestNumber, 
 import { STATUS_LABEL, linesOf, linesToSave, shownStatus, type InvoiceInput, type SavedInvoice } from "@/lib/invoice/saved"
 import { formatHours, presetRange, type TimeReport } from "@/lib/tasks/time"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { localDay } from "@/lib/utils/timeZone"
 import { useSaysLoadFailure } from "@/lib/http/loadFailure"
 import { typedNumber, typedNumberText } from "@/lib/format/number"
@@ -81,7 +82,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     return from && to ? { from: new Date(from), to: new Date(to) } : null
   }, [search])
   const [range, setRange] = useState<Period>(() => asked ?? presetRange("last-month", new Date()))
-  const invoices = `${GetEndpointUrl.ProjectInvoices}/${project}/invoices`
+  const invoices = `${ProjectsGet.ProjectInvoices}/${project}/invoices`
 
   const [report, setReport] = useState<TimeReport | null>(null)
   const [saved, setSaved] = useState<SavedInvoice | null>(null)
@@ -152,7 +153,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     // A new one: the time it bills, and the next number.
     const timeOf = (r: Period) =>
       axiosInstance
-        .get(`${GetEndpointUrl.ProjectTime}/${project}/time?from=${encodeURIComponent(r.from.toISOString())}&to=${encodeURIComponent(r.to.toISOString())}`)
+        .get(`${ProjectsGet.ProjectTime}/${project}/time?from=${encodeURIComponent(r.from.toISOString())}&to=${encodeURIComponent(r.to.toISOString())}`)
         .then((res) => res.data.data as TimeReport)
     Promise.all([
       asked ? timeOf(asked).then((report) => ({ period: asked, report })) : defaultPeriod(timeOf, new Date()),

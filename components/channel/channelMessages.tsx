@@ -1,6 +1,9 @@
 "use client"
 
 // src/components/channel/ChannelMessages.tsx
+import { resetUserChannelUnread } from "@/store/slice/userSlice"
+import { markChannelSeen } from "@/services/channelService"
+import { releaseUnread } from "@/lib/conversation/unreadHold"
 import { withContinuation } from "@/lib/messageGrouping"
 import { rowKey } from "@/lib/chat/pendingSend"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -32,6 +35,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
 import { MessageList } from "@/components/conversation/MessageList"
 import { isSystemLine } from "@/lib/conversation/systemLine"
+import { collapseLineRuns, type LineRuns } from "@/lib/conversation/lineRuns"
 import { withSharedHistory } from "@/lib/conversation/sharedHistory"
 import { SystemLineRow } from "@/components/message/systemLineRow"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
@@ -60,6 +64,8 @@ interface ChannelMessagesProps {
     unreadOnOpen?: number;
     /** Set when the older page failed: the list offers Try again (SD-BUG-1). */
     retryOlder?: () => void
+    /** The message a link opened the conversation at (MessageList anchor). */
+    anchor?: string
 }
 
 const EMPTY_SCROLL_TO_BOTTOM: ScrollToBottom = { shouldScrollToBottom: false }
@@ -77,6 +83,7 @@ export const ChannelMessages = ({
                                     isOLdMsgLoading,
                                     unreadOnOpen,
                                     retryOlder,
+                                    anchor,
                                 }: ChannelMessagesProps) => {
     const { isMobile } = useMedia()
 
@@ -264,13 +271,31 @@ export const ChannelMessages = ({
 
     // The message the "New" line sits above, fixed on opening.
     const selfUUID = selfProfile.data?.data.user_uuid
-    const unreadAnchor = useUnreadAnchor(posts, unreadOnOpen, (p) => p.post_by?.user_uuid === selfUUID, (p) => rowKey(p.post_local_id, p.post_uuid))
+    // The unread banner's Mark as read (chat B27): read, here and everywhere.
+    const markRead = useCallback(() => {
+        releaseUnread(channelId)
+        void markChannelSeen(channelId)
+        dispatch(resetUserChannelUnread({ ch_uuid: channelId }))
+    }, [channelId, dispatch])
+    const unreadAnchor = useUnreadAnchor(posts, unreadOnOpen, (p) => p.post_by?.user_uuid === selfUUID, (p) => rowKey(p.post_local_id, p.post_uuid), { conversation: channelId, idOf: (p) => p.post_uuid })
+
+    // A run of joins and leaves is one line, never across a day (B28).
+    const lineRuns = useMemo<LineRuns>(() => {
+        const all: LineRuns = { words: new Map(), hidden: new Set() }
+        Object.keys(groupedPosts).forEach((date) => {
+            const runs = collapseLineRuns(groupedPosts[date].map((p) => ({ id: p.post_uuid, at: p.post_created_at, text: p.post_text, system: isSystemLine(p.post_kind) ? p.post_system : undefined })))
+            runs.words.forEach((w, id) => all.words.set(id, w))
+            runs.hidden.forEach((id) => all.hidden.add(id))
+        })
+        return all
+    }, [groupedPosts])
 
     const flatItems = useMemo(() => {
         const items: Array<FlatItem<PostsRes>> = []
         Object.keys(groupedPosts).forEach((date) => {
             items.push({ type: "separator", date, key: "separator" + date })
             groupedPosts[date].forEach((post) => {
+                if (lineRuns.hidden.has(post.post_uuid)) return
                 const key = rowKey(post.post_local_id, post.post_uuid)
                 if (key === unreadAnchor) items.push({ type: "unread", key: "unread" })
                 items.push({ type: "item", data: post, key })
@@ -282,12 +307,12 @@ export const ChannelMessages = ({
         // A system line is nobody's turn, so nothing groups with it; a shared
         // history's copies sit under their heading (lib/conversation).
         return withContinuation(withSharedHistory(items, (p) => !!p.post_copy_of), (p) => ({ author: isSystemLine(p.post_kind) ? null : p.post_by?.user_uuid, at: p.post_created_at, isBot: !!p.post_by?.is_bot, standalone: !!(p.post_reply_to || p.post_fwd_msg_post || p.post_fwd_msg_chat) }))
-    }, [groupedPosts, unreadAnchor])
+    }, [groupedPosts, unreadAnchor, lineRuns])
 
     const renderItem = useCallback(
         (post: PostsRes, { priority, continued, arrived }: RowMeta) => (
             <div>
-                {isSystemLine(post.post_kind) ? <SystemLineRow html={post.post_text} facts={post.post_system} /> : isMobile ? (
+                {isSystemLine(post.post_kind) ? <SystemLineRow html={lineRuns.words.get(post.post_uuid) ?? post.post_text} facts={post.post_system} /> : isMobile ? (
                     <>
                         <ChannelMessageMobile
                             postInfo={post}
@@ -325,13 +350,13 @@ export const ChannelMessages = ({
                 )}
             </div>
         ),
-        [isMobile, isAdmin, channelId, deleteNow, createOrUpdateReaction, removeReaction, handleUpdatePost],
+        [isMobile, isAdmin, channelId, deleteNow, createOrUpdateReaction, removeReaction, handleUpdatePost, lineRuns.words],
     )
     // The row that can't be drawn offers its words; the jump pill counts
     // what arrived for the reader.
     const rawText = useCallback((m: PostsRes) => m.post_text, [])
     const selfIdForPill = selfProfile.data?.data?.user_uuid
-    const isForMe = useCallback((m: PostsRes) => mentionsUser(m.post_text, selfIdForPill), [selfIdForPill])
+    const isForMe = useCallback((m: PostsRes) => mentionsUser(m.post_text, selfIdForPill, m.post_by?.user_uuid), [selfIdForPill])
     // What a screen reader hears of each message, and whose sends are the reader's (SD-53, SD-54).
     const rowLabel = useCallback((m: PostsRes) => isSystemLine(m.post_kind) ? htmlToPreviewText(m.post_text, 400) : messageSummary({ from: m.post_by, at: m.post_created_at, html: m.post_text, files: m.post_attachments?.length }), [])
     const isOwn = useCallback((m: PostsRes) => !!selfIdForPill && m.post_by?.user_uuid === selfIdForPill, [selfIdForPill])
@@ -368,6 +393,8 @@ export const ChannelMessages = ({
 
     const debouncedHandleScroll = useMemo(() => debounceUtil(handleScroll, 200), [handleScroll])
 
+    useEffect(() => debouncedHandleScroll.cancel, [debouncedHandleScroll])
+
     return (
         // <MessageList
         //     items={flatItems}
@@ -390,6 +417,9 @@ export const ChannelMessages = ({
             rowLabel={rowLabel}
             isOwn={isOwn}
             retryOlder={retryOlder}
+            anchor={anchor}
+            timeOf={postTime}
+            onMarkRead={markRead}
             getDateHeading={getGroupDateHeading}
             fetchOlderMessage={getOldMessages}
             fetchNewMessage={handleGetNewMessage}
@@ -411,3 +441,6 @@ export const ChannelMessages = ({
 }
 
 ChannelMessages.displayName = "ChannelMessages"
+
+/** A post's time, for the unread banner. */
+const postTime = (p: PostsRes) => p.post_created_at

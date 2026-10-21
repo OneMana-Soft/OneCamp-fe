@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useId } from "react";
+import { use, useCallback, useEffect, useId, useState } from "react";
 import { getGuestCollabSession, guestCollabToken } from "@/services/guestService";
 import { GuestDocViewer } from "@/components/guest/GuestDocViewer";
 import { GuestDocComments } from "@/components/guest/GuestDocComments";
@@ -10,6 +10,7 @@ import { PublicGone, PublicPaperSkeleton } from "@/components/guest/publicStates
 import { retryingText } from "@/services/publicApi";
 import { Eye, MessageSquare } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
+import { UnlockPage, go } from "@/components/publish/PublishedRoute";
 
 /**
  * A doc shared with someone outside the workspace (content.md D20): the
@@ -20,6 +21,28 @@ import { cn } from "@/lib/utils/helpers/cn";
  */
 export default function GuestDocPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
+    // ?unlock=1 is a password page's way in (docs C6): the server's page sends
+    // the reader here for its password, and back with its unlock.
+    const [mode, setMode] = useState<"unlock" | "doc" | null>(null);
+    useEffect(() => setMode(new URLSearchParams(window.location.search).get("unlock") ? "unlock" : "doc"), []);
+    if (mode === "unlock") return <UnlockPage pageRef={{ token }} />;
+    if (mode === null) {
+        return (
+            <PublicFrame surface="guest-doc" mainClassName="sm:px-6 sm:pt-12">
+                <PublicPaperSkeleton label="Opening the shared document…" />
+            </PublicFrame>
+        );
+    }
+    return <GuestDoc token={token} />;
+}
+
+/**
+ * Every doc link already sent keeps working: a view link is the server's own
+ * script-free page now (the exchange answers its address, never a
+ * collaboration token), and the browser goes there; a comment link opens
+ * here, in the app, as it always did.
+ */
+function GuestDoc({ token }: { token: string }) {
 
     // Validate the link and resolve the document name before mounting the
     // collaborative viewer, trying again while the server is busy or out of
@@ -32,6 +55,17 @@ export default function GuestDocPage({ params }: { params: Promise<{ token: stri
     const tokenFetcher = useCallback(() => guestCollabToken(token), [token]);
     // The title names the doc's text for a screen reader.
     const titleId = useId();
+    const pageURL = session?.page_url;
+    useEffect(() => {
+        if (pageURL) go.to(pageURL);
+    }, [pageURL]);
+    if (pageURL) {
+        return (
+            <PublicFrame surface="guest-doc" mainClassName="sm:px-6 sm:pt-12">
+                <PublicPaperSkeleton label="Opening the shared document…" />
+            </PublicFrame>
+        );
+    }
 
     if (trouble === "gone" || (session && (session.resource_type !== "doc" || !session.document_name))) {
         return <PublicGone surface="guest-doc" noun="shared doc" detail="The link may have expired or been turned off. Ask the person who shared it for a new one." />

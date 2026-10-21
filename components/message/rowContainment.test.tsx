@@ -46,7 +46,7 @@ vi.mock("@/components/channel/channelMessages", async (orig) => {
 const { default: store } = await import("@/store/store")
 const { updateChannelPosts } = await import("@/store/slice/channelSlice")
 const { addChannelTyping } = await import("@/store/slice/typingSlice")
-const { MessageListVirtua } = await import("@/components/message/MessaageListVirtua")
+const { MessageListVirtua } = await import("@/components/message/MessageListVirtua")
 const { ChannelMessages } = await import("@/components/channel/channelMessages")
 const { ChannelMessageList } = await import("@/components/channel/channelMessageList")
 

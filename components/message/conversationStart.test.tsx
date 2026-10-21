@@ -43,7 +43,7 @@ class FakeResizeObserver {
   unobserve() {}
 }
 
-const { MessageListVirtua } = await import("./MessaageListVirtua")
+const { MessageListVirtua } = await import("./MessageListVirtua")
 
 type Msg = { id: string }
 const items = (n: number): FlatItem<Msg>[] => [

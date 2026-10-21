@@ -2,6 +2,7 @@
 
 import { displayNameOf } from "@/lib/personName"
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
+import { useMessageReactions } from "@/hooks/useMessageReactions"
 import type { PostsRes } from "@/types/post"
 import { MobileMessageRow, sheetPreview } from "@/components/message/mobileMessageRow"
 import { mapPostsResToBaseMessage } from "@/components/message/baseMessageCard"
@@ -81,18 +82,8 @@ const ChannelMessageMobileComponent = ({
 
     },[postInfo.post_by.user_uuid, relayed, dispatch])
 
-    // The reader's reaction, for the sheet's emoji row (one per person).
-    const mine = postInfo.post_reactions?.find((r) => r?.reaction_added_by?.user_uuid === selfProfile.data?.data?.user_uuid)
-    const handleEmojiClick = useCallback(
-        (emojiId: string) => {
-            if (mine?.reaction_emoji_id == emojiId) {
-                removeReaction(mine.uid)
-                return
-            }
-            addReaction(emojiId, mine?.uid ?? "")
-        },
-        [mine, removeReaction, addReaction],
-    )
+    // The sheet's emoji row and the picker: several emoji a person, each once (lib/chat/reactions).
+    const handleEmojiClick = useMessageReactions(postInfo.post_reactions, selfProfile.data?.data?.user_uuid, addReaction, removeReaction).toggle
 
     const addEmojiReaction = useCallback(() => {
         dispatch(closeUI('channelMessageLongPress'))
@@ -197,6 +188,7 @@ const ChannelMessageMobileComponent = ({
 
     return (
         <MobileMessageRow
+            inChannel
             message={message}
             continued={continued}
             arrived={arrived}

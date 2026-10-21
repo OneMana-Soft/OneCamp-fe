@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ChatGet } from "@/services/endpoints/chat"
 import type { ChannelInfoInterface } from "@/types/channel"
 import { ChannelListResult } from "@/components/channel/chnnelListResult"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -23,7 +23,7 @@ interface DiscoverPage {
 /** The address of a page of Discover, for what is typed. */
 function discoverURL(search: string, pageIndex: number): string {
     const q = search.trim()
-    return `${GetEndpointUrl.GetDiscoverChannelList}?pageIndex=${pageIndex}&pageSize=${DISCOVER_PAGE_SIZE}${q ? `&search=${encodeURIComponent(q)}` : ""}`
+    return `${ChatGet.GetDiscoverChannelList}?pageIndex=${pageIndex}&pageSize=${DISCOVER_PAGE_SIZE}${q ? `&search=${encodeURIComponent(q)}` : ""}`
 }
 
 /**

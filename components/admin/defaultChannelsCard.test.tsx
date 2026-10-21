@@ -112,7 +112,7 @@ describe("choosing where new members start", () => {
     render(<DefaultChannelsCard />)
     const title = await screen.findByText("No public channels yet")
     const state = title.closest("div")?.parentElement as HTMLElement
-    expect(state.querySelector(".hue-sun [data-empty-icon]")).toBeTruthy()
+    expect(state.querySelector(".hue-ink [data-empty-icon]")).toBeTruthy()
     expect(screen.queryByRole("checkbox")).toBeNull()
   })
 })

@@ -22,7 +22,7 @@ import { useSelector } from "react-redux"
 import { homeGreeting } from "@/lib/utils/homeGreeting"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import { useAIAvailable } from "@/hooks/useClientConfig"
-import SetupChecklist, { adminFromSidenav } from "@/components/home/SetupChecklist"
+import { adminFromSidenav, ChecklistPlace } from "@/components/home/setupChecklistPlace"
 import { NoChannelsYet } from "@/components/home/NoChannelsYet"
 import { RootState } from "@/store/store"
 import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
@@ -39,6 +39,9 @@ import AttentionCard from "@/components/ai/AttentionCard"
 import WhileYouWereAwayCard from "@/components/ai/WhileYouWereAwayCard"
 import { AgentWorkCard } from "@/components/ai/AgentWorkCard"
 
+// The setup checklist, a chunk of its own: only an admin with steps left sees
+// it. Its place is held while it comes (setupChecklistPlace).
+const SetupChecklist = dynamic(() => import("@/components/home/SetupChecklist"), { ssr: false, loading: ChecklistPlace })
 const TodayStrip = dynamic(() => import("@/components/home/TodayAgenda").then((m) => m.TodayStrip), { ssr: false })
 const ProjectsStrip = dynamic(() => import("@/components/home/ProjectsStrip"), { ssr: false })
 

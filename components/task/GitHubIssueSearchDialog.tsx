@@ -11,7 +11,8 @@ import { RefreshCw, Github, Link2, Search, AlertCircle, GitPullRequest, CircleDo
 import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/hooks/useDebounce"
 import { usePost } from "@/hooks/usePost"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { shortDate } from "@/lib/utils/date/shortDate"
 
 type SearchType = "issues" | "prs" | "all"
@@ -88,7 +89,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
       if (type === "issues" || type === "all") {
         const res = await post.makeRequest<any, { issues: GitHubIssue[] }>({
           method: "GET",
-          apiEndpoint: GetEndpointUrl.GetGitHubSearchIssues as any,
+          apiEndpoint: ProjectsGet.GetGitHubSearchIssues as any,
           appendToUrl: `/${searchTaskId}?q=${encodeURIComponent(q.trim())}`,
         })
         issues = res?.issues || []
@@ -96,7 +97,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
       if (type === "prs" || type === "all") {
         const res = await post.makeRequest<any, { prs: GitHubIssue[] }>({
           method: "GET",
-          apiEndpoint: GetEndpointUrl.GetGitHubSearchPRs as any,
+          apiEndpoint: ProjectsGet.GetGitHubSearchPRs as any,
           appendToUrl: `/${searchTaskId}?q=${encodeURIComponent(q.trim())}`,
         })
         prs = res?.prs || []

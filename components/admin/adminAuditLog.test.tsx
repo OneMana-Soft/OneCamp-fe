@@ -64,7 +64,7 @@ describe("the audit log", () => {
     getAdminAuditLog.mockResolvedValue(page([]))
     render(<AdminAuditLog />)
     expect(await screen.findByText("No audit entries yet")).toBeTruthy()
-    expect(document.querySelector("[data-empty-illustration] svg.hue-sun")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration] svg.hue-ink")).toBeTruthy()
   })
 
   it("reaches entries older than the latest page", async () => {

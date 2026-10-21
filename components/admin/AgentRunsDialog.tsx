@@ -50,6 +50,7 @@ import {
 } from "@/services/agentService"
 import { clockTime } from "@/lib/utils/date/clock"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
+import { Disclosure } from "@/components/ui/disclosure"
 
 function formatWhen(iso?: string | null): string {
   if (!iso) return ""
@@ -386,25 +387,30 @@ const CompactionDivider: React.FC<{ compaction: AgentRunCompaction }> = ({ compa
     // touch: a title attribute alone is unreadable on a phone, and this
     // transcript gets read on one as often as not. The expanded text drops BELOW
     // the rule so opening it doesn't stretch the divider.
-    <details className="py-0.5" role="note">
-      <summary
-        className="flex cursor-pointer select-none list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
-        title={compactionSummary(compaction)}
-      >
-        <span className={rule} />
-        <span
-          className={
-            "inline-flex items-center gap-1 text-2xs font-medium " +
-            (compaction.rescue ? "text-warning-ink" : "text-muted-foreground")
-          }
-        >
-          <Layers className="h-3 w-3" />
-          Context compacted
-        </span>
-        <span className={rule} />
-      </summary>
+    <Disclosure
+      className="py-0.5"
+      role="note"
+      chevron={false}
+      summaryClassName="gap-2"
+      summaryTitle={compactionSummary(compaction)}
+      summary={
+        <>
+          <span className={rule} />
+          <span
+            className={
+              "inline-flex items-center gap-1 text-2xs font-medium " +
+              (compaction.rescue ? "text-warning-ink" : "text-muted-foreground")
+            }
+          >
+            <Layers className="h-3 w-3" />
+            Context compacted
+          </span>
+          <span className={rule} />
+        </>
+      }
+    >
       <p className="mt-1 text-center text-2xs text-muted-foreground">{compactionSummary(compaction)}</p>
-    </details>
+    </Disclosure>
   )
 }
 

@@ -12,7 +12,8 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {ForwardMessageDropdown} from "@/components/searchDropdown/fwdMsgToDropdown/fwdMsgToDropdown";
 import {useFetch} from "@/hooks/useFetch";
 import {ChatInfoRes} from "@/types/chat";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { PostEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import { PostsResRaw} from "@/types/post";
 import {MessagePreview} from "@/components/message/MessagePreview";
 import {Button} from "@/components/ui/button";
@@ -43,13 +44,13 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, groupChatMsgID, channe
     // DM chat preview — uses the individual message UUID
     const chatPreviewId = chatMessageID || chatUUID
     // The previews say their own failure, in the dialog; the toast stays quiet.
-    const chatInfo = useFetch<ChatInfoRes>(chatPreviewId ? `${GetEndpointUrl.GetOnlyChatText}/${chatPreviewId}`: "", undefined, undefined, OWN_ERRORS)
+    const chatInfo = useFetch<ChatInfoRes>(chatPreviewId ? `${ChatGet.GetOnlyChatText}/${chatPreviewId}`: "", undefined, undefined, OWN_ERRORS)
 
     // Group chat message preview — uses the dedicated group chat endpoint
-    const groupChatInfo = useFetch<ChatInfoRes>(groupChatMsgID ? `${GetEndpointUrl.GetOnlyGroupChatText}/${groupChatMsgID}` : "", undefined, undefined, OWN_ERRORS)
+    const groupChatInfo = useFetch<ChatInfoRes>(groupChatMsgID ? `${ChatGet.GetOnlyGroupChatText}/${groupChatMsgID}` : "", undefined, undefined, OWN_ERRORS)
 
     // Channel post preview
-    const postInfo = useFetch<PostsResRaw>(channelUUID ? `${GetEndpointUrl.GetOnlyPostText}/${channelUUID}/${postUUID}` : "", undefined, undefined, OWN_ERRORS)
+    const postInfo = useFetch<PostsResRaw>(channelUUID ? `${ChatGet.GetOnlyPostText}/${channelUUID}/${postUUID}` : "", undefined, undefined, OWN_ERRORS)
 
     const [selectedUsersOrChannels, setSelectedUsersOrChannels] = useState<ChannelAndUserListInterfaceResp[]>([])
 

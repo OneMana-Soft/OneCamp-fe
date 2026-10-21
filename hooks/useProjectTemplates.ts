@@ -9,13 +9,13 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { appMutate } from "@/lib/swrMutate"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { downloadBlob } from "@/lib/utils/download"
 import { templateFile, templateFileName, type PlanDraft, type ProjectTemplate, type TemplateSummary } from "@/lib/projectTemplates"
 import { wait } from "@/lib/utils/abort"
 
-const BASE = GetEndpointUrl.ProjectTemplates
+const BASE = ProjectsGet.ProjectTemplates
 
 // Through the app's cache, so a list shown anywhere, or opened later, sees
 // the change.
@@ -28,7 +28,7 @@ interface SaveInput {
 
 /** Keeps a project as it is now as a template; its dates are counted in the viewer's zone. */
 export async function saveProjectAsTemplate(projectId: string, input: SaveInput): Promise<TemplateSummary> {
-  const res = await axiosInstance.post(`${GetEndpointUrl.ProjectSaveAsTemplate}/${projectId}/save-as-template`, { ...input, tz: browserTZ() }, OWN_ERRORS)
+  const res = await axiosInstance.post(`${ProjectsGet.ProjectSaveAsTemplate}/${projectId}/save-as-template`, { ...input, tz: browserTZ() }, OWN_ERRORS)
   await refresh()
   return (res.data as { data: TemplateSummary }).data
 }
@@ -63,12 +63,12 @@ const DRAFT_FAILED = "The plan couldn't be drafted just now. Try again, or pick 
  */
 export async function draftProjectPlan(description: string, signal?: AbortSignal): Promise<ProjectTemplate> {
   const config = { ...OWN_ERRORS, signal }
-  let draft = ((await axiosInstance.post(GetEndpointUrl.AiProjectPlanDraft, { description }, config)).data as { data: PlanDraft }).data
+  let draft = ((await axiosInstance.post(ProjectsGet.AiProjectPlanDraft, { description }, config)).data as { data: PlanDraft }).data
   const giveUpAt = Date.now() + GIVE_UP_AFTER_MS
   while (draft.state === "drafting") {
     if (Date.now() > giveUpAt) throw new Error("The AI took too long to draft the plan. Try again, or pick a template.")
     await wait(POLL_EVERY_MS, signal)
-    draft = ((await axiosInstance.get(`${GetEndpointUrl.AiProjectPlanDraft}/${encodeURIComponent(draft.id)}`, config)).data as { data: PlanDraft }).data
+    draft = ((await axiosInstance.get(`${ProjectsGet.AiProjectPlanDraft}/${encodeURIComponent(draft.id)}`, config)).data as { data: PlanDraft }).data
   }
   if (draft.state !== "done" || !draft.template) throw new Error(draft.msg || DRAFT_FAILED)
   return draft.template

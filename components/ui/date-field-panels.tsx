@@ -7,31 +7,10 @@ import { clockTime } from "@/lib/utils/date/clock"
 import { parseEventText } from "@/lib/calendar/parseEventText"
 import { Calendar } from "@/components/ui/calendar"
 import { TimeList } from "@/components/ui/date-time-picker"
-import { buttonVariants } from "@/components/ui/button"
-import { DAY_CELL_BASE } from "@/components/ui/dayCell"
+import { SHEET_MONTH } from "@/components/ui/sheetMonth"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
 import { fieldKeyDown } from "@/lib/keys/ime"
-
-/**
- * The month in a sheet: the sheet's width, a finger's 44px a day and 44px
- * arrows. It was the computer's 280px month centred in a 390px slab, its days
- * 32px, which read as a card floating in the sheet (ANALYSIS.md §1.5).
- */
-const SHEET_MONTH = {
-  months: "flex flex-col",
-  month: "w-full space-y-2",
-  caption: "relative flex h-11 items-center justify-center",
-  nav_button: cn(buttonVariants({ variant: "ghost" }), "size-11 p-0 text-ink-3 hover:text-ink"),
-  nav_button_previous: "absolute left-0",
-  nav_button_next: "absolute right-0",
-  table: "w-full border-collapse",
-  head_row: "flex w-full",
-  head_cell: "flex-1 text-micro font-medium text-ink-3",
-  row: "mt-0.5 flex w-full",
-  cell: "relative flex h-11 flex-1 items-center justify-center p-0 text-center focus-within:relative",
-  day: cn(DAY_CELL_BASE, "size-11 text-ui"),
-}
 
 /**
  * What the date and time fields (components/ui/date-field) open: the date

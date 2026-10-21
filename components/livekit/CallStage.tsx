@@ -18,10 +18,11 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { HUE_CLASS, avatarHueClass } from "@/components/ui/graphics/hues"
-import { Captions, MicOff } from "@/lib/icons"
+import { Captions, MicOff, Lock } from "@/lib/icons"
 import { type CampHue } from "@/lib/campHue"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { cn } from "@/lib/utils/helpers/cn"
+import { CALL_SURFACE } from "./callSurface"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { RING_OFF, formatElapsed, guestName, levelToBars, ringOpacity, type RingState } from "./callLevels"
 import { captionsLabel, captionsWhereText, type CallTranscription } from "./callState"
@@ -303,6 +304,21 @@ export function RecordingPill({ by, since }: { by: string | null; since?: number
 }
 
 /**
+ * Says the call is locked, so nobody new can join it, and by whom (Call
+ * Control), for as long as it is: the same steady pill as the recording's.
+ */
+export function LockedPill({ by }: { by?: string }) {
+  return (
+    <div role="status" className="min-w-0">
+      <span className={cn(STAGE_PILL, "hub-pop-down text-[#EEEEF0]")} data-locked-pill="">
+        <Lock className="size-3.5 shrink-0 text-ink-2" aria-hidden="true" />
+        Locked{by ? <span className="sr-only @3xl:not-sr-only">{` · by ${by}`}</span> : null}
+      </span>
+    </div>
+  )
+}
+
+/**
  * Says captions are on, who turned them on and where everyone's speech goes
  * (CALL-BUG-2), for as long as they are on: a pill beside the recording's
  * that opens the details, and a member's choices: to stop their own voice
@@ -335,7 +351,7 @@ export function CaptionsPill({
           <span className="hidden truncate @3xl:inline">{label}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="center" className="w-80 max-w-[calc(100vw-24px)] text-ui-sm" data-captions-details="">
+      <PopoverContent side="bottom" align="center" className={cn(CALL_SURFACE, "w-80 max-w-[calc(100vw-24px)] text-ui-sm")} data-captions-details="">
         <p className="font-medium text-foreground">Captions are on</p>
         {transcription.by ? <p className="text-meta text-ink-3">Turned on by {transcription.by}</p> : null}
         <p className="mt-2 text-ink-2 text-pretty">{captionsWhereText(transcription)}</p>

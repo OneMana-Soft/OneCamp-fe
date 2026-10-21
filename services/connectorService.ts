@@ -4,11 +4,11 @@
 // own connectors.
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import type { ConnectorStatus } from "@/types/connector"
 
 export async function listConnectors(): Promise<ConnectorStatus[]> {
-    const res = await axiosInstance.get(GetEndpointUrl.Connectors)
+    const res = await axiosInstance.get(AdminGet.Connectors)
     const body = res.data as { data?: { connectors?: ConnectorStatus[] } }
     return body?.data?.connectors ?? []
 }
@@ -23,7 +23,7 @@ export async function listConnectors(): Promise<ConnectorStatus[]> {
  */
 export async function startConnect(provider: string, returnTo?: "inbox"): Promise<void> {
     const query = returnTo ? `?return=${returnTo}` : ""
-    const res = await axiosInstance.get(`${GetEndpointUrl.Connectors}/${provider}/connect${query}`, OWN_ERRORS)
+    const res = await axiosInstance.get(`${AdminGet.Connectors}/${provider}/connect${query}`, OWN_ERRORS)
     const url = (res.data as { data?: { url?: string } })?.data?.url
     if (url) {
         window.location.href = url
@@ -33,5 +33,5 @@ export async function startConnect(provider: string, returnTo?: "inbox"): Promis
 }
 
 export async function disconnectConnector(provider: string): Promise<void> {
-    await axiosInstance.post(`${GetEndpointUrl.Connectors}/${provider}/disconnect`, {})
+    await axiosInstance.post(`${AdminGet.Connectors}/${provider}/disconnect`, {})
 }

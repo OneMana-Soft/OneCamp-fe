@@ -31,6 +31,13 @@ const LEVEL_LINE: Record<string, string> = {
   view: "You can read it.",
 }
 
+/** A level in two words, for a doc in a list of shares: "Can edit", "Can comment", "Can view". Pure. */
+export function levelWord(level: string | undefined): string {
+  if (level === "edit" || level === "full") return "Can edit"
+  if (level === "comment") return "Can comment"
+  return "Can view"
+}
+
 /** What someone asks to do at a level: "asked to edit", "asked to comment on". */
 const ASK_VERB: Record<string, string> = {
   view: "view",
@@ -98,6 +105,12 @@ export function noticeWords(n: NoticeItem): NoticeWords {
     case "calendar.cancelled":
     case "calendar.rsvp":
       return calendarWords(n, actor)
+    // A project's rule told its reader about a task (package 9). A rule has
+    // no face: the sentence is the rule's, the task its place.
+    case "work.rule":
+      return { actor: undefined, verb: "A rule asks you to look at", place, preview: "" }
+    case "work.rule.paused":
+      return { actor: undefined, verb: "Your rule stopped itself:", place, preview: "It ran too often. Check it, then turn it back on." }
     // Taken off an event's guest list (CAL-BUG-1). The event is never named:
     // its reader can't open it any more.
     case "event.uninvited":
@@ -182,6 +195,12 @@ export function noticeHref(n: NoticeItem | undefined): string | null {
     if (n.kind === "calendar.cancelled") return calendarRoute(dayOf(n) ? { date: dayOf(n)! } : {})
     // A cancelled booking's meeting is gone; an event you were taken off isn't yours to open.
     return n.kind === "booking.cancelled" ? calendarRoute() : null
+  }
+  // A rule's notice opens its task; a stopped rule, its project's Rules.
+  if (n?.resource_kind === "task") return n.can_open && n.resource_uuid ? `/app/task/${n.resource_uuid}` : null
+  if (n?.resource_kind === "rule") {
+    const project = n.data?.project_id
+    return n.can_open && project ? `/app/project/${project}?tool=rules` : n.can_open ? "/app/settings/workflows" : null
   }
   // A table's row opens in its table, at the thread when there is one.
   if (n?.resource_kind === "table_row") {

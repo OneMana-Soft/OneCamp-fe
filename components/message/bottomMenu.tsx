@@ -5,7 +5,8 @@ import { AddReactionTrigger } from "@/components/reactionPicker/AddReactionTrigg
 interface BottomMenuProps {
     reactions: { [key: string]: string[] }
     handleEmojiClick: (id: string) => void
-    selectedEmojiId: string
+    /** The emoji the reader has reacted with: several, each once (lib/chat/reactions). */
+    selectedEmojiIds: ReadonlySet<string>
     /** The reader's own name, said as "you" in who reacted. */
     selfName?: string
     /** The reaction the reader just made as their first on this message: it bursts. */
@@ -23,7 +24,7 @@ const LEAVE_MS = 130
  * that appears pops in, one that reaches zero shrinks away; the pills a
  * message was drawn with stand still.
  */
-export const BottomMenu = ({ reactions, handleEmojiClick, selectedEmojiId, selfName, burstEmojiId }: BottomMenuProps) => {
+export const BottomMenu = ({ reactions, handleEmojiClick, selectedEmojiIds, selfName, burstEmojiId }: BottomMenuProps) => {
     // The pills this row was first drawn with never animate.
     const initial = useRef<Set<string> | null>(null)
     if (initial.current === null) initial.current = new Set(Object.keys(reactions))
@@ -62,10 +63,10 @@ export const BottomMenu = ({ reactions, handleEmojiClick, selectedEmojiId, selfN
                     emojiId={emojiId}
                     reactionUserNames={reactions[emojiId]}
                     onClickEmoji={handleEmojiClick}
-                    isSelected={selectedEmojiId == emojiId}
+                    isSelected={selectedEmojiIds.has(emojiId)}
                     selfName={selfName}
                     motion={initial.current!.has(emojiId) ? undefined : "pop"}
-                    burst={burstEmojiId === emojiId && selectedEmojiId === emojiId}
+                    burst={burstEmojiId === emojiId && selectedEmojiIds.has(emojiId)}
                 />
             ))}
             {leavingIds.map((emojiId) => (

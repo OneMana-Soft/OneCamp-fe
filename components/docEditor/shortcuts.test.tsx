@@ -2,7 +2,7 @@ import * as React from "react"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { installRangeRects } from "@/lib/testing/rangeRects"
 import { loadBlocks } from "@/components/docEditor/registry/factory"
-import { act, cleanup, render } from "@testing-library/react"
+import { act, cleanup, render, waitFor } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { configureStore } from "@reduxjs/toolkit"
 import { EditorContent, type Editor } from "@tiptap/react"
@@ -390,7 +390,8 @@ const EXERCISE: Record<string, () => Promise<void>> = {
   "Mention someone": async () => {
     const editor = await docEditor()
     await type(editor, "@Sa")
-    expect(document.querySelector("[data-mention-list]")).toBeTruthy()
+    // The list's view loads when it first opens.
+    await waitFor(() => expect(document.querySelector("[data-mention-list]")).toBeTruthy(), { timeout: 5000 })
   },
   "Leave the text": async () => {
     const editor = await docEditor("<p>words</p>")

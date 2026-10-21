@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { buildCsp, originsFrom, cspReportEndpoint, CSP_REPORT_GROUP } from "./csp"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { buildCsp, originsFrom, cspReportEndpoint, CSP_REPORT_GROUP, CALL_PAGES } from "./csp"
 import { EMBED_FRAME_ORIGINS } from "../embeds/origins"
 
 /**
@@ -91,6 +93,21 @@ describe("buildCsp", () => {
         const policy = buildCsp(configured)
         expect(policy).not.toMatch(/(^|[ ;])https:([ ;]|$)/)
         expect(policy).not.toContain("*")
+    })
+
+    // A call's effects run as WebAssembly from this origin (lib/calls/processors):
+    // the pages a call can be on may compile it, no page evaluates script.
+    it("lets only a call's pages compile WebAssembly, and no page evaluates script", () => {
+        const scripts = (policy: string) => policy.split(";").map((d) => d.trim()).find((d) => d.startsWith("script-src "))!.split(" ")
+        expect(scripts(buildCsp({ ...configured, wasm: true }))).toContain("'wasm-unsafe-eval'")
+        expect(scripts(buildCsp(configured))).not.toContain("'wasm-unsafe-eval'")
+        for (const wasm of [true, false]) expect(scripts(buildCsp({ ...configured, wasm }))).not.toContain("'unsafe-eval'")
+    })
+
+    it("names the pages a call can be on, and next.config gives them the policy that allows it", () => {
+        expect(CALL_PAGES).toEqual(["/app/:path*", "/guest/m/:path*"])
+        const config = readFileSync(join(__dirname, "..", "..", "next.config.ts"), "utf8")
+        expect(config).toContain("...CALL_PAGES.map((source) => ({ source, headers: [{ key: CSP_HEADER, value: cspFromEnv({ wasm: true }) }] }))")
     })
 
     it("states every directive rather than leaning on default-src", () => {

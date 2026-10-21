@@ -14,11 +14,12 @@ vi.mock("@/services/callService", () => ({
 // The real join form and call need devices and a media server; these stand in
 // with the same props.
 vi.mock("@/components/livekit/PreJoin", () => ({
-  PreJoin: ({ username, onJoin, recordingBy }: { username: string; recordingBy?: string | null; onJoin: (v: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => void }) => {
+  PreJoin: ({ username, onJoin, recordingBy, joinError }: { username: string; recordingBy?: string | null; joinError?: string; onJoin: (v: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => void }) => {
     const [name, setName] = useState(username)
     return (
       <div>
         {recordingBy ? <p>Recorded by {recordingBy}</p> : null}
+        {joinError ? <p role="alert">{joinError}</p> : null}
         <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} />
         <button type="button" onClick={() => onJoin({ audioEnabled: true, videoEnabled: false, displayName: name })}>Join call</button>
       </div>
@@ -71,6 +72,17 @@ describe("a guest in a meeting", () => {
     expect(screen.getByRole("heading", { level: 1, name: "You left the meeting" })).toBeInTheDocument()
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join again" })))
     expect(screen.getByLabelText("Your name")).toHaveValue("Jordan")
+  })
+
+  // Call Control: a meeting its host locked keeps out a guest, who is told so
+  // in the green room and can try again once it's unlocked; the link isn't dead.
+  it("says the meeting is locked, and keeps the guest where they can try again", async () => {
+    joinGuestMeeting.mockResolvedValue({ ok: false, status: 403, code: "call_locked", msg: "This call is locked, so nobody new can join it." })
+    await open()
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Jordan" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join call" })))
+    expect(screen.getByRole("alert").textContent).toBe("This meeting is locked, so nobody new can join it. Ask the host to unlock it, then try again.")
+    expect(screen.getByRole("button", { name: "Join call" })).toBeInTheDocument()
   })
 
   // CALL-BUG-11: removed by the host, the guest reads why and isn't offered

@@ -1,8 +1,6 @@
 import type { ReactNode } from "react"
 
-import type { CampHue } from "@/lib/campHue"
-
-import { HUE_CLASS, cx } from "./hues"
+import { cx, HUE_CLASS, type MarkHue } from "./hues"
 
 /**
  * Spot illustrations (the playful layer, "The graphic language"): empty
@@ -24,12 +22,12 @@ import { HUE_CLASS, cx } from "./hues"
 export interface SpotProps {
   /** In px (96 by default). */
   size?: number
-  /** Overrides the illustration's own hue. */
-  hue?: CampHue
+  /** Overrides the illustration's own hue: "agent" or "ink" (v3.1) too. */
+  hue?: MarkHue
   className?: string
 }
 
-function Spot({ size = 96, hue, className, children }: SpotProps & { hue: CampHue; children: ReactNode }) {
+function Spot({ size = 96, hue, className, children }: SpotProps & { hue: MarkHue; children: ReactNode }) {
   return (
     <svg
       viewBox="0 0 96 96"

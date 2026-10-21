@@ -62,17 +62,22 @@ interface ActivityFeedFrameProps {
 /**
  * The column (hub.md A1): 760px at most, start-aligned 24px from the sheet's
  * edge, so the time sits inside the column instead of floating at the far
- * right of a wide screen. The toolbar is 44px whether or not a tab has a
- * filter. A state (empty, caught up, failed) sits where the rows start, 48px
- * under the toolbar, start-aligned like the rows (A9).
+ * right of a wide screen. The toolbar is 44px whenever a tab has something in
+ * it, a filter or an action, so every tab's rows start at one height; a tab
+ * with neither (Threads on a phone, which offers no row size) draws none,
+ * rather than a blank band over its rows. A state (empty, caught up, failed)
+ * sits where the rows start, 48px under the toolbar, start-aligned like the
+ * rows (A9).
  */
 export function ActivityFeedFrame({ filter, actions, notice, loading, state, loadingLabel, children }: ActivityFeedFrameProps) {
     return (
         <div data-feed-frame="" className="flex h-full min-h-0 w-full max-w-[760px] flex-1 flex-col">
-            <div data-feed-toolbar="" className="flex h-11 shrink-0 items-center justify-between gap-2 px-4 md:px-6">
-                <div className="flex min-w-0 flex-1 items-center">{filter}</div>
-                {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-            </div>
+            {filter || actions ? (
+                <div data-feed-toolbar="" className="flex h-11 shrink-0 items-center justify-between gap-2 px-4 md:px-6">
+                    <div className="flex min-w-0 flex-1 items-center">{filter}</div>
+                    {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+                </div>
+            ) : null}
             {notice ? (
                 <div data-feed-notice="" className="max-h-[45%] shrink-0 overflow-y-auto px-4 pb-2 md:px-6">
                     {notice}

@@ -42,7 +42,9 @@ vi.mock("@/hooks/useFetch", () => ({
   },
 }))
 vi.mock("@/hooks/useResilientPolling", () => ({ useResilientPolling: () => {} }))
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
+// Live updates are on unless a test says they are off.
+let mqttConnected = true
+vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<object>()), useMqtt: () => ({ connectionState: { isConnected: mqttConnected } }) }))
 const confirm = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 const toast = vi.fn()
@@ -79,6 +81,7 @@ afterEach(() => {
   providersState = {}
   withNotion = false
   jiraConnectedAt = "1"
+  mqttConnected = true
   confirm.mockReset()
   toast.mockReset()
   refetchJobs.mockReset()
@@ -241,6 +244,73 @@ describe("the import history", () => {
   })
 })
 
+// In the guided first run (components/onboarding/OnboardingRun) the job is to
+// pick a tool: the run opened on the card's long description and an empty
+// history with its illustration, with the tools below the fold (DESIGN-BUILD-2,
+// 20 Oct). The same card, in its first-run mode, not a second copy.
+describe("the import card in the guided first run", () => {
+  // The tiles name the tools themselves: the run's own line is the one line
+  // (DESIGN-BUILD-3, 20 Oct). Five blocks of words sat around three tiles.
+  it("is the tiles alone: no title, words, heading or helper line, no empty history, no notice", () => {
+    discover = async () => []
+    mqttConnected = false
+    render(<ImportCard firstRun />)
+    expect(document.querySelector("[data-source-picker]")).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: "Import from other tools" })).toBeNull()
+    expect(screen.queryByRole("heading", { name: "Start an import" })).toBeNull()
+    expect(screen.queryByRole("heading", { name: "Recent imports" })).toBeNull()
+    expect(screen.queryByText(/Asana, ClickUp/)).toBeNull()
+    expect(screen.queryByText("Pick a tool to connect it or start an import from it.")).toBeNull()
+    expect(screen.queryByText(/Live updates are off/)).toBeNull()
+    expect(screen.queryByText("No imports from other tools yet")).toBeNull()
+  })
+
+  it("lists its imports under the tiles once there are some", () => {
+    discover = async () => []
+    jobs = [running]
+    render(<ImportCard firstRun />)
+    const tiles = document.querySelector("[data-source-picker]") as HTMLElement
+    const history = screen.getByRole("heading", { name: "Recent imports" })
+    expect(tiles.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText("Acme")).toBeTruthy()
+  })
+
+  it("says when an import has started, so the run can move on", async () => {
+    discover = async () => []
+    const onStarted = vi.fn()
+    render(<ImportCard firstRun onStarted={onStarted} />)
+    fireEvent.click(screen.getByRole("radio", { name: "Jira" }))
+    await screen.findByRole("button", { name: "Start import" })
+    fireEvent.change(screen.getByLabelText("Workspace name"), { target: { value: "Acme" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start import" }))
+    await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1))
+  })
+
+  // Slack's upload is Admin › Import's own section, which the run doesn't
+  // hold: its tile did nothing there. It opens that section, upload open.
+  it("takes Slack to Admin › Import with its upload open", () => {
+    discover = async () => []
+    render(<ImportCard firstRun />)
+    const slack = document.querySelector('[data-source-card="slack"]') as HTMLElement
+    expect(slack.tagName).toBe("A")
+    expect(slack.getAttribute("href")).toBe("/app/admin?tab=import&slack=new")
+  })
+
+  it("leaves Admin › Import as it is: the history first, the long words, the notice", () => {
+    discover = async () => []
+    mqttConnected = false
+    render(<ImportCard />)
+    const order = screen
+      .getAllByRole("heading", { level: 3 })
+      .map((h) => h.textContent)
+      .filter((t) => t === "Recent imports" || t === "Start an import")
+    expect(order).toEqual(["Recent imports", "Start an import"])
+    expect(screen.getByText(/Live updates are off/)).toBeTruthy()
+    expect(screen.getByText("No imports from other tools yet")).toBeTruthy()
+    expect((document.querySelector('[data-source-card="slack"]') as HTMLElement).tagName).toBe("BUTTON")
+  })
+})
+
 describe("the import card before a provider is picked", () => {
   // Jobs were listed only once a provider was picked, so an admin coming
   // back couldn't see how their imports were doing.
@@ -376,7 +446,10 @@ describe("importing from Notion", () => {
     expect(document.querySelector("[data-source-picker]")?.parentElement?.className).toBe("cx-imp-sources-wrap")
     const css = readFileSync(join(process.cwd(), "app/styles/admin/connect.css"), "utf8")
     expect(css).toMatch(/\.cx-imp-sources-wrap \{ container-type: inline-size; \}/)
-    expect(css).toMatch(/@container \(min-width: 600px\) \{ \.cx-imp-sources \{ grid-template-columns: repeat\(4/)
+    // Every card at least about 200px wide, so its two lines ("Projects, tasks, people")
+    // aren't cut: four across at 600px made them 150px in the first run's 640px dialog.
+    expect(css).toMatch(/@container \(min-width: 600px\) \{ \.cx-imp-sources \{ grid-template-columns: repeat\(3/)
+    expect(css).toMatch(/@container \(min-width: 860px\) \{ \.cx-imp-sources \{ grid-template-columns: repeat\(4/)
     expect(css).not.toMatch(/@media[^{]*\{\s*\.cx-imp-sources \{/)
   })
 

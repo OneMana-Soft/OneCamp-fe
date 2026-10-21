@@ -2,7 +2,9 @@
 
 import * as React from "react"
 import { NodeSelection } from "@tiptap/pm/state"
-import { useMedia } from "@/context/MediaQueryContext"
+import { useSheetMode } from "@/components/ui/overlayMode"
+import { anchorTo } from "@/components/ui/anchor"
+import { heldBeside } from "@/components/ui/heldAnchor"
 import { Drawer, DrawerContent, DrawerTitle, SheetCancel, SheetGroup } from "@/components/ui/drawer"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -98,29 +100,44 @@ export default function ColourMenu({ onClose }: { docId: string; onClose(): void
       }),
     [],
   )
-  const { isMobile } = useMedia()
+  // A sheet by the one phone rule (components/ui/overlayMode): a phone in landscape too.
+  const sheet = useSheetMode()
   // The ask holds an editor: let it go with the grid, so a closed doc's editor isn't kept.
   const done = React.useCallback(() => {
     clearColourAsk()
     onClose()
   }, [onClose])
   if (!ask || ask.editor.isDestroyed) return null
-  return isMobile ? <ColourSheet key={opened} ask={ask} onClose={done} /> : <ColourPopover key={opened} ask={ask} onClose={done} />
+  return sheet ? <ColourSheet key={opened} ask={ask} onClose={done} /> : <ColourPopover key={opened} ask={ask} onClose={done} />
 }
 
-/** Where the popover stands: the block menu's place, else under the selection. */
-function anchorOf({ editor, anchor }: ColourAsk): DOMRect {
-  if (anchor) return new DOMRect(anchor.left, anchor.top, 0, anchor.bottom - anchor.top)
-  const { from, to } = editor.state.selection
-  try {
-    const a = editor.view.coordsAtPos(from)
-    const b = editor.view.coordsAtPos(to)
-    const top = Math.min(a.top, b.top)
-    return new DOMRect(Math.min(a.left, b.left), top, 0, Math.max(a.bottom, b.bottom) - top)
-  } catch {
-    const r = editor.view.dom.getBoundingClientRect()
-    return new DOMRect(r.left, r.top, 0, 0)
+/**
+ * Where the popover stands (components/ui/anchor): the block menu's place,
+ * kept beside its first block as the doc reflows, else under the selection,
+ * measured on each ask. Never (0, 0): a block or an editor that left the page
+ * leaves the last place it was seen.
+ */
+export function colourAnchorOf({ editor, anchor, range }: Pick<ColourAsk, "editor" | "anchor" | "range">) {
+  if (anchor) {
+    const block = range && !editor.isDestroyed ? editor.view.nodeDOM(range.from) : null
+    return heldBeside(new DOMRect(anchor.left, anchor.top, 0, anchor.bottom - anchor.top), block instanceof Element ? block : null)
   }
+  return anchorTo(
+    () => {
+      const { from, to } = editor.state.selection
+      try {
+        const a = editor.view.coordsAtPos(from)
+        const b = editor.view.coordsAtPos(to)
+        const top = Math.min(a.top, b.top)
+        return new DOMRect(Math.min(a.left, b.left), top, 0, Math.max(a.bottom, b.bottom) - top)
+      } catch {
+        // No place for the selection: the editor's own corner.
+        const r = editor.view.dom.getBoundingClientRect()
+        return new DOMRect(r.left, r.top, 0, 0)
+      }
+    },
+    () => editor.view.dom,
+  )
 }
 
 function ColourPopover({ ask, onClose }: { ask: ColourAsk; onClose(): void }) {
@@ -133,7 +150,7 @@ function ColourPopover({ ask, onClose }: { ask: ColourAsk; onClose(): void }) {
   const outside = React.useRef(false)
   const close = React.useCallback(() => onClose(), [onClose])
   // The shared popover, anchored where the grid was asked for (as B1's block menu is).
-  const anchor = React.useMemo(() => ({ current: { getBoundingClientRect: () => anchorOf(ask) } }), [ask])
+  const anchor = React.useMemo(() => ({ current: colourAnchorOf(ask) }), [ask])
 
   React.useEffect(
     () => () => {

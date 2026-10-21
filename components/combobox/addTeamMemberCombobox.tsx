@@ -8,7 +8,7 @@ import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {Command, CommandEmpty, CommandGroup, CommandInput, CommandList} from "@/components/ui/command";
 import {useFetch} from "@/hooks/useFetch";
 import {UserListInterfaceResp} from "@/types/user";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { PeopleGet } from "@/services/endpoints/people";
 import {UserComboboxItem} from "@/components/combobox/userComboboxItem";
 
 interface AddTeamMemberComboboxPropInterface {
@@ -22,7 +22,7 @@ const AddTeamMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({ha
     const [open, setOpen] = useState(false)
     const [value, setValue] = useState("")
 
-    const usersList = useFetch<UserListInterfaceResp>(teamId ? GetEndpointUrl.UsersListWhoDontBelongToTheTeam + '/' + teamId : '')
+    const usersList = useFetch<UserListInterfaceResp>(teamId ? PeopleGet.UsersListWhoDontBelongToTheTeam + '/' + teamId : '')
 
     const handleOnClick = async (id: string) => {
         if(!id) return

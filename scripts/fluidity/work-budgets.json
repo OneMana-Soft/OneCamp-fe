@@ -1,0 +1,450 @@
+{
+  "about": [
+    "Work's fluidity budgets: the 2,000-task project's page (fluid-19), its list (fluid-17), a task's panel (fluid-18), the board (fluid-08) and the timeline (fluid-09); design/WIN-ALL-ROWS.md \"fluidity\" (FLUIDITY-LEAD, 20 Oct 2026). surfaces.mjs --only work measures each on a production build against the fake server side (workspace.mjs: the projects programme's harness shapes, 150 ms a round trip), on a computer at 1x (cpu1) and on a phone at 4x (cpu4).",
+    "measured is the median of 5 runs on beta 482460c3d, 20 Oct 2026: the computer's on P-cores at load 7 to 14; a rerun at load 25 to 37 agreed on every render count and DOM size and took 1.5 to 3 times as long. Where it is over target, max is that measure plus room for a shared machine (30% for a time, 5% for renders); where it is under, max is the target.",
+    "Renders hold from run to run and machine to machine: they are enforced. Times are printed against their max until they hold on a quiet P-core slot (heavy.sh --pcore).",
+    "Never raise a max to make a run pass. Lower it when a package brings a metric down, and to the target once the metric holds there.",
+    "desktop4 (21 Oct 2026, FLUIDITY-LEAD-2): a computer at 4x, for what the phone doesn't have or does differently (the board's drag, the list's keys, the timeline), never held to the phone's cpu4. Computer at 4x (surfaces.mjs --device desktop --cpu 4): median of 6 quiet P-core runs on beta 354028322, 21 Oct 2026, load 0.4-6 (FLUIDITY-LEAD-2). Where it is under target, max is the target; over it, the measure plus 30% for a time and 5% for renders."
+  ],
+  "budgets": {
+    "projectColdMs": {
+      "scenario": "work",
+      "owner": "H",
+      "source": "The 2,000-task project in a new tab until its first task row. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 889 at 1x on a computer (load 7 to 14), 3645 at 4x on a phone (load 19 to 31). Times above load 16 are inflated: provisional until a quiet rerun. Target: A new tab, nothing in memory: 1.0 s on a computer, 2.5 s on the 4x phone (chat programme Wave C, perf-mobile.md; Nielsen's 1 s limit for the flow of thought)",
+      "cpu1": {
+        "max": 1000,
+        "target": 1000,
+        "measured": 889
+      },
+      "cpu4": {
+        "max": 4740,
+        "target": 2500,
+        "measured": 3645
+      },
+      "desktop4": {
+        "max": 2500,
+        "target": 2500,
+        "measured": 1885
+      },
+      "enforce": false
+    },
+    "projectOpenMs": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "The project from Home through the sidebar (the pointer rests 150 ms on the link, as IntentLink prefetches) until its first task row. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 218 at 1x on a computer (load 7 to 14), 443 at 4x on a phone (load 19 to 31). Times above load 16 are inflated: provisional until a quiet rerun. Target: A first open in the app that needs its data (one 150 ms round trip on fixtures): 400 ms on a computer, 1,000 ms on the 4x phone (projects-budgets.proposed.json's list first row; RAIL keeps a navigation under 1 s)",
+      "cpu1": {
+        "max": 400,
+        "target": 400,
+        "measured": 218
+      },
+      "cpu4": {
+        "max": 1000,
+        "target": 1000,
+        "measured": 443
+      },
+      "desktop4": {
+        "max": 1000,
+        "target": 1000,
+        "measured": 869.5
+      },
+      "enforce": false
+    },
+    "projectAgainMs": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "The project again from Home, its data cached, until its first task row. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 198 at 1x on a computer (load 7 to 14), 351 at 4x on a phone (load 19 to 31). Times above load 16 are inflated: provisional until a quiet rerun. Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)",
+      "cpu1": {
+        "max": 260,
+        "target": 100,
+        "measured": 198
+      },
+      "cpu4": {
+        "max": 460,
+        "target": 300,
+        "measured": 351
+      },
+      "desktop4": {
+        "max": 1020,
+        "target": 300,
+        "measured": 785
+      },
+      "enforce": false
+    },
+    "projectOpenRenders": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Renders to open the project: about 250 rows mount, then render three times as fields, statuses and people arrive (TaskRow x800). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 17603 at 1x on a computer (load 7 to 14), 1421 at 4x on a phone (load 19 to 31). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 18490,
+        "target": 3000,
+        "measured": 17603
+      },
+      "cpu4": {
+        "max": 3000,
+        "target": 3000,
+        "measured": 1421
+      },
+      "desktop4": {
+        "max": 18510,
+        "target": 3000,
+        "measured": 17625
+      },
+      "enforce": true
+    },
+    "listPageMoreRenders": {
+      "scenario": "work",
+      "owner": "F-1",
+      "source": "Renders when the next 500 tasks arrive ('Show more tasks'): every row re-renders (GroupedTaskList's callbacks hang on `groups`, TaskRow x980). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 19337 at 1x on a computer (load 7 to 14). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 20310,
+        "target": 1500,
+        "measured": 19337
+      },
+      "desktop4": {
+        "max": 20310,
+        "target": 1500,
+        "measured": 19337
+      },
+      "enforce": true
+    },
+    "listGroupOpenRenders": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Renders to open a group ('Show N more'): every task in it mounts at once (no window). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 12272 at 1x on a computer (load 7 to 14). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 12890,
+        "target": 1500,
+        "measured": 12272
+      },
+      "desktop4": {
+        "max": 12890,
+        "target": 1500,
+        "measured": 12272
+      },
+      "enforce": true
+    },
+    "listScrollFrameP95Ms": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Frame time p95 scrolling the list of 1,900 rows down and back (55,527 DOM nodes; the hover controls mount in each row the pointer crosses). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 33.4 at 1x on a computer (load 7 to 14), 50 at 4x on a phone (load 19 to 31). Times above load 16 are inflated: provisional until a quiet rerun. Target: Frame time p95 while it scrolls or drags: one 60 Hz refresh (16.7 ms) on a computer, two (33.4 ms) on the 4x phone (the brief; 60 fps, never under 30)",
+      "cpu1": {
+        "max": 43.4,
+        "target": 16.7,
+        "measured": 33.4
+      },
+      "cpu4": {
+        "max": 65,
+        "target": 33.4,
+        "measured": 50
+      },
+      "desktop4": {
+        "max": 108,
+        "target": 33.4,
+        "measured": 83.3
+      },
+      "enforce": false
+    },
+    "listScrollDroppedPct": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Refreshes dropped scrolling the 1,900-row list. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 25.3 at 1x on a computer (load 7 to 14), 28.6 at 4x on a phone (load 19 to 31). Times above load 16 are inflated: provisional until a quiet rerun. Target: Share of refreshes dropped while it scrolls or drags: at most 5% on a computer, 10% on the 4x phone (follows the frame budget: a p95 at one refresh drops at most about 5%)",
+      "cpu1": {
+        "max": 34.9,
+        "target": 5,
+        "measured": 25.3
+      },
+      "cpu4": {
+        "max": 39.2,
+        "target": 10,
+        "measured": 28.6
+      },
+      "desktop4": {
+        "max": 48,
+        "target": 10,
+        "measured": 36.8
+      },
+      "enforce": false
+    },
+    "listKeyP95Ms": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "J twenty times down the list: the key p95. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 56 at 1x on a computer (load 7 to 14). Times above load 16 are inflated: provisional until a quiet rerun. Target: Key p95: a keystroke paints within two frames, 32 ms at 1x and 50 ms at 4x (docs I20, doc-budgets.json)",
+      "cpu1": {
+        "max": 80,
+        "target": 32,
+        "measured": 56
+      },
+      "desktop4": {
+        "max": 250,
+        "target": 50,
+        "measured": 192
+      },
+      "enforce": false
+    },
+    "rendersPerListKey": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Renders per press of J (the highlight moves one row). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 121.9 at 1x on a computer (load 7 to 14). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 130,
+        "target": 10,
+        "measured": 121.9
+      },
+      "desktop4": {
+        "max": 130,
+        "target": 10,
+        "measured": 123.9
+      },
+      "enforce": true
+    },
+    "taskPanelMs": {
+      "scenario": "work",
+      "owner": "FL",
+      "source": "A task's panel from a click until its title shows, with the whole list loaded: its code (441 KB, 21 chunks) loaded at the click, and the narrower page laid 55,527 nodes out again. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 1567 at 1x on a computer (load 7 to 14), 2667 at 4x on a phone (load 19 to 31). Times above load 16 are inflated: provisional until a quiet rerun. Target: A first open in the app that needs its data (one 150 ms round trip on fixtures): 400 ms on a computer, 1,000 ms on the 4x phone (projects-budgets.proposed.json's list first row; RAIL keeps a navigation under 1 s)",
+      "cpu1": {
+        "max": 2040,
+        "target": 400,
+        "measured": 1567
+      },
+      "cpu4": {
+        "max": 3470,
+        "target": 1000,
+        "measured": 2667
+      },
+      "desktop4": {
+        "max": 9890,
+        "target": 1000,
+        "measured": 7610
+      },
+      "enforce": false
+    },
+    "taskPanelRenders": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Renders to open a task's panel (44 Popovers mount at once). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 2830 at 1x on a computer (load 7 to 14), 1302 at 4x on a phone (load 19 to 31). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 2980,
+        "target": 600,
+        "measured": 2830
+      },
+      "cpu4": {
+        "max": 1370,
+        "target": 600,
+        "measured": 1302
+      },
+      "desktop4": {
+        "max": 2890,
+        "target": 600,
+        "measured": 2748
+      },
+      "enforce": true
+    },
+    "boardOpenMs": {
+      "scenario": "work",
+      "owner": "F-1",
+      "source": "The Board tab until its first card, after the list (kept, hidden) loaded every task. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 411 at 1x on a computer (load 7 to 14), 1598 at 4x on a phone (load 19 to 31). Times above load 16 are inflated: provisional until a quiet rerun. Target: A first open in the app that needs its data (one 150 ms round trip on fixtures): 400 ms on a computer, 1,000 ms on the 4x phone (projects-budgets.proposed.json's list first row; RAIL keeps a navigation under 1 s)",
+      "cpu1": {
+        "max": 540,
+        "target": 400,
+        "measured": 411
+      },
+      "cpu4": {
+        "max": 2080,
+        "target": 1000,
+        "measured": 1598
+      },
+      "desktop4": {
+        "max": 1340,
+        "target": 1000,
+        "measured": 1028.5
+      },
+      "enforce": false
+    },
+    "boardOpenRenders": {
+      "scenario": "work",
+      "owner": "F-1",
+      "source": "Renders to open the Board tab: the hidden list re-renders on the ?tab= write (TaskRow x1900), then the board. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 47749 at 1x on a computer (load 7 to 14), 3804 at 4x on a phone (load 19 to 31). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 50140,
+        "target": 6000,
+        "measured": 47749
+      },
+      "cpu4": {
+        "max": 6000,
+        "target": 6000,
+        "measured": 3804
+      },
+      "desktop4": {
+        "max": 46690,
+        "target": 6000,
+        "measured": 44460
+      },
+      "enforce": true
+    },
+    "boardScrollFrameP95Ms": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Frame time p95 scrolling a board column down and back (each card the pointer crosses mounts its menu). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 16.8 at 1x on a computer (load 7 to 14), 16.8 at 4x on a phone (load 19 to 31). Times above load 16 are inflated: provisional until a quiet rerun. Target: Frame time p95 while it scrolls or drags: one 60 Hz refresh (16.7 ms) on a computer, two (33.4 ms) on the 4x phone (the brief; 60 fps, never under 30)",
+      "cpu1": {
+        "max": 21.8,
+        "target": 16.7,
+        "measured": 16.8
+      },
+      "cpu4": {
+        "max": 33.4,
+        "target": 33.4,
+        "measured": 16.8
+      },
+      "desktop4": {
+        "max": 108,
+        "target": 33.4,
+        "measured": 83.4
+      },
+      "enforce": false
+    },
+    "boardDragFrameP95Ms": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Frame time p95 dragging a card to the next column (every card reads the drag context: BoardCard x639). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 33.3 at 1x on a computer (load 7 to 14). Times above load 16 are inflated: provisional until a quiet rerun. Target: Frame time p95 while it scrolls or drags: one 60 Hz refresh (16.7 ms) on a computer, two (33.4 ms) on the 4x phone (the brief; 60 fps, never under 30)",
+      "cpu1": {
+        "max": 43.3,
+        "target": 16.7,
+        "measured": 33.3
+      },
+      "desktop4": {
+        "max": 87,
+        "target": 33.4,
+        "measured": 66.7
+      },
+      "enforce": false
+    },
+    "boardDropMs": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "From the release until the card shows in its new column. Until 20 Oct evening the step also waited out the overlay's 220 ms glide into the slot (272 ms of this measure), which is motion, not work: that is boardDropSettledMs now, unbudgeted. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 272 at 1x on a computer (load 7 to 14). Times above load 16 are inflated: provisional until a quiet rerun. Target: An edit committed and shown (optimistic, then saved): 100 ms on a computer, 300 ms on the 4x phone (the brief: optimistic updates for every edit)",
+      "cpu1": {
+        "max": 360,
+        "target": 100,
+        "measured": 272
+      },
+      "desktop4": {
+        "max": 300,
+        "target": 300,
+        "measured": 147
+      },
+      "enforce": false
+    },
+    "timelineOpenMs": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "The Timeline tab until its first bar. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 262 at 1x on a computer (load 7 to 14). Times above load 16 are inflated: provisional until a quiet rerun. Target: A first open in the app that needs its data (one 150 ms round trip on fixtures): 400 ms on a computer, 1,000 ms on the 4x phone (projects-budgets.proposed.json's list first row; RAIL keeps a navigation under 1 s)",
+      "cpu1": {
+        "max": 400,
+        "target": 400,
+        "measured": 262
+      },
+      "desktop4": {
+        "max": 1000,
+        "target": 1000,
+        "measured": 501
+      },
+      "enforce": false
+    },
+    "timelineOpenRenders": {
+      "scenario": "work",
+      "owner": "F-1",
+      "source": "Renders to open the Timeline tab (the hidden list re-renders on the ?tab= write, TaskRow x1900). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 43794 at 1x on a computer (load 7 to 14). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 45990,
+        "target": 3000,
+        "measured": 43794
+      },
+      "desktop4": {
+        "max": 42290,
+        "target": 3000,
+        "measured": 40276
+      },
+      "enforce": true
+    },
+    "timelineScrollRenders": {
+      "scenario": "work",
+      "owner": "A7",
+      "source": "Renders while the timeline scrolls: the whole timeline re-rendered on every virtualiser change (F-1 #4 memoises rows and bars). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 33529 at 1x on a computer (load 7 to 14). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen). The rerun under load (R1, load 2 to 37) counted 17,533: when frames drop, the window moves fewer times, so this count follows the machine. Report only until it holds",
+      "cpu1": {
+        "max": 35210,
+        "target": 300,
+        "measured": 33529
+      },
+      "desktop4": {
+        "max": 14380,
+        "target": 300,
+        "measured": 13690
+      },
+      "enforce": false
+    },
+    "timelineScrollFrameP95Ms": {
+      "scenario": "work",
+      "owner": "F-1",
+      "source": "The timeline panned 2,500 px right and back, then 2,000 px down: frame p95, one refresh at 1x (16.8 reads as one with the timer's jitter), two at 4x. 1x: FLUIDITY-LEAD's 20 Oct baseline on beta 482460c3d; desktop4: Computer at 4x (surfaces.mjs --device desktop --cpu 4): median of 6 quiet P-core runs on beta 354028322, 21 Oct 2026, load 0.4-6 (FLUIDITY-LEAD-2).",
+      "cpu1": {
+        "max": 21.8,
+        "target": 16.7,
+        "measured": 16.8
+      },
+      "desktop4": {
+        "max": 65,
+        "target": 33.4,
+        "measured": 50
+      },
+      "enforce": false
+    },
+    "listDragFrameP95Ms": {
+      "scenario": "work",
+      "owner": "L-1",
+      "source": "Frame p95 while a row is carried. Row 4 lifted by its grip, carried 8 rows down in 30 moves 16 ms apart, timed from the release until it sits 8 rows down (L-1's manual order; the step is skipped on a build without grips). Median of 5 quiet P-core runs on proj-l1-2026-10-20-fe 376ce910b, 21 Oct 2026, load 0.2-2.7 (FLUIDITY-LEAD-2); the phone has no row drag.",
+      "cpu1": {
+        "max": 16.8,
+        "target": 16.7,
+        "measured": 16.8
+      },
+      "desktop4": {
+        "max": 33.4,
+        "target": 33.4,
+        "measured": 33.3
+      },
+      "enforce": false
+    },
+    "listDragDroppedPct": {
+      "scenario": "work",
+      "owner": "L-1",
+      "source": "Frames dropped while a row is carried. Row 4 lifted by its grip, carried 8 rows down in 30 moves 16 ms apart, timed from the release until it sits 8 rows down (L-1's manual order; the step is skipped on a build without grips). Median of 5 quiet P-core runs on proj-l1-2026-10-20-fe 376ce910b, 21 Oct 2026, load 0.2-2.7 (FLUIDITY-LEAD-2); the phone has no row drag.",
+      "cpu1": {
+        "max": 5,
+        "target": 5,
+        "measured": 0
+      },
+      "desktop4": {
+        "max": 10,
+        "target": 10,
+        "measured": 8.7
+      },
+      "enforce": false
+    },
+    "listDropMs": {
+      "scenario": "work",
+      "owner": "L-1",
+      "source": "From the release until the row sits at its new place. Row 4 lifted by its grip, carried 8 rows down in 30 moves 16 ms apart, timed from the release until it sits 8 rows down (L-1's manual order; the step is skipped on a build without grips). Median of 5 quiet P-core runs on proj-l1-2026-10-20-fe 376ce910b, 21 Oct 2026, load 0.2-2.7 (FLUIDITY-LEAD-2); the phone has no row drag.",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 40
+      },
+      "desktop4": {
+        "max": 300,
+        "target": 300,
+        "measured": 103
+      },
+      "enforce": false
+    }
+  }
+}

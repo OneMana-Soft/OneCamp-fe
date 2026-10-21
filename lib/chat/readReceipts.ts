@@ -1,3 +1,4 @@
+import { appMutate } from "@/lib/swrMutate"
 // Read receipts in DMs and group chats: who has seen the conversation, up to
 // when (GET /dm/seen/{user} and /groupChat/seen/{grp}). The server decides
 // whether they show at all (the workspace, the person, the size) and says so
@@ -64,4 +65,17 @@ export function seenLine(
   if (opts.dm) return { text: "Seen", title: `Seen ${time(who[0].seen_at)}` }
   if (opts.others > 1 && who.length >= opts.others) return { text: "Seen by everyone", title }
   return { text: `Seen by ${nameList(who.map((s) => opts.nameOf(s.user_uuid)))}`, title }
+}
+
+/**
+ * Folds a live receipt (MESSAGE_CHAT_SEEN) into the open conversation's
+ * receipts. Here, not with the hooks, as the realtime handler every page loads
+ * calls it.
+ */
+export function applySeenEvent(key: string, userUUID: string, at: string) {
+  void appMutate(
+    key,
+    (current: { data?: Receipts } | undefined) => (current?.data ? { ...current, data: withSeen(current.data, userUUID, at) } : current),
+    { revalidate: false },
+  )
 }

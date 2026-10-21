@@ -2,7 +2,8 @@
 
 import {useFetch} from "@/hooks/useFetch";
 import { useLeaveLink, useLinkSearchParams, useLinkedPage } from "@/hooks/useLinkTarget";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import { CreatePostPaginationResRaw, PostsRes} from "@/types/post";
@@ -37,7 +38,7 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
     const postId = propPostId || searchParams?.get('postId') || undefined;
     const latestKey = postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId
     const latestMsg = useFetch<CreatePostPaginationResRaw>(latestKey)
-    const getNewPostsWithCurrentPost = useFetch<CreatePostPaginationResRaw>(postId ? GetEndpointUrl.GetNewPostIncludingCurrentPost + '/' + channelId + '/' + postId: '')
+    const getNewPostsWithCurrentPost = useFetch<CreatePostPaginationResRaw>(postId ? ChatGet.GetNewPostIncludingCurrentPost + '/' + channelId + '/' + postId: '')
 
     // A revisited channel picks up posts that arrived while away because SWR
     // revalidates a cached key on mount and on switch (revalidateIfStale). An
@@ -50,12 +51,12 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
     const [oldChannelPostTime, setOldChannelPostTime] = useState(0)
     // The post the older page starts next to (lib/chat/pageEdge).
     const [oldEdge, setOldEdge] = useState('')
-    const oldMsg = useFetch<CreatePostPaginationResRaw>(oldChannelPostTime == 0 ? '' : GetEndpointUrl.GetOldPostBefore + '/' + channelId + '/' + oldChannelPostTime + oldEdge)
+    const oldMsg = useFetch<CreatePostPaginationResRaw>(oldChannelPostTime == 0 ? '' : ChatGet.GetOldPostBefore + '/' + channelId + '/' + oldChannelPostTime + oldEdge)
 
     const [hasMoreNewPost, setHasMoreNewPost] = useState(!!postId)
     const [newChannelPostsTime, setNewChannelPostsTime] = useState(0)
     const [newEdge, setNewEdge] = useState('')
-    const newMsg = useFetch<CreatePostPaginationResRaw>(newChannelPostsTime == 0 ? '' : GetEndpointUrl.GetNewPostAfter + '/' + channelId + '/' + newChannelPostsTime + newEdge)
+    const newMsg = useFetch<CreatePostPaginationResRaw>(newChannelPostsTime == 0 ? '' : ChatGet.GetNewPostAfter + '/' + channelId + '/' + newChannelPostsTime + newEdge)
 
 
 
@@ -234,6 +235,7 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
                 isAdmin={isAdmin}
                 unreadOnOpen={unreadOnOpen}
                 retryOlder={retryOlder}
+                anchor={postId}
             />
 
             <ChannelTypingBar channelId={channelId} />

@@ -28,7 +28,8 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetchOnlyOnce: (url: string) => (url.includes("mqtt") ? config : profile),
 }))
 
-import { MqttProvider, useMqtt } from "./mqttProvider"
+import { MqttProvider } from "./mqttProvider"
+import { useMqtt } from "./mqttContext"
 
 afterEach(cleanup)
 

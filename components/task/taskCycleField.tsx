@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet, ProjectsPost } from "@/services/endpoints/projects"
 import { cycleDates, cycleLabel, openCycles, type Cycle } from "@/lib/tasks/cycles"
 import { inlineSelect } from "@/lib/ui/fieldRow"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
@@ -17,7 +17,7 @@ const NONE = "none"
 
 export function TaskCycleField({ taskUUID, projectId, isAdmin }: { taskUUID: string; projectId?: string; isAdmin: boolean }) {
   const { cycles, refresh } = useProjectCycles(projectId)
-  const { data, mutate } = useFetch<{ data: Cycle | null }>(taskUUID ? `${GetEndpointUrl.GetTaskCycle}/${taskUUID}` : "")
+  const { data, mutate } = useFetch<{ data: Cycle | null }>(taskUUID ? `${ProjectsGet.GetTaskCycle}/${taskUUID}` : "")
   const { makeRequest, isSubmitting } = usePost()
   const current = data?.data ?? null
   const options = openCycles(cycles)
@@ -27,7 +27,7 @@ export function TaskCycleField({ taskUUID, projectId, isAdmin }: { taskUUID: str
 
   const change = async (value: string) => {
     const res = await makeRequest<{ task_uuid: string; cycle_id: string }, Cycle | null>({
-      apiEndpoint: PostEndpointUrl.SetTaskCycle,
+      apiEndpoint: ProjectsPost.SetTaskCycle,
       payload: { task_uuid: taskUUID, cycle_id: value === NONE ? "" : value },
       showErrorToast: true,
     })

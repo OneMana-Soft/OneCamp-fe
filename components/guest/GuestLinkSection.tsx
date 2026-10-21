@@ -19,7 +19,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Copy, Check, ExternalLink, Link2, Globe } from "@/lib/icons"
-import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLink } from "@/services/guestService"
+import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLink, type ResourceGuestLinks } from "@/services/guestService"
+import { PublishSection } from "@/components/guest/PublishSection"
 import { useFetch } from "@/hooks/useFetch"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { GUEST_HUE } from "@/components/guest/guestUi"
@@ -320,7 +321,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
   const [creating, setCreating] = React.useState(false)
   const [link, setLink] = React.useState("")
   const [copied, setCopied] = React.useState(false)
-  const links = useFetch<{ data: ResourceGuestLink[] }>(canShare && resourceId ? resourceGuestLinksKey(resourceType, resourceId) : "")
+  const links = useFetch<ResourceGuestLinks>(canShare && resourceId ? resourceGuestLinksKey(resourceType, resourceId) : "")
   const [turningOff, setTurningOff] = React.useState<string | null>(null)
 
   if (!canShare) return null
@@ -330,7 +331,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
   const permissionOf = (c: GuestCapability) => (c === "view" ? kind.viewLabel : kind.writeLabel ?? kind.viewLabel)
   const first = live[0]
   const status = first
-    ? ["On", permissionOf(first.capability), first.expires_at ? `expires ${format(new Date(first.expires_at), "d MMM")}` : "doesn't expire"].join(" · ")
+    ? ["On", permissionOf(first.capability), first.expires_at ? `expires ${format(new Date(first.expires_at), "d MMM")}` : "doesn't expire", ...(live.some((l) => l.slug) ? ["published as a web page"] : [])].join(" · ")
     : on
       ? "On · make the link below"
       : "Off"
@@ -398,7 +399,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
       label="Anyone with the link"
       description={status}
       data-guest-link-card=""
-      aside={<Switch checked={on} onCheckedChange={onSwitch} aria-label="Anyone with the link" className="data-[state=checked]:bg-[var(--camp-moss-a2)]" />}
+      aside={<Switch checked={on} onCheckedChange={onSwitch} aria-label="Anyone with the link" />}
     >
       {on ? (
           <div className="content-rise flex flex-col gap-2 pl-11 pt-2" data-guest-link-options="">
@@ -455,10 +456,10 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
               </>
             )}
             {live.length > (link ? 1 : 0) ? (
-              <div className="grid">
+              <div className="grid min-w-0">
                 <p className="text-meta font-medium text-ink-2">{link ? "Other links" : "Links that work now"}</p>
                 {(link ? live.slice(1) : live).map((l) => (
-                  <div key={l.id} className="flex h-9 items-center gap-2 text-ui-sm text-ink">
+                  <div key={l.id} className="flex h-9 min-w-0 items-center gap-2 text-ui-sm text-ink">
                     <span className="min-w-0 flex-1 truncate">
                       {permissionOf(l.capability)}
                       <span className="text-ink-3">
@@ -487,6 +488,9 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
                   </div>
                 ))}
               </div>
+            ) : null}
+            {resourceType === "doc" ? (
+              <PublishSection links={live} publishAllowed={links.data?.publish_allowed ?? true} onChanged={() => void links.mutate()} />
             ) : null}
           </div>
       ) : null}

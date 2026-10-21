@@ -135,3 +135,66 @@ describe("CALL-BUG-21: a speaker choice beside the microphone, only where it can
     expect(screen.queryByText("Speaker")).toBeNull()
   })
 })
+
+// DESIGN-BUILD-2's review (17 Oct 2026): the call's notices sat on its dock,
+// and the call's menus and toasts were white over the dark stage in light mode.
+describe("the dock keeps the toasts above it, and the call's overlays dark", () => {
+  it("sets the toasts' floor while it is on screen, and takes it away when it goes", () => {
+    const root = document.documentElement
+    const { unmount } = render(<VideoControls onDisconnect={() => {}} />)
+    // jsdom lays nothing out, so the dock's top reads 0: the floor is the window's height and 12px.
+    expect(root.style.getPropertyValue("--call-dock-floor")).toBe(`${window.innerHeight + 12}px`)
+    unmount()
+    expect(root.style.getPropertyValue("--call-dock-floor")).toBe("")
+  })
+
+  it("raises the call's toasts on its dark surface, in either theme", async () => {
+    lp.setCameraEnabled.mockRejectedValueOnce(Object.assign(new Error("Could not start video source"), { name: "NotReadableError" }))
+    render(<VideoControls onDisconnect={() => {}} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Turn camera on" })))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Your camera is in use", className: "dark" })))
+  })
+
+  it("draws every menu and popover the call opens on its dark surface", () => {
+    // Each of the call's portalled overlays carries the stage's surface: none is drawn in the page's theme.
+    for (const file of ["VideoControls.tsx", "PersonMenuItems.tsx", "CallStage.tsx", "InstantMeetingView.tsx"]) {
+      const src = readFileSync(resolve(__dirname, file), "utf8")
+      const overlays = src.match(/<(DropdownMenuContent|PopoverContent)\b[^>]*>/g) ?? []
+      expect(overlays.length, file).toBeGreaterThan(0)
+      for (const tag of overlays) expect(tag, `${file}: ${tag}`).toContain("CALL_SURFACE")
+    }
+    // And no call file raises a toast in the page's theme.
+    for (const file of ["VideoControls.tsx", "callHosting.tsx", "VideoConference.tsx", "InstantMeetingView.tsx"]) {
+      expect(readFileSync(resolve(__dirname, file), "utf8"), file).not.toMatch(/from "@\/hooks\/use-toast"/)
+    }
+  })
+})
+
+// Media Processors (#55): backgrounds and sound are a click away from the
+// camera's and the microphone's menus, and from the phone's More.
+describe("backgrounds and sound from the dock", () => {
+  it("opens from the camera's menu and the microphone's, named for each", () => {
+    const onToggle = vi.fn()
+    render(<VideoControls onDisconnect={() => {}} effects={{ open: false, onToggle }} />)
+    fireEvent.keyDown(screen.getByRole("button", { name: "Choose a camera" }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Background effects" }))
+    expect(onToggle).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(screen.getByRole("button", { name: "Choose a microphone" }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Noise reduction" }))
+    expect(onToggle).toHaveBeenCalledTimes(2)
+  })
+
+  it("opens from the phone's More", () => {
+    const onToggle = vi.fn()
+    render(<VideoControls onDisconnect={() => {}} effects={{ open: false, onToggle }} />)
+    fireEvent.keyDown(screen.getByRole("button", { name: "More call options" }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Backgrounds and sound" }))
+    expect(onToggle).toHaveBeenCalledTimes(1)
+  })
+
+  it("isn't in the menus where the call offers no effects", () => {
+    render(<VideoControls onDisconnect={() => {}} />)
+    fireEvent.keyDown(screen.getByRole("button", { name: "Choose a camera" }), { key: "Enter" })
+    expect(screen.queryByRole("menuitem", { name: "Background effects" })).toBeNull()
+  })
+})

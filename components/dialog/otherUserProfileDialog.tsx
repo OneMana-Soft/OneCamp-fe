@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation"
 
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { Button } from "@/components/ui/button"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { BotTag } from "@/components/ui/botTag"
@@ -47,11 +48,6 @@ interface OtherProfileDialogProps {
     setOpenState: (state: boolean) => void
 }
 
-/** A phone gets the bottom sheet; read once, when the card opens. */
-function isPhone(): boolean {
-    return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 639px)").matches
-}
-
 const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState, setOpenState, userUUID }) => {
     const router = useRouter()
     const dispatch = useDispatch()
@@ -62,7 +58,8 @@ const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState
 
     // Where it opens, fixed for as long as it is open.
     const [anchor] = useState(() => lastAnchorRect())
-    const [phone] = useState(isPhone)
+    // A phone, held either way, gets the bottom sheet (components/ui/overlayMode).
+    const phone = useSheetMode()
 
     useEffect(() => {
         if (!p) return

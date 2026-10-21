@@ -26,6 +26,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoListRawInterface } from "@/types/project"
 import { BOARD_TEMPLATES, centreAt, type BoardTemplate } from "@/lib/board/templates"
 import { selectedNotes, type BoardElementLike, type SelectedNote } from "@/lib/board/notes"
+import { CAPTURE, bumped } from "@/lib/board/binding"
 import { FloatingBar, FloatingBarButton, FloatingBarDivider } from "@/components/ui/FloatingBar"
 import { TemplatePreview } from "@/components/board/templatePreview"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
@@ -60,7 +61,8 @@ export async function insertBoardTemplate(api: ExcalidrawImperativeAPI, t: Board
   const cy = -s.scrollY + s.height / 2 / s.zoom.value
   const prefix = `${t.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
   const generated = convertToExcalidrawElements(centreAt(t.build(prefix), cx, cy) as never, { regenerateIds: false })
-  api.updateScene({ elements: [...api.getSceneElements(), ...generated] as never })
+  // One undo step (lib/board/binding).
+  api.updateScene({ elements: [...api.getSceneElements(), ...generated] as never, captureUpdate: CAPTURE.IMMEDIATELY })
   api.scrollToContent(generated as never, { fitToContent: true, animate: !prefersReducedMotion() })
 }
 
@@ -249,21 +251,14 @@ function NotesToTasksDialog({
       made.set(n.noteId, res.task_uuid)
     }
     if (made.size > 0) {
-      // Link each note to its task. A bumped version is what the board's Yjs
-      // binding merges on, so collaborators see the links appear too.
+      // Link each note to its task, bumped so everyone sees it, and never
+      // undone, or Make tasks could make it twice.
       const next = api.getSceneElements().map((el) => {
         const uuid = made.get(el.id)
         if (!uuid) return el
-        return {
-          ...el,
-          link: `/app/task/${uuid}`,
-          customData: { ...(el.customData ?? {}), taskUuid: uuid },
-          version: el.version + 1,
-          versionNonce: Math.floor(Math.random() * 2 ** 31),
-          updated: Date.now(),
-        }
+        return bumped(el, { link: `/app/task/${uuid}`, customData: { ...(el.customData ?? {}), taskUuid: uuid } })
       })
-      api.updateScene({ elements: next as never })
+      api.updateScene({ elements: next as never, captureUpdate: CAPTURE.NEVER })
       revalidateTaskKeys(project)
     }
     setBusy(false)

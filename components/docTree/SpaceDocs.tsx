@@ -23,6 +23,7 @@ import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { SpotDocs, Tile } from "@/components/ui/graphics"
+import { areaHue } from "@/lib/areas"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { QUICK_DOC_TEMPLATES, templateGlyph } from "@/lib/docTemplates"
 import { LayoutTemplate, Loader2, Plus } from "@/lib/icons"
@@ -50,7 +51,7 @@ function Empty({
   return (
     <div data-space-docs-empty="" className="flex flex-col items-center px-6 py-10 text-center">
       <span data-empty-illustration="">
-        <SpotDocs size={96} hue="sky" />
+        <SpotDocs size={96} hue={areaHue("docs")} />
       </span>
       <h3 className="mt-4 text-heading text-ink">No docs in this {spaceWord(space)} yet</h3>
       <p className="mt-1 max-w-[45ch] text-ui text-ink-2">

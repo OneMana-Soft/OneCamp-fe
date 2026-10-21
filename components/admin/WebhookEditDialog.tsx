@@ -24,7 +24,7 @@ import {
 import { RefreshCw } from "@/lib/icons";
 import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
 import { FALLBACK_EVENT_TYPES, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
@@ -67,9 +67,9 @@ function SendTest({ webhookId }: { webhookId: string }) {
     setProblem("")
     setDelivery(null)
     try {
-      await axiosInstance.post(`${PostEndpointUrl.TestWebhook}/${webhookId}/test`)
+      await axiosInstance.post(`${AdminPost.TestWebhook}/${webhookId}/test`)
       await new Promise((r) => setTimeout(r, 1500))
-      const res = await axiosInstance.get(`${GetEndpointUrl.GetWebhookLogs}/${webhookId}/logs?page=1&page_size=1`)
+      const res = await axiosInstance.get(`${AdminGet.GetWebhookLogs}/${webhookId}/logs?page=1&page_size=1`)
       const log: TestDelivery | undefined = res.data?.logs?.[0]
       if (log) {
         setDelivery(log)
@@ -161,7 +161,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
   const nameRef = useRef<HTMLInputElement>(null)
   const urlRef = useRef<HTMLInputElement>(null)
 
-  const { data: eventTypesData } = useFetch<{ event_types: string[] }>(GetEndpointUrl.GetWebhookEventTypes)
+  const { data: eventTypesData } = useFetch<{ event_types: string[] }>(AdminGet.GetWebhookEventTypes)
   const EVENT_TYPES = eventTypesData?.event_types || FALLBACK_EVENT_TYPES
 
   // Every channel, page by page (the list answers 20 at a time); its failure
@@ -212,7 +212,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
     if (next.scope) return
     try {
       await post.makeRequest({
-        apiEndpoint: PostEndpointUrl.UpdateWebhook,
+        apiEndpoint: AdminPost.UpdateWebhook,
         appendToUrl: `/${webhook.id}`,
         method: "PUT",
         payload: {

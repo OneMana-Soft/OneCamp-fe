@@ -6,7 +6,7 @@ import {MobilePost} from "@/components/mobilePost/mobilePost";
 import {MobileChannelPostTextInput} from "@/components/textInput/mobileChannelPostTextInput";
 import {useFetch} from "@/hooks/useFetch";
 import {CreatePostPaginationResRaw, PostsRes} from "@/types/post";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {useEffect} from "react";
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
@@ -21,7 +21,7 @@ export default function Page() {
 
     const dispatch = useDispatch();
 
-    const getNewPostsWithCurrentPost = useFetch<CreatePostPaginationResRaw>(postId ? GetEndpointUrl.GetNewPostIncludingCurrentPost + '/' + channelId + '/' + postId: '')
+    const getNewPostsWithCurrentPost = useFetch<CreatePostPaginationResRaw>(postId ? ChatGet.GetNewPostIncludingCurrentPost + '/' + channelId + '/' + postId: '')
 
     const channelState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || []);
 

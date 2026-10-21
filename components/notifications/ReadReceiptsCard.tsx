@@ -15,7 +15,8 @@ import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settin
 import { useSaveStatus } from "@/components/ui/saveStatus"
 import { useFetch } from "@/hooks/useFetch"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { InboxPost } from "@/services/endpoints/inbox"
 
 type Prefs = { data?: { read_receipts?: boolean; read_receipts_allowed?: boolean } }
 
@@ -32,7 +33,7 @@ export function ReadReceiptsCard() {
     const was = prefs.data
     void prefs.mutate({ ...was, data: { ...data, read_receipts: next } }, { revalidate: false })
     // The row says what went wrong, so the global toast stays quiet.
-    const held = await run(() => axiosInstance.post(PostEndpointUrl.UpdateNotificationPreferences, { read_receipts: next }, OWN_ERRORS))
+    const held = await run(() => axiosInstance.post(InboxPost.UpdateNotificationPreferences, { read_receipts: next }, OWN_ERRORS))
     if (!held) void prefs.mutate(was, { revalidate: false })
   }
 

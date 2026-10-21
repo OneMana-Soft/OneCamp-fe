@@ -25,6 +25,7 @@ import { tablePath } from "@/lib/tables/route"
 import { restoreTable } from "@/lib/tables/ledger"
 import { useUndoToast } from "@/components/table/ledger/useUndoToast"
 import { TablesTrash } from "@/components/table/trash/TablesTrash"
+import { areaHue } from "@/lib/areas"
 
 /** What the AI bar suggests: a click fills the input. */
 const SUGGESTIONS = [
@@ -253,7 +254,7 @@ export default function TablesPage() {
       ) : tables.length === 0 && !generating ? (
         <EmptyState
           tone="accent"
-          illustration={<SpotImported hue="moss" />}
+          illustration={<SpotImported hue={areaHue("tables")} />}
           title="Make your first table"
           description="Track anything: vendors, budgets, content, hiring."
           className="px-6 py-16"

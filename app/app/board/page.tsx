@@ -13,7 +13,8 @@ import { usePost } from "@/hooks/usePost";
 import { useFetch } from "@/hooks/useFetch";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { useDebounce } from "@/hooks/useDebounce";
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { PostEndpointUrl } from "@/services/endPoints";
+import { BoardsGet } from "@/services/endpoints/boards";
 import { BoardInfoInterface, BoardListResponse } from "@/types/board";
 import { addUserBoard } from "@/store/slice/userSlice";
 import { app_board_path } from "@/types/paths";
@@ -39,7 +40,7 @@ function BoardsPage() {
   const [search, setSearch] = React.useState("");
   const debouncedSearch = useDebounce(search, 350);
 
-  const listUrl = `${GetEndpointUrl.GetBoardList}?pageSize=60&pageIndex=0${
+  const listUrl = `${BoardsGet.GetBoardList}?pageSize=60&pageIndex=0${
     debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : ""
   }`;
   // The page shows a failed load itself, with Try again: no second, toast-borne copy.
@@ -250,7 +251,7 @@ function BoardCard({
 }) {
   const relative = useRelativeTime(updatedAt || null);
   const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "");
-  const thumbUrl = thumbnailKey ? `${baseUrl}${GetEndpointUrl.GetBoardAttachment}/${uuid}/${thumbnailKey}` : "";
+  const thumbUrl = thumbnailKey ? `${baseUrl}${BoardsGet.GetBoardAttachment}/${uuid}/${thumbnailKey}` : "";
   const [thumbFailed, setThumbFailed] = React.useState(false);
   const picture = !!thumbUrl && !thumbFailed;
   return (

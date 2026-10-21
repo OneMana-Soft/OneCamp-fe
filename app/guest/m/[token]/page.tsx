@@ -22,6 +22,9 @@ type GuestMeetingStatus = { available: boolean; workspace_name?: string } & Pick
 /** How often the green room asks again, so a recording that starts while the guest decides is said before Join. */
 const REFRESH_MS = 10_000;
 
+/** What a guest reads when the meeting's host has locked it: the link still works once it is unlocked. */
+const GUEST_LOCKED = "This meeting is locked, so nobody new can join it. Ask the host to unlock it, then try again.";
+
 export default function GuestMeetingPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
 
@@ -47,6 +50,8 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                     setNameError("Please enter your name.");
                     throw new JoinHandled();
                 }
+                // Its host locked it: the link still works, once they unlock it.
+                if (!res.ok && res.code === "call_locked") throw new Error(GUEST_LOCKED);
                 // A busy or unreachable server is worth another try; a dead link isn't.
                 if (!res.ok && publicTrouble(res.status) !== "gone") throw new Error(sendFailedText(res));
                 setUnavailable(true);

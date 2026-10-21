@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { AuthAvatar } from "@/components/auth/AuthShell"
+import { AuthAvatar } from "@/components/auth/AuthAvatar"
 
 const SEEN = "oc_welcome_card_seen"
 

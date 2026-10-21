@@ -51,7 +51,7 @@ describe("where toasts are drawn", () => {
       </ToastProvider>,
     )
     const cls = screen.getByTestId("viewport").className.split(/\s+/)
-    expect(cls).toContain("bottom-[calc(var(--phone-floor)+12px)]")
+    expect(cls).toContain("bottom-[max(calc(var(--phone-floor)+12px),var(--call-dock-floor,0px))]")
     expect(cls).toContain("w-[min(100%-32px,360px)]")
     expect(cls).toContain("left-1/2")
     expect(cls).not.toContain("top-[calc(env(safe-area-inset-top)+0.5rem)]")
@@ -59,8 +59,18 @@ describe("where toasts are drawn", () => {
     // (QA DSA-19: a failed comment's toast sat on the panel's composer).
     expect(cls).toContain("sm:right-[calc(var(--shell-right-inset,8px)+16px)]")
     expect(cls).toContain("sm:translate-x-0")
-    expect(cls).toContain("sm:bottom-[calc(1.5rem+var(--corner-right-h,0px))]")
+    expect(cls).toContain("sm:bottom-[max(calc(1.5rem+var(--corner-right-h,0px)),var(--call-dock-floor,0px))]")
     expect(cls).toContain("sm:w-[356px]")
+  })
+
+  // A call's notices ("Sam muted you") sat on its dock, over Leave at 1280 and
+  // over the whole dock on a phone (DESIGN-BUILD-2, 17 Oct 2026): while a call
+  // is on screen its dock sets --call-dock-floor, and the toasts stay above it.
+  it("stays above a call's dock while one is on screen, and is as before without one", () => {
+    const css = read("components/ui/toast.tsx")
+    expect(css).toContain("var(--call-dock-floor,0px)")
+    // The dock is the variable's only writer (VideoControls' useDockFloor).
+    expect(read("components/livekit/VideoControls.tsx")).toContain('"--call-dock-floor"')
   })
 
   it("reads the phone's floor from the shell: the tab bar, or a page's composer", () => {

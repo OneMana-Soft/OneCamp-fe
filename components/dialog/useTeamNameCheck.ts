@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { PeopleGet } from "@/services/endpoints/people"
 import type { TeamNameExistsInterface } from "@/types/team"
 
 /**
@@ -27,7 +27,7 @@ export function useTeamNameCheck(name: string, { valid, original }: { valid: boo
 
   const current = needsCheck && checked === trimmed
   const { data, isLoading } = useFetch<TeamNameExistsInterface>(
-    current ? `${GetEndpointUrl.CheckTeamNameAvailability}?team_name=${encodeURIComponent(trimmed)}` : "",
+    current ? `${PeopleGet.CheckTeamNameAvailability}?team_name=${encodeURIComponent(trimmed)}` : "",
   )
   return {
     unchanged,

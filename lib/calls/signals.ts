@@ -88,7 +88,7 @@ export interface CallSignal<P = unknown> {
 }
 
 /** A signal to send: its kind and payload, as the bytes LiveKit carries. Pure. */
-export function encodeSignal(kind: string, payload: unknown): Uint8Array {
+export function encodeSignal(kind: string, payload: unknown): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(JSON.stringify({ kind, payload }))
 }
 

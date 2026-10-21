@@ -53,7 +53,7 @@ export function useFocusTime() {
       return false
     }
     const res = await makeRequest<CreateEventPayload>({
-      apiEndpoint: `${PostEndpointUrl.UpdateCalendarEvent}/${ours.uuid}` as PostEndpointUrl,
+      apiEndpoint: `${PostEndpointUrl.UpdateCalendarEvent}/${ours.uuid}` as string,
       payload: { title: "Focus time", startTime: ours.start, endTime: new Date().toISOString(), isFocus: true },
       showErrorToast: true,
     })

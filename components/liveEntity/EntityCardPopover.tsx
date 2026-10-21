@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
+import { anchorTo } from "@/components/ui/anchor"
 import { hoverCardProps } from "@/lib/hub/hoverIntent"
 import { entityKind } from "@/lib/liveEntity"
 
@@ -28,7 +29,8 @@ function cardOf(kind: string): React.LazyExoticComponent<Card> | null {
  */
 export default function EntityCardPopover({ kind, id, data, anchor, keyed = false, onClose }: { kind: string; id: string; data: unknown; anchor: HTMLElement; keyed?: boolean; onClose(): void }) {
   const Card = cardOf(kind)
-  const at = React.useMemo(() => ({ current: anchor }), [anchor])
+  // Measured on each ask, never the corner (components/ui/anchor).
+  const at = React.useMemo(() => ({ current: anchorTo(anchor) }), [anchor])
   if (!Card) return null
   return (
     <Popover open onOpenChange={(open) => !open && onClose()}>

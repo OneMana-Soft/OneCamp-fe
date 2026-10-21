@@ -25,7 +25,7 @@ export type BulkChange =
   | { field: "restore" }
 
 export interface BulkRequest {
-  endpoint: PostEndpointUrl
+  endpoint: string
   payload: Record<string, string>
   patch: Partial<TaskInfoInterface>
   /** It takes the task off every list (a delete), rather than changing it there. */

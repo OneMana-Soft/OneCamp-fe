@@ -8,7 +8,7 @@
  */
 
 import * as React from "react"
-import { ChevronDown, ChevronUp, Loader2, Pencil, Pin, PinOff, RotateCcw } from "@/lib/icons"
+import { ChevronDown, ChevronUp, Loader2, Pause, Pencil, Pin, Play, RotateCcw } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { isComposingKey } from "@/lib/keys/ime"
 import { Button } from "@/components/ui/button"
@@ -31,9 +31,11 @@ export interface VersionBarProps {
   onRestore(): void
   /** The phone's: no labels on Name and Pin, and Show changes and Restore live in its bottom bar. */
   compact?: boolean
+  /** Replay: steps through the versions, oldest to newest, with their changes. */
+  replay?: { playing: boolean; onToggle(): void }
 }
 
-export function VersionBar({ version, people, onName, showChanges, onShowChanges, onRestore, compact }: VersionBarProps) {
+export function VersionBar({ version, people, onName, showChanges, onShowChanges, onRestore, compact, replay }: VersionBarProps) {
   const credits = creditsOf(version, people)
   const reason = reasonOf(version, credits)
   const name = version.name?.trim() ?? ""
@@ -105,12 +107,22 @@ export function VersionBar({ version, people, onName, showChanges, onShowChanges
             busy={busy === "pin"}
             onClick={() => void save(name, !version.pinned, "pin")}
             compact={compact}
-            text={version.pinned ? "Unpin" : "Pin"}
+            text="Pin"
           >
-            {version.pinned ? <PinOff /> : <Pin />}
+            <Pin />
           </IconAction>
           {!compact && (
             <>
+              {replay && (
+                <IconAction
+                  label={replay.playing ? "Stop the replay" : "Replay the changes, oldest first (← and → step through them)"}
+                  pressed={replay.playing}
+                  onClick={replay.onToggle}
+                  text="Replay"
+                >
+                  {replay.playing ? <Pause /> : <Play />}
+                </IconAction>
+              )}
               <span aria-hidden="true" className="mx-1.5 h-4 w-px bg-line-2" />
               <label htmlFor={switchId} className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-ui text-ink-2 hover:text-ink">
                 <Switch id={switchId} checked={showChanges} onCheckedChange={onShowChanges} data-show-changes="" />
@@ -153,7 +165,9 @@ function IconAction({
       aria-label={compact ? label : undefined}
       aria-pressed={pressed}
       aria-busy={busy || undefined}
-      className={cn(!compact && "gap-1.5 px-2")}
+      // Pressed is the neutral press tint with the glyph in the mark (the
+      // layer's), never a ring or the accent tint: Restore is the one accent here.
+      className={cn(!compact && "gap-1.5 px-2", "aria-pressed:!bg-none aria-pressed:!bg-press aria-pressed:!inset-ring-0")}
     >
       {busy ? <Loader2 className="animate-spin" /> : children}
       {!compact && text}

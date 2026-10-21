@@ -7,7 +7,7 @@ import { StatusWord } from "@/components/ui/statusWord"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { Plus, Trash2, Pencil, Plug, ExternalLink } from "@/lib/icons"
@@ -36,9 +36,9 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
  * sat as a box in a box. `embedded` draws it as a section of a section there.
  */
 const McpServersCard = ({ embedded = false }: { embedded?: boolean } = {}) => {
-  const { data, isLoading, isError, mutate } = useFetch<{ data: McpServer[] }>(GetEndpointUrl.GetMcpServers)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: McpServer[] }>(AdminGet.GetMcpServers)
   const { data: catalogData, mutate: mutateCatalog } = useFetch<{ data: McpCatalogEntry[] }>(
-    GetEndpointUrl.GetMcpCatalog,
+    AdminGet.GetMcpCatalog,
   )
   const { toast } = useToast()
   const confirm = useConfirm()

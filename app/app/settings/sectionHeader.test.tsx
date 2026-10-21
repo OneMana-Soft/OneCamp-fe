@@ -15,8 +15,9 @@ describe("a settings section's header", () => {
     render(<SectionHeader href="/app/settings/api-tokens" />)
     const h1 = screen.getByRole("heading", { level: 1 })
     expect(h1).toHaveAccessibleName("API tokens")
-    // The 36px tile beside it (design v3, admin §1.2), in the section's hue.
-    expect(document.querySelector("[data-page-tile]")?.className).toMatch(/\bhue-berry\b/)
+    // The 36px tile beside it (design v3, admin §1.2), in the section's hue:
+    // API tokens names no area, so ink (lib/areas).
+    expect(document.querySelector("[data-page-tile]")?.className).toMatch(/\bhue-ink\b/)
   })
 
   it("opens every section page", () => {

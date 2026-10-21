@@ -1,5 +1,6 @@
 import { withinParam, type SearchWithin } from "@/lib/search/within";
-import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
+import { PostEndpointUrl } from "@/services/endPoints";
+import { SearchGet } from "@/services/endpoints/search";
 import { usePost } from "@/hooks/usePost";
 import { useCallback } from "react";
 import axiosInstance from "@/lib/axiosInstance";
@@ -47,7 +48,7 @@ export const useGlobalSearch = () => {
  * "a/b" was a route that doesn't exist, and "50%" failed before it was sent.
  */
 export const GlobalSearchGet = (searchText: string, within?: SearchWithin | null) => {
-    const path = `${GetEndpointUrl.GlobalSearch}${encodeURIComponent(searchText.trim())}`;
+    const path = `${SearchGet.GlobalSearch}${encodeURIComponent(searchText.trim())}`;
     // In one conversation, when the search came from its header (QA F-15).
     return within ? `${path}?${withinParam(within)}` : path;
 };

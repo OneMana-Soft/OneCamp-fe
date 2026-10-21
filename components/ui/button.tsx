@@ -45,6 +45,9 @@ const buttonVariants = cva(
   }
 )
 
+// Why it is disabled, in the portalled tooltip, fetched when first needed.
+const Tip = React.lazy(() => import("./disabledTip"))
+
 interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
@@ -58,7 +61,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button"
     const reason = disabled ? disabledReason : undefined
     const inert = !!reason || props["aria-disabled"] === true || props["aria-disabled"] === "true"
-    return (
+    const button = (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
@@ -83,6 +86,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       />
     )
+    return reason ? <React.Suspense fallback={button}><Tip reason={reason}>{button}</Tip></React.Suspense> : button
   }
 )
 Button.displayName = "Button"
