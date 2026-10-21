@@ -64,9 +64,6 @@ export enum GetEndpointUrl {
     GetTaskInfo = "/task/info",
     ProjectFields = "/project",
     ProjectWorkload = "/project/workload",
-    // A channel's automatic check-ins: GET/POST /ch/{channel}/checkins; one is
-    // /ch/checkins/{id}/edit|pause|delete|ask.
-    CheckIns = "/ch",
     BotKinds = "/user/botKinds",
     // Time on tasks: /task/time/{task} (GET, POST to add, /start), /task/time/stop,
     // /task/time/running, /task/time/entry/{id}/update|delete; a project's report
