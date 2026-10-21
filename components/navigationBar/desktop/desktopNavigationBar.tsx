@@ -45,6 +45,7 @@ import { useShellBand } from "@/components/navigationBar/tablet/useShellBand";
 import { isTabletBand } from "@/lib/ui/shellBand";
 import { DocsSection } from "@/components/docTree/DocsSection";
 import { rememberDocIcon } from "@/lib/docLook";
+import { useStableRows } from "@/lib/ui/stableRows";
 
 /** The tablet's rail and its channel list, in pixels (design v3, mobile T2 and T3). */
 const TABLET_RAIL_PX = 72
@@ -55,6 +56,8 @@ const setCookie = (name: string, value: string) => {
 }
 
 /** The sidebar's middle scrolls; a 12px fade shows where there is more. */
+const rowPath = (r: { path?: unknown }) => String(r.path ?? "");
+
 function useScrollFades() {
     const ref = useRef<HTMLDivElement>(null)
     useEffect(() => {
@@ -265,7 +268,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
     // the collapsed rail puts the sections after Channels and DMs as the full
     // sidebar does, and the full sidebar's rows leave Docs to its section.
     const { primary: rows, sections, folded: more } = useMemo(() => partitionNav(navLinks), [navLinks]);
-    const primary = useMemo(() => [...rows, ...sections], [rows, sections]);
+    const primary = useStableRows(useMemo(() => [...rows, ...sections], [rows, sections]), rowPath);
 
     // A live arrival in Inbox while the window is focused and Inbox isn't
     // open: its badge rings once (N1).
@@ -281,12 +284,12 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
         return () => window.clearTimeout(t)
     }, [inboxCount, settled, path])
 
-    const projectRows: DesktopChildrenNavType[] = (userSidebarState.userProjects || []).filter(Boolean).map((p) => ({
+    const projectRows = useStableRows((userSidebarState.userProjects || []).filter(Boolean).map((p): DesktopChildrenNavType => ({
         title: p.project_name,
         path: `${app_project_path}/${p.project_uuid}`,
         variant: (path.length > 3 && path[2] === "project" && path[3] == p.project_uuid) ? "sidebarActive" : "ghost",
         project_uuid: p.project_uuid,
-    }))
+    })), rowPath)
 
     const favChannelUUIDs = new Set((userSidebarState.userFavChannels || []).map(f => f.ch_uuid));
     const channelRow = (c: (typeof userSidebarState.userChannels)[number]): DesktopChildrenNavType => ({
@@ -318,13 +321,13 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
             variant: path.length > 3 && path[2] === "doc" && path[3] === p.resource_uuid ? "sidebarActive" : "ghost",
             } satisfies DesktopChildrenNavType
         })
-    const starredRows = [
+    const starredRows = useStableRows([
         ...starredChannelRows(userSidebarState.userChannels || [], userSidebarState.userFavChannels || []).map(channelRow),
         ...starredDocRows,
-    ]
-    const channelRows = sortChannelsByName((userSidebarState.userChannels || []).filter((c) => c && !favChannelUUIDs.has(c.ch_uuid))).map(channelRow)
+    ], rowPath)
+    const channelRows = useStableRows(sortChannelsByName((userSidebarState.userChannels || []).filter((c) => c && !favChannelUUIDs.has(c.ch_uuid))).map(channelRow), rowPath)
 
-    const dmRows: DesktopChildrenNavType[] = []
+    const dmBuilt: DesktopChildrenNavType[] = []
     for (const d of sortChatList((userSidebarState.userChats || []).filter(Boolean))) {
         const others = d.dm_participants.filter((t) => t && t.user_uuid != self?.user_uuid)
         // External users can't be DMed: drop any DM whose only other person is external.
@@ -340,7 +343,7 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
             p = `${app_chat_path}/${u}`
             active = path.length > 3 && path[3] == u
         }
-        dmRows.push({
+        dmBuilt.push({
             title: others.length == 0 ? displayNameOf(self) || '' : (isGroup && d.dm_name) || others.map((item) => userDisplayName(item)).join(", "),
             unread_count: d?.dm_unread,
             // Every unread DM is about you: it takes the brand badge.
@@ -352,6 +355,8 @@ export function DesktopNavigationBar({ children }: Readonly<{ children: React.Re
             isCallActive: chatCallStatus[d.dm_grouping_id]?.active || false,
         })
     }
+
+    const dmRows = useStableRows(dmBuilt, rowPath)
 
     const scrollRef = useScrollFades()
 

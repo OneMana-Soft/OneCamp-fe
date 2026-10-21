@@ -1,0 +1,133 @@
+{
+  "about": [
+    "The tables' fluidity budgets (fluid-07; tables programme T5c, T6, T7, TB7): surfaces.mjs --only tables on a production build against the fake server side, with the tables programme's synthetic 13-field table (perf-harness/lib.mjs, moved into workspace.mjs) at 10,000 and 100,000 rows, on a computer at 1x and a phone at 4x (FLUIDITY-LEAD, 20 Oct 2026).",
+    "measured is the median of 5 runs on beta 482460c3d. Targets and their sources are in each budget; the tables programme's proposed budgets (perf-data/tables-budgets.proposed.json) agree with them where they overlap.",
+    "Renders are enforced; times are printed against their max until they hold on a quiet P-core slot. Never raise a max to make a run pass."
+  ],
+  "budgets": {
+    "table10kOpenMs": {
+      "scenario": "tables",
+      "owner": "T5c",
+      "source": "The 10,000-row table in a new tab until its first rows (the 500-row bundle). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 1047 at 1x on a computer (load 12 to 25), 3848 at 4x on a phone (load 22 to 44). Times above load 16 are inflated: provisional until a quiet rerun. Target: A new tab, nothing in memory: 1.0 s on a computer, 2.5 s on the 4x phone (chat programme Wave C, perf-mobile.md; Nielsen's 1 s limit for the flow of thought)",
+      "cpu1": {
+        "max": 1370,
+        "target": 1000,
+        "measured": 1047
+      },
+      "cpu4": {
+        "max": 5010,
+        "target": 2500,
+        "measured": 3848
+      },
+      "enforce": false
+    },
+    "table100kOpenMs": {
+      "scenario": "tables",
+      "owner": "T5c",
+      "source": "The 100,000-row table in a new tab until its first rows. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 949 at 1x on a computer (load 12 to 25), 1936 at 4x on a phone (load 22 to 44). Times above load 16 are inflated: provisional until a quiet rerun. Target: A new tab, nothing in memory: 1.0 s on a computer, 2.5 s on the 4x phone (chat programme Wave C, perf-mobile.md; Nielsen's 1 s limit for the flow of thought)",
+      "cpu1": {
+        "max": 1000,
+        "target": 1000,
+        "measured": 949
+      },
+      "cpu4": {
+        "max": 2500,
+        "target": 2500,
+        "measured": 1936
+      },
+      "enforce": false
+    },
+    "table10kScrollFrameP95Ms": {
+      "scenario": "tables",
+      "owner": "T7",
+      "source": "Frame time p95 scrolling the 10,000-row grid down, back and across, every row held. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 50 at 1x on a computer (load 12 to 25), 100 at 4x on a phone (load 22 to 44). Times above load 16 are inflated: provisional until a quiet rerun. Target: Frame time p95 while it scrolls or drags: one 60 Hz refresh (16.7 ms) on a computer, two (33.4 ms) on the 4x phone (the brief; 60 fps, never under 30)",
+      "cpu1": {
+        "max": 65.0,
+        "target": 16.7,
+        "measured": 50
+      },
+      "cpu4": {
+        "max": 130.0,
+        "target": 33.4,
+        "measured": 100
+      },
+      "enforce": false
+    },
+    "table100kScrollFrameP95Ms": {
+      "scenario": "tables",
+      "owner": "T7",
+      "source": "Frame time p95 scrolling the 100,000-row grid, every row held. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 66.7 at 1x on a computer (load 12 to 25), 150 at 4x on a phone (load 22 to 44). Times above load 16 are inflated: provisional until a quiet rerun. Target: Frame time p95 while it scrolls or drags: one 60 Hz refresh (16.7 ms) on a computer, two (33.4 ms) on the 4x phone (the brief; 60 fps, never under 30)",
+      "cpu1": {
+        "max": 86.7,
+        "target": 16.7,
+        "measured": 66.7
+      },
+      "cpu4": {
+        "max": 195.0,
+        "target": 33.4,
+        "measured": 150
+      },
+      "enforce": false
+    },
+    "table10kScrollRenders": {
+      "scenario": "tables",
+      "owner": "T7",
+      "source": "Renders while the 10,000-row grid scrolls (about 43 a row entering). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 10506 at 1x on a computer (load 12 to 25). at 4x: 6647, not yet a budget (the rerun counted 0). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 11050,
+        "target": 500,
+        "measured": 10506
+      },
+      "enforce": true
+    },
+    "table10kCommitLongMs": {
+      "scenario": "tables",
+      "owner": "T6",
+      "source": "Long tasks after a Notes cell is committed: the whole bundle is fetched and parsed again. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 83 at 1x on a computer (load 12 to 25). Times above load 16 are inflated: provisional until a quiet rerun. Target: Long tasks during the step: none over 50 ms on a computer (RAIL), at most 100 ms of them on the 4x phone",
+      "cpu1": {
+        "max": 110,
+        "target": 50,
+        "measured": 83
+      },
+      "enforce": false
+    },
+    "table100kCommitLongMs": {
+      "scenario": "tables",
+      "owner": "T6",
+      "source": "Long tasks after a cell is committed at 100,000 rows. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 0 at 1x on a computer (load 12 to 25). Times above load 16 are inflated: provisional until a quiet rerun. Target: Long tasks during the step: none over 50 ms on a computer (RAIL), at most 100 ms of them on the 4x phone",
+      "cpu1": {
+        "max": 50,
+        "target": 50,
+        "measured": 0
+      },
+      "enforce": false
+    },
+    "table10kFormulaMs": {
+      "scenario": "tables",
+      "owner": "T6",
+      "source": "Amount changed until Total (a formula) shows the new value: it waits for the full bundle to come back. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 1084 at 1x on a computer (load 28 to 39). Times above load 16 are inflated: provisional until a quiet rerun. Target: An edit committed and shown (optimistic, then saved): 100 ms on a computer, 300 ms on the 4x phone (the brief: optimistic updates for every edit)",
+      "cpu1": {
+        "max": 1410,
+        "target": 100,
+        "measured": 1084
+      },
+      "enforce": false
+    },
+    "table100kLoadAllMs": {
+      "scenario": "tables",
+      "owner": "T5c",
+      "source": "Every row read in ('Load all'): 100 pages of 1,000 at 100,000 rows. Report only: Row Query's windows (T5c) remove it. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 13122 at 1x on a computer (load 12 to 25), 17372 at 4x on a phone (load 22 to 44). Times above load 16 are inflated: provisional until a quiet rerun. Target: A new tab, nothing in memory: 1.0 s on a computer, 2.5 s on the 4x phone (chat programme Wave C, perf-mobile.md; Nielsen's 1 s limit for the flow of thought)",
+      "cpu1": {
+        "max": 17060,
+        "target": 1000,
+        "measured": 13122
+      },
+      "cpu4": {
+        "max": 22590,
+        "target": 2500,
+        "measured": 17372
+      },
+      "enforce": false
+    }
+  }
+}

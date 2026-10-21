@@ -9,8 +9,8 @@
   },
   "scripts": {
     "configure": "node scripts/setup-env.mjs",
-    "dev": "next dev --turbopack -p 3001",
-    "build": "next build",
+    "dev": "node scripts/calls-assets.mjs && next dev --turbopack -p 3001",
+    "build": "node scripts/calls-assets.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -29,7 +29,8 @@
     "@hookform/resolvers": "^4.1.0",
     "@livekit/components-react": "^2.9.17",
     "@livekit/components-styles": "^1.2.0",
-    "@livekit/krisp-noise-filter": "^0.3.4",
+    "@livekit/track-processors": "0.8.1",
+    "@mediapipe/tasks-vision": "0.10.14",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-avatar": "^1.1.2",
     "@radix-ui/react-checkbox": "^1.1.4",
@@ -52,6 +53,7 @@
     "@radix-ui/react-toggle-group": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@reduxjs/toolkit": "^2.5.1",
+    "@sapphi-red/web-noise-suppressor": "0.4.1",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.0",
     "@tiptap/core": "^2.11.5",
@@ -146,7 +148,8 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "@radix-ui/react-toast@1.2.15": "patches/@radix-ui__react-toast@1.2.15.patch"
+      "@radix-ui/react-toast@1.2.15": "patches/@radix-ui__react-toast@1.2.15.patch",
+      "react-resizable-panels@2.1.9": "patches/react-resizable-panels@2.1.9.patch"
     }
   }
 }

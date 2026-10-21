@@ -22,6 +22,12 @@
 @custom-variant fixed (&:is(.layout-fixed *));
 
 @theme inline {
+  /* An entrance holds nothing once it ends (18 Oct 2026): tw-animate-css fills
+     animate-in forwards, so every menu, popover and sheet kept the last frame,
+     an identity transform, and with it was the containing block of every
+     fixed box inside it (a side menu was clipped away whole). Backwards fills
+     the delay with the first frame instead. overlayRest.spec.ts measures it. */
+  --animate-in: enter var(--tw-animation-duration,var(--tw-duration,.15s)) var(--tw-ease,ease) var(--tw-animation-delay,0s) var(--tw-animation-iteration-count,1) var(--tw-animation-direction,normal) backwards;
   --breakpoint-3xl: 1600px;
   --breakpoint-4xl: 2000px;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -1047,6 +1053,21 @@
   to { transform: scale(1.6); opacity: 0; }
 }
 
+/* A row of a long list, drawn only as it nears the screen (fluidity, fluid-17
+   and fluid-18): the browser skips style, layout and paint for the rows out
+   of sight, so 2,000 tasks scroll, and a panel that narrows the list opens,
+   at the cost of the rows on screen. On 20 Oct 2026 (beta 482460c3d, 1x) a
+   list of 1,900 rows dropped a quarter of its frames scrolling, and the task
+   panel took 1.6 s to open, most of it laying out 55,000 nodes again. The
+   row stays mounted: keys, drag, find in page and screen readers reach it.
+   Its height is the last one drawn (auto), --row-h until then. Paint is
+   contained to the row's box, so nothing in it may draw outside it
+   (celebrations and menus draw on their own layers). */
+@utility row-lazy {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--row-h, 40px);
+}
+
 /* A knob or thumb that travels (a switch) lands with a slight overshoot. */
 @utility transition-spring {
   transition-property: transform, translate, scale, rotate;
@@ -1103,6 +1124,22 @@
   --hue-ink: var(--camp-berry-ink);
   --hue-a1: var(--camp-berry-a1);
   --hue-a2: var(--camp-berry-a2);
+}
+/* The agents' area (lib/areas, design v3.1): agents are indigo, never dusk. */
+@utility hue-agent {
+  --hue: var(--agent);
+  --hue-tint: var(--agent-muted);
+  --hue-ink: var(--agent-ink);
+  --hue-a1: var(--agent-a1);
+  --hue-a2: var(--agent-a2);
+}
+/* What names no area (v3.1): neutral ink, its glyph ink-2 on the sunken surface. */
+@utility hue-ink {
+  --hue: var(--muted-foreground);
+  --hue-tint: var(--muted);
+  --hue-ink: var(--foreground);
+  --hue-a1: var(--ink-3);
+  --hue-a2: var(--ink-2);
 }
 
 /* AVATARS (design v3, §3.9). A person without a photo is a circle filled with
@@ -1195,41 +1232,58 @@
   box-shadow: inset 0 0 0 1px var(--line);
 }
 /* A label that appears over a glyph after a beat (work.md W01: the status
-   word over its glyph, at 400 ms): drawn by CSS from data-tip, so a list of
-   200 rows carries no tooltip components. Inverted ink, as the app's
-   tooltips are; it pops in on transform and opacity. */
+   word over its glyph, at 400 ms), from data-tip, so a list of 200 rows
+   carries no tooltip components. It was this element's ::after, which any
+   clip around the glyph cut (a board column's status lost its top to the
+   board's scroller, 18 Oct 2026); the page's one chip draws it now
+   (components/ui/tipLayer.tsx: above, after 400 ms, under the pointer).
+   work-tip is the marker it reads. */
 @utility work-tip {
   position: relative;
-  &::after {
-    content: attr(data-tip);
-    position: absolute;
-    left: 50%;
-    bottom: calc(100% + 6px);
-    z-index: 60;
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: var(--ink);
-    color: var(--sheet);
-    font-size: 12px;
-    font-weight: 510;
-    line-height: 16px;
-    letter-spacing: 0;
-    white-space: nowrap;
-    pointer-events: none;
+}
+/* That chip, for every data-tip label (work-tip's and actionTip.ts's):
+   inverted ink, as the app's tooltips are, at the page's end, where nothing
+   clips it. It rises in 2 px with its fade, and holds nothing once in. */
+.tip-chip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  max-width: calc(100vw - 16px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--sheet);
+  font-size: 12px;
+  font-weight: 510;
+  line-height: 16px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: tip-chip-in 120ms var(--ease-out) backwards;
+}
+.tip-chip[data-side="bottom"] {
+  animation-name: tip-chip-down;
+}
+.tip-chip[data-wide] {
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  white-space: normal;
+  text-align: left;
+}
+@keyframes tip-chip-in {
+  from {
     opacity: 0;
-    transform: translate(-50%, 4px) scale(0.98);
-    transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
-    transition-delay: 0ms;
+    translate: 0 2px;
   }
-  &[data-tip=""]::after {
-    display: none;
+}
+@keyframes tip-chip-down {
+  from {
+    opacity: 0;
+    translate: 0 -2px;
   }
-  @media (hover: hover) {
-    &:hover::after {
-      opacity: 1;
-      transform: translate(-50%, 0) scale(1);
-      transition-delay: 400ms;
-    }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip-chip {
+    animation: none;
   }
 }
 /* The work area's three rings, named so no component draws its own shadow:
@@ -2435,6 +2489,8 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     background: color-mix(in oklab, var(--brand) 60%, transparent);
   }
   .shell-seam[data-shake="true"] > i { animation: shell-shake 150ms var(--ease-out); }
+  /* While a seam is dragged its cursor lies on the page (Seam). */
+  .shell-seam-surface { position: fixed; inset: 0; z-index: calc(var(--z-toast) - 1); cursor: col-resize; }
   .shell-seam:focus-visible { outline: none; }
   .shell-seam-readout {
     position: absolute;
@@ -2652,6 +2708,89 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   .shell-panel-sheet[data-right-panel-sheet] { background: var(--panel, var(--sheet)); }
   .shell-sheet-focused { box-shadow: var(--e-sheet), inset 0 1.5px 0 var(--brand); }
   .shell-content-swap { animation: shell-fade-in 120ms var(--ease-out) both; }
+
+  /* Split view's arrange layer (components/split/SplitArrange): a pane's
+     bar is its handle and tints on hover (no shift), a grip glyph fading in
+     at its left; the page's handle is a 32x4 grip riding its sheet's top
+     edge, half in the gutter, over no header (a 44x24 target); the held
+     view's ghost, the slot it left, the swap target with its chip under the
+     target's bar, the incoming column's faint slot by the drop line; the
+     tabs of views tucked away for want of width; and the ring that says
+     "here it is". */
+  @media (hover: hover) {
+    .split-bar:hover { background: color-mix(in oklab, var(--brand) 3.5%, transparent); }
+    .split-bar:hover .split-handle-glyph { opacity: 1; }
+  }
+  .split-handle { position: absolute; inset: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .split-handle:focus-visible { outline-offset: calc(var(--ix-ring) * -1); }
+  .split-handle-glyph { position: absolute; left: 2px; top: 50%; width: 12px; height: 12px; translate: 0 -50%; color: var(--ink-4); opacity: 0; transition: opacity 140ms var(--ease-out); }
+  .split-handle:focus-visible .split-handle-glyph { opacity: 1; }
+  @media (pointer: coarse) { .split-handle-glyph { opacity: 1; } }
+  /* The page's panel clips as a panel does, but for a notch above its middle, where the grip rides. */
+  .split-main-panel { clip-path: polygon(0 0, calc(50% - 22px) 0, calc(50% - 22px) -12px, calc(50% + 22px) -12px, calc(50% + 22px) 0, 100% 0, 100% 100%, 0 100%); }
+  .split-grip-slot { position: absolute; top: 0; left: 50%; z-index: var(--z-sticky); translate: -50% -50%; }
+  .split-grip { display: grid; place-items: center; width: 44px; height: 24px; border-radius: 12px; }
+  .split-grip > i { width: 32px; height: 4px; border-radius: 2px; background: var(--line-3); transition: background-color 140ms var(--ease-out), scale 140ms var(--ease-out); }
+  @media (hover: hover) {
+    .split-grip:hover > i { background: var(--ink-3); scale: 1.15 1; }
+  }
+  .split-grip:focus-visible { outline-offset: -2px; }
+  .split-grip:focus-visible > i,
+  html[data-dragging] .split-grip > i { background: var(--brand); }
+  .split-ghost {
+    position: fixed; left: 0; top: 0; z-index: var(--z-toast);
+    display: flex; align-items: center; gap: 8px; max-width: 260px; height: 40px; padding: 0 14px;
+    border-radius: 10px; background: var(--raised); box-shadow: var(--e3);
+    font-size: 13px; font-weight: 590; color: var(--ink); pointer-events: none; will-change: transform;
+  }
+  /* A carry's marks (data-split-mark), in one layer made with it, each shown
+     by its data-on, the rule keyed on the mark's own attribute.
+     The carry's surface lies over the page: it wears the drag's cursor
+     (lib/ui/dnd DRAG_OVERLAY) and takes the pointer, so no view under it
+     follows one. The held view's sheet turns see-through (it alone restyled,
+     never what it holds) and the slot it left is drawn over it, dashed and
+     faintly tinted, the frame showing through. */
+  .split-layer > [data-split-mark]:not([data-on]) { display: none; }
+  .split-carry { position: fixed; inset: 0; z-index: calc(var(--z-toast) - 1); }
+  [data-split-sheet][data-split-held] { opacity: 0; }
+  .split-held {
+    position: fixed; z-index: var(--z-sticky); border-radius: var(--radius-lg); pointer-events: none;
+    background: color-mix(in srgb, var(--brand) 4%, transparent); outline: 1.5px dashed var(--ink-4); outline-offset: -1.5px;
+  }
+  .split-drop-swap { position: fixed; z-index: var(--z-popover); display: flex; justify-content: center; align-items: flex-start; padding-top: 56px; border-radius: var(--radius-lg); pointer-events: none; }
+  .split-drop-slot {
+    position: fixed; z-index: var(--z-popover); border-radius: var(--radius-lg); pointer-events: none;
+    background: color-mix(in oklab, var(--brand) 5%, transparent); outline: 1.5px dashed color-mix(in oklab, var(--brand) 40%, transparent); outline-offset: -1.5px;
+    animation: shell-fade-in 120ms var(--ease-out) both;
+  }
+  .split-drop-chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 9999px;
+    background: var(--brand); color: var(--brand-foreground, #fff); font-size: 12px; font-weight: 590; box-shadow: var(--e2);
+    animation: shell-pill-in 160ms var(--ease-out) both;
+  }
+  .split-tucked-chip {
+    display: inline-flex; flex: none; min-width: 0; max-width: 156px; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 5px;
+    border-radius: 8px; background: var(--raised); box-shadow: var(--e1); color: var(--ink-2); font-size: 11px; font-weight: 510;
+    transition: translate 140ms var(--ease-out), box-shadow 140ms var(--ease-out), color 140ms var(--ease-out);
+  }
+  .split-tucked-chip[aria-expanded="true"] { box-shadow: var(--e2); color: var(--ink); }
+  @media (hover: hover) {
+    .split-tucked-chip:hover { translate: 0 -1px; box-shadow: var(--e2); color: var(--ink); }
+  }
+  [data-split-sheet]::after {
+    content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; pointer-events: none;
+    box-shadow: inset 0 0 0 2px var(--brand), 0 0 0 4px color-mix(in oklab, var(--brand) 18%, transparent); opacity: 0;
+  }
+  /* The views tab in the order they sit in, not their DOM order (Chromium). */
+  [data-split-row] { reading-flow: flex-visual; }
+  /* A narrow doc header (the page among three views at 1440) gives the title
+     the root crumb's room: "…launch plan", not "l…". Important: over the
+     crumb's own display utility, a later layer. */
+  [data-doc-header] { container: doc-header / inline-size; }
+  @container doc-header (max-width: 460px) {
+    [data-doc-breadcrumbs][data-titled] > [data-crumb-root],
+    [data-doc-breadcrumbs][data-titled] > [data-crumb-root] + svg { display: none !important; }
+  }
 
   /* Rings drawn by the shell: a face's 2px frame ring (group DMs), the
      pause badge on your face, the status field's inset line. */
@@ -2911,10 +3050,10 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
 
 /* Shell menus pop from their trigger: opacity, scale .98 and 4px, 180ms in
    and 120ms out; a submenu slides 4px from its side in 160ms. */
-.shell-pop[data-state="open"] { animation: shell-pop-in 180ms var(--ease-out) both; }
+.shell-pop[data-state="open"] { animation: shell-pop-in 180ms var(--ease-out) backwards; }
 .shell-pop[data-side="top"][data-state="open"] { animation-name: shell-pop-in-up; }
-.shell-pop[data-side="right"][data-state="open"] { animation: shell-pop-in-right 160ms var(--ease-out) both; }
-.shell-pop[data-side="left"][data-state="open"] { animation: shell-pop-in-left 160ms var(--ease-out) both; }
+.shell-pop[data-side="right"][data-state="open"] { animation: shell-pop-in-right 160ms var(--ease-out) backwards; }
+.shell-pop[data-side="left"][data-state="open"] { animation: shell-pop-in-left 160ms var(--ease-out) backwards; }
 .shell-pop[data-state="closed"] { animation: shell-pop-out 120ms var(--ease-out) both; }
 @keyframes shell-pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
 @keyframes shell-pop-in-up { from { opacity: 0; transform: translateY(4px) scale(0.98); } }

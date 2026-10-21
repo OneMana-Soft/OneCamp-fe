@@ -46,6 +46,16 @@
   --hue-bar: var(--ink-4);
 }
 
+/* A block holding a mark draws it whole. The preview paints only the blocks
+   near the screen (content-visibility: auto, history.css), which contains a
+   block's paint and cut whatever reached past it: a list item's bar, and the
+   ring on the change stepped to, in a list, an ordered list or a quote,
+   showed as an edge or two (18 Oct 2026). Only blocks with a change inside
+   them give up the skipping; the rest of a long version stays light. */
+.history-preview > :has([data-history-change], [data-history-current]) {
+  content-visibility: visible;
+}
+
 /* A block inside one already marked says nothing more. */
 .history-preview [data-history-change="added"] [data-history-change],
 .history-preview [data-history-change="removed"] [data-history-change] {

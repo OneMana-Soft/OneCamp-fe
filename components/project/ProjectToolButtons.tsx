@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Archive, Bell, ClipboardList, Clock, Globe, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users } from "@/lib/icons"
+import { Archive, Bell, ClipboardList, Clock, Globe, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
 import type { WorkAccess } from "@/lib/work/types"
 import { useArchiveProject } from "@/hooks/useArchiveProject"
 import { appMutate } from "@/lib/swrMutate"
@@ -23,7 +23,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -44,6 +43,7 @@ const ProjectFormsDialog = dynamic(() => import("@/components/project/ProjectFor
 const ProjectShareDialog = dynamic(() => import("@/components/project/ProjectShareDialog").then((m) => m.ProjectShareDialog), { loading: () => null })
 const ProjectTimeDialog = dynamic(() => import("@/components/project/ProjectTimeDialog").then((m) => m.ProjectTimeDialog), { loading: () => null })
 const SaveAsTemplateDialog = dynamic(() => import("@/components/projectTemplates/SaveAsTemplateDialog").then((m) => m.SaveAsTemplateDialog), { loading: () => null })
+const ProjectRulesDialog = dynamic(() => import("@/components/work/rules/ProjectRulesDialog").then((m) => m.ProjectRulesDialog), { loading: () => null })
 const ProjectAccessDialog = dynamic(() => import("@/components/project/ProjectAccessDialog").then((m) => m.ProjectAccessDialog), { loading: () => null })
 
 /** Starts the menu's dialogs loading, so the one chosen opens without a wait. */
@@ -55,7 +55,7 @@ function warmTools() {
 }
 const warmTime = () => void import("@/components/project/ProjectTimeDialog")
 
-type ToolKey = "time" | "forms" | "share" | "template" | "access"
+type ToolKey = "time" | "rules" | "forms" | "share" | "template" | "access"
 export interface ProjectTool {
   key: ToolKey
   label: string
@@ -78,9 +78,9 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   const allowed = isAdmin || isMember
   useEffect(() => {
     // Waits for the project's info: until it says who this is, it's nobody.
-    const opens = (asked === "time" && allowed) || (asked === "access" && isAdmin)
+    const opens = (asked === "time" && allowed) || (asked === "rules" && allowed) || (asked === "access" && isAdmin)
     if (!opens) return
-    setOpen(asked === "access" ? "access" : "time")
+    setOpen(asked === "access" ? "access" : asked === "rules" ? "rules" : "time")
     const rest = new URLSearchParams(params?.toString() ?? "")
     rest.delete("tool")
     const q = rest.toString()
@@ -97,6 +97,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   const tool = (key: ToolKey, label: string, Icon: typeof Clock): ProjectTool => ({ key, label, Icon, open: () => setOpen(key) })
   const tools: ProjectTool[] = !allowed ? [] : [
     tool("time", "Time logged on this project", Clock),
+    tool("rules", "Rules that run work", Workflow),
     ...(isAdmin ? [
       tool("forms", "Forms that make tasks", ClipboardList),
       tool("share", "Share with a client", Globe),
@@ -107,6 +108,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   const dialogs = !allowed ? null : (
     <>
       {was("time") && <ProjectTimeDialog projectId={projectId} projectName={projectName} isAdmin={isAdmin} open={open === "time"} onOpenChange={set("time")} />}
+      {open === "rules" && <ProjectRulesDialog projectId={projectId} onClose={() => setOpen(null)} />}
       {isAdmin && was("forms") && <ProjectFormsDialog projectId={projectId} open={open === "forms"} onOpenChange={set("forms")} />}
       {isAdmin && was("share") && <ProjectShareDialog projectId={projectId} open={open === "share"} onOpenChange={set("share")} />}
       {isAdmin && was("template") && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}
@@ -267,11 +269,9 @@ export function ProjectActionsMenu({
                   <span className="min-w-0 flex-1 truncate">Notifications</span>
                   <span className="shrink-0 text-meta text-ink-3">{notificationLevelLabel(notifications.level)}</span>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent className="w-64">
-                    <NotificationLevelItems level={notifications.level} onChoose={notifications.onChoose} />
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
+                <DropdownMenuSubContent className="w-64">
+                  <NotificationLevelItems level={notifications.level} onChoose={notifications.onChoose} />
+                </DropdownMenuSubContent>
               </DropdownMenuSub>
             </>
           )}

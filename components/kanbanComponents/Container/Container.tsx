@@ -5,13 +5,13 @@ import { Remove } from "../Item"
 import styles from "./Container.module.css"
 import { cn } from "@/lib/utils/helpers/cn"
 import { taskStatuses } from "@/types/table"
-import { MoreHorizontal, Plus } from "@/lib/icons"
+import { ArrowLeft, ArrowRight, MoreHorizontal, Plus } from "@/lib/icons"
 import { CountTick } from "@/components/ui/CountTick"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { isBuiltInStatus, type StatusOption } from "@/lib/taskStatus"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { columnHue, columnLozenge, columnWash } from "@/components/kanbanComponents/columnLook"
 
 interface Props {
@@ -43,6 +43,12 @@ interface Props {
     onAdd?(): void
     /** Below the cards, outside the scroll: the column's "New task". */
     footer?: React.ReactNode
+    /** Before the lozenge: the column's grip, where its order may be dragged (columnDrag). */
+    grip?: React.ReactNode
+    /** The menu's "Move left" and "Move right", where its order may be changed. */
+    move?: ColumnMove
+    /** Held to be moved: dimmed while its copy follows the pointer, ringed while the keys move it. */
+    lifted?: "pointer" | "keys"
 }
 
 /**
@@ -60,6 +66,54 @@ export function ColumnMark({ status, label }: { status?: StatusOption; label?: s
         return <span aria-hidden="true" data-column-mark="none" className="size-4 shrink-0 rounded-full border border-dashed border-line-3" />
     }
     return <IdentityMark variant="avatar" id={avatarSeed(status.label)} label={status.label} size={18} />
+}
+
+/** A column's moves in the project's order (columnDrag); can* say whether each goes anywhere. */
+export interface ColumnMove {
+    left: () => void
+    right: () => void
+    canLeft: () => boolean
+    canRight: () => boolean
+}
+
+/**
+ * "Move left" and "Move right" in a column's menu: each is offered only where
+ * it goes (an end, or the rule that keeps Done and Cancelled last, stops it),
+ * read when the menu opens.
+ */
+function ColumnMoves({ move, after }: { move: ColumnMove; after: boolean }) {
+    return (
+        <>
+            {after && <DropdownMenuSeparator />}
+            <DropdownMenuItem disabled={!move.canLeft()} onSelect={move.left} data-column-move="left">
+                <ArrowLeft className="size-3.5" aria-hidden="true" />
+                Move left
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!move.canRight()} onSelect={move.right} data-column-move="right">
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+                Move right
+            </DropdownMenuItem>
+        </>
+    )
+}
+
+/**
+ * A "⋯" with only a column's moves, for a head with no menu of its own (the
+ * swimlanes' header row): on a phone, the way to move a column.
+ */
+export function ColumnMoveMenu({ name, move }: { name: string; move: ColumnMove }) {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button type="button" aria-label={`${name} column actions`} className={HEAD_BUTTON} data-touch-target="">
+                    <MoreHorizontal className="size-3.5" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+                <ColumnMoves move={move} after={false} />
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
 }
 
 /** A 16px fade at the card list's cut edges, set on scroll with no render (a mask, not a shadow). */
@@ -111,6 +165,9 @@ export const Container = forwardRef<HTMLDivElement, Props>(
             onToggleCollapse,
             onAdd,
             footer,
+            grip,
+            move,
+            lifted,
             ...props
         }: Props,
         ref,
@@ -131,11 +188,15 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                     ref={ref}
                     data-collapsed=""
                     data-drop={hover ? "valid" : undefined}
+                    data-column-lifted={lifted}
                     className={cn(
-                        "flex h-full w-10 shrink-0 snap-start rounded-lg transition-colors duration-[140ms] [animation:work-fade-in_140ms_var(--ease-out)]",
+                        "relative flex h-full w-10 shrink-0 snap-start rounded-lg transition-colors duration-[140ms] [animation:work-fade-in_140ms_var(--ease-out)]",
                         columnWash(hue),
+                        lifted === "pointer" && "opacity-40",
+                        lifted === "keys" && "ring-2 ring-primary",
                     )}
                 >
+                    {grip && <div className="absolute left-1/2 top-1 z-10 -translate-x-1/2">{grip}</div>}
                     <button
                         type="button"
                         onClick={onToggleCollapse}
@@ -184,14 +245,24 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     ],
                     shadow && "shadow-e1",
+                    lifted === "pointer" && "opacity-40",
+                    lifted === "keys" && "ring-2 ring-primary",
                 )}
                 onClick={onClick}
                 tabIndex={onClick ? 0 : undefined}
                 data-drag-over={hover || undefined}
                 data-drop={hover ? "valid" : undefined}
+                data-column-lifted={lifted}
             >
                 {label ? (
-                    <div className="flex h-10 shrink-0 items-center gap-2 pl-2 pr-2" data-column-head="">
+                    <div className={cn("flex h-10 shrink-0 items-center gap-2 pr-2", grip ? "pl-1" : "pl-2")} data-column-head="">
+                        {/* The grip waits on the column's hover, as "⋯" does; the keys
+                            and a touch screen always find it. */}
+                        {grip && (
+                            <div className="-mr-1 flex pointer-events-none opacity-0 transition-opacity duration-[140ms] focus-within:pointer-events-auto focus-within:opacity-100 group-hover/column:pointer-events-auto group-hover/column:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
+                                {grip}
+                            </div>
+                        )}
                         {/* The lozenge (Jira's, Notion's pill): the stage in its colour,
                             read from across the room. */}
                         <h2 data-column-lozenge="" className={cn("inline-flex h-6 min-w-0 items-center gap-1.5 rounded-sm px-2 text-xs font-[510]", columnLozenge(hue))}>
@@ -217,7 +288,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                                 </button>
                             )}
                             <div className={cn(styles.Actions, "opacity-0 pointer-events-none transition-opacity duration-[140ms] focus-within:opacity-100 focus-within:pointer-events-auto group-hover/column:opacity-100 group-hover/column:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto")}>
-                            {(onToggleCollapse || onAdd) && (
+                            {(onToggleCollapse || onAdd || move) && (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <button
@@ -232,6 +303,9 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                                     <DropdownMenuContent align="end" className="w-44">
                                         {onAdd && <DropdownMenuItem onSelect={onAdd}>New task here</DropdownMenuItem>}
                                         {onToggleCollapse && <DropdownMenuItem onSelect={onToggleCollapse}>Collapse</DropdownMenuItem>}
+                                        {/* The column's place, for everyone in the project: the way to move it
+                                            on a phone, and anywhere without a drag. */}
+                                        {move && <ColumnMoves move={move} after={!!(onAdd || onToggleCollapse)} />}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             )}

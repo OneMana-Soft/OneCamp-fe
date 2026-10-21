@@ -2,12 +2,19 @@
   "about": [
     "The fluidity scenarios scripts/fluidity/run.mjs runs, each held to its budgets file (Fluidity budgets #6; PLATFORM-LEAD, 17 Oct 2026). A programme registers its own here: a script beside this file, its budgets file, what it needs and the CPU slowdowns it runs at.",
     "A script takes --base <url> --cpu <n> --runs <n> --budgets <file> --result <file>, writes { \"checks\": [rows] } to --result, rows as budgets.mjs's check() makes them, and exits 1 when an enforced budget is missed. covers names the budgets' scenario fields it measures (a budget's scenario must be covered here: app/fluidityBudgets.test.ts).",
-    "needs: build (a production build in .next, no server), fixtures (a production server, every answer faked: nothing leaves the machine), demo (a production server with the live demo's data, read only). gate: run in the integrator's full gate after its build; the rest run nightly and before a release, on a quieter machine, as medians."
+    "needs: build (a production build in .next, no server), fixtures (a production server, every answer faked: nothing leaves the machine), demo (a production server with the live demo's data, read only). gate: run in the integrator's full gate after its build; the rest run nightly and before a release, on a quieter machine, as medians.",
+    "surfaces.mjs (FLUIDITY-LEAD, 20 Oct 2026) is the one harness the work, tables, calendar-fixtures and shell scenarios share: --only names its group in surfaces/, and cpu 4 runs it as a phone (390 x 844, touch). Times count only from P-cores (heavy.sh --pcore); every run records its load, CPUs, clock and temperature."
   ],
   "scenarios": {
     "routes": { "script": "routes.mjs", "args": ["--check"], "budgets": "route-ceilings.json", "covers": ["routes"], "needs": "build", "cpu": [1], "gate": true },
     "docs": { "script": "docs.mjs", "budgets": "doc-budgets.json", "covers": ["docs"], "needs": "fixtures", "cpu": [1, 4] },
     "calendar": { "script": "content.mjs", "args": ["--only", "calendar,booking"], "budgets": "calendar-budgets.json", "covers": ["calendar", "booking"], "needs": "demo", "cpu": [1, 4] },
-    "chat": { "script": "chat.mjs", "budgets": "chat-budgets.json", "covers": ["chat"], "needs": "fixtures", "cpu": [1, 4] }
+    "chat": { "script": "chat.mjs", "budgets": "chat-budgets.json", "covers": ["chat"], "needs": "fixtures", "cpu": [1, 4] },
+    "work": { "script": "surfaces.mjs", "args": ["--only", "work"], "budgets": "work-budgets.json", "covers": ["work"], "needs": "fixtures", "cpu": [1, 4] },
+    "tables": { "script": "surfaces.mjs", "args": ["--only", "tables"], "budgets": "tables-budgets.json", "covers": ["tables"], "needs": "fixtures", "cpu": [1, 4] },
+    "calendar-fixtures": { "script": "surfaces.mjs", "args": ["--only", "calendar"], "budgets": "calendar-budgets.json", "covers": ["calendar-fixtures"], "needs": "fixtures", "cpu": [1, 4] },
+    "shell": { "script": "surfaces.mjs", "args": ["--only", "shell"], "budgets": "shell-budgets.json", "covers": ["shell"], "needs": "fixtures", "cpu": [1, 4] },
+    "split": { "script": "surfaces.mjs", "args": ["--only", "split", "--device", "desktop"], "budgets": "split-budgets.json", "covers": ["split"], "needs": "fixtures", "cpu": [1, 4] },
+    "pages": { "script": "surfaces.mjs", "args": ["--only", "pages"], "budgets": "pages-budgets.json", "covers": ["pages"], "needs": "fixtures", "cpu": [1, 4] }
   }
 }

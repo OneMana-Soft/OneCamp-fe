@@ -8,8 +8,7 @@
 import * as React from "react"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { focusDialogItself } from "@/components/project/ProjectFormsDialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, focusDialogItself } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
@@ -19,7 +18,7 @@ import { ProjectRatesDialog } from "@/components/project/ProjectRatesDialog"
 import { ProjectInvoices } from "@/components/project/ProjectInvoices"
 import { formatCents } from "@/lib/rates"
 import { REPORT_PRESETS, formatDuration, formatHours, presetRange, type ReportPreset, type TimeLine, type TimeReport } from "@/lib/tasks/time"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { browserTZ } from "@/lib/utils/timeZone"
 
 export function ProjectTimeDialog({
@@ -43,7 +42,7 @@ export function ProjectTimeDialog({
   // midnight doesn't refetch every render.
   const range = React.useMemo(() => presetRange(preset, new Date()), [preset])
   const query = `from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`
-  const base = `${GetEndpointUrl.ProjectTime}/${projectId}/time`
+  const base = `${ProjectsGet.ProjectTime}/${projectId}/time`
   // Says its own failure, in the dialog; the toast stays quiet.
   const { data, isLoading, isError: error, mutate } = useFetch<{ data: TimeReport }>(open ? `${base}?${query}` : "", undefined, undefined, OWN_ERRORS)
   const report = data?.data

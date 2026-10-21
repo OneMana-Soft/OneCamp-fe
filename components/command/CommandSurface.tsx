@@ -14,6 +14,7 @@ import BlockKitCard from "./BlockKitCard"
 import { Button } from "@/components/ui/button"
 import { X, Zap } from "@/lib/icons"
 import type { BlockElement } from "@/types/command"
+import { mentionPlaceAttrs } from "@/lib/conversation/mentionPlace"
 
 const EMPTY: never[] = []
 
@@ -41,7 +42,11 @@ const CommandSurface: React.FC<CommandSurfaceContext> = (ctx) => {
 
     // Marks the conversation beside its composer, so a command typed there
     // runs here and nowhere else (commandSurfaceOf, FE-BUG-11).
-    const marker = <span hidden data-command-surface={ctx.surfaceKey} />
+    // And for its "@" list: the conversation it writes in (lib/conversation/mentionPlace).
+    const place = ctx.channelId
+        ? mentionPlaceAttrs("channel", ctx.channelId)
+        : ctx.dmGroupId ? mentionPlaceAttrs(ctx.dmGroupId.includes(" ") ? "dm" : "group", ctx.dmGroupId) : {}
+    const marker = <span hidden data-command-surface={ctx.surfaceKey} {...place} />
 
     if (cards.length === 0) return marker
 

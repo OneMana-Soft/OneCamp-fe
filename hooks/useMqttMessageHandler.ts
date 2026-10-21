@@ -1,6 +1,5 @@
 "use client"
 
-import { pollUrl } from "@/services/pollService";
 import { useCallback, useRef } from "react"
 import { MqttMessageType, type msgType } from "@/services/mqttService"
 import { usePostMessageHandlers } from "./usePostMessageHandlers"
@@ -16,8 +15,11 @@ import { CONTENT_IO_JOB_EVENT } from "@/lib/export/contentIO";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
 import { appMutate as mutate } from "@/lib/swrMutate";
-import { applySeenEvent } from "@/hooks/useChatReceipts";
-import { receiptsKeyForEvent } from "@/lib/chat/readReceipts";
+// What only some events need is fetched on the first of them, not with the
+// layout every page loads: the threads you follow's refresh (chat P2) and the
+// conversations' paths for a pin (chat B25).
+const refreshThreadsSoon = () => void import("@/lib/conversation/threadsKey").then((m) => m.refreshThreadsSoon())
+import { applySeenEvent, receiptsKeyForEvent } from "@/lib/chat/readReceipts";
 import {
     updateTaskNameInTaskList,
     updateTaskStatusInTaskList,
@@ -90,6 +92,8 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
 
                     case MqttMessageType.Post_Comment:
                         postHandlers.handlePostCommentMessage(messageStr)
+                        // A reply may be in a thread you follow (chat P2).
+                        refreshThreadsSoon()
                         break
 
                     case MqttMessageType.Chat:
@@ -106,6 +110,7 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
 
                     case MqttMessageType.Chat_Comment:
                         chatHandlers.handleChatCommentMessage(messageStr)
+                        refreshThreadsSoon()
                         break
 
                     case MqttMessageType.Channel_Typing:
@@ -241,10 +246,7 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         break
 
                     case MqttMessageType.Archive_Job_Status:
-                        // Admin-only event. Bust the SWR cache for archive
-                        // jobs and stats so the panel updates without polling.
-                        // Idempotent: duplicate events (QoS 1 redelivery) just
-                        // re-trigger the same revalidation.
+                        // Admin-only: the archive panel reads again.
                         mutate(
                             (key: string) =>
                                 typeof key === "string" &&
@@ -253,11 +255,13 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         )
                         break
 
+                    case MqttMessageType.Invitation_Accepted:
+                        // Admin lists only: their keys come with the admin endpoints, off the layout's first load.
+                        void import("@/lib/invitationLive").then((m) => mutate(m.invitationAcceptedStale))
+                        break
+
                     case MqttMessageType.Slack_Import_Progress: {
-                        // Admin-only progress ticks for every import (the
-                        // type's name is historical). Keeps the job lists in
-                        // sync, and when an import ends, the banner that
-                        // tells its admin how it ended.
+                        // Admin-only ticks for every import (lib/importLive).
                         let status: string | undefined
                         try {
                             status = JSON.parse(messageStr)?.data?.status
@@ -396,6 +400,11 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         // themselves (lib/liveEntity): they read the task again.
                         break
 
+                    case MqttMessageType.Call_State:
+                        // For the call's pages (useCallSession).
+                        window.dispatchEvent(new CustomEvent("onecamp:call-state", { detail: JSON.parse(messageStr)?.data }))
+                        break
+
                     case MqttMessageType.Chat_Seen:
                         // A read receipt: someone has seen a conversation up to a time.
                         try {
@@ -454,7 +463,8 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         // poll; the server answers with this reader's own choice.
                         try {
                             const pollId = JSON.parse(messageStr)?.data?.poll_uuid
-                            if (typeof pollId === "string" && pollId) mutate(pollUrl(pollId))
+                            // The polls' service comes with the first poll event, not with the layout.
+                            if (typeof pollId === "string" && pollId) void import("@/services/pollService").then((m) => mutate(m.pollUrl(pollId)))
                         } catch (e) {
                             console.warn("[MQTT] Failed to parse poll update message", e)
                         }
@@ -485,6 +495,24 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                             console.warn("[MQTT] Failed to parse channel update message", e)
                         }
                         break
+
+                    case MqttMessageType.Pin: {
+                        // A message was pinned or unpinned: that conversation's
+                        // pins are read again, wherever they are shown (chat B25).
+                        const pin = JSON.parse(messageStr)?.data
+                        if ((pin?.kind === "channel" || pin?.kind === "dm" || pin?.kind === "group") && typeof pin.id === "string" && pin.id) {
+                            void import("@/lib/conversation/conversationPath").then((m) => mutate(m.pinsKey(pin.kind, pin.id)))
+                        }
+                        break
+                    }
+
+                    case MqttMessageType.ReadMoved: {
+                        // Your marker moved in another tab or device (chat A3):
+                        // fetched on the first, as the pins' paths are.
+                        const moved = JSON.parse(messageStr)?.data
+                        void import("@/lib/conversation/readMoved").then((m) => m.applyReadMoved(dispatch, moved))
+                        break
+                    }
 
                     case MqttMessageType.Conversation_Access: {
                         // A conversation became this member's, or stopped

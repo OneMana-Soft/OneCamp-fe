@@ -32,6 +32,8 @@ import { clockTime } from "@/lib/utils/date/clock"
 import { noteReaction, quickReactions, readRecentReactions, type QuickReaction } from "@/lib/chat/recentReactions"
 import { Button } from "@/components/ui/button"
 import { DeleteConfirm } from "@/components/message/deleteConfirm"
+import { PinSheetRow } from "@/components/conversation/pins/PinSheetRow"
+import type { ConversationRef } from "@/lib/conversation/types"
 
 /** The message the sheet acts on, drawn lifted above it (C61). */
 export interface MessageSheetPreview {
@@ -74,6 +76,8 @@ export interface MessageActionSheetProps {
     isOwner?: boolean
     isAdmin?: boolean
     messageText?: string
+    /** The conversation the message may be pinned in (chat B25), and the message. */
+    pin?: { conversation: ConversationRef | null; messageId: string }
 }
 
 function Tile({ icon: Icon, label, onClick, active }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; active?: boolean }) {
@@ -138,6 +142,7 @@ export function MessageActionSheet({
     isOwner,
     isAdmin,
     messageText,
+    pin,
 }: MessageActionSheetProps) {
     const router = useRouter()
     const copyToClipboard = useCopyToClipboard()
@@ -269,6 +274,7 @@ export function MessageActionSheet({
                         {makeTask && <Row icon={ListTodo} label="Make a task" onClick={then(makeTask, 150)} />}
                         {laterTarget && !saved && <Row icon={AlarmClock} label="Remind me tomorrow morning" onClick={remindTomorrow} />}
                         {forwardPath && <Row icon={Forward} label="Forward" onClick={then(() => router.push(forwardPath))} />}
+                        {pin && <PinSheetRow conversation={pin.conversation} messageId={pin.messageId} onDone={close} />}
                         {!!(messageText || "").trim() && (
                             <Row icon={Languages} label={translating ? "Translating…" : translation ? "Translate again" : "Translate"} busy={translating} onClick={translate} />
                         )}

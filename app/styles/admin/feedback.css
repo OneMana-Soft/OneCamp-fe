@@ -32,7 +32,7 @@
     transform-origin: var(--dlg-origin, center);
   }
   .v3-dialog[data-state="open"] {
-    animation: fb-dialog-in 220ms var(--ease-out) both;
+    animation: fb-dialog-in 220ms var(--ease-out) backwards;
   }
   .v3-dialog[data-state="closed"] {
     animation: fb-dialog-out 150ms var(--ease-out) both;
@@ -152,7 +152,7 @@
     --dlg-pad: 20px;
   }
   .v3-sheet[data-side="right"][data-state="open"] {
-    animation: fb-sheet-in 240ms var(--ease-in-out) both;
+    animation: fb-sheet-in 240ms var(--ease-in-out) backwards;
   }
   .v3-sheet[data-side="right"][data-state="closed"] {
     animation: fb-sheet-out 180ms var(--ease-in-out) both;

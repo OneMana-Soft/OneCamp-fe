@@ -245,13 +245,13 @@ export function AccessCard({
  * Copy link: a secondary sm button with the link icon; it says "Copied" with
  * a moss check for 1.5 s, the icon swapping on the spring.
  */
-export function CopyLinkButton({ href }: { href?: string }) {
+export function CopyLinkButton({ href, label = "Copy link", className }: { href?: string; label?: string; className?: string }) {
   const [copied, setCopied] = React.useState(false)
   return (
     <Button
       variant="secondary"
       size="sm"
-      className="gap-1.5"
+      className={cn("gap-1.5", className)}
       onClick={() => {
         void navigator.clipboard?.writeText(href ?? window.location.href)
         setCopied(true)
@@ -263,7 +263,7 @@ export function CopyLinkButton({ href }: { href?: string }) {
       ) : (
         <Link key="link" className="size-3.5" aria-hidden="true" />
       )}
-      {copied ? "Copied" : "Copy link"}
+      {copied ? "Copied" : label}
     </Button>
   )
 }

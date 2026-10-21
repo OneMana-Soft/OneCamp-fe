@@ -73,14 +73,14 @@ describe("workflows", () => {
   // admin page's Automation group, or the hue a settings page passes.
   // Design v3 (A16, S4): it is the 96px spot, "Automate the busywork", and an
   // example in the rows' own token grammar, so it teaches how one reads.
-  it("draws the empty state as a spot in the place's hue, dusk by default, with an example sentence", () => {
+  it("draws the empty state as a spot in the place's hue, the agents' indigo by default, with an example sentence", () => {
     fetchState.value = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     const { unmount } = render(<WorkflowsCard />)
-    expect(document.querySelector(".hue-dusk")).toBeTruthy()
+    expect(document.querySelector(".hue-agent")).toBeTruthy()
     unmount()
     render(<WorkflowsCard hue="moss" />)
     expect(document.querySelector(".hue-moss")).toBeTruthy()
-    expect(document.querySelector(".hue-dusk")).toBeNull()
+    expect(document.querySelector(".hue-agent")).toBeNull()
     expect(screen.getByText("Automate the busywork")).toBeTruthy()
     const example = document.querySelector("[data-workflow-sentence]") as HTMLElement
     expect(example.querySelector('[data-token="trigger"]')?.textContent).toBe("a message in #support")

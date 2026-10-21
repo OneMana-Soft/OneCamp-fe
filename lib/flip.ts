@@ -24,13 +24,16 @@ export type FlipRects = Map<string, DOMRect>
 
 const SELECTOR = "[data-flip-id]"
 
-/** Where each [data-flip-id] inside root is now. */
-export function measureFlip(root: ParentNode | null | undefined): FlipRects {
+/**
+ * Where each [data-flip-id] inside root is now; with `only`, just those ids
+ * (a row of views: what a view holds moves with it, so only the views play).
+ */
+export function measureFlip(root: ParentNode | null | undefined, only?: Set<string>): FlipRects {
   const rects: FlipRects = new Map()
   if (!root) return rects
   root.querySelectorAll<HTMLElement>(SELECTOR).forEach((el) => {
     const id = el.dataset.flipId
-    if (id) rects.set(id, el.getBoundingClientRect())
+    if (id && (!only || only.has(id))) rects.set(id, el.getBoundingClientRect())
   })
   return rects
 }

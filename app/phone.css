@@ -326,6 +326,11 @@
     background: var(--ink-2);
     box-shadow: 0 0 0 2px var(--raised);
   }
+  /* An area's tab wears its area's hue on that dot (lib/areas, v3.1): the
+     tab's mark sets --hue; Home and the inbox keep ink-2. */
+  .phone-tabbar .phone-tab-dot[data-area] {
+    background: var(--hue);
+  }
   @media (prefers-reduced-motion: no-preference) {
     .phone-tab-badge[data-fresh="true"],
     .phone-tab-dot[data-fresh="true"] {

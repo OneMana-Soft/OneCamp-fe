@@ -2,7 +2,7 @@
 
 import type { Editor } from "@tiptap/core"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { APPEND_BLOCKS_PATH } from "@/services/endPoints"
+import { APPEND_BLOCKS_PATH } from "@/services/endpoints/docs"
 import { standAlone, type BlockRef } from "@/components/minimal-tiptap/extensions/block-commands/blocks"
 import { deleteBlocks, runsOf, targetBlocks, type BlockTarget } from "@/components/minimal-tiptap/extensions/block-commands/commands"
 import { blocksWithIds } from "@/components/minimal-tiptap/extensions/block-commands/blockIds"

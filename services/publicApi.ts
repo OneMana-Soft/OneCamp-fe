@@ -4,7 +4,7 @@
 
 const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "")
 
-export type PublicResult<T> = { ok: true; data: T } | { ok: false; status: number; msg: string; retryAfter?: number }
+export type PublicResult<T> = { ok: true; data: T } | { ok: false; status: number; msg: string; code?: string; retryAfter?: number }
 
 export async function publicCall<T>(path: string, init?: RequestInit): Promise<PublicResult<T>> {
   try {
@@ -18,6 +18,7 @@ export async function publicCall<T>(path: string, init?: RequestInit): Promise<P
       ok: false,
       status: res.status,
       msg: (body as { msg?: string }).msg || "Something went wrong. Try again.",
+      code: typeof (body as { code?: unknown }).code === "string" ? (body as { code: string }).code : undefined,
       retryAfter: retryAfterSeconds(res.headers?.get?.("Retry-After") ?? null),
     }
   } catch {

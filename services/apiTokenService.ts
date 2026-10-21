@@ -1,5 +1,5 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminPost } from "@/services/endpoints/admin"
 
 // API token client. Tokens authenticate the public /v1 API as the creating
 // user, narrowed to the granted scopes. The plaintext secret is returned only
@@ -71,10 +71,10 @@ export async function createApiToken(input: {
   agent_id?: string
 }): Promise<CreatedToken> {
   // The dialog says a failure under the field it is about.
-  const res = await axiosInstance.post(PostEndpointUrl.CreateApiToken, input, OWN_ERRORS)
+  const res = await axiosInstance.post(AdminPost.CreateApiToken, input, OWN_ERRORS)
   return res.data?.data as CreatedToken
 }
 
 export async function revokeApiToken(id: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.RevokeApiToken}/${id}/revoke`)
+  await axiosInstance.post(`${AdminPost.RevokeApiToken}/${id}/revoke`)
 }

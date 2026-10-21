@@ -12,6 +12,7 @@ import { RootState } from "@/store/store";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import type { UserProfileInterface } from "@/types/user";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { ProjectsPost } from "@/services/endpoints/projects";
 import { useForm, Controller, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -269,7 +270,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
         const minutes = estimateMinutes(estimate);
         if (res?.task_uuid && minutes) {
           void post
-            .makeRequest({ apiEndpoint: PostEndpointUrl.UpdateTaskEstimate, payload: { task_uuid: res.task_uuid, task_estimate_minutes: minutes } })
+            .makeRequest({ apiEndpoint: ProjectsPost.UpdateTaskEstimate, payload: { task_uuid: res.task_uuid, task_estimate_minutes: minutes } })
             .catch(() => undefined);
         }
         if (createMore) {

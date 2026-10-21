@@ -4,7 +4,7 @@ import * as React from "react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Tile } from "@/components/ui/graphics/Tile"
-import type { CampHue } from "@/lib/campHue"
+import type { MarkHue } from "@/components/ui/graphics/hues"
 import { MenuCheck } from "@/components/ui/menuCheck"
 
 interface DrawerItemProps {
@@ -20,7 +20,7 @@ interface DrawerItemProps {
     current?: boolean
     disabled?: boolean
     /** Sets the icon on a tint tile in this hue: a place's colour (lib/destinationHue). */
-    hue?: CampHue
+    hue?: MarkHue
     /** Sets the icon on a neutral tile: an action that is yours, not a place (focus, pause). */
     neutralTile?: boolean
 }

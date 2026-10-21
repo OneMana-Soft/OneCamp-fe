@@ -2,7 +2,7 @@
 // and the pure helpers that turn it into what's drawn and downloaded.
 
 import type { NormalizedChart } from "@/lib/utils/chartSpec"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { csvLine } from "@/lib/csv"
 
 export interface ReportCounts {
@@ -68,7 +68,7 @@ export interface FlowWeek {
 export function reportKey(tz: string, weeks: number, projects: string[] = []): string {
   const q = new URLSearchParams({ tz, weeks: String(weeks) })
   if (projects.length > 0) q.set("projects", [...projects].sort().join(","))
-  return `${GetEndpointUrl.ProjectReport}?${q.toString()}`
+  return `${ProjectsGet.ProjectReport}?${q.toString()}`
 }
 
 /** The spans a report can cover, in weeks. */

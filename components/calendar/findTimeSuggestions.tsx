@@ -8,7 +8,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, Sparkles } from "@/lib/icons"
 import { usePost } from "@/hooks/usePost"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { CalendarPost } from "@/services/endpoints/calendar"
 import { defaultHours, formatDay, formatTime, groupByDay, type Slot } from "@/lib/calendar/availability"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -43,7 +43,7 @@ export function FindTimeSuggestions({
     const from = new Date()
     const to = new Date(from.getTime() + 7 * 24 * 3600 * 1000)
     const res = await makeRequest<object, FindTimeResult>({
-      apiEndpoint: PostEndpointUrl.FindTime,
+      apiEndpoint: CalendarPost.FindTime,
       payload: {
         participants,
         duration_minutes: Math.min(480, Math.max(15, durationMinutes)),

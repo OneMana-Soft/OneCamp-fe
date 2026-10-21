@@ -1,19 +1,21 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useSelector } from "react-redux"
+import { memo, useCallback, useLayoutEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import type { RootState } from "@/store/store"
-import { userDisplayName } from "@/lib/utils/userDisplayName"
-import { ArrowLeftRight, CheckSquare, FileText, FolderKanban, Hash, Maximize2, MessageSquare, Minimize2, Users, Video, X } from "@/lib/icons"
+import { ArrowLeft, ArrowLeftRight, ArrowRight, Columns3, Link2, Maximize2, Minimize2, MoreHorizontal, X } from "@/lib/icons"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { InSplitPaneContext } from "@/hooks/useLinkTarget"
+import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils/helpers/cn"
-import { type Pane, type PaneKind } from "@/lib/split"
+import { hrefOfPane, paneKey, type Pane } from "@/lib/split"
 import { canSwapBeside } from "@/lib/callConversation"
 import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary"
 import { FocusPill } from "@/components/split/FocusPill"
+import { TuckedViews } from "@/components/split/TuckedViews"
+import { KIND, useViewLook } from "@/components/split/paneLook"
 import { ConversationView, useDmConversation } from "@/components/conversation/ConversationView"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 // Each view loads only when it is first split, so the split costs nothing until used.
 const Loading = () => <div className="h-full w-full animate-pulse bg-press" />
@@ -26,61 +28,11 @@ const TaskInfoPanel = dynamic(() => import("@/components/rightPanel/taskInfoPane
 // The call (LiveKit) is the heaviest view; it loads only when a call is opened beside.
 const CallView = dynamic(() => import("@/components/livekit/CallView").then((m) => m.CallView), { loading: Loading })
 
-const KIND: Record<PaneKind, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  channel: { label: "Channel", icon: Hash },
-  chat: { label: "Chat", icon: MessageSquare },
-  group: { label: "Group chat", icon: Users },
-  doc: { label: "Doc", icon: FileText },
-  project: { label: "Project", icon: FolderKanban },
-  task: { label: "Task", icon: CheckSquare },
-  "call-channel": { label: "Call", icon: Video },
-  "call-chat": { label: "Call", icon: Video },
-  "call-group": { label: "Call", icon: Video },
-}
-
-/** The parts of the store a pane's name comes from. */
-type NameSources = {
-  users: Pick<RootState["users"], "userSidebar">
-  recentItems?: { items?: { id: string; title: string }[] }
-}
-
 /**
- * What a pane's bar calls it: the place's own name where the app knows it
- * (the sidebar's channels, conversations and projects, else a recent visit),
- * or null for its kind. The bar said "Channel" over a channel whose name was
- * the next thing down. Pure.
+ * The view itself. Memoised on the pane, so the bar's states (the keys
+ * arriving, focus, a move) never draw a chat, a doc or a board again.
  */
-export function paneTitle(s: NameSources, pane: Pane): string | null {
-  const sb = s.users.userSidebar
-  switch (pane.kind) {
-    case "channel":
-    case "call-channel": {
-      const c = [...(sb.userChannels || []), ...(sb.userFavChannels || [])].find((c) => c?.ch_uuid === pane.id)
-      if (c?.ch_name) return c.ch_name
-      break
-    }
-    case "project": {
-      const p = (sb.userProjects || []).find((p) => p?.project_uuid === pane.id)
-      if (p?.project_name) return p.project_name
-      break
-    }
-    case "chat": {
-      for (const d of sb.userChats || []) {
-        const who = d?.dm_participants?.find((u) => u?.user_uuid === pane.id)
-        if (who) return userDisplayName(who) || null
-      }
-      break
-    }
-    case "group": {
-      const d = (sb.userChats || []).find((d) => d?.dm_grouping_id === pane.id)
-      if (d) return d.dm_name || d.dm_participants.map((u) => userDisplayName(u)).filter(Boolean).join(", ") || null
-      break
-    }
-  }
-  return s.recentItems?.items?.find((i) => i.id === pane.id)?.title || null
-}
-
-function PaneBody({ pane, onClose }: { pane: Pane; onClose: () => void }) {
+const PaneBody = memo(function PaneBody({ pane, onClose }: { pane: Pane; onClose: () => void }) {
   switch (pane.kind) {
     case "call-channel":
       return <CallView kind="channel" id={pane.id} onLeave={onClose} embedded />
@@ -102,7 +54,7 @@ function PaneBody({ pane, onClose }: { pane: Pane; onClose: () => void }) {
     case "task":
       return <TaskInfoPanel taskUUID={pane.id} />
   }
-}
+})
 
 /** A DM beside the page, in its host once who reads it is known. */
 function DmPane({ other }: { other: string }) {
@@ -110,65 +62,131 @@ function DmPane({ other }: { other: string }) {
 }
 
 const barButton =
-  "grid h-7 w-7 place-items-center rounded-md text-ink-3 transition-colors duration-[140ms] hover:bg-hover hover:text-ink hover:duration-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+  "relative grid h-7 w-7 place-items-center rounded-md text-ink-3 transition-colors duration-[140ms] hover:bg-hover hover:text-ink hover:duration-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+
+type Props = {
+  pane: Pane
+  /** Its index among the panes (data-split-view). */
+  index: number
+  /** Where it sits among all the views, left to right, and how many there are. */
+  at: number
+  count: number
+  active: boolean
+  focused: boolean
+  /** On screen, rather than tucked away for want of width (rule T). */
+  shown: boolean
+  /** The keys of the views tucked away, when this is the rightmost one on screen. */
+  tucked?: string
+}
 
 /**
  * One pane of the split view (design v3, shell V2): the same channel, chat,
  * doc, project or task page as the main area, on its own sheet beside it with
- * the 8px frame seam between. A 44px bar names it by its own name, where the
- * app knows it (14/590, ink-2 while another view has the keys), with its
- * index key and three 28px buttons:
- * focus it alone, swap it with the main view, close it. The view the keys
- * act on wears a 1.5px brand top edge inside its radius. Focused alone, its
- * bar says "One view" with Show all beside it.
+ * the 8px frame seam between. Its 44px bar names it by its own name, where
+ * the app knows it (14/590, ink-2 while another view has the keys), with its
+ * number (Ctrl+Alt+n), and is its handle: the arrange layer
+ * (SplitArrange) puts a drag surface in the bar's slot, under the buttons.
+ * Focus it alone, its menu (move it, make it the main view, even the widths,
+ * copy its link), close it. The view the keys act on wears a 1.5px brand top
+ * edge. Focused alone, its bar says "One view" with Show all beside it; the
+ * rightmost view on screen lists the views tucked away.
  */
-export function SplitPane({ pane, index, active, focused }: { pane: Pane; index: number; active: boolean; focused: boolean }) {
+export const SplitPane = memo(function SplitPane({ pane, index, at, count, active, focused, shown, tucked }: Props) {
   const run = useSplitActions()
   const { label, icon: Icon } = KIND[pane.kind]
   const what = label.toLowerCase()
-  const name = useSelector((s: RootState) => paneTitle(s, pane))
+  const key = paneKey(pane)
+  const title = useViewLook(key, pane).name
+  // A view tucked away when the page loaded draws the first time it shows.
+  const [seen, setSeen] = useState(shown)
+  if (shown && !seen) setSeen(true)
+  // Tells the arrange layer its handle's slot is here (this loads after it).
+  useLayoutEffect(() => {
+    window.dispatchEvent(new Event("split:slots"))
+    return () => void window.dispatchEvent(new Event("split:slots"))
+  }, [])
   // Beside a call's own page, or a call itself: a swap would move the call (useSplitActions).
   const pathname = usePathname() ?? ""
+  const close = useCallback(() => run({ type: "close" }, index), [run, index])
+  const copyLink = () => {
+    void navigator.clipboard?.writeText(window.location.origin + hrefOfPane(pane)).then(
+      () => toast({ title: "Link copied", description: title }),
+      () => toast({ title: "Couldn't copy the link", variant: "destructive" }),
+    )
+  }
   return (
     <section
-      aria-label={`${label}, side by side`}
+      aria-label={`${title}, view ${at + 1} of ${count}`}
       data-split-view={index}
+      data-split-sheet={key}
       tabIndex={-1}
-      className={cn("app-sheet shell-panel-sheet flex h-full min-w-0 flex-col overflow-hidden outline-none", active && "shell-sheet-focused")}
+      className={cn("app-sheet shell-panel-sheet relative flex h-full min-w-0 flex-col overflow-hidden outline-none", active && "shell-sheet-focused")}
     >
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line pl-4 pr-2">
-        <Icon className="h-4 w-4 shrink-0 text-ink-3" />
-        <span className={cn("truncate text-sm font-semibold", active || focused ? "text-ink" : "text-ink-2")}>{name ?? label}</span>
-        <kbd className="kbd hidden lg:inline-flex" title={`Ctrl + Alt + ${index + 2} comes here`}>
-          {index + 2}
-        </kbd>
-        {focused && (
-          <div className="ml-1">
+      <div className="split-bar relative flex h-11 shrink-0 items-center gap-2 border-b border-line pl-4 pr-2">
+        <span data-split-handle={key} className="absolute inset-0" />
+        <Icon className="pointer-events-none relative h-4 w-4 shrink-0 text-ink-3" />
+        <span className={cn("pointer-events-none relative truncate text-sm font-semibold", active || focused ? "text-ink" : "text-ink-2")}>{title}</span>
+        {count > 1 && (
+          <kbd className="kbd pointer-events-none relative hidden lg:inline-flex" title={`Ctrl + Alt + ${at + 1} comes here`}>
+            {at + 1}
+          </kbd>
+        )}
+        {focused ? (
+          <div className="relative ml-1">
             <FocusPill />
           </div>
-        )}
-        <div className="ml-auto flex items-center gap-0.5">
+        ) : tucked ? (
+          <TuckedViews keys={tucked} />
+        ) : null}
+        <div className="relative ml-auto flex items-center gap-0.5">
           <button type="button" onClick={() => run({ type: "focus" }, index)} aria-label={focused ? "Show every view" : `Focus this ${what}`} title={focused ? "Show every view (Ctrl+Alt+Enter)" : "Focus: this view alone (Ctrl+Alt+Enter)"} className={barButton}>
             {focused ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
-          {canSwapBeside(pane, pathname) && (
-            <button type="button" onClick={() => run({ type: "swap" }, index)} aria-label={`Make this ${what} the main view`} title="Swap with the main view (Ctrl+Alt+S)" className={barButton}>
-              <ArrowLeftRight className="h-4 w-4" />
-            </button>
-          )}
-          <button type="button" onClick={() => run({ type: "close" }, index)} aria-label={`Close this ${what}`} title="Close (Ctrl+Alt+W)" className={barButton}>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label={`More for this ${what}`} title="Move, swap, copy its link" className={barButton}>
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="pop-surface w-60 p-1">
+              <DropdownMenuItem disabled={at === 0} onClick={() => run({ type: "move", by: -1 }, index)}>
+                <ArrowLeft className="text-ink-3" aria-hidden="true" /> Move left
+                <DropdownMenuShortcut data-kbd-hint="">Ctrl+Alt+Shift+[</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={at === count - 1} onClick={() => run({ type: "move", by: 1 }, index)}>
+                <ArrowRight className="text-ink-3" aria-hidden="true" /> Move right
+                <DropdownMenuShortcut data-kbd-hint="">Ctrl+Alt+Shift+]</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              {canSwapBeside(pane, pathname) && (
+                <DropdownMenuItem onClick={() => run({ type: "swap" }, index)}>
+                  <ArrowLeftRight className="text-ink-3" aria-hidden="true" /> Make it the main view
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => run({ type: "even" })}>
+                <Columns3 className="text-ink-3" aria-hidden="true" /> Even out widths
+                <DropdownMenuShortcut data-kbd-hint="">Ctrl+Alt+=</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={copyLink}>
+                <Link2 className="text-ink-3" aria-hidden="true" /> Copy link
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button type="button" onClick={close} aria-label={`Close this ${what}`} title="Close (Ctrl+Alt+W)" className={barButton}>
             <X className="h-4 w-4" />
           </button>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
         {/* The page's address is the main view's: a pane never reads its link (FE-BUG-12). */}
-        <InSplitPaneContext.Provider value={true}>
-        <PanelErrorBoundary resetKey={`${pane.kind}:${pane.id}`} onClose={() => run({ type: "close" }, index)} closeLabel={`Close this ${what}`}>
-          <PaneBody pane={pane} onClose={() => run({ type: "close" }, index)} />
-        </PanelErrorBoundary>
-        </InSplitPaneContext.Provider>
+        {seen && (
+          <InSplitPaneContext.Provider value={true}>
+            <PanelErrorBoundary resetKey={`${pane.kind}:${pane.id}`} onClose={close} closeLabel={`Close this ${what}`}>
+              <PaneBody pane={pane} onClose={close} />
+            </PanelErrorBoundary>
+          </InSplitPaneContext.Provider>
+        )}
       </div>
     </section>
   )
-}
+})

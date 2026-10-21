@@ -17,7 +17,7 @@ import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GO_KEYS } from "@/lib/goKeys"
 import { paneFromHref } from "@/lib/split"
-import { openInSplit } from "@/store/slice/splitSlice"
+import { openInSplit, selectSplitOn } from "@/store/slice/splitActions"
 import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import {
   announcePaletteState,
@@ -39,6 +39,7 @@ import { RecentMark, recentHue } from "@/components/ui/graphics/recentMark"
 import { PlaceMark, placeMarkHue, type MarkedPlace } from "@/components/ui/graphics/placeMark"
 import { CATEGORY_KIND, isBuiltInStatus } from "@/lib/taskStatus"
 import type { PlaceHue } from "@/lib/placeHue"
+import { areaHue, type Area } from "@/lib/areas"
 import { resultHue } from "@/lib/search/resultHue"
 import {
   unifiedSearch,
@@ -72,7 +73,7 @@ import { SearchResult } from "@/services/searchService"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
 import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
-import { BellOff, ChevronRight, Columns2, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun } from "@/lib/icons"
+import { ArrowLeft, ArrowRight, BellOff, ChevronRight, Columns2, Columns3, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun } from "@/lib/icons"
 import { FEATURE_AI, FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
 import { projectAt } from "@/lib/task/startingProject"
 import { clockTime } from "@/lib/utils/date/clock"
@@ -103,6 +104,8 @@ interface PaletteCommand {
   featureKey?: string
   /** Its keys, when it isn't a "go" command (an open doc's ⌘L). */
   keys?: string
+  /** Offered only where views can sit side by side (selectSplitOn), and for "views" only while some do. */
+  split?: boolean | "views"
   /** A page of choices it opens in the palette (the theme, a pause), in place of an action. */
   page?: PalettePage
 }
@@ -140,13 +143,51 @@ function makeSearchRecentItem(result: SearchResult, selfUUID: string): Omit<Rece
   }
 }
 
-// A source is a category, so each has a fixed hue.
+/**
+ * The area a command opens (lib/areas, design v3.1): its glyph sits on a tile
+ * in that area's hue, as the site marks the area. A command that opens no
+ * area (Home, the inbox, search, settings, templates, teams) keeps its plain
+ * ink glyph, because colour names an area.
+ */
+export const COMMAND_AREA: Partial<Record<string, Area>> = {
+  "nav-dms": "chat",
+  "create-channel": "chat",
+  "create-dm": "chat",
+  "nav-recordings": "calls",
+  "start-instant-meeting": "calls",
+  "nav-docs": "docs",
+  "create-doc": "docs",
+  "nav-tasks": "projects",
+  "nav-projects": "projects",
+  "nav-workload": "projects",
+  "nav-goals": "projects",
+  "nav-reports": "projects",
+  "create-task": "projects",
+  "create-project": "projects",
+  "nav-calendar": "calendar",
+  "create-event": "calendar",
+  "ai-ask": "agents",
+  "ai-memory": "agents",
+  "ai-extract-tasks": "agents",
+  agents: "agents",
+  "my-assistants": "agents",
+}
+
+/** A command's mark: on its area's tile when it opens an area, else bare. */
+function commandMark(id: string, icon: React.ReactNode): React.ReactNode {
+  const area = COMMAND_AREA[id]
+  return area ? <Tile hue={areaHue(area)} size="sm" data-hue={areaHue(area)}>{icon}</Tile> : icon
+}
+
+// A source's tile (lib/areas, v3.1): memory is the agents' own, so it wears
+// their indigo; a connector (Gmail, GitHub, the rest) names no area of
+// OneCamp, so its tile is neutral ink.
 function aiSourceIcon(source: UnifiedSource) {
   switch (source) {
-    case "memory": return <Tile hue="dusk" size="sm"><Brain /></Tile>
-    case "gmail": return <Tile hue="berry" size="sm"><Mail /></Tile>
-    case "github": return <Tile hue="sky" size="sm"><Github /></Tile>
-    default: return <Tile hue="lake" size="sm"><Sparkles /></Tile>
+    case "memory": return <Tile hue={areaHue("agents")} size="sm"><Brain /></Tile>
+    case "gmail": return <Tile hue="ink" size="sm"><Mail /></Tile>
+    case "github": return <Tile hue="ink" size="sm"><Github /></Tile>
+    default: return <Tile hue="ink" size="sm"><Sparkles /></Tile>
   }
 }
 
@@ -172,6 +213,8 @@ export function CommandPalette() {
   const pathname = usePathname()
   const dispatch = useDispatch()
   const recentItems = useSelector((state: RootState) => state.recentItems?.items || NO_RECENT)
+  const splitOn = useSelector(selectSplitOn)
+  const sideBySide = useSelector((state: RootState) => (state.split?.panes?.length ?? 0) > 0)
 
   const { data: selfProfile } = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const isAdmin = selfProfile?.data?.user_is_admin || false
@@ -783,6 +826,7 @@ export function CommandPalette() {
         keywords: ["split", "side by side", "pane", "beside", "multiple"],
         icon: <Columns2 className="h-4 w-4" />,
         group: "View",
+        split: true,
         action: () => splitRun({ type: "openHere" }),
       },
       {
@@ -791,7 +835,35 @@ export function CommandPalette() {
         keywords: ["focus", "maximize", "zen", "one view", "split"],
         icon: <Maximize2 className="h-4 w-4" />,
         group: "View",
+        split: true,
         action: () => splitRun({ type: "focus" }),
+      },
+      {
+        id: "view-move-left",
+        label: "Move this view left",
+        keywords: ["move", "rearrange", "reorder", "left", "split", "side by side", "pane"],
+        icon: <ArrowLeft className="h-4 w-4" />,
+        group: "View",
+        split: "views",
+        action: () => splitRun({ type: "move", by: -1 }),
+      },
+      {
+        id: "view-move-right",
+        label: "Move this view right",
+        keywords: ["move", "rearrange", "reorder", "right", "split", "side by side", "pane"],
+        icon: <ArrowRight className="h-4 w-4" />,
+        group: "View",
+        split: "views",
+        action: () => splitRun({ type: "move", by: 1 }),
+      },
+      {
+        id: "view-even-out",
+        label: "Even out the views' widths",
+        keywords: ["even", "equal", "widths", "resize", "split", "side by side", "pane"],
+        icon: <Columns3 className="h-4 w-4" />,
+        group: "View",
+        split: "views",
+        action: () => splitRun({ type: "even" }),
       },
       {
         id: "view-full-screen",
@@ -833,13 +905,15 @@ export function CommandPalette() {
 
     return base.filter((cmd) => {
       if (cmd.adminOnly && !isAdmin) return false
+      if (cmd.split && !splitOn) return false
+      if (cmd.split === "views" && !sideBySide) return false
       if (cmd.capabilityKey && !can(cmd.capabilityKey)) return false
       // Fails closed, like every other feature gate: an absent key, an explicit false
       // and a config request still in flight all mean "do not offer it".
       if (cmd.featureKey && features?.[cmd.featureKey] !== true) return false
       return true
     })
-  }, [router, dispatch, isAdmin, can, features, pathname, splitRun])
+  }, [router, dispatch, isAdmin, can, features, pathname, splitRun, splitOn, sideBySide])
 
   // The open doc's own actions (its page lists them: Version history, Full
   // width, Export…), asked for as the palette opens, found by typing.
@@ -892,9 +966,9 @@ export function CommandPalette() {
     const byId = (id: string) => commands.find((c) => c.id === id)
     const rows: { id: string; label: string; icon: React.ReactNode; run: () => void; keys?: string }[] = []
     const dm = byId("create-dm")
-    if (dm) rows.push({ id: dm.id, label: "New message", icon: <MessageSquarePlus className="h-4 w-4" />, run: () => runCommand(dm.action) })
+    if (dm) rows.push({ id: dm.id, label: "New message", icon: commandMark(dm.id, <MessageSquarePlus className="h-4 w-4" />), run: () => runCommand(dm.action) })
     const task = byId("create-task")
-    if (task) rows.push({ id: task.id, label: "New task", icon: <Plus className="h-4 w-4" />, run: () => runCommand(task.action) })
+    if (task) rows.push({ id: task.id, label: "New task", icon: commandMark(task.id, <Plus className="h-4 w-4" />), run: () => runCommand(task.action) })
     rows.push({ id: "page-pause", label: "Pause notifications…", icon: <BellOff className="h-4 w-4" />, run: () => pushPage("pause") })
     const invite = byId("invite-people")
     if (invite) rows.push({ id: invite.id, label: invite.label, icon: <UserPlus className="h-4 w-4" />, run: () => runCommand(invite.action) })
@@ -912,7 +986,7 @@ export function CommandPalette() {
           key={cmd.id}
           value={`cmd-${cmd.id}`}
           onSelect={() => (cmd.page ? pushPage(cmd.page) : runCommand(cmd.action))}
-          icon={cmd.icon}
+          icon={commandMark(cmd.id, cmd.icon)}
           label={highlight(cmd.label, query)}
           meta={cmd.group}
           keys={cmd.keys ?? commandKeys(cmd.id)}
@@ -1068,7 +1142,7 @@ export function CommandPalette() {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       const href = selectedRow()?.getAttribute("data-href")
-      const pane = href && !isPhone ? paneFromHref(href) : null
+      const pane = href && splitOn ? paneFromHref(href) : null
       if (pane) runCommand(() => dispatch(openInSplit(pane)))
       return
     }
@@ -1112,7 +1186,7 @@ export function CommandPalette() {
       <>
         <span><kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd> move</span>
         <span><kbd className="kbd">⏎</kbd> open</span>
-        <span><kbd className="kbd">{modKey}</kbd><kbd className="kbd">⏎</kbd> open beside</span>
+        {splitOn && <span><kbd className="kbd">{modKey}</kbd><kbd className="kbd">⏎</kbd> open beside</span>}
         <span className="ml-auto"><kbd className="kbd">Esc</kbd> close</span>
       </>
     )

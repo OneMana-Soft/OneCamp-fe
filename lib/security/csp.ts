@@ -40,7 +40,19 @@ interface CspOrigins {
     appUrl?: string
     /** Optional extra endpoints the app posts to, if set. */
     extraConnect?: (string | undefined)[]
+    /**
+     * Pages where a call can be on screen, whose effects run as WebAssembly
+     * (CALL_PAGES): they may compile it, and only they.
+     */
+    wasm?: boolean
 }
+
+/**
+ * The pages a call can be on screen in: the signed-in app, since a call opens
+ * beside any of its pages (split view), and a guest's meeting page. Only
+ * these get 'wasm-unsafe-eval' (next.config.ts), for the call effects.
+ */
+export const CALL_PAGES = ["/app/:path*", "/guest/m/:path*"] as const
 
 /**
  * Origins for one configured URL: the http(s) origin and its websocket twin.
@@ -139,7 +151,11 @@ export function buildCsp(origins: CspOrigins): string {
 
         // 'unsafe-inline' is required by Next.js's bootstrap while there is no
         // nonce. See the note at the top: this is the known weak point.
-        "script-src": ["'self'", "'unsafe-inline'"],
+        // 'wasm-unsafe-eval', on the pages a call can be on (CALL_PAGES) only,
+        // lets them compile WebAssembly and nothing else (no eval of script):
+        // a call's background effects and strong noise reduction run as
+        // WebAssembly this server serves (lib/calls/processors).
+        "script-src": ["'self'", "'unsafe-inline'", ...(origins.wasm ? ["'wasm-unsafe-eval'"] : [])],
 
         // Tailwind and Tiptap both write inline styles at runtime.
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -202,8 +218,9 @@ export function reportingEndpointsFromEnv(): string {
 }
 
 /** Build the policy from process.env. Kept separate so buildCsp stays pure. */
-export function cspFromEnv(): string {
+export function cspFromEnv(opts: { wasm?: boolean } = {}): string {
     return buildCsp({
+        wasm: opts.wasm,
         backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL,
         // Not a variable of its own in most installs: derived from the backend
         // host by convention, so a stock deployment needs no extra setting.

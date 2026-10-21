@@ -16,7 +16,7 @@ import type { UnifiedActivityItem } from "@/types/activity"
 import type { UserProfileDataInterface } from "@/types/user"
 import type { KindBadgeKind } from "@/components/ui/kindBadge"
 import { clockTime } from "@/lib/utils/date/clock"
-import { noticeBadge, noticeWords } from "@/lib/activity/notice"
+import { levelWord, noticeBadge, noticeHref, noticeWords, UNOPENED_PLACE } from "@/lib/activity/notice"
 
 export type ActivityType = UnifiedActivityItem["activity_type"]
 
@@ -127,8 +127,11 @@ export interface FeedEntry {
   item: UnifiedActivityItem
   /** Everyone else in a collapsed row, newest first. */
   others: UnifiedActivityItem[]
-  /** "reactions" for reactions to one message, "mentions" for repeated mentions in one thread. */
-  collapsed?: "reactions" | "mentions"
+  /**
+   * "reactions" for reactions to one message, "mentions" for repeated
+   * mentions in one thread, "shares" for one person's docs shared with you.
+   */
+  collapsed?: "reactions" | "mentions" | "shares"
 }
 
 const DAY_MS = 86_400_000
@@ -146,19 +149,43 @@ function mentionThread(item: UnifiedActivityItem): string {
   return thread && by ? `${thread}|${by}` : ""
 }
 
+/** Who shared a doc with you, for a share notice (its sentence's actor); "" for anything else. */
+function sharer(item: UnifiedActivityItem): string {
+  const n = item.notice
+  if (item.activity_type !== "NOTICE" || n?.kind !== "doc.shared") return ""
+  return (n.agent ?? n.actor)?.user_uuid ?? ""
+}
+
 /**
  * Collapses, newest first:
  *   - reactions to one message within 24 hours of the newest: "Maya Chen and 2
  *     others reacted to your message in #design";
  *   - one person's mentions of you in one thread: "Jonas Weber mentioned you 3
- *     times in #engineering".
+ *     times in #engineering";
+ *   - one person's docs shared with you within 24 hours of the newest: "Jonas
+ *     Weber shared 6 docs with you" (STEP4 #6: the demo's Inbox was twelve
+ *     rows saying the same thing).
  * Everything else is its own row. `keyOf` names an item (activityKey).
  */
 export function aggregate(items: UnifiedActivityItem[], keyOf: (item: UnifiedActivityItem) => string): FeedEntry[] {
   const out: FeedEntry[] = []
   const reactionRow = new Map<string, FeedEntry>()
   const mentionRow = new Map<string, FeedEntry>()
+  const shareRow = new Map<string, FeedEntry>()
   for (const item of items) {
+    const by = sharer(item)
+    if (by) {
+      const row = shareRow.get(by)
+      if (row && Math.abs(Date.parse(row.item.time) - Date.parse(item.time)) <= DAY_MS) {
+        row.others.push(item)
+        row.collapsed = "shares"
+        continue
+      }
+      const entry: FeedEntry = { key: keyOf(item), item, others: [] }
+      shareRow.set(by, entry)
+      out.push(entry)
+      continue
+    }
     if (item.activity_type === "REACTION") {
       const target = reactionTarget(item)
       const row = target ? reactionRow.get(target) : undefined
@@ -194,6 +221,43 @@ export function aggregate(items: UnifiedActivityItem[], keyOf: (item: UnifiedAct
 export function collapsedVerb(entry: FeedEntry): string | null {
   if (entry.collapsed === "mentions") return `mentioned you ${entry.others.length + 1} times in`
   return null
+}
+
+/** A doc in a fold of shares: its name, where it opens (null when the reader can't open it now), and what they can do there. */
+export interface SharedDoc {
+  key: string
+  title: string
+  href: string | null
+  level: string
+}
+
+/** The docs a fold of shares holds, newest first. Pure. */
+export function sharedDocs(entry: FeedEntry, keyOf: (item: UnifiedActivityItem) => string): SharedDoc[] {
+  return [entry.item, ...entry.others].map((item) => {
+    const n = item.notice
+    const open = !!n?.can_open
+    return {
+      key: keyOf(item),
+      title: open ? n?.title || "Untitled" : UNOPENED_PLACE,
+      href: open ? noticeHref(n) : null,
+      level: levelWord(n?.data?.level),
+    }
+  })
+}
+
+/**
+ * A fold of shares in words: the sentence's object ("6 docs", read as
+ * "Jonas Weber shared 6 docs with you") and the line under it, the first
+ * three names the reader can open and how many more. Pure.
+ */
+export function sharesWords(entry: FeedEntry): { place: string; preview: string } {
+  const all = [entry.item, ...entry.others]
+  const names = all.flatMap((i) => (i.notice?.can_open ? [i.notice.title || "Untitled"] : []))
+  const shown = names.slice(0, 3)
+  const rest = all.length - shown.length
+  const preview =
+    shown.length === 0 ? "" : rest > 0 ? `${shown.join(", ")} and ${rest} more` : shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`
+  return { place: `${all.length} docs`, preview }
 }
 
 /** Distinct other people in a collapsed reactions row. */

@@ -11,7 +11,7 @@ import { shiftedPatches, type ShiftedTask } from "@/lib/timeline"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { weeksLater, workloadKey, type Measure, type WorkloadData, type WorkloadPerson, type WorkloadTask } from "@/lib/workload"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { ProjectsPost } from "@/services/endpoints/projects"
 
 /**
  * The workload across the reader's projects, in their own weeks, and what can
@@ -35,7 +35,7 @@ export function useWorkload() {
         const res = await axiosInstance.post<{
           data?: { shifted?: ShiftedTask[] }
         }>(
-          PostEndpointUrl.UpdateTaskDates,
+          ProjectsPost.UpdateTaskDates,
           {
             task_uuid: t.task_uuid,
             ...dates,
@@ -93,7 +93,7 @@ export function useWorkload() {
       )
       try {
         await axiosInstance.post(
-          PostEndpointUrl.SetWorkloadCapacity,
+          ProjectsPost.SetWorkloadCapacity,
           { user_uuid: p.user_uuid, [hours ? "hours_per_week" : "tasks_per_week"]: value ?? 0 },
           OWN_ERRORS,
         )

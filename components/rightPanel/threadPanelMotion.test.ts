@@ -13,7 +13,13 @@ describe("the thread panel", () => {
     expect(src).toMatch(/<div key=\{threadKey\} data-right-panel-thread="" className="flex h-full flex-col bg-panel animate-panel-in">/)
     expect(src).not.toMatch(/transition-\[width|transition-all/)
     expect(src).toMatch(/<MessageContent\n\s+root/)
-    expect(src).toMatch(/variant="chat"\n\s+compact/)
+    // Its reply box is every thread's one (components/conversation/ThreadReplyBox).
+    expect(src).toMatch(/<ThreadReplyBox kind="(channel|dm|group)"/)
+  })
+
+  it("writes replies in the chat composer at its compact size", () => {
+    const box = readFileSync("components/conversation/ThreadReplyBox.tsx", "utf8")
+    expect(box).toMatch(/variant="chat"\n\s+compact/)
   })
 
   it("staggers the first six replies 40 ms apart, and lets a later one rise in", () => {

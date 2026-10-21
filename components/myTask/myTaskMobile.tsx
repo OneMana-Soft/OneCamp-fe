@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react";
+import {useMemo, useState, useEffect} from "react";
 import {SearchField} from "@/components/search/searchField";
 import {debounceUtil} from "@/lib/utils/helpers/debounce";
 import {MyTaskList} from "@/components/myTask/myTaskList";
@@ -14,6 +14,9 @@ export const MyTaskMobile = ()=>{
             }, 500),
         []
     )
+
+
+    useEffect(() => debouncedSearch.cancel, [debouncedSearch])
 
     const handleSearchStringChange = (chName: string) => {
         setInputValue(chName);

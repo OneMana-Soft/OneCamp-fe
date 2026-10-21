@@ -34,7 +34,7 @@ test("Chat on a call's own page opens the channel beside the call, and closes it
   const stageEl = await stage.elementHandle()
 
   await chat.click()
-  const beside = page.getByRole("region", { name: "Channel, side by side" })
+  const beside = page.getByRole("region", { name: /^Channel, view \d of \d$/ })
   await expect(beside).toBeVisible()
   await expect(chat).toHaveAttribute("aria-pressed", "true")
   // The same call, not a new one: the green room didn't come back, and the

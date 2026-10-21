@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import type { DocTab } from "@/lib/utils/docTab"
 import type { DocListItem } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
+import { areaHue } from "@/lib/areas"
 
 // The archive's rows load with the Archived tab: most visits never open it.
 const RestoreRow = React.lazy(() => import("@/components/doc/RestoreRow").then((m) => ({ default: m.RestoreRow })))
@@ -108,7 +109,7 @@ export function DocListResult({
         if (tab === "workspace") return <DocsEmpty space="workspace" title={EMPTY.workspace.title} description={EMPTY.workspace.description} />
         return (
             <EmptyState
-                illustration={tab === "shared" ? <SpotInbox hue="lake" /> : <SpotDocs hue="sky" />}
+                illustration={tab === "shared" ? <SpotInbox hue={areaHue("docs")} /> : <SpotDocs hue={areaHue("docs")} />}
                 title={EMPTY[tab].title}
                 description={EMPTY[tab].description}
                 className="pt-10"
@@ -238,7 +239,7 @@ function DocsEmpty({ space, title = EMPTY.mine.title, description = EMPTY.mine.d
     return (
         <div data-docs-empty="" className="mx-auto flex w-full max-w-[520px] flex-col items-center px-6 pt-12 text-center max-sm:min-h-[60dvh] max-sm:justify-center">
             <span data-empty-illustration="">
-                <SpotDocs size={96} hue="sky" />
+                <SpotDocs size={96} hue={areaHue("docs")} />
             </span>
             <h3 className="mt-4 text-heading text-ink">{title}</h3>
             <p className="mt-1 text-ui text-ink-2">{description}</p>

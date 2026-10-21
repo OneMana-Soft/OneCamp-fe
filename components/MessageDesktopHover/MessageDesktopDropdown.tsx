@@ -14,7 +14,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { AlarmClock, Bell, Copy, Forward, Languages, Link, ListTodo, MoreHorizontal, Pencil, Reply, Trash2 } from "@/lib/icons"
+import { AlarmClock, Copy, Forward, Languages, Link, ListTodo, MoreHorizontal, Pencil, Reply, Trash2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ACTION_TIP_END } from "@/components/MessageDesktopHover/actionTip"
 import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
@@ -26,7 +26,8 @@ import { DeleteConfirm } from "@/components/message/deleteConfirm"
 
 interface MessageDesktopDropdownProps {
     setIsDropdownOpen: (open: boolean) => void
-    getReplyNotification?: () => void
+    /** Follow or unfollow the message's thread (components/conversation FollowMenuItem). */
+    followSlot?: ReactNode
     /** Opens the task form drafted from this message. */
     onMakeTask?: () => void
     /** Arms the composer to reply to this message, quoting it. */
@@ -41,6 +42,10 @@ interface MessageDesktopDropdownProps {
     messageText?: string
     /** Save to memory, drawn by the AI module where it is available. */
     memorySlot?: ReactNode
+    /** Pin or unpin, drawn where the message is in a conversation (components/conversation/pins). */
+    pinSlot?: ReactNode
+    /** Mark unread from here, where the message is in a conversation (components/conversation MarkUnreadMenuItem). */
+    unreadSlot?: ReactNode
     editMessage: () => void
     isAdmin?: boolean
     isOwner: boolean
@@ -90,7 +95,7 @@ export default function MessageDesktopDropdown({
     isOwner,
     isAdmin,
     setIsDropdownOpen,
-    getReplyNotification,
+    followSlot,
     onMakeTask,
     onReply,
     onForward,
@@ -99,6 +104,8 @@ export default function MessageDesktopDropdown({
     laterTarget,
     messageText,
     memorySlot,
+    pinSlot,
+    unreadSlot,
     editMessage,
     deleteMessage,
     triggerClassName,
@@ -115,7 +122,7 @@ export default function MessageDesktopDropdown({
     }
 
     const answering = Boolean(onReply || onForward || link)
-    const keeping = Boolean(onMakeTask || laterTarget || memorySlot || onTranslate || messageText)
+    const keeping = Boolean(onMakeTask || laterTarget || memorySlot || pinSlot || unreadSlot || onTranslate || messageText)
 
     return (
         <DropdownMenu
@@ -161,6 +168,8 @@ export default function MessageDesktopDropdown({
                             </DropdownMenuItem>
                         )}
                         {laterTarget && <RemindMeItems target={laterTarget} />}
+                        {pinSlot}
+                        {unreadSlot}
                         {memorySlot}
                         {onTranslate && (
                             <DropdownMenuItem onSelect={onTranslate}>
@@ -174,15 +183,13 @@ export default function MessageDesktopDropdown({
                         )}
                     </DropdownMenuGroup>
                 )}
-                {getReplyNotification && (
+                {followSlot && (
                     <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={getReplyNotification}>
-                            <Bell className={ITEM_ICON} aria-hidden="true" /> Get notified about replies
-                        </DropdownMenuItem>
+                        {followSlot}
                     </>
                 )}
-                {(isOwner || canDelete) && (answering || keeping || getReplyNotification) && <DropdownMenuSeparator />}
+                {(isOwner || canDelete) && (answering || keeping || followSlot) && <DropdownMenuSeparator />}
                 {isOwner && (
                     <DropdownMenuItem onSelect={editMessage}>
                         <Pencil className={ITEM_ICON} aria-hidden="true" /> Edit message

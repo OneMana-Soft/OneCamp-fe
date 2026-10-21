@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type CSSProperties } from "react"
+import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 
@@ -19,10 +19,15 @@ const revealed = new Set<string>()
 
 export type GrowMode = "animate" | "instant"
 
+type BarGrow = { "data-grown": GrowMode; style?: CSSProperties }
+
+/** The one flag every bar drawn at its size takes: the same object, so a memoised bar keeps its render. */
+const INSTANT: BarGrow = Object.freeze({ "data-grown": "instant" as const })
+
 export interface Grow {
   mode: GrowMode
   /** Props for the nth bar: its data-grown flag and, when animating, its animation. */
-  bar: (index: number, axis?: "x" | "y", origin?: string) => { "data-grown": GrowMode; style?: CSSProperties }
+  bar: (index: number, axis?: "x" | "y", origin?: string) => BarGrow
 }
 
 const GROW_MS = 320
@@ -55,10 +60,21 @@ export function useGrow(key: string, ready = true, stagger = STAGGER_MS): Grow {
     }
   }, [key, ready, mode])
   const m: GrowMode = mode ?? (ready && !revealed.has(key) && !prefersReducedMotion() ? "animate" : "instant")
+  // Each bar's props are the same object from render to render (F-1 #4): a new
+  // one on every render made every memoised bar draw again on every scroll.
+  const animated = useRef(new Map<string, BarGrow>())
   return {
     mode: m,
-    bar: (index, axis = "x", origin) =>
-      m === "animate" ? { "data-grown": "animate", style: growStyle(index, axis, origin, stagger) } : { "data-grown": "instant" },
+    bar: (index, axis = "x", origin) => {
+      if (m !== "animate") return INSTANT
+      const k = `${index}|${axis}|${origin ?? ""}|${stagger}`
+      let props = animated.current.get(k)
+      if (!props) {
+        props = { "data-grown": "animate", style: growStyle(index, axis, origin, stagger) }
+        animated.current.set(k, props)
+      }
+      return props
+    },
   }
 }
 

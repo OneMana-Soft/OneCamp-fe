@@ -18,7 +18,8 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetchOnlyOnce: () => ({ data: undefined, isLoading: false, mutate }),
 }))
 const post = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a), get: vi.fn() } }))
+const get = vi.fn()
+vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a), get: (...a: unknown[]) => get(...a) } }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 const media = { isMobile: false, isTablet: false, isDesktop: true }
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => media }))
@@ -26,6 +27,7 @@ const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ toast: (...a: unknown[]) => toast(...a), useToast: () => ({ toast }) }))
 
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { SCREENS, putOnScreen } from "@/lib/testing/screens"
 import HistorySheet from "./HistorySheet"
 import { forgetMadeVersions } from "./preview/materialize"
 import { versionBodyKey, versionsKey } from "./versions"
@@ -61,6 +63,7 @@ beforeAll(async () => {
   await import("./diff")
 })
 
+let onScreen = () => {}
 beforeEach(() => {
   media.isMobile = false
   answer([V2, V1], {
@@ -71,8 +74,11 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  onScreen()
+  onScreen = () => {}
   answers.clear()
   post.mockReset()
+  get.mockReset()
   toast.mockReset()
   mutate.mockClear()
   forgetMadeVersions()
@@ -230,6 +236,7 @@ describe("version history", () => {
 
   it("is a sheet on a phone: the list, then a version with Restore at its foot", async () => {
     media.isMobile = true
+    onScreen = putOnScreen(SCREENS["a phone in portrait"])
     sheet()
     const rail = await screen.findByRole("listbox", { name: "Versions" })
     fireEvent.click(within(rail).getAllByRole("option")[1])
@@ -238,6 +245,28 @@ describe("version history", () => {
     expect(document.querySelector("[data-restore-version]")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Versions" }))
     expect(await screen.findByRole("listbox", { name: "Versions" })).toBeTruthy()
+  })
+
+  // ONE SHEET RULE (20 Oct 2026): a phone held sideways (844px, so isMobile
+  // said no) got the full-screen dialog, 342px tall, and Save version's
+  // popover. Both are sheets now (useSheetMode), each action in its footer.
+  it("is a sheet on a phone held sideways, Restore and Save version's Save pinned in footers", async () => {
+    onScreen = putOnScreen(SCREENS["a phone in landscape"])
+    sheet()
+    const rail = await screen.findByRole("listbox", { name: "Versions" })
+    expect(document.querySelector("[data-history-sheet]")?.hasAttribute("data-v3-sheet")).toBe(true)
+    fireEvent.click(within(rail).getAllByRole("option")[1])
+    await screen.findByText("We ship on Thursday")
+    expect(document.querySelector("[data-restore-version]")?.closest("[data-sheet-footer]")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Versions" }))
+    await screen.findByRole("listbox", { name: "Versions" })
+    fireEvent.click(screen.getByRole("button", { name: "Save version" }))
+    const save = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>("[data-save-version-sheet]")
+      expect(el?.hasAttribute("data-v3-sheet")).toBe(true)
+      return el!
+    })
+    expect(within(save).getByRole("button", { name: "Save version" }).closest("[data-sheet-footer]")).toBeTruthy()
   })
 })
 
@@ -258,5 +287,39 @@ describe("Esc in a version's name", () => {
     expect(screen.getByText("We ship on Friday")).toBeTruthy()
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe("a long history (H1)", () => {
+  it("loads earlier versions a page at a time", async () => {
+    const V0 = { id: "v0", kind: "doc", pinned: false, reason: "idle", created_at: today(8, 0), contributors: [{ user_uuid: "maya" }] }
+    answers.set(versionsKey(DOC), { data: { versions: [V2, V1], people: { maya: { name: "Maya Chen" }, sam: { name: "Sam Rivera" }, rc: { name: "Release Captain" } }, next: V1.created_at } })
+    get.mockResolvedValueOnce({ data: { data: { versions: [V0], people: { maya: { name: "Maya Chen" } } } } })
+    sheet()
+    const rail = await screen.findByRole("listbox", { name: "Versions" })
+    expect(within(rail).getAllByRole("option")).toHaveLength(2)
+    fireEvent.click(screen.getByRole("button", { name: "Show earlier versions" }))
+    await waitFor(() => expect(within(rail).getAllByRole("option")).toHaveLength(3))
+    expect(get).toHaveBeenCalledWith(versionsKey(DOC, V1.created_at), expect.anything())
+    // The last page: no more to ask for.
+    expect(screen.queryByRole("button", { name: "Show earlier versions" })).toBeNull()
+  })
+
+  it("steps with ← and →, and replays oldest to newest", async () => {
+    sheet()
+    const title = () => document.querySelector("[data-version-title]")?.textContent
+    await waitFor(() => expect(title()).toBeTruthy())
+    const newest = title()
+    const dialog = document.querySelector("[data-history-sheet]") as HTMLElement
+    fireEvent.keyDown(dialog, { key: "ArrowLeft" })
+    await waitFor(() => expect(title()).toBe("Sent to Acme"))
+    fireEvent.keyDown(dialog, { key: "ArrowRight" })
+    await waitFor(() => expect(title()).toBe(newest))
+    fireEvent.click(screen.getByRole("button", { name: "Replay" }))
+    expect(screen.getByRole("button", { name: "Replay" }).getAttribute("aria-pressed")).toBe("true")
+    await waitFor(() => expect(title()).toBe("Sent to Acme"))
+    await waitFor(() => expect(title()).toBe(newest), { timeout: 5000 })
+    // At the newest, the replay ends by itself.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Replay" }).getAttribute("aria-pressed")).toBe("false"))
   })
 })

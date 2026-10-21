@@ -1,14 +1,15 @@
-import { useOpenBeside } from "@/hooks/useSplitView";
+import { useOpenBeside } from "@/hooks/useOpenBeside";
 import { dmComposerPlaceholder } from "@/lib/utils/composerPlaceholders";
+import { PinnedMenuItem } from "@/components/conversation/pins/PinnedMenuItem";
+import { dmWith } from "@/lib/conversation/route";
 import { PRESENCE_WORDS, presenceOf } from "@/lib/presence";
 import { searchWithinHref } from "@/lib/search/within";
 import { displayNameOf } from "@/lib/personName";
-import { useMedia } from "@/context/MediaQueryContext";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import { HeldNotificationsBar } from "@/components/messages/heldNotificationsBar";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl } from "@/services/endPoints";
 import { HEADER_ICON, HuddleBanner, HuddleButton, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
 import { ChatFace } from "@/components/message/chatFace";
 import { WithTooltip } from "@/components/common/withTooltip";
@@ -58,8 +59,8 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
 
     const chatCallHref = `${app_chat_call}/${chatId}`;
     // A call opens beside the conversation, so it stays in view.
-    const { isMobile } = useMedia();
-    const openBeside = useOpenBeside(!isMobile);
+    // Where views can't sit side by side (a phone, a tablet) it opens the call's page.
+    const openBeside = useOpenBeside();
     const chatRecordingHref = `/app/chat/${chatId}/recording`;
     const isBotPeer = otherUserInfo.data?.data?.is_bot === true;
 
@@ -155,6 +156,10 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                                     <Users className="text-ink-3" aria-hidden="true" /> Details
                                 </DropdownMenuItem>
                             )}
+                            <PinnedMenuItem
+                                conversation={dmWith(chatId, selfProfile.data?.data?.user_uuid)}
+                                onOpen={() => dispatch(openUI({ key: 'editDmMember', data: { grpId: getGroupingId(selfProfile.data!.data.user_uuid, chatId), kind: 'dm' } }))}
+                            />
                             <DropdownMenuItem asChild>
                                 <Link href={chatRecordingHref}><Clapperboard className="text-ink-3" aria-hidden="true" /> Recordings</Link>
                             </DropdownMenuItem>

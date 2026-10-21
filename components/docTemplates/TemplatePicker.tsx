@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { Tile } from "@/components/ui/graphics"
-import { useMedia } from "@/context/MediaQueryContext"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { BUILTIN_DOC_TEMPLATES, templateGlyph, templateHue } from "@/lib/docTemplates"
@@ -124,7 +124,8 @@ function Preview({ t }: { t: PickerTemplate }) {
 }
 
 export default function TemplatePicker({ mode, onClose }: { mode: PickerMode; onClose: () => void }) {
-  const { isMobile } = useMedia()
+  // A sheet on a phone, held either way (components/ui/overlayMode).
+  const sheet = useSheetMode()
   const { data, isError, mutate } = useFetch<{ data: MarketplaceTemplate[] }>(docTemplatesKey, undefined, { revalidateOnFocus: false }, OWN_ERRORS)
   const all = React.useMemo(() => pickerTemplates(data?.data), [data])
   const [text, setText] = React.useState("")
@@ -179,7 +180,7 @@ export default function TemplatePicker({ mode, onClose }: { mode: PickerMode; on
     <label className="flex h-9 items-center gap-2 rounded-lg bg-raised px-2.5 text-ink-3 shadow-e1 focus-within:focus-halo">
       <Search className="size-3.5 shrink-0" aria-hidden="true" />
       <input
-        autoFocus={!isMobile}
+        autoFocus={!sheet}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
@@ -260,7 +261,7 @@ export default function TemplatePicker({ mode, onClose }: { mode: PickerMode; on
     </p>
   )
 
-  if (isMobile) {
+  if (sheet) {
     return (
       <Drawer detent="large" open onOpenChange={(o) => !o && onClose()}>
         <DrawerContent data-template-picker="" className="flex flex-col">

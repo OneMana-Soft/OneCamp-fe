@@ -37,7 +37,7 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useFetch } from "@/hooks/useFetch"
 import { relativeTime } from "@/lib/utils/relativeTime"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 
 interface WebhookHealth {
   completed_24h: number
@@ -71,7 +71,7 @@ const GitHubWebhookHealth: React.FC = () => {
   // refreshWhenHidden / refreshWhenOffline defaults (false) mean a
   // forgotten admin tab does not keep this firing.
   const { data, isLoading, isError, mutate } = useFetch<HealthResp>(
-    GetEndpointUrl.GetGitHubWebhookHealth,
+    AdminGet.GetGitHubWebhookHealth,
     undefined,
     { refreshInterval: 60_000 }
   )

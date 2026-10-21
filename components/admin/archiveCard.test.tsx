@@ -8,7 +8,7 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => ({ ...(answers[url] ?? { data: undefined }), mutate: refetch }),
 }))
 vi.mock("@/hooks/useResilientPolling", () => ({ useResilientPolling: () => {} }))
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
+vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<object>()), useMqtt: () => ({ connectionState: { isConnected: true } }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 const post = vi.fn()
 const put = vi.fn()

@@ -32,7 +32,6 @@ const NON_PERSON_HUE = new Set([
   "lib/campHue.ts", // the hash itself
   "lib/utils/getAvatarColor.ts", // the person functions, built on it
   "lib/projectHue.ts", // projects: their own hue, shared out among the reader's
-  "lib/destinationHue.ts", // places
   "lib/tags.ts", // tags
   "components/ui/graphics/IdentityMark.tsx", // the mark, keyed by its caller
   "components/ui/chip.tsx", // option and tag chips

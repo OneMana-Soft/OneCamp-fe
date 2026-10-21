@@ -12,6 +12,7 @@ import { Calendar, Check } from "@/lib/icons"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PeoplePost } from "@/services/endpoints/people"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useThemeConfig, VALID_COLOR_THEMES } from "@/components/activeTheme/activeTheme"
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection"
@@ -220,7 +221,7 @@ function ConnectedCalendarSection() {
   const toggleSync = async (enabled: boolean) => {
     setProblem("")
     setStatus((prev) => (prev && prev !== "failed" ? { ...prev, taskSyncEnabled: enabled } : prev))
-    const held = await sync.run(() => axiosInstance.post(PostEndpointUrl.UpdateGoogleCalendarSyncTask, { enabled }, OWN_ERRORS))
+    const held = await sync.run(() => axiosInstance.post(PeoplePost.UpdateGoogleCalendarSyncTask, { enabled }, OWN_ERRORS))
     if (!held) setStatus((prev) => (prev && prev !== "failed" ? { ...prev, taskSyncEnabled: !enabled } : prev))
   }
 

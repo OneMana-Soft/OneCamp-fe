@@ -1,6 +1,7 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance";
 import { appMutate } from "@/lib/swrMutate";
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { ChatPost } from "@/services/endpoints/chat";
 import { clearChannelUnread } from "@/services/unreadCache";
 
 /**
@@ -23,7 +24,7 @@ export async function markChannelSeen(channelId: string): Promise<void> {
     if (!channelId) return;
     try {
         await axiosInstance.post(
-            `${PostEndpointUrl.MarkChannelSeen}/${channelId}`,
+            `${ChatPost.MarkChannelSeen}/${channelId}`,
             undefined,
             {
                 // @ts-expect-error — suppress the global loading bar for this
@@ -51,6 +52,6 @@ export async function markChannelSeen(channelId: string): Promise<void> {
  */
 export async function restoreChannel(channelId: string): Promise<void> {
     // Each place that restores says what failed, in its own words.
-    await axiosInstance.post(PostEndpointUrl.RestoreChannel, { channel_uuid: channelId }, OWN_ERRORS);
+    await axiosInstance.post(ChatPost.RestoreChannel, { channel_uuid: channelId }, OWN_ERRORS);
     void appMutate(GetEndpointUrl.SelfProfileSideNav);
 }

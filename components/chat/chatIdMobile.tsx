@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "@/store/store";
 import { UserProfileInterface } from "@/types/user";
 import { GetEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import { clearChatReplyTarget } from "@/store/slice/chatSlice";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";

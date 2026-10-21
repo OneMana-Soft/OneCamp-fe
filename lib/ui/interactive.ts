@@ -1,6 +1,6 @@
 import { Children, createElement, type ReactNode } from "react"
 
-import type { CampHue } from "@/lib/campHue"
+import type { MarkHue } from "@/components/ui/graphics/hues"
 
 /** The interaction layer's attributes (INTERACTION_SPEC §9.2): spread ix(kind) in place of state classes. */
 type IxKind =
@@ -8,7 +8,7 @@ type IxKind =
   | "field" | "toggle" | "cell" | "event" | "message" | "block" | "avatar" | "link"
 
 interface IxOptions {
-  hue?: CampHue | "agent"
+  hue?: MarkHue
   /** Only where no ARIA state fits. */
   selected?: boolean
   /** Focusable still (aria-disabled), with the reason in a tip. */

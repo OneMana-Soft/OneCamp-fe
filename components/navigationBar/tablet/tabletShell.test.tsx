@@ -195,25 +195,28 @@ describe("the shell under a finger", () => {
     expect(block).toMatch(/\[data-theme-swatch\]::after \{ content: ""; position: absolute; inset: -10px; \}/)
   })
 
-  it("keeps split view a pointer's: no split button under a finger, no split panes on a tablet", () => {
+  // Split view on a tablet (20 Oct 2026, split view's case 15): in landscape
+  // it follows the width rule like a computer; in portrait it is off, and
+  // views already open stay, one at a time, so a call beside survives a turn.
+  it("splits a tablet in landscape by the width rule, never in portrait, and keeps the sidebar's split button a pointer's", () => {
     expect(CSS).toMatch(/@media \(hover: none\) \{ \.shell-split-btn \{ display: none; \} \}/)
     const layout = readFileSync(join(root, "app/app/LayoutContent.tsx"), "utf8")
-    expect(layout).toMatch(/useSplitView\(!isMobile && !tablet\)/)
+    expect(layout).toMatch(/const splitOn = !isMobile && band !== "tablet-compact"/)
+    expect(layout).toMatch(/useSplitView\(splitOn\)/)
+    expect(layout).toMatch(/const fitNow = band === "tablet-compact" \? 1 :/)
   })
 
   it("opens the right panel over the page on a tablet and under 1100px, on a scrim that closes it", () => {
     const layout = readFileSync(join(root, "app/app/LayoutContent.tsx"), "utf8")
-    const overlay = layout.slice(layout.indexOf("const panelOverlay = "), layout.indexOf("if (tablet) {"))
+    const overlay = layout.slice(layout.indexOf("const panelOverlay = "), layout.indexOf("const viewProps = "))
     // The shared sheet over the page, its scrim closing it (components/ui/overlaySheet).
     expect(overlay).toMatch(/<OverlaySheet[\s\S]*?onClose=\{\(\) => dispatch\(closeRightPanel\(\)\)\}/)
     expect(overlay).toMatch(/shell-panel-over/)
-    // The tablet draws it over the page, never as a column.
-    const tabletBranch = layout.slice(layout.indexOf("if (tablet) {"), layout.indexOf("// Split view: two views share"))
-    expect(tabletBranch).toMatch(/\{panelOverlay\}/)
-    expect(tabletBranch).not.toMatch(/ResizablePanel/)
+    // A tablet draws it over the page, never as a column: its placement is
+    // always "over" (lib/ui/shellBand), and the column only comes beside.
     // A narrow window (chat critic: 1024 and 768): the column only when beside.
     expect(layout).toMatch(/const panelOver = usePanelPlacement\(\) === "over"/)
-    expect(layout).toMatch(/\{!panelOver && \(<>\s*<Seam\s+label="Resize the panel"/)
+    expect(layout).toMatch(/\{!panelOver && \(<>\s*<Seam\s+(?:order=\{\d+\}\s+)?label="Resize the panel"/)
     expect(layout).toMatch(/\{panelOver && panelOverlay\}/)
     expect(CSS).toMatch(/\.shell-panel-over \{[^}]*position: fixed;[^}]*width: min\(452px, calc\(100vw - 72px - 24px\)\);/)
   })

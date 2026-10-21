@@ -1,0 +1,65 @@
+Third-party files OneCamp serves for call effects (background blur and
+backgrounds, and strong noise reduction). They run in your browser; nothing
+you say or show is sent anywhere by them.
+
+1. MediaPipe Tasks Vision 0.10.14 (calls/vendor/tasks-vision@0.10.14/)
+   Copyright Google LLC. Licensed under the Apache License, Version 2.0
+   (LICENSE-APACHE-2.0.txt in this folder).
+   https://github.com/google-ai-edge/mediapipe
+
+2. MediaPipe Selfie Segmentation model, float16
+   (calls/models/selfie_segmenter-191ac952.tflite)
+   By Tingbo Hou, Siargey Pisarchyk and Karthik Raveendran, Google, 2021.
+   Licensed under the Apache License, Version 2.0 (LICENSE-APACHE-2.0.txt in
+   this folder), as its model card says:
+   https://storage.googleapis.com/mediapipe-assets/Model%20Card%20MediaPipe%20Selfie%20Segmentation.pdf
+   Downloaded on 17 October 2026 from
+   https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite
+   sha256 191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b
+
+3. web-noise-suppressor 0.4.1 (calls/vendor/web-noise-suppressor@0.4.1/)
+   Copyright (c) 2022 green. MIT License (LICENSE in that folder).
+   https://github.com/sapphi-red/web-noise-suppressor
+
+4. rnnoise-wasm, which builds RNNoise for the browser (inside 3's rnnoise.wasm
+   and rnnoise_simd.wasm)
+   Copyright 2021-2025, Takeru Ohta (Original Author)
+   Copyright 2021-2025, Shiguredo Inc.
+   Licensed under the Apache License, Version 2.0 (LICENSE-APACHE-2.0.txt in
+   this folder). https://github.com/shiguredo/rnnoise-wasm
+
+5. RNNoise (inside 3's rnnoise.wasm and rnnoise_simd.wasm)
+   https://github.com/xiph/rnnoise
+
+Copyright (c) 2007-2017, 2024 Jean-Marc Valin
+Copyright (c) 2023 Amazon
+Copyright (c) 2017, Mozilla
+Copyright (c) 2005-2017, Xiph.Org Foundation
+Copyright (c) 2003-2004, Mark Borgerding
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+- Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+
+- Neither the name of the Xiph.Org Foundation nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION
+OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

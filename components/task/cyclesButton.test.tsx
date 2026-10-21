@@ -92,7 +92,7 @@ describe("a project with no cycles", () => {
     render(<CyclesButton projectId="p" onShow={() => {}} />)
     fireEvent.click(screen.getByRole("button", { name: /Cycles/ }))
     const empty = document.querySelector("[data-cycles-empty]")!
-    expect(empty.querySelector("svg.hue-lake")).toBeTruthy()
+    expect(empty.querySelector("svg.hue-moss")).toBeTruthy()
     expect(empty.textContent).toContain("Cycles are short, fixed stretches of work")
     cycles = CYCLES
   })

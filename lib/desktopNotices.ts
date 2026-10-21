@@ -90,7 +90,7 @@ function screenNow() {
   const state = store.getState()
   const panel = state.rightPanel.rightPanelState
   return onScreenFrom(window.location.pathname, {
-    panes: state.split.panes,
+    panes: state.split?.panes ?? [],
     openThread: panel.isOpen ? panel.data.postUUID || panel.data.chatMessageUUID || null : null,
   })
 }

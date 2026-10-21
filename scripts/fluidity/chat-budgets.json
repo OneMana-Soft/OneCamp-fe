@@ -4,7 +4,8 @@
     "target is perf-mobile.md's first target (after A1 and A5), and owner the package that gets it there. measured is the first run, on 17 Oct 2026 (beta 7397fab2c with the shell diet): at 1x with the machine quiet (load 2 to 12), at 4x under load (46 to 53), which inflates the 4x times.",
     "Where a value is over target, max is that measure with room for a shared machine (about 25 to 30%, rounded); where it is under, max is the target. Renders hold at any CPU speed, so they gate on a busy machine where the times don't.",
     "The read-back pulls the way the list loads (CHAT-LEAD, 17 Oct): a real scroll event within 200 px of the top while the list isn't busy (aria-busy), nudged when already at the top. Six pulls fetch six older pages of 50 (350 rows).",
-    "Never raise a max to make a run pass. Lower it when a package brings a metric down, and to the target once the metric holds there."
+    "Never raise a max to make a run pass. Lower it when a package brings a metric down, and to the target once the metric holds there.",
+    "20 Oct 2026 (FLUIDITY-LEAD, fluid-04): a thread opened from the long channel and typed in. The long channel's messages show their threads (a reply row with faces on every ninth, 40 replies each); the five short channels the switches visit don't, so the switch budgets still compare with 17 Oct. heapMB is taken before the thread, as before."
   ],
   "network": { "rttMs": 150, "why": "As the doc budgets: the low end of the demo's time to first byte." },
   "budgets": {
@@ -67,6 +68,9 @@
       "max": 75,
       "target": 60,
       "measured": 65
-    }
+    },
+    "threadOpenMs": {"scenario": "chat", "owner": "A1", "source": "'N replies' clicked in the long channel until the thread panel draws its replies (40). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 489.0 at 1x on a computer. Times above load 16 are inflated: provisional until a quiet rerun. Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)", "cpu1": {"max": 640, "target": 100, "measured": 489.0}, "enforce": false},
+    "threadOpenRenders": {"scenario": "chat", "owner": "A1", "source": "Renders to open a 40-reply thread from a settled list (the chip scrolled into view, then the list left 1.5 s: it says it stopped scrolling 1.2 s after the last scroll). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 22544 at 1x on a computer, 8,383 of them the channel's rows remounting (the virtual list kept overscan only ahead of a scroll, so the rows behind one mounted afresh when it stopped). With CHAT-LEAD's keepMounted (web 9e8230b77, 21 Oct): 2560 in each of 3 runs (profiling build, P-core, load about 20): the panel's own mount (about 1,160), the list re-laid at the panel's width (about 700), the composer. Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)", "cpu1": {"max": 2800, "target": 300, "measured": 2560}, "enforce": true},
+    "threadKeyP95Ms": {"scenario": "chat", "owner": "A5", "source": "A reply typed in the thread's composer: the key p95. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 24.0 at 1x on a computer. Times above load 16 are inflated: provisional until a quiet rerun. Target: Key p95: a keystroke paints within two frames, 32 ms at 1x and 50 ms at 4x (docs I20, doc-budgets.json)", "cpu1": {"max": 32, "target": 32, "measured": 24.0}, "enforce": false}
   }
 }

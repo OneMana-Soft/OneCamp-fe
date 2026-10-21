@@ -23,7 +23,8 @@ import {
 import { RefreshCw } from "@/lib/icons";
 import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
@@ -33,7 +34,7 @@ import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/adm
 export const FALLBACK_EVENT_TYPES = [
   "post.created", "post.updated", "post.deleted",
   "chat.created", "chat.updated", "chat.deleted",
-  "task.created", "task.deleted", "task.status_changed", "task.restored",
+  "task.created", "task.deleted", "task.status_changed", "task.restored", "task.changed",
   "channel.created", "channel.archived",
   "user.joined", "user.left",
   "doc.created", "doc.updated", "doc.deleted", "doc.shared", "doc.comment.created",
@@ -152,7 +153,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
   const nameRef = useRef<HTMLInputElement>(null)
   const urlRef = useRef<HTMLInputElement>(null)
 
-  const { data: eventTypesData } = useFetch<{ event_types: string[] }>(GetEndpointUrl.GetWebhookEventTypes)
+  const { data: eventTypesData } = useFetch<{ event_types: string[] }>(AdminGet.GetWebhookEventTypes)
   const EVENT_TYPES = eventTypesData?.event_types || FALLBACK_EVENT_TYPES
 
   // Every channel, page by page (the list answers 20 at a time); its failure

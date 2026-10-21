@@ -5,6 +5,7 @@ vi.mock("@/lib/axiosInstance", () => ({ default: { post }, OWN_ERRORS: { suppres
 
 import { invite, resendInvitation } from "./invitationService"
 import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminPost } from "@/services/endpoints/admin"
 
 afterEach(() => post.mockReset())
 
@@ -15,7 +16,7 @@ describe("inviting through the service", () => {
     expect(post).toHaveBeenCalledWith(PostEndpointUrl.AddInvitation, { email: "ana@example.com" }, { suppressErrorToast: true })
     expect(outcome).toEqual({ ok: true, answer: { invite_link: "https://t/signup?token=x", email_sent: true } })
     await invite("ana@example.com", false)
-    expect(post).toHaveBeenLastCalledWith(PostEndpointUrl.CreateInvitation, { email: "ana@example.com" }, { suppressErrorToast: true })
+    expect(post).toHaveBeenLastCalledWith(AdminPost.CreateInvitation, { email: "ana@example.com" }, { suppressErrorToast: true })
   })
 
   it("hands back the server's reason for a refusal, or a plain one", async () => {

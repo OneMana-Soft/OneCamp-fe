@@ -8,14 +8,13 @@
  * usePost and the URL for useFetch.
  */
 
-import type { PostEndpointUrl } from "@/services/endPoints"
 import type { RepeatScope } from "@/lib/calendar/repeat"
 
 // The API's path (router/calendarProgramme.go). It sits here, not in
 // services/endPoints.ts, which every route's first load carries (PROGRAM.md
 // §3.6): only the calendar's screens reach this file. usePost names an
 // endpoint by that file's enum, so the path is cast to it.
-const CALENDAR_EVENTS = "/calendar/events" as string as PostEndpointUrl
+const CALENDAR_EVENTS = "/calendar/events" as string as string
 
 /** A time as the API takes and gives it: an instant in a zone, or a date for an all-day event. */
 export interface ApiWhen {

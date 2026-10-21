@@ -39,9 +39,9 @@ describe("the settings index", () => {
   it("puts each section's icon on a tile in its hue", () => {
     render(<SettingsPage />)
     const tileOf = (name: string) => screen.getByRole("link", { name: new RegExp(`^${name}`) }).querySelector("[class*='hue-']")
-    expect(tileOf("Notifications")?.className).toMatch(/\bhue-sun\b/)
-    expect(tileOf("API tokens")?.className).toMatch(/\bhue-berry\b/)
-    expect(tileOf("Connectors")?.className).toMatch(/\bhue-lake\b/)
+    expect(tileOf("Notifications")?.className).toMatch(/\bhue-ink\b/)
+    expect(tileOf("API tokens")?.className).toMatch(/\bhue-ink\b/)
+    expect(tileOf("Connectors")?.className).toMatch(/\bhue-ink\b/)
   })
 
   it("holds the place of rows that wait on permissions", () => {

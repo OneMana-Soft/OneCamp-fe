@@ -1,0 +1,45 @@
+{
+  "about": [
+    "Split view's fluidity budgets (SPLIT-LEAD, 20 Oct 2026; release-1010/design/split/ANALYSIS.md): a pane carried by its bar across the page and a seam dragged, two docs beside Home, on a production build against the fake server side (surfaces.mjs --only split --device desktop), on a computer at 1x and at 4x (split view isn't on a phone). The row is fluid-21, Views side by side.",
+    "A drag holds 60 frames a second: frame p95 at most one refresh and at most 5% of frames dropped, as every drag in the app does. At 60 Hz a frame on time reads 16.7 or 16.8 ms here (timer jitter; a late one reads 33+), so a frame max of 16.8 is one refresh (FLUIDITY-LEAD, 21 Oct). The pane drag runs no layout per move (the ghost and the drop line move on transforms; the views take no pointer while one is carried); a seam's move changes a flex-grow, so its layouts are expected and its budget is frame time.",
+    "measured is the median of 5 runs on split-arrange-2026-10-20-fe c71c7ee33's build, heavy.sh --pcore on CPUs 0-7, next start on 24-29 (SPLIT-LEAD-2). At 1x (20 Oct 21:33): load 10 to 13, no busy run, every budget met. At 4x (21 Oct 04:24): load 16.5 to 17.3, every run just over the busy line; the 4x maxes are those runs' worst, and their targets are 1x's: neither drag holds 60 frames a second at 4x yet (fluid-21 stays short of WIN until they do).",
+    "Never raise a max to make a run pass. Lower it when a package brings a metric down."
+  ],
+  "budgets": {
+    "splitPaneDragFrameP95Ms": {
+      "scenario": "split",
+      "owner": "split-arrange",
+      "source": "A pane carried by its bar to the page's left: 60 moves 16 ms apart, then the drop and its settle. Every drag in the app holds 60 frames a second.",
+      "cpu1": { "max": 16.8, "target": 16.7, "measured": 16.8, "runs": [16.8, 16.8, 16.7, 16.8, 16.8] },
+      "cpu4": { "max": 33.4, "target": 16.7, "measured": 33.3, "runs": [33.3, 33.4, 16.8, 33.3, 33.3] }
+    },
+    "splitPaneDragDroppedPct": {
+      "scenario": "split",
+      "owner": "split-arrange",
+      "source": "The same carry: frames dropped, at most 5%.",
+      "cpu1": { "max": 5, "target": 5, "measured": 3.5, "runs": [3.5, 2.9, 3.5, 2.9, 8.2] },
+      "cpu4": { "max": 28, "target": 5, "measured": 15.3, "runs": [17.3, 27.6, 14.4, 15, 15.3] }
+    },
+    "splitPaneDragLayouts": {
+      "scenario": "split",
+      "owner": "split-arrange",
+      "source": "Layouts over the carry, the drop and its settle (the renderer's LayoutCount). 216 on the first run (busy); 175 once the views took no pointer during a carry. Target: the drop and its settle only, no layout per move (ANALYSIS §6); @dnd-kit's measuring still lays out on the way.",
+      "cpu1": { "max": 180, "target": 60, "measured": 175, "runs": [177, 176, 175, 171, 173] },
+      "cpu4": { "max": 192, "target": 60, "measured": 180, "runs": [182, 177, 180, 178, 192] }
+    },
+    "splitSeamDragFrameP95Ms": {
+      "scenario": "split",
+      "owner": "split-arrange",
+      "source": "The seam between the first two views dragged 180 px right, then 360 px left: react-resizable-panels changes a flex-grow, so each move lays the views out; its budget is frame time.",
+      "cpu1": { "max": 16.8, "target": 16.7, "measured": 16.8, "runs": [16.7, 16.8, 16.8, 16.8, 16.8] },
+      "cpu4": { "max": 33.3, "target": 16.7, "measured": 16.8, "runs": [33.3, 33.3, 16.8, 16.8, 16.8] }
+    },
+    "splitSeamDragDroppedPct": {
+      "scenario": "split",
+      "owner": "split-arrange",
+      "source": "The same seam drag: frames dropped, at most 5%.",
+      "cpu1": { "max": 5, "target": 5, "measured": 1.2, "runs": [1.2, 1.2, 2.3, 0.8, 1.5] },
+      "cpu4": { "max": 13, "target": 5, "measured": 8.5, "runs": [12.8, 12.6, 4.8, 8.5, 7.5] }
+    }
+  }
+}

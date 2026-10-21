@@ -18,18 +18,15 @@ import type { DevicePrefs } from "./callDevices"
  *   voice isolation.
  * - The speaker picked in the green room, where the browser can choose an
  *   output at all (Safari can't). It used to play on the system default.
- * - One peer connection would join about a second faster on the LiveKit we
- *   ship (v1.11.0), but it stays off for now: livekit-client 2.16 sends the
- *   single-connection join whenever it is asked to and never falls back
- *   (SignalClient.connect builds the join_request form, and RTCEngine sets
- *   up a publisher-only connection, with no check of the server between), so
- *   a workspace pointed at an older LiveKit could not join at all. Wave A.
+ * - One peer connection where the server takes it, two where it doesn't
+ *   (lib/calls/onePeerConnection, asked while the green room is open): the
+ *   second connection's handshake was a second of every join.
  */
-export function callRoomOptions(prefs: DevicePrefs, canPickSpeaker: boolean = supportsAudioOutputSelection()): RoomOptions {
+export function callRoomOptions(prefs: DevicePrefs, canPickSpeaker: boolean = supportsAudioOutputSelection(), onePc = false): RoomOptions {
   return {
     adaptiveStream: true,
     dynacast: true,
-    singlePeerConnection: false,
+    singlePeerConnection: onePc,
     publishDefaults: { audioPreset: AudioPresets.speech },
     audioCaptureDefaults: {
       ...(prefs.audioinput ? { deviceId: prefs.audioinput } : {}),

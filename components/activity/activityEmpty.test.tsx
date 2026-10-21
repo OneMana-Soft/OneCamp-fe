@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react"
 // One answer, as SWR gives: a new object each render would be a new answer
 // each render to the list's effect.
 const { answer } = vi.hoisted(() => ({ answer: { data: { data: { activities: [], has_more: false } }, isLoading: false, isError: false, mutate: () => {} } }))
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => answer }))
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => answer, useFetchOnlyOnce: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useClientConfig", () => ({ useAIAvailable: () => false }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }), usePathname: () => "/app/activity", useSearchParams: () => new URLSearchParams() }))
 

@@ -37,6 +37,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/ui/field"
@@ -54,7 +55,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
-import { useMqtt } from "@/components/mqtt/mqttProvider"
+import { useMqtt } from "@/components/mqtt/mqttContext"
 import { Loader2, Plug, Plus } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
@@ -124,7 +125,26 @@ export function rollbackWords(job: Pick<ImportJob, "options">): string {
     : "This takes away what the import brought in: its tasks, comments, files and custom fields, and its projects and teams if nothing else is in them. Anything your team has added stays."
 }
 
-const ImportCard: React.FC = () => {
+/** Where the first run's Slack tile goes: Admin › Import's Slack section, its upload open (SlackImportCard). */
+export const FIRST_RUN_SLACK_HREF = "/app/admin?tab=import&slack=new"
+
+/** A SettingsSection, or in the first run only what it holds. */
+function MaybeSection({ bare, ...props }: React.ComponentProps<typeof SettingsSection> & { bare: boolean }) {
+  return bare ? <div className="space-y-3">{props.children}</div> : <SettingsSection {...props} />
+}
+
+/**
+ * firstRun: the card inside the guided first run (components/onboarding/
+ * OnboardingRun), where the job is to pick a tool. It is the tiles alone,
+ * which name the tools themselves: no title, words, heading or helper line,
+ * and no live-updates notice, which is about the server and not for first
+ * use. The history follows the tiles once there is some, and Slack's tile
+ * opens Admin › Import's own Slack section, upload open, since the run
+ * doesn't hold it. Admin › Import keeps the card as it is.
+ *
+ * onStarted: an import was made from the card, so the run can move on.
+ */
+const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ firstRun = false, onStarted }) => {
   const { toast } = useToast()
   const confirm = useConfirm()
   const { connectionState: mqttState } = useMqtt()
@@ -278,6 +298,7 @@ const ImportCard: React.FC = () => {
       setWorkspaceName("")
       setBoardId("")
       setPickedDiscoverId("")
+      onStarted?.()
       const refetched = await refetchJobs()
       const job = (refetched?.jobs ?? jobs).find((j: ImportJob) => j.id === job_id)
       // The plan opening is the confirmation; without it, say where it went.
@@ -390,8 +411,50 @@ const ImportCard: React.FC = () => {
     .map((p) => ({ value: p.name as ImportProvider | "", label: importProviderLabel(p.name) }))
   const providerName = selectedProvider ? importProviderLabel(selectedProvider) : ""
 
+  // The history: every tool's imports, Slack's left to their own card.
+  const recentImports = (
+    <SettingsSection level={3} title="Recent imports">
+      {jobsLoading && !jobsResp ? (
+        <ImportRowsSkeleton label="Loading the import history" />
+      ) : jobsFetch.isError && !jobsResp ? (
+        <ErrorState
+          compact
+          subject="the import history"
+          detail={apiErrorStatus(jobsFetch.isError) ? apiErrorMessage(jobsFetch.isError) : undefined}
+          onRetry={() => void refetchJobs()}
+        />
+      ) : jobs.length === 0 ? (
+        // A first run: the imported spot, at the empty state's quiet size.
+        <EmptyState
+          illustration={<SpotImported hue={ADMIN_GROUP_HUE.workspace} />}
+          title="No imports from other tools yet"
+          description="Pick a tool under Start an import, connect it, and bring a workspace across. Each import is listed here with how far it got."
+        />
+      ) : (
+        <ul aria-label="Recent imports" className={IMPORT_LIST}>
+          {jobs.map((j) => (
+            <li key={j.id}>
+              <ImportJobRow
+                job={j}
+                showProvider
+                onPlan={() => setPlanJob(j)}
+                onDiscard={() => onDiscard(j)}
+                onCancel={() => onCancel(j)}
+                onRollback={() => onRollback(j)}
+                onRetryFailed={() => onRetryFailed(j.id)}
+                onInvite={() => setInviteJob(j)}
+                onShowErrors={() => setErrorsJobId(j.id)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </SettingsSection>
+  )
+
   return (
-    <SettingsSection
+    <MaybeSection
+      bare={firstRun}
       title="Import from other tools"
       description={
         <>
@@ -404,45 +467,9 @@ const ImportCard: React.FC = () => {
       }
     >
       <div className="space-y-8">
-        <SettingsSection level={3} title="Recent imports">
-          {jobsLoading && !jobsResp ? (
-            <ImportRowsSkeleton label="Loading the import history" />
-          ) : jobsFetch.isError && !jobsResp ? (
-            <ErrorState
-              compact
-              subject="the import history"
-              detail={apiErrorStatus(jobsFetch.isError) ? apiErrorMessage(jobsFetch.isError) : undefined}
-              onRetry={() => void refetchJobs()}
-            />
-          ) : jobs.length === 0 ? (
-            // A first run: the imported spot, at the empty state's quiet size.
-            <EmptyState
-              illustration={<SpotImported hue={ADMIN_GROUP_HUE.workspace} />}
-              title="No imports from other tools yet"
-              description="Pick a tool under Start an import, connect it, and bring a workspace across. Each import is listed here with how far it got."
-            />
-          ) : (
-            <ul aria-label="Recent imports" className={IMPORT_LIST}>
-              {jobs.map((j) => (
-                <li key={j.id}>
-                  <ImportJobRow
-                    job={j}
-                    showProvider
-                    onPlan={() => setPlanJob(j)}
-                    onDiscard={() => onDiscard(j)}
-                    onCancel={() => onCancel(j)}
-                    onRollback={() => onRollback(j)}
-                    onRetryFailed={() => onRetryFailed(j.id)}
-                    onInvite={() => setInviteJob(j)}
-                    onShowErrors={() => setErrorsJobId(j.id)}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </SettingsSection>
+        {!firstRun && recentImports}
 
-        <SettingsSection level={3} title="Start an import">
+        <MaybeSection bare={firstRun} level={3} title="Start an import">
           {/* The tool, as a choice of one: the app's segmented control. Its
               loading state is drawn inside the same well, at the options'
               height (it was six bare bars, 32px against the real 40px). */}
@@ -460,10 +487,10 @@ const ImportCard: React.FC = () => {
               onRetry={() => void refetchProviders()}
             />
           ) : (
-            <SourcePicker value={selectedProvider} onChange={chooseProvider} choices={choices} />
+            <SourcePicker value={selectedProvider} onChange={chooseProvider} choices={choices} slackHref={firstRun ? FIRST_RUN_SLACK_HREF : undefined} />
           )}
 
-          {!selectedProvider && !providersError && (
+          {!selectedProvider && !providersError && !firstRun && (
             <p className="text-xs text-muted-foreground">Pick a tool to connect it or start an import from it.</p>
           )}
 
@@ -646,7 +673,8 @@ const ImportCard: React.FC = () => {
               )}
             </div>
           )}
-        </SettingsSection>
+        </MaybeSection>
+        {firstRun && jobs.length > 0 && recentImports}
       </div>
 
         {/* Dialogs are lazy-loaded; the Suspense boundary renders
@@ -673,7 +701,10 @@ const ImportCard: React.FC = () => {
               onOpenChange={(o) => {
                 if (!o) setPlanJob(null)
               }}
-              onStarted={() => refetchJobs()}
+              onStarted={() => {
+                void refetchJobs()
+                onStarted?.()
+              }}
               onChanged={() => refetchJobs()}
               onReconnect={() => {
                 if (planJob.provider !== "slack") chooseProvider(planJob.provider)
@@ -702,7 +733,7 @@ const ImportCard: React.FC = () => {
             />
           )}
         </Suspense>
-    </SettingsSection>
+    </MaybeSection>
   )
 }
 
@@ -718,10 +749,13 @@ function SourcePicker({
   value,
   onChange,
   choices,
+  slackHref,
 }: {
   value: ImportProvider | null
   onChange: (p: ImportProvider | null) => void
   choices: Array<{ value: ImportProvider | ""; label: string }>
+  /** Slack's tile as a link there, where the page doesn't hold the Slack section (the first run). */
+  slackHref?: string
 }) {
   const refs = useRef<Array<HTMLButtonElement | null>>([])
   const focusable = Math.max(0, choices.findIndex((c) => c.value === value))
@@ -733,6 +767,15 @@ function SourcePicker({
     refs.current[next]?.focus()
     onChange((choices[next].value || null) as ImportProvider | null)
   }
+  const slackTile = (
+    <>
+      <SourceMark vendor="slack" name="Slack" />
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium text-foreground">Slack</span>
+        <span className="cx-imp-source-line line-clamp-2 text-pretty">Channels, threads, files</span>
+      </span>
+    </>
+  )
   const startSlack = () => {
     document.getElementById("import-slack")?.scrollIntoView?.({ block: "start", behavior: "smooth" })
     window.dispatchEvent(new Event(SLACK_IMPORT_NEW_EVENT))
@@ -740,13 +783,15 @@ function SourcePicker({
   return (
     <div className="cx-imp-sources-wrap">
       <div data-source-picker="" className="cx-imp-sources">
-        <button type="button" data-source-card="slack" data-wide="true" className="cx-imp-source" onClick={startSlack}>
-          <SourceMark vendor="slack" name="Slack" />
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-medium text-foreground">Slack</span>
-            <span className="cx-imp-source-line line-clamp-2 text-pretty">Channels, threads, files</span>
-          </span>
-        </button>
+        {slackHref ? (
+          <Link href={slackHref} data-source-card="slack" data-wide="true" className="cx-imp-source">
+            {slackTile}
+          </Link>
+        ) : (
+          <button type="button" data-source-card="slack" data-wide="true" className="cx-imp-source" onClick={startSlack}>
+            {slackTile}
+          </button>
+        )}
         {/* contents: the radios sit in the grid beside Slack. */}
         <div role="radiogroup" aria-label="Tool to import from" className="contents">
           {choices.map((c, i) => {

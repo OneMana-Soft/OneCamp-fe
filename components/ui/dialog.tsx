@@ -77,6 +77,17 @@ function focusFirstField(event: Event) {
   if (field.ownerDocument.activeElement === field) event.preventDefault()
 }
 
+/**
+ * Focus the dialog itself when it opens, for a dialog whose first control is
+ * a button or a picker: opened from a menu, that control lit up with a focus
+ * ring before the person had done anything. Tab still starts at the first
+ * control. Pass as onOpenAutoFocus.
+ */
+export function focusDialogItself(event: Event) {
+  event.preventDefault()
+  if (event.target instanceof HTMLElement) event.target.focus({ preventScroll: true })
+}
+
 /** Dialog widths (design v3, admin §8 H2): sm 400, md 520 (the default), lg 680, xl 860. */
 const DIALOG_SIZE = {
   sm: "max-w-[400px]",

@@ -14,7 +14,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { usePlan } from "@/hooks/usePlan"
 import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
 import { NEUTRAL_TILE } from "@/components/admin/neutralTile"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -58,7 +58,7 @@ const ScimProvisioningCard = () => {
   const { toast } = useToast()
   const confirm = useConfirm()
   const { data, isLoading, isError, mutate } = useFetch<{ data: { tokens: ScimToken[] } }>(
-    GetEndpointUrl.GetScimTokens,
+    AdminGet.GetScimTokens,
   )
   const tokens = data?.data?.tokens || []
 

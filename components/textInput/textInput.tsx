@@ -744,13 +744,15 @@ LiveTextInput.displayName = "LiveTextInput";
 // no editor is built, and the text is there on the first paint. Editing, or
 // content that needs the editor, gets the live component.
 const mentionHoverUUID = (el: HTMLElement) => mentionUserUUID(el.dataset.id);
+// The reader's keywords, where the context brings the marker (chat P3).
+const markedKeywords = (html: string, ctx?: MentionContext) => (ctx?.markKeywords ? ctx.markKeywords(html) : html);
 
 const StaticRichText = React.forwardRef<HTMLDivElement, { html: string; className?: string; contentClassName?: string; mentionContext?: MentionContext; editedTitle?: string }>(
     ({ html, className, contentClassName, mentionContext, editedTitle }, ref) => {
         const dispatch = useDispatch();
         // Each mention drawn by who it names: the reader's in the accent, an
         // agent's in its tint, anyone else's neutral with their hue as a dot.
-        const safe = React.useMemo(() => withEditedMark(tintMentions(sanitizeRichHtml(html), mentionContext), editedTitle), [html, mentionContext, editedTitle]);
+        const safe = React.useMemo(() => withEditedMark(markedKeywords(tintMentions(sanitizeRichHtml(html), mentionContext), mentionContext), editedTitle), [html, mentionContext, editedTitle]);
         const onClick = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
             const mention = (e.target as HTMLElement).closest<HTMLElement>('span[data-type="mention"]');
             if (!mention) return;

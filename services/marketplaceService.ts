@@ -1,5 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminPost } from "@/services/endpoints/admin"
 import { tablePath } from "@/lib/tables/route"
 
 // Templates client: shareable templates (agents, workflows, tables and docs).
@@ -36,16 +36,16 @@ export async function publishTemplate(input: {
   icon?: string
   payload: unknown
 }): Promise<MarketplaceTemplate> {
-  const res = await axiosInstance.post(PostEndpointUrl.CreateMarketplaceTemplate, input)
+  const res = await axiosInstance.post(AdminPost.CreateMarketplaceTemplate, input)
   return res.data?.data as MarketplaceTemplate
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.DeleteMarketplaceTemplate}/${id}/delete`)
+  await axiosInstance.post(`${AdminPost.DeleteMarketplaceTemplate}/${id}/delete`)
 }
 
 export async function installTemplate(id: string): Promise<InstallResult> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.InstallMarketplaceTemplate}/${id}/install`)
+  const res = await axiosInstance.post(`${AdminPost.InstallMarketplaceTemplate}/${id}/install`)
   return res.data?.data as InstallResult
 }
 

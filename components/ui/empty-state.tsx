@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { LucideIcon } from "lucide-react";
-import type { CampHue } from "@/lib/campHue"
+import type { MarkHue } from "./graphics/hues"
 import { Tile } from "@/components/ui/graphics/Tile"
 
 /**
@@ -64,7 +64,7 @@ interface EmptyStateProps {
    * sit on a hued tint tile). Take the hue of the section the empty state is
    * in, so a section keeps one colour. Without it the icon stands bare.
    */
-  hue?: CampHue
+  hue?: MarkHue
 }
 
 export function EmptyState({

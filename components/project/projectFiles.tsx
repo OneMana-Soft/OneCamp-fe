@@ -15,6 +15,7 @@ import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { usePost } from "@/hooks/usePost"
 import { useUploadFile } from "@/hooks/useUploadFile"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { deleteProjectAttachmentPreviewFiles, removeProjectAttachmentUploadedFiles } from "@/store/slice/projectAttachmentSlice"
 import { openUI } from "@/store/slice/uiSlice"
 import type { RootState } from "@/store/store"
@@ -31,7 +32,7 @@ export function useProjectFiles(projectId: string) {
   const post = usePost()
   const uploadFile = useUploadFile()
   // Both Files tabs show a failed load themselves, with Try again: no toast on top.
-  const list = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectAttachments + "/" + projectId, undefined, undefined, OWN_ERRORS)
+  const list = useFetch<ProjectInfoRawInterface>(ProjectsGet.GetProjectAttachments + "/" + projectId, undefined, undefined, OWN_ERRORS)
   const state = useSelector((s: RootState) => s.projectAttachment.projectAttachmentInputState[projectId])
   const uploading = React.useMemo(() => state?.filesPreview ?? [], [state])
 

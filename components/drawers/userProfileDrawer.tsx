@@ -1,6 +1,6 @@
 "use client"
 import dynamic from "next/dynamic"
-import { useState } from "react"
+import { useDeferredValue, useState } from "react"
 
 import {
     Bookmark,
@@ -133,6 +133,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const emoji = status ? findEmojiMartEmojiByEmojiID(emojiData.data, status.status_user_emoji_id ?? "")?.skins?.[0]?.native : null
     const statusLine = youStatusLine({ focusUntil, pausedUntil, emoji, text: status?.status_user_emoji_desc })
 
+    // Deferred (fluid-16): drawers/accountSheetOpen.test.tsx
+    const open = useDeferredValue(drawerOpenState, false)
     const closeDrawer = () => setOpenState(false)
 
     const handleNavigate = (path: string) => {
@@ -144,7 +146,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
 
     return (
         <>
-        <Drawer detent="large" onOpenChange={onSheetOpenChange} open={sheetOpen(drawerOpenState)}>
+        <Drawer detent="large" onOpenChange={onSheetOpenChange} open={sheetOpen(open)}>
             <DrawerContent {...phoneSheet}>
                 <DrawerHeader className="sr-only">
                     <DrawerTitle>

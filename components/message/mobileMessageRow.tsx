@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useMessageReactions } from "@/hooks/useMessageReactions"
+import { PinnedMark } from "@/components/conversation/pins/PinnedMark"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { RelayedAvatar } from "@/components/message/relayedAvatar"
 import { RelayedPersonCard } from "@/components/message/relayedPersonCard"
@@ -20,6 +22,7 @@ import { ReplyLine } from "@/components/message/replyLine"
 import { AgentProvenance } from "@/components/message/agentProvenance"
 import { FailedMark, SendStatus, SendingNote } from "@/components/message/sendStatus"
 import { agentIdsOf, mentionsUser, type MentionContext } from "@/components/message/tintMentions"
+import { useKeywordsFor } from "@/hooks/useMyKeywords"
 import type { BaseMessage } from "@/components/message/baseMessageCard"
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
 import { useBotKind, useBotKindMap } from "@/hooks/useBotKinds"
@@ -66,6 +69,8 @@ export interface MobileMessageRowProps {
     mediaGetUrl: string
     /** Under the row: a DM's seen line, say. */
     footer?: React.ReactNode
+    /** A channel's own post: the reader's keywords are marked in it (chat P3). */
+    inChannel?: boolean
 }
 
 /** What the long-press sheet lifts above itself (C61). */
@@ -118,6 +123,7 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
     onSelectAttachment,
     mediaGetUrl,
     footer,
+    inChannel,
 }: MobileMessageRowProps) {
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const selfId = selfProfile.data?.data?.user_uuid
@@ -132,8 +138,9 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
     const checkin = !relayed && !!message.from.is_bot && kind === "checkin" && !editing
     const authorName = relayed ? relayed.name : messageAuthorName(message.from, userInfoState?.userName)
     const body = relayed ? relayed.body : message.bodyText
-    const forMe = useMemo(() => mentionsUser(message.bodyText, selfId), [message.bodyText, selfId])
-    const mentionContext = useMemo<MentionContext>(() => ({ me: selfId, agentIds: agentIdsOf(botKinds) }), [selfId, botKinds])
+    const forMe = useMemo(() => mentionsUser(message.bodyText, selfId, message.from?.user_uuid), [message.bodyText, selfId, message.from?.user_uuid])
+    const markKeywords = useKeywordsFor(!!inChannel && message.kind !== "system", message.from?.user_uuid, selfId)
+    const mentionContext = useMemo<MentionContext>(() => ({ me: selfId, agentIds: agentIdsOf(botKinds), markKeywords }), [selfId, botKinds, markKeywords])
     const emojiOnly = useMemo(() => isEmojiOnly(body), [body])
     const edited = editedTitle(message.createdAt, message.updatedAt)
     const handleInternalLinkClick = useInternalLinkRouter(!editing)
@@ -158,29 +165,9 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
         setPressed(false)
     }, [])
 
-    const reactions = useMemo(() => {
-        const r: { [key: string]: string[] } = {}
-        for (const reaction of message.reactions ?? []) {
-            if (!reaction?.reaction_emoji_id) continue
-            ;(r[reaction.reaction_emoji_id] ??= [])
-            const name = displayNameOf(reaction.reaction_added_by)
-            if (name) r[reaction.reaction_emoji_id].push(name)
-        }
-        return r
-    }, [message.reactions])
-    const mine = useMemo(() => (message.reactions ?? []).find((r) => r?.reaction_added_by?.user_uuid === selfId), [message.reactions, selfId])
-    const [burstEmojiId, setBurstEmojiId] = useState<string | undefined>(undefined)
-    const handleEmojiClick = useCallback(
-        (emojiId: string) => {
-            if (mine?.reaction_emoji_id === emojiId) {
-                removeReaction(mine.uid)
-                return
-            }
-            if (!mine) setBurstEmojiId(emojiId)
-            addReaction(emojiId, mine?.uid ?? "")
-        },
-        [mine, addReaction, removeReaction],
-    )
+    // Several emoji a person, each once (lib/chat/reactions, D-M7).
+    const reacted = useMessageReactions(message.reactions, selfId, addReaction, removeReaction)
+    const handleEmojiClick = reacted.toggle
 
     const lp = pending || editing ? {} : longPress
     // The hold's own listeners (hooks/useLongPress) ride on its ref; the press
@@ -238,7 +225,11 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                 )}
                 <div className="min-w-0">
                     {continued && !editing ? (
-                        <span className="sr-only">{authorName}, {formatFullTimestamp(message.createdAt)}</span>
+                        <>
+                            <span className="sr-only">{authorName}, {formatFullTimestamp(message.createdAt)}</span>
+                            {/* A pinned message that continues a turn says so on its own line. */}
+                            <PinnedMark messageId={message.uuid} line />
+                        </>
                     ) : (
                         <div data-name-line="" className="flex h-5 min-w-0 items-center gap-2">
                             {relayed ? (
@@ -263,6 +254,7 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                                 </time>
                             )}
                             {sending && <SendingNote />}
+                            <PinnedMark messageId={message.uuid} />
                         </div>
                     )}
                     {message.replyTo && !editing && (
@@ -359,10 +351,10 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                         <div className="interactive" onClick={(e) => e.stopPropagation()}>
                             <BottomMenu
                                 handleEmojiClick={handleEmojiClick}
-                                reactions={reactions}
-                                selectedEmojiId={mine?.reaction_emoji_id ?? ""}
+                                reactions={reacted.byEmoji}
+                                selectedEmojiIds={reacted.selected}
                                 selfName={displayNameOf(selfProfile.data?.data)}
-                                burstEmojiId={burstEmojiId}
+                                burstEmojiId={reacted.burstEmojiId}
                             />
                         </div>
                     )}

@@ -82,15 +82,20 @@ export function ActiveUsersBar({ users, maxShown = 4, className }: ActiveUsersBa
         })
     }, [users])
 
-    if (uniqueUsers.length === 0) return null
+    // The faces are other people's: a header with only you in it shows none,
+    // and keeps its room (split view's design verdict, 20 Oct: three of your
+    // own faces at 1440). The list still names you, last.
+    const self = presence?.self
+    const others = uniqueUsers.filter((u) => u.id !== self)
+    if (others.length === 0) return null
 
-    const shown = uniqueUsers.slice(0, maxShown)
-    const remaining = uniqueUsers.length - maxShown
-    const remainingNames = uniqueUsers
+    const shown = others.slice(0, maxShown)
+    const remaining = others.length - maxShown
+    const remainingNames = others
         .slice(maxShown)
         .map((u) => u.name)
         .join(", ")
-    const names = uniqueUsers.map((u) => u.name).join(", ")
+    const names = others.map((u) => u.name).join(", ")
 
     return (
         <Popover open={open} onOpenChange={setOpen}>

@@ -27,7 +27,7 @@ import { taskPriorityOptions } from "@/types/task"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { ProjectsGet } from "@/services/endpoints/projects";
 import {useDispatch, useSelector} from "react-redux";
 import {updateProjectSortingAndFiltering, type filterInterface, type sortInterface} from "@/store/slice/taskFilterSlice";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
@@ -59,7 +59,7 @@ interface ProjectTaskFilterDrawerProps {
 
 export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, projectId }: ProjectTaskFilterDrawerProps) {
     const [activeTab, setActiveTab] = React.useState("sort")
-    const projectInfo = useFetch<ProjectInfoRawInterface>(projectId ? GetEndpointUrl.GetProjectMemberInfo + '/' + projectId : '')
+    const projectInfo = useFetch<ProjectInfoRawInterface>(projectId ? ProjectsGet.GetProjectMemberInfo + '/' + projectId : '')
     const { options: statusOpts } = useProjectStatuses(projectId)
     const { cycles } = useProjectCycles(drawerOpenState ? projectId : undefined)
     const dispatch = useDispatch()

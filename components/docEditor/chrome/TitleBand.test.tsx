@@ -13,6 +13,7 @@ vi.mock("../DocCover", () => ({ DocCover: () => <div data-doc-cover-controls="" 
 vi.mock("../DocIconPicker", () => ({ DocIconPicker: () => <div data-doc-icon-picker="" /> }))
 
 import TitleBand from "./TitleBand"
+import { SCREENS, putOnScreen } from "@/lib/testing/screens"
 import { createTitleStore } from "../docTitleStore"
 import { setFacts } from "./pageFacts"
 
@@ -26,7 +27,7 @@ afterEach(() => {
   editors.splice(0).forEach((e) => e.destroy())
 })
 
-function Band({ title = "", body = "<p></p>", doc = {}, editable = true, docId = "tb1" }: { title?: string; body?: string; doc?: Record<string, unknown>; editable?: boolean; docId?: string }) {
+function Band({ title = "", body = "<p></p>", doc = {}, editable = true, docId = "tb1", icon }: { title?: string; body?: string; doc?: Record<string, unknown>; editable?: boolean; docId?: string; icon?: string }) {
   const [store] = React.useState(() => createTitleStore(title))
   const [editor] = React.useState(() => {
     const e = new Editor({ extensions: [StarterKit], content: body, element: document.createElement("div") })
@@ -37,6 +38,8 @@ function Band({ title = "", body = "<p></p>", doc = {}, editable = true, docId =
   const onTitle = (t: string) => store.set(t)
   return (
     <div data-doc-title-block="">
+      {/* The page's icon, as DocTitle draws it: the icon picker's way in. */}
+      {icon ? <span data-doc-page-icon="">{icon}</span> : null}
       <div className="relative">
         <TitleBand docId={docId} doc={doc as never} editable={editable} editor={editor} store={store} titleRef={titleRef} onTitle={onTitle} padded="px-5" />
       </div>
@@ -117,5 +120,31 @@ describe("the title band under a finger", () => {
     render(<Band docId="tb5" />)
     const row = screen.getByRole("button", { name: "Add icon" }).closest("[data-doc-band]")
     expect(row?.getAttribute("data-touch-group")).toBe("")
+  })
+})
+
+// ONE SHEET RULE (20 Oct 2026): a phone held sideways is 844px wide, so
+// isMobile said no and the icon's picker came as a popover by the icon, and
+// Add cover put a random cover on. Its pickers are sheets by useSheetMode;
+// isMobile still lays out the band (its words, not the phone's icons).
+describe("the title band on a phone held sideways", () => {
+  let off = () => {}
+  afterEach(() => {
+    off()
+    off = () => {}
+  })
+
+  it("opens the icon's picker as a sheet, and Add cover opens the covers in one", async () => {
+    off = putOnScreen(SCREENS["a phone in landscape"])
+    render(<Band docId="tb6" doc={{ doc_icon: "📐" }} icon="📐" />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Change the icon" })))
+    expect(document.querySelector("[data-v3-sheet] [data-doc-icon-picker]")).toBeTruthy()
+    expect(screen.getByText("Choose an icon")).toBeTruthy()
+    cleanup()
+    render(<Band docId="tb7" />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add cover" })))
+    expect(hoisted.set).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-v3-sheet]")).toBeTruthy()
+    expect(screen.getByText("Choose a cover")).toBeTruthy()
   })
 })

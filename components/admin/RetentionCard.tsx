@@ -26,6 +26,7 @@ import { SettingRow, SettingsCard, SettingsCardFooter, SettingsRowsSkeleton, Set
 import { NumberUnitInput } from "@/components/ui/settingsControls"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { Disclosure } from "@/components/ui/disclosure"
 
 const asDraft = (p: RetentionPolicy) => (p.window_days > 0 ? String(p.window_days) : "")
 
@@ -149,15 +150,14 @@ const RetentionCard: React.FC = () => {
                         {error}
                     </p>
                 )}
-                <details data-retention-how="" className="set-row group !min-h-0 text-xs text-ink-2">
-                    <summary className="cursor-pointer list-none font-medium hover:text-foreground [&::-webkit-details-marker]:hidden">How it works</summary>
+                <Disclosure data-retention-how="" className="set-row !min-h-0 text-xs text-ink-2" summary="How it works" summaryClassName="font-medium hover:text-foreground">
                     <p className="mt-1.5 max-w-[60ch] text-pretty">
                         A shorter window is raised to the minimum rather than accepted, so this setting cannot be used to fall below
                         the six-month statutory minimum by accident. Records are redacted, not deleted: the row and its hashes stay,
                         so an erasure request does not break the audit chain and counts do not change.
                         {policy.swept_stores && policy.swept_stores.length > 0 && <> Applies to: {policy.swept_stores.join(", ")}.</>}
                     </p>
-                </details>
+                </Disclosure>
             </SettingsCard>
         )
     }

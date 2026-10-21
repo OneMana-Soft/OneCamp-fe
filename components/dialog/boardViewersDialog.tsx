@@ -3,7 +3,7 @@
 // BoardViewersDialog: "Viewed by" for a board. Thin wrapper over the generic,
 // paginated ResourceViewersDialog.
 
-import { GetEndpointUrl } from "@/services/endPoints"
+import { BoardsGet } from "@/services/endpoints/boards"
 import ResourceViewersDialog from "@/components/dialog/resourceViewersDialog"
 
 interface BoardViewersDialogProps {
@@ -17,7 +17,7 @@ export function BoardViewersDialog({ open, onOpenChange, boardId }: BoardViewers
     <ResourceViewersDialog
       open={open}
       onOpenChange={onOpenChange}
-      viewersEndpoint={GetEndpointUrl.GetBoardViewers}
+      viewersEndpoint={BoardsGet.GetBoardViewers}
       idParam="board_uuid"
       resourceId={boardId}
       noun="board"

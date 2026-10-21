@@ -48,16 +48,29 @@ export function CallEndScreen({
   }
   if (phase === "removed") {
     const { title, detail } = removedText(end?.removed ?? null, guest)
+    // Put out only because it couldn't be checked just then: the one removal
+    // they can come straight back from.
+    const again = end?.removed?.reason === "unconfirmed"
     if (guest) {
       return (
         <GuestCentered>
           <Tile hue="berry" size="lg"><UserMinus /></Tile>
           <h1 className="text-base font-semibold text-foreground">{title}</h1>
-          <p className="text-sm text-muted-foreground" role="status">{detail} You can close this tab.</p>
+          <p className="text-sm text-muted-foreground" role="status">{again ? detail : `${detail} You can close this tab.`}</p>
+          {again ? <Button onClick={call.reset}>Join again</Button> : null}
         </GuestCentered>
       )
     }
-    return <CallRemoved title={title} detail={detail} onBack={onBack} backLabel={backLabel} embedded={embedded} />
+    return (
+      <CallRemoved
+        title={title}
+        detail={detail}
+        primary={again ? { label: "Join again", onClick: call.reset } : undefined}
+        onBack={onBack}
+        backLabel={backLabel}
+        embedded={embedded}
+      />
+    )
   }
   if (phase === "left") {
     // Any disconnect after connecting lands here, a dropped connection

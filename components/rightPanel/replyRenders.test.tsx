@@ -28,11 +28,12 @@ vi.mock("@/components/textInput/textInput", () => ({
 vi.mock("@/components/channel/channelMessageAvatar", () => ({ ChannelMessageAvatar: () => <span /> }))
 vi.mock("@/components/message/AgentResultCards", () => ({ AgentResultCards: () => null }))
 vi.mock("@/components/message/WorkLinkCards", () => ({ WorkLinkCards: () => null }))
+// Each emoji the reader reacted with is marked (several a person, chat B25).
 vi.mock("@/components/message/bottomMenu", () => ({
-    BottomMenu: ({ reactions, selectedEmojiId }: { reactions: Record<string, string[]>; selectedEmojiId?: string }) => (
+    BottomMenu: ({ reactions, selectedEmojiIds }: { reactions: Record<string, string[]>; selectedEmojiIds: ReadonlySet<string> }) => (
         <ul aria-label="Reactions">
             {Object.entries(reactions).map(([emoji, people]) => (
-                <li key={emoji} aria-current={emoji === selectedEmojiId || undefined}>{emoji}: {people.join(", ")}</li>
+                <li key={emoji} aria-current={selectedEmojiIds.has(emoji) || undefined}>{emoji}: {people.join(", ")}</li>
             ))}
         </ul>
     ),

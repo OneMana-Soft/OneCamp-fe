@@ -27,7 +27,7 @@ describe("a CommandList row with a meta line", () => {
   })
 
   it("is given to AI agents in the @ list", () => {
-    const src = readFileSync("components/minimal-tiptap/extensions/mention-list/mentionList.tsx", "utf8")
+    const src = readFileSync("components/minimal-tiptap/extensions/mention-list/mentionListView.tsx", "utf8")
     expect(src).toMatch(/meta: person\.is_bot && isAIBot\(/)
   })
 })

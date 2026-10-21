@@ -1,9 +1,10 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Moon, UserPlus, X } from "@/lib/icons";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { anchorTo } from "@/components/ui/anchor";
 import { Calendar } from "@/components/ui/calendar";
 import { TimeList } from "@/components/ui/date-time-picker";
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker";
@@ -40,12 +41,27 @@ export interface QuickCreateValues {
 
 interface QuickCreateCardProps {
   draft: CalendarDraft | null;
-  /** What the card is anchored to: the ghost, or the month cell. */
+  /** What the card opened from: the month cell, or the all-day button. A timed draft's ghost comes first (draftAnchorOf). */
   anchor: HTMLElement | null;
   onDraftChange: (draft: CalendarDraft) => void;
   onClose: () => void;
   onCreated: () => void;
   onMoreOptions: (values: QuickCreateValues) => void;
+}
+
+/**
+ * Where a draft's card stands (components/ui/anchor): by the draft's ghost as
+ * the grid draws it now, else the cell or button it opened from, else the
+ * draft's day as the month draws it now. Measured on each ask: the ghost a
+ * drag drew unmounts as the drag ends and comes back once the draft is set,
+ * and a parse moves it, so an element held from either measured (0, 0) and
+ * the card stood in the screen's top-left corner.
+ */
+export function draftAnchorOf(draft: CalendarDraft | null, opened: HTMLElement | null) {
+  return anchorTo(
+    () => document.querySelector("[data-calendar] [data-calendar-ghost]"),
+    () => (opened?.isConnected ? opened : draft ? document.querySelector(`[data-month-day="${startOfDay(draft.start).toISOString()}"]`) : null),
+  );
 }
 
 const chip =
@@ -203,9 +219,16 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
       : format(draft.start, "EEE d MMM")
     : "";
 
+  // Measured on each ask, and made again when the draft moves, so the card follows its ghost.
+  const at = useMemo(
+    () => ({ current: draftAnchorOf(draft, anchor) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the draft's times move the ghost
+    [anchor, draft?.start.getTime(), draft?.end.getTime()],
+  );
+
   return (
     <Popover open={open} onOpenChange={(o) => !o && onClose()}>
-      <PopoverAnchor virtualRef={{ current: { getBoundingClientRect: () => anchor?.getBoundingClientRect() ?? new DOMRect() } }} />
+      <PopoverAnchor virtualRef={at} />
       <PopoverContent
         side="right"
         align="start"

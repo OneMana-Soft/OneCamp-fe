@@ -59,7 +59,7 @@ vi.mock("next/navigation", () => ({
   useParams: () => h.params,
 }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false, isTablet: false }) }))
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
+vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<object>()), useMqtt: () => ({ connectionState: { isConnected: true } }) }))
 vi.mock("@/components/minimal-tiptap/components/section/two", () => ({ SectionTwo: () => null }))
 vi.mock("@/components/minimal-tiptap/components/section/four", () => ({ SectionFour: () => null }))
 vi.mock("@/components/minimal-tiptap/components/section/five", () => ({ SectionFive: () => null }))

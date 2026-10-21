@@ -37,6 +37,9 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetchOnlyOnce: () => ({ data: undefined, isLoading: false }),
 }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: BUILT_IN_STATUSES }) }))
+// The board listens on the project's topic for its statuses (boardColumnsWiring.test).
+vi.mock("@/lib/liveEntity", () => ({ useLiveEntity: () => ({ state: "none" }) }))
+vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => ({ isConnected: true }) }))
 vi.mock("@/hooks/useProjectFields", () => ({ useProjectFields: () => ({ fields: [] }), usePeople: () => ({ nameOf: () => undefined, people: [] }) }))
 vi.mock("@/components/kanbanComponents/TaskBoard", () => ({
   TaskBoard: ({ visible }: { visible: { value: string }[] }) => <div data-testid="board">{visible.map((o) => o.value).join(",")}</div>,

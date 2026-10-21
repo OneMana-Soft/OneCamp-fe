@@ -222,7 +222,7 @@ describe("the More menu's look", () => {
             return b.querySelector("span[aria-hidden='true']")
         }
         expect(tileOf("My tasks")?.className).toContain("hue-moss")
-        expect(tileOf("Calendar")?.className).toContain("hue-berry")
+        expect(tileOf("Calendar")?.className).toContain("hue-sun")
         expect(tileOf("Sign out")).toBeNull()
         expect(screen.getByRole("button", { name: /^Your profile/ })).toBeTruthy()
         // A row is 44px.

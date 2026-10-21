@@ -174,7 +174,7 @@ export function FCMHandler() {
       const state = store.getState()
       const panel = state.rightPanel.rightPanelState
       const screen = onScreenFrom(window.location.pathname, {
-        panes: state.split.panes,
+        panes: state.split?.panes ?? [],
         openThread: panel.isOpen ? panel.data.postUUID || panel.data.chatMessageUUID || null : null,
       })
       if (pushIsOnScreen(payload.data, screen, selfUUIDRef.current)) return

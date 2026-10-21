@@ -9,12 +9,12 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { appMutate } from "@/lib/swrMutate"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { downloadBlob } from "@/lib/utils/download"
 import { templateFile, templateFileName, type ProjectTemplate, type TemplateSummary } from "@/lib/projectTemplates"
 
-const BASE = GetEndpointUrl.ProjectTemplates
+const BASE = ProjectsGet.ProjectTemplates
 
 // Through the app's cache, so a list shown anywhere, or opened later, sees
 // the change.
@@ -27,7 +27,7 @@ interface SaveInput {
 
 /** Keeps a project as it is now as a template; its dates are counted in the viewer's zone. */
 export async function saveProjectAsTemplate(projectId: string, input: SaveInput): Promise<TemplateSummary> {
-  const res = await axiosInstance.post(`${GetEndpointUrl.ProjectSaveAsTemplate}/${projectId}/save-as-template`, { ...input, tz: browserTZ() }, OWN_ERRORS)
+  const res = await axiosInstance.post(`${ProjectsGet.ProjectSaveAsTemplate}/${projectId}/save-as-template`, { ...input, tz: browserTZ() }, OWN_ERRORS)
   await refresh()
   return (res.data as { data: TemplateSummary }).data
 }

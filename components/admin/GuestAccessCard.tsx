@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban, Link2 } from "@/lib/icons"
 import { useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
-import { setGuestAccess, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
+import { setGuestAccess, setGuestPublish, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { formatDistanceToNow } from "date-fns"
 import { NEUTRAL_TILE } from "@/components/admin/neutralTile"
@@ -73,6 +73,11 @@ export default function GuestAccessCard() {
     // The value being saved, shown at once; null once the server has answered.
     const [pending, setPending] = useState<boolean | null>(null)
     const { status, run } = useSaveStatus()
+    // Its one sub-option: published pages (docs C6). Under the switch, never
+    // beside it: turning guest links off stops published pages too.
+    const [publishPending, setPublishPending] = useState<boolean | null>(null)
+    const publishSave = useSaveStatus()
+    const publishOn = publishPending ?? (settings ? settings.guest_publish_enabled !== false : true)
     const enabled = pending ?? (settings ? !!settings.guest_access_enabled : null)
     const failed = isError || (!isLoading && !settings)
     const [grants, setGrants] = useState<GuestGrant[]>([])
@@ -114,6 +119,18 @@ export default function GuestAccessCard() {
         if (!ok) setRevealed(false)
         // Back to what the server holds: the saved value, or the old one.
         setPending(null)
+    }
+
+    const applyPublish = async (next: boolean) => {
+        setPublishPending(next)
+        await publishSave.run(async () => {
+            const applied = await setGuestPublish(next)
+            await mutate(
+                (d) => (d?.data ? { ...d, data: { ...d.data, guest_publish_enabled: applied } as WorkspaceSettings } : d),
+                { revalidate: false },
+            )
+        })
+        setPublishPending(null)
     }
 
     // Turning it back on wakes every link made before, so it says how many.
@@ -251,11 +268,20 @@ export default function GuestAccessCard() {
                     <>
                         <SwitchRow
                             label="Allow guest links"
-                            description="When off, no guest link can be created or used. Links already made are kept."
+                            description="When off, no guest link can be created or used, and no page is published. Links already made are kept."
                             checked={enabled}
                             disabled={status.state === "saving"}
                             status={status}
                             onChange={toggle}
+                        />
+                        <SwitchRow
+                            className="pl-6"
+                            label="Pages can be published to the web"
+                            description="A doc's view-only link can also have its own address, as a fast, read-only page. Its owner chooses whether search engines may find it."
+                            checked={enabled && publishOn}
+                            disabled={!enabled || publishSave.status.state === "saving"}
+                            status={publishSave.status}
+                            onChange={(next) => void applyPublish(next)}
                         />
                         <div {...reveal(0)} className={`set-row flex min-h-0 items-center py-2.5 ${reveal(0).className}`}>
                             <h3 className="text-xs font-medium text-muted-foreground">

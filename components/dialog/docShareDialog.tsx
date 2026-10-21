@@ -13,9 +13,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
 import { ChromeSheet } from "@/components/docEditor/chrome/Sheet"
 import { InlineError } from "@/components/docEditor/chrome/parts"
-import { useEditionGate } from "@/components/docEditor/registry/gate"
-import { panelFor } from "@/components/docEditor/registry/registry"
-import { PanelOutlet } from "@/components/docEditor/registry/slots"
 import { busForDoc } from "@/components/docEditor/registry/commandBus"
 import { toast } from "@/hooks/use-toast"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -25,7 +22,6 @@ import { docInfoKey, docShared } from "@/lib/docCache"
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { appMutate, patchCached } from "@/lib/swrMutate"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
-import { cn } from "@/lib/utils/helpers/cn"
 import { accessRequestsKey, answerDocAccess, docAccessKey, previewDocAccess, updateDocAccess } from "@/services/docAccessService"
 import { inviteToDoc, searchPeople } from "@/services/docChromeService"
 import { childrenKey, type Envelope } from "@/services/docGraphService"
@@ -187,7 +183,6 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
   const reduxDocId = useSelector((state: RootState) => state.ui.docShare.docId)
   const docId = propDocId || reduxDocId
   const open = dialogOpenState && !!docId
-  const gate = useEditionGate()
   const accessQ = useFetch<{ data?: DocAccess }>(open ? docAccessKey(docId) : "", undefined, undefined, OWN_ERRORS)
   const doc = useFetch<DocInfoResponse>(open ? docInfoKey(docId) : "", undefined, undefined, OWN_ERRORS).data?.data
   const me = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile).data?.data
@@ -203,14 +198,12 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
   const kids = useFetch<Envelope<DocChildren>>(open && full ? childrenKey(docId, { limit: 1 }) : "", undefined, undefined, OWN_ERRORS).data?.data
   const links = useFetch<{ data?: ResourceGuestLink[] }>(open && full ? resourceGuestLinksKey("doc", docId) : "", undefined, undefined, OWN_ERRORS).data?.data
   const [subpages, setSubpages] = React.useState(false)
-  const [tab, setTab] = React.useState<"share" | "publish">("share")
   // guestLinks: how many guest links the change turns off; null when they couldn't be read.
   const [confirming, setConfirming] = React.useState<null | { change: Omit<DocAccessChange, "doc_uuid">; summary: string; guestLinks: number | null }>(null)
   const [error, setError] = React.useState("")
   const title = doc?.doc_title?.trim() || "Untitled"
   const names = React.useRef(new Map<string, AccessPerson>())
   const teamNames = React.useRef(new Map<string, { name: string; members: number }>())
-  const publish = panelFor("doc.publish", gate)
 
   /**
    * Makes a change: shown at once (the dialog's copy and the cached answer),
@@ -513,36 +506,15 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
       tertiary={<ShareRecordedNote />}
       footer={
         <>
-          <CopyLinkButton href={typeof window !== "undefined" ? `${window.location.origin}/app/doc/${docId}` : undefined} />
-          <Button variant="ghost" size="sm" onClick={setOpenState}>
+          <CopyLinkButton label="Copy doc link" className="max-md:h-11" href={typeof window !== "undefined" ? `${window.location.origin}/app/doc/${docId}` : undefined} />
+          <Button variant="ghost" size="sm" className="max-md:h-11" onClick={setOpenState}>
             Done
           </Button>
         </>
       }
     >
-      {publish ? (
-        <div role="tablist" aria-label="Share or publish" className="flex items-center gap-1 border-b border-line pb-2">
-          {(["share", "publish"] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              role="tab"
-              aria-selected={tab === t}
-              onClick={() => setTab(t)}
-              className={cn(
-                "h-7 rounded-md px-2.5 text-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                tab === t ? "bg-press font-medium text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
-              )}
-            >
-              {t === "share" ? "Share" : publish.title}
-            </button>
-          ))}
-        </div>
-      ) : null}
       {/* Its own scroller in the dialog only: in the phone's sheet the sheet's body scrolls it (ChromeSheet). */}
-      <div className="flex flex-col gap-5 sm:max-h-[min(62dvh,560px)] sm:overflow-y-auto" role={publish ? "tabpanel" : undefined}>
-        {tab === "publish" && publish ? <PanelOutlet kind="doc.publish" docId={docId} gate={gate} /> : shareTab}
-      </div>
+      <div className="flex flex-col gap-5 sm:max-h-[min(62dvh,560px)] sm:overflow-y-auto">{shareTab}</div>
     </ChromeSheet>
   )
 }

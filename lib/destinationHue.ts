@@ -1,45 +1,36 @@
-import { hueFor, type CampHue } from "@/lib/campHue"
+import type { MarkHue } from "@/components/ui/graphics/hues"
+import { AREA_HUE, type Area } from "@/lib/areas"
 import { settingsSection } from "@/lib/settingsSections"
 
 /**
  * The hue of each place in the app, for the tile its icon sits on wherever it
- * is listed: the phone's More menu, the settings list, Home's cards (the
- * playful layer, "Tiles").
+ * is listed (More, the drawers, the settings list) and the sidebar's hover.
  *
- * One hue per place, chosen for what the place holds, so a destination is the
- * same colour on every screen that lists it. Places of one kind share a hue
- * (the AI pages are dusk).
- *
- * Settings paths defer to SETTINGS_SECTIONS (lib/settingsSections): each
- * section's hue is set once there, and its tile on the settings page, its
- * page's header and every menu that lists it (the phone's More menu) take
- * that one, so a section is one colour everywhere. That outranks the kinds
- * above: Assistants is sky, not dusk.
- *
- * A place not named here takes its path's hash, the same rule identity
- * colours follow (lib/campHue).
+ * Colour names an area (lib/areas): a place in an area wears that area's hue,
+ * so Docs is dusk on every screen, as on the site. A settings page takes its
+ * section's (lib/settingsSections). Every other place names no area and is
+ * ink: Home, the inbox, Later, Mail, Teams, Admin, Templates.
  */
-const BY_PATH: Record<string, CampHue> = {
-  "/app/myTask": "moss",
-  "/app/channel": "sky",
-  "/app/chat": "berry",
-  "/app/mail": "sky",
-  "/app/later": "sun",
-  "/app/calendar": "berry",
-  "/app/doc": "lake",
-  "/app/board": "dusk",
-  "/app/tables": "moss",
-  "/app/project": "sky",
-  "/app/goals": "sun",
-  "/app/inbox": "berry",
-  "/app/inbox?tab=ai": "dusk",
-  "/app/ai": "dusk",
-  "/app/admin": "berry",
-  "/app/templates": "dusk",
-  "/app/team": "lake",
-  invite: "moss",
-}
+const AREA_PLACES = {
+  "/app/channel": "chat",
+  "/app/chat": "chat",
+  "/app/recordings": "calls",
+  "/app/doc": "docs",
+  "/app/myTask": "projects",
+  "/app/project": "projects",
+  "/app/board": "projects",
+  "/app/goals": "projects",
+  "/app/calendar": "calendar",
+  "/app/tables": "tables",
+  "/app/ai": "agents",
+  "/app/inbox?tab=ai": "agents",
+} as const satisfies Record<string, Area>
 
-export function destinationHue(path: string): CampHue {
-  return settingsSection(path)?.hue ?? BY_PATH[path] ?? hueFor(path)
+type Places = typeof AREA_PLACES
+
+/** An area's place answers its area's own hue, so "/app/doc" is typed as the docs' hue. */
+export function destinationHue<P extends string>(path: P): P extends keyof Places ? (typeof AREA_HUE)[Places[P]] : MarkHue
+export function destinationHue(path: string): MarkHue {
+  const area: Area | undefined = AREA_PLACES[path as keyof Places]
+  return area ? AREA_HUE[area] : (settingsSection(path)?.hue ?? "ink")
 }

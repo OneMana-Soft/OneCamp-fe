@@ -47,10 +47,10 @@ describe("the Teams tab", () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ key: "createTeam" }) }))
   })
 
-  it("welcomes the first team with a sky illustration, and offers to make it", () => {
+  it("welcomes the first team with a neutral illustration, and offers to make it", () => {
     state.list = { data: { data: [], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<TeamsCard />)
-    expect(document.querySelector("[data-empty-illustration] svg.hue-sky")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration] svg.hue-ink")).toBeTruthy()
     expect(screen.getAllByRole("button", { name: "New team" }).length).toBeGreaterThanOrEqual(2)
   })
 

@@ -4,7 +4,7 @@ import type { Editor } from "@tiptap/core"
 import { toast } from "@/hooks/use-toast"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import { collaboratorHue } from "@/lib/identityHue"
-import type { CampHue } from "@/lib/campHue"
+import { CAMP_HUES, type CampHue } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { newBlockId } from "../block-id/blockId"
 import { reducedMotion, showEffect } from "../block-commands/effects"
@@ -25,8 +25,6 @@ import type { BlockRef } from "../block-commands/blocks"
  * here, in this tab's own change.
  */
 
-const HUES = Object.keys(HUE_CLASS) as CampHue[]
-
 /** A link to a block. Pure. */
 export function blockLinkOf(origin: string, docId: string, blockId: string, hue?: CampHue | null): string {
   return `${origin}/app/doc/${docId}#block-${blockId}${hue ? `~${hue}` : ""}`
@@ -36,7 +34,7 @@ export function blockLinkOf(origin: string, docId: string, blockId: string, hue?
 export function parseBlockLink(hash: string): { blockId: string; hue: CampHue | null } | null {
   const m = /^#?block-([0-9a-zA-Z-]{8,64})(?:~([a-z]+))?$/.exec(hash.trim())
   if (!m) return null
-  const hue = HUES.includes(m[2] as CampHue) ? (m[2] as CampHue) : null
+  const hue = CAMP_HUES.includes(m[2] as CampHue) ? (m[2] as CampHue) : null
   return { blockId: m[1], hue }
 }
 

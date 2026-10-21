@@ -1,5 +1,5 @@
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { SearchField } from "@/components/search/searchField";
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import { TeamListTabProject } from "@/components/team/TeamListTabProject";
@@ -26,6 +26,8 @@ export const TeamListTabContent = ({ teamId }: { teamId: string }) => {
             }, 500),
         [],
     )
+
+    useEffect(() => debouncedSearch.cancel, [debouncedSearch])
 
     const handleSearchChange = (q: string) => {
         setInputValue(q)

@@ -14,7 +14,7 @@ import { chainOf, reach as reachFrom, sourceBytes as bytesOf, walk } from "../sc
 
 // Firebase (17 Oct 2026): web push's SDK came with every signed-in first
 // screen through components/fcm/FCMHandler; it is fetched once the page is idle.
-const HEAVY = ["@tiptap/", "prosemirror-", "yjs", "y-prosemirror", "lowlight", "highlight.js", "mqtt", "framer-motion", "livekit-client", "@livekit/", "firebase/"]
+const HEAVY = ["@tiptap/", "prosemirror-", "yjs", "y-prosemirror", "lowlight", "highlight.js", "mqtt", "framer-motion", "livekit-client", "@livekit/", "firebase/", "@dnd-kit/"]
 const ENTRIES = ["app/layout.tsx", "app/app/layout.tsx", "app/app/home/page.tsx"]
 
 // One walker for every first-load guard (scripts/fluidity/reach.mjs), and one
@@ -283,6 +283,27 @@ describe("a table's first screen", () => {
   })
 })
 
+/**
+ * The Inbox (chat P2's Threads tab, 19 Oct 2026): its first screen is the feed.
+ * The Threads tab's list and the AI tab's record of what agents did (with its
+ * governance drill and its rows) are chunks of their own, fetched when their
+ * tab first opens: 930,716 bytes of source with the AI tab drawn in, 794,862
+ * without it.
+ */
+const INBOX_ROUTE = "app/app/inbox/page.tsx"
+const INBOX_LAZY = [
+  "components/activity/threadsList.tsx",
+  ...(AI_EDITION ? ["components/ai/MyAIActivityCard.tsx", "components/admin/GovernanceDrillCard.tsx"] : []),
+]
+
+describe("the Inbox's first screen", () => {
+  it("draws the feed: the Threads and AI tabs are chunks of their own", () => {
+    const reached = reach(INBOX_ROUTE)
+    expect(INBOX_LAZY.filter((f) => reached.has(f))).toEqual([])
+    expect(INBOX_LAZY.filter((f) => !existsSync(f))).toEqual([])
+  })
+})
+
 // The celebrations' bursts (17 Oct 2026): every screen calls them through
 // lib/celebrateSoon, which notes a finish at once and fetches lib/celebrate
 // (the sparks and rings, 10 KB) when the page is idle. No page or layout
@@ -352,6 +373,22 @@ describe("the celebrations' bursts", () => {
   })
 })
 
+// The realtime provider (19 Oct 2026). The signed-in layout mounts it once; a
+// page that reads the connection (a table's live rows, an import's progress)
+// reads it through components/mqtt/mqttContext. Until then useMqttTopic and
+// eight cards imported useMqtt through the provider, and every page using them
+// carried the provider's handlers: chat's mentions, posts and drafts on a table.
+describe("the realtime provider", () => {
+  it("is the signed-in layout's: no page brings it or its handlers", () => {
+    const pages = pagesAndLayouts("app").filter((r) => r.endsWith("page.tsx"))
+    expect(pages).toContain(TABLE_ROUTE)
+    expect(pages.flatMap((r) => {
+      const reached = reach(r)
+      return reached.has("components/mqtt/mqttProvider.tsx") ? [`${r}: ${chainOf(reached, "components/mqtt/mqttProvider.tsx")}`] : []
+    })).toEqual([])
+  })
+})
+
 // The shell's rare pieces (17 Oct 2026, the shell diet). Every signed-in first
 // screen carried them, though each is wanted only now and then; each is a
 // chunk of its own now. SHELL_LAZY is held from the layouts and Home. ROOT_LAZY
@@ -372,6 +409,15 @@ const SHELL_LAZY = [
   "components/admin/PeopleFrame.tsx",
   // Web push's SDK, fetched once the page is idle (components/fcm/FCMHandler).
   "lib/firebase.ts",
+  // Split view's pane, its pills and its arrange layer, with the shared drag
+  // and FLIP the layer brings (@dnd-kit): they load with the first pane
+  // (components/split/lazy), so a person who never splits downloads none.
+  "components/split/SplitPane.tsx",
+  "components/split/SplitArrange.tsx",
+  "components/split/TuckedViews.tsx",
+  "components/split/FocusPill.tsx",
+  "lib/ui/dnd.ts",
+  "lib/flip.ts",
 ]
 const ROOT_LAZY = [
   // The realtime provider and its handlers: the offline notice reads the
@@ -385,6 +431,10 @@ const ROOT_LAZY = [
   "hooks/useFetch.ts",
   // The settings UI: the unsaved-changes guard takes its event from lib/unsavedChanges.
   "components/ui/settingsSection.tsx",
+  // Split view's state and its rules for many views: the shell adds the slice
+  // (hooks/useSplitView); it rode in every page's store before.
+  "store/slice/splitSlice.ts",
+  "lib/splitLayout.ts",
 ]
 
 const AI_ONLY = new Set(["components/ai/AgentQueryPlan.tsx"])

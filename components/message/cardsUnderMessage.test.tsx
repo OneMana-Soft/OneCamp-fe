@@ -140,7 +140,7 @@ describe("the reactions under a message", () => {
     const { container } = render(
       <Provider store={store}>
         <TooltipProvider>
-          <BottomMenu reactions={{ fire: ["Jonas Weber"] }} handleEmojiClick={() => {}} selectedEmojiId="" />
+          <BottomMenu reactions={{ fire: ["Jonas Weber"] }} handleEmojiClick={() => {}} selectedEmojiIds={new Set()} />
         </TooltipProvider>
       </Provider>,
     )

@@ -97,7 +97,7 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                         ) {
                             dispatch(incrementUserChannelUnread({
                                 ch_uuid: mqttPostInfo.data.post_channel_uuid,
-                                mentionsMe: mentionsUser(mqttPostInfo.data.post_html_text, userUuid),
+                                mentionsMe: mentionsUser(mqttPostInfo.data.post_html_text, userUuid, mqttPostInfo.data.user_uuid),
                             }))
                         }
                         break

@@ -47,6 +47,7 @@ export function ChannelMessageLongPressDrawer({ drawerOpenState, setOpenState, m
             isOwner={isOwner}
             isAdmin={isAdmin}
             messageText={messageText}
+            pin={{ conversation: { kind: "channel", id: channelUUID }, messageId: postUUID }}
         />
     )
 }

@@ -35,7 +35,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/app/project/p",
 }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
-vi.mock("@/components/mqtt/mqttProvider", () => ({ useMqtt: () => ({ connectionState: { isConnected: true } }) }))
+vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<object>()), useMqtt: () => ({ connectionState: { isConnected: true } }) }))
 
 const { default: store } = await import("@/store/store")
 const { default: TaskInfoPanel } = await import("@/components/rightPanel/taskInfoPanel")

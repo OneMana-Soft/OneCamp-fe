@@ -11,7 +11,7 @@
 
 import type { LucideIcon } from "lucide-react"
 import { Bell, Key, Plug, Zap } from "lucide-react"
-import type { CampHue } from "@/lib/campHue"
+import type { MarkHue } from "@/components/ui/graphics/hues"
 import { CAP_WORKFLOW_MANAGE } from "@/services/capabilityService"
 
 export interface SettingsSection {
@@ -20,12 +20,8 @@ export interface SettingsSection {
   /** One line: what is decided there, not what the page is called. */
   description: string
   icon: LucideIcon
-  /**
-   * The section's own camp hue: its icon's tile in the list of sections and
-   * at the top of its page. One per section, none shared, so a section is
-   * known by its colour as well as its name (the playful layer).
-   */
-  hue: CampHue
+  /** Its tile here, on its page and in every menu: its area's hue (lib/areas), else ink. */
+  hue: MarkHue
   capability?: string
   ai?: boolean
 }
@@ -36,21 +32,21 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Notifications",
     description: "Which emails you get, quiet hours, and read receipts.",
     icon: Bell,
-    hue: "sun",
+    hue: "ink",
   },
   {
     href: "/app/settings/connectors",
     label: "Connectors",
     description: "Your Gmail, Google Calendar and GitHub accounts.",
     icon: Plug,
-    hue: "lake",
+    hue: "ink",
   },
   {
     href: "/app/settings/workflows",
     label: "Workflows",
     description: "Rules that act when something happens in a channel.",
     icon: Zap,
-    hue: "moss",
+    hue: "ink",
     capability: CAP_WORKFLOW_MANAGE,
   },
   {
@@ -58,7 +54,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "API tokens",
     description: "Keys for scripts and outside tools that act as you.",
     icon: Key,
-    hue: "berry",
+    hue: "ink",
   },
 ]
 

@@ -57,3 +57,6 @@ next-env.d.ts
 # app/agentRules.test.ts). Only the root's: the skills' AGENTS.md are tracked.
 /AGENTS.md
 /CLAUDE.md
+
+# Call effects: copied out of node_modules before each build (scripts/calls-assets.mjs)
+/public/calls/vendor/

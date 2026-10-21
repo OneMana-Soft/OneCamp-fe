@@ -3,9 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { GuestGrant } from "@/services/guestService"
 
 const setGuestAccess = vi.fn()
+const setGuestPublish = vi.fn()
 const listGuestGrants = vi.fn()
 vi.mock("@/services/guestService", () => ({
   setGuestAccess: (on: boolean) => setGuestAccess(on),
+  setGuestPublish: (on: boolean) => setGuestPublish(on),
   listGuestGrants: () => listGuestGrants(),
   revokeGuestGrant: vi.fn(),
 }))
@@ -58,7 +60,7 @@ describe("guest access, turned off with links made", () => {
     listGuestGrants.mockResolvedValue([grant("g1", "project"), grant("g2", "doc")])
     setGuestAccess.mockResolvedValue(true)
     await open()
-    await act(async () => fireEvent.click(await screen.findByRole("switch")))
+    await act(async () => fireEvent.click(await screen.findByRole("switch", { name: "Allow guest links" })))
     expect(setGuestAccess).not.toHaveBeenCalled()
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
       title: "Turn guest access back on?",
@@ -72,7 +74,7 @@ describe("guest access, turned off with links made", () => {
     listGuestGrants.mockResolvedValue([])
     setGuestAccess.mockResolvedValue(true)
     await open()
-    await act(async () => fireEvent.click(await screen.findByRole("switch")))
+    await act(async () => fireEvent.click(await screen.findByRole("switch", { name: "Allow guest links" })))
     expect(confirm).not.toHaveBeenCalled()
     expect(setGuestAccess).toHaveBeenCalledWith(true)
   })
@@ -97,7 +99,7 @@ describe("guest access, read and labelled honestly", () => {
     getWorkspaceSettings.mockImplementationOnce(() => Promise.reject(new Error("503")))
     await open()
     expect(await screen.findByText(/Couldn't load the guest access setting/)).toBeInTheDocument()
-    expect(screen.queryByRole("switch")).toBeNull()
+    expect(screen.queryByRole("switch", { name: "Allow guest links" })).toBeNull()
     getWorkspaceSettings.mockImplementationOnce(() => Promise.resolve({ guest_access_enabled: true }))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Try again" })))
     expect((await screen.findByRole("switch", { name: "Allow guest links" })).getAttribute("aria-checked")).toBe("true")
@@ -111,7 +113,7 @@ describe("guest access, read and labelled honestly", () => {
     await open()
     const row = (await screen.findByText("Project")).closest("li") as HTMLElement
     expect(row.className).toContain("set-row")
-    expect(row.closest("[data-settings-card]")).toBe(screen.getByRole("switch").closest("[data-settings-card]"))
+    expect(row.closest("[data-settings-card]")).toBe(screen.getByRole("switch", { name: "Allow guest links" }).closest("[data-settings-card]"))
     expect(row.querySelector("[class*='hue-']")).toBeNull()
     expect(row.querySelector(".bg-sunken svg")).toBeTruthy()
     const openLink = screen.getByRole("link", { name: /open/i })
@@ -124,7 +126,7 @@ describe("guest access, read and labelled honestly", () => {
     listGuestGrants.mockResolvedValue([])
     setGuestAccess.mockResolvedValue(true)
     await open()
-    await act(async () => fireEvent.click(await screen.findByRole("switch")))
+    await act(async () => fireEvent.click(await screen.findByRole("switch", { name: "Allow guest links" })))
     const heading = await screen.findByText("Active guest links")
     const row = heading.parentElement as HTMLElement
     expect(row.className).toContain("cfg-reveal")
@@ -152,5 +154,35 @@ describe("guest access, read and labelled honestly", () => {
       description: "That link was already revoked.",
       variant: "destructive",
     }))
+  })
+})
+
+// Publishing pages is guest access's one sub-option, under its switch: off
+// with guest access, and saved on its own when changed.
+describe("publishing pages, under guest access", () => {
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+
+  it("is off and can't be changed while guest access is off", async () => {
+    listGuestGrants.mockResolvedValue([])
+    getWorkspaceSettings.mockResolvedValue({ guest_access_enabled: false, guest_publish_enabled: true })
+    await open()
+    const sub = await screen.findByRole("switch", { name: "Pages can be published to the web" })
+    expect(sub.getAttribute("aria-checked")).toBe("false")
+    expect(sub.hasAttribute("disabled") || sub.getAttribute("data-disabled") !== null).toBe(true)
+  })
+
+  it("is saved on its own while guest access is on", async () => {
+    listGuestGrants.mockResolvedValue([])
+    getWorkspaceSettings.mockResolvedValue({ guest_access_enabled: true, guest_publish_enabled: true })
+    setGuestPublish.mockResolvedValue(false)
+    await open()
+    const sub = await screen.findByRole("switch", { name: "Pages can be published to the web" })
+    expect(sub.getAttribute("aria-checked")).toBe("true")
+    await act(async () => fireEvent.click(sub))
+    expect(setGuestPublish).toHaveBeenCalledWith(false)
+    expect(setGuestAccess).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,9 @@
 // src/components/channel/ChannelMessages.tsx
+import { resetUserChatUnread } from "@/store/slice/userSlice"
+import { receiptsKey } from "@/lib/chat/readReceipts"
+import { markChatSeen } from "@/hooks/useChatReceipts"
+import { releaseUnread } from "@/lib/conversation/unreadHold"
+import { getGroupingId } from "@/lib/utils/getGroupingId";
 import { withContinuation } from "@/lib/messageGrouping"
 import { rowKey } from "@/lib/chat/pendingSend"
 import { useCallback, useEffect, useMemo, useRef, useState} from "react";
@@ -59,9 +64,11 @@ interface ChannelMessagesProps {
     unreadOnOpen?: number;
     /** Set when the older page failed: the list offers Try again (SD-BUG-1). */
     retryOlder?: () => void
+    /** The message a link opened the conversation at (MessageList anchor). */
+    anchor?: string
 }
 
-export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading, unreadOnOpen, retryOlder }: ChannelMessagesProps) => {
+export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading, unreadOnOpen, retryOlder, anchor }: ChannelMessagesProps) => {
     const { isMobile } = useMedia();
 
 
@@ -259,7 +266,15 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
 
     // The message the "New" line sits above, fixed on opening.
     const selfUUID = selfProfile.data?.data.user_uuid;
-    const unreadAnchor = useUnreadAnchor(chats, unreadOnOpen, (c) => c.chat_from?.user_uuid === selfUUID, (c) => rowKey(c.chat_local_id, c.chat_uuid));
+    // The unread banner's Mark as read (chat B27): read, here and everywhere.
+    const markRead = useCallback(() => {
+        const grouping = selfUUID ? getGroupingId(chatId, selfUUID) : ""
+        if (!grouping) return
+        releaseUnread(grouping)
+        void markChatSeen(receiptsKey({ kind: "dm" as const, otherUUID: chatId }), grouping)
+        dispatch(resetUserChatUnread({ dm_grouping_id: grouping }))
+    }, [chatId, selfUUID, dispatch])
+    const unreadAnchor = useUnreadAnchor(chats, unreadOnOpen, (c) => c.chat_from?.user_uuid === selfUUID, (c) => rowKey(c.chat_local_id, c.chat_uuid), { conversation: selfUUID ? getGroupingId(chatId, selfUUID) : "", idOf: (c) => c.chat_uuid });
 
     const flatItems = useMemo(() => {
         const items: Array<FlatItem<ChatInfo>> = [];
@@ -315,7 +330,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     // what arrived for the reader.
     const rawText = useCallback((m: ChatInfo) => m.chat_body_text, [])
     const selfIdForPill = selfProfile.data?.data?.user_uuid
-    const isForMe = useCallback((m: ChatInfo) => mentionsUser(m.chat_body_text, selfIdForPill), [selfIdForPill])
+    const isForMe = useCallback((m: ChatInfo) => mentionsUser(m.chat_body_text, selfIdForPill, m.chat_from?.user_uuid), [selfIdForPill])
     // What a screen reader hears of each message, and whose sends are the reader's (SD-53, SD-54).
     const rowLabel = useCallback((m: ChatInfo) => isSystemLine(m.chat_kind) ? htmlToPreviewText(m.chat_body_text, 400) : messageSummary({ from: m.chat_from, at: m.chat_created_at, html: m.chat_body_text, files: m.chat_attachments?.length }), [])
     const isOwn = useCallback((m: ChatInfo) => !!selfIdForPill && m.chat_from?.user_uuid === selfIdForPill, [selfIdForPill])
@@ -353,6 +368,8 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
 
     const debouncedHandleScroll = useMemo(() => debounceUtil(handleScroll, 200), [handleScroll])
 
+    useEffect(() => debouncedHandleScroll.cancel, [debouncedHandleScroll])
+
     return (
 
         // <MessageList
@@ -376,6 +393,9 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         rowLabel={rowLabel}
         isOwn={isOwn}
         retryOlder={retryOlder}
+        anchor={anchor}
+        timeOf={chatTime}
+        onMarkRead={markRead}
         getDateHeading={getGroupDateHeading}
         fetchOlderMessage={getOldMessages}
         fetchNewMessage={handleGetNewMessage}
@@ -397,3 +417,6 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
 };
 
 ChatMessages.displayName = "ChatMessages";
+
+/** A message's time, for the unread banner. */
+const chatTime = (c: { chat_created_at?: string }) => c.chat_created_at

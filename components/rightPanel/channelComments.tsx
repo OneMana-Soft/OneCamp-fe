@@ -1,10 +1,10 @@
-import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import {useDispatch, useSelector} from "react-redux"
 import type { RootState } from "@/store/store"
 
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {CreateOrUpdatePostsReq, PostsResRaw} from "@/types/post";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ThreadLoadFailed} from "@/components/rightPanel/threadLoadFailed";
@@ -15,59 +15,28 @@ import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {CommentsList} from "@/components/rightPanel/commentsList";
 import { ThreadEmpty } from "@/components/rightPanel/threadEmpty";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
-import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import {openUI} from "@/store/slice/uiSlice";
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
-import {
-    addChannelComments,
-    clearChannelCommentMsgInputState,
-    createChannelComment,
-    createChannelCommentReaction,
-    createOrUpdateChannelCommentMsg,
-    removeChannelComment,
-    removeChannelCommentReaction,
-    setChannelCommentAlsoSend,
-    updateChannelCommentReaction,
-    updateChannelCommentReactionId
-} from "@/store/slice/channelCommentSlice";
-import {ChannelCommentFileUpload} from "@/components/fileUpload/channelCommentFileUpload";
-import { SendHorizontal } from "@/lib/icons";
-import { Checkbox } from "@/components/ui/checkbox";
+import { FollowThreadButton } from "@/components/conversation/FollowThread";
+import { addChannelComments, createChannelCommentReaction, removeChannelComment, removeChannelCommentReaction, updateChannelCommentReaction, updateChannelCommentReactionId } from "@/store/slice/channelCommentSlice";
 import {usePost} from "@/hooks/usePost";
 import { useSaveEdit } from "@/hooks/useSaveEdit"
-import {
-    CreateCommentResInterface,
-     CreateUpdateCommentReqInterface,
-} from "@/types/comment";
+import { CreateUpdateCommentReqInterface } from "@/types/comment";
 import {useRef} from "react";
 import {CreateOrUpdateCommentReaction, CreateOrUpdatePostReaction} from "@/types/reaction";
-import {
-    createPostReactionPostId,
-
-    removePostByPostId,
-    removePostReactionByPostId,
-    updateChannelMessageReplyDecrement,
-    updateChannelMessageReplyIncrement,
-    updatePostReactionPostId
-} from "@/store/slice/channelSlice";
+import { createPostReactionPostId, removePostByPostId, removePostReactionByPostId, updateChannelMessageReplyDecrement, updatePostReactionPostId } from "@/store/slice/channelSlice";
 import {UserProfileInterface} from "@/types/user";
-import {useUploadFile} from "@/hooks/useUploadFile";
 import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
+import { ThreadReplyBox } from "@/components/conversation/ThreadReplyBox";
 
 // Module-level, so a selector that finds nothing returns the same value every
 // time: a fresh [] or {} per call re-drew the thread on every store change.
 const NO_ITEMS: never[] = []
-const NO_DRAFT = {}
 
 export const ChannelComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
     const sidebarChannelName = useSelector((state: RootState) => state.users.userSidebar.userChannels?.find((c) => c.ch_uuid === state.rightPanel.rightPanelState.data.channelUUID)?.ch_name)
 
 
-    // The reply being written: this thread's own draft (MC-BUG-1).
-    const channelCommentState = useSelector((state: RootState) => state.channelComment.commentInputState[rightPanelState.data.postUUID] || NO_DRAFT)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-    const uploadFile = useUploadFile()
 
     const channelState = useSelector((state: RootState) => state.channel.channelPosts[rightPanelState.data.channelUUID] || NO_ITEMS);
 
@@ -75,7 +44,7 @@ export const ChannelComments = () => {
 
 
     const postInfo = useFetch<PostsResRaw>(
-        rightPanelState.data.channelUUID && rightPanelState.data.postUUID ? `${GetEndpointUrl.GetPostWithAllComments}/${rightPanelState.data.postUUID}` : "",
+        rightPanelState.data.channelUUID && rightPanelState.data.postUUID ? `${ChatGet.GetPostWithAllComments}/${rightPanelState.data.postUUID}` : "",
         undefined, undefined, OWN_ERRORS,
     )
 
@@ -90,10 +59,6 @@ export const ChannelComments = () => {
     const postState = channelState?.find(p => p.post_uuid === rightPanelState.data.postUUID) ?? postInfo.data?.data;
 
     const pendingCommentReactionDeletes = useRef<Set<string>>(new Set())
-
-    // "Also send to channel" (Slack parity): the reply is also posted as a
-    // top-level message in the channel. Part of the thread's draft, like its text.
-    const alsoSendToChannel = !!channelCommentState.alsoSendToChannel
 
 
     // The server's replies, reconciled once per answer (useThreadReplies).
@@ -180,42 +145,6 @@ export const ChannelComments = () => {
     // at once, and back with the box open on what was typed when the save
     // fails (hooks/useSaveEdit, F-06). Both take the message's id first.
     const handleUpdatePost = (id: string, html: string) => saveEdit({ kind: "post", channelId: rightPanelState.data.channelUUID, id }, html)
-
-    const handleSend = (latestContent?: string) => {
-        // The thread this reply was written in: its draft is the one emptied
-        // once the server answers, whichever thread is open by then.
-        const threadId = rightPanelState.data.postUUID
-        const files = channelCommentState.filesUploaded ?? []
-
-        const rawBody = latestContent ?? channelCommentState.commentMsgBody
-        const body = removeEmptyPTags(rawBody)
-        const hasAttachments = files.length > 0
-        if (!body && !hasAttachments) return
-
-        post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
-            apiEndpoint: PostEndpointUrl.CreatePostComment,
-            payload: {
-                post_id: threadId,
-                comment_attachments: files,
-                comment_text_html: body,
-                also_send_to_channel: alsoSendToChannel,
-            }
-        })
-            .then((res)=>{
-
-                if(res?.comment_id && selfProfile.data?.data) {
-                    dispatch(createChannelComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, postId: threadId, commentBy: selfProfile.data?.data, attachments: files}))
-
-                }
-
-                // postInfo.mutate()
-                dispatch(clearChannelCommentMsgInputState({threadId, sent: files.map((f) => f.attachment_obj_key)}))
-
-                dispatch(updateChannelMessageReplyIncrement({channelId: rightPanelState.data.channelUUID, messageId: rightPanelState.data.postUUID, comment:{comment_uuid: res?.comment_id||'', comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_text: "", comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
-
-
-            })
-    }
 
     const createOrUpdateReaction = ( emojiId:string, reactionId:string)=> {
 
@@ -371,7 +300,7 @@ export const ChannelComments = () => {
         // task panel's darker step in dark). Its contents move, never the
         // column: x 16px to rest and a fade, 240 ms; another thread fades in.
         <div key={threadKey} data-right-panel-thread="" className="flex h-full flex-col bg-panel animate-panel-in">
-            <RightPanelHeader titleKey={'thread'} subtitle={channelName ? `in #${channelName}` : undefined} subtitleHref={channelName ? `/app/channel/${rightPanelState.data.channelUUID}` : undefined}/>
+            <RightPanelHeader titleKey={'thread'} subtitle={channelName ? `in #${channelName}` : undefined} subtitleHref={channelName ? `/app/channel/${rightPanelState.data.channelUUID}` : undefined} actions={<FollowThreadButton root={rightPanelState.data.postUUID} replies={mainMessageData.commentCount} />}/>
 
                 <div className="pt-3" />
                 <MessageContent
@@ -420,43 +349,7 @@ export const ChannelComments = () => {
             </div>
             {/* The reply box at the panel's foot, the composer at its compact size.
                 A command typed here runs in the thread's conversation (FE-BUG-11). */}
-            <div className="shrink-0 px-3 pb-3 pt-1" data-command-surface={rightPanelState.data.channelUUID}>
-                <MinimalTiptapTextInput
-                    throttleDelay={300}
-                    attachmentOnclick = {()=> {
-                                dispatch(openUI({ key: 'channelCommentFileUpload' }))
-}
-                    }
-                    onActionFiles={async (files) => {
-                        if (!files?.length) return;
-                        await uploadFile.makeRequestToUploadToChannelComment(files as unknown as FileList, rightPanelState.data.channelUUID, rightPanelState.data.postUUID);
-                    }}
-                    ButtonIcon={SendHorizontal}
-                    hasAttachments={(channelCommentState.filesUploaded?.length ?? 0) > 0}
-                    buttonOnclick={handleSend}
-                    variant="chat"
-                    compact
-                    output="html"
-                    placeholder={THREAD_COMPOSER_PLACEHOLDER}
-                    editable={true}
-                    editorClassName="focus:outline-none"
-                    onChange={(content ) => {
-                        dispatch(createOrUpdateChannelCommentMsg({threadId: rightPanelState.data.postUUID, body: content as string}))
-                    }}
-                    content={channelCommentState?.commentMsgBody || null}
-                >
-                    <ChannelCommentFileUpload channelId={rightPanelState.data.channelUUID} threadId={rightPanelState.data.postUUID}/>
-
-                </MinimalTiptapTextInput>
-
-                <label className="mt-2 flex h-5 cursor-pointer select-none items-center gap-2 px-1 text-ui-sm text-ink-2">
-                    <Checkbox
-                        checked={alsoSendToChannel}
-                        onCheckedChange={(v) => dispatch(setChannelCommentAlsoSend({threadId: rightPanelState.data.postUUID, on: v === true}))}
-                    />
-                    {channelName ? `Also send to #${channelName}` : "Also send to channel"}
-                </label>
-            </div>
+            <ThreadReplyBox kind="channel" conversation={rightPanelState.data.channelUUID} thread={rightPanelState.data.postUUID} channelName={channelName} />
         </div>
     )
 }

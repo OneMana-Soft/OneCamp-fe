@@ -1,0 +1,226 @@
+{
+  "about": [
+    "The shell's fluidity budgets: the first load (fluid-15, fluid-20's bytes), Home (fluid-01), the inbox (fluid-02), the palette and search (fluid-13), Settings (fluid-14) and an overlay (fluid-16). surfaces.mjs --only shell on a production build against the fake server side, on a computer at 1x and a phone at 4x (FLUIDITY-LEAD, 20 Oct 2026).",
+    "measured is the median of 5 runs on beta 482460c3d. In-app opens go the way a person goes: the pointer rests 150 ms on a sidebar link (what IntentLink prefetches on) and clicks; a phone taps its tab bar.",
+    "Renders and bytes are enforced; times are printed against their max until they hold on a quiet P-core slot. Never raise a max to make a run pass."
+  ],
+  "budgets": {
+    "firstLoadMs": {
+      "scenario": "shell",
+      "owner": "FL",
+      "source": "A new tab, nothing cached, until Home shows what needs you or today's agenda. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 654 at 1x on a computer (load 10 to 19), 2840 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: A new tab, nothing in memory: 1.0 s on a computer, 2.5 s on the 4x phone (chat programme Wave C, perf-mobile.md; Nielsen's 1 s limit for the flow of thought)",
+      "cpu1": {
+        "max": 1000,
+        "target": 1000,
+        "measured": 654
+      },
+      "cpu4": {
+        "max": 3700,
+        "target": 2500,
+        "measured": 2840
+      },
+      "enforce": false
+    },
+    "firstLoadKB": {
+      "scenario": "shell",
+      "owner": "FL",
+      "source": "Script on the wire before Home is useful, KB as served (56 files). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 841 at 1x on a computer (load 10 to 19), 872 at 4x on a phone (load 19 to 38). Target: First-load script on the wire, KB: 450 KB (platform P-SPEED's target for Home and the project route, route-ceilings.json)",
+      "cpu1": {
+        "max": 890,
+        "target": 450,
+        "measured": 841
+      },
+      "cpu4": {
+        "max": 920,
+        "target": 450,
+        "measured": 872
+      },
+      "enforce": true
+    },
+    "homeOpenMs": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "Home from a channel through the sidebar (a phone's tab bar) until its content shows. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 59 at 1x on a computer (load 10 to 19), 304 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 59
+      },
+      "cpu4": {
+        "max": 400,
+        "target": 300,
+        "measured": 304
+      },
+      "enforce": false
+    },
+    "homeOpenRenders": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "Renders to open Home in the app. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 1718 at 1x on a computer (load 10 to 19), 576 at 4x on a phone (load 19 to 38). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 1810,
+        "target": 600,
+        "measured": 1718
+      },
+      "cpu4": {
+        "max": 600,
+        "target": 600,
+        "measured": 576
+      },
+      "enforce": true
+    },
+    "inboxOpenMs": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "The inbox through the sidebar until its first mention row (its 210 KB of code arrives as the pointer rests on the link). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 213 at 1x on a computer (load 10 to 19), 624 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)",
+      "cpu1": {
+        "max": 280,
+        "target": 100,
+        "measured": 213
+      },
+      "cpu4": {
+        "max": 820,
+        "target": 300,
+        "measured": 624
+      },
+      "enforce": false
+    },
+    "inboxOpenRenders": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "Renders to open the inbox (a Radix Tooltip in every row). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 4072 at 1x on a computer (load 10 to 19), 3502 at 4x on a phone (load 19 to 38). Target: render only what changed (the fluidity method: rows memoised on id-only props, a window of the rows on screen)",
+      "cpu1": {
+        "max": 4280,
+        "target": 800,
+        "measured": 4072
+      },
+      "cpu4": {
+        "max": 3680,
+        "target": 800,
+        "measured": 3502
+      },
+      "enforce": true
+    },
+    "paletteOpenMs": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "Ctrl+K until the palette's input shows. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 42 at 1x on a computer (load 10 to 19). Times above load 16 are inflated: provisional until a quiet rerun. Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 42
+      },
+      "enforce": false
+    },
+    "searchResultsMs": {
+      "scenario": "shell",
+      "owner": "DOCS",
+      "source": "Search typed in the palette (a phone's search page): from the last key until a task it found shows (the server answers; a 150 ms round trip on fixtures). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 321 at 1x on a computer (load 10 to 19), 426 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Search: results within 100 ms of the last key on a computer, 300 ms on the 4x phone (projects-budgets.proposed.json's command bar; Linear answers from its local store)",
+      "cpu1": {
+        "max": 420,
+        "target": 100,
+        "measured": 321
+      },
+      "cpu4": {
+        "max": 560,
+        "target": 300,
+        "measured": 426
+      },
+      "enforce": false
+    },
+    "settingsOpenMs": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "Settings in the app until its first heading (its code loads at the press). Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 373 at 1x on a computer (load 10 to 19), 261 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)",
+      "cpu1": {
+        "max": 490,
+        "target": 100,
+        "measured": 373
+      },
+      "cpu4": {
+        "max": 300,
+        "target": 300,
+        "measured": 261
+      },
+      "enforce": false
+    },
+    "overlayOpenMs": {
+      "scenario": "shell",
+      "owner": "D3",
+      "source": "An overlay: the shortcuts dialog on a computer, the account sheet on a phone, from the press until it shows. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 62 at 1x on a computer (load 10 to 19), 682 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 62
+      },
+      "cpu4": {
+        "max": 890,
+        "target": 300,
+        "measured": 682
+      },
+      "enforce": false
+    },
+    "overlayOpenInpMs": {
+      "scenario": "shell",
+      "owner": "D3",
+      "source": "An overlay opened: input to next paint. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 80 at 1x on a computer (load 10 to 19), 32 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: INP: input to next paint within 100 ms at 1x and at 4x (the brief; web.dev counts up to 200 ms as good, halved to be felt faster than the rivals)",
+      "cpu1": {
+        "max": 100,
+        "target": 100,
+        "measured": 80
+      },
+      "cpu4": {
+        "max": 100,
+        "target": 100,
+        "measured": 32
+      },
+      "enforce": false
+    },
+    "overlayFrameP95Ms": {
+      "scenario": "shell",
+      "owner": "D3",
+      "source": "Frame time p95 while the overlay comes in. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 16.65 at 1x on a computer (load 10 to 19), 16.8 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Frame time p95 while it scrolls or drags: one 60 Hz refresh (16.7 ms) on a computer, two (33.4 ms) on the 4x phone (the brief; 60 fps, never under 30)",
+      "cpu1": {
+        "max": 16.7,
+        "target": 16.7,
+        "measured": 16.65
+      },
+      "cpu4": {
+        "max": 33.4,
+        "target": 33.4,
+        "measured": 16.8
+      },
+      "enforce": false
+    },
+    "firstLoadReadyKB": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "Script on the wire from a new tab's start until Home is useful: the first load's own, which P-SPEED's 450 KB is for. firstLoadKB adds the 2.5 s after it, where a page warms code once it is quiet (firstLoadWarmKB). Median of 5 quiet P-core runs on beta 354028322, 21 Oct 2026, load 0.1-2.7 (FLUIDITY-LEAD-2).",
+      "cpu1": {
+        "max": 850,
+        "target": 450,
+        "measured": 810
+      },
+      "cpu4": {
+        "max": 810,
+        "target": 450,
+        "measured": 768
+      }
+    },
+    "settingsOpenKB": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "Script fetched from the press until Settings is useful: about 0 once its page module is warmed ahead (fluid-14; a route prefetch brings only the RSC payload). Median of 5 quiet P-core runs on beta 354028322, 21 Oct 2026, load 0.1-2.7 (FLUIDITY-LEAD-2).",
+      "cpu1": {
+        "max": 90,
+        "target": 10,
+        "measured": 85
+      },
+      "cpu4": {
+        "max": 10,
+        "target": 10,
+        "measured": 9
+      }
+    }
+  }
+}

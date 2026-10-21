@@ -23,7 +23,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { CalendarGet, CalendarPost } from "@/services/endpoints/calendar"
 import { bookingPageUrl } from "@/services/bookingService"
 import { defaultHours, slugify, timeZones, type WorkingHours } from "@/lib/calendar/availability"
 import { clockTime } from "@/lib/utils/date/clock"
@@ -78,7 +78,7 @@ const blank = (): BookingPage => ({
 })
 
 export function BookingSettings() {
-  const { data, isLoading, mutate } = useFetch<{ data: BookingPage[] }>(GetEndpointUrl.GetBookingPages)
+  const { data, isLoading, mutate } = useFetch<{ data: BookingPage[] }>(CalendarGet.GetBookingPages)
   const [editing, setEditing] = React.useState<BookingPage | null>(null)
   const pages = data?.data ?? []
 
@@ -145,7 +145,7 @@ function PageList({ pages, loading, onEdit, onChanged }: { pages: BookingPage[];
       // A refusal (a server that keeps pages with bookings to come) is said in
       // the dialog, in the server's words, and the page stays.
       onConfirm: async () => {
-        const res = await makeRequest<{ id: string }, { upcoming_bookings?: number }>({ apiEndpoint: PostEndpointUrl.DeleteBookingPage, payload: { id: p.id! }, quiet: true })
+        const res = await makeRequest<{ id: string }, { upcoming_bookings?: number }>({ apiEndpoint: CalendarPost.DeleteBookingPage, payload: { id: p.id! }, quiet: true })
         const left = typeof res?.upcoming_bookings === "number" ? res.upcoming_bookings : p.upcoming_bookings
         toast({
           title: `Deleted “${p.title}”`,
@@ -217,7 +217,7 @@ function PageEditor({ page, onCancel, onSaved }: { page: BookingPage; onCancel: 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     const res = await makeRequest<BookingPage, BookingPage>({
-      apiEndpoint: PostEndpointUrl.SaveBookingPage,
+      apiEndpoint: CalendarPost.SaveBookingPage,
       // The count is the server's to say, never sent back.
       payload: { ...p, upcoming_bookings: undefined, slug: slugify(p.slug || p.title) },
       showErrorToast: true,

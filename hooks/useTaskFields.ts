@@ -17,7 +17,7 @@ export function useTaskFields() {
   const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate()
 
   const change = useCallback(
-    (projectUuid: string, patch: Partial<TaskInfoInterface> & { task_uuid: string }, apiEndpoint: PostEndpointUrl, payload: Record<string, string>) => {
+    (projectUuid: string, patch: Partial<TaskInfoInterface> & { task_uuid: string }, apiEndpoint: string, payload: Record<string, string>) => {
       optimisticUpdateTask(patch, projectUuid)
       return post
         .makeRequest({ apiEndpoint, payload: { task_uuid: patch.task_uuid, task_project_uuid: projectUuid, ...payload }, showErrorToast: true })

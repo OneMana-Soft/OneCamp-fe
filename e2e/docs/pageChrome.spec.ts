@@ -2,6 +2,7 @@ import { expect, test, type Browser, type Page, type TestInfo } from "@playwrigh
 
 import { SAM, docInfo, stubBackend, type Answers } from "../stubbedApp"
 import { CollabRelay } from "./collabRelay"
+import { more, openMore } from "./docWith"
 import { PRIYA, type Person } from "./twoPeople"
 
 // A doc's page chrome (B6), in a real browser on A1's two-person harness:
@@ -70,24 +71,6 @@ async function open(browser: Browser, testInfo: TestInfo, relay: CollabRelay, pe
   const body = page.locator(".doc-editor .ProseMirror")
   await expect(body).toBeVisible({ timeout: 60_000 })
   return { page, body, posts, close: () => context.close() }
-}
-
-/**
- * More's menu, as a wide screen's header draws it, opened again until the
- * item is in it: B6's page actions register as the page guard's chunk
- * loads, beside the editor.
- */
-async function openMore(page: Page, item: string) {
-  await expect(async () => {
-    if (!(await page.locator("[data-doc-more-menu]").isVisible())) await page.getByRole("button", { name: "More doc actions" }).click()
-    const found = await page.getByRole("menuitem", { name: item }).isVisible()
-    if (!found) await page.keyboard.press("Escape")
-    expect(found).toBe(true)
-  }).toPass({ timeout: 30_000 })
-}
-async function more(page: Page, item: string) {
-  await openMore(page, item)
-  await page.getByRole("menuitem", { name: item }).click()
 }
 
 test("the breadcrumb shows the path, and a page dropped on a crumb, or on Docs, is previewed and moves", async ({ browser }, testInfo) => {

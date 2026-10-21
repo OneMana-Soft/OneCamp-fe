@@ -28,6 +28,10 @@ export { Columns4 } from "lucide-react";
 export { ChartGantt, CalendarOff } from "lucide-react";
 // Goals: the view, a goal's page and its link from a project.
 export { Target } from "lucide-react";
+// Calls: spotlight, co-hosts.
+export { StarOff, UserRoundCheck, UserRoundX } from "lucide-react";
+// Calls: backgrounds and sound (Media Processors): a picture of one's own, noise reduction.
+export { ImagePlus, AudioLines, WandSparkles } from "lucide-react";
 // Docs (B2): colour, the fourth heading, the table of contents, and callout icons.
 export { Baseline, Heading4, TableOfContents, CircleAlert, Flame, BookOpen, GraduationCap } from "lucide-react";
 export { Focus } from "lucide-react";

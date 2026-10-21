@@ -34,7 +34,7 @@ vi.mock("virtua", () => ({
   }),
 }))
 
-const { MessageListVirtua } = await import("./MessaageListVirtua")
+const { MessageListVirtua } = await import("./MessageListVirtua")
 
 type Msg = { id: string }
 const items = (n: number, extra: FlatItem<Msg>[] = []): FlatItem<Msg>[] => [
@@ -192,5 +192,23 @@ describe("the way back on a phone", () => {
   it("keeps the list's own offset on a computer", () => {
     window.matchMedia = phone(false) as unknown as typeof window.matchMedia
     expect(scrolledUp().style.bottom).toBe("")
+  })
+})
+
+// The day heading's debounce (50 ms) ran after the list had gone: a reader who
+// scrolled and then left the conversation within it set state on an unmounted
+// list, which failed this file once on jsdom's teardown (RELEASE-2730, 19 Oct).
+describe("a conversation the reader leaves mid-scroll", () => {
+  it("leaves no timer behind", () => {
+    vi.useFakeTimers()
+    try {
+      const { unmount } = render(list(items(10)))
+      act(() => void vi.advanceTimersByTime(5000))
+      act(() => readerScrolls(400))
+      unmount()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

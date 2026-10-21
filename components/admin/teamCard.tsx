@@ -7,7 +7,8 @@ import { ErrorState } from "@/components/ui/error-state"
 import { openUI } from "@/store/slice/uiSlice"
 import type { RootState } from "@/store/store"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { TeamDeleteOrUndeleteInterface, TeamListResponseInterface, TeamInfoInterface } from "@/types/team"
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
@@ -22,7 +23,7 @@ const TeamsCard = () => {
     const [search, setSearch] = useState("")
 
     const teamList = useFetch<TeamListResponseInterface>(
-        `${GetEndpointUrl.GetAdminTeamList}?pageIndex=${pageIndex}&pageSize=20`
+        `${AdminGet.GetAdminTeamList}?pageIndex=${pageIndex}&pageSize=20`
     )
     const post = usePost()
     const dispatch = useDispatch()

@@ -1,23 +1,21 @@
 import { describe, expect, it } from "vitest"
 import { SETTINGS_SECTIONS, sectionAccess } from "./settingsSections"
 
-// Each of a person's settings sections has its own camp hue, shown on its tile
-// in the list of sections and at the top of its page, so a section is
-// recognised by colour as well as by name (the playful layer). No two
-// sections share a hue.
+// Each of a person's settings sections shows one hue, on its tile in the list
+// of sections, at the top of its page and in every menu that lists it: its
+// area's (lib/areas), or ink for a section that names no area.
 describe("settings section hues", () => {
-  it("gives each section the hue the design system assigned it", () => {
+  // Colour names an area (lib/areas, DESIGN-BUILD-3's ruling, 20 Oct): a
+  // section of an area wears the area's hue, any other is ink, so sections in
+  // one area share it. The old "one hue per section, none shared" is retired.
+  it("gives each section its area's hue, and ink to a section that names no area", () => {
     const hues = Object.fromEntries(SETTINGS_SECTIONS.map((s) => [s.href, s.hue]))
     expect(hues).toEqual({
-      "/app/settings/notifications": "sun",
-      "/app/settings/connectors": "lake",
-      "/app/settings/workflows": "moss",
-      "/app/settings/api-tokens": "berry",
+      "/app/settings/notifications": "ink",
+      "/app/settings/connectors": "ink",
+      "/app/settings/workflows": "ink",
+      "/app/settings/api-tokens": "ink",
     })
-  })
-
-  it("never gives two sections the same hue", () => {
-    expect(new Set(SETTINGS_SECTIONS.map((s) => s.hue)).size).toBe(SETTINGS_SECTIONS.length)
   })
 })
 

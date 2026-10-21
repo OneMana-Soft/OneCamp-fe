@@ -50,6 +50,7 @@ import { browserTZ } from "@/lib/utils/timeZone"
 import { app_project_path } from "@/types/paths"
 import { useProjectHues } from "@/lib/projectHue"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { areaHue } from "@/lib/areas"
 
 const isWeeks = (v: unknown): v is number => (REPORT_WEEKS as readonly unknown[]).includes(v)
 const isIdList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
@@ -295,7 +296,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
     return frame(
       <WorkState>
         <EmptyState
-          illustration={<SpotWelcome hue="sky" />}
+          illustration={<SpotWelcome hue={areaHue("projects")} />}
           title="No report yet"
           description="Reports count the work in the projects you're in. Join or start a project and they fill in."
         />
@@ -358,7 +359,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
       </dl>
       {nothing ? (
         <WorkState>
-          <EmptyState illustration={<SpotWelcome hue="sky" />} title="Nothing open or done in these weeks" description="Pick more weeks, or more projects." />
+          <EmptyState illustration={<SpotWelcome hue={areaHue("projects")} />} title="Nothing open or done in these weeks" description="Pick more weeks, or more projects." />
         </WorkState>
       ) : (
         <>

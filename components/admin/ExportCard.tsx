@@ -25,7 +25,7 @@ import { IMPORT_LIST, ImportRowsSkeleton, ROW_ACTION } from "@/components/admin/
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useToast } from "@/hooks/use-toast"
-import { useMqtt } from "@/components/mqtt/mqttProvider"
+import { useMqtt } from "@/components/mqtt/mqttContext"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { patchCached } from "@/lib/swrMutate"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"

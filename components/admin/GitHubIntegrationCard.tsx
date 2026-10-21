@@ -37,6 +37,7 @@ import {
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -138,9 +139,9 @@ const safeParseAutomationRules = (rules?: AutomationRules | string): AutomationR
 
 const GitHubIntegrationCard = () => {
   const dispatch = useDispatch()
-  const { data: statusData, isLoading, isError, mutate } = useFetch<GitHubStatusResp>(GetEndpointUrl.GetGitHubStatus)
+  const { data: statusData, isLoading, isError, mutate } = useFetch<GitHubStatusResp>(AdminGet.GetGitHubStatus)
   const { data: rateLimitData } = useFetch<{ connected: boolean; remaining?: number; limit?: number; percent?: number }>(
-    GetEndpointUrl.GetGitHubRateLimit
+    AdminGet.GetGitHubRateLimit
   )
   const { data: projectListData, isLoading: projectsLoading } = useFetch<{ data: { user_projects: ProjectInfoInterface[] } }>(GetEndpointUrl.GetUserProjectList)
   const post = usePost()
@@ -207,7 +208,7 @@ const GitHubIntegrationCard = () => {
     try {
       const res = await post.makeRequest<any, { auth_url: string }>({
         method: "GET",
-        apiEndpoint: GetEndpointUrl.GetGitHubAuthUrl as any,
+        apiEndpoint: AdminGet.GetGitHubAuthUrl as any,
       })
       const authUrl = res?.auth_url
       if (authUrl) {
@@ -227,7 +228,7 @@ const GitHubIntegrationCard = () => {
     try {
       const res = await post.makeRequest<any, { repos: GitHubRepo[] }>({
         method: "GET",
-        apiEndpoint: GetEndpointUrl.GetGitHubRepos as any,
+        apiEndpoint: AdminGet.GetGitHubRepos as any,
       })
       setRepos(res?.repos || [])
     } catch {
@@ -277,7 +278,7 @@ const GitHubIntegrationCard = () => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (!alive.current) return
       try {
-        const res = await axiosInstance.get(`${GetEndpointUrl.GetGitHubImportJob}/${jobId}`)
+        const res = await axiosInstance.get(`${AdminGet.GetGitHubImportJob}/${jobId}`)
         const job = res.data?.job
         if (job?.Status === "completed" || job?.status === "completed") {
           const imported = job.ItemsImported ?? job.items_imported ?? 0

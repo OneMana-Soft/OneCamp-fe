@@ -214,7 +214,6 @@ export function WeekView({
 }: WeekViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const colsRef = useRef<HTMLDivElement>(null);
-  const ghostRef = useRef<HTMLDivElement>(null);
   const days = useMemo(() => Array.from({ length: dayCount }, (_, i) => addDays(startOfDay(weekStart), i)), [weekStart, dayCount]);
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
   const now = useMinute();
@@ -535,8 +534,9 @@ export function WeekView({
       const r = d.moved ? createRange(d.pressMin, d.curMin) : clickRange(d.pressMin);
       const draftRange = { start: atMinutes(days[d.day], r.startMin), end: atMinutes(days[d.day], r.endMin) };
       if (onDraft) {
-        // The ghost stays drawn through the draft prop; the card anchors to it.
-        requestAnimationFrame(() => onDraft(draftRange, ghostRef.current));
+        // The ghost stays drawn through the draft prop, re-mounted once the
+        // draft is set: the card finds it then (its anchor is measured live).
+        requestAnimationFrame(() => onDraft(draftRange, null));
       } else onSlotClick?.(draftRange.start);
       return;
     }
@@ -903,7 +903,6 @@ export function WeekView({
                     {/* The draft ghost: brand at 14 %, a brand bar, a dashed ring. */}
                     {ghost && ghost.day === di ? (
                       <div
-                        ref={ghostRef}
                         data-calendar-ghost=""
                         className="pointer-events-none absolute inset-x-[2px] z-30 overflow-hidden rounded-md border border-dashed border-brand bg-brand/14 py-1 pl-[9px] pr-1.5"
                         style={{ top: (ghost.startMin / 60) * HOUR_HEIGHT, height: Math.max(((ghost.endMin - ghost.startMin) / 60) * HOUR_HEIGHT - 2, 12) }}

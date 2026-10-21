@@ -11,7 +11,7 @@ import { Provider } from "react-redux"
 // empty draft object on each render.
 
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
-vi.mock("@/hooks/useSplitView", () => ({ useOpenBeside: () => () => false }))
+vi.mock("@/hooks/useOpenBeside", () => ({ useOpenBeside: () => () => false }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }), usePathname: () => "/app/channel/c1", useSearchParams: () => new URLSearchParams() }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async () => undefined), isSubmitting: false }) }))
 vi.mock("@/hooks/useUploadFile", () => ({ useUploadFile: () => ({ validateFiles: () => [] }) }))

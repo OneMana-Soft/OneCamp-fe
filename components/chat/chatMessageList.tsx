@@ -2,7 +2,8 @@
 
 import {useFetch} from "@/hooks/useFetch";
 import { useLeaveLink, useLinkSearchParams, useLinkedPage } from "@/hooks/useLinkTarget";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {memo, useCallback, useEffect, useMemo, useState} from "react";
@@ -39,7 +40,7 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
 
     const latestKey = messageId ? '' : GetEndpointUrl.GetChatLatestMessage + '/' + chatId
     const latestMsg = useFetch<CreateChatPaginationResRaw>(latestKey)
-    const getNewChatsWithCurrentChat = useFetch<CreateChatPaginationResRaw>(messageId ? GetEndpointUrl.GetNewChatIncludingCurrentChat + '/' + chatId + '/' + messageId: '')
+    const getNewChatsWithCurrentChat = useFetch<CreateChatPaginationResRaw>(messageId ? ChatGet.GetNewChatIncludingCurrentChat + '/' + chatId + '/' + messageId: '')
 
     // Revalidate the "latest" window whenever we open/switch into this
     // conversation. SWR caches by key, so navigating to an already-visited
@@ -69,12 +70,12 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
     const [oldChatTime, setOldChatTime] = useState(0)
     // The message the older page starts next to (lib/chat/pageEdge).
     const [oldEdge, setOldEdge] = useState('')
-    const oldMsg = useFetch<CreateChatPaginationResRaw>(oldChatTime == 0 ? '' : GetEndpointUrl.GetOldChatBefore + '/' + chatId + '/' + oldChatTime + oldEdge)
+    const oldMsg = useFetch<CreateChatPaginationResRaw>(oldChatTime == 0 ? '' : ChatGet.GetOldChatBefore + '/' + chatId + '/' + oldChatTime + oldEdge)
 
     const [hasMoreNewChat, setHasMoreNewChat] = useState(!!messageId)
     const [newChat, setNewChat] = useState(0)
     const [newEdge, setNewEdge] = useState('')
-    const newMsg = useFetch<CreateChatPaginationResRaw>(newChat == 0 ? '' : GetEndpointUrl.GetNewChatAfter + '/' + chatId + '/' + newChat + newEdge)
+    const newMsg = useFetch<CreateChatPaginationResRaw>(newChat == 0 ? '' : ChatGet.GetNewChatAfter + '/' + chatId + '/' + newChat + newEdge)
 
 
 
@@ -261,6 +262,7 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
                 clickedScrollToBottom={handleClickedScrollToBottom}
                 unreadOnOpen={unreadOnOpen}
                 retryOlder={retryOlder}
+                anchor={messageId}
             />
             {/*
               Typing indicator. On desktop it sits inline at the bottom of

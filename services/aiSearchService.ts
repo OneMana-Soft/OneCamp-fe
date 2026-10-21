@@ -8,7 +8,7 @@
  */
 
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { AiPost } from "@/services/endpoints/ai"
 
 /**
  * A search is a read sent as a POST. Unflagged, a request that got no answer
@@ -62,7 +62,7 @@ interface UnifiedSearchResponse {
 // the handler's context is the request's, so a cancelled search stops fanning out
 // instead of finishing work nobody will read.
 export async function unifiedSearch(query: string, signal?: AbortSignal): Promise<UnifiedSearchResponse> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearch, { query }, { signal, ...AS_A_READ })
+  const res = await axiosInstance.post(AiPost.AIUnifiedSearch, { query }, { signal, ...AS_A_READ })
   return (
     res.data?.data ?? {
       enabled: false,

@@ -30,12 +30,16 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Circle, X, CheckCircle2, Users, Sparkles, Mail, Globe, Shield, Download } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
+import { SegmentedProgress } from "@/components/ui/graphics/SegmentedProgress"
 import { celebrate } from "@/lib/celebrateSoon"
 import { cn } from "@/lib/utils/helpers/cn"
+import { CHECKLIST_MEMO_KEY, ChecklistPlaceholder, holdChecklistPlace, readMemo, WELL, type Memo } from "@/components/home/setupChecklistPlace"
+// What Home and the tests read from here, defined beside the place Home holds.
+export { adminFromSidenav, CHECKLIST_MEMO_KEY, holdChecklistPlace } from "@/components/home/setupChecklistPlace"
 import {
     getOnboardingStatus,
     dismissOnboarding,
@@ -68,25 +72,6 @@ export function shouldShowChecklist(
     return true
 }
 
-/**
- * What this browser last knew of the card: "open" when it had steps to show,
- * "closed" once it was finished or hidden. It decides whether Home holds the
- * card's place while the card loads, so a finished workspace never reserves
- * space for a card that won't come, and an unfinished one doesn't jump when it
- * does.
- */
-export const CHECKLIST_MEMO_KEY = "oc_setup_checklist"
-type Memo = "open" | "closed" | null
-
-function readMemo(): Memo {
-    try {
-        const v = localStorage.getItem(CHECKLIST_MEMO_KEY)
-        return v === "open" || v === "closed" ? v : null
-    } catch {
-        return null
-    }
-}
-
 function writeMemo(v: "open" | "closed") {
     try {
         localStorage.setItem(CHECKLIST_MEMO_KEY, v)
@@ -95,25 +80,31 @@ function writeMemo(v: "open" | "closed") {
     }
 }
 
+// The guided first run (components/onboarding/OnboardingRun), loaded when it opens.
+const OnboardingRun = dynamic(() => import("@/components/onboarding/OnboardingRun"), { ssr: false })
+
+/** Set once this browser has opened the guided run on its own. */
+export const FIRST_RUN_KEY = "oc_first_run_shown"
+
 /**
- * Whether the signed-in person is an admin, from the side-nav answer: unknown
- * (undefined) until it arrives, then yes or no. The server leaves
- * user_is_admin out when it is false (omitempty), so reading the field alone
- * kept a member "unknown" for good, and a browser that had shown the card
- * held its place as a skeleton on Home forever. A failed answer is a no: the
- * card is a hint, never worth a skeleton. Pure.
+ * Whether the guided run opens on its own: once per browser, for an admin
+ * whose checklist still has work on it. Pure but for storage.
  */
-export function adminFromSidenav(res: { data?: { data?: { user_is_admin?: boolean } }; error?: unknown }): boolean | undefined {
-    if (res.data) return res.data.data?.user_is_admin === true
-    return res.error ? false : undefined
+export function shouldAutoOpenRun(state: OnboardingState | null, isAdmin: boolean | undefined): boolean {
+    if (!shouldShowChecklist(isAdmin, false, state)) return false
+    try {
+        return localStorage.getItem(FIRST_RUN_KEY) !== "1"
+    } catch {
+        return false
+    }
 }
 
-/** Whether to hold the card's place while its state loads. Pure. */
-export function holdChecklistPlace(isAdmin: boolean | undefined, loaded: boolean, memo: Memo): boolean {
-    if (loaded || isAdmin === false || memo === "closed") return false
-    // Before we know who this is, hold it only where this browser has shown it.
-    if (isAdmin === undefined) return memo === "open"
-    return true
+function markRunShown() {
+    try {
+        localStorage.setItem(FIRST_RUN_KEY, "1")
+    } catch {
+        // Private mode: it may open again next visit, which is harmless.
+    }
 }
 
 /** How long "Hidden. Undo" stays before the server is told. */
@@ -149,6 +140,13 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
     const [skipFailed, setSkipFailed] = useState(false)
     // The checklist was just finished, while this browser was following it.
     const [finished, setFinished] = useState(false)
+    // The guided run over the same steps.
+    const [running, setRunning] = useState(false)
+    const reload = useCallback(() => {
+        void getOnboardingStatus()
+            .then((s) => s && setState(s))
+            .catch(() => {})
+    }, [])
 
     useEffect(() => {
         if (!isAdmin) return
@@ -162,6 +160,10 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                 if (s && !s.dismissed && s.complete && s.total > 0 && readMemo() === "open") setFinished(true)
                 setState(s ?? null)
                 setLoaded(true)
+                if (shouldAutoOpenRun(s ?? null, true)) {
+                    markRunShown()
+                    setRunning(true)
+                }
                 if (s) writeMemo(shouldShowChecklist(true, false, s) ? "open" : "closed")
             })
             .catch(() => {
@@ -272,6 +274,9 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                     {state.done} of {state.total} done. This disappears on its own.
                 </span>
                 <span className="flex-1" />
+                <Button variant="outline" size="sm" className="h-11 md:h-8" onClick={() => setRunning(true)} data-open-run="">
+                    Set up with a guide
+                </Button>
                 <Button
                     variant="ghost"
                     size="icon-xs"
@@ -304,6 +309,8 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                     ))}
             </ul>
 
+            {running && <OnboardingRun state={state} refresh={reload} onClose={() => { setRunning(false); reload() }} />}
+
             {skipFailed && (
                 <p role="alert" className="mt-2 px-1 text-meta font-medium text-danger-ink">
                     Couldn&apos;t set that step aside. Try again.
@@ -331,22 +338,6 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
     )
 }
 
-const WELL = "rounded-2xl bg-sunken p-3.5 ring-1 ring-inset ring-line dark:bg-white/[0.025]"
-
-/** 28 x 4px bars, moss when done (hub.md H5, H6). */
-function SegmentedProgress({ done, total }: { done: number; total: number }) {
-    const bars = Math.min(total, 12)
-    const filled = total > 0 ? Math.round((done / total) * bars) : 0
-    return (
-        <span className="flex gap-1" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={total > 0 ? Math.round((done / total) * 100) : 0} aria-label={`${done} of ${total} steps done`} data-segmented-progress="">
-            {Array.from({ length: bars }, (_, i) => (
-                <i key={i} className="relative h-1 w-7 overflow-hidden rounded-[2px] bg-press">
-                    <span className={cn("absolute inset-0 origin-left bg-camp-moss transition-transform duration-[320ms] ease-out", i < filled ? "scale-x-100" : "scale-x-0")} />
-                </i>
-            ))}
-        </span>
-    )
-}
 
 /** Each step's tile, by what it is about (hub.md H6). */
 const STEP_TILES: Record<string, { tone: string; Icon: React.ComponentType<{ className?: string }> }> = {
@@ -440,29 +431,6 @@ function ChecklistDone({ onClose }: { onClose: () => void }) {
                 </Button>
             </div>
         </section>
-    )
-}
-
-/** The card's shape while it loads: its header and three step rows. */
-function ChecklistPlaceholder() {
-    return (
-        <div role="status" aria-label="Loading the setup checklist" aria-busy="true" className={WELL}>
-            <div aria-hidden="true">
-                <div className="flex items-center gap-3 px-1 pb-3.5">
-                    <Skeleton className="h-4 w-56" />
-                    <Skeleton className="h-1 w-32" />
-                </div>
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                    {[0, 1, 2].map((i) => (
-                        <div key={i} className="flex min-h-[132px] flex-col gap-2.5 rounded-lg bg-sheet p-3.5 shadow-e1 dark:bg-[#18191C]">
-                            <Skeleton className="size-8 rounded-[9px]" />
-                            <Skeleton className="h-3.5 w-2/3" />
-                            <Skeleton className="h-3 w-4/5" />
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
     )
 }
 

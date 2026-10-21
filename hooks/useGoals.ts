@@ -9,16 +9,16 @@ import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { appMutate } from "@/lib/swrMutate"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { browserTZ } from "@/lib/utils/timeZone"
 import type { UpdateDraft } from "@/lib/projectUpdates"
 import type { UpdateInput } from "@/hooks/useProjectUpdates"
 import type { GoalCheckIn, GoalDetail, GoalInput, GoalSummary } from "@/lib/goals"
 
 const tz = () => `tz=${encodeURIComponent(browserTZ())}`
-export const goalsKey = () => `${GetEndpointUrl.GoalList}?${tz()}`
-export const goalKey = (id: string) => `${GetEndpointUrl.Goal}/${id}?${tz()}`
-export const projectGoalsKey = (projectId: string) => `${GetEndpointUrl.ProjectGoals}/${projectId}/goals?${tz()}`
+export const goalsKey = () => `${ProjectsGet.GoalList}?${tz()}`
+export const goalKey = (id: string) => `${ProjectsGet.Goal}/${id}?${tz()}`
+export const projectGoalsKey = (projectId: string) => `${ProjectsGet.ProjectGoals}/${projectId}/goals?${tz()}`
 
 const PROJECT_GOALS = /^\/project\/[^/?]+\/goals/
 
@@ -28,7 +28,7 @@ const PROJECT_GOALS = /^\/project\/[^/?]+\/goals/
  * only answer 404, which the app shows as an error.
  */
 export const refreshGoals = (gone?: string) =>
-  appMutate((key) => typeof key === "string" && key !== gone && (key.startsWith(`${GetEndpointUrl.Goal}/`) || PROJECT_GOALS.test(key)))
+  appMutate((key) => typeof key === "string" && key !== gone && (key.startsWith(`${ProjectsGet.Goal}/`) || PROJECT_GOALS.test(key)))
 
 /** A check-in as the composer writes it. */
 export type CheckInInput = UpdateInput
@@ -43,7 +43,7 @@ export interface PostedCheckIn {
 export function useGoals() {
   const { data, isLoading, isError: error, mutate } = useFetch<{ data: { goals: GoalSummary[] } }>(goalsKey())
   const create = useCallback(async (input: GoalInput): Promise<GoalSummary> => {
-    const res = await axiosInstance.post(`${GetEndpointUrl.GoalCreate}?${tz()}`, input)
+    const res = await axiosInstance.post(`${ProjectsGet.GoalCreate}?${tz()}`, input)
     await refreshGoals()
     return (res.data as { data: GoalSummary }).data
   }, [])
@@ -55,7 +55,7 @@ export function useGoal(id: string | undefined) {
 
   const act = useCallback(
     async <T>(path: string, body: object = {}): Promise<T> => {
-      const res = await axiosInstance.post(`${GetEndpointUrl.Goal}/${id}${path}?${tz()}`, body)
+      const res = await axiosInstance.post(`${ProjectsGet.Goal}/${id}${path}?${tz()}`, body)
       await refreshGoals()
       return (res.data as { data: T }).data
     },
@@ -64,7 +64,7 @@ export function useGoal(id: string | undefined) {
 
   const edit = useCallback((input: GoalInput) => act<GoalSummary>("/edit", input), [act])
   const remove = useCallback(async () => {
-    await axiosInstance.post(`${GetEndpointUrl.Goal}/${id}/delete?${tz()}`, {})
+    await axiosInstance.post(`${ProjectsGet.Goal}/${id}/delete?${tz()}`, {})
     const key = goalKey(id!)
     await appMutate(key, undefined, { revalidate: false })
     await refreshGoals(key)
@@ -77,11 +77,11 @@ export function useGoal(id: string | undefined) {
   const removeCheckIn = useCallback((checkInId: string) => act<void>(`/checkins/${checkInId}/delete`), [act])
 
   const draft = useCallback(async (): Promise<UpdateDraft> => {
-    const res = await axiosInstance.get(`${GetEndpointUrl.Goal}/${id}/checkins/draft`, { params: { tz: browserTZ() } })
+    const res = await axiosInstance.get(`${ProjectsGet.Goal}/${id}/checkins/draft`, { params: { tz: browserTZ() } })
     return (res.data as { data: UpdateDraft }).data
   }, [id])
   const aiDraft = useCallback(async (): Promise<UpdateDraft> => {
-    const res = await axiosInstance.post(GetEndpointUrl.AiGoalCheckInDraft, { goal_id: id, tz: browserTZ() })
+    const res = await axiosInstance.post(ProjectsGet.AiGoalCheckInDraft, { goal_id: id, tz: browserTZ() })
     return (res.data as { data: UpdateDraft }).data
   }, [id])
 

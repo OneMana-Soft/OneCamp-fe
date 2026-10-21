@@ -27,6 +27,7 @@ import {ChannelInfoInterfaceResp} from "@/types/channel";
 import {addUserChannelList, resetUserChannelUnread} from "@/store/slice/userSlice";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {markChannelSeen} from "@/services/channelService";
+import { isHeldUnread, releaseUnread } from "@/lib/conversation/unreadHold";
 import {MessageInputState} from "@/store/slice/channelSlice";
 import {useToast} from "@/hooks/use-toast";
 import {NOT_SENT_TOAST, type Draft} from "@/lib/chat/unsentMessage";
@@ -106,6 +107,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
             // Opening a channel IS the moment the user has seen what is in it,
             // so the marker belongs here. The unmount call below still earns its
             // place: it covers what arrived while they were watching.
+            // Opening it reads it, even after a Mark unread (B27).
+            releaseUnread(channelId)
             markChannelSeen(channelId)
         }
 
@@ -114,7 +117,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
         // was actively viewing don't resurrect the unread badge on the next
         // channel-list refetch. Fire-and-forget + silent by design.
         return () => {
-            if (channelId) {
+            // A channel marked unread stays so when you leave it (B27).
+            if (channelId && !isHeldUnread(channelId)) {
                 markChannelSeen(channelId)
                 dispatch(resetUserChannelUnread({ch_uuid: channelId}))
             }

@@ -5,6 +5,21 @@
 @import './partials/typography.css';
 @import './partials/doc.css';
 
+/* The editor's measured size (MeasuredContainer, name "editor"), never
+   inherited: a new width restyles its container alone, where it restyled
+   every element of the doc, and a seam dragged beside it brings one every
+   frame (split view, fluid-21). Read it on the container (data-measured). */
+@property --editor-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --editor-height {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 :root {
   --mt-overlay: rgba(251, 251, 251, 0.75);
   --mt-transparent-foreground: rgba(0, 0, 0, 0.4);
@@ -985,6 +1000,27 @@ span[data-type="mention"][data-hue="lake"] { --mention-dot: var(--camp-lake); }
   .chat-mention.mention-agent:hover {
     background-color: color-mix(in oklab, var(--agent) 16%, var(--agent-muted));
   }
+}
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-room,
+.chat-mention.mention-room {
+  /* A room's mention (@channel, @here, @everyone) reaches the reader: drawn as
+     a mention of them is, the brand's tint (colour names areas only, v3.1). */
+  background-color: var(--brand-muted);
+  color: var(--brand-text);
+}
+.dark :is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-room,
+.dark .chat-mention.mention-room {
+  background-color: color-mix(in oklab, var(--brand) 18%, transparent);
+}
+@media (hover: hover) {
+  :is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-room:hover,
+  .chat-mention.mention-room:hover {
+    background-color: color-mix(in oklab, var(--brand) 22%, transparent);
+  }
+}
+:is(.static-rich, .minimal-tiptap-editor) span[data-type="mention"].mention-team,
+.chat-mention.mention-team {
+  cursor: default;
 }
 .mention-spark {
   display: inline-block;

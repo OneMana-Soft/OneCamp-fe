@@ -18,7 +18,7 @@ vi.mock("@/hooks/use-toast", () => {
 
 const { default: axiosInstance } = await import("@/lib/axiosInstance")
 const { usePost } = await import("@/hooks/usePost")
-const { PostEndpointUrl } = await import("@/services/endPoints")
+const { ProjectsPost } = await import("@/services/endpoints/projects")
 
 /** The server's answer to every request in a test. */
 function serverAnswers(status: number, data: unknown) {
@@ -42,7 +42,7 @@ afterEach(() => {
 async function post(options: { showErrorToast?: boolean; showToast?: boolean }) {
   const { result } = renderHook(() => usePost())
   await act(async () => {
-    await result.current.makeRequest({ apiEndpoint: PostEndpointUrl.RecordDocView, payload: { doc_uuid: "d1" }, ...options }).catch(() => undefined)
+    await result.current.makeRequest({ apiEndpoint: ProjectsPost.RecordDocView, payload: { doc_uuid: "d1" }, ...options }).catch(() => undefined)
   })
 }
 

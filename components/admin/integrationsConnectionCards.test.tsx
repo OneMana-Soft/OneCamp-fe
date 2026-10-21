@@ -34,6 +34,7 @@ import GitHubIntegrationCard from "@/components/admin/GitHubIntegrationCard"
 import SlackBridgeCard from "@/components/admin/SlackBridgeCard"
 import OAuthConfigCard from "@/components/admin/OAuthConfigCard"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 
 afterEach(() => {
   cleanup()
@@ -44,7 +45,7 @@ afterEach(() => {
 
 const github = (connected: boolean, linked_repos: unknown[] = []) => {
   reads.current = {
-    [GetEndpointUrl.GetGitHubStatus]: { data: { status: { connected, linked_repos } } },
+    [AdminGet.GetGitHubStatus]: { data: { status: { connected, linked_repos } } },
     [GetEndpointUrl.GetUserProjectList]: { data: { data: { user_projects: [{ project_uuid: "p1", project_name: "Harbourline mobile app" }] } } },
   }
 }

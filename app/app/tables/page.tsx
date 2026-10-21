@@ -24,6 +24,7 @@ import { tablePath } from "@/lib/tables/route"
 import { restoreTable } from "@/lib/tables/ledger"
 import { useUndoToast } from "@/components/table/ledger/useUndoToast"
 import { TablesTrash } from "@/components/table/trash/TablesTrash"
+import { areaHue } from "@/lib/areas"
 
 /** A key on the page that isn't typed into a field. */
 function pageKey(e: KeyboardEvent): boolean {
@@ -178,7 +179,7 @@ export default function TablesPage() {
       ) : tables.length === 0 ? (
         <EmptyState
           tone="accent"
-          illustration={<SpotImported hue="moss" />}
+          illustration={<SpotImported hue={areaHue("tables")} />}
           title="Make your first table"
           description="Track anything: vendors, budgets, content, hiring."
           className="px-6 py-16"

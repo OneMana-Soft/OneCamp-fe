@@ -4,7 +4,7 @@
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import type { EntityAccess } from "@/lib/liveEntity/types"
-import { CONNECTED_PATHS } from "@/services/endPoints"
+import { CONNECTED_PATHS } from "@/services/endpoints/docs"
 
 /** One thing as POST /entities answers it. */
 interface EntityAnswer {

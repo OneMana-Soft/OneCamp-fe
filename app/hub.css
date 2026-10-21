@@ -426,6 +426,25 @@
       min-height: var(--m-hit);
     }
   }
+  /* An open fold of shares (STEP4 #6) lists its docs under the sentence: its
+     toolbar stays by the sentence, never over the list. */
+  .hub-row[data-expanded] .hub-row-tools {
+    top: 12px;
+    transform: translateX(6px);
+  }
+  .hub-row[data-expanded]:focus-within .hub-row-tools {
+    transform: none;
+  }
+  @media (hover: hover) {
+    .hub-row[data-expanded]:hover .hub-row-tools {
+      transform: none;
+    }
+  }
+  @media (hover: none) {
+    .hub-row[data-expanded]:is([data-revealed], :focus-visible, :has(:focus-visible)) .hub-row-tools {
+      transform: none;
+    }
+  }
   /* The kind badge on a feed row's lead (A5). */
   .hub-kind-badge {
     position: absolute;

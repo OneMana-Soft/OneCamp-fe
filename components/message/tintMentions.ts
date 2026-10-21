@@ -28,10 +28,14 @@ export interface MentionContext {
     me?: string | null
     /** Agents' user uuids: their chips are on the agent tint, with a spark. */
     agentIds?: ReadonlySet<string> | readonly string[]
+    markKeywords?: (html: string) => string
 }
 
-/** A mention's user uuid: data-id is "uuid@uid" or just "uuid". */
-export const mentionUserId = (id: string | null | undefined) => (id || "").split("@")[0]
+const isRoomId = (id?: string | null) => !!id?.startsWith("broadcast:")
+const isTeamId = (id?: string | null) => !!id?.startsWith("group:")
+
+/** A mention's user uuid ("uuid@uid" or "uuid"); "" for a room's or a team's. */
+export const mentionUserId = (id: string | null | undefined) => (isRoomId(id) || isTeamId(id) ? "" : (id || "").split("@")[0])
 
 /**
  * The agents in a bot-kind map (GET /user/botKinds, useBotKindMap): only AI
@@ -48,7 +52,9 @@ export function agentIdsOf(botKinds: Record<string, string> | null | undefined):
  * agent (its tint and a spark where the "@" was), otherwise "person": a
  * neutral chip with a 6 px dot in that person's hue before the "@".
  */
-export function mentionKind(id: string | null | undefined, ctx: MentionContext = {}): "me" | "agent" | "person" {
+export function mentionKind(id: string | null | undefined, ctx: MentionContext = {}): "me" | "agent" | "person" | "room" | "team" {
+    if (isRoomId(id)) return "room"
+    if (isTeamId(id)) return "team"
     const uid = mentionUserId(id)
     if (uid && ctx.me && uid === ctx.me) return "me"
     const agents = ctx.agentIds
@@ -77,8 +83,9 @@ export function tintMentions(html: string, ctx: MentionContext = {}): string {
     })
 }
 
-/** Whether a stored body mentions this reader (the row then reads "for you"). */
-export function mentionsUser(html: string | null | undefined, selfId: string | undefined): boolean {
+/** Whether a body mentions this reader ("for you"): their chip, or a room's unless they wrote it. */
+export function mentionsUser(html: string | null | undefined, selfId: string | undefined, writerId?: string): boolean {
     if (!html || !selfId) return false
-    return html.includes(`data-id="${selfId}"`) || html.includes(`data-id="${selfId}@`)
+    if (html.includes(`data-id="${selfId}"`) || html.includes(`data-id="${selfId}@`)) return true
+    return html.includes('data-id="broadcast:') && (!writerId || writerId !== selfId)
 }

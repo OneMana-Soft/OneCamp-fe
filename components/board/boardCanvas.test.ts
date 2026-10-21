@@ -24,16 +24,28 @@ describe("the board canvas", () => {
   })
 
   it("takes what others drew as seen, so opening a board sends nothing back and uploads no thumbnail", () => {
-    // Both places that put the shared drawing on the canvas remember its
-    // fingerprint right after, inside the remote-change guard.
-    const applies = [...src.matchAll(/api\.updateScene\(\{ elements: Array\.from\(merged\.values\(\)\) as never\[\] \}\)/g)]
+    // Both places that put the shared drawing on the canvas do it through the
+    // one binding (lib/board/binding: outside the person's undo history), and
+    // remember its fingerprint right after, inside the remote-change guard.
+    const applies = [...src.matchAll(/if \(applyShared\(api, yElements\.values\(\) as never\) > 0\) markRemoteMerge\(\)/g)]
     expect(applies).toHaveLength(2)
     for (const a of applies) {
-      const after = src.slice(a.index!, a.index! + 600)
-      const remember = after.indexOf("lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted()")
+      const before = src.slice(Math.max(0, a.index! - 400), a.index!)
+      expect(before.lastIndexOf("applyingRemoteRef.current = true")).toBeGreaterThan(-1)
+      const after = src.slice(a.index!, a.index! + 700)
+      const remember = after.search(/lastSignatureRef\.current = sceneSignature\((api\.getSceneElementsIncludingDeleted\(\)|scene) as never\)/)
       expect(remember).toBeGreaterThan(0)
       expect(remember).toBeLessThan(after.indexOf("applyingRemoteRef.current = false"))
     }
+  })
+
+  it("marks the canvas once the server's drawing is on it, for tests and measurements", () => {
+    const synced = effect("if (!api || !synced || !sceneReady) return")
+    expect(synced).toMatch(/mark\.dataset\.boardSynced = "true"/)
+    expect(synced).toMatch(/mark\.dataset\.boardElements = String\(liveCount\(scene as never\)\)/)
+    expect(src).toMatch(/<div ref=\{wrapRef\} className="h-full w-full" data-board-canvas="">/)
+    // A teammate's change that reached the scene moves data-board-remote.
+    expect(src).toMatch(/wrapRef\.current\.dataset\.boardRemote = String\(remoteMergesRef\.current\)/)
   })
 
   it("starts from the empty scene's fingerprint, so Excalidraw's first call is no change", () => {

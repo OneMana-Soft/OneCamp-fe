@@ -4,7 +4,7 @@ import * as React from "react"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -96,7 +96,7 @@ export default function TemplatesPage() {
 
   // Projects alone read only the project templates; All reads both.
   const shared = kind !== "project"
-  const query = !shared ? "" : kind ? `${GetEndpointUrl.GetMarketplaceTemplates}?kind=${kind}` : GetEndpointUrl.GetMarketplaceTemplates
+  const query = !shared ? "" : kind ? `${ProjectsGet.GetMarketplaceTemplates}?kind=${kind}` : ProjectsGet.GetMarketplaceTemplates
   // A newly chosen kind keeps the last grid on screen until its own arrives:
   // each switch drew six skeleton cards about 94px tall where the cards are
   // about 170px, and the grid jumped twice.

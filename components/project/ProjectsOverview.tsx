@@ -37,6 +37,7 @@ import { app_project_path } from "@/types/paths"
 import { ix } from "@/lib/ui/interactive"
 import { useProjectHue } from "@/lib/projectHue"
 import { MenuCheck } from "@/components/ui/menuCheck"
+import { areaHue } from "@/lib/areas"
 
 const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
@@ -598,7 +599,7 @@ export function ProjectsOverview() {
     body = (
       <WorkState>
         <EmptyState
-          illustration={<SpotWelcome hue="sky" />}
+          illustration={<SpotWelcome hue={areaHue("projects")} />}
           title="No projects yet"
           description="A project holds tasks, a board, a timeline and updates."
           action={

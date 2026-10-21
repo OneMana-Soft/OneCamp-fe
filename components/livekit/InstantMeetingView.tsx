@@ -22,13 +22,14 @@ import { Button } from "@/components/ui/button"
 import { Check, Copy, Link as LinkIcon, Loader2 } from "@/lib/icons"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useConfirm } from "@/hooks/useConfirm"
-import { toast } from "@/hooks/use-toast"
+import { CALL_SURFACE, callToast } from "./callSurface"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { guestMeetingLink } from "@/services/guestService"
 import { instantMeetingPath, joinInstantMeeting, newInstantMeetingLink } from "@/services/callService"
+import { useCallSession } from "@/components/livekit/useCallSession"
 import type { UserProfileInterface } from "@/types/user"
 
 
@@ -82,6 +83,8 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   const { data, isError } = useFetch<{ data?: CallStateRead }>(instantMeetingPath(meetingId), undefined, { refreshInterval: waiting ? 10_000 : 0 }, OWN_ERRORS)
   const state = data?.data
   const unavailable = !state && isError ? meetingUnavailable(apiErrorStatus(isError), apiErrorCode(isError)) : null
+  // The meeting's id in Call State, for what its host does to it in the call.
+  const call = useCallSession({ kind: "meeting", id: meetingId }, waiting ? "waiting" : life.phase === "in-call" ? "in-call" : "over")
 
   const back = useCallback(() => {
     if (window.history.length > 1) router.back()
@@ -95,7 +98,7 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
         const next = guestMeetingLink(res.guest_token)
         setLink(next)
         rememberGuestLink(meetingId, next)
-        toast({ title: revokePrevious ? "The old link is off. Here's a new one" : "Here's a new link" })
+        callToast({ title: revokePrevious ? "The old link is off. Here's a new one" : "Here's a new link" })
       } catch (e) {
         throw new Error(apiErrorMessage(e, "Couldn't make a new link. Try again."))
       }
@@ -124,7 +127,7 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
           place={PLACE}
           audio={life.choice.audio}
           video={life.choice.video}
-          canRemove={state?.can_remove ?? true}
+          sessionId={call?.session?.id}
           extraStatus={<InviteControl link={link} onNewLink={newLink} confirm={confirm} />}
           transcriptionConfig={transcriptionConfig}
         />
@@ -175,7 +178,7 @@ function InviteControl({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast({ title: "Couldn't copy the link", description: "Select it and copy it yourself.", variant: "destructive" })
+      callToast({ title: "Couldn't copy the link", description: "Select it and copy it yourself.", variant: "destructive" })
     }
   }
   const fresh = async () => {
@@ -183,7 +186,7 @@ function InviteControl({
     try {
       await onNewLink(false)
     } catch (e) {
-      toast({ title: "Couldn't make a new link", description: (e as Error).message, variant: "destructive" })
+      callToast({ title: "Couldn't make a new link", description: (e as Error).message, variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -209,7 +212,7 @@ function InviteControl({
           <span className="hidden @3xl:inline">Invite</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="center" className="w-80 max-w-[calc(100vw-24px)] text-ui-sm" data-invite-details="">
+      <PopoverContent side="bottom" align="center" className={cn(CALL_SURFACE, "w-80 max-w-[calc(100vw-24px)] text-ui-sm")} data-invite-details="">
         <p className="font-medium text-foreground">Invite a guest</p>
         <p className="mt-0.5 text-meta text-ink-3">Anyone with the link can join as a guest while the meeting lasts.</p>
         {link ? (

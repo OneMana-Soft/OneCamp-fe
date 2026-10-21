@@ -36,7 +36,7 @@ describe("an empty docs list", () => {
     createDoc.mockResolvedValue({ doc_uuid: "d-new", doc_title: "" })
     render(<DocListResult items={[]} view="grid" tab="mine" />)
     expect(screen.getByRole("heading", { name: "Write the first doc" })).toBeTruthy()
-    expect(spotHue()).toBe("sky")
+    expect(spotHue()).toBe("dusk")
     const rows = [...document.querySelectorAll("[data-template-row]")].map((r) => r.getAttribute("data-template-row"))
     expect(rows).toEqual(BUILTIN_DOC_TEMPLATES.slice(0, 3).map((t) => t.id))
     fireEvent.click(screen.getByRole("button", { name: "New doc" }))

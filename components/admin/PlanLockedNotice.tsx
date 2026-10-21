@@ -4,6 +4,7 @@ import { ArrowRight, Lock } from "@/lib/icons"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { cn } from "@/lib/utils/helpers/cn"
 import { UPGRADE_STEPS } from "@/lib/plan/upgradeSteps"
+import { Disclosure } from "@/components/ui/disclosure"
 
 /**
  * Where a company control would be, on the free plan (design v3, admin
@@ -48,10 +49,9 @@ export function PlanLockedNotice({
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </a>
           )}
-          <details className="group text-muted-foreground">
-            <summary className="cursor-pointer list-none font-medium hover:text-foreground [&::-webkit-details-marker]:hidden">How</summary>
+          <Disclosure className="text-muted-foreground" summary="How" summaryClassName="font-medium hover:text-foreground">
             <p className="mt-1 max-w-[60ch] text-pretty">{UPGRADE_STEPS}</p>
-          </details>
+          </Disclosure>
         </div>
       </div>
     </div>

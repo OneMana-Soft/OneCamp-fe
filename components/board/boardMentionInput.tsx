@@ -16,7 +16,7 @@ import * as React from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { usePost } from "@/hooks/usePost"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { BoardsPost } from "@/services/endpoints/boards"
 import type { UserProfileDataInterface } from "@/types/user"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -88,7 +88,7 @@ export function BoardMentionInput({
     const t = setTimeout(async () => {
       try {
         const res = await search.makeRequest<{ searchText: string }, UserProfileDataInterface[]>({
-          apiEndpoint: PostEndpointUrl.SearchUserForBoard,
+          apiEndpoint: BoardsPost.SearchUserForBoard,
           payload: { searchText: query },
         })
         setResults(res && Array.isArray(res) ? res.slice(0, 6) : [])

@@ -2,11 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { Inbox as InboxIcon, SlidersHorizontal } from "@/lib/icons"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useDispatch } from "react-redux"
-import { ActivityFeedList } from "@/components/activity/activityFeedList"
+import { useDispatch, useSelector } from "react-redux"
+import type { RootState } from "@/store/store"
+import { closeRightPanel, openRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { ActivityFeedList, type InboxPane } from "@/components/activity/activityFeedList"
 import { HubFrame, HubTabs, type HubTab } from "@/components/activity/hubFrame"
+import { HubSpot } from "@/components/activity/hubEmpty"
+import { ActivityFeedSkeleton } from "@/components/activity/activityFeedFrame"
+import { usePhone } from "@/hooks/usePhone"
+import { usePanelPlacement } from "@/components/navigationBar/tablet/useShellBand"
 import { setTotalUnreadActivityCount } from "@/store/slice/userSlice"
 import { clearActivityUnread } from "@/services/unreadCache"
 import { markActivitySeen } from "@/services/activityService"
@@ -26,15 +33,32 @@ import {
 import { useReadState, isUnread } from "@/lib/activity/readState"
 import { activityKey, collapseEchoes, hasSubject, inboxFeedKey, INBOX_PAGE_SIZE } from "@/lib/activity/feedPages"
 import { isMention } from "@/lib/activity/notice"
+import { CHAT_THREADS_PATH, THREADS_UNREAD_KEY } from "@/lib/conversation/threadsKey"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
+
+// The Threads tab's list loads the first time the tab opens, not with the Inbox.
+const ThreadsList = dynamic(() => import("@/components/activity/threadsList"), {
+    loading: () => <ActivityFeedSkeleton label="Loading threads" />,
+})
+
+/** Marks every thread you follow read (lib/conversation/threads, loaded when asked). */
+async function readAllThreads() {
+    const { readAllThreads: readAll } = await import("@/lib/conversation/threads")
+    await readAll()
+}
 
 // Comments and Reactions were tabs of their own. Everything in them is in All,
 // in order. Old links to them open All.
-const VALID_TABS = ["priority", "all", "mentions"] as const
+// Threads (chat P2) is the threads you follow, unread first: its count is a
+// plain one, as All's, since a reply in a thread you follow isn't addressed to
+// you the way a mention is.
+const VALID_TABS = ["priority", "all", "mentions", "threads"] as const
 type TabValue = (typeof VALID_TABS)[number]
+
+const CLOSED_PANEL = { isOpen: false, data: {} }
 
 /** Where the Inbox lives (/app/activity redirects here, next.config). */
 export const INBOX_PATH = "/app/inbox"
-
 
 /**
  * Activity (hub.md A1, A2): one 52px header with the tabs inline, an
@@ -43,9 +67,12 @@ export const INBOX_PATH = "/app/inbox"
  * underneath (activityFeedFrame).
  *
  * The header's controls are the same on every tab, so nothing in it moves
- * when the tab changes. Below md there is room
- * for the tabs and one button, so the three controls are in its menu: a phone
- * had no Unread only and no Mark all read at all (QA F-24).
+ * when the tab changes. Under 46rem of header
+ * there is room for the tabs and one button, so the three controls are in its
+ * menu: a phone had no Unread only and no Mark all read at all (QA F-24). The
+ * header's own width decides, not the window's: beside an open panel (the
+ * reading pane, STEP4 #6) a 1280 window leaves it about 600px, where the
+ * controls pushed the Mentions badge out of sight.
  */
 export function ActivityListTabs() {
     const pathname = usePathname()
@@ -61,18 +88,34 @@ export function ActivityListTabs() {
     const { read, mark } = useReadState()
     const [unreadKeys, setUnreadKeys] = useState<string[]>([])
 
+    // The reading pane (STEP4 #6): the right panel, beside the Inbox, on any
+    // screen wider than a phone. A phone opens a row as its page.
+    // A store without the panel (a test's) reads as a closed one.
+    const panelState = useSelector((s: RootState) => s.rightPanel?.rightPanelState) ?? CLOSED_PANEL
+    const phone = usePhone()
+    const placement = usePanelPlacement()
+    const pane = useMemo<InboxPane | undefined>(
+        () => (phone ? undefined : { panel: panelState, open: (target) => dispatch(openRightPanel(target)), close: () => dispatch(closeRightPanel()) }),
+        [phone, panelState, dispatch],
+    )
+
     // The SAME SWR key the list fetches for its first page, so the counts share
     // the cache (no extra request) and follow the server's read-state demotion.
     const { data: firstPage } = useFetch<UnifiedActivityPaginationRes>(inboxFeedKey(GetEndpointUrl.GetUnifiedActivity, INBOX_PAGE_SIZE))
+    const items = useMemo(() => collapseEchoes((firstPage?.data?.activities ?? []).filter(hasSubject)), [firstPage])
     const counts = useMemo(() => {
-        const items: UnifiedActivityItem[] = collapseEchoes((firstPage?.data?.activities ?? []).filter(hasSubject))
-        const unread = items.filter((a) => isUnread(a, activityKey(a), read))
+        const unread = items.filter((a: UnifiedActivityItem) => isUnread(a, activityKey(a), read))
         return {
             priority: unread.filter((a) => a.priority === "high").length,
             all: unread.length,
             mentions: unread.filter(isMention).length,
         }
-    }, [firstPage, read])
+    }, [items, read])
+
+    // The threads you follow that had a reply since you read them: a count of
+    // their own (the Threads tab's), and nothing said if it can't be read.
+    const { data: threadsUnread } = useFetch<{ data?: { unread?: number } }>(THREADS_UNREAD_KEY, undefined, undefined, OWN_ERRORS)
+    const threadCount = typeof threadsUnread?.data?.unread === "number" ? threadsUnread.data.unread : 0
 
     const tabs = useMemo<HubTab[]>(
         () => [
@@ -80,8 +123,9 @@ export function ActivityListTabs() {
             { value: "all", label: "All", count: counts.all },
             // A mention is you: its count is the brand badge.
             { value: "mentions", label: "Mentions", count: counts.mentions, badge: true },
+            { value: "threads", label: "Threads", count: threadCount },
         ],
-        [counts],
+        [counts, threadCount],
     )
 
     // A link can ask for a tab this edition does not have (?tab=ai): it opens
@@ -121,7 +165,15 @@ export function ActivityListTabs() {
         if (firstPage) void markActivitySeen()
     }, [firstPage])
 
-    // Keys: 1-4 switch tabs, Shift+U marks all read (A1). Never while typing.
+    const threads = effectiveTab === "threads"
+    // Mark all read: the feed's rows in view, or every thread you follow.
+    const canMarkAll = threads ? threadCount > 0 : unreadKeys.length > 0
+    const markAll = useCallback(() => {
+        if (threads) void readAllThreads().catch(() => {})
+        else mark(unreadKeys, true)
+    }, [threads, mark, unreadKeys])
+
+    // Keys: 1-5 switch tabs, Shift+U marks all read (A1). Never while typing.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             const t = e.target as HTMLElement | null
@@ -129,13 +181,18 @@ export function ActivityListTabs() {
             const n = Number(e.key)
             if (n >= 1 && n <= tabs.length) {
                 setSelectedTab(tabs[n - 1].value as TabValue)
-            } else if (e.key === "U" && e.shiftKey && unreadKeys.length) {
-                mark(unreadKeys, true)
+            } else if (e.key === "U" && e.shiftKey && canMarkAll) {
+                markAll()
             }
         }
         window.addEventListener("keydown", onKey)
         return () => window.removeEventListener("keydown", onKey)
-    }, [tabs, unreadKeys, mark])
+    }, [tabs, canMarkAll, markAll])
+
+    // The Threads tab's first page, from the cache it shares with the list: is
+    // there anything for the reading pane to open?
+    const { data: threadsFirst } = useFetch<{ data?: { threads?: unknown[] } }>(threads ? CHAT_THREADS_PATH : "", undefined, undefined, OWN_ERRORS)
+    const listed = threads ? (threadsFirst?.data?.threads?.length ?? 0) > 0 : items.length > 0
 
     return (
         <HubFrame
@@ -144,12 +201,12 @@ export function ActivityListTabs() {
             tabs={<HubTabs label="Inbox" tabs={tabs} value={effectiveTab} onChange={handleChangeTab} />}
             controls={
                 <>
-                    <label className="hidden items-center gap-2 text-xs text-ink-2 md:flex">
+                    <label className="hidden items-center gap-2 text-xs text-ink-2 @[46rem]/hubhead:flex">
                         Unread only
                         <Switch checked={unreadOnly} onCheckedChange={setUnreadOnly} aria-label="Unread only" />
                     </label>
-                    {unreadKeys.length > 0 ? (
-                        <Button variant="ghost" size="sm" onClick={() => mark(unreadKeys, true)} className="hidden md:inline-flex">
+                    {canMarkAll ? (
+                        <Button variant="ghost" size="sm" onClick={markAll} className="hidden @[46rem]/hubhead:inline-flex">
                             Mark all read
                         </Button>
                     ) : null}
@@ -158,7 +215,7 @@ export function ActivityListTabs() {
                         href="/app/settings/notifications"
                         aria-label="Notification settings"
                         title="Notification settings"
-                        className="hidden size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand md:grid [&_svg]:size-4"
+                        className="hidden size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand @[46rem]/hubhead:grid [&_svg]:size-4"
                     >
                         <SlidersHorizontal aria-hidden="true" />
                     </Link>
@@ -168,7 +225,7 @@ export function ActivityListTabs() {
                                 type="button"
                                 aria-label="Inbox options"
                                 data-touch-target=""
-                                className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand md:hidden [&_svg]:size-4"
+                                className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand @[46rem]/hubhead:hidden [&_svg]:size-4"
                             >
                                 <SlidersHorizontal aria-hidden="true" />
                             </button>
@@ -177,9 +234,7 @@ export function ActivityListTabs() {
                             <DropdownMenuCheckboxItem checked={unreadOnly} onCheckedChange={(on) => setUnreadOnly(on === true)}>
                                 Unread only
                             </DropdownMenuCheckboxItem>
-                            {unreadKeys.length > 0 ? (
-                                <DropdownMenuItem onSelect={() => mark(unreadKeys, true)}>Mark all read</DropdownMenuItem>
-                            ) : null}
+                            {canMarkAll ? <DropdownMenuItem onSelect={markAll}>Mark all read</DropdownMenuItem> : null}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem asChild>
                                 <Link href="/app/settings/notifications">Notification settings</Link>
@@ -189,19 +244,58 @@ export function ActivityListTabs() {
                 </>
             }
         >
-            {/* Every tab draws in the same frame (activityFeedFrame); a tab
-                switch cross-fades the column, nothing else moves. */}
-            <div key={effectiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <ActivityFeedList
-                    view={effectiveTab}
-                    onViewAll={viewAll}
-                    unreadOnly={unreadOnly}
-                    read={read}
-                    onToggleRead={mark}
-                    onUnreadKeys={setUnreadKeys}
-                    onShowAll={() => setUnreadOnly(false)}
-                />
+            <div data-inbox-body="" className="@container/inbox flex min-h-0 flex-1">
+                {/* Every tab draws in the same frame (activityFeedFrame); a tab
+                    switch cross-fades the column, nothing else moves. */}
+                <div key={effectiveTab} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    {threads ? (
+                        <ThreadsList unreadOnly={unreadOnly} onShowAll={() => setUnreadOnly(false)} pane={pane} />
+                    ) : (
+                        <ActivityFeedList
+                            view={effectiveTab}
+                            onViewAll={viewAll}
+                            unreadOnly={unreadOnly}
+                            read={read}
+                            onToggleRead={mark}
+                            onUnreadKeys={setUnreadKeys}
+                            onShowAll={() => setUnreadOnly(false)}
+                            pane={pane}
+                        />
+                    )}
+                </div>
+                {/* Where the panel opens beside the page and the sheet has room
+                    for both, the room it will take says what opens there. */}
+                {pane && placement === "beside" && !panelState.isOpen && listed ? <ReadingPaneHint /> : null}
             </div>
         </HubFrame>
+    )
+}
+
+/**
+ * The reading pane before anything is open in it (STEP4 #6): the right side of
+ * a wide Inbox, sized as the panel that will open there (a thread's 420px, the
+ * commonest, or the room past the list's 760px column), so opening a row
+ * barely moves the list.
+ */
+function ReadingPaneHint() {
+    return (
+        <aside
+            data-reading-pane=""
+            aria-label="Reading pane"
+            className="my-3 mr-3 hidden shrink-0 flex-col items-center justify-center gap-3 rounded-lg bg-sunken px-6 text-center ring-1 ring-inset ring-line @[60rem]/inbox:flex"
+            style={{ width: "max(420px, calc(100% - 788px))" }}
+        >
+            <HubSpot kind="message" size={56} />
+            <p className="text-ui font-medium text-foreground">Threads, tasks and events open here</p>
+            <p className="flex flex-wrap items-center justify-center gap-1 text-meta text-ink-3">
+                <kbd className="kbd">J</kbd>
+                <kbd className="kbd">K</kbd>
+                <span className="mr-1.5">to move</span>
+                <kbd className="kbd">Enter</kbd>
+                <span className="mr-1.5">to open</span>
+                <kbd className="kbd">U</kbd>
+                <span>to mark read</span>
+            </p>
+        </aside>
     )
 }

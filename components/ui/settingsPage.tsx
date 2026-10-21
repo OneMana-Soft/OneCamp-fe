@@ -3,7 +3,7 @@
 import * as React from "react"
 import type { LucideIcon } from "lucide-react"
 import Link from "next/link"
-import type { CampHue } from "@/lib/campHue"
+import type { MarkHue } from "@/components/ui/graphics/hues"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -33,7 +33,7 @@ export function PageFrameHeader({
   breadcrumb,
   className,
 }: {
-  hue: CampHue
+  hue: MarkHue
   icon: LucideIcon | React.ComponentType<{ className?: string }>
   title: React.ReactNode
   description?: React.ReactNode

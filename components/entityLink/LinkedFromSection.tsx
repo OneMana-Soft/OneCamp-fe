@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { DocsGet } from "@/services/endpoints/docs"
 import type { DocBacklinks } from "@/types/docChrome"
 
 const List = React.lazy(() => import("@/components/docEditor/chrome/LinkedFromList"))
@@ -16,7 +16,7 @@ const QUIET = { suppressErrorToast: true } as never
  * only when there is one.
  */
 export function LinkedFromSection({ refType, refUUID, className, reserve }: { refType: "doc" | "board"; refUUID: string; className?: string; reserve?: boolean }) {
-  const key = !refUUID ? "" : refType === "doc" ? `/doc/backlinks/${refUUID}` : `${GetEndpointUrl.GetRefLinks}/${refType}/${refUUID}`
+  const key = !refUUID ? "" : refType === "doc" ? `/doc/backlinks/${refUUID}` : `${DocsGet.GetRefLinks}/${refType}/${refUUID}`
   const links = useFetch<{ data?: Partial<DocBacklinks> }>(key, undefined, undefined, QUIET).data?.data
   // The page knows a doc has backlinks before they come (doc_backlink_count):
   // their row is kept from the first paint, so the body never moves down.

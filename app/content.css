@@ -83,7 +83,7 @@
    down from -4 px instead (data-side="bottom" or .float-below). */
 @utility content-float {
   transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, var(--float-origin, center top)));
-  animation: content-float-in var(--content-float-in-duration) var(--content-float-in-ease) both;
+  animation: content-float-in var(--content-float-in-duration) var(--content-float-in-ease) backwards;
   &[data-side="bottom"],
   &.float-below {
     --float-from-y: -4px;

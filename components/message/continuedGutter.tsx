@@ -55,7 +55,7 @@ export function ContinuedGutter({
                     className={cn(
                         // Held to its left edge, so the date runs over the message, never off the row.
                         TIME_TIP,
-                        "after:left-0 after:translate-x-0",
+                        "tip-start",
                         "pointer-events-none absolute right-0 top-0 whitespace-nowrap text-3xs leading-5 tabular-nums text-ink-3 opacity-0 transition-opacity duration-[140ms] ease-out group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:none)]:opacity-0",
                     )}
                 >

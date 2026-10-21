@@ -1,7 +1,8 @@
 "use client"
 
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {useDispatch, useSelector} from "react-redux";
 import {
     CreateOrUpdateChatReaction, CreateOrUpdateCommentReaction,
@@ -43,7 +44,7 @@ const NO_ITEMS: never[] = []
 export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMessageUUID: string }) => {
 
     const chatInfo = useFetch<ChatInfoRes>(
-        chatId && chatMessageUUID ? `${GetEndpointUrl.GetChatWithAllComments}/${chatMessageUUID}` : "",
+        chatId && chatMessageUUID ? `${ChatGet.GetChatWithAllComments}/${chatMessageUUID}` : "",
         undefined, undefined, OWN_ERRORS,
     )
 

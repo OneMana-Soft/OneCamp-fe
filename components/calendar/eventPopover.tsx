@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { format, formatDistanceStrict, isSameDay, parseISO } from "date-fns";
 import { Calendar as CalendarIcon, Ellipsis, Moon, Pencil, Plane, Users, Video, X } from "@/lib/icons";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { anchorTo } from "@/components/ui/anchor";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -121,6 +122,14 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull, selfId, 
     if (!open && !holdOpen) onClose();
   };
 
+  // The block it opened from, or the block drawn in its place (a move, a
+  // refetch): a block that left the page measures zeros (components/ui/anchor).
+  const uuid = event?.event_uuid;
+  const at = useMemo(
+    () => ({ current: anchorTo(anchor, () => (uuid ? document.querySelector(`[data-calendar] [data-event-uuid="${CSS.escape(uuid)}"]`) : null)) }),
+    [anchor, uuid],
+  );
+
   if (phone) {
     return (
       <Drawer open={!!event} onOpenChange={close} detent="half">
@@ -143,7 +152,7 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull, selfId, 
   const titleId = `event-popover-${event.event_uuid}`;
   return (
     <Popover open onOpenChange={close}>
-      <PopoverAnchor virtualRef={{ current: { getBoundingClientRect: () => anchor?.getBoundingClientRect() ?? new DOMRect() } }} />
+      <PopoverAnchor virtualRef={at} />
       <PopoverContent
         role="dialog"
         aria-labelledby={titleId}
@@ -157,7 +166,7 @@ export function EventPopover({ event, anchor, now, onClose, onOpenFull, selfId, 
         onCloseAutoFocus={(e) => {
           // Back to the block it opened from.
           e.preventDefault();
-          anchor?.focus?.();
+          (at.current.contextElement as HTMLElement | undefined)?.focus?.();
         }}
       >
         <EventCard event={event} info={info} titleId={titleId} onClose={onClose} onOpenFull={onOpenFull} onAnswer={onAnswer} mutateEvents={mutateEvents} />

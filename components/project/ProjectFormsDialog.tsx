@@ -6,7 +6,7 @@
 import * as React from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, focusDialogItself } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -16,21 +16,10 @@ import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, Loader2, Plus, Trash2 } 
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { FIELD_TYPES, blankForm, formUrl, moveField, newFieldId, type FieldType, type ProjectForm } from "@/lib/forms/forms"
 
-const url = (projectId: string) => `${GetEndpointUrl.ProjectForms}/${projectId}/forms`
-
-/**
- * Focus the dialog itself when it opens. The dialog primitive focuses the
- * first field, which here is the list's first button (Forms) or the period
- * picker (Time): opened from a menu, it lit up with a focus ring before the
- * person had done anything. Tab still starts at the first control.
- */
-export function focusDialogItself(event: Event) {
-  event.preventDefault()
-  if (event.target instanceof HTMLElement) event.target.focus({ preventScroll: true })
-}
+const url = (projectId: string) => `${ProjectsGet.ProjectForms}/${projectId}/forms`
 
 export function ProjectFormsDialog({ projectId, open, onOpenChange }: { projectId: string; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { data, isLoading, mutate } = useFetch<{ data: { forms: ProjectForm[]; can_edit: boolean } }>(open ? url(projectId) : "")

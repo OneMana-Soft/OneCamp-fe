@@ -4,9 +4,11 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Button } from "@/components/ui/button"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { SpotInbox } from "@/components/ui/graphics"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { celebrate } from "@/lib/celebrateSoon"
 import { ErrorState } from "@/components/ui/error-state"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { InvitationListResponseInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
@@ -78,7 +80,7 @@ const InvitationCard = () => {
   // so one accepted while the page is open turns into its person here.
   const [polling, setPolling] = useState(false)
   const { data: response, mutate, isLoading, isError } = useFetch<InvitationListResponseInterface>(
-    GetEndpointUrl.GetAdminInvitationList,
+    AdminGet.GetAdminInvitationList,
     undefined,
     polling ? { refreshInterval: 30_000 } : undefined,
   )
@@ -241,7 +243,7 @@ const InvitationCard = () => {
     // one thing to do, as the primary.
     state = (
       <PeopleFirstRun
-        illustration={<SpotInbox />}
+        illustration={<SpotInbox hue={ADMIN_GROUP_HUE.people} />}
         title="Bring your team in"
         description="Invite by email. They land in #general, ready to say hello."
         action={

@@ -1,5 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { InboxPost } from "@/services/endpoints/inbox"
 
 /**
  * markActivitySeen tells the server the Inbox has been looked at, so its
@@ -13,7 +13,7 @@ import { PostEndpointUrl } from "@/services/endPoints"
  */
 export async function markActivitySeen(): Promise<void> {
   try {
-    await axiosInstance.post(PostEndpointUrl.MarkActivitySeen, undefined, {
+    await axiosInstance.post(InboxPost.MarkActivitySeen, undefined, {
       // @ts-expect-error — suppress the global loading bar for this
       // background, non-interactive request.
       silent: true,

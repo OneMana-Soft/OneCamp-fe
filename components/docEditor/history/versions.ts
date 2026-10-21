@@ -4,7 +4,7 @@
  * sheet, and not in services/endPoints.ts: every route loads that file, and
  * these are needed only once the sheet opens (as A9 keeps PROPOSALS_URL).
  *
- *   GET  /doc/versions?doc_uuid=                 versions, newest first, and who they credit
+ *   GET  /doc/versions?doc_uuid=&before=         versions, newest first, a page at a time (next is the cursor), and who they credit
  *   GET  /doc/versions/{id}?doc_uuid=            a version's body
  *   POST /doc/versions {doc_uuid, name, pinned}   keep the doc as it is now
  *   POST /doc/versions/{id}/name {doc_uuid, name, pinned}
@@ -17,7 +17,8 @@ import { fullDateTime } from "@/lib/utils/date/shortDate"
 
 export const VERSIONS_URL = "/doc/versions"
 
-export const versionsKey = (docId: string) => `${VERSIONS_URL}?doc_uuid=${encodeURIComponent(docId)}`
+export const versionsKey = (docId: string, before?: string) =>
+  `${VERSIONS_URL}?doc_uuid=${encodeURIComponent(docId)}${before ? `&before=${encodeURIComponent(before)}` : ""}`
 export const versionBodyKey = (docId: string, versionId: string) =>
   `${VERSIONS_URL}/${encodeURIComponent(versionId)}?doc_uuid=${encodeURIComponent(docId)}`
 export const versionNameUrl = (versionId: string) => `${VERSIONS_URL}/${encodeURIComponent(versionId)}/name`
@@ -52,6 +53,27 @@ export interface VersionPerson {
 export interface VersionList {
   versions: DocVersion[] | null
   people: Record<string, VersionPerson> | null
+  /** The cursor for the page of earlier versions, while there are more. */
+  next?: string
+}
+
+/** Pages of a history as one list, newest first, each version once; next is the last page's. Pure. */
+export function mergeVersionLists(pages: Array<VersionList | undefined>): VersionList | undefined {
+  const there = pages.filter((p): p is VersionList => !!p)
+  if (!there.length) return undefined
+  const seen = new Set<string>()
+  const versions: DocVersion[] = []
+  let people: Record<string, VersionPerson> = {}
+  for (const p of there) {
+    for (const v of p.versions ?? []) {
+      if (!seen.has(v.id)) {
+        seen.add(v.id)
+        versions.push(v)
+      }
+    }
+    people = { ...people, ...(p.people ?? {}) }
+  }
+  return { versions, people, next: there[there.length - 1].next }
 }
 
 /** Someone a version credits, as the sheet draws them. */

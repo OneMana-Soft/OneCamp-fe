@@ -35,6 +35,8 @@ describe("a 401 on a guest page", () => {
   it("knows a guest page from the app's", () => {
     expect(onVisitorPage("/guest/d/abc123")).toBe(true)
     expect(onVisitorPage("/guest/t/xyz")).toBe(true)
+    expect(onVisitorPage("/p/launch-notes-1a2b3c4d")).toBe(true)
+    expect(onVisitorPage("/pricing")).toBe(false)
     expect(onVisitorPage("/app/doc/abc123")).toBe(false)
     expect(onVisitorPage("/")).toBe(false)
   })

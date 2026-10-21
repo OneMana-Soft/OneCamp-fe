@@ -20,6 +20,7 @@ import { ChevronLeft } from "@/lib/icons"
 import { DocGraphEndpoint, type Envelope } from "@/services/docGraphService"
 import type { DocTrash, DocTrashItem } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
+import { areaHue } from "@/lib/areas"
 
 const TRASH_PAGE = 30
 
@@ -45,7 +46,7 @@ export default function DocTrashPage() {
   else if (list.items.length === 0)
     body = (
       <EmptyState
-        illustration={<SpotDocs hue="sky" />}
+        illustration={<SpotDocs hue={areaHue("docs")} />}
         title="The trash is empty"
         description="A doc you delete waits here, with the pages inside it, until it goes for good."
         className="pt-10"

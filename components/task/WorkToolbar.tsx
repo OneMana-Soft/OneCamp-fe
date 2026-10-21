@@ -12,7 +12,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuPortal,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -37,6 +36,7 @@ import { displayNameOf } from "@/lib/personName"
 import { isBuiltInStatus } from "@/lib/taskStatus"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { openUI } from "@/store/slice/uiSlice"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import type { UserProfileInterface } from "@/types/user"
@@ -124,7 +124,7 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
     return () => window.clearTimeout(t)
   }, [ownDisplay, projectId, hasFields])
 
-  const members = useFetch<ProjectInfoRawInterface>(projectId ? `${GetEndpointUrl.GetProjectMemberInfo}/${projectId}` : "")
+  const members = useFetch<ProjectInfoRawInterface>(projectId ? `${ProjectsGet.GetProjectMemberInfo}/${projectId}` : "")
   const self = useFetchOnlyOnce<UserProfileInterface>(projectId ? "" : GetEndpointUrl.SelfProfile)
   const people2 = members.data?.data.project_members ?? []
   const projects = self.data?.data.user_projects ?? []
@@ -321,9 +321,7 @@ function FacetSub({ label, glyph, children }: { label: string; glyph: React.Reac
         <span className="inline-flex size-4 items-center justify-center">{glyph}</span>
         {label}
       </DropdownMenuSubTrigger>
-      <DropdownMenuPortal>
-        <DropdownMenuSubContent className="max-h-80 w-60 overflow-y-auto p-1">{children}</DropdownMenuSubContent>
-      </DropdownMenuPortal>
+      <DropdownMenuSubContent className="max-h-80 w-60 overflow-y-auto p-1">{children}</DropdownMenuSubContent>
     </DropdownMenuSub>
   )
 }

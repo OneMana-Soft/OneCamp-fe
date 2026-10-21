@@ -11,7 +11,8 @@
 // each, so a refusal for one never hides that the others went.
 
 import { personHue } from "@/lib/utils/getAvatarColor"
-import React, { useMemo, useRef, useState } from "react"
+import React, { useId, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { DialogFooter } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -108,9 +109,29 @@ export interface InviteFormProps {
   header: (state: { done: boolean; single?: { answer: InvitationAnswer; email: string }; summary: string }) => React.ReactNode
   /** A second button beside Done in the result state ("Invite another"). */
   again?: boolean
+  /**
+   * Leaves out Cancel, for a form placed inside a larger flow whose own
+   * footer already moves on (the guided first run).
+   */
+  noCancel?: boolean
+  /**
+   * Where the form's actions go when it sits inside a larger overlay: that
+   * overlay's footer, which stays in view while the form scrolls (the
+   * owner's footer rule, design/drawers-v3). Without it they are the form's
+   * own DialogFooter.
+   */
+  footerTo?: HTMLElement | null
+  /** Done's words in the result state ("Next" inside the guided first run). */
+  doneLabel?: string
 }
 
-export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, known, name = "email", onCreated, onClose, header, again }: InviteFormProps) {
+export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, known, name = "email", onCreated, onClose, header, again, noCancel, footerTo, doneLabel = "Done" }: InviteFormProps) {
+  const formId = useId()
+  // The actions sit in a DialogFooter either way. Given an overlay's footer,
+  // it goes there without a box of its own (`contents`), so its buttons join
+  // that footer's row; else it is the form's own footer.
+  const placeFooter = (el: React.ReactElement) => (footerTo ? createPortal(el, footerTo) : el)
+  const footerClass = footerTo ? "contents" : undefined
   const [chips, setChips] = useState<InviteChip[]>([])
   const [draft, setDraft] = useState("")
   const [selected, setSelected] = useState(false)
@@ -208,16 +229,18 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
       <>
         {header({ done: true, single, summary: "" })}
         <InvitationOutcome answer={single.answer} email={single.email} />
-        <DialogFooter>
-          {again && (
-            <Button type="button" variant="secondary" onClick={reset}>
-              Invite another
+        {placeFooter(
+          <DialogFooter className={footerClass}>
+            {again && (
+              <Button type="button" variant="secondary" onClick={reset}>
+                Invite another
+              </Button>
+            )}
+            <Button type="button" onClick={onClose}>
+              {doneLabel}
             </Button>
-          )}
-          <Button type="button" onClick={onClose}>
-            Done
-          </Button>
-        </DialogFooter>
+          </DialogFooter>,
+        )}
       </>
     )
   }
@@ -231,16 +254,18 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
             <ResultRow key={r.email} result={r} index={i} />
           ))}
         </ul>
-        <DialogFooter>
-          {again && !sending && (
-            <Button type="button" variant="secondary" onClick={reset}>
-              Invite more
+        {placeFooter(
+          <DialogFooter className={footerClass}>
+            {again && !sending && (
+              <Button type="button" variant="secondary" onClick={reset}>
+                Invite more
+              </Button>
+            )}
+            <Button type="button" onClick={onClose} disabled={sending}>
+              {doneLabel}
             </Button>
-          )}
-          <Button type="button" onClick={onClose} disabled={sending}>
-            Done
-          </Button>
-        </DialogFooter>
+          </DialogFooter>,
+        )}
       </>
     )
   }
@@ -251,7 +276,7 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
     : `${sendVerb} ${count > 1 ? `${count} invitations` : "invitation"}`
 
   return (
-    <form onSubmit={submit} noValidate>
+    <form id={formId} onSubmit={submit} noValidate>
       {header({ done: false, summary: "" })}
       <TooltipProvider>
         <div className="grid gap-2 py-4">
@@ -334,15 +359,20 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
           )}
         </div>
       </TooltipProvider>
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onClose} disabled={sending}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={!count || sending}>
-          {sending && <Loader2 className="animate-spin" aria-hidden="true" />}
-          {sendLabel}
-        </Button>
-      </DialogFooter>
+      {placeFooter(
+        <DialogFooter className={footerClass}>
+          {!noCancel && (
+            <Button type="button" variant="ghost" onClick={onClose} disabled={sending}>
+              Cancel
+            </Button>
+          )}
+          {/* form=: in another overlay's footer it is outside the form. */}
+          <Button type="submit" form={formId} disabled={!count || sending}>
+            {sending && <Loader2 className="animate-spin" aria-hidden="true" />}
+            {sendLabel}
+          </Button>
+        </DialogFooter>,
+      )}
     </form>
   )
 }

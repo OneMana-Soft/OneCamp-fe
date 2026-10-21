@@ -22,7 +22,8 @@ import { MeasuredContainer } from '@/components/minimal-tiptap/components/measur
 import { useDispatch, useSelector } from "react-redux"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { useMedia } from "@/context/MediaQueryContext"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { useSheetMode } from '@/components/ui/overlayMode'
+import { DocsGet } from "@/services/endpoints/docs"
 import { useToast } from "@/hooks/use-toast"
 import { useUploadFile } from '@/hooks/useUploadFile'
 import { HocuspocusProvider } from '@hocuspocus/provider'
@@ -156,7 +157,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             const objUuid = data?.object_uuid;
             if (!objUuid) throw new Error('Upload failed: no response data');
             const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') || '';
-            const src = `${baseUrl}${GetEndpointUrl.GetDocAttachment}/${docId}/${objUuid}`;
+            const src = `${baseUrl}${DocsGet.GetDocAttachment}/${docId}/${objUuid}`;
             return { id: objUuid, src }
         }, [docId, toast, uploadFile, clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb]);
 
@@ -184,7 +185,9 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         useNewDocArrival({ editor, synced: !!providerSynced || !collaboration, titleRef, canEditTitle: editableTitle && !!titleStore })
 
         const dispatch = useDispatch()
-        const { isDesktop, isMobile } = useMedia()
+        const { isMobile } = useMedia()
+        // Doc AI's panel: beside the doc, or a sheet on a phone held either way (components/ui/overlayMode).
+        const sheet = useSheetMode()
         const docAiOpen = useSelector((state: any) => state.rightPanel.rightPanelState.data.docAiOpen)
         const suppressOverlays = docAiOpen
         const isFullWidth = fullWidth
@@ -226,7 +229,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
             const contextAfter = editor.state.doc.textBetween(to, Math.min(editor.state.doc.content.size, to + contextSize), ' ')
             const surroundingContext = `[BEFORE]: ${contextBefore}\n[SELECTED]: ${text}\n[AFTER]: ${contextAfter}`
             const asked = prompt?.trim() || undefined
-            if (isDesktop) {
+            if (!sheet) {
                 dispatch(openRightPanel({
                     docAiOpen: true,
                     docAiData: {
@@ -239,7 +242,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     }
                 }))
             }
-        }, [editor, isDesktop, dispatch, docId, abilities?.level])
+        }, [editor, sheet, dispatch, docId, abilities?.level])
         useDocCommand(bus, 'aiRun', ({ action, prompt }) => openAI(action, prompt))
         // The bars' Ask AI: through the bus, so a package listening hears it too.
         const handleAIClick = React.useCallback(() => {

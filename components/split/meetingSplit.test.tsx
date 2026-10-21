@@ -5,7 +5,9 @@ import { act, cleanup, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { configureStore } from "@reduxjs/toolkit"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import splitSlice, { closeSplit, openInSplit, setFocused } from "@/store/slice/splitSlice"
+import splitSlice from "@/store/slice/splitSlice"
+import { closeSplit, moveView, openInSplit, setFocused } from "@/store/slice/splitActions"
+import { MAIN } from "@/lib/split"
 import type { Pane } from "@/lib/split"
 
 // The full-page call's Chat lit up and opened nothing: it puts the call's
@@ -15,11 +17,12 @@ import type { Pane } from "@/lib/split"
 // the call: a call that remounts hangs up.
 
 // The pane itself is the shell's (its views load the whole conversation); its
-// bar, name and body are tested where they live.
-vi.mock("@/components/split/SplitPane", () => ({
+// bar, name and body are tested where they live, and the arrange layer too.
+vi.mock("@/components/split/lazy", () => ({
   SplitPane: ({ pane, index, active, focused }: { pane: Pane; index: number; active: boolean; focused: boolean }) => (
     <section aria-label={`${pane.kind} ${pane.id}, side by side`} data-index={index} data-active={String(active)} data-focused={String(focused)} />
   ),
+  SplitArrange: () => null,
 }))
 
 import { MeetingSplit } from "./MeetingSplit"
@@ -105,6 +108,21 @@ describe("a call's own page", () => {
       store.dispatch(setFocused(null))
     })
     expect(call.className).not.toMatch(/\bhidden\b/)
+    expect(counts).toEqual({ mounts: 1, unmounts: 0 })
+  })
+
+  // Split view's rearranging: the conversation can sit on the call's other
+  // side, by CSS order alone, so the call never moves in the page.
+  it("puts the conversation on the call's left once it is moved there, without remounting the call", () => {
+    const { store, container } = setup(`/app/meet/ch/${CH}`, { panes: [{ kind: "channel", id: CH }] })
+    const call = container.querySelector("[data-meeting-call]") as HTMLElement
+    expect(call.style.order).toBe("1")
+    act(() => {
+      store.dispatch(moveView({ view: MAIN, by: 1 }))
+    })
+    expect(call.style.order).toBe("3")
+    expect((screen.getByRole("region", { name: `channel ${CH}, side by side` }).parentElement as HTMLElement).style.order).toBe("1")
+    expect(container.querySelector("[data-meeting-call]")).toBe(call)
     expect(counts).toEqual({ mounts: 1, unmounts: 0 })
   })
 

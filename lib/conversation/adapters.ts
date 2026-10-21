@@ -1,6 +1,7 @@
 import { mapChatInfoToBaseMessage, mapPostsResToBaseMessage } from "@/components/message/baseMessageCard"
 import { pageEdgeQuery } from "@/lib/chat/pageEdge"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { ChatGet } from "@/services/endpoints/chat"
 import type { ConversationRef, Cursor, Message } from "@/lib/conversation/types"
 import type { ChatInfo, CreateChatPaginationResRaw } from "@/types/chat"
 import type { CreatePostPaginationResRaw, PostsRes } from "@/types/post"
@@ -51,21 +52,21 @@ const postsOf = (answer: unknown) => (answer as CreatePostPaginationResRaw | und
 const chatsOf = (answer: unknown) => (answer as CreateChatPaginationResRaw | undefined)?.data?.chats
 
 export const channelAdapter: ConversationAdapter<PostsRes> = adapter(
-  { latest: GetEndpointUrl.GetChannelLatestPost, older: GetEndpointUrl.GetOldPostBefore, newer: GetEndpointUrl.GetNewPostAfter, around: GetEndpointUrl.GetNewPostIncludingCurrentPost },
+  { latest: GetEndpointUrl.GetChannelLatestPost, older: ChatGet.GetOldPostBefore, newer: ChatGet.GetNewPostAfter, around: ChatGet.GetNewPostIncludingCurrentPost },
   postsOf,
   (p) => ({ at: p.post_created_at, id: p.post_uuid }),
   mapPostsResToBaseMessage,
 )
 
 export const dmAdapter: ConversationAdapter<ChatInfo> = adapter(
-  { latest: GetEndpointUrl.GetChatLatestMessage, older: GetEndpointUrl.GetOldChatBefore, newer: GetEndpointUrl.GetNewChatAfter, around: GetEndpointUrl.GetNewChatIncludingCurrentChat },
+  { latest: GetEndpointUrl.GetChatLatestMessage, older: ChatGet.GetOldChatBefore, newer: ChatGet.GetNewChatAfter, around: ChatGet.GetNewChatIncludingCurrentChat },
   chatsOf,
   (c) => ({ at: c.chat_created_at, id: c.chat_uuid }),
   mapChatInfoToBaseMessage,
 )
 
 export const groupAdapter: ConversationAdapter<ChatInfo> = adapter(
-  { latest: GetEndpointUrl.GetGroupChatLatestMessage, older: GetEndpointUrl.GetOldGroupChatBefore, newer: GetEndpointUrl.GetNewGroupChatAfter, around: GetEndpointUrl.GetNewGroupChatIncludingCurrentChat },
+  { latest: GetEndpointUrl.GetGroupChatLatestMessage, older: ChatGet.GetOldGroupChatBefore, newer: ChatGet.GetNewGroupChatAfter, around: ChatGet.GetNewGroupChatIncludingCurrentChat },
   chatsOf,
   (c) => ({ at: c.chat_created_at, id: c.chat_uuid }),
   mapChatInfoToBaseMessage,

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 
-// SplitPane draws views lazily; its title is pure, tested without them.
+// A pane's title is pure (paneLook), tested without the views.
 vi.mock("next/dynamic", () => ({ default: () => () => null }))
 
-import { paneTitle } from "./SplitPane"
+import { paneTitle } from "./paneLook"
 
 const store = {
   users: {
@@ -40,5 +40,20 @@ describe("a split pane's name", () => {
   it("is a recent visit's title for a doc or task, and nothing (so the kind) when unknown", () => {
     expect(paneTitle(store, { kind: "doc", id: "d1" })).toBe("Q4 launch plan")
     expect(paneTitle(store, { kind: "task", id: "nope" })).toBeNull()
+  })
+
+  // 21 Oct: a doc or task beside the page that wasn't a recent visit was "Doc"
+  // or "Task" (components/split/viewName.test.tsx renders it).
+  it("is what a doc's or task's own view loaded, over a recent visit's older title", () => {
+    expect(paneTitle(store, { kind: "doc", id: "d1" }, { data: { doc_title: "Q4 launch plan, final" } })).toBe("Q4 launch plan, final")
+    expect(paneTitle(store, { kind: "doc", id: "d1" }, { data: { doc_title: " " } })).toBe("Untitled")
+    expect(paneTitle(store, { kind: "task", id: "t1" }, { data: { task_name: "Book the launch retro" } })).toBe("Book the launch retro")
+  })
+
+  it("is the sidebar's for a doc it lists or has starred, until the doc's view has loaded", () => {
+    const sb = { ...store.users.userSidebar, userDocs: [{ doc_uuid: "d2", doc_title: "Pricing" }], userStarred: [{ resource_uuid: "d3", title: "Roadmap" }] }
+    const withDocs = { ...store, users: { userSidebar: sb } } as unknown as typeof store
+    expect(paneTitle(withDocs, { kind: "doc", id: "d2" })).toBe("Pricing")
+    expect(paneTitle(withDocs, { kind: "doc", id: "d3" })).toBe("Roadmap")
   })
 })

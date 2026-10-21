@@ -6,7 +6,7 @@
  */
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { TablesGet, TablesPost } from "@/services/endpoints/tables"
 import type { DataTable, TableField, TableRow } from "@/services/tableService"
 import type { ActorKind, ChangeKind } from "@/lib/tables/types"
 
@@ -38,13 +38,13 @@ export interface BatchResult {
 }
 
 export async function batchRows(tableId: string, input: BatchInput): Promise<BatchResult> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.BatchTableRows}/${tableId}/rows/batch`, input)
+  const res = await axiosInstance.post(`${TablesPost.BatchTableRows}/${tableId}/rows/batch`, input)
   return res.data?.data as BatchResult
 }
 
 /** Moves rows next to another, in the order given: one change set. */
 export async function moveRows(tableId: string, rows: string[], at: RowPlace): Promise<string> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.MoveTableRows}/${tableId}/rows/move`, { rows, ...at })
+  const res = await axiosInstance.post(`${TablesPost.MoveTableRows}/${tableId}/rows/move`, { rows, ...at })
   return (res.data?.data?.change_set as string) ?? ""
 }
 
@@ -59,13 +59,13 @@ export interface UndoResult {
 
 /** Undoes one of the reader's own changes on a table: the one named, or their latest. */
 export async function undoChange(tableId: string, changeSet?: string): Promise<UndoResult> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.UndoTableChange}/${tableId}/undo`, changeSet ? { change_set: changeSet } : {}, OWN_ERRORS)
+  const res = await axiosInstance.post(`${TablesPost.UndoTableChange}/${tableId}/undo`, changeSet ? { change_set: changeSet } : {}, OWN_ERRORS)
   return res.data?.data as UndoResult
 }
 
 /** Redoes the reader's latest undo on a table. */
 export async function redoChange(tableId: string): Promise<UndoResult> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.RedoTableChange}/${tableId}/redo`, {}, OWN_ERRORS)
+  const res = await axiosInstance.post(`${TablesPost.RedoTableChange}/${tableId}/redo`, {}, OWN_ERRORS)
   return res.data?.data as UndoResult
 }
 
@@ -96,7 +96,7 @@ export interface RowHistory {
 
 export async function readRowHistory(tableId: string, rowId: string, before?: string): Promise<RowHistory> {
   const q = before ? `?before=${encodeURIComponent(before)}` : ""
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetTableRowHistory}/${tableId}/rows/${rowId}/history${q}`, OWN_ERRORS)
+  const res = await axiosInstance.get(`${TablesGet.GetTableRowHistory}/${tableId}/rows/${rowId}/history${q}`, OWN_ERRORS)
   return (res.data?.data as RowHistory) ?? { items: [], more: false }
 }
 
@@ -125,13 +125,13 @@ export interface TableTrash {
 
 export async function readTableTrash(tableId: string, before?: string): Promise<TableTrash> {
   const q = before ? `?before=${encodeURIComponent(before)}` : ""
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetTableTrash}/${tableId}/trash${q}`, OWN_ERRORS)
+  const res = await axiosInstance.get(`${TablesGet.GetTableTrash}/${tableId}/trash${q}`, OWN_ERRORS)
   return (res.data?.data as TableTrash) ?? { rows: [], more: false, fields: [] }
 }
 
 /** Brings rows (one change set) and fields back from a table's trash. */
 export async function restoreFromTrash(tableId: string, what: { rows?: string[]; fields?: string[] }): Promise<{ change_set?: string }> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.RestoreTableTrash}/${tableId}/trash/restore`, { rows: what.rows ?? [], fields: what.fields ?? [] })
+  const res = await axiosInstance.post(`${TablesPost.RestoreTableTrash}/${tableId}/trash/restore`, { rows: what.rows ?? [], fields: what.fields ?? [] })
   return (res.data?.data as { change_set?: string }) ?? {}
 }
 
@@ -143,12 +143,12 @@ export interface TrashTable {
 }
 
 export async function readTablesTrash(): Promise<TrashTable[]> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetTablesTrash, OWN_ERRORS)
+  const res = await axiosInstance.get(TablesGet.GetTablesTrash, OWN_ERRORS)
   return (res.data?.data as TrashTable[] | null) ?? []
 }
 
 export async function restoreTable(tableId: string): Promise<DataTable> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.RestoreTable}/${tableId}/restore`, {})
+  const res = await axiosInstance.post(`${TablesPost.RestoreTable}/${tableId}/restore`, {})
   return res.data?.data as DataTable
 }
 

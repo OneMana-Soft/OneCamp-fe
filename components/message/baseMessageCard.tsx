@@ -19,7 +19,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTouchReveal } from "@/hooks/useTouchReveal"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
-import type { UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface } from "@/types/user"
+import type { UserProfileDataInterface, UserProfileInterface } from "@/types/user"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { BottomMenu } from "@/components/message/bottomMenu"
@@ -41,9 +41,12 @@ import { usePrimeActions } from "@/components/message/primeActions"
 import type { SendState } from "@/lib/chat/pendingSend"
 import { isAIBot } from "@/lib/botCopy"
 import { agentIdsOf, mentionsUser, type MentionContext } from "@/components/message/tintMentions"
+import { useKeywordsFor } from "@/hooks/useMyKeywords"
 import { AgentProvenance, type AgentAsker } from "@/components/message/agentProvenance"
 import { ReplyLine } from "@/components/message/replyLine"
 import { isEmojiOnly } from "@/lib/chat/emojiOnly"
+import { useMessageReactions } from "@/hooks/useMessageReactions"
+import { PinnedMark } from "@/components/conversation/pins/PinnedMark"
 import type { RootState } from "@/store/store"
 
 interface RightPanelConfig {
@@ -297,8 +300,6 @@ export const BaseMessageCard = React.memo(({
   useEffect(() => {
     if (edit.draft !== undefined) updatedTextRef.current = edit.draft
   }, [edit.draft])
-  // The reaction the reader just made as their first on this message.
-  const [burstEmojiId, setBurstEmojiId] = useState<string | undefined>(undefined)
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const selfId = selfProfile.data?.data.user_uuid
@@ -322,8 +323,10 @@ export const BaseMessageCard = React.memo(({
 
   // A mention of the reader: the accent ground, a bar on the edge and the
   // time in the accent's ink (C14). Anyone else's mention stays neutral.
-  const forMe = useMemo(() => mentionsUser(message.bodyText, selfId), [message.bodyText, selfId])
-  const mentionContext = useMemo<MentionContext>(() => ({ me: selfId, agentIds: agentIdsOf(botKinds) }), [selfId, botKinds])
+  const forMe = useMemo(() => mentionsUser(message.bodyText, selfId, message.from?.user_uuid), [message.bodyText, selfId, message.from?.user_uuid])
+  // The reader's keywords, marked on a channel's posts (chat P3).
+  const markKeywords = useKeywordsFor(!!hoverOptionsConfig.channelUUID && message.kind !== "system", message.from?.user_uuid, selfId)
+  const mentionContext = useMemo<MentionContext>(() => ({ me: selfId, agentIds: agentIdsOf(botKinds), markKeywords }), [selfId, botKinds, markKeywords])
   const emojiOnly = useMemo(() => isEmojiOnly(bodyText), [bodyText])
   const edited = editedTitle(message.createdAt, message.updatedAt)
   const checkin = !relayed && !!message.from.is_bot && authorKind === "checkin" && !isMessageEditEnabled
@@ -360,47 +363,9 @@ export const BaseMessageCard = React.memo(({
     }
   }, [translation, bodyText, translateText])
 
-  const reactions = useMemo(() => {
-    const r: { [key: string]: string[] } = {}
-    if (message.reactions) {
-      message.reactions.forEach((reaction) => {
-        // A reaction the server answered oddly (no emoji) is skipped, never drawn.
-        if (!reaction?.reaction_emoji_id) return
-        if (!r[reaction.reaction_emoji_id]) {
-          r[reaction.reaction_emoji_id] = []
-        }
-        const name = displayNameOf(reaction.reaction_added_by)
-        if (name) r[reaction.reaction_emoji_id].push(name)
-      })
-    }
-    return r
-  }, [message.reactions])
-
-  const userSelectedOption = useMemo(() => {
-    if (!selfId || !message.reactions) return {} as UserSelectedOptionInterface
-    const reaction = message.reactions.find((r) => r?.reaction_added_by?.user_uuid === selfId)
-    if (reaction) {
-      return {
-        reactionId: reaction.uid,
-        emojiId: reaction.reaction_emoji_id,
-      }
-    }
-    return {} as UserSelectedOptionInterface
-  }, [message.reactions, selfId])
-
-  const handleEmojiClick = useCallback(
-    (emojiId: string) => {
-      if (userSelectedOption.emojiId === emojiId) {
-        removeReaction(userSelectedOption.reactionId)
-        return
-      }
-      // The reader's first reaction on this message: three small sparks leave
-      // its pill (ReactionPill, throttled), and only then.
-      if (!userSelectedOption.emojiId) setBurstEmojiId(emojiId)
-      addReaction(emojiId, userSelectedOption.reactionId)
-    },
-    [userSelectedOption, addReaction, removeReaction],
-  )
+  // Several emoji a person, each once (lib/chat/reactions, D-M7).
+  const reacted = useMessageReactions(message.reactions, selfId, addReaction, removeReaction)
+  const handleEmojiClick = reacted.toggle
 
   // The profile card on a rest over the face or the name (hub.md P1).
   const authorHover = useProfileHover(relayed ? undefined : message.from.user_uuid)
@@ -585,8 +550,11 @@ export const BaseMessageCard = React.memo(({
                 </time>
               )}
               {sending && <SendingNote />}
+              <PinnedMark messageId={message.uuid} />
             </div>
           )}
+          {/* A pinned message that continues a turn says so on its own line. */}
+          {continued && !isMessageEditEnabled && <PinnedMark messageId={message.uuid} line />}
           {message.replyTo && !isMessageEditEnabled && (
             <ReplyLine by={message.replyTo.from} text={message.replyTo.text} onJump={() => scrollToMessage(message.replyTo?.uuid)} />
           )}
@@ -707,10 +675,10 @@ export const BaseMessageCard = React.memo(({
           {!isMessageEditEnabled && !message.sendState && (
             <BottomMenu
               handleEmojiClick={handleEmojiClick}
-              reactions={reactions}
-              selectedEmojiId={userSelectedOption.emojiId}
+              reactions={reacted.byEmoji}
+              selectedEmojiIds={reacted.selected}
               selfName={displayNameOf(selfProfile.data?.data)}
-              burstEmojiId={burstEmojiId}
+              burstEmojiId={reacted.burstEmojiId}
             />
           )}
           <SendStatus state={message.sendState} localId={message.localId} />

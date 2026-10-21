@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast"
 import axiosInstance from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 interface GitHubConfigStatus {
@@ -64,7 +64,7 @@ export default function GitHubConfigDialog({
         setLoading(true)
         setLoadFailed(false)
         axiosInstance
-            .get(GetEndpointUrl.GetGitHubConfig)
+            .get(AdminGet.GetGitHubConfig)
             .then((res) => {
                 const s = (res.data as { data?: GitHubConfigStatus })?.data ?? null
                 setStatus(s)
@@ -89,7 +89,7 @@ export default function GitHubConfigDialog({
             if (clientSecret) body.client_secret = clientSecret
             if (webhookSecret) body.webhook_secret = webhookSecret
 
-            const res = await axiosInstance.post(PostEndpointUrl.UpdateGitHubConfig, body)
+            const res = await axiosInstance.post(AdminPost.UpdateGitHubConfig, body)
             const s = (res.data as { data?: GitHubConfigStatus })?.data ?? null
             setStatus(s)
             setClientSecret("")

@@ -1,5 +1,5 @@
 import { bookedMeetingConfirm, type BookedConfirm, type EventBooking } from "@/lib/calendar/bookedMeeting"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { CalendarPost } from "@/services/endpoints/calendar"
 
 /**
  * The question before an event is deleted, wherever it is deleted from: the
@@ -20,7 +20,7 @@ export function deleteEventConfirm(event: { event_booking?: EventBooking }): Boo
 export function deleteEventRequest(eventUuid: string) {
   return {
     method: "DELETE",
-    apiEndpoint: PostEndpointUrl.DeleteCalendarEvent,
+    apiEndpoint: CalendarPost.DeleteCalendarEvent,
     appendToUrl: `/${eventUuid}`,
     showErrorToast: true,
     failureTitle: "Couldn't delete the event",

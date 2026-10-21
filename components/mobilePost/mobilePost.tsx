@@ -3,7 +3,8 @@
 
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {PostsResRaw} from "@/types/post";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {useDispatch, useSelector} from "react-redux";
 import {
     CreateOrUpdateCommentReaction,
@@ -44,7 +45,7 @@ const NO_ITEMS: never[] = []
 export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUID: string }) => {
 
     const postInfo = useFetch<PostsResRaw>(
-        channelId && postUUID ? `${GetEndpointUrl.GetPostWithAllComments}/${postUUID}` : "",
+        channelId && postUUID ? `${ChatGet.GetPostWithAllComments}/${postUUID}` : "",
         undefined, undefined, OWN_ERRORS,
     )
 

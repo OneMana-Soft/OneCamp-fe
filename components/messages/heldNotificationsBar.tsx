@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useToast } from "@/hooks/use-toast"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { ChatGet } from "@/services/endpoints/chat"
 import { formatSendAt } from "@/lib/messages/schedulePresets"
 
 interface HeldStatus {
@@ -28,7 +29,7 @@ function heldWords(who: string, reason: HeldStatus["reason"], until: string): st
 }
 
 export function HeldNotificationsBar({ userUUID, name, isBot }: { userUUID: string; name?: string; isBot?: boolean }) {
-  const { data } = useFetch<{ data: HeldStatus }>(userUUID && !isBot ? `${GetEndpointUrl.GetTeammateNotificationStatus}/${userUUID}` : "", undefined, {
+  const { data } = useFetch<{ data: HeldStatus }>(userUUID && !isBot ? `${ChatGet.GetTeammateNotificationStatus}/${userUUID}` : "", undefined, {
     refreshInterval: 60_000,
   })
   const { makeRequest, isSubmitting } = usePost()

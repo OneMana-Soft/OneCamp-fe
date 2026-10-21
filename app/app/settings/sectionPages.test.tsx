@@ -44,7 +44,7 @@ describe("workflows", () => {
 
   it("shows the workflows in the section's own hue", () => {
     render(<WorkflowsSettingsPage />)
-    expect(screen.getByTestId("workflows-card")).toHaveAttribute("data-hue", "moss")
+    expect(screen.getByTestId("workflows-card")).toHaveAttribute("data-hue", "ink")
   })
 })
 

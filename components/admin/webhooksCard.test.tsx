@@ -110,11 +110,11 @@ describe("webhooks", () => {
 
   // The playful layer: an empty state's icon sits on its admin group's tile
   // (Connections, lake), never in the accent.
-  it("puts the empty state's icon on the Connections group's lake tile", () => {
+  it("puts the empty state's icon on the Connections group's neutral tile", () => {
     fetchState.value = { data: { webhooks: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<WebhooksCard />)
     expect(screen.getByText("No webhooks yet")).toBeTruthy()
-    expect(document.querySelector(".hue-lake")).toBeTruthy()
+    expect(document.querySelector(".hue-ink")).toBeTruthy()
     // The playful layer's spot: a plug, for a place where things connect.
     expect(document.querySelector("[data-empty-illustration]")).toBeTruthy()
   })

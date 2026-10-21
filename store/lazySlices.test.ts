@@ -31,6 +31,13 @@ describe("the store's static slices", () => {
         }
     })
 
+    // Split view's state (20 Oct 2026): the shell's alone. Its rules for many
+    // views rode in every page's first load through the store.
+    it("leave split view's state to the shell, which adds it as it loads", () => {
+        expect(STATIC_SLICE_NAMES).not.toContain("split")
+        expect(readFileSync("hooks/useSplitView.ts", "utf8")).toMatch(/^injectSlice\(splitSlice\);?$/m)
+    })
+
     it("leave A8's threads to the threads UI", () => {
         expect(store.getState().threads).toBeUndefined()
         expect(readFileSync("components/threads/useThreads.ts", "utf8")).toMatch(/^injectSlice\(threadsSlice\);?$/m)

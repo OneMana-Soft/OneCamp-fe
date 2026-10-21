@@ -1,5 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance";
-import { PostEndpointUrl } from "@/services/endPoints";
+import { AdminPost } from "@/services/endpoints/admin";
 
 /**
  * Workflow Builder admin client. Workflows are event-triggered automation
@@ -99,21 +99,21 @@ export function parseWorkflow(w: Workflow): {
 }
 
 export async function createWorkflow(values: WorkflowFormValues): Promise<Workflow> {
-    const res = await axiosInstance.post(PostEndpointUrl.CreateWorkflow, values);
+    const res = await axiosInstance.post(AdminPost.CreateWorkflow, values);
     return res.data?.data as Workflow;
 }
 
 export async function updateWorkflow(id: string, values: WorkflowFormValues): Promise<Workflow> {
-    const res = await axiosInstance.put(`${PostEndpointUrl.UpdateWorkflow}/${id}`, values);
+    const res = await axiosInstance.put(`${AdminPost.UpdateWorkflow}/${id}`, values);
     return res.data?.data as Workflow;
 }
 
 export async function setWorkflowActive(id: string, isActive: boolean): Promise<void> {
-    await axiosInstance.post(`${PostEndpointUrl.SetWorkflowActive}/${id}/active`, { is_active: isActive });
+    await axiosInstance.post(`${AdminPost.SetWorkflowActive}/${id}/active`, { is_active: isActive });
 }
 
 export async function deleteWorkflow(id: string): Promise<void> {
-    await axiosInstance.delete(`${PostEndpointUrl.DeleteWorkflow}/${id}`);
+    await axiosInstance.delete(`${AdminPost.DeleteWorkflow}/${id}`);
 }
 
 // A draft workflow generated from a natural-language prompt. Ids are
@@ -130,6 +130,6 @@ interface WorkflowDraft {
 }
 
 export async function draftWorkflow(prompt: string): Promise<WorkflowDraft> {
-    const res = await axiosInstance.post(PostEndpointUrl.DraftWorkflow, { prompt });
+    const res = await axiosInstance.post(AdminPost.DraftWorkflow, { prompt });
     return res.data?.data as WorkflowDraft;
 }

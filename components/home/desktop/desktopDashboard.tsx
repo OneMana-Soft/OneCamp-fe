@@ -24,7 +24,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { UserProfileInterface } from "@/types/user"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
-import SetupChecklist, { adminFromSidenav } from "@/components/home/SetupChecklist"
+import { adminFromSidenav, ChecklistPlace } from "@/components/home/setupChecklistPlace"
 import { NoChannelsYet } from "@/components/home/NoChannelsYet"
 import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
 import { Greeting } from "@/components/home/Greeting"
@@ -37,6 +37,10 @@ import { needsCounts } from "@/components/home/needsMe"
 import { HubSectionHeader } from "@/components/ui/hubRow"
 import { riseProps, useRiseOnce } from "@/lib/hub/motion"
 import { cn } from "@/lib/utils/helpers/cn"
+
+// The setup checklist, a chunk of its own: only an admin with steps left sees
+// it. Its place is held while it comes (setupChecklistPlace).
+const SetupChecklist = dynamic(() => import("@/components/home/SetupChecklist"), { ssr: false, loading: ChecklistPlace })
 
 // The agenda and the projects load on their own (app/firstLoad.test.ts), each
 // holding its section's height so nothing moves when it lands.

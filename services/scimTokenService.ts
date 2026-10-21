@@ -1,6 +1,6 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { apiUrl } from "@/lib/utils/apiUrl"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { AdminPost } from "@/services/endpoints/admin"
 
 /**
  * SCIM provisioning credentials.
@@ -44,12 +44,12 @@ export async function createScimToken(input: {
     name: string
     expires_in_days?: number
 }): Promise<CreatedScimToken> {
-    const res = await axiosInstance.post(PostEndpointUrl.CreateScimToken, input)
+    const res = await axiosInstance.post(AdminPost.CreateScimToken, input)
     return res.data?.data as CreatedScimToken
 }
 
 export async function revokeScimToken(id: string): Promise<void> {
-    await axiosInstance.post(`${PostEndpointUrl.RevokeScimToken}/${id}/revoke`)
+    await axiosInstance.post(`${AdminPost.RevokeScimToken}/${id}/revoke`)
 }
 
 /** The SCIM root, relative to the API base. Matches the mount in the backend router. */

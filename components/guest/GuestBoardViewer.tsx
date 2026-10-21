@@ -9,7 +9,7 @@
  * member BoardCanvas: the member canvas depends on authenticated hooks (client
  * config, the member image pipeline, axios auth interceptors) that don't apply
  * to a guest and could trigger auth redirects. Here we only:
- *   - mirror BoardCanvas's Yjs binding (elements map, version-LWW merge),
+ *   - bind the elements map through BoardCanvas's own lib/board/binding,
  *   - resolve images through the grant-authorized guest attachment endpoint,
  *   - render view-only (no editing, no awareness publishing, no thumbnails).
  * The collaboration service also enforces read-only server-side.
@@ -19,6 +19,7 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import * as Y from "yjs"
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider"
+import { applyShared } from "@/lib/board/binding"
 import { Skeleton } from "@/components/ui/skeleton"
 import "@excalidraw/excalidraw/index.css"
 import "@/components/board/excalidrawTheme.css"
@@ -42,14 +43,6 @@ const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).
   ssr: false,
   loading: () => <CanvasPending />,
 })
-
-function cloneElement<T>(el: T): T {
-  try {
-    return structuredClone(el)
-  } catch {
-    return JSON.parse(JSON.stringify(el)) as T
-  }
-}
 
 interface GuestBoardViewerProps {
   /** Hocuspocus document name ("board:<id>"). */
@@ -108,18 +101,7 @@ export function GuestBoardViewer({ documentName, boardId, token, tokenFetcher }:
 
     const hydrate = () => {
       resolveFileEntries(Array.from(yFiles.values()) as Record<string, unknown>[])
-      const local = api.getSceneElementsIncludingDeleted()
-      const merged = new Map<string, Record<string, unknown>>()
-      for (const el of local) merged.set((el as { id: string }).id, el as never)
-      yElements.forEach((remote) => {
-        const id = (remote as { id: string }).id
-        const cur = merged.get(id) as { version?: number } | undefined
-        const rv = (remote as { version?: number }).version ?? 0
-        if (!cur || (cur.version ?? 0) <= rv) merged.set(id, cloneElement(remote))
-      })
-      if (merged.size > 0) {
-        api.updateScene({ elements: Array.from(merged.values()) as never[] })
-      }
+      applyShared(api, yElements.values() as never)
     }
 
     const onElements = () => hydrate()

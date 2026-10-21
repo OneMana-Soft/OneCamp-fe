@@ -2,7 +2,7 @@
 // cookie-auth axios instance and the centralized endpoint enums.
 
 import axiosInstance from "@/lib/axiosInstance"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { ChatGet, ChatPost } from "@/services/endpoints/chat"
 import type {
     CatalogResponse,
     CommandResponse,
@@ -15,8 +15,8 @@ import type {
 // channel mount is cheap; the FE filters client-side as the user types.
 export async function fetchCommandCatalog(channelId?: string): Promise<CatalogResponse> {
     const url = channelId
-        ? `${GetEndpointUrl.GetCommandCatalog}?channel_id=${encodeURIComponent(channelId)}`
-        : GetEndpointUrl.GetCommandCatalog
+        ? `${ChatGet.GetCommandCatalog}?channel_id=${encodeURIComponent(channelId)}`
+        : ChatGet.GetCommandCatalog
     const res = await axiosInstance.get(url, {
         // @ts-expect-error — suppress the global loading bar for this background poll
         silent: true,
@@ -26,13 +26,13 @@ export async function fetchCommandCatalog(channelId?: string): Promise<CatalogRe
 }
 // executeCommand runs a slash command server-side.
 export async function executeCommand(req: ExecuteCommandRequest): Promise<CommandResponse> {
-    const res = await axiosInstance.post(PostEndpointUrl.ExecuteCommand, req)
+    const res = await axiosInstance.post(ChatPost.ExecuteCommand, req)
     return (res.data as { data: CommandResponse }).data
 }
 
 // interactCommand sends a Block Kit button/select activation.
 export async function interactCommand(req: InteractRequest): Promise<CommandResponse> {
-    const res = await axiosInstance.post(PostEndpointUrl.InteractCommand, req)
+    const res = await axiosInstance.post(ChatPost.InteractCommand, req)
     return (res.data as { data: CommandResponse }).data
 }
 

@@ -1,19 +1,19 @@
-import type { CampHue } from "@/lib/campHue"
+import type { MarkHue } from "@/components/ui/graphics/hues"
+import { AREA_HUE } from "@/lib/areas"
 
 /**
- * The admin page's colours: one camp hue per group of its menu, shared by the
- * group's menu tiles and by the tiles in that group's cards and empty states.
+ * The admin page's colours: one per group of its menu, shared by the group's
+ * menu tiles and by the tiles in that group's cards and empty states.
  *
- * Per group, not per item: nineteen sections in nineteen colours would be the
- * random pastel per element the playful layer rules out. Five groups in five
- * hues make the menu scan as five places, and a card's tile says which place
- * it belongs to. Identity colour only: the accent keeps the one primary
- * action, focus and the current section.
+ * Colour names an area (lib/areas): AI and automation is the agents' area
+ * and wears its indigo; people, the workspace, connections and the system
+ * name no area and are ink. The accent keeps the one primary action, focus
+ * and the current section.
  */
 export const ADMIN_GROUP_HUE = {
-  people: "sky",
-  workspace: "sun",
-  ai: "dusk",
-  connections: "lake",
-  system: "moss",
-} as const satisfies Record<string, CampHue>
+  people: "ink",
+  workspace: "ink",
+  ai: AREA_HUE.agents,
+  connections: "ink",
+  system: "ink",
+} as const satisfies Record<string, MarkHue>

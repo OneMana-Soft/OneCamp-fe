@@ -209,12 +209,6 @@ export interface UserInfoRawInterface {
     data: UserProfileDataInterface;
 }
 
-export interface UserSelectedOptionInterface {
-    reactionId: string,
-    emojiId: string
-}
-
-
 export interface UpdateUserEmojiStatusReq {
     emoji_id: string
     emoji_status_desc: string

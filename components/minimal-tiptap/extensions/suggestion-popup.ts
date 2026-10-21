@@ -22,13 +22,6 @@ import tippy, { type Instance as TippyInstance, type Props as TippyProps } from 
  *   comboboxFor); they go when the menu closes.
  */
 
-const DOM_RECT_FALLBACK: DOMRect = {
-  bottom: 0, height: 0, left: 0, right: 0, top: 0, width: 0, x: 0, y: 0,
-  toJSON() {
-    return {}
-  },
-}
-
 const openMenus = new WeakMap<Editor, number>()
 
 /** Whether a suggestion menu is showing in this editor. */
@@ -131,7 +124,8 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
         dismissed = false
         renderer = new ReactRenderer(component as React.ComponentType<unknown>, { props: listProps(props), editor: props.editor }) as ReactRenderer<SuggestionListRef>
         popup = tippy("body", {
-          getReferenceClientRect: () => props.clientRect?.() ?? DOM_RECT_FALLBACK,
+          // No place (decoration off the page): the editor's box, not (0, 0).
+          getReferenceClientRect: () => props.clientRect?.() ?? props.editor.view.dom.getBoundingClientRect(),
           appendTo: () => document.body,
           content: renderer.element,
           showOnCreate: !isEmpty?.(props),
@@ -151,7 +145,7 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
 
       onUpdate: (props: SuggestionProps) => {
         renderer?.updateProps(listProps(props))
-        popup?.setProps({ getReferenceClientRect: () => props.clientRect?.() ?? DOM_RECT_FALLBACK })
+        popup?.setProps({ getReferenceClientRect: () => props.clientRect?.() ?? props.editor.view.dom.getBoundingClientRect() })
         show(props)
       },
 

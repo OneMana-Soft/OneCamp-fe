@@ -18,6 +18,7 @@ import {
   MoreVertical,
   PhoneOff,
   Sparkles,
+  WandSparkles,
   Smile,
   SquareUser,
   Users,
@@ -31,7 +32,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { cn } from "@/lib/utils/helpers/cn"
 import { springPop } from "@/lib/spring"
 import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig"
-import { toast } from "@/hooks/use-toast"
+import { CALL_SURFACE, callToast } from "./callSurface"
 import { formatElapsed } from "./callLevels"
 import { CONTROL_KEYS, callKeyAction, type CallAction } from "./callKeys"
 import { SCREEN_UNAVAILABLE, callMediaFailure, canShareScreen, type CallDevice, type CallFailure } from "./callErrors"
@@ -62,7 +63,7 @@ export function showCallFailure(f: CallFailure | null, now = Date.now()): void {
   if (!f) return
   if (lastFailure && lastFailure.title === f.title && now - lastFailure.at < 4000) return
   lastFailure = { title: f.title, at: now }
-  toast({ title: f.title, description: f.description, variant: "destructive" })
+  callToast({ title: f.title, description: f.description, variant: "destructive" })
 }
 
 export type DockState = "on" | "off" | "active"
@@ -161,7 +162,7 @@ export interface DeviceGroup {
  * menu. The microphone's menu also lists speakers where the browser can
  * choose one (CALL-BUG-21), as Meet's and Zoom's do.
  */
-export function DeviceMenu({ label, groups, off = false }: { label: string; groups: DeviceGroup[]; off?: boolean }) {
+export function DeviceMenu({ label, groups, off = false, extra }: { label: string; groups: DeviceGroup[]; off?: boolean; extra?: { label: string; onSelect: () => void } }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -176,7 +177,7 @@ export function DeviceMenu({ label, groups, off = false }: { label: string; grou
           <ChevronDown />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-64">
+      <DropdownMenuContent side="top" align="start" className={cn(CALL_SURFACE, "w-64")}>
         {groups.map((g, i) => (
           <React.Fragment key={g.label}>
             {i > 0 ? <DropdownMenuSeparator /> : null}
@@ -189,12 +190,25 @@ export function DeviceMenu({ label, groups, off = false }: { label: string; grou
             ))}
           </React.Fragment>
         ))}
+        {extra ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={extra.onSelect} data-effects-entry="">
+              <WandSparkles />
+              {extra.label}
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
 const Divider = () => <span aria-hidden data-dock-divider="" className="mx-0.5 hidden h-6 w-px bg-white/[0.08] @3xl:block" />
+
+/** Leave: the dock's one danger fill. */
+const LEAVE_BUTTON =
+  "grid size-12 place-items-center rounded-[12px] bg-[#D1293D] text-white transition-[background-color,transform] duration-150 hover:bg-[color-mix(in_oklab,#D1293D_92%,black)] active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand @3xl:flex @3xl:h-11 @3xl:w-auto @3xl:gap-1.5 @3xl:px-3.5 [&_svg]:size-4"
 
 export interface CallDockProps {
   micOn: boolean
@@ -230,8 +244,16 @@ export interface CallDockProps {
   aiUnreadCount?: number
   /** Who is in the call: how many, and the list beside the stage. */
   people?: { count: number; open: boolean; onToggle: () => void }
+  /** Backgrounds and sound (Media Processors), beside the stage. */
+  effects?: { open: boolean; onToggle: () => void }
   /** Sends a reaction to everyone in the call (lib/calls/signals). */
   onReact?: (emoji: CallReaction) => void
+  /**
+   * Ends the call for everyone in it: only for someone who runs it (Call
+   * Control). Leave then opens a menu, Leave call or End call for everyone,
+   * as Zoom's and Meet's do; for everyone else it leaves at once.
+   */
+  onEndForAll?: () => void
 }
 
 /**
@@ -241,14 +263,46 @@ export interface CallDockProps {
  * phone (the stage's container under @3xl) it spans the bottom with Mic,
  * Camera, Ask AI, More and Leave, each with its word under it.
  */
+/**
+ * Keeps the app's toasts 12px above the dock while it is on screen
+ * (components/ui/toast.tsx reads --call-dock-floor at every width): a call's
+ * notices sat on the dock, over Leave (DESIGN-BUILD-2, 17 Oct 2026). Set on
+ * the page's root, followed as the dock or the window changes size, and
+ * removed when the dock goes, however the call ends: hanging up, being put
+ * out, an error or leaving the page all take the dock away.
+ */
+function useDockFloor(dock: React.RefObject<HTMLElement | null>): void {
+  React.useLayoutEffect(() => {
+    const el = dock.current
+    if (!el || typeof window === "undefined") return
+    const root = document.documentElement
+    const place = () => {
+      const top = el.getBoundingClientRect().top
+      root.style.setProperty("--call-dock-floor", `${Math.max(0, Math.round(window.innerHeight - top + 12))}px`)
+    }
+    place()
+    const watch = typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : null
+    watch?.observe(el)
+    window.addEventListener("resize", place)
+    return () => {
+      watch?.disconnect()
+      window.removeEventListener("resize", place)
+      root.style.removeProperty("--call-dock-floor")
+    }
+  }, [dock])
+}
+
 export function CallDock(p: CallDockProps) {
   const elapsed = useRecordingClock(p.isRecording ? (p.recordingSince ?? null) : null)
+  const dockRef = React.useRef<HTMLDivElement>(null)
+  useDockFloor(dockRef)
   // Ask AI only where this server has AI (the v1 edition has no AI routes).
   const aiAvailable = useFeature(FEATURE_AI)
   const hasShareGroup = Boolean(p.onToggleShare || p.onToggleCaptions)
   return (
     <TooltipProvider delayDuration={300}>
       <div
+        ref={dockRef}
         role="toolbar"
         aria-label="Call controls"
         data-call-dock=""
@@ -382,21 +436,42 @@ export function CallDock(p: CallDockProps) {
         {/* Leave */}
         <Divider />
         <span className="flex flex-col items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label="Leave call"
-                data-dock-leave=""
-                onClick={p.onDisconnect}
-                className="grid size-12 place-items-center rounded-[12px] bg-[#D1293D] text-white transition-[background-color,transform] duration-150 hover:bg-[color-mix(in_oklab,#D1293D_92%,black)] active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand @3xl:flex @3xl:h-11 @3xl:w-auto @3xl:gap-1.5 @3xl:px-3.5 [&_svg]:size-4"
-              >
-                <PhoneOff />
-                <span className="hidden text-ui-sm font-medium @3xl:inline">Leave</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Leave call</TooltipContent>
-          </Tooltip>
+          {p.onEndForAll ? (
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" aria-label="Leave or end the call" data-dock-leave="" className={LEAVE_BUTTON}>
+                      <PhoneOff />
+                      <span className="hidden text-ui-sm font-medium @3xl:inline">Leave</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Leave or end the call</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent side="top" align="end" className={cn(CALL_SURFACE, "w-56")}>
+                <DropdownMenuItem onClick={p.onDisconnect}>
+                  <PhoneOff />
+                  Leave call
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-danger-ink focus:text-danger-ink" onClick={p.onEndForAll} data-end-for-all="">
+                  <PhoneOff />
+                  End call for everyone
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" aria-label="Leave call" data-dock-leave="" onClick={p.onDisconnect} className={LEAVE_BUTTON}>
+                  <PhoneOff />
+                  <span className="hidden text-ui-sm font-medium @3xl:inline">Leave</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Leave call</TooltipContent>
+            </Tooltip>
+          )}
           <span className="text-micro font-medium leading-none text-ink-2 @3xl:hidden">Leave</span>
         </span>
       </div>
@@ -441,7 +516,7 @@ function ReactButton({ onReact }: { onReact: (emoji: CallReaction) => void }) {
       <PopoverContent
         side="top"
         sideOffset={10}
-        className="w-auto rounded-[14px] border-0 bg-[#1F2024] p-1.5 shadow-e3"
+        className={cn(CALL_SURFACE, "w-auto rounded-[14px] border-0 bg-[#1F2024] p-1.5 shadow-e3")}
         // The React button itself toggles; a press on it is not "outside".
         onPointerDownOutside={(e) => {
           if (anchor.current?.contains(e.target as Node)) e.preventDefault()
@@ -510,7 +585,7 @@ function RecordButton({ recording, loading, elapsed, onClick }: { recording: boo
 
 /** The phone's "More": everything the bottom bar has no room for, as 52px rows. */
 function MoreMenu(p: CallDockProps) {
-  const any = p.onToggleShare || p.onToggleRecording || p.onToggleCaptions || p.onLayoutChange || p.onChatToggle || p.people
+  const any = p.onToggleShare || p.onToggleRecording || p.onToggleCaptions || p.onLayoutChange || p.onChatToggle || p.people || p.effects
   if (!any) return null
   return (
     <span className="flex flex-col items-center gap-1 @3xl:hidden">
@@ -520,7 +595,7 @@ function MoreMenu(p: CallDockProps) {
             <MoreVertical />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="end" className="mb-2 w-60 p-1">
+        <DropdownMenuContent side="top" align="end" className={cn(CALL_SURFACE, "mb-2 w-60 p-1")}>
           {p.onToggleShare ? (
             p.shareUnavailable ? (
               // A phone has no screen capture: the row says so rather than doing nothing.
@@ -555,6 +630,12 @@ function MoreMenu(p: CallDockProps) {
             <DropdownMenuItem onClick={p.onChatToggle} className="h-[52px]">
               <MessageSquare />
               Chat
+            </DropdownMenuItem>
+          ) : null}
+          {p.effects ? (
+            <DropdownMenuItem onClick={p.effects.onToggle} className="h-[52px]">
+              <WandSparkles />
+              Backgrounds and sound
             </DropdownMenuItem>
           ) : null}
           {p.onLayoutChange ? (
@@ -594,7 +675,7 @@ const speakerChoice = () => typeof window !== "undefined" && supportsAudioOutput
  * remembering the pick for the next call. The microphone's lists speakers
  * too, where they can be chosen (CALL-BUG-21). A switch that fails says so.
  */
-function RoomDeviceMenu({ kind, label, off }: { kind: "audioinput" | "videoinput"; label: string; off: boolean }) {
+function RoomDeviceMenu({ kind, label, off, extra }: { kind: "audioinput" | "videoinput"; label: string; off: boolean; extra?: { label: string; onSelect: () => void } }) {
   const room = useRoomContext()
   const input = useMediaDeviceSelect({ kind, room })
   const output = useMediaDeviceSelect({ kind: "audiooutput", room })
@@ -611,7 +692,7 @@ function RoomDeviceMenu({ kind, label, off }: { kind: "audioinput" | "videoinput
     groups.push({ label: "Speaker", devices: output.devices, activeId: output.activeDeviceId, onPick: pick("audiooutput", output.setActiveMediaDevice, "speaker") })
   }
   const name = groups.length > 1 ? `Choose a ${label.toLowerCase()} or speaker` : `Choose a ${label.toLowerCase()}`
-  return <DeviceMenu label={name} off={off} groups={groups} />
+  return <DeviceMenu label={name} off={off} groups={groups} extra={extra} />
 }
 
 interface VideoControlsProps extends Omit<CallDockProps, "micOn" | "cameraOn" | "onToggleMic" | "onToggleCamera" | "onDisconnect" | "sharing" | "onToggleShare" | "shareUnavailable"> {
@@ -688,8 +769,8 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
       onToggleShare={() => void toggleShare()}
       shareUnavailable={shareable ? undefined : SCREEN_UNAVAILABLE}
       onDisconnect={leave}
-      micMenu={<RoomDeviceMenu kind="audioinput" label="Microphone" off={!isMicrophoneEnabled} />}
-      cameraMenu={<RoomDeviceMenu kind="videoinput" label="Camera" off={!isCameraEnabled} />}
+      micMenu={<RoomDeviceMenu kind="audioinput" label="Microphone" off={!isMicrophoneEnabled} extra={rest.effects ? { label: "Noise reduction", onSelect: rest.effects.onToggle } : undefined} />}
+      cameraMenu={<RoomDeviceMenu kind="videoinput" label="Camera" off={!isCameraEnabled} extra={rest.effects ? { label: "Background effects", onSelect: rest.effects.onToggle } : undefined} />}
     />
   )
 }

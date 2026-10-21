@@ -1,5 +1,6 @@
 import { displayNameOf } from "@/lib/personName"
 import { MobileMessageRow, sheetPreview } from "@/components/message/mobileMessageRow";
+import { useMessageReactions } from "@/hooks/useMessageReactions"
 import { mapChatInfoToBaseMessage } from "@/components/message/baseMessageCard";
 import { useLongPress } from "@/hooks/useLongPress";
 import { useDispatch } from "react-redux";
@@ -65,9 +66,8 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
 
     },[chatInfo.chat_from.user_uuid, dispatch])
 
-    // The reader's reaction (one per person), for the sheet's emoji row.
-    const mine = chatInfo.chat_reactions?.find((r) => r?.reaction_added_by?.user_uuid === selfProfile.data?.data?.user_uuid)
-    const userSelectedOption = { reactionId: mine?.uid ?? "", emojiId: mine?.reaction_emoji_id ?? "" }
+    // The sheet's emoji row and the picker: several emoji a person, each once (lib/chat/reactions).
+    const handleEmojiClick = useMessageReactions(chatInfo.chat_reactions, selfProfile.data?.data?.user_uuid, addReaction, removeReaction).toggle
     const message = useMemo(() => mapChatInfoToBaseMessage(chatInfo), [chatInfo])
 
     const copyPostText = () => {
@@ -135,16 +135,6 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
 
         }
     })
-
-    const handleEmojiClick = (emojiId: string) => {
-
-        if(userSelectedOption.emojiId == emojiId) {
-            removeReaction(userSelectedOption.reactionId)
-            return
-        }
-
-        addReaction(emojiId, userSelectedOption.reactionId)
-    }
 
     const handleSelectAttachment = (attachment: AttachmentMediaReq) => {
 

@@ -3,11 +3,16 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { FitLabel } from "@/components/common/FitLabel"
-import { CommandList, type CommandListItem } from "@/components/ui/CommandList"
+import type { CommandListItem } from "@/components/ui/CommandList"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Check, ChevronDown, Globe } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { zoneLabel, zoneLabels, zoneRows } from "@/lib/utils/zones"
+
+// The list is a chunk of its own, fetched when the trigger is pointed at or
+// focused: a booking page or an event form shows the zone, and only some open it.
+const loadList = () => import("@/components/ui/CommandList")
+const CommandList = React.lazy(() => loadList().then((m) => ({ default: m.CommandList })))
 
 /**
  * A time zone, picked from a searchable list with the reader's own first: a
@@ -62,6 +67,8 @@ export function ZonePicker({
           size="sm"
           className={cn("h-7 w-full justify-start gap-1.5 px-2 text-ui-sm font-medium text-ink-2", className)}
           aria-label={`${label}: ${zoneLabel(tz)}`}
+          onPointerEnter={loadList}
+          onFocus={loadList}
         >
           <Globe className="size-3.5 shrink-0" aria-hidden="true" />
           <FitLabel options={zoneLabels(tz)} />
@@ -82,20 +89,22 @@ export function ZonePicker({
             className="h-8 w-full rounded-md bg-transparent px-2 text-ui text-ink outline-none placeholder:text-ink-3"
           />
         </div>
-        <CommandList
-          ref={listRef as never}
-          items={items}
-          label="Time zones"
-          query={query}
-          maxHeight={280}
-          className="rounded-none border-0 shadow-none"
-          empty={<p className="px-3 py-2 text-ui-sm text-ink-3">No time zone matches.</p>}
-          onSelect={(it) => {
-            onTz(it.id)
-            setOpen(false)
-            setQuery("")
-          }}
-        />
+        <React.Suspense fallback={<div className="h-20" role="status" aria-label="Loading time zones" />}>
+          <CommandList
+            ref={listRef as never}
+            items={items}
+            label="Time zones"
+            query={query}
+            maxHeight={280}
+            className="rounded-none border-0 shadow-none"
+            empty={<p className="px-3 py-2 text-ui-sm text-ink-3">No time zone matches.</p>}
+            onSelect={(it) => {
+              onTz(it.id)
+              setOpen(false)
+              setQuery("")
+            }}
+          />
+        </React.Suspense>
         {footer}
       </PopoverContent>
     </Popover>

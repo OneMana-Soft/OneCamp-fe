@@ -1,3 +1,4 @@
+import type React from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SettingsList } from "@/components/ui/settingsSection"
 import { NeutralChip } from "@/components/admin/connectParts"
@@ -108,24 +109,47 @@ export function workflowSentence(w: WorkflowSentenceInput, names: SentenceNames 
   return parts
 }
 
-/** The sentence, drawn: 13px ink-2 words, neutral tokens, an ink-3 arrow. */
+/** One part of the sentence, drawn. */
+function Part({ p }: { p: SentencePart }) {
+  if (p.kind === "text") return <span>{p.text}</span>
+  if (p.kind === "arrow") {
+    return (
+      <span className="text-ink-3">
+        <span aria-hidden="true">→</span>
+        <span className="sr-only">then</span>
+      </span>
+    )
+  }
+  return (
+    <NeutralChip icon={p.icon}>
+      <span data-token={p.role}>{p.text}</span>
+    </NeutralChip>
+  )
+}
+
+/**
+ * The sentence, drawn: 13px ink-2 words, neutral tokens, an ink-3 arrow. The
+ * arrow and what follows it wrap together, so a line never ends on "→".
+ */
 export function WorkflowSentence({ parts, className, as: Tag = "p" }: { parts: SentencePart[]; className?: string; as?: "p" | "span" }) {
+  const items: React.ReactNode[] = []
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]
+    if (p.kind === "arrow" && i + 1 < parts.length) {
+      items.push(
+        <span key={i} data-sentence-then="" className="inline-flex items-center gap-1.5">
+          <Part p={p} />
+          <Part p={parts[i + 1]} />
+        </span>,
+      )
+      i++
+      continue
+    }
+    items.push(<Part key={i} p={p} />)
+  }
   return (
     <Tag data-workflow-sentence="" className={className ? `cx-wf-sentence ${className}` : "cx-wf-sentence"}>
-      {parts.map((p, i) =>
-        p.kind === "text" ? (
-          <span key={i}>{p.text}</span>
-        ) : p.kind === "arrow" ? (
-          <span key={i} className="text-ink-3">
-            <span aria-hidden="true">→</span>
-            <span className="sr-only">then</span>
-          </span>
-        ) : (
-          <NeutralChip key={i} icon={p.icon}>
-            <span data-token={p.role}>{p.text}</span>
-          </NeutralChip>
-        ),
-      )}
+      {items}
     </Tag>
   )
 }

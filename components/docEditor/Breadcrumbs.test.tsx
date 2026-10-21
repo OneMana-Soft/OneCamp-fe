@@ -22,6 +22,7 @@ vi.mock("@/components/navigationBar/desktop/IntentLink", () => ({
 import type * as React from "react"
 import Breadcrumbs, { PathLine, crumbsOf } from "./Breadcrumbs"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { InSplitPaneContext } from "@/hooks/useLinkTarget"
 
 const page = (uuid: string, title: string, icon?: string): TreeNodeJSON => ({ kind: "doc", uuid, title, icon, has_children: true })
 const hidden: TreeNodeJSON = { kind: "doc", has_children: true, redacted: true }
@@ -62,6 +63,27 @@ describe("the path to a doc (P1, structure.md P0.5)", () => {
     expect(nav.textContent).toBe("Docs🛠️EngineeringRFCs📐RFC: Offline docs")
     expect(screen.getByRole("link", { name: /RFCs/ }).getAttribute("href")).toBe("/app/doc/b")
     expect(screen.getByRole("button", { name: /RFC: Offline docs/ }).getAttribute("aria-current")).toBe("page")
+  })
+
+  // Split view's design verdict (20 Oct): three views at 1440 cut every
+  // title crumb to one letter ("Docs › Q…").
+  it("keeps the doc's title whole, to be cut at its end on a word, and leaves it to the view's bar beside the page", () => {
+    hoisted.ancestors = [page("a", "Engineering")]
+    hoisted.doc = { ...hoisted.doc, doc_title: "Q4 launch plan" }
+    const { unmount } = crumbs()
+    const own = screen.getByRole("button", { name: /Q4 launch plan/ })
+    // One line of whole words: what doesn't fit wraps out of sight, its start stays.
+    expect(own.querySelector(".line-clamp-1")?.textContent).toBe("Q4 launch plan")
+    unmount()
+    render(
+      <TooltipProvider>
+        <InSplitPaneContext.Provider value={true}>
+          <Breadcrumbs docId="me" />
+        </InSplitPaneContext.Provider>
+      </TooltipProvider>,
+    )
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" }).textContent).toBe("DocsEngineering")
+    expect(screen.queryByRole("button", { name: /Q4 launch plan/ })).toBeNull()
   })
 
   it("moves a page dropped on a crumb under it when nobody's access changes, with Undo", async () => {

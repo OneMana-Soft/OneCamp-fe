@@ -1,4 +1,4 @@
-import { PostEndpointUrl } from "@/services/endPoints";
+import { AiPost } from "@/services/endpoints/ai";
 import { usePost } from "@/hooks/usePost";
 import { useCallback } from "react";
 
@@ -27,7 +27,7 @@ export const useAnalyzeImage = () => {
                 { obj_uuid: string; src_key: string; src_ref: string; prompt?: string },
                 AnalyzeImageResponse
             >({
-                apiEndpoint: PostEndpointUrl.AIAnalyzeImage,
+                apiEndpoint: AiPost.AIAnalyzeImage,
                 payload: { obj_uuid: objUuid, src_key: srcKey, src_ref: srcRef, prompt },
                 showToast: true,
             });
@@ -58,7 +58,7 @@ export const useAnalyzeDocument = () => {
                 { obj_uuid: string; src_key: string; src_ref: string; prompt?: string },
                 AnalyzeImageResponse
             >({
-                apiEndpoint: PostEndpointUrl.AIAnalyzeDocument,
+                apiEndpoint: AiPost.AIAnalyzeDocument,
                 payload: { obj_uuid: objUuid, src_key: srcKey, src_ref: srcRef, prompt },
                 showToast: true,
             });
@@ -82,7 +82,7 @@ export const useTranslateText = () => {
                 { text: string; target_language?: string },
                 TranslateResponse
             >({
-                apiEndpoint: PostEndpointUrl.AITranslate,
+                apiEndpoint: AiPost.AITranslate,
                 payload: { text, target_language: targetLanguage },
                 showToast: true,
             });

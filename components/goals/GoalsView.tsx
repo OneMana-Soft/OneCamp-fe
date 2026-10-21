@@ -27,6 +27,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { ix } from "@/lib/ui/interactive"
 import { MenuCheck } from "@/components/ui/menuCheck"
+import { areaHue } from "@/lib/areas"
 
 /** The goals table's columns (work.md W42): ring, title and line, owner, pace, health. */
 const GOAL_COLUMNS = "grid grid-cols-[28px_minmax(0,1fr)_150px_230px_130px] items-center gap-x-3 pr-6"
@@ -119,7 +120,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
     body = (
       <WorkState>
         <EmptyState
-          illustration={<SpotTasks hue="dusk" />}
+          illustration={<SpotTasks hue={areaHue("projects")} />}
           title="No goals yet"
           description="A goal is a number or a set of projects to finish by a date."
         />

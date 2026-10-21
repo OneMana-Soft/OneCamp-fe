@@ -1,9 +1,9 @@
-import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import {useDispatch, useSelector} from "react-redux"
 import type { RootState } from "@/store/store"
 
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ThreadLoadFailed} from "@/components/rightPanel/threadLoadFailed";
@@ -14,48 +14,29 @@ import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {CommentsList} from "@/components/rightPanel/commentsList";
 import { ThreadEmpty } from "@/components/rightPanel/threadEmpty";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
-import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { SendHorizontal } from "@/lib/icons";
+import { FollowThreadButton } from "@/components/conversation/FollowThread";
 import {usePost} from "@/hooks/usePost";
 import { useSaveEdit } from "@/hooks/useSaveEdit"
-import {
-    CreateCommentResInterface,
-     CreateUpdateCommentReqInterface,
-} from "@/types/comment";
+import { CreateUpdateCommentReqInterface } from "@/types/comment";
 import {useRef} from "react";
 import {UserProfileInterface} from "@/types/user";
 
-import {openUI} from "@/store/slice/uiSlice";
 
 import {CreateOrUpdateChatReaction, CreateOrUpdateCommentReaction} from "@/types/reaction";
 import {ChatInfoRes, CreateOrUpdateChatsReq} from "@/types/chat";
-import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
-import {
-    addChatComments,
-    clearChatCommentInputState,
-    createChatComment, createChatCommentReaction, createOrUpdateChatCommentBody,
-    removeChatComment, removeChatCommentReaction,
-    updateChatCommentReaction, updateChatCommentReactionId
-} from "@/store/slice/chatCommentSlice";
+import { addChatComments, createChatCommentReaction, removeChatComment, removeChatCommentReaction, updateChatCommentReaction, updateChatCommentReactionId } from "@/store/slice/chatCommentSlice";
 import {
     
     
     RemoveMessageFromChatList
 } from "@/store/slice/chatSlice";
-import {
-    createGroupChatReactionChatId, removeGroupChatByChatId,
-    removeGroupChatReactionByChatId, updateGroupChatMessageReplyIncrement,
-    updateGroupChatMessageReplyDecrement,
-    updateGroupChatReactionByChatId
-} from "@/store/slice/groupChatSlice";
-import {GroupChatCommentFileUpload} from "@/components/fileUpload/groupChatCommentFileUpload";
-import {useUploadFile} from "@/hooks/useUploadFile";
+import { createGroupChatReactionChatId, removeGroupChatByChatId, removeGroupChatReactionByChatId, updateGroupChatMessageReplyDecrement, updateGroupChatReactionByChatId } from "@/store/slice/groupChatSlice";
 import { useThreadReplies } from "@/components/rightPanel/useThreadReplies";
+import { ThreadReplyBox } from "@/components/conversation/ThreadReplyBox";
 
 // Module-level, so a selector that finds nothing returns the same value every
 // time: a fresh [] or {} per call re-drew the thread on every store change.
 const NO_ITEMS: never[] = []
-const NO_DRAFT = {}
 
 export const GroupChatComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
@@ -63,17 +44,14 @@ export const GroupChatComments = () => {
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     const groupChatState = useSelector((state: RootState) => state.groupChat.chatMessages[rightPanelState.data.groupUUID] || NO_ITEMS);
-    const uploadFile = useUploadFile()
 
     const chatCommentState = useSelector((state: RootState) => state.chatComments.chatComments[rightPanelState.data.chatMessageUUID] || NO_ITEMS);
 
     const pendingCommentReactionDeletes = useRef<Set<string>>(new Set())
 
-    // The reply being written: this thread's own draft, not the group's (MC-BUG-1).
-    const chatCommentInputState = useSelector((state: RootState) => state.chatComments.chatCommentInputState[rightPanelState.data.chatMessageUUID] || NO_DRAFT);
 
     const chatInfo = useFetch<ChatInfoRes>(
-        rightPanelState.data.groupUUID && rightPanelState.data.chatMessageUUID ? `${GetEndpointUrl.GetChatWithAllComments}/${rightPanelState.data.chatMessageUUID}` : "",
+        rightPanelState.data.groupUUID && rightPanelState.data.chatMessageUUID ? `${ChatGet.GetChatWithAllComments}/${rightPanelState.data.chatMessageUUID}` : "",
         undefined, undefined, OWN_ERRORS,
     )
 
@@ -181,39 +159,6 @@ export const GroupChatComments = () => {
     // at once, and back with the box open on what was typed when the save
     // fails (hooks/useSaveEdit, F-06). Both take the message's id first.
     const handleUpdateChat = (id: string, html: string) => saveEdit({ kind: "group", grpId: rightPanelState.data.groupUUID, id }, html)
-
-    const handleSend = (latestContent?: string) => {
-        // The thread this reply was written in, whichever is open when it lands.
-        const threadId = rightPanelState.data.chatMessageUUID
-        const files = chatCommentInputState.filesUploaded ?? []
-
-        const rawBody = latestContent ?? chatCommentInputState.commentBody
-        const body = removeEmptyPTags(rawBody)
-        const hasAttachments = files.length > 0
-        if (!body && !hasAttachments) return
-
-        post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
-            apiEndpoint: PostEndpointUrl.CreateChatComment,
-            payload: {
-                chat_id: threadId,
-                comment_attachments: files,
-                comment_text_html: body,
-            }
-        })
-            .then((res)=>{
-
-                if(res?.comment_id && selfProfile.data?.data) {
-                    dispatch(createChatComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, chatId: threadId, commentBy: selfProfile.data?.data, attachments: files}))
-                    dispatch(updateGroupChatMessageReplyIncrement({messageId: threadId, grpId: rightPanelState.data.groupUUID, comment: {comment_uuid: res?.comment_id || '', comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_text: "", comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
-
-                }
-
-                // chatInfo.mutate()
-                dispatch(clearChatCommentInputState({threadId, sent: files.map((f) => f.attachment_obj_key)}))
-
-
-            })
-    }
 
     const createOrUpdateReaction = ( emojiId:string, reactionId:string)=> {
 
@@ -362,7 +307,7 @@ export const GroupChatComments = () => {
         // task panel's darker step in dark). Its contents move, never the
         // column: x 16px to rest and a fade, 240 ms; another thread fades in.
         <div key={threadKey} data-right-panel-thread="" className="flex h-full flex-col bg-panel animate-panel-in">
-            <RightPanelHeader titleKey={'thread'} subtitle="in this group"/>
+            <RightPanelHeader titleKey={'thread'} subtitle="in this group" actions={<FollowThreadButton root={rightPanelState.data.chatMessageUUID} replies={mainMessageData.commentCount} />}/>
 
             <div className="pt-3" />
             <MessageContent
@@ -411,34 +356,7 @@ export const GroupChatComments = () => {
             </div>
             {/* The reply box at the panel's foot, the composer at its compact size.
                 A command typed here runs in the thread's conversation (FE-BUG-11). */}
-            <div className="shrink-0 px-3 pb-3 pt-1" data-command-surface={rightPanelState.data.groupUUID}>
-                <MinimalTiptapTextInput
-                    throttleDelay={300}
-                    attachmentOnclick = {() => {
-                        dispatch(openUI({ key: 'groupChatCommentFileUpload' }))
-                    }}
-                    onActionFiles={async (files) => {
-                        if (!files?.length) return;
-                        await uploadFile.makeRequestToUploadToGroupChatComment(files as unknown as FileList, rightPanelState.data.groupUUID, rightPanelState.data.chatMessageUUID);
-                    }}
-                    ButtonIcon={SendHorizontal}
-                    hasAttachments={(chatCommentInputState.filesUploaded?.length ?? 0) > 0}
-                    buttonOnclick={handleSend}
-                    variant="chat"
-                    compact
-                    output="html"
-                    placeholder={THREAD_COMPOSER_PLACEHOLDER}
-                    editable={true}
-                    editorClassName="focus:outline-none"
-                    onChange={(content ) => {
-                        dispatch(createOrUpdateChatCommentBody({threadId: rightPanelState.data.chatMessageUUID, body: content as string}))
-                    }}
-                    content={chatCommentInputState?.commentBody || null}
-                >
-                    <GroupChatCommentFileUpload grpId={rightPanelState.data.groupUUID} chatMessageUUID={rightPanelState.data.chatMessageUUID}/>
-
-                </MinimalTiptapTextInput>
-            </div>
+            <ThreadReplyBox kind="group" conversation={rightPanelState.data.groupUUID} thread={rightPanelState.data.chatMessageUUID} />
         </div>
     )
 }

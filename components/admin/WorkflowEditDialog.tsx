@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { KeywordsInput } from "@/components/common/keywordsInput";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -31,7 +32,6 @@ import {
     MessageSquare,
     ListTodo,
     Loader2,
-    X,
     EyeOff,
     Shield,
     Flag,
@@ -146,7 +146,6 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
     const [triggerType, setTriggerType] = useState<WorkflowTriggerType>("message_posted");
     const [botName, setBotName] = useState("");
     const [channelId, setChannelId] = useState<string>(NO_CHANNEL);
-    const [keywordInput, setKeywordInput] = useState("");
     const [keywords, setKeywords] = useState<string[]>([]);
     const [matchType, setMatchType] = useState<"any" | "all">("any");
     const [actions, setActions] = useState<WorkflowAction[]>([]);
@@ -203,7 +202,6 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             setLoadedActions(1);
             setTaskMove(ANY_MOVE);
         }
-        setKeywordInput("");
         setDraftPrompt("");
         setDraftNote(null);
     }, [open, workflow]);
@@ -217,14 +215,6 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
         }
     }, [isMessageTrigger]);
 
-    const addKeyword = () => {
-        const v = keywordInput.trim();
-        if (!v) return;
-        if (!keywords.includes(v)) setKeywords((p) => [...p, v]);
-        setKeywordInput("");
-    };
-
-    const removeKeyword = (kw: string) => setKeywords((p) => p.filter((k) => k !== kw));
 
     const addAction = (type: WorkflowActionType) => {
         if (actions.length >= MAX_ACTIONS) return;
@@ -465,37 +455,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                         {isMessageTrigger && (
                             <div className="space-y-1.5">
                                 <Label htmlFor="wf-keyword" className="text-sm font-normal">Containing keywords (optional)</Label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        id="wf-keyword"
-                                        value={keywordInput}
-                                        onChange={(e) => setKeywordInput(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                                e.preventDefault();
-                                                addKeyword();
-                                            }
-                                        }}
-                                        placeholder="Type a word and press Enter…"
-                                        autoComplete="off"
-                                        maxLength={80}
-                                    />
-                                    <Button aria-label="Add keyword" type="button" variant="outline" size="icon" onClick={addKeyword} className="shrink-0">
-                                        <Plus className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                                {keywords.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 pt-1">
-                                        {keywords.map((kw) => (
-                                            <span key={kw} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
-                                                {kw}
-                                                <button type="button" aria-label={`Remove keyword ${kw}`} onClick={() => removeKeyword(kw)} className="rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
-                                                    <X className="h-3 w-3" />
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
+                                <KeywordsInput id="wf-keyword" value={keywords} onChange={setKeywords} />
                                 {keywords.length > 1 && (
                                     <div className="flex items-center gap-2 pt-1">
                                         <Label htmlFor="wf-match" className="text-xs font-normal text-muted-foreground">Match</Label>

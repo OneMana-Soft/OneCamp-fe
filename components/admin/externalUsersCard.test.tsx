@@ -72,10 +72,10 @@ describe("external users", () => {
   // One rule on every people tab: nothing ever is a first run, welcomed with
   // the spot in the people group's sky; a search that matched nobody keeps the
   // icon's tile (peopleFrame.test.tsx).
-  it("welcomes an empty list with the sky welcome spot, and loads in the list's own rows", () => {
+  it("welcomes an empty list with the neutral welcome spot, and loads in the list's own rows", () => {
     state.list = { data: { data: [], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
     const { unmount } = render(<ExternalUsersCard />)
-    expect(document.querySelector("[data-empty-illustration] svg.hue-sky")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration] svg.hue-ink")).toBeTruthy()
     unmount()
     state.list = { data: undefined, isLoading: true, isError: undefined, mutate: vi.fn() }
     const { container } = render(<ExternalUsersCard />)

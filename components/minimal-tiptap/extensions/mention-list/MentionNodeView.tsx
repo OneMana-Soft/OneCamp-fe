@@ -32,6 +32,7 @@ const MentionNodeView: React.FC<NodeViewProps> = (props) => {
   const agentIds = useMemo(() => agentIdsOf(botKinds), [botKinds]);
   const kind = mentionKind(id, { me: self.data?.data?.user_uuid, agentIds });
   const hover = useProfileHover(guest ? null : mentionUserId(id));
+  const personal = !!mentionUserId(id);
 
   const open = (e: React.SyntheticEvent) => {
     e.preventDefault();
@@ -59,11 +60,12 @@ const MentionNodeView: React.FC<NodeViewProps> = (props) => {
   return (
     <NodeViewWrapper as="span" className="inline">
       <span
-        role="button"
-        tabIndex={0}
-        onClick={open}
-        {...hover}
-        onKeyDown={(e) => { if (e.key === "Enter") open(e) }}
+        // A room's or a team's chip opens no one's card.
+        role={personal ? "button" : undefined}
+        tabIndex={personal ? 0 : undefined}
+        onClick={personal ? open : undefined}
+        {...(personal ? hover : {})}
+        onKeyDown={personal ? (e) => { if (e.key === "Enter") open(e) } : undefined}
         className={cn("chat-mention", `mention-${kind}`, props.selected && "ring-2 ring-brand ring-offset-1 ring-offset-sheet")}
         data-id={id}
         data-label={label}

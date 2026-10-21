@@ -5,7 +5,7 @@
  */
 import axiosInstance from '@/lib/axiosInstance'
 import type { Anchor } from '@/lib/anchors/types'
-import { THREADS_PATH } from '@/services/endPoints'
+import { THREADS_PATH } from "@/services/endpoints/chat"
 import type { Thread, ThreadBody, ThreadComment, ThreadResource, ThreadStatus, ThreadView } from './types'
 
 const one = (id: string) => `${THREADS_PATH}/${encodeURIComponent(id)}`

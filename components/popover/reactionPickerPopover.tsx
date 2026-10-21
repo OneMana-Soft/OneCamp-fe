@@ -1,12 +1,7 @@
 "use client"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
-import {DesktopReactionPicker} from "@/components/reactionPicker/DesktopReactionPicker";
+import { Popover, PopoverTrigger } from "@/components/ui/popover"
 import {StandardReaction, SyncCustomReaction} from "@/types/reaction";
-import {useEffect, useRef, useState} from "react";
+import {lazy, Suspense, useRef, useState} from "react";
 
 export interface ReactionPickerPopoverProps {
     showCustomReactions : boolean
@@ -15,29 +10,22 @@ export interface ReactionPickerPopoverProps {
     children: React.ReactNode
 }
 
-const COLLISION_PADDING = 16
-const SIDE_OFFSET = 4
+// The picker loads on first use, asked for as a pointer or the focus reaches its trigger (reactionPickerPanel).
+const loadPanel = () => import("@/components/popover/reactionPickerPanel")
+const Panel = lazy(loadPanel)
+const ahead = () => void loadPanel()
 
 export function ReactionPickerPopover({showCustomReactions, onReactionSelect, setPopupState, children}:ReactionPickerPopoverProps) {
 
     const triggerRef = useRef<HTMLButtonElement>(null)
-    const [triggerRect, setTriggerRect] = useState<{ top: number; bottom: number }>({ top: 0, bottom: 0 })
     const [popOpened, setPopOpened] = useState(false)
-
-    useEffect(() => {
-        if (popOpened) {
-            const rect = triggerRef.current?.getBoundingClientRect() ?? new DOMRect()
-
-            setTriggerRect({
-                top: rect.top + COLLISION_PADDING + SIDE_OFFSET + 32,
-                bottom: rect.bottom - COLLISION_PADDING - SIDE_OFFSET - 32
-            })
-        }
-    }, [popOpened, triggerRef])
+    // Once opened, kept: it plays its closing motion.
+    const [used, setUsed] = useState(false)
 
     const stateChange = (b: boolean) => {
 
         setPopOpened(b)
+        if (b) setUsed(true)
 
         if(setPopupState) setPopupState(b)
     }
@@ -50,19 +38,14 @@ export function ReactionPickerPopover({showCustomReactions, onReactionSelect, se
 
     return (
         <Popover open={popOpened} onOpenChange={stateChange} >
-            <PopoverTrigger ref={triggerRef} asChild>
+            <PopoverTrigger ref={triggerRef} asChild onPointerEnter={ahead} onFocus={ahead}>
                 {children}
             </PopoverTrigger>
-            {/* The floating material (design v3 chat, C22): 352×380 at e3, r12,
-                with the house pop motion rather than a 95% zoom. It starts at
-                its button's edge: centred on the composer's smile, 70px from
-                the sheet's edge, it hung half over the sidebar. */}
-            <PopoverContent align="start" collisionPadding={12} className="pop-surface z-[var(--z-popover)] h-[380px] w-[352px] p-2" style={{ maxHeight: `max(calc(100dvh - ${triggerRect.top}px), calc(${triggerRect.bottom}px))` }}>
-                <DesktopReactionPicker
-                    showCustomReactions={showCustomReactions}
-                    onReactionSelect={handleReactionSelect}
-                />
-            </PopoverContent>
+            {used ? (
+                <Suspense fallback={null}>
+                    <Panel trigger={triggerRef} open={popOpened} showCustomReactions={showCustomReactions} onReactionSelect={handleReactionSelect} />
+                </Suspense>
+            ) : null}
         </Popover>
     )
 }

@@ -25,7 +25,7 @@ export const MeasuredContainer = React.forwardRef(
     }
 
     return (
-      <Component {...props} ref={innerRef} style={{ ...customStyle, ...style }}>
+      <Component {...props} ref={innerRef} data-measured={name} style={{ ...customStyle, ...style }}>
         {children}
       </Component>
     )

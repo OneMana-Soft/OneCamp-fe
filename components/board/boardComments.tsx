@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { useRelativeTime } from "@/hooks/useRelativeTime"
 import { onEscape } from "@/lib/keys/onEscape"
 import { usePost } from "@/hooks/usePost"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { BoardsPost } from "@/services/endpoints/boards"
 import { BoardMentionInput, type MentionedUser } from "@/components/board/boardMentionInput"
 
 interface ThreadMessage {
@@ -88,7 +88,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
       if (!text) return
       const uuids = Array.from(new Set((mentioned || []).map((m) => m.uuid))).filter(Boolean)
       makeRequest({
-        apiEndpoint: PostEndpointUrl.BoardCommentMention,
+        apiEndpoint: BoardsPost.BoardCommentMention,
         payload: {
           board_uuid: boardId,
           board_comment_id: c.id,
@@ -109,7 +109,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
     (commentId: string) => {
       if (!boardId) return
       makeRequest({
-        apiEndpoint: PostEndpointUrl.BoardCommentDelete,
+        apiEndpoint: BoardsPost.BoardCommentDelete,
         payload: { board_uuid: boardId, board_comment_id: commentId },
         showErrorToast: false,
       }).catch(() => {

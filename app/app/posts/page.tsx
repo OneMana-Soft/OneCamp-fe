@@ -5,7 +5,7 @@ import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll";
 import { PostCard } from "@/components/posts/PostCard";
 import { PostsRes, CreatePostPaginationResRaw } from "@/types/post";
 import { useFetch } from "@/hooks/useFetch";
-import { GetEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import { HubEmpty, HubError } from "@/components/activity/hubEmpty";
 import { PageHeader } from "@/components/ui/pageHeader";
 import { PageContainer } from "@/components/ui/pageContainer";
@@ -32,7 +32,7 @@ const PostsPage = () => {
     const router = useRouter();
     const { isMobile, isDesktop } = useMedia();
 
-    const endpoint = `${GetEndpointUrl.GetUserPosts}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
+    const endpoint = `${ChatGet.GetUserPosts}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
     const { data: pageData, isLoading, isError, mutate } = useFetch<CreatePostPaginationResRaw>(endpoint);
 
     useEffect(() => {

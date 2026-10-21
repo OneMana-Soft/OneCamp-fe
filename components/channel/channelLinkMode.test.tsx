@@ -52,10 +52,11 @@ const { updateChannelPosts } = await import("@/store/slice/channelSlice")
 const { ChannelMessageList } = await import("@/components/channel/channelMessageList")
 const { InSplitPaneContext } = await import("@/hooks/useLinkTarget")
 const { GetEndpointUrl } = await import("@/services/endPoints")
+const { ChatGet } = await import("@/services/endpoints/chat")
 
 const post = (id: string, at: string) => ({ post_uuid: id, post_text: id, post_created_at: at })
 const latestOf = (ch: string) => `${GetEndpointUrl.GetChannelLatestPost}/${ch}`
-const linkedOf = (ch: string, p: string) => `${GetEndpointUrl.GetNewPostIncludingCurrentPost}/${ch}/${p}`
+const linkedOf = (ch: string, p: string) => `${ChatGet.GetNewPostIncludingCurrentPost}/${ch}/${p}`
 const shown = () => screen.getAllByRole("listitem").map((li) => li.textContent)
 
 beforeEach(() => {

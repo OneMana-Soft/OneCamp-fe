@@ -9,7 +9,7 @@
  */
 
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { InboxPost } from "@/services/endpoints/inbox"
 
 export type CatchUpScope = "channel" | "chat" | "workspace"
 
@@ -56,7 +56,7 @@ function localizationFields(): Pick<CatchUpRequest, "timezone" | "location" | "l
 }
 
 export async function getCatchUp(req: CatchUpRequest): Promise<CatchUpResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.AICatchUp, {
+  const res = await axiosInstance.post(InboxPost.AICatchUp, {
     ...localizationFields(),
     ...req,
   })

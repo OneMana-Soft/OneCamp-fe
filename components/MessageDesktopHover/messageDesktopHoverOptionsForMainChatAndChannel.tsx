@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { ACTION_TIP } from "@/components/MessageDesktopHover/actionTip";
 
 import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
+import { FollowMenuItem } from "@/components/conversation/FollowMenuItem";
+import { PinMenuItem } from "@/components/conversation/pins/PinMenuItem";
+import { MarkUnreadMenuItem } from "@/components/conversation/MarkUnreadMenuItem";
 import { AddReactionTrigger } from "@/components/reactionPicker/AddReactionTrigger";
 import { SaveForLaterButton } from "@/components/later/SaveForLater";
 import { messageLink } from "@/lib/utils/later";
@@ -39,7 +42,6 @@ interface MessageDesktopHoverOptionProps {
     // onTranslate, when provided, translates this message in place (the surface
     // owns the translation state + inline render).
     onTranslate?: () => void;
-    getReplyNotification?: () => void;
     setEmojiPopupState?: (open: boolean) => void;
     editMessage: () => void;
     deleteMessage: () => void;
@@ -100,7 +102,6 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     authorName,
     deleteMessage,
     editMessage,
-    getReplyNotification,
     onReply,
     onTranslate,
     onReactionSelect,
@@ -235,7 +236,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 setIsDropdownOpen={setIsDropdownOpen}
                 deleteMessage={deleteMessage}
                 editMessage={editMessage}
-                getReplyNotification={getReplyNotification}
+                followSlot={laterID ? <FollowMenuItem root={laterID} /> : undefined}
                 onMakeTask={onMakeTask}
                 onReply={onReply}
                 onForward={postUUID || chatMessageID ? handleForward : undefined}
@@ -243,6 +244,8 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 link={laterLink || undefined}
                 laterTarget={laterTarget}
                 messageText={messageText}
+                pinSlot={laterID ? <PinMenuItem messageId={laterID} /> : undefined}
+                unreadSlot={laterID ? <MarkUnreadMenuItem messageId={laterID} /> : undefined}
                 triggerClassName={TOOL_BUTTON}
             />
         </div>

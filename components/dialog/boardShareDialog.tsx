@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { usePost } from "@/hooks/usePost";
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
+import { BoardsGet, BoardsPost } from "@/services/endpoints/boards";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { toast } from "@/hooks/use-toast";
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
@@ -48,7 +49,7 @@ interface BoardShareDialogProps {
 /** Share a board: the doc's share dialog (D18), with edit and view as the roles. */
 export function BoardShareDialog({ dialogOpenState, setOpenState, boardId }: BoardShareDialogProps) {
   const { data: permData } = useFetch<BoardInfoResponse>(
-    dialogOpenState && boardId ? `${GetEndpointUrl.GetBoardPermissions}?board_uuid=${boardId}` : ''
+    dialogOpenState && boardId ? `${BoardsGet.GetBoardPermissions}?board_uuid=${boardId}` : ''
   );
   const [permissions, setPermissions] = useState<BoardInfoInterface | undefined>(undefined);
   useEffect(() => {
@@ -116,7 +117,7 @@ export function BoardShareDialog({ dialogOpenState, setOpenState, boardId }: Boa
     const before = permissions
     setPermissions(prev => (prev ? { ...prev, board_private: isPrivate } : prev));
     try {
-      await updateBoard.makeRequest({ apiEndpoint: PostEndpointUrl.UpdateBoard, payload: { board_uuid: boardId, board_private: isPrivate }, quiet: true });
+      await updateBoard.makeRequest({ apiEndpoint: BoardsPost.UpdateBoard, payload: { board_uuid: boardId, board_private: isPrivate }, quiet: true });
     } catch {
       setPermissions(before)
       toast({ title: "Couldn't change who can open it", variant: "destructive" })
@@ -125,7 +126,7 @@ export function BoardShareDialog({ dialogOpenState, setOpenState, boardId }: Boa
 
   const search = useCallback(async (q: string) => {
     const res = await searchUser.makeRequest<{ searchText: string }, UserProfileDataInterface[]>({
-      apiEndpoint: PostEndpointUrl.SearchUserForBoard,
+      apiEndpoint: BoardsPost.SearchUserForBoard,
       payload: { searchText: q },
       quiet: true,
     });

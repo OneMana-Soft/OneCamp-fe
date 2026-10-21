@@ -12,7 +12,7 @@
 // the programme's design folder measured the live demo; this is its port.)
 //
 //   node scripts/fluidity/docs.mjs --base http://localhost:3000 --cpu 4
-//   options: --runs 3  --rtt 150  --device desktop|phone  --only open,type,big,sockets,weight,reader
+//   options: --runs 3  --rtt 150  --device desktop|phone  --only open,type,big,scroll,paste,sockets,weight,reader
 //            --budgets <file>  --out <file.json>  --label <name>  --result <file> (rows, for run.mjs)
 // Under Docker network churn, run it in its own namespace:
 //   ~/bin/browser-isolated --forward 3000 -- node scripts/fluidity/docs.mjs ...
@@ -21,7 +21,7 @@ import { gzipSync } from "node:zlib"
 import { readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { installProbe, keyStats, mark, median, since } from "./lib.mjs"
+import { fingerScroll, installProbe, keyStats, mark, median, movedPx, scrollAt, scrollGesture, since, startFrames, stopFrames } from "./lib.mjs"
 import { check } from "./budgets.mjs"
 import { USERS, collabFor, fakeApp } from "./fakeApp.mjs"
 import { bigDocBlocks, docFromBlocks, launchPlanBlocks } from "./fakeCollab.mjs"
@@ -37,7 +37,7 @@ const CPU = Number(opt("cpu", 1))
 const RUNS = Number(opt("runs", 3))
 const RTT = Number(opt("rtt", 150))
 const DEVICE = opt("device", "desktop")
-const ONLY = new Set((opt("only", "open,type,big,sockets,weight,reader") || "").split(","))
+const ONLY = new Set((opt("only", "open,type,big,scroll,paste,sockets,weight,reader") || "").split(","))
 const BUDGETS = JSON.parse(readFileSync(opt("budgets", join(here, "doc-budgets.json")), "utf8"))
 const OUT = opt("out", "")
 const LABEL = opt("label", "")
@@ -296,7 +296,73 @@ if (ONLY.has("big")) {
       layoutReadsBy: Object.entries(layout.by).sort((a, b) => b[1] - a[1]).slice(0, 4),
     }
     row.blocks = await p.evaluate(() => document.querySelector(".doc-editor .ProseMirror")?.childElementCount)
+    // Reading the 2,000-block doc: a long scroll down and back, as a wheel or
+    // a finger gives it (fluid-05: frame time while it scrolls).
+    if (ONLY.has("scroll")) {
+      const cdp = await context.newCDPSession(p)
+      await p.keyboard.press("Escape").catch(() => {})
+      const box = await p.locator(".doc-editor .ProseMirror").first().boundingBox()
+      const from = { x: (box?.x ?? 400) + Math.min(300, (box?.width ?? 600) / 2), y: 450 }
+      // A phone's is a finger's, inside the part of the doc on screen; a computer's a wheel's.
+      const vp = p.viewportSize()
+      const view = { left: Math.max(0, box?.x ?? 0), top: Math.max(0, box?.y ?? 0), right: Math.min(vp.width, (box?.x ?? 0) + (box?.width ?? vp.width)), bottom: Math.min(vp.height, (box?.y ?? 0) + (box?.height ?? vp.height)) }
+      const s0 = await scrollAt(p, from)
+      const b0 = await mark(p)
+      await startFrames(p)
+      if (PHONE) await fingerScroll(cdp, { box: view, dy: 12000, speed: 1200 })
+      else await scrollGesture(cdp, { ...from, dy: -12000, speed: 2400 })
+      const s1 = await scrollAt(p, from)
+      if (PHONE) await fingerScroll(cdp, { box: view, dy: -8000, speed: 1200 })
+      else await scrollGesture(cdp, { ...from, dy: 8000, speed: 2400 })
+      const f = await stopFrames(p)
+      const sm = await since(p, b0)
+      const moved = movedPx(s0, s1) + movedPx(s1, await scrollAt(p, from))
+      row.scroll = { frameP95: f.p95, droppedPct: f.droppedPct, worst: f.worst, longMs: sm.longMs, input: PHONE ? "touch" : "wheel", movedPx: moved }
+      // A scroll that moved nothing measured an idle page: no frame numbers from it.
+      if (!moved) row.scroll = { error: `the ${PHONE ? "finger's" : "wheel's"} scroll moved nothing`, input: row.scroll.input }
+    }
     result.big.push(row)
+    await p.close()
+  }
+  await context.close()
+}
+
+// ---- a paste: sixty paragraphs and a list into the plan (fluid-05) ----
+// A synthetic paste event carrying HTML, as a browser fires one; timed until
+// the last pasted paragraph is in the editor.
+if (ONLY.has("paste")) {
+  const context = await person(USERS.sam)
+  for (let r = 0; r < RUNS; r++) {
+    const p = await newPage(context)
+    await p.goto(BASE + `/app/doc/${PLAN}`, { waitUntil: "commit" })
+    await waitDoc(p)
+    await p.waitForTimeout(1500)
+    const para = p.locator('.doc-editor .ProseMirror[contenteditable="true"] p').filter({ hasText: "Anything else goes" }).first()
+    if (PHONE) await para.tap()
+    else await para.click()
+    await p.keyboard.press("End")
+    await p.waitForTimeout(400)
+    const b0 = await mark(p)
+    const ms = await p.evaluate(async () => {
+      const html = Array.from({ length: 60 }, (_, i) => `<p>Pasted paragraph ${i + 1}: the launch checklist, the rollback steps and who signs off.</p>`).join("") + "<ul>" + Array.from({ length: 20 }, (_, i) => `<li>Pasted item ${i + 1}</li>`).join("") + "</ul><p>Pasted end marker.</p>"
+      const el = document.querySelector('.doc-editor .ProseMirror[contenteditable="true"]')
+      const dt = new DataTransfer()
+      dt.setData("text/html", html)
+      dt.setData("text/plain", "Pasted end marker.")
+      const t0 = performance.now()
+      el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }))
+      return new Promise((resolve) => {
+        const tick = () => {
+          if ((el.textContent || "").includes("Pasted end marker.")) resolve(Math.round(performance.now() - t0))
+          else if (performance.now() - t0 > 15000) resolve(null)
+          else requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      })
+    })
+    await p.waitForTimeout(800)
+    const m = await since(p, b0)
+    result.paste = [...(result.paste ?? []), { run: r, ms, longMs: m.longMs, renders: m.renders }]
     await p.close()
   }
   await context.close()
@@ -356,6 +422,15 @@ if (result.typing.length) {
   M.keyP50Ms = med(result.typing, "keyP50")
   M.keyP95Ms = med(result.typing, "keyP95")
   M.rendersPerKey = med(result.typing, "rendersPerKey")
+}
+if (result.paste?.length) {
+  M.pasteMs = median(result.paste.map((x) => x.ms))
+  M.pasteLongMs = median(result.paste.map((x) => x.longMs))
+  M.pasteRenders = median(result.paste.map((x) => x.renders))
+}
+if (result.big.some((b) => b.scroll)) {
+  M.bigScrollFrameP95Ms = median(result.big.map((b) => b.scroll?.frameP95))
+  M.bigScrollDroppedPct = median(result.big.map((b) => b.scroll?.droppedPct))
 }
 if (result.big.length) {
   M.bigBodyMs = med(result.big, "body")

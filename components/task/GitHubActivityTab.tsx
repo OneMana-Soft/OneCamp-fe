@@ -2,7 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import { Github, GitBranch, MessageSquare, Smile, GitCommit, AlertCircle, CheckCircle2, RotateCcw, Tag, User, GitPullRequest, GitPullRequestDraft, GitMerge } from "@/lib/icons";
 import { CopyCheck, FileDiff } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state"
@@ -88,7 +88,7 @@ const activityLabel = (type: string) => {
 
 export default function GitHubActivityTab({ taskUUID }: Props) {
   const activitiesRes = useFetch<{ activities: GitHubTaskActivity[] }>(
-    taskUUID ? `${GetEndpointUrl.GetGitHubTaskActivity}/${taskUUID}` : ""
+    taskUUID ? `${ProjectsGet.GetGitHubTaskActivity}/${taskUUID}` : ""
   )
 
   const activities = activitiesRes.data?.activities || []

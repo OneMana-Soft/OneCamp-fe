@@ -13,7 +13,8 @@ import { GitHubBadgeGroup } from "@/components/task/PRStatusBadge"
 import { useSelector } from "react-redux"
 import { TaskInfoInterface } from "@/types/task"
 import type { RootState } from "@/store/store"
-import { isClosedStatus, statusOptionOf } from "@/lib/taskStatus"
+import { isClosedStatus, statusOptionOf, statusValueOf } from "@/lib/taskStatus"
+import { MenuCheck } from "@/components/ui/menuCheck"
 import { timeInStatus } from "@/lib/utils/timeInStatus"
 import { splitTags } from "@/lib/tags"
 import { BlockedBadge } from "@/components/task/BlockedBadge"
@@ -251,11 +252,16 @@ function CardMenu({ task, onOpen }: { task: TaskInfoInterface; onOpen: () => voi
                     <DropdownMenuSub>
                         <DropdownMenuSubTrigger>Move to…</DropdownMenuSubTrigger>
                         <DropdownMenuSubContent className="w-52">
-                            {board.columns().map((c) => (
-                                <DropdownMenuItem key={c.value} onSelect={() => board.moveTo(task, c.value)}>
-                                    {c.custom || c.category ? <TaskStatusCell status={c} label="word" className="text-xs" /> : c.label}
-                                </DropdownMenuItem>
-                            ))}
+                            {/* The column it is in carries the check, as the phone's sheet marks it (current). */}
+                            {board.columns().map((c) => {
+                                const here = c.value === statusValueOf(task)
+                                return (
+                                    <DropdownMenuItem key={c.value} aria-current={here ? "true" : undefined} onSelect={() => !here && board.moveTo(task, c.value)}>
+                                        <MenuCheck checked={here} />
+                                        {c.custom || c.category ? <TaskStatusCell status={c} label="word" className="text-xs" /> : c.label}
+                                    </DropdownMenuItem>
+                                )
+                            })}
                         </DropdownMenuSubContent>
                     </DropdownMenuSub>
                 )}

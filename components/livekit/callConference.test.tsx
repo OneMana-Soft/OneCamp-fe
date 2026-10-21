@@ -12,6 +12,9 @@ import { AudioPresets, ConnectionState, DisconnectReason } from "livekit-client"
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ toast: (...a: unknown[]) => toast(...a), useToast: () => ({ toast }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true, isTablet: false }) }))
+// The call asks its LiveKit whether it takes one peer connection (lib/calls/onePeerConnection): two, here.
+let onePcAnswer = false
+vi.mock("@/lib/calls/onePeerConnection", () => ({ onePeerConnection: async () => onePcAnswer }))
 let config: Record<string, unknown> = { transcription_mode: "frontend" }
 vi.mock("@/hooks/useClientConfig", () => ({
   FEATURE_AI: "ai",
@@ -23,8 +26,8 @@ vi.mock("@/hooks/useClientConfig", () => ({
 const confirm = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 const setCallTranscription = vi.fn(() => Promise.resolve(undefined))
-const removeFromCall = vi.fn(() => Promise.resolve())
-vi.mock("@/services/callService", () => ({ setCallTranscription: (...a: unknown[]) => setCallTranscription(...(a as [])), removeFromCall: (...a: unknown[]) => removeFromCall(...(a as [])) }))
+const actInCall = vi.fn(() => Promise.resolve({ affected: 1 }))
+vi.mock("@/services/callService", () => ({ setCallTranscription: (...a: unknown[]) => setCallTranscription(...(a as [])), actInCall: (...a: unknown[]) => actInCall(...(a as [])) }))
 const persistTranscriptLine = vi.fn(() => Promise.resolve())
 vi.mock("@/services/transcriptService", () => ({ persistTranscriptLine: (...a: unknown[]) => persistTranscriptLine(...(a as [])), reportTranscriptionCapability: vi.fn(() => Promise.resolve()) }))
 vi.mock("@/lib/utils/streamFetch", () => ({ authedStreamFetch: vi.fn() }))
@@ -55,6 +58,10 @@ function makeRoom(name: string) {
 const lp = {
   identity: "sam",
   name: "Sam Rivera",
+  // What the server told the room about Sam (Call Control's attributes).
+  attributes: {} as Record<string, string>,
+  on: vi.fn(() => lp),
+  off: vi.fn(() => lp),
   isMicrophoneEnabled: true,
   setMicrophoneEnabled: vi.fn(() => Promise.resolve()),
   setCameraEnabled: vi.fn(() => Promise.resolve()),
@@ -65,9 +72,13 @@ const lp = {
 }
 let room = makeRoom("ch-1")
 let liveKitProps: Record<string, unknown> = {}
+// Every set of options LiveKit's room was given: a change makes the room anew.
+const optionsSeen: string[] = []
 vi.mock("@livekit/components-react", () => ({
-  LiveKitRoom: (props: { children: ReactNode }) => {
+  LiveKitRoom: (props: { children: ReactNode; options?: unknown }) => {
     liveKitProps = props
+    const o = JSON.stringify(props.options)
+    if (optionsSeen.at(-1) !== o) optionsSeen.push(o)
     return <div>{props.children}</div>
   },
   GridLayout: () => null,
@@ -108,6 +119,7 @@ const on = { on: true, by: "Maya Chen", byId: "maya", since: 1, where: "browser"
 
 beforeEach(() => {
   participants = []
+  lp.attributes = {}
   room = makeRoom("ch-1")
   config = { transcription_mode: "frontend" }
   FakeRecognition.made = []
@@ -326,6 +338,21 @@ describe("CALL-BUG-1 and 20: what LiveKit is given", () => {
     await act(async () => render(call()))
     expect(liveKitProps.options).toMatchObject({ adaptiveStream: true, dynacast: true, singlePeerConnection: false, publishDefaults: { audioPreset: AudioPresets.speech } })
   })
+
+  // A change of options makes LiveKit's room anew: a room already connecting
+  // would join and leave before the new one joined. The room waits for the
+  // server's answer on one peer connection, then is made once.
+  it("gives LiveKit's room its options once, settled before it connects", async () => {
+    optionsSeen.length = 0
+    onePcAnswer = true
+    try {
+      await act(async () => render(call()))
+      expect(optionsSeen).toHaveLength(1)
+      expect(liveKitProps.options).toMatchObject({ singlePeerConnection: true })
+    } finally {
+      onePcAnswer = false
+    }
+  })
 })
 
 // Step 3, part 2: the dock's People, React and Chat, in a call.
@@ -338,7 +365,8 @@ describe("who is in the call, reactions and the conversation", () => {
     await act(async () => render(call()))
     const people = screen.getByRole("button", { name: "Participants, 2" })
     await act(async () => fireEvent.click(people))
-    const panel = screen.getByRole("complementary", { name: "Participants" })
+    // The panel loads when People is first opened.
+    const panel = await screen.findByRole("complementary", { name: "Participants" }, { timeout: 5000 })
     expect(panel.textContent).toContain("Maya Chen")
     expect(panel.textContent).not.toContain("Transcriber")
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Close participants" })))
@@ -365,5 +393,77 @@ describe("who is in the call, reactions and the conversation", () => {
     expect(button.getAttribute("aria-pressed")).toBe("true")
     await act(async () => fireEvent.click(button))
     expect(chat).toHaveBeenCalled()
+  })
+})
+
+// Call Control: the people running a call run it, and everyone hears what
+// was done to them in words, from the server only.
+describe("running a call", () => {
+  const host = { "oc.role": "host", "oc.can": "mute,mute_all,ask_unmute,remove,lock,end,cohost,spotlight,mute_on_entry" }
+  const server = (o: object) => new TextEncoder().encode(JSON.stringify({ v: 1, ...o }))
+
+  it("lets a host end the call for everyone from Leave, asked first", async () => {
+    lp.attributes = host
+    await act(async () => render(call({ sessionId: "s1" })))
+    expect(screen.queryByRole("button", { name: "Leave call" })).toBeNull()
+    fireEvent.keyDown(screen.getByRole("button", { name: "Leave or end the call" }), { key: "Enter" })
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: "End call for everyone" })))
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "End the call for everyone?", destructive: true }))
+    await act(async () => confirm.mock.calls[0][0].onConfirm())
+    expect(actInCall).toHaveBeenCalledWith("s1", expect.objectContaining({ action: "end" }))
+  })
+
+  it("leaves at once for someone who runs nothing, and for a guest", async () => {
+    await act(async () => render(call({ sessionId: "s1" })))
+    expect(screen.getByRole("button", { name: "Leave call" })).toBeTruthy()
+    cleanup()
+    lp.attributes = host
+    await act(async () => render(call({ guest: true })))
+    expect(screen.getByRole("button", { name: "Leave call" })).toBeTruthy()
+  })
+
+  it("says who muted you, and only when the server says it", async () => {
+    await act(async () => render(call({ sessionId: "s1" })))
+    await act(async () => room.emit("dataReceived", server({ t: "muted", by: "Maya", source: "microphone" }), { identity: "jonas" }, undefined, "oc.call"))
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Maya muted you" }))
+    await act(async () => room.emit("dataReceived", server({ t: "muted", by: "Maya", source: "microphone" }), undefined, undefined, "oc.call"))
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Maya muted you" }))
+  })
+
+  it("asks you to unmute and leaves your microphone to you", async () => {
+    await act(async () => render(call({ sessionId: "s1", audio: false })))
+    await act(async () => room.emit("dataReceived", server({ t: "ask_unmute", by: "Maya" }), undefined, undefined, "oc.call"))
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Maya asks you to unmute" }))
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+  })
+
+  it("says the call is locked on the stage, and by whom", async () => {
+    room.metadata = metadata({ locked: { by: "Maya", since: 1 } })
+    await act(async () => render(call()))
+    expect(document.querySelector("[data-locked-pill]")!.textContent).toContain("Locked · by Maya")
+  })
+
+  it("has people join muted where the hosts asked, and tells them", async () => {
+    room.metadata = metadata({ muteOnEntry: true })
+    await act(async () => render(call({ audio: true, video: true })))
+    expect(lp.setMicrophoneEnabled).not.toHaveBeenCalled()
+    expect(lp.setCameraEnabled).toHaveBeenCalledWith(true)
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "You joined muted" }))
+  })
+
+  it("lets a host join with their microphone on where the hosts asked for muted", async () => {
+    room.metadata = metadata({ muteOnEntry: true })
+    lp.attributes = host
+    await act(async () => render(call({ audio: true })))
+    expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it("ends the call on everyone's screen with who ended it", async () => {
+    const onDisconnect = vi.fn()
+    await act(async () => render(call({ onDisconnect })))
+    await act(async () => (liveKitProps.onConnected as () => void)())
+    await act(async () => room.emit("dataReceived", server({ t: "ended", by: "Maya" }), undefined, undefined, "oc.call"))
+    await act(async () => (liveKitProps.onDisconnected as (r: DisconnectReason) => void)(DisconnectReason.ROOM_DELETED))
+    expect(onDisconnect).toHaveBeenLastCalledWith({ removed: { reason: "ended", by: "Maya" } })
   })
 })

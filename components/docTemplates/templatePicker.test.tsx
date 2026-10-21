@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import type { MarketplaceTemplate } from "@/services/marketplaceService"
+import { SCREENS, putOnScreen, type ScreenName } from "@/lib/testing/screens"
 
 // Choosing a doc template (docs programme B5): OneCamp's and the team's, found
 // by name or kind, used in one press. Making a doc from one asks the server to
@@ -129,5 +130,33 @@ describe("the picker's finder, typed through an input method", () => {
     expect(applyTemplate).not.toHaveBeenCalled()
     fireEvent.keyDown(find, { key: "Enter" })
     await waitFor(() => expect(applyTemplate).toHaveBeenCalledWith("doc-9", "b5d0c000-0000-4000-8000-000000000001"))
+  })
+})
+
+// ONE SHEET RULE (20 Oct 2026): a phone held sideways got the two-pane dialog,
+// 312px tall on its 390px screen. It is the phone's sheet of rows now, as
+// useSheetMode says; a tablet keeps the dialog and its preview.
+describe("the picker, by screen", () => {
+  let off = () => {}
+  const on = (s: ScreenName) => {
+    off = putOnScreen(SCREENS[s])
+  }
+  afterEach(() => {
+    off()
+    off = () => {}
+  })
+
+  it("is the sheet of rows on a phone held sideways, a tap using the template", () => {
+    on("a phone in landscape")
+    render(<TemplatePicker mode={{ kind: "create" }} onClose={vi.fn()} />)
+    expect(document.querySelector("[data-template-picker]")?.hasAttribute("data-v3-sheet")).toBe(true)
+    expect(screen.queryByRole("button", { name: "Use this template" })).toBeNull()
+  })
+
+  it("is the dialog with its preview on a tablet", () => {
+    on("a tablet")
+    render(<TemplatePicker mode={{ kind: "create" }} onClose={vi.fn()} />)
+    expect(document.querySelector("[data-template-picker]")?.hasAttribute("data-v3-sheet")).toBe(false)
+    expect(screen.getByRole("button", { name: "Use this template" })).toBeTruthy()
   })
 })

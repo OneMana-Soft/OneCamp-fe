@@ -2,7 +2,8 @@
 
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useLeaveLink, useLinkSearchParams, useLinkedPage } from "@/hooks/useLinkTarget";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { ChatGet } from "@/services/endpoints/chat";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {  PostsRes} from "@/types/post";
@@ -47,7 +48,7 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
 
     const latestKey = messageId || (!dmParticipantsInfo.data?.data) ? '' : GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId
     const latestMsg = useFetch<CreateChatPaginationResRaw>(latestKey)
-    const getNewChatsWithCurrentChat = useFetch<CreateChatPaginationResRaw>(messageId ? GetEndpointUrl.GetNewGroupChatIncludingCurrentChat + '/' + grpId + '/' + messageId: '')
+    const getNewChatsWithCurrentChat = useFetch<CreateChatPaginationResRaw>(messageId ? ChatGet.GetNewGroupChatIncludingCurrentChat + '/' + grpId + '/' + messageId: '')
 
     // Revalidate the latest window on open/switch so a revisited group picks
     // up messages that arrived while away. The merge effect reconciles without
@@ -66,12 +67,12 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
     const [oldChatTime, setOldChatTime] = useState(0)
     // The message the older page starts next to (lib/chat/pageEdge).
     const [oldEdge, setOldEdge] = useState('')
-    const oldMsg = useFetch<CreateChatPaginationResRaw>(oldChatTime == 0 || !dmParticipantsInfo.data?.data ? '' : GetEndpointUrl.GetOldGroupChatBefore + '/' + grpId + '/' + oldChatTime + oldEdge)
+    const oldMsg = useFetch<CreateChatPaginationResRaw>(oldChatTime == 0 || !dmParticipantsInfo.data?.data ? '' : ChatGet.GetOldGroupChatBefore + '/' + grpId + '/' + oldChatTime + oldEdge)
 
     const [hasMoreNewChat, setHasMoreNewChat] = useState(!!messageId)
     const [newChat, setNewChat] = useState(0)
     const [newEdge, setNewEdge] = useState('')
-    const newMsg = useFetch<CreateChatPaginationResRaw>(newChat == 0 || !dmParticipantsInfo.data?.data ? '' : GetEndpointUrl.GetNewGroupChatAfter + '/' + grpId + '/' + newChat + newEdge)
+    const newMsg = useFetch<CreateChatPaginationResRaw>(newChat == 0 || !dmParticipantsInfo.data?.data ? '' : ChatGet.GetNewGroupChatAfter + '/' + grpId + '/' + newChat + newEdge)
 
     const dispatch = useDispatch();
 
@@ -250,6 +251,7 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
                 grpId={grpId}
                 unreadOnOpen={unreadOnOpen}
                 retryOlder={retryOlder}
+                anchor={messageId}
             />
             <GroupChatTypingBar grpId={grpId} />
         </div>

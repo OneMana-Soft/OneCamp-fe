@@ -30,6 +30,8 @@ import { cn } from "@/lib/utils/helpers/cn"
 /** Where an import stands, as a word and a status tone. Running and uploading pulse. */
 export const IMPORT_STATE: Record<string, { label: string; tone: StateTone; pulse?: boolean }> = {
   pending: { label: "Uploading", tone: "warning", pulse: true },
+  // A Slack import read through Slack's API, while it reads (status pending, stage reading).
+  reading: { label: "Reading", tone: "warning", pulse: true },
   validating: { label: "To plan", tone: "neutral" },
   planned: { label: "Planned", tone: "info" },
   running: { label: "Running", tone: "warning", pulse: true },
@@ -191,7 +193,7 @@ export function ImportJobFrame({
   const s = IMPORT_STATE[status] ?? IMPORT_STATE.pending
   const dot = useRef<HTMLSpanElement>(null)
   const fresh = useFinishCelebration(jobId, status, dot)
-  const moving = status === "running" || status === "paused"
+  const moving = status === "running" || status === "paused" || status === "reading"
   const extra = below?.(fresh)
   return (
     <div
@@ -268,4 +270,6 @@ export const SLACK_IMPORT_NEW_EVENT = "onecamp:slack-import-new"
 
 /** The three steps every import really takes. */
 export const SLACK_STEPS = ["Upload the export", "Check the plan", "Bring it in"]
+/** A read through Slack's API takes the same three, read rather than uploaded. */
+export const SLACK_READ_STEPS = ["Read from Slack", "Check the plan", "Bring it in"]
 export const TOOL_STEPS = ["Connect", "Check the plan", "Bring it in"]

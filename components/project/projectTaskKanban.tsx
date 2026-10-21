@@ -31,6 +31,12 @@ import dynamic from "next/dynamic"
 const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog), { loading: () => null })
 const ProjectFieldsDialog = dynamic(() => import("@/components/project/ProjectFieldsDialog").then((m) => m.ProjectFieldsDialog), { loading: () => null })
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
+import { closedColumn } from "@/lib/board/columnOrder"
+import { useProjectStatusOrder } from "@/hooks/useProjectStatusOrder"
+import { statusesKeyOfMessage } from "@/lib/board/statusesMessage"
+import { useLiveEntity } from "@/lib/liveEntity"
+import { useMqttTopic } from "@/hooks/useMqttTopic"
+import { appMutate } from "@/lib/swrMutate"
 import { CardFieldsContext } from "@/components/task/cardFields"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { KeyboardList } from "@/components/task/KeyboardList"
@@ -152,7 +158,16 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
 
     // One column per status: the built-in ones, each followed by the project's
     // own that count as it (the server groups tasks by category only).
-    const { options: statusOpts } = useProjectStatuses(projectId)
+    const { options: statusOpts, isLoading: statusesLoading } = useProjectStatuses(projectId)
+    const setOrder = useProjectStatusOrder(projectId)
+    // Live: another admin's change to the statuses or their order (message
+    // 43 on the project's topic) reads them again, so this board rearranges.
+    const live = useLiveEntity("project", projectId)
+    const onTopic = useCallback((raw: string) => {
+        const key = statusesKeyOfMessage(raw)
+        if (key) void appMutate(key)
+    }, [])
+    useMqttTopic({ topic: live.state === "ok" ? live.topic ?? "" : "", onMessage: onTopic })
     const [managing, setManaging] = useState(false)
     const [managingFields, setManagingFields] = useState(false)
     // The project's own fields its cards show, and the names for person ones.
@@ -212,6 +227,23 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
         })
     }, [grouping, laneBy, columns, members, hideEmpty])
     const boardTasks = useMemo(() => Object.values(columns).flat(), [columns])
+    // The project's column order, which its admins drag (columnDrag): only on
+    // a board of status columns, as a board of people has no order to keep.
+    // statusOpts are already in the project's order. A move shows at once; if
+    // the server says no, the hook puts the order back.
+    const columnOrder = useMemo(() => {
+        if (!access.manage || grouping !== "status") return undefined
+        const closedOf = new Map(statusOpts.map((o) => [o.value, closedColumn(o)]))
+        return {
+            order: statusOpts.map((o) => o.value),
+            closed: (value: string) => closedOf.get(value) ?? false,
+            onChange: (order: string[]) => {
+                void setOrder(order).catch(() => {
+                    // The request layer has said what went wrong.
+                })
+            },
+        }
+    }, [access.manage, grouping, statusOpts, setOrder])
     const canEdit = useCallback((t: TaskInfoInterface) => canEditTask(t, me, p), [me, p])
     // Each column's total, and which page a column's Show more asks for:
     // done and cancelled the closed page, every other status the open one.
@@ -226,7 +258,9 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     // The states, where every tab of a project draws them
     // (components/task/workFrame): the board's columns while it loads, a
     // failed load said as such, and a project with no tasks its spot.
-    const loading = projectInfo.isLoading && !p
+    // The statuses' first read too (a small one, made beside the board's): the
+    // columns come in the project's order, not the default one and then a jump.
+    const loading = (projectInfo.isLoading && !p) || statusesLoading
     const failed = !!projectInfo.isError && !p
     const filtering = columnFilters.length > 0 || !!search.trim() || tagFilter.length > 0
     // The statuses the board hides, said beside its filters (PTC-5).
@@ -323,6 +357,7 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                                 onShowMore={showMore}
                                 onQuickAdd={access.create_tasks ? quickAdd : undefined}
                                 onOpen={onOpen}
+                                columnOrder={columnOrder}
                             />
                         )}
                     </div>

@@ -1,6 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { pinTestClock } from "@/lib/testing/testClock"
+
+// Every Radix Popover root drawn, so a month can be held to drawing none it doesn't open.
+const popovers = vi.hoisted(() => ({ drawn: 0 }))
+vi.mock("@/components/ui/popover", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/ui/popover")>()
+  return {
+    ...real,
+    Popover: (props: Parameters<typeof real.Popover>[0]) => {
+      popovers.drawn++
+      return <real.Popover {...props} />
+    },
+  }
+})
+
 import { DayOverflowPopover } from "./dayOverflowPopover"
 
 pinTestClock()
@@ -29,6 +43,33 @@ function busyDay(props: Partial<Parameters<typeof DayOverflowPopover>[0]> = {}) 
   )
   return { drawn, onRow, onCellPress, cell: document.querySelector("[data-cell]") as HTMLElement }
 }
+
+// FLUIDITY-LEAD, 20 Oct 2026: a month drew a Radix Popover in every busy
+// cell, with its Popper, about 1,400 of a switch to Month's 2,491 renders.
+// A cell draws a plain button; the popover is drawn when it is pressed, for
+// that day alone.
+describe("a month of busy days", () => {
+  it("draws no popover until a day's +N more is pressed, then that day's alone", () => {
+    popovers.drawn = 0
+    render(
+      <div>
+        {Array.from({ length: 35 }, (_, i) => (
+          <DayOverflowPopover key={i} day={new Date(2026, 9, i + 1)} hidden={i + 1}>
+            {() => <span>Row</span>}
+          </DayOverflowPopover>
+        ))}
+      </div>,
+    )
+    expect(popovers.drawn).toBe(0)
+    const more = screen.getByRole("button", { name: "+3 more" })
+    expect(more.getAttribute("aria-expanded")).toBe("false")
+    fireEvent.click(more)
+    expect(more.getAttribute("aria-expanded")).toBe("true")
+    expect(popovers.drawn).toBeGreaterThan(0)
+    expect(popovers.drawn).toBeLessThanOrEqual(3)
+    expect(screen.getByText("Sat 3 Oct")).toBeTruthy()
+  })
+})
 
 describe("a day's +N more (C06), shared by the calendar's month and a table's calendar", () => {
   it("says how many more, and lists them all under the day's name only once opened", () => {

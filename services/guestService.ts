@@ -1,6 +1,6 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { browserTZ } from "@/lib/utils/timeZone"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PeopleGet, PeoplePost } from "@/services/endpoints/people"
 import { publicCall } from "@/services/publicApi"
 import type { DataTable, TableField, TableRow } from "@/services/tableService"
 
@@ -39,7 +39,7 @@ export async function createGuestLink(
     capability: GuestCapability = "view",
     neverExpires = false,
 ): Promise<GuestLinkResponse> {
-    const res = await axiosInstance.post(PostEndpointUrl.CreateGuestLink, {
+    const res = await axiosInstance.post(PeoplePost.CreateGuestLink, {
         resource_type: resourceType,
         resource_id: resourceId,
         ttl_hours: ttlHours ?? 0,
@@ -56,14 +56,28 @@ export interface ResourceGuestLink {
     expires_at: string | null
     created_at: string
     mine: boolean
+    /** A doc's view link published as a web page (docs C6): its address, the
+     *  one to share (this app's /p/<slug>), the page itself, and how. */
+    slug?: string
+    url?: string
+    page_url?: string
+    indexable?: boolean
+    allow_copies?: boolean
+    has_password?: boolean
+}
+
+/** A resource's live links, and whether its workspace lets pages be published. */
+export interface ResourceGuestLinks {
+    data: ResourceGuestLink[]
+    publish_allowed?: boolean
 }
 
 /** The SWR key of a resource's live links. */
 export const resourceGuestLinksKey = (resourceType: GuestResourceType, resourceId: string) =>
-    `${PostEndpointUrl.CreateGuestLink}?resource_type=${encodeURIComponent(resourceType)}&resource_id=${encodeURIComponent(resourceId)}`
+    `${PeoplePost.CreateGuestLink}?resource_type=${encodeURIComponent(resourceType)}&resource_id=${encodeURIComponent(resourceId)}`
 
 export async function turnOffGuestLink(id: string): Promise<void> {
-    await axiosInstance.post(`${PostEndpointUrl.CreateGuestLink}/${id}/revoke`)
+    await axiosInstance.post(`${PeoplePost.CreateGuestLink}/${id}/revoke`)
 }
 
 export type GuestResourceType = "doc" | "board" | "table" | "channel" | "project"
@@ -92,6 +106,9 @@ export interface GuestCollabSession {
     title?: string
     /** The workspace's public name (backend round: on every guest answer). */
     workspace_name?: string
+    /** A doc's view link is the server's own script-free page (docs C6): its
+     *  address, given instead of a collaboration token. */
+    page_url?: string
 }
 
 export const getGuestCollabSession = (token: string, displayName?: string) =>
@@ -157,18 +174,24 @@ export interface GuestGrant {
     created_at: string
 }
 
+/** Guest access's one sub-option: whether pages can be published to the web. */
+export async function setGuestPublish(publish: boolean): Promise<boolean> {
+    const res = await axiosInstance.post(PeoplePost.SetGuestAccess, { publish })
+    return (res.data as { data?: { guest_publish_enabled?: boolean } })?.data?.guest_publish_enabled ?? publish
+}
+
 export async function setGuestAccess(enabled: boolean): Promise<boolean> {
-    const res = await axiosInstance.post(PostEndpointUrl.SetGuestAccess, { enabled })
+    const res = await axiosInstance.post(PeoplePost.SetGuestAccess, { enabled })
     return (res.data as { data?: { guest_access_enabled?: boolean } })?.data?.guest_access_enabled ?? enabled
 }
 
 export async function listGuestGrants(): Promise<GuestGrant[]> {
-    const res = await axiosInstance.get(GetEndpointUrl.GetGuestGrants)
+    const res = await axiosInstance.get(PeopleGet.GetGuestGrants)
     return (res.data as { data?: GuestGrant[] })?.data ?? []
 }
 
 export async function revokeGuestGrant(id: string): Promise<void> {
-    await axiosInstance.post(`${GetEndpointUrl.GetGuestGrants}/${id}/revoke`)
+    await axiosInstance.post(`${PeopleGet.GetGuestGrants}/${id}/revoke`)
 }
 
 // --- Public (no auth): a channel shared with a guest. ---

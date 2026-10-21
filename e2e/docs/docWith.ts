@@ -1,4 +1,4 @@
-import { expect, type Browser, type TestInfo } from "@playwright/test"
+import { expect, type Browser, type Page, type TestInfo } from "@playwright/test"
 
 import { docInfo, stubBackend, type Answers } from "../stubbedApp"
 import type { CollabRelay } from "./collabRelay"
@@ -6,8 +6,8 @@ import type { DocTab, Person } from "./twoPeople"
 
 /**
  * A doc opened as a person on the relay, as A1's openDocAs opens it, with more
- * of the API answered (B8's version history) and a screen size of the test's
- * choosing.
+ * of the API answered (B8's version history) and a screen of the test's
+ * choosing: its size, and a phone's touch screen (isMobile, hasTouch).
  */
 export async function openDocWith(
   browser: Browser,
@@ -16,9 +16,10 @@ export async function openDocWith(
   person: Person,
   doc: { id: string; title?: string; body?: string },
   answers: Answers = {},
-  viewport = { width: 1280, height: 900 },
+  screen: { width: number; height: number; isMobile?: boolean; hasTouch?: boolean } = { width: 1280, height: 900 },
 ): Promise<DocTab> {
-  const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL || "http://localhost:3001"), viewport })
+  const { width, height, isMobile, hasTouch } = screen
+  const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL || "http://localhost:3001"), viewport: { width, height }, isMobile, hasTouch })
   const page = await context.newPage()
   await stubBackend(page, testInfo, {
     [`/doc/getDocInfo/${doc.id}`]: docInfo({ doc_uuid: doc.id, doc_title: doc.title ?? "Launch plan", doc_body: doc.body ?? "<p></p>", edit: true }),
@@ -31,4 +32,24 @@ export async function openDocWith(
   const body = page.locator('.doc-editor .ProseMirror[contenteditable="true"]')
   await expect(body).toBeVisible({ timeout: 60_000 })
   return { page, body, close: () => context.close() }
+}
+
+/**
+ * More's menu, as a wide screen's header draws it, opened again until the
+ * item is in it: B6's page actions register as the page guard's chunk
+ * loads, beside the editor.
+ */
+export async function openMore(page: Page, item: string) {
+  await expect(async () => {
+    if (!(await page.locator("[data-doc-more-menu]").isVisible())) await page.getByRole("button", { name: "More doc actions" }).click()
+    const found = await page.getByRole("menuitem", { name: item }).isVisible()
+    if (!found) await page.keyboard.press("Escape")
+    expect(found).toBe(true)
+  }).toPass({ timeout: 30_000 })
+}
+
+/** More's item `item`, chosen. */
+export async function more(page: Page, item: string) {
+  await openMore(page, item)
+  await page.getByRole("menuitem", { name: item }).click()
 }

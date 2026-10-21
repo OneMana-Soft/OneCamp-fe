@@ -49,10 +49,12 @@ function isCrossOrigin(src: string): boolean {
 // prefers the editor's --editor-width CSS var (the text column width) when
 // defined, otherwise measures the node's own container, and finally falls back
 // to MAX_DISPLAY_WIDTH. This keeps a lone GIF/image sized to the column rather
-// than to a tiny first-paint placeholder, on both desktop and mobile.
-function measureColumnWidth(el: HTMLElement | null): number {
+// than to a tiny first-paint placeholder, on both desktop and mobile. The var
+// is read on the editor's own container: it isn't inherited (styles/index.css).
+export function measureColumnWidth(el: HTMLElement | null): number {
   if (!el) return MAX_DISPLAY_WIDTH
-  const cssVar = parseFloat(getComputedStyle(el).getPropertyValue('--editor-width'))
+  const host = el.closest<HTMLElement>('[data-measured="editor"]') ?? el
+  const cssVar = parseFloat(getComputedStyle(host).getPropertyValue('--editor-width'))
   if (cssVar && cssVar > 0) return cssVar
   const measured = el.clientWidth
   if (measured && measured > 0) return measured

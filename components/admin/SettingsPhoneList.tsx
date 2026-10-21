@@ -6,7 +6,7 @@ import { ChevronRight } from "@/lib/icons"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import type { CampHue } from "@/lib/campHue"
+import type { MarkHue } from "@/components/ui/graphics/hues"
 import { SETTINGS_GROUP_LABEL, PROFILE_HREF, type SettingsGroupKey } from "@/lib/adminSections"
 import { useSettingsPlaces } from "@/components/navigationBar/desktop/SettingsNav"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -25,7 +25,7 @@ const ADMIN_GROUPS: SettingsGroupKey[] = ["workspace", "ai", "connections", "rec
  * identity may), its name at 15/22 and a chevron. No description: the page it
  * opens says what it is about.
  */
-export function PhoneSettingsRow({ href, label, icon: Icon, hue }: { href: string; label: string; icon: ComponentType; hue: CampHue }) {
+export function PhoneSettingsRow({ href, label, icon: Icon, hue }: { href: string; label: string; icon: ComponentType; hue: MarkHue }) {
   return (
     <li className="set-row !min-h-[52px] !p-0">
       <Link

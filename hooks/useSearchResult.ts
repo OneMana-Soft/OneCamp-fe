@@ -59,6 +59,7 @@ export function useSearchResults<T extends SearchableItem>({
 
     // Create the debounced function with stable dependencies
     const debouncedSearch = useMemo(() => debounceUtil(handleSearch, debounceTime), [handleSearch, debounceTime])
+    useEffect(() => debouncedSearch.cancel, [debouncedSearch])
 
     // Call the debounced function when query changes
     useEffect(() => {

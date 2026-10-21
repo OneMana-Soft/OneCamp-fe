@@ -19,7 +19,8 @@ import { Hash } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
+import { HomeGet } from "@/services/endpoints/home"
 import type { ChannelJoinInterface } from "@/types/channel"
 
 interface SuggestedChannel {
@@ -35,12 +36,14 @@ export function NoChannelsYet() {
   // render later, and "not in any channels" must not flash for a member of ten.
   const loaded = !!sidenav.data?.data
   const none = loaded && (sidenav.data?.data?.user_channels ?? []).length === 0 && (inSidebar ?? []).length === 0
-  const suggested = useFetch<{ data: SuggestedChannel | null }>(none ? GetEndpointUrl.SuggestedChannel : "")
+  const suggested = useFetch<{ data: SuggestedChannel | null }>(none ? HomeGet.SuggestedChannel : "")
   const join = usePost()
   const [joinFailed, setJoinFailed] = useState(false)
 
   if (!none) return null
-  const channel = suggested.data?.data ?? null
+  // Only a channel it can name: an odd answer must never read "Join #undefined".
+  const got = suggested.data?.data
+  const channel = got?.ch_uuid && got.ch_name?.trim() ? got : null
 
   const joinSuggested = async () => {
     if (!channel) return

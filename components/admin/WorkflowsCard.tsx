@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
@@ -28,10 +29,11 @@ import {
     workflowSentence,
     type SentenceNames,
 } from "@/components/admin/workflowsParts";
-import type { CampHue } from "@/lib/campHue";
+import type { MarkHue } from "@/components/ui/graphics/hues";
 import { useFetch } from "@/hooks/useFetch";
 import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { GetEndpointUrl } from "@/services/endPoints";
+import { AdminGet } from "@/services/endpoints/admin";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Plus, Trash2, Pencil, LayoutTemplate } from "@/lib/icons";
@@ -43,7 +45,9 @@ import {
     setWorkflowActive,
     deleteWorkflow,
 } from "@/services/workflowService";
-import { WorkflowEditDialog } from "./WorkflowEditDialog";
+// Loaded when it opens, as AgentsCard's dialogs are: the page's first load
+// carries the list, not the editor.
+const WorkflowEditDialog = dynamic(() => import("./WorkflowEditDialog").then((m) => m.WorkflowEditDialog), { ssr: false });
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog";
 
 /** "1 run", "3 runs": every run so far (the server counts no week). */
@@ -189,7 +193,7 @@ const WorkflowsCard = ({
     onCreatingChange,
     scope = "all",
 }: {
-    hue?: CampHue;
+    hue?: MarkHue;
     /**
      * "all" is the admin page: every workflow, each with who made it. "mine"
      * is the personal settings page: only the ones the signed-in person made
@@ -200,7 +204,7 @@ const WorkflowsCard = ({
     creating?: boolean;
     onCreatingChange?: (open: boolean) => void;
 } = {}) => {
-    const { data, isLoading, isError, mutate } = useFetch<{ data: Workflow[] }>(GetEndpointUrl.GetAllWorkflows);
+    const { data, isLoading, isError, mutate } = useFetch<{ data: Workflow[] }>(AdminGet.GetAllWorkflows);
     // The names the sentences use: the editor reads the same two lists, so
     // they are usually cached already.
     // Every channel's name, not the list's first page of 20 (useEveryChannel).
@@ -218,7 +222,7 @@ const WorkflowsCard = ({
     // The admin page names each workflow's maker, from the admin users list;
     // the personal page needs only who is signed in.
     const { data: usersData } = useFetch<UserListResponseInterface>(
-        scope === "all" ? `${GetEndpointUrl.GetAdminUserList}?pageIndex=0&pageSize=${OWNER_PAGE_SIZE}` : "",
+        scope === "all" ? `${AdminGet.GetAdminUserList}?pageIndex=0&pageSize=${OWNER_PAGE_SIZE}` : "",
     );
     const { data: selfData } = useFetch<UserProfileInterface>(scope === "mine" ? GetEndpointUrl.SelfProfile : "");
     const selfUuid = selfData?.data?.user_uuid;

@@ -2,7 +2,8 @@
 import { useTranslation } from "react-i18next";
 
 import { useFetch } from "@/hooks/useFetch"
-import {GetEndpointUrl} from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import {ProjectInfoRawInterface} from "@/types/project"
 import { FileText, List, Megaphone, Paperclip } from "@/lib/icons";
 import { TabLoading } from "@/components/task/TabLoading"
@@ -115,7 +116,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     }, [handleTabChange])
 
     const project = projectInfo.data?.data
-    const memberInfo = useFetch<ProjectInfoRawInterface>(projectId ? `${GetEndpointUrl.GetProjectMemberInfo}/${projectId}` : "")
+    const memberInfo = useFetch<ProjectInfoRawInterface>(projectId ? `${ProjectsGet.GetProjectMemberInfo}/${projectId}` : "")
     const members = memberInfo.data?.data.project_members ?? project?.project_members ?? []
     const loading = !project && projectInfo.isLoading
 

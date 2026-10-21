@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest"
 import { isTimeout, waitsAsLongAsItTakes } from "./requestTimeout"
 import { GetEndpointUrl, PostEndpointUrl, PostFileUploadURL } from "@/services/endPoints"
+import { AiPost } from "@/services/endpoints/ai"
+import { ChatGet, ChatPost } from "@/services/endpoints/chat"
+import { InboxPost } from "@/services/endpoints/inbox"
+import { TablesPost } from "@/services/endpoints/tables"
+
+/**
+ * Every area's endpoint enums (services/endpoints/<area>.ts, split from
+ * services/endPoints.ts so a route loads only its own area's): each module's
+ * objects of names to paths.
+ */
+const AREA_ENUMS = Object.values(import.meta.glob("/services/endpoints/*.ts", { eager: true }) as Record<string, Record<string, unknown>>).flatMap((m) =>
+  Object.values(m).filter((v): v is Record<string, string> => typeof v === "object" && v !== null && Object.values(v).every((x) => typeof x === "string")),
+)
 
 // FE-F-10: the API client had no timeout, so a stalled send said "Sending…"
 // for minutes. It has one now, and this is what it never applies to.
@@ -20,22 +33,22 @@ describe("what waits as long as its work takes", () => {
 
   it("the model at work, wherever its route lives", () => {
     for (const url of [
-      PostEndpointUrl.AICatchUp,
-      PostEndpointUrl.AISchedulePropose,
+      InboxPost.AICatchUp,
+      AiPost.AISchedulePropose,
       "/admin/ai/self-test",
       PostEndpointUrl.GenerateBoardDiagram,
       "/tables/t1/fields/f1/ai-fill",
       "/tables/t1/query-plan",
-      PostEndpointUrl.GenerateTable,
-      PostEndpointUrl.DraftAgent,
-      GetEndpointUrl.GetDMAISuggestions,
+      TablesPost.GenerateTable,
+      AiPost.DraftAgent,
+      ChatGet.GetDMAISuggestions,
     ]) {
       expect(waitsAsLongAsItTakes({ url }), url).toBe(true)
     }
   })
 
   it("imports, exports, restores and checks of another service", () => {
-    for (const url of ["/admin/import/jobs/j1/run", "/admin/github/import-issues/l1", "/admin/auditLog/export?from=1", PostEndpointUrl.RestoreChannel, "/data-sources/test-connection", "/agents/agui/check"]) {
+    for (const url of ["/admin/import/jobs/j1/run", "/admin/github/import-issues/l1", "/admin/auditLog/export?from=1", ChatPost.RestoreChannel, "/data-sources/test-connection", "/agents/agui/check"]) {
       expect(waitsAsLongAsItTakes({ url }), url).toBe(true)
     }
   })
@@ -45,7 +58,7 @@ describe("what waits as long as its work takes", () => {
   // drill and a mail thread's summary all run the model before they answer,
   // and were cut off at 30 seconds with "didn't answer in time".
   it("a run or a summary the server answers when it ends, but never a read", () => {
-    for (const url of [`${PostEndpointUrl.RunAgent}/a1/run`, `${GetEndpointUrl.GetAgents}/a1/eval/run`, `${GetEndpointUrl.GetAgents}/eval/scenarios/s1/run`, "/admin/governance-drill/run", "/connectors/gmail/threads/t1/summary"]) {
+    for (const url of [`${AiPost.RunAgent}/a1/run`, `${GetEndpointUrl.GetAgents}/a1/eval/run`, `${GetEndpointUrl.GetAgents}/eval/scenarios/s1/run`, "/admin/governance-drill/run", "/connectors/gmail/threads/t1/summary"]) {
       expect(waitsAsLongAsItTakes({ url, method: "post" }), url).toBe(true)
     }
     for (const url of [`${GetEndpointUrl.GetAgents}/a1/runs`, `${GetEndpointUrl.GetAgents}/a1/eval/summary`, `${GetEndpointUrl.GetAgents}/eval/summary`]) {
@@ -59,7 +72,8 @@ describe("what waits as long as its work takes", () => {
   // comment says what it appends), so it's left out.
   it("covers every endpoint named for the model, an import, an export or a restore", () => {
     const named = /(^AI|^Ai|AI[A-Z]|Generate|Draft|Import|Export|Restore|Transcribe|Summarize|Translate|Analyze|CatchUp|ExtractTasks|QueryPlan)/
-    const entries = [GetEndpointUrl, PostEndpointUrl, PostFileUploadURL].flatMap((e) => Object.entries(e) as [string, string][])
+    // The shared enums and every area's.
+    const entries = [GetEndpointUrl, PostEndpointUrl, PostFileUploadURL, ...AREA_ENUMS].flatMap((e) => Object.entries(e) as [string, string][])
     const uses = new Map<string, number>()
     for (const [, url] of entries) uses.set(url, (uses.get(url) ?? 0) + 1)
     const missed = entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1 && !waitsAsLongAsItTakes({ url })).map(([name, url]) => `${name} = ${url}`)

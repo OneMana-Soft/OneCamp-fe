@@ -88,7 +88,7 @@ describe("names stuck at the timeline's left edge", () => {
     expect(stuckRoom(400, 4)).toBe(`max(0px, calc(396px - var(${SCROLL_X}, 0px)))`)
     const range = timelineRange(tasks as never, startOfDay(new Date(2026, 9, 12)), "week")
     const { container } = render(<TimelineHeader range={range} zoom="week" dayWidth={12} today={startOfDay(new Date(2026, 9, 12))} nameWidth={260} />)
-    const label = container.querySelector<HTMLElement>("[data-timeline-header] .sticky.inline-block")!
+    const label = container.querySelector<HTMLElement>("[data-timeline-header] [data-month-label]")!
     expect(label.style.maxWidth).toContain(`var(${SCROLL_X}`)
   })
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { GetEndpointUrl } from "@/services/endPoints"
+import { DocsGet } from "@/services/endpoints/docs"
 import type { DocCoverOf } from "@/lib/docLook"
 import "./cover.css"
 
@@ -13,6 +13,6 @@ export default function CoverArt({ cover, offset }: { cover: NonNullable<DocCove
   if ("gallery" in cover) return <div className={`doc-cover-art doc-cover-${cover.gallery}`} />
   return (
     // eslint-disable-next-line @next/next/no-img-element -- the doc's own file, behind its access check
-    <img alt="" src={`${process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || ""}${GetEndpointUrl.GetDocAttachment}/${cover.doc}/${cover.file}`} style={{ objectPosition: `center ${offset ?? 50}%` }} />
+    <img alt="" src={`${process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || ""}${DocsGet.GetDocAttachment}/${cover.doc}/${cover.file}`} style={{ objectPosition: `center ${offset ?? 50}%` }} />
   )
 }

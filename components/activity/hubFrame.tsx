@@ -37,7 +37,7 @@ export function HubFrame({
 } & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div data-hub-frame="" className={cn("flex h-full min-h-0 flex-col", className)} {...rest}>
-      <header data-hub-header="" className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-4 border-b border-line bg-sheet pl-4 pr-3 md:pl-6 md:pr-4">
+      <header data-hub-header="" className="@container/hubhead sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-4 border-b border-line bg-sheet pl-4 pr-3 md:pl-6 md:pr-4">
         <h1 className="hidden shrink-0 items-center gap-2 text-heading text-foreground md:flex">
           <Icon className="size-4 text-ink-2" aria-hidden />
           {title}
@@ -147,6 +147,8 @@ export interface HubSegment {
   value: string
   label: string
   glyph?: React.ReactNode
+  /** Draw the glyph alone, with the label as its name and tip (the Inbox's density switch). */
+  iconOnly?: boolean
 }
 
 export function HubSegmented({ segments, value, onChange, label }: { segments: HubSegment[]; value: string; onChange: (v: string) => void; label: string }) {
@@ -197,13 +199,16 @@ export function HubSegmented({ segments, value, onChange, label }: { segments: H
             aria-pressed={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(s.value)}
+            // Glyph only: the label is its name and its tip.
+            title={s.iconOnly ? s.label : undefined}
             className={cn(
-              "relative z-[1] flex h-6 items-center gap-1.5 rounded-sm px-2.5 text-meta font-medium tracking-normal transition-colors focus-visible:outline-2 focus-visible:outline-brand",
+              "relative z-[1] flex h-6 items-center gap-1.5 rounded-sm text-meta font-medium tracking-normal transition-colors focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-3.5",
+              s.iconOnly ? "px-1.5" : "px-2.5",
               on ? "text-foreground" : "text-ink-2 hover:text-foreground",
             )}
           >
             {s.glyph}
-            {s.label}
+            {s.iconOnly ? <span className="sr-only">{s.label}</span> : s.label}
           </button>
         )
       })}

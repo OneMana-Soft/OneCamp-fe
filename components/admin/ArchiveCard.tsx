@@ -32,10 +32,11 @@ import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useToast } from "@/hooks/use-toast"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { purgeLine } from "@/lib/purgeLine"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { openUI } from "@/store/slice/uiSlice"
-import { useMqtt } from "@/components/mqtt/mqttProvider"
+import { useMqtt } from "@/components/mqtt/mqttContext"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { ARCHIVE_ENTITY_ORDER, archiveEntity } from "@/components/admin/archiveEntities"
 import { archiveProblem } from "@/components/admin/archiveProblem"
@@ -198,7 +199,7 @@ function RuleRow({ policy, onSaved, menu }: { policy: ArchivePolicy; onSaved: ()
 
 const ArchiveCard = () => {
   const dispatch = useDispatch()
-  const policiesFetch = useFetch<{ policies: ArchivePolicy[] }>(GetEndpointUrl.GetArchivePolicies)
+  const policiesFetch = useFetch<{ policies: ArchivePolicy[] }>(AdminGet.GetArchivePolicies)
   const jobsFetch = useFetch<{ jobs: ArchiveJob[] }>(GetEndpointUrl.GetArchiveJobs)
   const statsFetch = useFetch<{ stats: ArchiveStats }>(GetEndpointUrl.GetArchiveStats)
   const { connectionState: mqttState } = useMqtt()

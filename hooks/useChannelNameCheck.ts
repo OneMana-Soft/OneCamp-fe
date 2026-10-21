@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ChatGet } from "@/services/endpoints/chat"
 import type { ChannelNameExistsInterface } from "@/types/channel"
 
 /** How long typing has to stop before a name is asked about. */
@@ -27,7 +27,7 @@ export function useChannelNameCheck(name: string): { free: boolean; taken: boole
         return () => clearTimeout(t)
     }, [name])
     const { data, isLoading } = useFetch<ChannelNameExistsInterface>(
-        asked ? `${GetEndpointUrl.CheckChannelNameAvailability}?ch_name=${encodeURIComponent(asked)}` : "",
+        asked ? `${ChatGet.CheckChannelNameAvailability}?ch_name=${encodeURIComponent(asked)}` : "",
     )
     const current = !!name && asked === name
     const answered = current && !!data

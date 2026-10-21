@@ -41,7 +41,7 @@ export function useListKeyboard({
     const elOf = (id: string) => box.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)
     const itemOf = (t: EventTarget | null) => (t instanceof Element && box.contains(t) ? (t.closest<HTMLElement>(ITEM)?.dataset.taskId ?? null) : null)
     const viewOf = (el: Element) => el.closest("[data-split-view]")?.getAttribute("data-split-view") ?? null
-    const activeView = () => String(app.getState().split.active)
+    const activeView = () => String(app.getState().split?.active ?? -1)
     const panelTask = () => {
       const p = app.getState().rightPanel.rightPanelState
       return p.isOpen && p.data.taskUUID ? p.data.taskUUID : null

@@ -53,6 +53,7 @@ import {
     type CollisionDetection,
 } from "@dnd-kit/core"
 import { Container, Item } from "@/components/kanbanComponents"
+import { ColumnMoveMenu } from "@/components/kanbanComponents/Container/Container"
 import { moveKeyOf, spotLabel, stepSpot } from "@/lib/board/keyMove"
 import type { TaskInfoInterface } from "@/types/task"
 import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/lib/utils/kanbanDrop"
@@ -70,9 +71,11 @@ import { useRowState } from "@/hooks/useListSelection"
 import { cellKey, intoCells, splitCell, type Lane, type LaneSpec } from "@/lib/board/lanes"
 import { feedback } from "@/lib/ui/feedback"
 import { usePhone } from "@/hooks/usePhone"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { useDispatch } from "react-redux"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { CardSheet } from "@/components/kanbanComponents/CardSheet"
+import { ColumnDropLine, ColumnGrip, ColumnLift, ColumnOrderProvider, COLUMN_SLOT, useColumnDrag, useColumnOrder, type ColumnOrdering } from "@/components/kanbanComponents/columnDrag"
 
 /** Cards a column renders at first, and adds each time it is scrolled near its end. */
 export const CARDS_PER_PAGE = 30
@@ -206,6 +209,7 @@ export function TaskBoard({
     lanes,
     crossProject = false,
     onOpen,
+    columnOrder,
 }: {
     /** The board as the server last described it, by status. */
     columns: Columns
@@ -232,6 +236,12 @@ export function TaskBoard({
     crossProject?: boolean
     /** Open a card somewhere other than the panel beside the board (a phone has none: its page). */
     onOpen?: (task: TaskInfoInterface) => void
+    /**
+     * The project's column order, for someone who may change its statuses on
+     * a board of status columns: columns then drag by a grip in their heads
+     * (not on a phone) and their menus move them (columnDrag). Memoise it.
+     */
+    columnOrder?: Omit<ColumnOrdering, "drag">
 }) {
     const [collapsed, toggleCollapsed] = useCollapsedColumns(boardKey)
     const [foldedLanes, toggleLane] = useCollapsedColumns(boardKey ? `${boardKey}:lanes` : undefined)
@@ -535,9 +545,11 @@ export function TaskBoard({
     const onOpenRef = useRef(onOpen)
     onOpenRef.current = onOpen
     const dispatch = useDispatch()
-    // On a phone a card's menu is one sheet for the whole board (CardSheet):
-    // the card it is for, kept while the sheet goes, and whether it is open.
+    // On a phone, held either way (components/ui/overlayMode), a card's menu
+    // is one sheet for the whole board (CardSheet): the card it is for, kept
+    // while the sheet goes, and whether it is open. usePhone pages the board.
     const phone = usePhone()
+    const sheet = useSheetMode()
     const [menu, setMenu] = useState<{ task: TaskInfoInterface | null; open: boolean }>({ task: null, open: false })
     const actions = useMemo<BoardActions>(
         () => ({
@@ -548,13 +560,20 @@ export function TaskBoard({
                 if (onOpenRef.current) return onOpenRef.current(task)
                 dispatch(openRightPanel({ chatMessageUUID: "", chatUUID: "", channelUUID: "", postUUID: "", taskUUID: task.task_uuid, groupUUID: "", docUUID: "" }))
             },
-            openMenu: phone ? (task) => setMenu({ task, open: true }) : undefined,
+            openMenu: sheet ? (task) => setMenu({ task, open: true }) : undefined,
             crossProject,
         }),
-        [crossProject, phone, dispatch],
+        [crossProject, sheet, dispatch],
     )
     // The column the sheet's card is in now, for its check.
     const menuList = menu.task ? Object.keys(items).find((k) => items[k].some((t) => t.task_uuid === menu.task?.task_uuid)) : undefined
+
+    // Columns in the project's order (columnDrag): a grip and its keys where a
+    // drag can be had (not on a phone), the menu's moves everywhere.
+    const columnHelp = useId()
+    const ordering = useMemo(() => (columnOrder ? { ...columnOrder, drag: !phone } : undefined), [columnOrder, phone])
+    const columnDrag = useColumnDrag({ boardRef, visible, ordering, say, describedBy: columnHelp, animate: !lanes })
+    const heldColumn = columnDrag.held ? visible.find((v) => v.value === columnDrag.held) : undefined
 
     // The line stays in view as the keys move it down a long column.
     useEffect(() => {
@@ -567,11 +586,19 @@ export function TaskBoard({
             sensors={sensors}
             collisionDetection={noCollisions}
             autoScroll={AUTO_SCROLL}
-            onDragStart={onDragStart}
+            // A column's grip or a card: each drag is one or the other.
+            onDragStart={(e) => {
+                if (!columnDrag.onDragStart(e)) onDragStart(e)
+            }}
             onDragMove={onDragMove}
-            onDragEnd={onDragEnd}
-            onDragCancel={finish}
+            onDragEnd={(e) => {
+                if (!columnDrag.onDragEnd()) onDragEnd(e)
+            }}
+            onDragCancel={() => {
+                if (!columnDrag.onDragCancel()) finish()
+            }}
         >
+            <ColumnOrderProvider value={columnDrag.actions}>
             <BoardActionsContext.Provider value={actions}>
             {/* Display contents: only here to catch the keys of the cards inside. */}
             <div className="contents" data-escape-own={!!activeTask && byKeys ? "" : undefined} onKeyDownCapture={onKeyDownCapture}>
@@ -592,6 +619,8 @@ export function TaskBoard({
                     totals={totals}
                     onShowMore={onShowMore}
                     badgeFor={badgeFor}
+                    heldColumn={columnDrag.held}
+                    heldByPointer={columnDrag.heldByPointer}
                 />
             ) : (
             // Columns 280px apart by 12 (8 on a phone, where each snaps to the
@@ -627,6 +656,7 @@ export function TaskBoard({
                         // drop slot), so only it hears of one: a pickup
                         // re-rendered every column and its cards before.
                         dragActive={dragging && (items[status.value]?.length ?? 0) === 0}
+                        lifted={columnDrag.held === status.value ? (columnDrag.heldByPointer ? "pointer" : "keys") : undefined}
                     />
                 ))}
             </div>
@@ -635,7 +665,9 @@ export function TaskBoard({
             )}
             </div>
             </BoardActionsContext.Provider>
-            {phone && (
+            </ColumnOrderProvider>
+            <ColumnDropLine line={columnDrag.line} />
+            {sheet && (
                 <CardSheet
                     task={menu.task}
                     open={menu.open}
@@ -650,13 +682,20 @@ export function TaskBoard({
             <p id={instructions} className="sr-only">
                 Press Space to pick the task up, the arrow keys to move it, and Space again to put it down. Escape puts it back.
             </p>
+            <p id={columnHelp} className="sr-only">
+                Moves the column for everyone in the project. Press Space to pick it up, the left and right arrow keys to move it, and Space again to put it down. Escape puts it back.
+            </p>
             <p aria-live="assertive" aria-atomic="true" className="sr-only">
                 {said}
             </p>
             {typeof document !== "undefined" &&
                 createPortal(
                     <DragOverlay dropAnimation={dropAnimation} className="work-drag-overlay">
-                        {activeTask && !byKeys ? <Item task={activeTask} value={activeTask.task_uuid} dragOverlay /> : null}
+                        {heldColumn && columnDrag.heldByPointer ? (
+                            <ColumnLift status={heldColumn} width={columnDrag.liftWidth} count={Math.max(totals?.[heldColumn.value] ?? 0, items[heldColumn.value]?.length ?? 0)} />
+                        ) : activeTask && !byKeys ? (
+                            <Item task={activeTask} value={activeTask.task_uuid} dragOverlay />
+                        ) : null}
                     </DragOverlay>,
                     document.body,
                 )}
@@ -704,6 +743,7 @@ const BoardColumn = memo(function BoardColumn({
     badgeFor,
     onShowMore,
     dragActive,
+    lifted,
 }: {
     status: StatusOption
     tasks: TaskInfoInterface[]
@@ -723,9 +763,17 @@ const BoardColumn = memo(function BoardColumn({
     onShowMore?: (column: string) => void
     /** A card is held somewhere on the board. */
     dragActive: boolean
+    /** This column is held to be moved (columnDrag), and how. */
+    lifted?: "pointer" | "keys"
 }) {
     // A drop target only for the keyboard, whose sensor steps between columns.
     const id = status.value
+    // Its place in the project's order, where this person may change it.
+    const order = useColumnOrder()
+    const move = useMemo(
+        () => (order ? { left: () => order.move(id, -1), right: () => order.move(id, 1), canLeft: () => order.canMove(id, -1), canRight: () => order.canMove(id, 1) } : undefined),
+        [order, id],
+    )
     const { setNodeRef } = useDroppable({ id, data: { type: "container", children: tasks } })
     const [adding, setAdding] = useState(false)
     // Lit only for a card from another column; in its own a card just opens a gap.
@@ -746,6 +794,10 @@ const BoardColumn = memo(function BoardColumn({
             hover={lineAt !== null && !isSource}
             dragActive={dragActive}
             data-column={id}
+            {...{ [COLUMN_SLOT]: id }}
+            grip={order?.drag ? <ColumnGrip status={status} /> : undefined}
+            move={move}
+            lifted={lifted}
         >
             <CardStack
                 id={id}
@@ -915,6 +967,8 @@ function LaneGrid({
     totals,
     onShowMore,
     badgeFor,
+    heldColumn,
+    heldByPointer,
 }: {
     boardRef: React.RefObject<HTMLDivElement | null>
     lanes: Lane[]
@@ -931,8 +985,12 @@ function LaneGrid({
     totals?: Record<string, number | undefined>
     onShowMore?: (column: string) => void
     badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
+    /** The column held to be moved (columnDrag), and whether by the pointer. */
+    heldColumn?: string | null
+    heldByPointer?: boolean
 }) {
     const inColumn = (status: string) => lanes.reduce((n, l) => n + (items[cellKey(l.id, status)]?.length ?? 0), 0)
+    const order = useColumnOrder()
     return (
         <div ref={boardRef} className="h-full overflow-auto overscroll-contain px-4 pb-4 sm:px-0" data-board-scroll="">
             <div className="w-max min-w-full">
@@ -943,14 +1001,47 @@ function LaneGrid({
                         const capped = total !== undefined && total > loaded
                         const paging = columnPaging(status)
                         const hue = columnHue(status)
+                        const lifted = heldColumn === status.value
                         return (
-                            <div key={status.value} className={cn(LANE_CELL, "flex h-10 items-center gap-2 rounded-lg px-2", columnWash(hue))}>
+                            <div
+                                key={status.value}
+                                {...{ [COLUMN_SLOT]: status.value }}
+                                data-column-lifted={lifted ? (heldByPointer ? "pointer" : "keys") : undefined}
+                                className={cn(
+                                    LANE_CELL,
+                                    "group/column flex h-10 items-center gap-2 rounded-lg px-2",
+                                    columnWash(hue),
+                                    lifted && heldByPointer && "opacity-40",
+                                    lifted && !heldByPointer && "ring-2 ring-primary",
+                                )}
+                            >
+                                {/* Its grip, as a board without lanes has it: the order is the project's,
+                                    so the column moves in every lane. */}
+                                {order?.drag && (
+                                    <div className="-ml-1 -mr-1 flex pointer-events-none opacity-0 transition-opacity duration-[140ms] focus-within:pointer-events-auto focus-within:opacity-100 group-hover/column:pointer-events-auto group-hover/column:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
+                                        <ColumnGrip status={status} />
+                                    </div>
+                                )}
                                 {/* The column's lozenge, as a board without lanes heads it. */}
                                 <span data-column-lozenge="" className={cn("inline-flex h-6 min-w-0 items-center gap-1.5 rounded-sm px-2 text-xs font-[510]", columnLozenge(hue))}>
                                     <TaskStatusCell status={status} label="tip" />
                                     <h2 className="truncate">{status.label}</h2>
                                 </span>
                                 <span className="text-xs tabular-nums text-ink-3">{Math.max(total ?? 0, loaded)}</span>
+                                {/* Its moves, as a column's own menu has them: the way on a phone. */}
+                                {order && (
+                                    <div className="order-last ml-auto flex pointer-events-none opacity-0 transition-opacity duration-[140ms] focus-within:pointer-events-auto focus-within:opacity-100 group-hover/column:pointer-events-auto group-hover/column:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
+                                        <ColumnMoveMenu
+                                            name={status.label}
+                                            move={{
+                                                left: () => order.move(status.value, -1),
+                                                right: () => order.move(status.value, 1),
+                                                canLeft: () => order.canMove(status.value, -1),
+                                                canRight: () => order.canMove(status.value, 1),
+                                            }}
+                                        />
+                                    </div>
+                                )}
                                 {capped && onShowMore && loaded < paging.max && (
                                     <button
                                         type="button"

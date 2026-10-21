@@ -31,7 +31,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { launch, demoContext, enterDemo, mark, since, keyStats, median, FE, BE } from "./lib.mjs"
+import { launch, demoContext, enterDemo, mark, since, keyStats, median, startFrames, stopFrames, FE, BE } from "./lib.mjs"
 import { check, missed as missedOf } from "./budgets.mjs"
 
 const args = process.argv.slice(2)
@@ -52,34 +52,6 @@ mkdirSync(OUT, { recursive: true })
 
 const SENTENCE = "Pilot customers get the checklist the Friday before."
 const FAKE_BOARD = "0b0a7d00-0000-4000-8000-00000000b0a7"
-
-function startFrames(page) {
-  return page.evaluate(() => {
-    const f = (window.__fluFrames = [])
-    let last = performance.now()
-    const tick = (t) => {
-      f.push(t - last)
-      last = t
-      if (f.length < 4000 && window.__fluFrames === f) requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  })
-}
-async function stopFrames(page) {
-  const f = await page.evaluate(() => {
-    const out = window.__fluFrames || []
-    window.__fluFrames = null
-    return out
-  })
-  const body = f.slice(2) // the first frames straddle the start
-  const total = body.reduce((a, b) => a + b, 0)
-  return {
-    frames: body.length,
-    fps: total ? Math.round((body.length / total) * 1000 * 10) / 10 : null,
-    slow: body.filter((d) => d > 34).length,
-    worst: body.length ? Math.round(Math.max(...body)) : null,
-  }
-}
 
 // A navigation can be cut off by the app's own redirect just after sign-in:
 // try again, then let the page settle.

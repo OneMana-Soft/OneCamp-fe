@@ -22,6 +22,7 @@ import { isComposingKey } from "@/lib/keys/ime"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { usePageFacts } from "./chrome/pageFacts"
 import { useDoc } from "./chrome/useDoc"
+import { useInSplitPane } from "@/hooks/useLinkTarget"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -239,7 +240,9 @@ function DocCrumb({ docId, title, icon, canEdit }: { docId: string; title: strin
     >
       {/* The open doc always shows its glyph, in its hue (D13): the header is where a doc is most often seen. */}
       <DocIcon icon={icon} id={docId} size={16} />
-      <span key={title} className="content-rise truncate">
+      {/* Cut at its end, on a word ("Q4 launch…"): its start is how people know a
+          doc, as in browser tabs. One line, clamped, so whole words wrap out of sight. */}
+      <span key={title} className="content-rise line-clamp-1 [overflow-wrap:anywhere]">
         {title || "Untitled"}
       </span>
     </button>
@@ -269,9 +272,11 @@ function Trail({ docId }: { docId: string }) {
   const facts = usePageFacts(docId)
   const held = (facts.lock || doc?.doc_lock_level) === "soft" && !facts.unlockedForMe
   const steps = crumbsOf(path?.ancestors ?? [])
+  // Beside the page, the view's bar already names the doc: the path ends above it.
+  const inPane = useInSplitPane()
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-ui" data-doc-breadcrumbs="">
-      <IntentLink href="/app/doc" className={cn(crumbClass, "shrink-0", top.over && "bg-press text-ink ring-2 ring-brand/50")} {...top.props}>
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-ui" data-doc-breadcrumbs="" data-titled={inPane ? undefined : ""}>
+      <IntentLink href="/app/doc" data-crumb-root="" className={cn(crumbClass, "shrink-0", top.over && "bg-press text-ink ring-2 ring-brand/50")} {...top.props}>
         Docs
       </IntentLink>
       {path?.truncated ? (
@@ -286,8 +291,12 @@ function Trail({ docId }: { docId: string }) {
           {s.kind === "page" ? <PageCrumb node={s.node} /> : s.kind === "more" ? <MoreCrumb nodes={s.nodes} hidden={s.hidden} /> : <HiddenCrumb count={s.count} />}
         </React.Fragment>
       ))}
-      <Sep />
-      <DocCrumb docId={docId} title={doc?.doc_title?.trim() ?? ""} icon={doc?.doc_icon} canEdit={(doc?.doc_edit_access ?? 0) > 0 && !held} />
+      {!inPane && (
+        <>
+          <Sep />
+          <DocCrumb docId={docId} title={doc?.doc_title?.trim() ?? ""} icon={doc?.doc_icon} canEdit={(doc?.doc_edit_access ?? 0) > 0 && !held} />
+        </>
+      )}
     </nav>
   )
 }

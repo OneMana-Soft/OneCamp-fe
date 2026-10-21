@@ -442,6 +442,8 @@ const TaskRow = React.memo(function TaskRow({
       }}
       className={cn(
         ROW_H,
+        // Drawn only near the screen: a list of thousands costs its visible rows (globals.css).
+        "row-lazy",
         "group/row relative flex cursor-pointer items-center gap-2.5 border-b border-line pl-1.5 pr-4 outline-none transition-colors duration-[140ms]",
         "hover:bg-hover active:bg-press",
         selected && "bg-sel",

@@ -1,0 +1,61 @@
+{
+  "about": "The files the call effects load at run time, copied out of node_modules into public/ by scripts/calls-assets.mjs before every build, so this server serves them itself (lib/calls/processors/assets.ts). Each folder names its package's version; calls-assets.test.ts holds them to the installed packages. Each file carries its sha256, which the copy checks: a package that changed under the same version fails the build.",
+  "packages": [
+    {
+      "pkg": "@mediapipe/tasks-vision",
+      "version": "0.10.14",
+      "licence": "Apache-2.0",
+      "dir": "calls/vendor/tasks-vision@0.10.14",
+      "files": [
+        [
+          "wasm/vision_wasm_internal.js",
+          "vision_wasm_internal.js",
+          "9440cf0cc0cea21800e31581ec32aeedcc5fbf9df4509796bbc7d3f99e52ab9c"
+        ],
+        [
+          "wasm/vision_wasm_internal.wasm",
+          "vision_wasm_internal.wasm",
+          "f82a8e6c05e08a44cc9f9e7ec5f845935bcbb1b1500ebe8c2f4812fb4e2917dc"
+        ],
+        [
+          "wasm/vision_wasm_nosimd_internal.js",
+          "vision_wasm_nosimd_internal.js",
+          "abe9b6fbeaf86fcb53a5edce3926c82ccb0619e18fed4d9d9ce561ee7f55e054"
+        ],
+        [
+          "wasm/vision_wasm_nosimd_internal.wasm",
+          "vision_wasm_nosimd_internal.wasm",
+          "38b61feab2fd7934e05cbe9f68baa308978a5e3b7f85c1913bb8ae89b8ef8b97"
+        ]
+      ]
+    },
+    {
+      "pkg": "@sapphi-red/web-noise-suppressor",
+      "version": "0.4.1",
+      "licence": "MIT",
+      "dir": "calls/vendor/web-noise-suppressor@0.4.1",
+      "files": [
+        [
+          "dist/rnnoise/workletProcessor.js",
+          "rnnoise/workletProcessor.js",
+          "1e06facbb3d7459b89769aa4247cd4b71263e6662e4da0c54763f3bf06f5893b"
+        ],
+        [
+          "dist/rnnoise.wasm",
+          "rnnoise.wasm",
+          "8b60a2ab88fdae2d1a9f940249d0eb072f28ba8e796f7304347b4e07839c8853"
+        ],
+        [
+          "dist/rnnoise_simd.wasm",
+          "rnnoise_simd.wasm",
+          "378fd17c294db15ee4e818ba5ef072242a21c8ad7445b483f7f46d7dc4f2c253"
+        ],
+        [
+          "LICENSE",
+          "LICENSE",
+          "d91a727fcf7115e66c14fd7430b920baaa2c49f9908d0df473e7d971affcf21a"
+        ]
+      ]
+    }
+  ]
+}

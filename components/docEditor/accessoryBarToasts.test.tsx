@@ -39,6 +39,7 @@ describe("the doc's phone bar and the toasts", () => {
     expect(pageOwnsBottomEdge("/app/doc/7d2c9a4e")).toBe(true)
     const bar = readFileSync("components/navigationBar/mobile/mobileNavigationBar.tsx", "utf8")
     expect(bar).toContain('"--phone-floor", "var(--mobile-drawer-h, env(safe-area-inset-bottom))"')
-    expect(readFileSync("components/ui/toast.tsx", "utf8")).toContain("bottom-[calc(var(--phone-floor)+12px)]")
+    // 12px above the floor, or above a call's dock while one is on screen (max() with --call-dock-floor).
+    expect(readFileSync("components/ui/toast.tsx", "utf8")).toContain("bottom-[max(calc(var(--phone-floor)+12px),var(--call-dock-floor,0px))]")
   })
 })
