@@ -139,14 +139,21 @@ test.describe("on a computer", () => {
     await expect.poll(() => row(page, views)).toEqual(["main", key(B), key(A)])
 
     // Space lifts it, the arrows walk it (its place, then the line before it),
-    // Space puts it down. @dnd-kit's keyboard sensor listens a timer's tick
-    // after the lift, so the keys wait for the lift, as a hand's do.
+    // Space puts it down. The lift measures where the views are, so it waits
+    // for the swap target to stop moving: the Undo slides the views into their
+    // places, and a lift mid-slide measured the target where it had been, so the
+    // first arrow went past its place to the line before it.
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("[data-split-row] [data-flip-id]")].every((el) => el.getAnimations().every((a) => a.playState !== "running")),
+    )
     await handle(page, key(A)).focus()
     await page.keyboard.press("Space")
     await expect(page.locator("html")).toHaveAttribute("data-dragging", "true")
     // The ghost starts on the view's bar, not in the window's corner.
     expect((await box(page.locator(".split-ghost"))).x).toBeGreaterThan((await box(sheet(page, key(A)))).x)
-    await page.waitForTimeout(150)
+    // @dnd-kit's keyboard sensor starts listening on a timer it sets at the
+    // lift, so the keys wait for a timer set after it (150 ms wasn't always enough).
+    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)))
     await page.keyboard.press("ArrowLeft")
     await expect(page.locator(".split-drop-swap")).toBeVisible()
     await page.keyboard.press("ArrowLeft")
