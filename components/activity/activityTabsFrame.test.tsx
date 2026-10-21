@@ -142,10 +142,14 @@ function renderTab(tab: (typeof TABS)[number]) {
   return render(<ActivityListTabs />)
 }
 
-/** A tab, once it has drawn: the AI tab's record is a chunk of its own (app/firstLoad.test.ts, the Inbox). */
+/**
+ * A tab, once it has drawn: the AI tab's record is a chunk of its own (app/firstLoad.test.ts, the Inbox).
+ * Its first import takes about a second here, alone, and more under load, past waitFor's one-second
+ * default: it may take five.
+ */
 async function renderedTab(tab: (typeof TABS)[number]) {
   const out = renderTab(tab)
-  await waitFor(() => expect(out.container.querySelector("[data-feed-frame]")).toBeTruthy())
+  await waitFor(() => expect(out.container.querySelector("[data-feed-frame]")).toBeTruthy(), { timeout: 5000 })
   return out
 }
 
