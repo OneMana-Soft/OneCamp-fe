@@ -7,15 +7,15 @@
 import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectsGet } from "@/services/endpoints/projects"
 import type { CheckIn, CheckInInput } from "@/lib/checkins"
 
 export function useCheckIns(channelId: string | undefined) {
-  const key = channelId ? `${GetEndpointUrl.CheckIns}/${channelId}/checkins` : ""
+  const key = channelId ? `${ProjectsGet.CheckIns}/${channelId}/checkins` : ""
   const { data, isLoading, mutate } = useFetch<{ data: { checkins: CheckIn[]; can_edit: boolean } }>(key)
   const act = useCallback(
     async (path: string, body: object = {}) => {
-      const res = await axiosInstance.post(`${GetEndpointUrl.CheckIns}${path}`, body)
+      const res = await axiosInstance.post(`${ProjectsGet.CheckIns}${path}`, body)
       await mutate()
       return res.data?.data
     },
