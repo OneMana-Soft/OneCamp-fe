@@ -74,8 +74,6 @@ export enum GetEndpointUrl {
     GetDocInfo = "/doc/getDocInfo",
     GetBoardInfo = "/board/getBoardInfo",
     GetScheduledMessages = "/message/scheduled",
-    // AI Agent Builder
-    GetAgents = "/agents",
     // Tables (first-class structured-data entity)
     GetTables = "/tables",
     GetTable = "/tables",       // append /{id} (bundle)
@@ -89,10 +87,6 @@ export enum GetEndpointUrl {
     // Email notification preferences (per-user).
     GetNotificationPreferences = "/user/notificationPreferences",
 
-    // AI Second Brain
-    AIStatus = "/ai/status",
-    GetAIMyModels = "/ai/models",
-
     // Workspace settings (admin)
     GetWorkspaceSettings = "/admin/settings",
     GetDefaultChannels = "/admin/default-channels",
@@ -100,10 +94,6 @@ export enum GetEndpointUrl {
     /** How full the server's disk is (admins only): used_pct, free_bytes, level. */
     GetAdminDisk = "/admin/disk",
     GetTranscriptionConfig = "/admin/transcription/config",
-
-    // AI model management (Admin)
-    GetAIConfig = "/admin/ai/config",
-    GetAIAuthorizedModels = "/admin/ai/authorized-models",
 
     // Capability permission policies (Admin)
     GetCapabilityPolicies = "/admin/capabilities",

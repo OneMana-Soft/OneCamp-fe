@@ -46,9 +46,6 @@ export enum ProjectsGet {
     ProjectGoals = "/project",
     // The AI edition's draft of a goal's next check-in (POST {goal_id, tz}).
     AiGoalCheckInDraft = "/ai/goal-checkin/draft",
-    // The AI edition's plan for a project from a sentence: POST {description}
-    // starts a draft, GET /{draft_id} reads it until it's done.
-    AiProjectPlanDraft = "/ai/project-template/draft",
     GetTaskCycle = "/task/cycle",
     // A client's newest verdict on a task: /task/clientReview/{task}
     TaskClientReview = "/task/clientReview",
@@ -83,6 +80,4 @@ export enum ProjectsPost {
     SetTaskCycle = "/task/cycle",
     SaveTaskView = "/task/views",
     DeleteTaskView = "/task/views/delete",
-    AIExtractTasks = "/ai/extract-tasks",
-    AIExtractTasksCreate = "/ai/extract-tasks/create",
 }

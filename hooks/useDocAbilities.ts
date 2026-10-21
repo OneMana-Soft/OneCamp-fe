@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useAIAvailable } from "@/hooks/useClientConfig"
-import { GetEndpointUrl } from "@/services/endPoints"
+import { DocsGet } from "@/services/endpoints/docs"
 import { docAbilities, docLevelOf, type DocAbilities, type DocAccessCounts, type DocActionNeeds } from "@/lib/docs/abilities"
 
 /**
@@ -13,7 +13,7 @@ import { docAbilities, docLevelOf, type DocAbilities, type DocAccessCounts, type
  */
 export function useDocActionNeeds(): DocActionNeeds | null {
     const ai = useAIAvailable()
-    const status = useFetchOnlyOnce<{ data?: { doc_action_needs?: DocActionNeeds } }>(ai ? GetEndpointUrl.AIStatus : "")
+    const status = useFetchOnlyOnce<{ data?: { doc_action_needs?: DocActionNeeds } }>(ai ? DocsGet.AIStatus : "")
     return ai ? status.data?.data?.doc_action_needs ?? null : null
 }
 

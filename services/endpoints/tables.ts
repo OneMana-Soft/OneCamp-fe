@@ -33,7 +33,6 @@ export enum TablesPost {
     RestoreTableTrash = "/tables", // append /{id}/trash/restore
     RestoreTable = "/tables", // append /{id}/restore
     AggregateTable = "/tables", // append /{id}/aggregate (read-only)
-    RunTableQueryPlan = "/tables", // append /{id}/query-plan (read-only, multi-step)
     CreateTableField = "/tables", // append /{id}/fields
     UpdateTableField = "/tables", // append /{id}/fields/{fieldId}/update
     DeleteTableField = "/tables", // append /{id}/fields/{fieldId}/delete

@@ -16,12 +16,6 @@ export enum BoardsGet {
 
 export enum BoardsPost {
     UpdateBoard = "/board/updateBoard",
-    GenerateBoardDiagramStream = "/board/aiGenerateStream",
-    PlanBoardDiagram = "/board/aiPlan",
-    RefineBoardDiagram = "/board/aiRefineDiagram",
-    ClusterBoardContent = "/board/aiCluster",
-    GenerateBoardUI = "/board/aiGenerateUI",
-    RefineBoardUI = "/board/aiRefineUI",
     SearchUserForBoard = "/board/searchUsers",
     BoardCommentMention = "/board/commentMention",
     BoardCommentDelete = "/board/commentDelete",

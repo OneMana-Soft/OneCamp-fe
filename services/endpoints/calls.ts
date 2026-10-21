@@ -13,5 +13,4 @@ export enum CallsGet {
 export enum CallsPost {
     SaveMyTranscript = "/livekit/my-transcript",
     ReportTranscriptionCapability = "/livekit/my-capability",
-    AIInCallAskStream = "/ai/in-call/ask/stream",
 }

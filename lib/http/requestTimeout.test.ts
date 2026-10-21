@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { isTimeout, waitsAsLongAsItTakes } from "./requestTimeout"
 import { GetEndpointUrl, PostEndpointUrl, PostFileUploadURL } from "@/services/endPoints"
+import { AdminGet } from "@/services/endpoints/admin"
 import { AiPost } from "@/services/endpoints/ai"
 import { ChatGet, ChatPost } from "@/services/endpoints/chat"
 import { InboxPost } from "@/services/endpoints/inbox"
@@ -58,10 +59,10 @@ describe("what waits as long as its work takes", () => {
   // drill and a mail thread's summary all run the model before they answer,
   // and were cut off at 30 seconds with "didn't answer in time".
   it("a run or a summary the server answers when it ends, but never a read", () => {
-    for (const url of [`${AiPost.RunAgent}/a1/run`, `${GetEndpointUrl.GetAgents}/a1/eval/run`, `${GetEndpointUrl.GetAgents}/eval/scenarios/s1/run`, "/admin/governance-drill/run", "/connectors/gmail/threads/t1/summary"]) {
+    for (const url of [`${AiPost.RunAgent}/a1/run`, `${AdminGet.GetAgents}/a1/eval/run`, `${AdminGet.GetAgents}/eval/scenarios/s1/run`, "/admin/governance-drill/run", "/connectors/gmail/threads/t1/summary"]) {
       expect(waitsAsLongAsItTakes({ url, method: "post" }), url).toBe(true)
     }
-    for (const url of [`${GetEndpointUrl.GetAgents}/a1/runs`, `${GetEndpointUrl.GetAgents}/a1/eval/summary`, `${GetEndpointUrl.GetAgents}/eval/summary`]) {
+    for (const url of [`${AdminGet.GetAgents}/a1/runs`, `${AdminGet.GetAgents}/a1/eval/summary`, `${AdminGet.GetAgents}/eval/summary`]) {
       expect(waitsAsLongAsItTakes({ url, method: "get" }), url).toBe(false)
     }
   })
@@ -78,7 +79,8 @@ describe("what waits as long as its work takes", () => {
     for (const [, url] of entries) uses.set(url, (uses.get(url) ?? 0) + 1)
     const missed = entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1 && !waitsAsLongAsItTakes({ url })).map(([name, url]) => `${name} = ${url}`)
     expect(missed).toEqual([])
-    expect(entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1).length).toBeGreaterThan(30)
+    // The AI-free web names fewer of them (27 when the AI endpoints nothing here reads went).
+    expect(entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1).length).toBeGreaterThan(20)
   })
 })
 

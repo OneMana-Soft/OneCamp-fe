@@ -7,6 +7,9 @@
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum DocsGet {
+    // What a doc action needs from the AI: only the doc abilities read it on the
+    // public AI-free web (the assistant's panels are the AI edition's).
+    AIStatus = "/ai/status",
     GetDocAttachment = "/doc/getDocAttachment",
     GetAllCommentOfDoc = "/doc/getCommentList",
     GetSourceLinks = "/link/source", // append /{source_type}/{source_uuid}

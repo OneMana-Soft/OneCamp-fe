@@ -176,8 +176,6 @@ describe("every place wears its area's hue, and what names no area ink", () => {
       "/app/settings/notifications": "ink",
       "/app/settings/connectors": "ink",
       "/app/settings/workflows": "ink",
-      "/app/settings/agents": "agent",
-      "/app/settings/assistants": "agent",
       "/app/settings/api-tokens": "ink",
     })
     for (const s of SETTINGS_SECTIONS) expect(destinationHue(s.href), s.href).toBe(s.hue)

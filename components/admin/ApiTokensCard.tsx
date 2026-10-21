@@ -14,7 +14,6 @@ import { SettingsList, SettingsRowsSkeleton } from "@/components/ui/settingsSect
 import { ErrorState } from "@/components/ui/error-state"
 import { useCopy } from "@/components/ui/settingsControls"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
 import { AdminGet } from "@/services/endpoints/admin"
 import { toast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
@@ -96,7 +95,7 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
   const { data, isLoading, isError, mutate } = useFetch<{ data: ApiToken[] }>(AdminGet.GetApiTokens)
   // The agents endpoint already returns only agents the caller may manage, so
   // every option offered here is one the server will accept.
-  const { data: agentsData } = useFetch<{ data: Agent[] }>(GetEndpointUrl.GetAgents)
+  const { data: agentsData } = useFetch<{ data: Agent[] }>(AdminGet.GetAgents)
   const tokens = data?.data || []
   const agentsById = new Map((agentsData?.data || []).map((a) => [a.id, a]))
   const [busyId, setBusyId] = useState<string | null>(null)

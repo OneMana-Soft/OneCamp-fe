@@ -7,12 +7,9 @@
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum AdminGet {
-    // MCP servers (external tool providers)
-    GetMcpServers = "/mcp/servers",
-    GetMcpCatalog = "/mcp/catalog",
-    // External data sources (read-only connectors)
-    GetDataSources = "/data-sources", // management list (agent.manage)
-    GetDataSourceSchema = "/data-sources", // append /{id}/schema
+    // The agents an API token can be bound to: only the API tokens card reads it
+    // on the public AI-free web (the agents' own pages are the AI edition's).
+    GetAgents = "/agents",
     // API tokens (public API)
     GetApiTokens = "/api-tokens",
     GetApiTokenScopes = "/api-tokens/scopes",
@@ -37,7 +34,6 @@ export enum AdminGet {
     // against /scim/v2, so they belong to the WORKSPACE rather than to whoever created them — which is
     // why they are managed here and not in a member's own settings.
     GetScimTokens = "/admin/scim/tokens",
-    GetAIActivity = "/admin/ai/activity",
     // Webhooks (Admin)
     GetAllWebhooks = "/admin/webhooks",
     GetWebhookLogs = "/admin/webhooks", // append /{webhookId}/logs
@@ -62,20 +58,6 @@ export enum AdminGet {
 }
 
 export enum AdminPost {
-    // MCP servers (external tool providers)
-    CreateMcpServer = "/mcp/servers",
-    UpdateMcpServer = "/mcp/servers", // append /{id}/update
-    DeleteMcpServer = "/mcp/servers", // append /{id}/delete
-    SetMcpServerEnabled = "/mcp/servers", // append /{id}/enabled
-    TestMcpServer = "/mcp/servers", // append /{id}/test
-    // External data sources (read-only connectors). All writes are POST.
-    CreateDataSource = "/data-sources", // POST /data-sources
-    UpdateDataSource = "/data-sources", // append /{id}/update
-    DeleteDataSource = "/data-sources", // append /{id}/delete
-    SetDataSourceEnabled = "/data-sources", // append /{id}/enabled
-    TestDataSource = "/data-sources", // append /{id}/test
-    TestDataSourceConfig = "/data-sources/test-connection", // POST (unsaved config)
-    QueryPlanDataSource = "/data-sources", // append /{id}/query-plan (read-only, multi-step)
     // API tokens (public API)
     CreateApiToken = "/api-tokens", // POST /api-tokens
     RevokeApiToken = "/api-tokens", // append /{id}/revoke
