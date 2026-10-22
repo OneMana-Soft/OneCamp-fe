@@ -14,6 +14,7 @@ import { SWRMutateBridge } from "@/components/providers/SWRMutateBridge";
 import { localStorageProvider } from "@/lib/swrCache";
 import { sweepTTLKeys } from "@/lib/utils/helpers/ttlStorage";
 import dynamic from "next/dynamic";
+import { lazyPart } from "@/lib/lazy/lazyPart";
 import "@/lib/env"; // Trigger validation on load
 // Initialise i18next on the client. Side-effect import ONLY: the module
 // runs i18n.use(initReactI18next).init({...}) at evaluation time. Without
@@ -27,6 +28,11 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 
 // The one chip for every data-tip label (components/ui/tipLayer), in a chunk of its own.
 const TipLayer = dynamic(() => import("@/components/ui/tipLayer"), { ssr: false });
+// The member's saved theme, applied once their profile has come, and their
+// changes saved to it: here, under the cache the profile is read into. A lazy
+// part: if its code can't come, the page keeps the theme it has.
+const Nothing = () => null;
+const themeSync = lazyPart(() => import("@/components/activeTheme/ThemeSync").then((m) => m.ThemeSync), { placeholder: Nothing, failed: Nothing });
 
 export default function ClientProviders({
   children,
@@ -56,6 +62,7 @@ export default function ClientProviders({
     // for the persistence specifics.
     <SWRConfig value={{ provider: localStorageProvider }}>
       <SWRMutateBridge />
+      <themeSync.Part />
       <MediaQueryProvider>
         <LoadingProvider>
           {/* One provider (design v3, shell M3): the first tooltip waits 500ms;
