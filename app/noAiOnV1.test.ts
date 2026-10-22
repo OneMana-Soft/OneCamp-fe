@@ -40,7 +40,10 @@ import { describe, expect, it } from "vitest"
 const ROOTS = ["app", "components", "context", "hooks", "lib", "services", "store", "types"]
 const TEST_ONLY = join("lib", "testing")
 
-/** Findings that only look like AI, each with why: [file, finding, why]. */
+/**
+ * Findings that only look like AI, each with why: [file, finding, why]. An
+ * entry stands for one finding, so a second of the same text fails.
+ */
 const NOT_AI: Array<[file: string, finding: string, why: string]> = [
   ["lib/utils/format/getFriendlyFileExtension.ts", 'says "AI"', "the Illustrator file type (application/postscript)"],
   ["services/updatesService.ts", 'says "with AI"', "the updates card names the two editions"],
@@ -49,7 +52,8 @@ const NOT_AI: Array<[file: string, finding: string, why: string]> = [
 
 /**
  * AI this line still held when the check was widened (22 Oct 2026): copy and
- * wiring carried over from the ai branch, each a leak to remove. The list only
+ * wiring carried over from the ai branch, each a leak to remove. GUARD-BUILDER
+ * removes them from this line, one change per area, by v1.60.3. The list only
  * shrinks: a removed leak fails until its entry goes too, so it can't come back.
  * The leaks the audit named (Translate, the attachment viewer's Ask AI, the
  * command palette's AI search, and the services behind them) are not on it.
@@ -168,10 +172,16 @@ describe("the AI-free edition", () => {
       return { rel, line: hit.slice(0, cut), what: hit.slice(cut + 2) }
     })
   })
+  // Each entry of either list stands for one finding.
+  const notAi = [...NOT_AI]
   const left = new Map(Object.entries(LEFT_TO_REMOVE).map(([file, whats]) => [file, [...whats]]))
   const unlisted: string[] = []
   for (const { rel, line, what } of found) {
-    if (NOT_AI.some(([file, finding]) => file === rel && finding === what)) continue
+    const exempt = notAi.findIndex(([file, finding]) => file === rel && finding === what)
+    if (exempt >= 0) {
+      notAi.splice(exempt, 1)
+      continue
+    }
     const listed = left.get(rel) ?? []
     const at = listed.indexOf(what)
     if (at >= 0) listed.splice(at, 1)
@@ -192,7 +202,7 @@ describe("the AI-free edition", () => {
   })
 
   it("keeps the not-AI list to findings that are there", () => {
-    expect(NOT_AI.filter(([file, finding]) => !found.some((f) => f.rel === file && f.what === finding))).toEqual([])
+    expect(notAi).toEqual([])
   })
 })
 
