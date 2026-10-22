@@ -227,7 +227,10 @@ describe("loading the page", () => {
       expect(screen.getAllByRole("button", { name: /^Time zone:/ })).toHaveLength(1)
       const before = made
       await act(async () => fireEvent.click(screen.getByRole("button", { name: /^Time zone:/ })))
-      expect(screen.getByRole("listbox", { name: "Time zones" })).toBeTruthy()
+      // The list is its own chunk (zonePicker's React.lazy), which a fresh
+      // import may not have in by the click's act: its fallback shows until
+      // then, so the list is waited for, not read at once (it was 2 runs in 3).
+      expect(await screen.findByRole("listbox", { name: "Time zones" }, { timeout: 10_000 })).toBeTruthy()
       expect(made).toBeGreaterThan(before + 100)
     } finally {
       Intl.DateTimeFormat = Real
