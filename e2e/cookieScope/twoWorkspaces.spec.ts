@@ -65,11 +65,19 @@ function write(page: Page, w: Workspace): Promise<{ status: number; named: boole
  * the host that made it. Kept in memory, never printed.
  */
 function recordTraffic(context: BrowserContext) {
-  const pending: Promise<{ host: string; path: string; method: string; cookies: [string, string][] }>[] = []
+  const sent: { host: string; path: string; method: string; cookies: [string, string][] }[] = []
   const minted = new Map<string, Set<string>>()
-  const setBy: Promise<void>[] = []
+  // A request still in flight when the pages are done (a poll, a stream, a host
+  // this test's world doesn't serve) may never give its headers, and the
+  // context closing rejects what's left: every request and response that has
+  // given its headers is read, with a bounded wait for the rest.
+  let open = 0
+  const track = (read: Promise<unknown>) => {
+    open++
+    void read.catch(() => {}).finally(() => open--)
+  }
   context.on("response", (res) => {
-    setBy.push(
+    track(
       res.headersArray().then((headers) => {
         const host = new URL(res.url()).hostname
         for (const h of headers) {
@@ -83,7 +91,7 @@ function recordTraffic(context: BrowserContext) {
     )
   })
   context.on("request", (req) => {
-    pending.push(
+    track(
       req.allHeaders().then((h) => {
         const url = new URL(req.url())
         const cookies = (h.cookie ?? "")
@@ -93,13 +101,13 @@ function recordTraffic(context: BrowserContext) {
             const i = pair.indexOf("=")
             return [pair.slice(0, i), pair.slice(i + 1)]
           })
-        return { host: url.hostname, path: url.pathname, method: req.method(), cookies }
+        sent.push({ host: url.hostname, path: url.pathname, method: req.method(), cookies })
       }),
     )
   })
   return async () => {
-    await Promise.all(setBy)
-    return { sent: await Promise.all(pending), minted }
+    for (const until = Date.now() + 10_000; open > 0 && Date.now() < until; ) await new Promise((r) => setTimeout(r, 100))
+    return { sent: [...sent], minted }
   }
 }
 
