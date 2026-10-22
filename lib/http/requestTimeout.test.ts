@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 import { isTimeout, waitsAsLongAsItTakes } from "./requestTimeout"
 import { GetEndpointUrl, PostEndpointUrl, PostFileUploadURL } from "@/services/endPoints"
 import { AdminGet } from "@/services/endpoints/admin"
-import { AiPost } from "@/services/endpoints/ai"
 import { ChatGet, ChatPost } from "@/services/endpoints/chat"
 import { InboxPost } from "@/services/endpoints/inbox"
 import { TablesPost } from "@/services/endpoints/tables"
@@ -35,13 +34,12 @@ describe("what waits as long as its work takes", () => {
   it("the model at work, wherever its route lives", () => {
     for (const url of [
       InboxPost.AICatchUp,
-      AiPost.AISchedulePropose,
       "/admin/ai/self-test",
       PostEndpointUrl.GenerateBoardDiagram,
       "/tables/t1/fields/f1/ai-fill",
       "/tables/t1/query-plan",
       TablesPost.GenerateTable,
-      AiPost.DraftAgent,
+      "/agents/draft",
       ChatGet.GetDMAISuggestions,
     ]) {
       expect(waitsAsLongAsItTakes({ url }), url).toBe(true)
@@ -59,7 +57,7 @@ describe("what waits as long as its work takes", () => {
   // drill and a mail thread's summary all run the model before they answer,
   // and were cut off at 30 seconds with "didn't answer in time".
   it("a run or a summary the server answers when it ends, but never a read", () => {
-    for (const url of [`${AiPost.RunAgent}/a1/run`, `${AdminGet.GetAgents}/a1/eval/run`, `${AdminGet.GetAgents}/eval/scenarios/s1/run`, "/admin/governance-drill/run", "/connectors/gmail/threads/t1/summary"]) {
+    for (const url of ["/agents/a1/run", `${AdminGet.GetAgents}/a1/eval/run`, `${AdminGet.GetAgents}/eval/scenarios/s1/run`, "/admin/governance-drill/run", "/connectors/gmail/threads/t1/summary"]) {
       expect(waitsAsLongAsItTakes({ url, method: "post" }), url).toBe(true)
     }
     for (const url of [`${AdminGet.GetAgents}/a1/runs`, `${AdminGet.GetAgents}/a1/eval/summary`, `${AdminGet.GetAgents}/eval/summary`]) {
