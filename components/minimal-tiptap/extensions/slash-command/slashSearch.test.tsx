@@ -143,11 +143,13 @@ describe("a suggestion menu's keys", () => {
     const editor = await mountEditor()
     await typeInto(editor, "@Sa")
     // The list's view loads when it first opens.
-    await waitFor(() => expect(document.querySelector("[data-mention-list]")).toBeTruthy(), { timeout: 5000 })
+    // Waited for up to 10 s, inside the test's own 20 s: on a loaded runner (CI on Node 22.23.4,
+    // 22 Oct) the editor's mount and this first load took 8.4 s against a test's 5 s.
+    await waitFor(() => expect(document.querySelector("[data-mention-list]")).toBeTruthy(), { timeout: 10_000 })
     press(editor, "Escape")
     press(editor, "Enter")
     expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"mention"')
-  })
+  }, 20_000)
 
   it("Enter still picks while the menu shows", async () => {
     const editor = await mountEditor()
