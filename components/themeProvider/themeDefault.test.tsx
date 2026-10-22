@@ -70,7 +70,7 @@ describe("the starting theme", () => {
 
   it("never applies the shared demo account's saved mode", () => {
     const sync = read("components/activeTheme/ThemeSync.tsx")
-    expect(sync).toMatch(/const shouldFetch = !DEMO && checkAuthCookieExists\(\)/)
+    expect(sync).toMatch(/useSWR<UserProfileInterface>\(DEMO \? null : GetEndpointUrl\.SelfProfile, null\)/)
     expect(read("components/activeTheme/useThemeBackendSync.ts")).toMatch(/NEXT_PUBLIC_DEMO_MODE === "true"/)
   })
 })

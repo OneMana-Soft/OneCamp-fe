@@ -5,7 +5,6 @@ import { useTheme } from "next-themes"
 import { useThemeConfig } from "@/components/activeTheme/activeTheme"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
-import { checkAuthCookieExists } from "@/lib/utils/helpers/getCookie"
 
 const MIN_SYNC_INTERVAL_MS = 5000
 
@@ -13,6 +12,9 @@ const MIN_SYNC_INTERVAL_MS = 5000
 // saved to it (ThemeSync keeps it in their browser), or the next visitor would
 // open in it.
 const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
+
+/** The theme the member's profile holds; null while no profile is held (nobody signed in). */
+export type SavedTheme = { color: string | null; mode: string | null } | null
 
 /**
  * Watches for theme changes (color + mode) and syncs them to the backend.
@@ -28,7 +30,7 @@ const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
  * the current values differ from what was last sent. This eliminates
  * hydration false positives, initial-load noise, and re-render loops.
  */
-export function useThemeBackendSync() {
+export function useThemeBackendSync(saved: SavedTheme) {
   const { activeTheme } = useThemeConfig()
   const { theme } = useTheme()
   const post = usePost()
@@ -39,6 +41,7 @@ export function useThemeBackendSync() {
     mode: null,
   })
   const lastSyncTimeRef = useRef<number>(0)
+  const seeded = useRef(false)
 
   useEffect(() => {
     // Skip while theme is still resolving from hydration
@@ -46,13 +49,17 @@ export function useThemeBackendSync() {
 
     if (DEMO) return
 
-    // Don't push theme writes from unauthenticated pages (login, signup,
-    // forgot-password, etc.). Without this guard, an anonymous visit
-    // triggers a /updateUserTheme POST that 401s, the axios response
-    // interceptor walks the refresh-then-logout chain, and isLoggingOut
-    // gets latched true — which breaks the very next demo / OAuth login
-    // attempt by aborting the post-login /self_profile fetch.
-    if (!checkAuthCookieExists()) return
+    // Only for a signed-in member, whose profile the app holds. From a page
+    // nobody is signed in to, the POST would 401 and the axios interceptor
+    // would walk the refresh-then-logout chain, latching isLoggingOut and
+    // breaking the next sign-in. (This waited for a cookie JS can't see, the
+    // session's being HttpOnly, so no change was ever saved.)
+    if (!saved) return
+    // What the profile holds is saved already.
+    if (!seeded.current) {
+      seeded.current = true
+      lastSyncedRef.current = { ...saved }
+    }
 
     // Skip if values match what was already synced
     if (
@@ -103,5 +110,5 @@ export function useThemeBackendSync() {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [activeTheme, theme, post])
+  }, [activeTheme, theme, post, saved])
 }

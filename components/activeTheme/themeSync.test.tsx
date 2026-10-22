@@ -9,14 +9,14 @@ const setTheme = vi.fn((m: string) => {
   state.mode = m
 })
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: state.mode, setTheme }) }))
+// The profile the app holds, as SWR's cache answers it; ThemeSync never fetches.
 const fetchedKeys: string[] = []
-vi.mock("@/hooks/useFetch", () => ({
-  useFetchOnlyOnce: (key: string) => {
-    fetchedKeys.push(key)
+vi.mock("swr", () => ({
+  default: (key: string | null) => {
+    fetchedKeys.push(key ?? "")
     return { data: key ? state.profile : undefined }
   },
 }))
-vi.mock("@/lib/utils/helpers/getCookie", () => ({ checkAuthCookieExists: () => true }))
 vi.mock("@/components/activeTheme/useThemeBackendSync", () => ({ useThemeBackendSync: () => {} }))
 
 const saved = (color: string, mode: string) => ({ data: { user_theme_color: color, user_theme_mode: mode } })
