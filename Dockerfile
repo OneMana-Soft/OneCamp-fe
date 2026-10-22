@@ -7,7 +7,7 @@
 #   docker build --build-arg ONECAMP_DOMAIN=example.com -t onecamp-web .
 #
 # The OneCamp server's installer does this for you (the "web" profile).
-FROM node:22-alpine AS build
+FROM node:22.23.4-alpine AS build
 WORKDIR /app
 # Pinned: newer pnpm refuses to install until each package with a build
 # script is approved, which an unattended server build cannot answer.
@@ -32,7 +32,7 @@ ENV NEXT_PUBLIC_PRODUCT_SITE=$PRODUCT_SITE \
     NODE_OPTIONS=--max-old-space-size=4096
 RUN pnpm build
 
-FROM node:22-alpine
+FROM node:22.23.4-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
 COPY --from=build --chown=node:node /app/.next/standalone ./
