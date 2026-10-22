@@ -14,6 +14,7 @@
  *     sake: only the refresh's own failure fails it.
  */
 import axios from "axios"
+import { WEB_CLIENT_HEADERS } from "@/lib/http/csrfToken"
 
 /** A refresh that hangs gives up, so the lock and everyone waiting on it are let go. */
 const REFRESH_TIMEOUT_MS = 15_000
@@ -70,6 +71,7 @@ export function runRefresh(clock: RefreshClock): Promise<void> {
     }
     await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}refreshToken`, {
       withCredentials: true,
+      headers: { ...WEB_CLIENT_HEADERS },
       timeout: REFRESH_TIMEOUT_MS,
       adapter: "fetch",
       fetchOptions: { cache: "no-store" },

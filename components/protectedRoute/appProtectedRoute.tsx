@@ -12,6 +12,7 @@ import {useDispatch} from "react-redux";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
 import { UserProfileResponseSchema } from "@/lib/validations/schemas";
 import axios from "axios";
+import { WEB_CLIENT_HEADERS } from "@/lib/http/csrfToken";
 import { ErrorState } from "@/components/ui/error-state";
 import { SpotCrash } from "@/components/error/shellSpots";
 import { OwnSplash, SplashFrame } from "@/components/protectedRoute/Splash";
@@ -142,7 +143,7 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
             // we're already in the failure path.
             const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}${PostEndpointUrl.Logout.replace(/^\//, "")}`;
             axios
-                .post(url, null, { withCredentials: true })
+                .post(url, null, { withCredentials: true, headers: { ...WEB_CLIENT_HEADERS } })
                 .catch(() => {})
                 .finally(async () => {
                     // Let go of everything kept for the member (Redux and its

@@ -2,9 +2,8 @@
 // methods) and managing your own (signed in, through the app's axios).
 
 import axiosInstance from "@/lib/axiosInstance"
+import { backendFetch } from "@/lib/http/backendFetch"
 import { assertionToJSON, creationToJSON, toCreationOptions, toRequestOptions } from "@/lib/auth/webauthn"
-
-const backend = process.env.NEXT_PUBLIC_BACKEND_URL || "/"
 
 export interface Passkey {
   id: string
@@ -25,14 +24,13 @@ async function json<T>(res: Response): Promise<{ ok: boolean; data?: T; msg: str
  * refusal, or null when the person cancelled the browser's prompt.
  */
 export async function signInWithPasskey(): Promise<{ ok: true } | { ok: false; msg: string | null }> {
-  const begin = await json<Ceremony>(await fetch(`${backend}auth/passkey/begin`, { method: "POST", credentials: "include" }))
+  const begin = await json<Ceremony>(await backendFetch("auth/passkey/begin", { method: "POST" }))
   if (!begin.ok || !begin.data) return { ok: false, msg: begin.msg }
   const credential = (await navigator.credentials.get({ publicKey: toRequestOptions(begin.data.options) })) as PublicKeyCredential | null
   if (!credential) return { ok: false, msg: null }
   const finish = await json<unknown>(
-    await fetch(`${backend}auth/passkey/finish?ceremony=${encodeURIComponent(begin.data.ceremony)}`, {
+    await backendFetch(`auth/passkey/finish?ceremony=${encodeURIComponent(begin.data.ceremony)}`, {
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(assertionToJSON(credential)),
     }),
