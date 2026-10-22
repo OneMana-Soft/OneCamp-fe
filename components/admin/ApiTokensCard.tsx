@@ -18,7 +18,7 @@ import { AdminGet } from "@/services/endpoints/admin"
 import { toast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Loader2, Check, Copy, Key, MoreHorizontal, Plus, Sparkles } from "@/lib/icons"
+import { Loader2, Check, Copy, Key, MoreHorizontal, Plus } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import type { CampHue } from "@/lib/campHue"
@@ -31,7 +31,6 @@ import {
   createApiToken,
   revokeApiToken,
 } from "@/services/apiTokenService"
-import { Agent, parseEnabledTools, toolLabel } from "@/services/agentService"
 
 // A token's lifetime (design v3, admin S7): 30 d · 90 d · 1 y · Never.
 const EXPIRY_OPTIONS = [
@@ -40,9 +39,6 @@ const EXPIRY_OPTIONS = [
   { value: "365", label: "1 y", title: "1 year" },
   { value: "0", label: "Never", title: "No expiry" },
 ] as const
-
-/** The picker value meaning "a plain integration credential, bound to no agent". */
-const NO_AGENT = ""
 
 /** The section's hue (lib/settingsSections), for its dialog's tile and its spot. */
 const HUE: CampHue = "berry"
@@ -93,11 +89,7 @@ function tokenDates(t: ApiToken) {
 const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCreatingChange: (open: boolean) => void }) => {
   const confirm = useConfirm()
   const { data, isLoading, isError, mutate } = useFetch<{ data: ApiToken[] }>(AdminGet.GetApiTokens)
-  // The agents endpoint already returns only agents the caller may manage, so
-  // every option offered here is one the server will accept.
-  const { data: agentsData } = useFetch<{ data: Agent[] }>(AdminGet.GetAgents)
   const tokens = data?.data || []
-  const agentsById = new Map((agentsData?.data || []).map((a) => [a.id, a]))
   const [busyId, setBusyId] = useState<string | null>(null)
   // The reveal step's guard: closing before the token was copied asks first.
   const closeGuard = useRef<() => boolean>(() => true)
@@ -182,14 +174,6 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
                     <p className="you-token-dates">{tokenDates(t)}</p>
                   </div>
                   <div className="hidden min-w-0 shrink items-center gap-1 sm:flex">
-                    {/* Which identity this credential acts as: it changes who the audit
-                        log names and whether deactivating an agent stops it. */}
-                    {t.agent_id && (
-                      <span className="you-scope">
-                        <Sparkles className="size-3 text-ink-3" aria-hidden="true" />
-                        {agentsById.get(t.agent_id)?.name || "Agent"}
-                      </span>
-                    )}
                     {scopes.slice(0, SCOPES_SHOWN).map((s) => (
                       <span key={s} className="you-scope" title={scopeLabel(s)}>
                         {s}
@@ -229,7 +213,6 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
           {/* Mounted only while open, so every new token starts from a clean form. */}
           {creating && (
             <NewTokenForm
-              agents={(agentsData?.data || []).filter((a) => a.is_active)}
               onCreated={() => void mutate()}
               onDone={() => onCreatingChange(false)}
               closeGuard={closeGuard}
@@ -280,12 +263,10 @@ function RevealCard({ secret, copied, onCopy }: { secret: string; copied: boolea
 
 /** The new-token dialog's body: the form, then the token itself, shown once. */
 function NewTokenForm({
-  agents,
   onCreated,
   onDone,
   closeGuard,
 }: {
-  agents: Agent[]
   onCreated: () => void
   onDone: () => void
   closeGuard: MutableRefObject<() => boolean>
@@ -293,14 +274,10 @@ function NewTokenForm({
   const confirm = useConfirm()
   const { data: scopesData } = useFetch<{ data: string[] }>(AdminGet.GetApiTokenScopes)
   const availableScopes = scopesData?.data || []
-  // Only ACTIVE agents are passed in: binding to a deactivated one is refused by the
-  // server, since the credential would be rejected on every call.
-  const agentsById = new Map(agents.map((a) => [a.id, a]))
 
   const [name, setName] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set())
   const [expiry, setExpiry] = useState("90")
-  const [agentId, setAgentId] = useState<string>(NO_AGENT)
   const [saving, setSaving] = useState(false)
   const [created, setCreated] = useState<CreatedToken | null>(null)
   const { state: copyState, copy } = useCopy()
@@ -327,9 +304,6 @@ function NewTokenForm({
     return false
   }
   closeGuard.current = askBeforeClosing
-
-  const boundAgent = agentId ? agentsById.get(agentId) : undefined
-  const boundAgentTools = boundAgent ? parseEnabledTools(boundAgent) : []
 
   const toggleScope = (s: string, on: boolean) => {
     setErrors((e) => ({ ...e, scopes: undefined }))
@@ -360,7 +334,6 @@ function NewTokenForm({
         name: name.trim(),
         scopes: Array.from(selectedScopes),
         expires_in_days: Number(expiry),
-        ...(agentId ? { agent_id: agentId } : {}),
       })
       setCreated(res)
       onCreated()
@@ -472,51 +445,6 @@ function NewTokenForm({
             </p>
           </div>
 
-          {agents.length > 0 && (
-            <div className="grid gap-2">
-              <Label id="token-agent-label">Act as an agent</Label>
-              <p id="token-agent-help" className="text-xs text-muted-foreground text-pretty">
-                Optional. A token bound to an agent is recorded as that agent in the audit log, stops the moment you
-                deactivate it, spends from its daily budget, and can only use the tools it has enabled. Leave this off
-                for a script.
-              </p>
-              <SegmentedControl
-                value={agentId}
-                onValueChange={setAgentId}
-                aria-labelledby="token-agent-label"
-                aria-describedby="token-agent-help"
-                className="w-fit"
-                options={[{ value: NO_AGENT, label: "No agent" }, ...agents.map((a) => ({ value: a.id, label: a.name }))]}
-              />
-
-              {/* What the binding will permit, BEFORE the token is minted: a bound
-                  token can do LESS than the scopes above. */}
-              {boundAgent && (
-                <div className="you-note text-xs">
-                  {boundAgentTools.length === 0 ? (
-                    <p className="text-danger-ink">
-                      {boundAgent.name} has no tools enabled, so this token will not be able to do anything. Enable tools
-                      on the agent first.
-                    </p>
-                  ) : (
-                    <div>
-                      <p className="mb-1.5 text-muted-foreground">
-                        Limited to {boundAgent.name}&apos;s {boundAgentTools.length} enabled{" "}
-                        {boundAgentTools.length === 1 ? "tool" : "tools"}, whatever you grant above:
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {boundAgentTools.map((tool) => (
-                          <span key={tool} className="you-scope">
-                            {toolLabel(tool)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           {problem && (
             <p role="alert" className="text-sm text-danger-ink text-pretty">

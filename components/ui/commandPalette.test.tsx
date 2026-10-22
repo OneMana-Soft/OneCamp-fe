@@ -46,10 +46,6 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 // The search waits for a pause in typing; here every key is the pause.
 vi.mock("@/hooks/useDebounce", () => ({ useDebounce: <T,>(v: T) => v }))
-vi.mock("@/services/aiSearchService", () => ({
-  unifiedSearch: vi.fn(async () => ({ enabled: false, groups: [] })),
-  isAbortedRequest: () => false,
-}))
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => false }) }))
 let features: Record<string, boolean> = {}
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({

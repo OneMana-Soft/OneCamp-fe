@@ -13,5 +13,4 @@ export enum AiPost {
     AIAnalyzeDocument = "/ai/analyze-document",
     AITranslate = "/ai/translate",
     AISchedulePropose = "/ai/schedule/propose",
-    AIUnifiedSearch = "/ai/search",
 }

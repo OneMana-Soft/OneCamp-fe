@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { usePhone } from "@/hooks/usePhone"
-import { Home, Calendar, Bell, Inbox, FileText, MessageCircle, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot, BarChart3, Target, TrendingUp, LayoutDashboard } from "@/lib/icons";
+import { Home, Calendar, Bell, Inbox, FileText, MessageCircle, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Bot, BarChart3, Target, TrendingUp, LayoutDashboard } from "@/lib/icons";
 import { Plug } from "lucide-react";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog"
@@ -13,7 +13,6 @@ import { Command as CommandPrimitive } from "cmdk"
 import { useTheme } from "next-themes"
 import { CommandGroup, CommandItem } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
-import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GO_KEYS } from "@/lib/goKeys"
 import { paneFromHref } from "@/lib/split"
@@ -30,7 +29,6 @@ import { addRecentItem, type RecentItem } from "@/store/slice/recentItemsSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
-import { useDebounce } from "@/hooks/useDebounce"
 import { matchScore, NAMED_MATCH, paletteTargets, rankTargets, type PaletteTarget } from "@/lib/search/paletteMatch"
 import { resultPath } from "@/lib/search/resultPath"
 import { getContext, getHighlightedTitle, getIcon, getTitle, hitHueId, searchResultKeys } from "@/lib/utils/helpers/search"
@@ -41,16 +39,9 @@ import { CATEGORY_KIND, isBuiltInStatus } from "@/lib/taskStatus"
 import type { PlaceHue } from "@/lib/placeHue"
 import { areaHue, type Area } from "@/lib/areas"
 import { resultHue } from "@/lib/search/resultHue"
-import {
-  unifiedSearch,
-  isAbortedRequest,
-  type UnifiedSearchGroup,
-  type UnifiedSource,
-  type UnifiedHit,
-} from "@/services/aiSearchService"
 import { useTrackPageVisit } from "@/hooks/useTrackPageVisit"
 import { useCapabilities } from "@/hooks/useCapabilities"
-import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE, CAP_AGENT_MANAGE } from "@/services/capabilityService"
+import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
@@ -74,7 +65,7 @@ import { useSplitActions } from "@/hooks/useSplitView"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
 import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
 import { ArrowLeft, ArrowRight, BellOff, ChevronRight, Columns2, Columns3, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun } from "@/lib/icons"
-import { FEATURE_AI, FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
+import { FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
 import { projectAt } from "@/lib/task/startingProject"
 import { clockTime } from "@/lib/utils/date/clock"
 import { paletteEntries } from "@/components/docEditor/registry/commandBus"
@@ -166,29 +157,12 @@ export const COMMAND_AREA: Partial<Record<string, Area>> = {
   "create-project": "projects",
   "nav-calendar": "calendar",
   "create-event": "calendar",
-  "ai-ask": "agents",
-  "ai-memory": "agents",
-  "ai-extract-tasks": "agents",
-  agents: "agents",
-  "my-assistants": "agents",
 }
 
 /** A command's mark: on its area's tile when it opens an area, else bare. */
 function commandMark(id: string, icon: React.ReactNode): React.ReactNode {
   const area = COMMAND_AREA[id]
   return area ? <Tile hue={areaHue(area)} size="sm" data-hue={areaHue(area)}>{icon}</Tile> : icon
-}
-
-// A source's tile (lib/areas, v3.1): memory is the agents' own, so it wears
-// their indigo; a connector (Gmail, GitHub, the rest) names no area of
-// OneCamp, so its tile is neutral ink.
-function aiSourceIcon(source: UnifiedSource) {
-  switch (source) {
-    case "memory": return <Tile hue={areaHue("agents")} size="sm"><Brain /></Tile>
-    case "gmail": return <Tile hue="ink" size="sm"><Mail /></Tile>
-    case "github": return <Tile hue="ink" size="sm"><Github /></Tile>
-    default: return <Tile hue="ink" size="sm"><Sparkles /></Tile>
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -248,42 +222,6 @@ export function CommandPalette() {
   const selfId = selfProfile?.data?.user_uuid
   const targets = React.useMemo(() => paletteTargets(sidebar, selfId), [sidebar, selfId])
 
-  // Unified AI search: fold Memory facts + connected-app (Gmail/GitHub) results
-  // into the same palette so Cmd+K spans everything. The keyword "Search
-  // Results" above already covers raw workspace content, so we drop the
-  // unified "workspace" group here to avoid duplication.
-  const debouncedAiQuery = useDebounce(inputValue, 350)
-  const [aiGroups, setAiGroups] = React.useState<UnifiedSearchGroup[]>([])
-  React.useEffect(() => {
-    const q = debouncedAiQuery.trim()
-    if (!open || q.length < 2) {
-      // Only when there is something to clear: a fresh empty list is a new
-      // state, and it re-rendered the palette on every key.
-      setAiGroups((groups) => (groups.length === 0 ? groups : []))
-      return
-    }
-    let cancelled = false
-    // The palette re-queries as you type; abort the superseded request so the
-    // server stops fanning out across connected accounts for a query nobody is
-    // waiting on any more.
-    const controller = new AbortController()
-    unifiedSearch(q, controller.signal)
-      .then((res) => {
-        if (cancelled) return
-        if (!res.enabled) {
-          setAiGroups((groups) => (groups.length === 0 ? groups : []))
-          return
-        }
-        setAiGroups((res.groups || []).filter((g) => g.source !== "workspace" && g.hits.length > 0))
-      })
-      .catch((e) => {
-        if (!cancelled && !isAbortedRequest(e)) setAiGroups([])
-      })
-    return () => {
-      cancelled = true
-      controller.abort()
-    }
-  }, [debouncedAiQuery, open])
 
   // Keyboard shortcut: Cmd+K or Ctrl+K (unified global entry point). It
   // opens on Search.
@@ -388,31 +326,6 @@ export function CommandPalette() {
     runCommand(() => router.push(t.path))
   }, [runCommand, router, dispatch])
 
-  // Selecting a unified-AI hit: external sources open in a new tab; Memory
-  // facts jump to their source (channel / project / group) when known, else
-  // to the Workspace Memory surface.
-  const handleAiHitSelect = React.useCallback(
-    (hit: UnifiedHit) => {
-      runCommand(() => {
-        if ((hit.source === "gmail" || hit.source === "github") && hit.url) {
-          window.open(hit.url, "_blank", "noopener,noreferrer")
-          return
-        }
-        if (hit.source === "memory") {
-          if (hit.channel_uuid) {
-            router.push(`/app/channel/${hit.channel_uuid}`)
-          } else if (hit.project_uuid) {
-            router.push(`/app/project/${hit.project_uuid}`)
-          } else if (hit.chat_grp_id && !hit.chat_grp_id.includes(" ") && hit.chat_grp_id.length === 32) {
-            router.push(`/app/chat/group/${hit.chat_grp_id}`)
-          } else {
-            router.push("/app/ai/memory")
-          }
-        }
-      })
-    },
-    [runCommand, router],
-  )
 
   /* ---------------------------------------------------------------- */
   /*  Command definitions                                              */
@@ -646,45 +559,6 @@ export function CommandPalette() {
         action: () => router.push("/app/admin?tab=integrations"),
       },
 
-      // AI
-      {
-        id: "ai-ask",
-        featureKey: FEATURE_AI,
-        label: "Ask AI Second Brain",
-        keywords: ["ai", "ask", "second brain", "gpt"],
-        icon: <Sparkles className="h-4 w-4" />,
-        group: "AI",
-        action: () => router.push("/app/ai"),
-      },
-      {
-        id: "ai-memory",
-        featureKey: FEATURE_AI,
-        label: "Workspace Memory",
-        keywords: ["ai", "memory", "decisions", "commitments", "open questions", "knowledge"],
-        icon: <Sparkles className="h-4 w-4" />,
-        group: "AI",
-        action: () => router.push("/app/ai/memory"),
-      },
-      {
-        id: "ai-extract-tasks",
-        featureKey: FEATURE_AI,
-        label: "Create tasks from a conversation",
-        keywords: ["tasks", "action items", "extract", "todo", "follow up", "ai", "convert", "meeting notes"],
-        icon: <Sparkles className="h-4 w-4" />,
-        group: "AI",
-        action: () => {
-          // Seed from the current route: a channel/DM/group becomes the source,
-          // otherwise open in paste-text mode.
-          const p = pathname || ""
-          let data: { sourceType: "channel" | "dm" | "group" | "text"; sourceId?: string } = { sourceType: "text" }
-          const ch = p.match(/^\/app\/channel\/([^/]+)/)
-          const grp = p.match(/^\/app\/chat\/group\/([^/]+)/)
-          if (ch) data = { sourceType: "channel", sourceId: ch[1] }
-          else if (grp) data = { sourceType: "group", sourceId: grp[1] }
-          dispatch(openUI({ key: "extractTasks", data }))
-        },
-      },
-
       // Settings & Account
       {
         id: "profile",
@@ -734,16 +608,6 @@ export function CommandPalette() {
         group: "Settings",
         capabilityKey: CAP_WORKFLOW_MANAGE,
         action: () => router.push("/app/settings/workflows"),
-      },
-      {
-        id: "agents",
-        featureKey: FEATURE_AI,
-        label: "AI agents",
-        keywords: ["agents", "ai agent", "automation", "bot", "assistant", "build agent"],
-        icon: <Sparkles className="h-4 w-4" />,
-        group: "Settings",
-        capabilityKey: CAP_AGENT_MANAGE,
-        action: () => router.push("/app/settings/agents"),
       },
       {
         id: "invite-people",
@@ -956,7 +820,7 @@ export function CommandPalette() {
   const placeScore = jumpTo.length > 0 ? matchScore(query, jumpTo[0].label, jumpTo[0].keywords) : 0
   const commandsNamed = commandScore >= NAMED_MATCH
   const commandsLead = commandsNamed && commandScore > placeScore
-  const nothingYet = hasSearchQuery && jumpTo.length === 0 && !hasSearchResults && matchedCommands.length === 0 && aiGroups.length === 0
+  const nothingYet = hasSearchQuery && jumpTo.length === 0 && !hasSearchResults && matchedCommands.length === 0
   const searchEverything = () => runCommand(() => router.push(`/app/search?query=${encodeURIComponent(query)}`))
 
   // The curated empty palette (Superhuman's rule): what you were just in,
@@ -1049,25 +913,6 @@ export function CommandPalette() {
           })}
         </CommandGroup>
       )}
-
-      {/* Unified AI results: Memory facts and connected apps (Gmail, GitHub). */}
-      {hasSearchQuery &&
-        aiGroups.map((g) => (
-          <CommandGroup key={`ai-${g.source}`} heading={g.source === "memory" ? "Memory" : g.label}>
-            {g.hits.map((h, idx) => (
-              <PaletteRow
-                key={`ai-${g.source}-${idx}`}
-                value={`ai-${g.source}-${idx}`}
-                onSelect={() => handleAiHitSelect(h)}
-                icon={aiSourceIcon(g.source)}
-                label={h.title}
-                meta={h.meta}
-                trailing={(g.source === "gmail" || g.source === "github") ? <ExternalLink className="h-3.5 w-3.5 shrink-0 text-ink-3" /> : undefined}
-                peek={{ title: h.title, kind: g.label, meta: h.meta }}
-              />
-            ))}
-          </CommandGroup>
-        ))}
 
       {/* Commands the query only brushes (inside a word, or a keyword)
           wait under what the search found. */}
@@ -1526,14 +1371,12 @@ function PaletteEmpty({
   didYouMean,
   onDidYouMean,
   onSearch,
-  onAsk,
   failed,
 }: {
   query: string
   didYouMean: string | null
   onDidYouMean: (name: string) => void
   onSearch: () => void
-  onAsk?: () => void
   failed?: { onRetry: () => void; retrying?: boolean }
 }) {
   if (failed) {
@@ -1568,10 +1411,8 @@ function PaletteEmpty({
             <button type="button" className="text-brand-text underline underline-offset-[3px]" onClick={() => onDidYouMean(didYouMean)}>
               {didYouMean}
             </button>
-            ?{onAsk ? " Or ask OneCamp AI." : ""}
+            ?
           </>
-        ) : onAsk ? (
-          "Try other words, or ask OneCamp AI."
         ) : (
           "Try other words, or search every message."
         )}
@@ -1580,12 +1421,6 @@ function PaletteEmpty({
         <Button variant="secondary" size="sm" onClick={onSearch}>
           Search messages
         </Button>
-        {onAsk && (
-          <Button variant="ghost" size="sm" onClick={onAsk}>
-            <AgentAvatar className="size-[18px]" />
-            Ask
-          </Button>
-        )}
       </div>
     </div>
   )

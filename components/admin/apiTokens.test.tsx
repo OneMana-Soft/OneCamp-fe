@@ -15,8 +15,12 @@ const { answers, create, toast, confirm, revoke } = vi.hoisted(() => ({
   confirm: vi.fn(),
   revoke: vi.fn(async () => undefined),
 }))
+const read: string[] = []
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (url: string) => answers[url] ?? { data: undefined, isLoading: false, isError: undefined, mutate: vi.fn() },
+  useFetch: (url: string) => {
+    read.push(url)
+    return answers[url] ?? { data: undefined, isLoading: false, isError: undefined, mutate: vi.fn() }
+  },
 }))
 vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
@@ -46,7 +50,6 @@ const token = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   answers["/api-tokens"] = { data: { data: [token(), token({ id: "t2", name: "Old script", revoked_at: "2026-09-01T00:00:00Z" })] }, isLoading: false, isError: undefined, mutate }
   answers["/api-tokens/scopes"] = { data: { data: ["tasks:read", "messages:write"] }, isLoading: false }
-  answers["/agents"] = { data: { data: [] }, isLoading: false }
   create.mockReset()
   toast.mockReset()
   confirm.mockReset()
@@ -167,6 +170,16 @@ describe("making a token", () => {
     await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "Create token" })))
     expect(within(dialog()).getByText("Token created")).toBeInTheDocument()
     expect(within(dialog()).queryByText(/MCP|AI & agents|AI Models/)).toBeNull()
+  })
+
+  // This edition's server has no agents (GET /agents answers 501), so a token
+  // binds to none: the card neither reads them nor offers "Act as an agent".
+  it("reads no agents and offers none to act as, in an edition without AI", () => {
+    read.length = 0
+    openDialog()
+    expect(read).toContain("/api-tokens")
+    expect(read).not.toContain("/agents")
+    expect(within(dialog()).queryByText(/agent/i)).toBeNull()
   })
 })
 

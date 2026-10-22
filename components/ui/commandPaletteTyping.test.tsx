@@ -33,10 +33,6 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
 }))
 vi.mock("@/hooks/useTrackPageVisit", () => ({ useTrackPageVisit: () => {} }))
 vi.mock("@/hooks/useSplitView", () => ({ useSplitActions: () => splitRun }))
-vi.mock("@/services/aiSearchService", () => ({
-  unifiedSearch: async () => ({ enabled: false, groups: [] }),
-  isAbortedRequest: () => false,
-}))
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pause: () => {} }) }))
 vi.mock("@/hooks/useSearch", () => ({
   useSearch: () => {

@@ -40,10 +40,6 @@ vi.mock("@/hooks/useFetch", () => ({
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
 }))
-vi.mock("@/services/aiSearchService", () => ({
-  unifiedSearch: vi.fn(async () => ({ enabled: false, groups: [] })),
-  isAbortedRequest: () => false,
-}))
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => false }) }))
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
