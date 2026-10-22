@@ -18,10 +18,13 @@ const setTheme = vi.fn((m: string) => {
 })
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: state.mode, setTheme }) }))
 const posts: { apiEndpoint?: string; payload?: unknown }[] = []
+// A save the server refuses (an e2e stub's 404, a server that's down).
+let failing = false
 vi.mock("@/hooks/usePost", () => ({
   usePost: () => ({
     makeRequest: async (req: { apiEndpoint?: string; payload?: unknown }) => {
       posts.push(req)
+      if (failing) throw new Error("Request failed with status code 404")
     },
   }),
 }))
@@ -61,6 +64,7 @@ beforeEach(() => {
   state.mode = "light"
   setTheme.mockClear()
   posts.length = 0
+  failing = false
   localStorage.clear()
 })
 afterEach(() => {
@@ -90,6 +94,23 @@ describe("a member's theme", () => {
     await mount(saved("green", "dark"))
     await settle()
     expect(posts).toEqual([])
+  })
+
+  // A refused save was sent again on every render: each try flipped usePost's isSubmitting,
+  // which gave the effect a new `post`, and the rate limit counted successes only, so it was
+  // sent again at once, about ten times a second (718 POSTs in one e2e file, 22 Oct).
+  it("isn't sent again and again when the server refuses it", async () => {
+    failing = true
+    const { rerender } = await mount(saved("green", "light"))
+    await settle()
+    state.mode = "dark"
+    rerender()
+    await settle()
+    for (let i = 0; i < 5; i++) {
+      rerender()
+      await settle()
+    }
+    expect(posts.filter((p) => p.apiEndpoint === "/updateUserTheme")).toHaveLength(1)
   })
 
   it("is neither read nor saved where nobody is signed in", async () => {

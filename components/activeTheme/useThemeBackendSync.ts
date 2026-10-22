@@ -33,7 +33,8 @@ export type SavedTheme = { color: string | null; mode: string | null } | null
 export function useThemeBackendSync(saved: SavedTheme) {
   const { activeTheme } = useThemeConfig()
   const { theme } = useTheme()
-  const post = usePost()
+  // makeRequest is stable; the object usePost returns is new whenever isSubmitting flips.
+  const { makeRequest } = usePost()
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSyncedRef = useRef<{ color: string | null; mode: string | null }>({
@@ -41,6 +42,13 @@ export function useThemeBackendSync(saved: SavedTheme) {
     mode: null,
   })
   const lastSyncTimeRef = useRef<number>(0)
+  // What the last save sent, whether the server took it or not: a refused save isn't sent
+  // again for the same theme (it was, on every render, about ten times a second), only for
+  // the next change. localStorage stays the theme's source of truth either way.
+  const lastAttemptRef = useRef<{ color: string | null; mode: string | null }>({
+    color: null,
+    mode: null,
+  })
   const seeded = useRef(false)
 
   useEffect(() => {
@@ -68,6 +76,13 @@ export function useThemeBackendSync(saved: SavedTheme) {
     ) {
       return
     }
+    // ...or what the last save sent, taken or refused
+    if (
+      lastAttemptRef.current.color === activeTheme &&
+      lastAttemptRef.current.mode === theme
+    ) {
+      return
+    }
 
     // Rate limit: max 1 sync per 5 seconds
     const now = Date.now()
@@ -87,21 +102,21 @@ export function useThemeBackendSync(saved: SavedTheme) {
         return
       }
 
-      post
-        .makeRequest({
-          apiEndpoint: PostEndpointUrl.UpdateUserTheme,
-          payload: {
-            user_theme_color: activeTheme,
-            user_theme_mode: theme,
-          },
-          showToast: false,
-        })
+      lastAttemptRef.current = { color: activeTheme, mode: theme }
+      lastSyncTimeRef.current = Date.now()
+      makeRequest({
+        apiEndpoint: PostEndpointUrl.UpdateUserTheme,
+        payload: {
+          user_theme_color: activeTheme,
+          user_theme_mode: theme,
+        },
+        showToast: false,
+      })
         .then(() => {
           lastSyncedRef.current = { color: activeTheme, mode: theme }
-          lastSyncTimeRef.current = Date.now()
         })
         .catch(() => {
-          // Silently fail — localStorage is the primary source of truth
+          // Silently fail, once: localStorage is the primary source of truth
         })
     }, delay)
 
@@ -110,5 +125,5 @@ export function useThemeBackendSync(saved: SavedTheme) {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [activeTheme, theme, post, saved])
+  }, [activeTheme, theme, makeRequest, saved])
 }
