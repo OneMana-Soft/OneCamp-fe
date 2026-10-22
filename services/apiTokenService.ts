@@ -2,8 +2,8 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { AdminPost } from "@/services/endpoints/admin"
 
 // API token client. Tokens authenticate the public /v1 API as the creating
-// user, narrowed to the granted scopes. The plaintext secret is returned only
-// once, at creation.
+// user with a member's powers at most, never an admin's, narrowed to the
+// granted scopes. The plaintext secret is returned only once, at creation.
 
 export interface ApiToken {
   id: string
@@ -16,15 +16,6 @@ export interface ApiToken {
   revoked_at?: string | null
   created_at: string
   updated_at: string
-  /**
-   * Set when this credential is bound to an AGENT IDENTITY rather than being a plain
-   * integration credential. A bound token is attributed to that agent in the audit
-   * log, stops working the moment the agent is deactivated, spends against the
-   * agent's own daily token budget, and is limited to the agent's enabled tools.
-   * Set at creation only — a credential that could change which identity it acts as
-   * would make every earlier audit row mean something different.
-   */
-  agent_id?: string | null
 }
 
 export interface CreatedToken {
@@ -67,8 +58,6 @@ export async function createApiToken(input: {
   name: string
   scopes: string[]
   expires_in_days?: number
-  /** Optional agent identity to bind this credential to. Omit for a plain token. */
-  agent_id?: string
 }): Promise<CreatedToken> {
   // The dialog says a failure under the field it is about.
   const res = await axiosInstance.post(AdminPost.CreateApiToken, input, OWN_ERRORS)

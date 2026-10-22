@@ -367,7 +367,6 @@ function NewTokenForm({
           <RevealCard secret={created.plaintext} copied={copyState === "copied" || (everCopied && copyState !== "failed")} onCopy={() => void copySecret()} />
           {copyState === "failed" && <p role="alert" className="text-xs text-danger-ink">Couldn&apos;t copy. Select the token and copy it yourself.</p>}
 
-
           <div className="flex justify-end">
             <Button
               onClick={() => {
@@ -444,7 +443,6 @@ function NewTokenForm({
               {errors.scopes}
             </p>
           </div>
-
 
           {problem && (
             <p role="alert" className="text-sm text-danger-ink text-pretty">

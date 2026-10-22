@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { usePhone } from "@/hooks/usePhone"
-import { Home, Calendar, Bell, Inbox, FileText, MessageCircle, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Bot, BarChart3, Target, TrendingUp, LayoutDashboard } from "@/lib/icons";
+import { Home, Calendar, Bell, Inbox, FileText, MessageCircle, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, BarChart3, Target, TrendingUp, LayoutDashboard } from "@/lib/icons";
 import { Plug } from "lucide-react";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog"
@@ -222,7 +222,6 @@ export function CommandPalette() {
   const selfId = selfProfile?.data?.user_uuid
   const targets = React.useMemo(() => paletteTargets(sidebar, selfId), [sidebar, selfId])
 
-
   // Keyboard shortcut: Cmd+K or Ctrl+K (unified global entry point). It
   // opens on Search.
   React.useEffect(() => {
@@ -325,7 +324,6 @@ export function CommandPalette() {
     if (t.kind !== "board") dispatch(addRecentItem({ id: t.id, type: t.kind, title: t.label, path: t.path }))
     runCommand(() => router.push(t.path))
   }, [runCommand, router, dispatch])
-
 
   /* ---------------------------------------------------------------- */
   /*  Command definitions                                              */
