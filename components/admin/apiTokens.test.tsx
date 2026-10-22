@@ -106,6 +106,15 @@ describe("the token list", () => {
     fireEvent.click(screen.getByRole("button", { name: "New token" }))
     expect(onCreatingChange).toHaveBeenCalledWith(true)
   })
+
+  // Since 17 Oct a token never carries its owner's admin powers (the server's
+  // helpers.ActsThroughToken), so an admin making one for admin work is told
+  // before the refusals, not by them.
+  it("says a token acts with a member's powers, never an admin's", () => {
+    answers["/api-tokens"] = { data: { data: [] }, isLoading: false, isError: undefined, mutate }
+    render(<ApiTokensCard creating={false} onCreatingChange={() => {}} />)
+    expect(screen.getByText(/act as you with a member's powers, never an admin's/)).toBeInTheDocument()
+  })
 })
 
 describe("making a token", () => {

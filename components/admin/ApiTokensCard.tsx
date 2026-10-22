@@ -142,7 +142,7 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
             <div className="space-y-1">
               <h3 className="text-heading text-foreground">No tokens yet</h3>
               <p className="max-w-[45ch] text-sm text-muted-foreground text-pretty">
-                Tokens let scripts act as you, limited to the scopes you pick.
+                Tokens let scripts act as you with a member&apos;s powers, never an admin&apos;s, limited to the scopes you pick.
               </p>
             </div>
             {/* The header's New token is the page's one primary (QA SH-12). */}

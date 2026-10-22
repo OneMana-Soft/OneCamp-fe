@@ -15,6 +15,7 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: [] }, isLo
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 
 import WorkflowsSettingsPage from "./workflows/page"
+import { settingsSection } from "@/lib/settingsSections"
 
 beforeEach(() => {
   caps.isLoading = false
@@ -73,5 +74,13 @@ describe("API tokens", () => {
     const button = within(screen.getByRole("banner")).getByRole("button", { name: "New token" })
     expect(button.className).toContain("md:h-8")
     expect(button.className).toContain("h-11")
+  })
+
+  // A token never carries its owner's admin powers (helpers.ActsThroughToken
+  // on the server, since 17 Oct); the page and the settings list said "act as you".
+  it("says a token acts with a member's powers, never an admin's, here and in the settings list", () => {
+    render(<ApiTokensSettingsPage />)
+    expect(within(screen.getByRole("banner")).getByText(/acts as you with a member's powers, never an admin's/)).toBeInTheDocument()
+    expect(settingsSection("/app/settings/api-tokens")?.description).toMatch(/with a member's powers/)
   })
 })
