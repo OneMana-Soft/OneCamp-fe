@@ -166,7 +166,7 @@ const ChannelMessageMobileComponent = ({
                             allMedia: postInfo.post_attachments,
                             media: attachment,
                             mediaGetUrl: GetEndpointUrl.GetChannelMedia + "/" + channelId,
-                            analyzeContext: { srcKey: 'channel', srcRef: channelId },
+                            source: { srcKey: 'channel', srcRef: channelId },
                         }
                     }),
                 )

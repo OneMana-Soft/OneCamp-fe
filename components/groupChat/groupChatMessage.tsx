@@ -43,7 +43,7 @@ export const GroupChatMessage = ({ updatePost, grpId, chatInfo, addReaction, rem
     <BaseMessageCard
       message={mapChatInfoToBaseMessage(chatInfo)}
       mediaGetUrl={GetEndpointUrl.GetGroupChatMedia + "/" + grpId}
-      analyzeContext={{ srcKey: "grpChat", srcRef: grpId }}
+      source={{ srcKey: "grpChat", srcRef: grpId }}
       rightPanelConfig={{ chatMessageUUID: chatInfo.chat_uuid, groupUUID: grpId, chatUUID: "", channelUUID: "", postUUID: "", taskUUID: "", docUUID: "" }}
       hoverOptionsConfig={{ groupUUID: grpId, chatMessageID: chatInfo.chat_uuid }}
       isAdmin={isAdmin}

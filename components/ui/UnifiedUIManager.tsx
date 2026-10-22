@@ -229,7 +229,7 @@ export function UnifiedUIManager() {
           media={ui.attachmentLightbox.data.media}
           allMedia={ui.attachmentLightbox.data.allMedia}
           mediaGetUrl={ui.attachmentLightbox.data.mediaGetUrl}
-          analyzeContext={ui.attachmentLightbox.data.analyzeContext}
+          source={ui.attachmentLightbox.data.source}
         />
       )}
 

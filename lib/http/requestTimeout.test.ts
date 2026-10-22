@@ -35,7 +35,6 @@ describe("what waits as long as its work takes", () => {
   it("the model at work, wherever its route lives", () => {
     for (const url of [
       InboxPost.AICatchUp,
-      AiPost.AISchedulePropose,
       "/admin/ai/self-test",
       PostEndpointUrl.GenerateBoardDiagram,
       "/tables/t1/fields/f1/ai-fill",

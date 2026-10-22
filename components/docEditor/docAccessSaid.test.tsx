@@ -22,9 +22,6 @@ vi.mock("@/lib/docs/accessRequests", () => ({
     requestAccess: (...a: unknown[]) => requestDocAccess(...(a as [])),
     answerRequest: (...a: unknown[]) => answerDocAccess(...(a as [])),
 }))
-vi.mock("@/services/aiService", () => ({
-    useDocAI: () => ({ completeStream: vi.fn(), isStreaming: false, streamText: "", streamNotice: "", error: null, cancelStream: vi.fn(), resetResult: vi.fn() }),
-}))
 vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useDispatch: () => vi.fn() }))
 vi.mock("@/components/common/withFeature", () => ({ withAI: (c: unknown) => c }))
 

@@ -1,5 +1,6 @@
 "use client";
 
+import type { AddOnAction } from "@/lib/addOns/core";
 import { memo, useCallback, useEffect, useState, type ReactNode } from "react";
 import { useDispatch } from "react-redux";
 
@@ -39,9 +40,8 @@ interface MessageDesktopHoverOptionProps {
     // (Discord-style). Distinct from "Reply in thread" (which opens the thread
     // panel). Rendered only when the surface supplies it.
     onReply?: () => void;
-    // onTranslate, when provided, translates this message in place (the surface
-    // owns the translation state + inline render).
-    onTranslate?: () => void;
+    // What an edition adds to the message's More menu (lib/addOns).
+    addOns?: AddOnAction[];
     setEmojiPopupState?: (open: boolean) => void;
     editMessage: () => void;
     deleteMessage: () => void;
@@ -103,7 +103,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     deleteMessage,
     editMessage,
     onReply,
-    onTranslate,
+    addOns,
     onReactionSelect,
     chatMessageID,
     commentUUID,
@@ -240,7 +240,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 onMakeTask={onMakeTask}
                 onReply={onReply}
                 onForward={postUUID || chatMessageID ? handleForward : undefined}
-                onTranslate={onTranslate}
+                addOns={addOns}
                 link={laterLink || undefined}
                 laterTarget={laterTarget}
                 messageText={messageText}

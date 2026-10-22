@@ -1,5 +1,6 @@
 "use client"
 
+import type { AddOnAction } from "@/lib/addOns/core"
 import { useState, type ReactNode } from "react"
 import {
     DropdownMenu,
@@ -14,7 +15,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { AlarmClock, Copy, Forward, Languages, Link, ListTodo, MoreHorizontal, Pencil, Reply, Trash2 } from "@/lib/icons"
+import { AlarmClock, Copy, Forward, Link, ListTodo, MoreHorizontal, Pencil, Reply, Trash2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ACTION_TIP_END } from "@/components/MessageDesktopHover/actionTip"
 import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
@@ -33,7 +34,8 @@ interface MessageDesktopDropdownProps {
     /** Arms the composer to reply to this message, quoting it. */
     onReply?: () => void
     onForward?: () => void
-    onTranslate?: () => void
+    /** What an edition adds to the menu (lib/addOns). */
+    addOns?: AddOnAction[]
     /** Where the message lives, for Copy link. */
     link?: string
     /** Saving it to Later with a reminder. */
@@ -99,7 +101,7 @@ export default function MessageDesktopDropdown({
     onMakeTask,
     onReply,
     onForward,
-    onTranslate,
+    addOns,
     link,
     laterTarget,
     messageText,
@@ -122,7 +124,7 @@ export default function MessageDesktopDropdown({
     }
 
     const answering = Boolean(onReply || onForward || link)
-    const keeping = Boolean(onMakeTask || laterTarget || memorySlot || pinSlot || unreadSlot || onTranslate || messageText)
+    const keeping = Boolean(onMakeTask || laterTarget || memorySlot || pinSlot || unreadSlot || addOns?.length || messageText)
 
     return (
         <DropdownMenu
@@ -171,11 +173,11 @@ export default function MessageDesktopDropdown({
                         {pinSlot}
                         {unreadSlot}
                         {memorySlot}
-                        {onTranslate && (
-                            <DropdownMenuItem onSelect={onTranslate}>
-                                <Languages className={ITEM_ICON} aria-hidden="true" /> Translate
+                        {addOns?.map(({ key, label, icon: Icon, busy, run }) => (
+                            <DropdownMenuItem key={key} onSelect={run} disabled={busy}>
+                                <Icon className={ITEM_ICON} aria-hidden="true" /> {label}
                             </DropdownMenuItem>
-                        )}
+                        ))}
                         {messageText && (
                             <DropdownMenuItem onSelect={() => copy(htmlToPreviewText(messageText), "Text copied")}>
                                 <Copy className={ITEM_ICON} aria-hidden="true" /> Copy text

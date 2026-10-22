@@ -9,9 +9,5 @@
 export enum AiPost {
     DraftAgent = "/agents/draft",
     RunAgent = "/agents", // append /{id}/run
-    AIAnalyzeImage = "/ai/analyze-image",
-    AIAnalyzeDocument = "/ai/analyze-document",
-    AITranslate = "/ai/translate",
-    AISchedulePropose = "/ai/schedule/propose",
     AIUnifiedSearch = "/ai/search",
 }

@@ -9,7 +9,6 @@ import {
     BookmarkCheck,
     Copy,
     Forward,
-    Languages,
     Link,
     ListTodo,
     Loader2,
@@ -21,7 +20,7 @@ import {
 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
-import { useTranslateText } from "@/services/aiService"
+import { useMessageAddOn } from "@/lib/addOns/messages"
 import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
 import { reminderChoices } from "@/lib/utils/later"
 import type { LaterTarget } from "@/components/later/SaveForLater"
@@ -146,8 +145,8 @@ export function MessageActionSheet({
 }: MessageActionSheetProps) {
     const router = useRouter()
     const copyToClipboard = useCopyToClipboard()
-    const { translateText, isSubmitting: translating } = useTranslateText()
-    const [translation, setTranslation] = React.useState<string | null>(null)
+    // What an edition adds to a message (lib/addOns): rows here, and what shows under them.
+    const addOn = useMessageAddOn(messageText || "")
     // Delete asks here, in the sheet, as a computer's More menu does (SD-5).
     const [confirmingDelete, setConfirmingDelete] = React.useState(false)
     // The question takes the asking row's place, so the focus goes with it:
@@ -167,10 +166,7 @@ export function MessageActionSheet({
     React.useEffect(() => {
         // The long press that opened the sheet (mobile F3: impact).
         if (open) feedback("impact")
-        if (!open) {
-            setTranslation(null)
-            setConfirmingDelete(false)
-        }
+        if (!open) setConfirmingDelete(false)
     }, [open])
 
     // Read as the sheet opens: the reaction you used last is first.
@@ -199,12 +195,6 @@ export function MessageActionSheet({
             ? Promise.resolve()
             : save({ item_type: laterTarget.itemType, item_id: laterTarget.itemId, link: laterTarget.link, title: laterTarget.title, context: laterTarget.context, remind_at: at.toISOString() })
         run.catch(() => {})
-    }
-    const translate = async () => {
-        const t = (messageText || "").trim()
-        if (!t) return
-        const res = await translateText(t, typeof navigator !== "undefined" ? navigator.language : "English")
-        if (res?.translation) setTranslation(res.translation)
     }
 
     return (
@@ -275,9 +265,9 @@ export function MessageActionSheet({
                         {laterTarget && !saved && <Row icon={AlarmClock} label="Remind me tomorrow morning" onClick={remindTomorrow} />}
                         {forwardPath && <Row icon={Forward} label="Forward" onClick={then(() => router.push(forwardPath))} />}
                         {pin && <PinSheetRow conversation={pin.conversation} messageId={pin.messageId} onDone={close} />}
-                        {!!(messageText || "").trim() && (
-                            <Row icon={Languages} label={translating ? "Translating…" : translation ? "Translate again" : "Translate"} busy={translating} onClick={translate} />
-                        )}
+                        {addOn.actions.map(({ key, label, icon, busy, run }) => (
+                            <Row key={key} icon={icon} label={label} busy={busy} onClick={run} />
+                        ))}
                         {isOwner && <Row icon={Pencil} label="Edit message" onClick={then(editMessage)} />}
                         {(isOwner || isAdmin) &&
                             (confirmingDelete ? (
@@ -294,14 +284,7 @@ export function MessageActionSheet({
                             ))}
                     </div>
 
-                    {translation && (
-                        <div className="rounded-[10px] bg-sunken px-3 py-2">
-                            <p className="mb-0.5 flex items-center gap-1.5 text-meta font-medium text-ink-3">
-                                <Languages className="size-3" /> Translated
-                            </p>
-                            <p className="whitespace-pre-line text-body text-ink">{translation}</p>
-                        </div>
-                    )}
+                    {addOn.below}
                 </div>
             </DrawerContent>
         </Drawer>

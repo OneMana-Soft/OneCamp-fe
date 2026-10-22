@@ -2,8 +2,14 @@
 // assert on DOM state with `.toBeInTheDocument()`, `.toHaveTextContent()`
 // and friends without re-importing them per file.
 import "@testing-library/jest-dom/vitest"
-import { afterEach, expect } from "vitest"
+import { afterEach, expect, vi } from "vitest"
 import { listenForEscape } from "@/lib/keys/escape"
+
+// Surfaces draw with no edition's add-ons (lib/addOns): an edition's read the
+// server's settings on every message, and a test answers its own requests. A
+// test of an edition's add-ons gives them itself.
+vi.mock("@/lib/addOns/messages", () => vi.importActual("@/lib/addOns/core"))
+vi.mock("@/lib/addOns/attachments", () => vi.importActual("@/lib/addOns/core"))
 
 // The one Escape, started as the root providers start it for every page: a
 // component that answers Escape registers with onEscape and is heard here.
