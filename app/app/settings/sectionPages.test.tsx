@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 // The settings pages that depend on a permission or on the server's AI. Each
@@ -103,19 +103,26 @@ describe("your AI assistants", () => {
 })
 
 describe("API tokens", () => {
+  // The page is imported once, before the tests, with time of its own: its first import
+  // transforms the whole page, which on a loaded machine (CI on Node 22.23.4, 22 Oct) took
+  // longer than a test's 5 s by itself. The tests then wait on what they check.
+  let ApiTokensSettingsPage: (typeof import("./api-tokens/page"))["default"]
+  beforeAll(async () => {
+    ApiTokensSettingsPage = (await import("./api-tokens/page")).default
+  }, 60_000)
+
   it("puts New token, the page's one primary action, in its header, and it opens the dialog", async () => {
-    const { default: ApiTokensSettingsPage } = await import("./api-tokens/page")
     render(<ApiTokensSettingsPage />)
     const header = screen.getByRole("banner")
     expect(h1()).toHaveAccessibleName("API tokens")
     fireEvent.click(within(header).getByRole("button", { name: "New token" }))
-    expect(await screen.findByRole("dialog")).toBeInTheDocument()
-  })
+    // The dialog may come in its own chunk: waited for, not read at the default second.
+    expect(await screen.findByRole("dialog", {}, { timeout: 10_000 })).toBeInTheDocument()
+  }, 20_000)
 
   // One height for a header's action across the settings pages and the admin
   // sections: New token was 36px where Admin's actions are 32px.
   it("draws New token at the section actions' height", async () => {
-    const { default: ApiTokensSettingsPage } = await import("./api-tokens/page")
     render(<ApiTokensSettingsPage />)
     const button = within(screen.getByRole("banner")).getByRole("button", { name: "New token" })
     expect(button.className).toContain("md:h-8")
