@@ -1,4 +1,4 @@
-import { withCsrfHeader } from "@/lib/utils/csrf";
+import { backendFetch } from "@/lib/http/backendFetch";
 import { refreshSession } from "@/lib/auth/sessionRefresh";
 import { within } from "@/lib/auth/probe";
 import { signInAnswer } from "@/lib/auth/signInAnswer";
@@ -101,11 +101,10 @@ class AuthService {
 
     static async loginAsDemo(): Promise<{ ok: boolean; msg?: string }> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}demo-login`,
+            const res = await backendFetch(
+                `demo-login`,
                 {
                     method: 'POST',
-                    credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
                     },
@@ -156,11 +155,10 @@ class AuthService {
      */
     static async loginWithEmail(email: string, password: string): Promise<LoginOutcome> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/login`,
+            const res = await backendFetch(
+                `auth/login`,
                 {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password }),
                 }
@@ -181,11 +179,10 @@ class AuthService {
      */
     static async completeTOTPLogin(challenge: string, code: string): Promise<TOTPLoginOutcome> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/login/totp`,
+            const res = await backendFetch(
+                `auth/login/totp`,
                 {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ challenge, code }),
                 }
@@ -215,11 +212,10 @@ class AuthService {
      */
     static async signup(token: string, name: string, password: string): Promise<SignupOutcome> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/signup`,
+            const res = await backendFetch(
+                `auth/signup`,
                 {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token, name, password }),
                 }
@@ -241,11 +237,10 @@ class AuthService {
 
     static async forgotPassword(email: string): Promise<{ ok: boolean; msg: string }> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/forgot-password`,
+            const res = await backendFetch(
+                `auth/forgot-password`,
                 {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email }),
                 }
@@ -268,9 +263,8 @@ class AuthService {
     static async checkResetLink(token: string): Promise<"usable" | "refused" | "unknown"> {
         try {
             return await within(async (signal) => {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}auth/reset-password/check`, {
+                const res = await backendFetch(`auth/reset-password/check`, {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token }),
                     signal,
@@ -295,11 +289,10 @@ class AuthService {
      */
     static async resetPassword(token: string, password: string): Promise<ResetOutcome> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/reset-password`,
+            const res = await backendFetch(
+                `auth/reset-password`,
                 {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token, password }),
                 }
@@ -335,9 +328,9 @@ class AuthService {
     static async getAdminSetupStatus(): Promise<{ required: boolean; pinned: boolean; unreachable?: boolean }> {
         try {
             return await within(async (signal) => {
-                const res = await fetch(
-                    `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/admin-setup-required`,
-                    { credentials: 'include', signal }
+                const res = await backendFetch(
+                    `auth/admin-setup-required`,
+                    { signal }
                 );
                 const data = await res.json();
                 return { required: data.required === true, pinned: data.pinned === true };
@@ -353,11 +346,10 @@ class AuthService {
 
     static async adminSetup(email: string, password: string, username: string): Promise<{ ok: boolean; msg: string }> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/admin-setup`,
+            const res = await backendFetch(
+                `auth/admin-setup`,
                 {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password, username }),
                 }
@@ -386,9 +378,9 @@ class AuthService {
         const noAnswer: InvitationCheck = { valid: false, unreachable: true, email: '', name: '', inviterName: '', workspace: '', msg: '' };
         try {
             return await within(async (signal) => {
-                const res = await fetch(
-                    `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/validate-token?token=${encodeURIComponent(token)}`,
-                    { credentials: 'include', signal }
+                const res = await backendFetch(
+                    `auth/validate-token?token=${encodeURIComponent(token)}`,
+                    { signal }
                 );
                 if (res.status >= 500) return noAnswer;
                 const data = await res.json();
@@ -409,12 +401,11 @@ class AuthService {
 
     static async changePassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean; msg: string }> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/change-password`,
+            const res = await backendFetch(
+                `auth/change-password`,
                 {
                     method: 'POST',
-                    credentials: 'include',
-                    headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
                 }
             );
@@ -444,15 +435,13 @@ class AuthService {
      * throws.
      */
     static async hasActiveSession(): Promise<boolean> {
-        const base = process.env.NEXT_PUBLIC_BACKEND_URL;
         // The whole check, refresh included, within PROBE_TIMEOUT_MS: a probe that
         // never answers is "not signed in", so the sign-in page can draw.
         const check = async (signal: AbortSignal): Promise<boolean> => {
             const probe = async (): Promise<number> => {
                 try {
-                    const res = await fetch(`${base}user/profile`, {
+                    const res = await backendFetch(`user/profile`, {
                         method: 'GET',
-                        credentials: 'include',
                         cache: 'no-store',
                         signal,
                     });
@@ -502,11 +491,10 @@ class AuthService {
      */
     static async loginWithLDAP(usernameOrEmail: string, password: string): Promise<LoginOutcome> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/ldap-login`,
+            const res = await backendFetch(
+                `auth/ldap-login`,
                 {
                     method: 'POST',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username_or_email: usernameOrEmail, password }),
                 }

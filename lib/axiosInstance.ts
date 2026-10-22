@@ -9,11 +9,14 @@ import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity";
 import { tellReadFailure } from "@/lib/http/loadFailure";
 import { onSessionRefreshed, refreshSession, sessionIsStale } from "@/lib/auth/sessionRefresh";
 import { REQUEST_TIMEOUT_MS, isTimeout, waitsAsLongAsItTakes } from "@/lib/http/requestTimeout";
+import { CSRF_HEADER, WEB_CLIENT_HEADERS, csrfToken, isWrite, noteCsrfToken, refusedForAnOldToken } from "@/lib/http/csrfToken";
 
 declare module "axios" {
     interface AxiosRequestConfig {
         /** The caller shows its own message for a failure, so the global error toast stays quiet. */
         suppressErrorToast?: boolean
+        csrfSent?: string
+        csrfRetried?: boolean
     }
 }
 
@@ -81,30 +84,13 @@ const proactiveRefresh = () => {
     });
 };
 
-const clearClientCookies = () => {
-    // Must match the Domain the server used when setting cookies
-    // Server uses FE_DOMAIN (e.g., onecamp.onemana.dev)
-    const cookieNames = ['Authorization', 'RefreshToken'];
-    const hostname = window.location.hostname; // e.g., onecamp.onemana.dev
-    const parts = hostname.split('.');
-    const parentDomain = parts.length >= 2 ? '.' + parts.slice(-2).join('.') : '';
-
-    // Clear with all possible domain variations
-    const domains = ['', hostname, '.' + hostname, parentDomain];
-    for (const name of cookieNames) {
-        for (const domain of domains) {
-            const domainPart = domain ? `; domain=${domain}` : '';
-            document.cookie = `${name}=; Max-Age=0; path=/${domainPart}`;
-        }
-    }
-};
-
 const performLogout = async () => {
     if (isLoggingOut) return;
     isLoggingOut = true;
     try {
         await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}logout`, {}, {
-            withCredentials: true
+            withCredentials: true,
+            headers: { ...WEB_CLIENT_HEADERS },
         });
     } catch {
         // Logout call failed, still clear client state
@@ -112,7 +98,6 @@ const performLogout = async () => {
     // Let go of everything kept for the member before storage is cleared,
     // so nothing writes itself back on the way out (see lib/sessionEnd).
     await endSession();
-    clearClientCookies();
     localStorage.clear();
     sessionStorage.clear();
     // Only redirect if not already on a public page to avoid reload loops
@@ -133,38 +118,11 @@ const performLogout = async () => {
 const axiosInstance = axios.create({
     baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
     withCredentials: true,
-    // CSRF token: the BE writes a `X-CSRF-Token` cookie on every
-    // response (scoped to the shared parent domain so this FE origin
-    // can read it). Axios reads that cookie and echoes its value back
-    // as a header on every state-changing request, satisfying the
-    // double-submit-cookie pattern on the BE side.
-    //
-    // `withXSRFToken: true` is REQUIRED here. Since axios 1.6 the XSRF
-    // header is only attached automatically for *same-origin* requests
-    // unless this flag is set. Our FE (onecamp.onemana.dev) and BE
-    // (onecamp-backend.onemana.dev) are different subdomains, i.e.
-    // cross-origin, so without this flag axios silently drops the
-    // header and every POST/PUT/PATCH/DELETE fails the BE CSRF check
-    // with a 403.
-    xsrfCookieName: 'X-CSRF-Token',
-    xsrfHeaderName: 'X-CSRF-Token',
-    withXSRFToken: true,
+    // Off: axios would send document.cookie's X-CSRF-Token, on a shared zone
+    // maybe another workspace's. The token comes from answers (lib/http/csrfToken).
+    withXSRFToken: false,
     timeout: REQUEST_TIMEOUT_MS,
 });
-
-/**
- * Browser cookie management is the source of truth for auth: requests carry
- * cookies via `withCredentials: true` whether or not JS can see them. We do
- * NOT pre-gate requests on `document.cookie` visibility — cookies set with
- * an explicit `Domain` attribute, on a subdomain, or via a proxy can be
- * stored in the browser's HTTP cookie jar but invisible to JS, and gating
- * on JS visibility kicks freshly-logged-in users straight back to the login
- * screen (e.g., after demo-login or OAuth callback).
- *
- * The response interceptor below handles a genuinely-missing/expired
- * cookie via a 401 → refreshToken → logout chain, which is the correct
- * authoritative signal.
- */
 
 axiosInstance.interceptors.request.use(async req => {
     if (req.timeout === axiosInstance.defaults.timeout && waitsAsLongAsItTakes(req)) req.timeout = 0
@@ -193,14 +151,19 @@ axiosInstance.interceptors.request.use(async req => {
         }
     }
 
+    for (const [name, value] of Object.entries(WEB_CLIENT_HEADERS)) req.headers.set(name, value);
+    if (isWrite(req.method)) {
+        const token = csrfToken();
+        req.csrfSent = token;
+        if (token) req.headers.set(CSRF_HEADER, token);
+    }
+
     // @ts-ignore — silent flag suppresses global loading bar for background polls
     if (!req.silent) {
         loadingBus.start();
     }
 
-    // We deliberately do NOT pre-validate the auth cookie here. The browser
-    // sends cookies via `withCredentials: true` regardless of JS visibility,
-    // and a real 401 response is handled below.
+    // The session's cookies are HttpOnly: a 401 below, not JS, says it's gone.
     return req
 })
 
@@ -227,6 +190,7 @@ axiosInstance.interceptors.response.use(
             loadingBus.end();
         }
         noteNetworkOk();
+        noteCsrfToken(response.headers);
         return response;
     },
     async (error) => {
@@ -245,6 +209,13 @@ axiosInstance.interceptors.response.use(
         // answer at all (and not a request this app cancelled) is a miss.
         if (error.response) {
             noteNetworkOk();
+            noteCsrfToken(error.response.headers);
+            // Refused for a CSRF token missing or run out: once more, before any toast.
+            if (originalRequest && isWrite(originalRequest.method) && !originalRequest.csrfRetried
+                && refusedForAnOldToken(error.response.status, originalRequest.csrfSent ?? "")) {
+                originalRequest.csrfRetried = true;
+                return axiosInstance(originalRequest);
+            }
         } else if (!axios.isCancel(error) && error.code !== "ERR_CANCELED") {
             noteNetworkFailure();
             const method = String(error.config?.method || "get").toLowerCase();

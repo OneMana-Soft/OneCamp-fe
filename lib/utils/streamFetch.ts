@@ -15,7 +15,8 @@
  * has lapsed.
  *
  * Behaviour:
- *   - Sends cookies (credentials: include) and the CSRF header.
+ *   - Goes through backendFetch: cookies, the CSRF token on a write, and one
+ *     more try when the API refused it for a token that had run out.
  *   - On HTTP 401, refreshes the session once (the one refresh every path
  *     shares, lib/auth/sessionRefresh), then retries the original request once.
  *   - Never loops: at most one refresh+retry per call.
@@ -26,12 +27,8 @@
  * the helper focused and side-effect-free.
  */
 
-import { withCsrfHeader } from "@/lib/utils/csrf"
+import { backendFetch } from "@/lib/http/backendFetch"
 import { refreshSession } from "@/lib/auth/sessionRefresh"
-
-function backendBase(): string {
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "") + "/"
-}
 
 /**
  * The session's one refresh (lib/auth/sessionRefresh), shared with the API
@@ -68,31 +65,26 @@ export async function authedStreamFetch(
   path: string,
   init: AuthedStreamInit = {},
 ): Promise<Response> {
-  const url = `${backendBase()}${path.replace(/^\/+/, "")}`
   const method = init.method ?? (init.jsonBody !== undefined ? "POST" : "GET")
 
-  const buildRequest = (): RequestInit => {
-    const headers = withCsrfHeader({
+  const buildRequest = (): RequestInit => ({
+    method,
+    headers: {
       ...(init.jsonBody !== undefined ? { "Content-Type": "application/json" } : {}),
       Accept: init.accept ?? "text/event-stream",
       ...(init.headers ?? {}),
-    })
-    return {
-      method,
-      credentials: "include",
-      headers,
-      ...(init.jsonBody !== undefined ? { body: JSON.stringify(init.jsonBody) } : {}),
-      signal: init.signal,
-    }
-  }
+    },
+    ...(init.jsonBody !== undefined ? { body: JSON.stringify(init.jsonBody) } : {}),
+    signal: init.signal,
+  })
 
-  let resp = await fetch(url, buildRequest())
+  let resp = await backendFetch(path, buildRequest())
 
   // Access token likely expired — refresh once and retry, mirroring axios.
   if (resp.status === 401) {
     const refreshed = await refreshAccessToken()
     if (refreshed) {
-      resp = await fetch(url, buildRequest())
+      resp = await backendFetch(path, buildRequest())
     }
   }
 
