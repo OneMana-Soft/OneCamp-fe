@@ -110,7 +110,9 @@ export function useThemeBackendSync(saved: SavedTheme) {
           user_theme_color: activeTheme,
           user_theme_mode: theme,
         },
-        showToast: false,
+        // Quiet both ways: showToast: false alone kept only the success toast away, so a
+        // refused save still raised the client's error toast (a 404's "Not found").
+        quiet: true,
       })
         .then(() => {
           lastSyncedRef.current = { color: activeTheme, mode: theme }

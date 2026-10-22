@@ -111,6 +111,9 @@ describe("a member's theme", () => {
       await settle()
     }
     expect(posts.filter((p) => p.apiEndpoint === "/updateUserTheme")).toHaveLength(1)
+    // ...and quietly: showToast: false keeps only the success toast away; the client's
+    // error toast (a 404's "Not found") is kept away by quiet.
+    expect(posts[0]).toMatchObject({ quiet: true })
   })
 
   it("is neither read nor saved where nobody is signed in", async () => {
