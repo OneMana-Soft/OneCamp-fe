@@ -47,15 +47,31 @@ function openRow(i: number) {
 }
 
 describe("webhooks", () => {
+  // An incoming webhook's token is kept only as its hash (audit A1), so the
+  // list never has it: the card said what it was sent, an empty value, and
+  // Show and Copy gave nothing. It is shown once, in the answer that makes it.
+  it("never shows a token from the list, and says how to get a new one", () => {
+    render(<WebhooksCard />)
+    openRow(0)
+    expect(document.body.textContent).not.toContain("tok123")
+    expect(screen.getByText("Hidden. Regenerate to get a new one.")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Show token|Copy webhook URL|Copy token/ })).toBeNull()
+  })
+
   // The deployed base ends in "/", and the card added its own, so the URL an
   // admin copied into another service read ".../​/webhook/incoming/…", which
   // the API's router does not match.
-  it("shows the incoming URL with one slash after the API's address", () => {
+  it("shows a regenerated token and its address once, with Copy and one slash after the API's address", async () => {
+    vi.mocked(axiosInstance.post).mockResolvedValueOnce({ data: { token: "tok999" } })
     render(<WebhooksCard />)
     openRow(0)
-    fireEvent.click(screen.getAllByRole("button", { name: "Show token" })[0])
-    expect(screen.getByText("https://api.example.com/webhook/incoming/tok123")).toBeTruthy()
+    fireEvent.click(screen.getAllByRole("button", { name: "Regenerate the token" })[0])
+    confirmCalls[0].onConfirm()
+    const reveal = await screen.findByRole("dialog")
+    expect(reveal.textContent).toContain("https://api.example.com/webhook/incoming/tok999")
+    expect(reveal.textContent).toMatch(/won.t be shown again/)
     expect(document.body.textContent).not.toMatch(/\.com\/\/webhook/)
+    expect(screen.getByRole("button", { name: "Copy address" })).toBeTruthy()
   })
 
   // One click on a small icon used to replace the token every integration
@@ -199,16 +215,15 @@ describe("webhooks", () => {
   it("gives every credential row the same three button slots", () => {
     render(<WebhooksCard />)
     const groups = () => Array.from(document.querySelectorAll("[data-credential-actions]")) as HTMLElement[]
-    // Incoming: URL and token.
+    // Incoming: its address, hidden, with Regenerate.
     openRow(0)
     const inc = groups()
-    expect(inc).toHaveLength(2)
-    expect(inc[0].children[1].getAttribute("aria-label")).toBe("Copy webhook URL")
-    expect(inc[1].children[1].getAttribute("aria-label")).toBe("Copy token")
-    // Outgoing: token, signing secret, target.
+    expect(inc).toHaveLength(1)
+    expect(inc[0].children[2].getAttribute("aria-label")).toBe("Regenerate the token")
+    // Outgoing: signing secret and target (its token posts nothing).
     openRow(1)
     const out = groups()
-    expect(out).toHaveLength(3)
+    expect(out).toHaveLength(2)
     for (const g of [...inc, ...out]) {
       expect(g.children).toHaveLength(3)
       expect(g.className).toContain("w-24")
