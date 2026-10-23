@@ -92,6 +92,7 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
   return () => {
     let renderer: ReactRenderer<SuggestionListRef> | undefined
     let popup: TippyInstance | undefined
+    let resized: ResizeObserver | undefined
     let editor: Editor | undefined
     let open = false
     let dismissed = false
@@ -140,6 +141,10 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
           popperOptions: { modifiers: [{ name: "flip", options: { fallbackPlacements: ["top-start"] } }] },
           ...tippyOptions,
         })[0]
+        // Placed again whenever its size changes: the "@" list's rows come after it
+        // opens, and placed only while empty it stayed below the text, off the window.
+        resized = new ResizeObserver(() => popup?.popperInstance?.forceUpdate())
+        resized.observe(popup.popper)
         setOpen(!isEmpty?.(props))
       },
 
@@ -165,6 +170,7 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
 
       onExit: () => {
         setOpen(false)
+        resized?.disconnect()
         popup?.destroy()
         renderer?.destroy()
         popup = undefined
