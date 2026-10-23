@@ -1,4 +1,4 @@
-import type { Page, Request, TestInfo } from "@playwright/test"
+import { expect, type Page, type Request, type TestInfo } from "@playwright/test"
 
 import { leavesApp } from "../scripts/fluidity/appServers.mjs"
 
@@ -48,6 +48,10 @@ function statusOf(answer: unknown): { status: number; json: unknown } {
  */
 const SHELL_READS: Array<[RegExp, unknown]> = [
   [/\/task\/time\/running$/, { msg: "ok", data: null }],
+  // Every page's composer drafts (components/conversation/DraftSyncLoader), none kept.
+  [/\/drafts$/, { msg: "ok", data: { drafts: [], max: 500 } }],
+  // What a task or a project links to (services/entityLinkService), read by every task page: nothing.
+  [/\/link\/source\/[^/]+\/[^/]+$/, { msg: "ok", data: { docs: [], boards: [] } }],
   // A doc page's own reads, as a doc nobody has followed, starred, linked to
   // or commented on, with no folder above it.
   [/\/content-io\/capabilities$/, { capabilities: { export: true, export_formats: ["md", "html", "pdf", "docx"], import_extensions: [".md", ".html", ".txt"], max_import_bytes: 10485760, max_direct_bytes: 5242880 } }],
@@ -68,6 +72,36 @@ const SHELL_READS: Array<[RegExp, unknown]> = [
  */
 const SHELL_WRITES: Array<[RegExp, unknown]> = [[/\/(doc|board)\/recordView$/, { msg: "ok" }]]
 
+/** The calls each page made that no stub answered, as "GET /path". */
+const unanswered = new WeakMap<Page, string[]>()
+
+/**
+ * Saves the page for design review when SHOTS_DIR is set, as
+ * `<name>-<width>-<theme>.png`, once nothing on it moves and with no stub's
+ * "Not in this test" toast on it; a failure names what still moves, or the
+ * calls no stub answered. An endless animation (a spinner) is not waited for,
+ * nor one a scroll drives (a strip's data-edge-fade), which reads "running"
+ * for as long as it is drawn.
+ */
+export async function reviewShot(page: Page, name: string, theme: string) {
+  const dir = process.env.SHOTS_DIR
+  if (!dir) return
+  const moving = () =>
+    page.evaluate(() =>
+      document
+        .getAnimations()
+        .filter((a) => a.playState === "running" && a.timeline === document.timeline && a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => {
+          const target = (a.effect as KeyframeEffect | null)?.target
+          const what = a instanceof CSSAnimation ? a.animationName : a instanceof CSSTransition ? a.transitionProperty : "an animation"
+          return `${what} on ${target ? target.outerHTML.slice(0, 80) : "nothing"}`
+        }),
+    )
+  await expect.poll(moving, { message: "a shot while the page moves" }).toEqual([])
+  expect(await page.getByText("Not in this test").count(), `a shot with the stub's toast, from ${(unanswered.get(page) ?? []).join(", ")}`).toBe(0)
+  await page.screenshot({ path: `${dir}/${name}-${page.viewportSize()?.width}-${theme}.png` })
+}
+
 /**
  * Answers the app's API calls: `answers` by path prefix (the longest that
  * matches; withStatus for one that isn't a 200; a function of the URL for one
@@ -76,6 +110,8 @@ const SHELL_WRITES: Array<[RegExp, unknown]> = [[/\/(doc|board)\/recordView$/, {
  * everything else (never 401: that signs the browser out).
  */
 export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answers = {}) {
+  const missed: string[] = []
+  unanswered.set(page, missed)
   const app = new URL(String(testInfo.project.use.baseURL || "http://localhost:3001"))
   await page.routeWebSocket(/.*/, () => {
     // Accepted and silent: the collaboration and live-update sockets wait.
@@ -105,6 +141,7 @@ export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answe
       if (/\/user\/profile$/.test(path)) return route.fulfill({ status: 200, headers, json: { msg: "ok", data: SAM } })
       const shell = (request.method() === "GET" ? SHELL_READS : SHELL_WRITES).find(([re]) => re.test(path))
       if (shell) return route.fulfill({ status: 200, headers, json: shell[1] })
+      missed.push(`${request.method()} ${path}`)
       return route.fulfill({ status: 404, headers, json: { msg: "Not in this test" } })
     },
   )
