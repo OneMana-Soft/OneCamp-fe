@@ -86,14 +86,14 @@ describe("a webhook row", () => {
   // so. It says why now, and offers Resume.
   it("says a paused webhook is paused, and why, whatever else it says", () => {
     const now = Date.parse("2026-10-11T12:00:00Z")
-    const paused = { ...hook, failure_count: 4, paused_at: "2026-10-11T11:00:00Z" }
-    expect(deliveryState({ ...paused, paused_reason: "owner_cant_read" }, now)).toEqual({ tone: "warning", word: "Paused" })
+    const paused = { ...hook, failure_count: 4, paused_at: "2026-10-11T11:00:00Z", paused_reason: "owner_cant_read" }
+    expect(deliveryState(paused, now)).toEqual({ tone: "warning", word: "Paused" })
     expect(pausedWhy({ ...paused, paused_reason: "owner_cant_read", scope_type: "channel" })).toBe("Paused: its owner can't read the channel it's set up for.")
     expect(pausedWhy({ ...paused, paused_reason: "owner_cant_read", scope_type: "project" })).toBe("Paused: its owner can't read the project it's set up for.")
     expect(pausedWhy({ ...paused, paused_reason: "owner_left" })).toBe("Paused: its owner is no longer a member.")
     expect(pausedWhy({ ...paused, paused_reason: "failing" })).toBe("Paused after failing 50 times in a row.")
     expect(pausedWhy({ ...paused, paused_reason: "admin" })).toBe("Paused by an admin.")
-    expect(pausedWhy(hook)).toBeNull()
+    expect(pausedWhy({ ...hook, scope_type: "channel" })).toBeNull()
   })
 
   it("offers Resume on a paused webhook, and says what the server answered", async () => {
