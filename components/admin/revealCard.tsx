@@ -1,7 +1,6 @@
 "use client"
 
-import { Check, Copy } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
+import { CopyGlyph } from "@/components/ui/settingsControls"
 
 /**
  * A secret shown once (an API token, an incoming webhook's address): mono on
@@ -24,14 +23,7 @@ export function RevealCard({ secret, what, copied, onCopy }: { secret: string; w
           aria-label={copied ? said : `Copy ${what}`}
           className="you-reveal-copy"
         >
-          <Copy className={cn("col-start-1 row-start-1 size-4 transition-opacity duration-150", copied ? "opacity-0" : "opacity-100")} aria-hidden="true" />
-          <Check
-            className={cn(
-              "col-start-1 row-start-1 size-4 text-success-ink transition-[opacity,transform] duration-[220ms] ease-[var(--ease-spring)]",
-              copied ? "scale-100 opacity-100" : "scale-50 opacity-0",
-            )}
-            aria-hidden="true"
-          />
+          <CopyGlyph copied={copied} className="size-4" />
         </button>
       </div>
       <p className="text-xs font-medium text-warning-ink">Copy it now. It won&apos;t be shown again.</p>
