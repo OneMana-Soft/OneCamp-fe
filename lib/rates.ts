@@ -12,6 +12,8 @@ export interface ProjectRates {
   currency?: string
   default_rate_cents: number
   people: { user_uuid: string; rate_cents: number }[]
+  /** The version read: a save sends it back, and is refused (409) when the rates changed since. */
+  updated_at?: string
 }
 
 /** The currencies offered, as invoices offer them; the server takes any three-letter code. */
