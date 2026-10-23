@@ -102,15 +102,11 @@ export const CHAT_COMMANDS: SlashCommandItem[] = [
 
 // ─── Backend command provider (Slack-style app/core commands) ───
 //
-// The chat composer registers an async provider that returns the scoped
-// command catalog (/remind, /giphy, /poll, ...). These are merged into the
-// "/" menu alongside the formatting commands above. Selecting one dispatches
-// a `chat-slash-command` CustomEvent, which the composer's command runner
-// handles (execute server-side, render an interactive card, or perform a
-// client action). A doc's own items (AI among them) are registered actions run
-// through its command bus instead (components/docEditor/registry). Keeping this as a module-level provider avoids threading async
-// props through every composer while ensuring docs (which never register a
-// provider) keep their formatting-only menu unchanged.
+// A composer's command runner registers its conversation's catalog (/remind,
+// /giphy, /poll, an app's own) as a provider: module-level, so no composer
+// threads it through props. Picking one dispatches `chat-slash-command`, which
+// the runner handles. A doc registers none; its own items run through its
+// command bus (components/docEditor/registry).
 
 export interface BackendCommandEntry {
   command: string        // canonical name without leading slash
@@ -140,25 +136,39 @@ export function commandSurfaceOf(editor?: SurfaceEditor): string | null {
   return null
 }
 
-// slashMenuOpen tracks whether the "/" suggestion popup is currently showing.
-// The composer's Enter-to-send handler reads this (via isSlashMenuOpen) and
-// yields while the menu is open so Enter selects the highlighted command
-// instead of sending the raw "/" text as a message. Set by the render
-// lifecycle below — deterministic, no ProseMirror plugin-key guesswork.
+// Whether the "/" menu shows, set by its popup (onOpenChange below). The
+// composer's Enter yields while it does, so Enter picks the highlighted
+// command rather than sending "/" as text.
 let slashMenuOpen = false
 
-/** isSlashMenuOpen reports whether the "/" command menu is currently visible. */
 export function isSlashMenuOpen(): boolean {
   return slashMenuOpen
+}
+
+// An open menu follows its surface's provider: commands can come after "/".
+const providerListeners = new Set<() => void>()
+const onProvidersChange = (listener: () => void) => {
+  providerListeners.add(listener)
+  return () => void providerListeners.delete(listener)
 }
 
 /** Registers a surface's provider (null removes it); returns its removal. */
 export function setBackendCommandProvider(provider: BackendCommandProvider | null, surface = "") {
   if (provider) backendCommandProviders.set(surface, provider)
   else backendCommandProviders.delete(surface)
+  providerListeners.forEach((listener) => listener())
   return () => {
-    if (provider && backendCommandProviders.get(surface) === provider) backendCommandProviders.delete(surface)
+    if (provider && backendCommandProviders.get(surface) === provider) setBackendCommandProvider(null, surface)
   }
+}
+
+/**
+ * Only a message box offers its conversation's commands: they once reached a
+ * doc's "/" beside a thread, and picking one fired it into that composer
+ * (how-docs-work N6). Pure.
+ */
+export function withoutChatCommands(items: SlashCommandItem[]): SlashCommandItem[] {
+  return items.filter((item) => !item.id.startsWith("cmd-"))
 }
 
 /** Map a backend catalog entry to a SlashCommandItem that dispatches an event. */
@@ -323,6 +333,15 @@ export function slashScore(item: SlashCommandItem, query: string): number {
 /** The most commands a chat composer's provider adds to the menu. */
 const BACKEND_LIMIT = 50
 
+/** A surface's backend (app and core) commands for a query: none without a provider (a doc has none). */
+function backendItemsOf(provider: BackendCommandProvider | undefined, query: string): SlashCommandItem[] {
+  try {
+    return provider ? provider(query.trim().toLowerCase()).slice(0, BACKEND_LIMIT).map(toBackendItem) : []
+  } catch {
+    return []
+  }
+}
+
 export const slashCommandSuggestion = {
   /**
    * What "/" offers for a query. Tiptap's query is what follows the "/", so
@@ -333,19 +352,7 @@ export const slashCommandSuggestion = {
    */
   items: ({ query, commands, editor }: { query: string; commands: SlashCommandItem[]; editor?: SurfaceEditor }): SlashCommandItem[] => {
     const q = (query || "").trim().toLowerCase()
-
-    // Merge backend (app/core) commands when a provider is registered (chat
-    // composer). Docs register no provider, so their menu is unchanged.
-    let backendItems: SlashCommandItem[] = []
-    const provider = providerFor(commandSurfaceOf(editor))
-    if (provider) {
-      try {
-        backendItems = provider(q).slice(0, BACKEND_LIMIT).map(toBackendItem)
-      } catch {
-        backendItems = []
-      }
-    }
-
+    const backendItems = backendItemsOf(providerFor(commandSurfaceOf(editor)), q)
     if (!q) return [...backendItems, ...commands]
     const ranked = commands
       .map((item, at) => ({ item, at, score: slashScore(item, q) }))
@@ -403,26 +410,32 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
   // A doc's menu is the one configured with AI commands; ask the extension,
   // since the matched items are empty exactly when this matters.
   const inDoc = !!slash?.commands?.some((c: SlashCommandItem) => c.section === "AI")
+  // As it stands: a menu opened before the commands came takes them in.
+  const provider = React.useSyncExternalStore(onProvidersChange, () => providerFor(commandSurfaceOf(props.editor)))
   // A chat composer's menu leads with its commands (/remind, /poll): it says
   // so, where it read "Blocks" (MC-13). A doc's stays a block menu. Decided as
   // the extension decides its rows (SlashCommand's conversation): the header
   // read "Commands" over formatting alone while the rows were left out.
-  const commands = !!slash?.conversation && !!providerFor(commandSurfaceOf(props.editor))
+  const commands = !!slash?.conversation && !!provider
+  const offered = React.useMemo(
+    () => (slash?.conversation ? [...backendItemsOf(provider, query), ...withoutChatCommands(props.items)] : props.items),
+    [slash?.conversation, provider, query, props.items],
+  )
 
   const ordered = React.useMemo(() => {
     if (query) {
       // Ranked (items, best first), grouped: a group comes where its best
       // match does, so the highlighted first row is the best one.
       const groups: string[] = []
-      for (const i of props.items) if (!groups.includes(i.section)) groups.push(i.section)
-      return groups.flatMap((section) => props.items.filter((i) => i.section === section).map((i) => ({ item: i, group: section })))
+      for (const i of offered) if (!groups.includes(i.section)) groups.push(i.section)
+      return groups.flatMap((section) => offered.filter((i) => i.section === section).map((i) => ({ item: i, group: section })))
     }
     const recentIds = recentBlocks.read()
-    const recent = recentIds.map((id) => props.items.find((i) => i.id === id)).filter(Boolean) as SlashCommandItem[]
-    const rest = SECTION_ORDER.flatMap((section) => props.items.filter((i) => i.section === section))
-    const unknown = props.items.filter((i) => !SECTION_ORDER.includes(i.section))
+    const recent = recentIds.map((id) => offered.find((i) => i.id === id)).filter(Boolean) as SlashCommandItem[]
+    const rest = SECTION_ORDER.flatMap((section) => offered.filter((i) => i.section === section))
+    const unknown = offered.filter((i) => !SECTION_ORDER.includes(i.section))
     return [...recent.map((i) => ({ item: i, group: "Recent" })), ...[...rest, ...unknown].map((i) => ({ item: i, group: i.section }))]
-  }, [props.items, query])
+  }, [offered, query])
 
   const items: CommandListItem[] = React.useMemo(
     () =>
