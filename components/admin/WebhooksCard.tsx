@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { NeutralChip, RowMenu, StateWord } from "@/components/admin/connectParts"
-import { deliveryState, eventChips, parseEvents, shortUrl } from "@/components/admin/webhookParts"
+import { deliveryState, eventChips, parseEvents, pausedWhy, shortUrl } from "@/components/admin/webhookParts"
 import { AddressReveal, incomingUrl } from "@/components/admin/webhookAddress"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
@@ -55,6 +55,9 @@ interface WebhookItem {
   bot_avatar_url?: string
   last_triggered_at?: string
   failure_count: number
+  scope_type?: string
+  paused_at?: string
+  paused_reason?: string
   created_at: string
   updated_at: string
 }
@@ -205,6 +208,21 @@ const WebhooksCard = () => {
     }
   }
 
+  // A paused webhook's deliveries go again; the server says whether the admin
+  // took it over, or why they can't.
+  const resume = async (webhook: WebhookItem) => {
+    setSaving((m) => ({ ...m, [webhook.id]: true }))
+    try {
+      const res = await axiosInstance.post(`${AdminPost.UpdateWebhook}/${webhook.id}/resume`)
+      toast({ title: `${webhook.name} resumed`, description: res.data?.msg, tone: "success" })
+      await mutate()
+    } catch {
+      // The interceptor's toast carries the server's reason.
+    } finally {
+      setSaving((m) => ({ ...m, [webhook.id]: false }))
+    }
+  }
+
   // The switch saves on change with the same fields the edit dialog sends, so
   // nothing else about the webhook is cleared by a partial update.
   const setActive = async (webhook: WebhookItem, on: boolean) => {
@@ -349,6 +367,7 @@ const WebhooksCard = () => {
                   ? "No API address is set on this server"
                   : shortUrl(`${urlBase}••••••••`)
             const open = showLogs === webhook.id
+            const why = webhook.type === "outgoing" ? pausedWhy(webhook) : null
             return (
             <li key={webhook.id} data-webhook-row="" className="cx-wh-item">
               <div className="cx-wh-row">
@@ -364,6 +383,22 @@ const WebhooksCard = () => {
                   <p data-webhook-url="" className="truncate font-mono text-2xs text-muted-foreground" translate="no" title={webhook.type === "outgoing" ? webhook.target_url : undefined}>
                     {address}
                   </p>
+                  {why && (
+                    <p data-webhook-paused="" className="flex flex-wrap items-center gap-x-2 text-2xs text-warning-ink">
+                      <span>{why}</span>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        // A 24px target for a finger; the word stays small.
+                        className="-my-1 h-6 px-1 text-2xs"
+                        disabled={saving[webhook.id]}
+                        aria-label={`Resume ${webhook.name}`}
+                        onClick={() => void resume(webhook)}
+                      >
+                        Resume
+                      </Button>
+                    </p>
+                  )}
                 </div>
                 {webhook.type === "outgoing" && (
                   <div data-webhook-events="" className="cx-wh-events">
