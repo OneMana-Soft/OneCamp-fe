@@ -28,7 +28,6 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => ({}) }))
-vi.mock("@/services/aiService", () => ({ useTranslateText: () => ({ translateText: async () => null, isSubmitting: false }) }))
 vi.mock("@/components/textInput/textInput", () => ({
   default: ({ content }: { content?: string }) => <div data-testid="body">{content}</div>,
 }))

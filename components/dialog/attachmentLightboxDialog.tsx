@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { X, ChevronLeft, ChevronRight, Download, Info, Link, RotateCcw, Loader2 } from "@/lib/icons"
-import { File as FileIcon, ZoomIn, ZoomOut, Sparkles } from "@/lib/icons"
+import { File as FileIcon, ZoomIn, ZoomOut } from "@/lib/icons"
 import { AttachmentMediaReq, AttachmentType } from "@/types/attachment"
 import { useMediaFetch } from "@/hooks/useFetch"
 import { GetMediaURLRes } from "@/types/file"
@@ -21,7 +21,8 @@ import { FileGlyph } from "@/components/fileIcon/fileTypeIcon"
 import { truncateFileName } from "@/lib/utils/format/truncateFileName"
 import { downloadFile } from "@/lib/utils/file/downloadFile"
 import { isImageByExtension, viewableDocumentType } from "@/lib/utils/file/getAttachmentType"
-import { useAnalyzeImage, useAnalyzeDocument } from "@/services/aiService"
+import { useAttachmentAddOn } from "@/lib/addOns/attachments"
+import type { AttachmentSource } from "@/lib/addOns/core"
 
 /**
  * Attachment lightbox.
@@ -47,12 +48,11 @@ interface MediaLightboxProps {
     dialogOpenState: boolean
     allMedia: AttachmentMediaReq[]
     mediaGetUrl: string
-    // When provided (and the media is an image), shows an "Analyze with AI"
-    // action. srcKey/srcRef identify the parent for the server-side access
-    // check; the user never supplies them. srcRef is the identifier the FE
-    // already holds (channel uuid, the other user's uuid for a DM, the group
-    // id, or the doc uuid) - the server resolves it to the real src_value.
-    analyzeContext?: { srcKey: string; srcRef: string }
+    // Where it was posted, for the add-ons (lib/addOns): srcKey/srcRef name the
+    // parent for the server's access check, never the user. srcRef is the id
+    // the page already holds (the channel's, the other person's for a DM, the
+    // group's or the doc's); the server resolves it.
+    source?: AttachmentSource
 }
 
 /**
@@ -81,18 +81,6 @@ function resolveEffectiveType(media: AttachmentMediaReq): AttachmentType {
         return "image"
     }
     return persisted
-}
-
-// AI_READABLE_DOC_EXTS are the document types the backend can extract text from
-// (PDF + DOCX + text-family). Legacy .doc and spreadsheets are excluded so we
-// never offer an action that would fail; a scanned/encrypted PDF still returns
-// a friendly server-side message.
-const AI_READABLE_DOC_EXTS = ["pdf", "txt", "md", "markdown", "csv", "json", "xml", "log", "docx"]
-
-// isAiReadableDoc reports whether a filename is a document AI can summarize.
-function isAiReadableDoc(fileName: string): boolean {
-    const ext = (fileName.split(".").pop() || "").toLowerCase()
-    return AI_READABLE_DOC_EXTS.includes(ext)
 }
 
 function MediaPrefetcher({
@@ -192,12 +180,13 @@ const Sidebar = memo(
         allMedia,
         current,
         onSelect,
-        aiResult,
+        note,
     }: {
         allMedia: AttachmentMediaReq[]
         current: AttachmentMediaReq
         onSelect: (item: AttachmentMediaReq) => void
-        aiResult: string | null
+        /** What an add-on found about it (lib/addOns). */
+        note: { title: string; text: string } | null
     }) => {
         return (
             <aside className="flex w-80 shrink-0 flex-col bg-[#16171A] pt-14 text-white" data-lightbox-rail="">
@@ -216,10 +205,10 @@ const Sidebar = memo(
                         ) : null}
                     </dl>
                 </div>
-                {aiResult ? (
+                {note ? (
                     <div className="border-b border-white/10 px-4 py-3">
-                        <h3 className="text-meta font-medium text-white/60">AI summary</h3>
-                        <p className="mt-1 whitespace-pre-line text-ui-sm text-white/90">{aiResult}</p>
+                        <h3 className="text-meta font-medium text-white/60">{note.title}</h3>
+                        <p className="mt-1 whitespace-pre-line text-ui-sm text-white/90">{note.text}</p>
                     </div>
                 ) : null}
                 <h3 className="px-4 pb-1 pt-3 text-meta font-medium text-white/60">In this set · {allMedia.length}</h3>
@@ -246,7 +235,7 @@ export function MediaLightboxDialog({
     allMedia,
     mediaGetUrl,
     setOpenState,
-    analyzeContext,
+    source,
 }: MediaLightboxProps) {
     const [currentMedia, setCurrentMedia] = useState<AttachmentMediaReq>(media)
     const mediaReq = useMediaFetch<GetMediaURLRes>(
@@ -323,34 +312,8 @@ export function MediaLightboxDialog({
         downloadFile(url, currentMedia?.attachment_file_name || "attachment")
     }, [mediaReq.data?.url, currentMedia])
 
-    // AI image analysis (only offered when a source context is provided).
-    const { analyzeImage, isSubmitting: analyzing } = useAnalyzeImage()
-    const [aiResult, setAiResult] = useState<string | null>(null)
-    useEffect(() => {
-        setAiResult(null)
-    }, [currentMedia?.attachment_uuid])
-    const runAnalyze = useCallback(async () => {
-        if (!analyzeContext || !currentMedia?.attachment_uuid) return
-        const res = await analyzeImage(
-            currentMedia.attachment_uuid,
-            analyzeContext.srcKey,
-            analyzeContext.srcRef,
-        )
-        if (res?.description) setAiResult(res.description)
-    }, [analyzeContext, currentMedia?.attachment_uuid, analyzeImage])
-
-    // AI document reading (DOCX / text-family): same source-context gate as
-    // images; the answer is shown in the shared result panel.
-    const { analyzeDocument, isSubmitting: analyzingDoc } = useAnalyzeDocument()
-    const runAnalyzeDoc = useCallback(async () => {
-        if (!analyzeContext || !currentMedia?.attachment_uuid) return
-        const res = await analyzeDocument(
-            currentMedia.attachment_uuid,
-            analyzeContext.srcKey,
-            analyzeContext.srcRef,
-        )
-        if (res?.description) setAiResult(res.description)
-    }, [analyzeContext, currentMedia?.attachment_uuid, analyzeDocument])
+    // What an edition adds to the file open here (lib/addOns): bar buttons, and what they found.
+    const addOn = useAttachmentAddOn(currentMedia, !!currentMedia && resolveEffectiveType(currentMedia) === "image", source)
 
     if (!currentMedia || allMedia?.length == 0) {
         return null
@@ -534,10 +497,6 @@ export function MediaLightboxDialog({
     }
 
     const effectiveType = resolveEffectiveType(currentMedia)
-    const canAskAi =
-        !!analyzeContext && (effectiveType === "image" || isAiReadableDoc(currentMedia?.attachment_file_name || ""))
-    const askAi = effectiveType === "image" ? runAnalyze : runAnalyzeDoc
-    const asking = effectiveType === "image" ? analyzing : analyzingDoc
 
     // The media's own stage (content.md F05): full screen on near-black in
     // both themes, the name and its details in a top bar that fades into the
@@ -578,21 +537,23 @@ export function MediaLightboxDialog({
                                 <Button variant="ghost" size="icon" onClick={copyLink} className={barButtonClass} aria-label={copied ? "Link copied" : "Copy link"}>
                                     <Link className="size-4" />
                                 </Button>
-                                {canAskAi ? (
+                                {addOn.actions.map(({ key, label, icon: Icon, busy, run }) => (
                                     <Button
+                                        key={key}
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => {
+                                            // What it finds shows in the rail.
                                             setInfoOpen(true)
-                                            void askAi()
+                                            run()
                                         }}
-                                        disabled={asking}
+                                        disabled={busy}
                                         className={barButtonClass}
-                                        aria-label={effectiveType === "image" ? "Ask AI about this image" : "Summarise with AI"}
+                                        aria-label={label}
                                     >
-                                        {asking ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                                        {busy ? <Loader2 className="size-4 animate-spin" /> : <Icon className="size-4" />}
                                     </Button>
-                                ) : null}
+                                ))}
                                 {!isMobile ? (
                                     <Button
                                         variant="ghost"
@@ -628,17 +589,17 @@ export function MediaLightboxDialog({
                             )}
                         </div>
 
-                        {/* On a phone (no rail) the AI's answer sits under the stage. */}
-                        {aiResult && (isMobile || !infoOpen) ? (
+                        {/* On a phone (no rail) what an add-on found sits under the stage. */}
+                        {addOn.note && (isMobile || !infoOpen) ? (
                             <div className="max-h-40 shrink-0 overflow-y-auto border-t border-white/10 bg-[#16171A] px-4 py-3">
-                                <p className="mb-1 text-meta font-medium text-white/60">AI summary</p>
-                                <p className="whitespace-pre-line text-ui-sm text-white/90">{aiResult}</p>
+                                <p className="mb-1 text-meta font-medium text-white/60">{addOn.note.title}</p>
+                                <p className="whitespace-pre-line text-ui-sm text-white/90">{addOn.note.text}</p>
                             </div>
                         ) : null}
                     </div>
 
                     {infoOpen && !isMobile ? (
-                        <Sidebar allMedia={allMedia} current={currentMedia} onSelect={handleSelectMedia} aiResult={aiResult} />
+                        <Sidebar allMedia={allMedia} current={currentMedia} onSelect={handleSelectMedia} note={addOn.note} />
                     ) : null}
                 </div>
             </DialogContent>
