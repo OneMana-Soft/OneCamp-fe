@@ -92,8 +92,8 @@ registerEntityKind<TaskChipData>({
   kind: "task",
   icon: ListTodo,
   noun: "task",
-  // Reread names no task: a restricted task changed, or the order was
-  // renumbered, and a project's topic never names a task only a few may see.
+  // Reread names no task: whatever is said about a task only a few may see
+  // reaches its project as Reread, since every member hears that topic.
   hears: (m, id) =>
     (m.type === MqttMessageType.Task_Changed || m.type === MqttMessageType.Task_Dates) && (about(m, "task_uuid", id) || m.data?.reread === true),
   view: (t, _id, { today }) => ({
