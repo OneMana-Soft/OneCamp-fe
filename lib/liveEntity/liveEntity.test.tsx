@@ -151,6 +151,17 @@ describe("Live Entity Chips", () => {
     expect(document.querySelector('[data-status-glyph="done"]')).not.toBeNull()
   })
 
+  it("reads a task again when its project's topic says to reread without naming a task", async () => {
+    answer = async () => [task()]
+    render(<EntityChip kind="task" id={TASK} />)
+    await settle()
+    const hear = topics.get(TOPIC)!
+    // A restricted task changed, or the order was renumbered (A4): the topic names no task.
+    await act(async () => hear(JSON.stringify({ type: MqttMessageType.Task_Changed, data: { task_uuid: "", reread: true } })))
+    await settle()
+    expect(reads).toHaveLength(2)
+  })
+
   it("says a read failed, keeps no empty chip, and tries again when clicked", async () => {
     answer = async () => {
       throw new Error("offline")
