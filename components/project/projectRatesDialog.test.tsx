@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 // The rates editor: what it sends, and what it refuses before sending.
 
@@ -65,6 +66,9 @@ afterEach(() => {
   current = saved
   reread.mockClear()
 })
+
+// Today is TEST_TODAY wherever the code under test reads the time: the rates' versions are written as times.
+pinTestClock()
 
 describe("a project's rates", () => {
   // S1: a failed read drew an empty form in USD, and saving it replaced the

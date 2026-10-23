@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 /**
  * Design v3, admin §A20: a webhook is one 56px row. Its address is elided in
@@ -84,33 +85,38 @@ describe("a webhook row", () => {
   // Audit A9: a webhook pauses itself when its owner leaves, can no longer
   // read what it's set up for, or keeps failing, and nothing on the list said
   // so. It says why now, and offers Resume.
-  it("says a paused webhook is paused, and why, whatever else it says", () => {
-    const now = Date.parse("2026-10-11T12:00:00Z")
-    const paused = { ...hook, failure_count: 4, paused_at: "2026-10-11T11:00:00Z", paused_reason: "owner_cant_read" }
-    expect(deliveryState(paused, now)).toEqual({ tone: "warning", word: "Paused" })
-    expect(pausedWhy({ ...paused, paused_reason: "owner_cant_read", scope_type: "channel" })).toBe("Paused: its owner can't read the channel it's set up for.")
-    expect(pausedWhy({ ...paused, paused_reason: "owner_cant_read", scope_type: "project" })).toBe("Paused: its owner can't read the project it's set up for.")
-    expect(pausedWhy({ ...paused, paused_reason: "owner_left" })).toBe("Paused: its owner is no longer a member.")
-    expect(pausedWhy({ ...paused, paused_reason: "failing" })).toBe("Paused after failing 50 times in a row.")
-    expect(pausedWhy({ ...paused, paused_reason: "admin" })).toBe("Paused by an admin.")
-    expect(pausedWhy({ ...hook, scope_type: "channel" })).toBeNull()
-  })
+  describe("when paused", () => {
+    // Today is TEST_TODAY, and the pause an hour before it.
+    pinTestClock()
+    const anHourAgo = () => new Date(Date.now() - 3_600_000).toISOString()
 
-  it("offers Resume on a paused webhook, and says what the server answered", async () => {
-    const mutate = vi.fn()
-    post.mockResolvedValueOnce({ data: { msg: "Resumed, and it's yours now: its creator couldn't send it any more. It sends only what you can read." } })
-    fetchState.value = {
-      data: { webhooks: [{ ...hook, paused_at: "2026-10-11T11:00:00Z", paused_reason: "owner_cant_read", scope_type: "channel" }] },
-      isLoading: false,
-      isError: undefined,
-      mutate,
-    }
-    render(<WebhooksCard />)
-    expect(document.querySelector("[data-webhook-paused]")?.textContent).toContain("its owner can't read the channel it's set up for")
-    fireEvent.click(screen.getByRole("button", { name: "Resume CRM sync" }))
-    await waitFor(() => expect(mutate).toHaveBeenCalled())
-    expect(post).toHaveBeenCalledWith("/admin/webhooks/w1/resume")
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining("it's yours now") }))
+    it("says a paused webhook is paused, and why, whatever else it says", () => {
+      const paused = { ...hook, failure_count: 4, paused_at: anHourAgo(), paused_reason: "owner_cant_read" }
+      expect(deliveryState(paused, Date.now())).toEqual({ tone: "warning", word: "Paused" })
+      expect(pausedWhy({ ...paused, paused_reason: "owner_cant_read", scope_type: "channel" })).toBe("Paused: its owner can't read the channel it's set up for.")
+      expect(pausedWhy({ ...paused, paused_reason: "owner_cant_read", scope_type: "project" })).toBe("Paused: its owner can't read the project it's set up for.")
+      expect(pausedWhy({ ...paused, paused_reason: "owner_left" })).toBe("Paused: its owner is no longer a member.")
+      expect(pausedWhy({ ...paused, paused_reason: "failing" })).toBe("Paused after failing 50 times in a row.")
+      expect(pausedWhy({ ...paused, paused_reason: "admin" })).toBe("Paused by an admin.")
+      expect(pausedWhy({ ...hook, scope_type: "channel" })).toBeNull()
+    })
+
+    it("offers Resume on a paused webhook, and says what the server answered", async () => {
+      const mutate = vi.fn()
+      post.mockResolvedValueOnce({ data: { msg: "Resumed, and it's yours now: its creator couldn't send it any more. It sends only what you can read." } })
+      fetchState.value = {
+        data: { webhooks: [{ ...hook, paused_at: anHourAgo(), paused_reason: "owner_cant_read", scope_type: "channel" }] },
+        isLoading: false,
+        isError: undefined,
+        mutate,
+      }
+      render(<WebhooksCard />)
+      expect(document.querySelector("[data-webhook-paused]")?.textContent).toContain("its owner can't read the channel it's set up for")
+      fireEvent.click(screen.getByRole("button", { name: "Resume CRM sync" }))
+      await waitFor(() => expect(mutate).toHaveBeenCalled())
+      expect(post).toHaveBeenCalledWith("/admin/webhooks/w1/resume")
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining("it's yours now") }))
+    })
   })
 
   it("groups the event picker by resource", () => {
