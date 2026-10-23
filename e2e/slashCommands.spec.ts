@@ -128,7 +128,9 @@ for (const view of views) {
       }
 
       await tab.goto(`/app/channel/${LAUNCH}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
-      await expect(tab.getByText("Launch moved to 10:30.")).toBeVisible({ timeout: 60_000 })
+      // Each conversation's message itself: the list's row for a DM or group it
+      // lacked repeats the newest message (fe3f22606), so a page-wide lookup finds two.
+      await expect(tab.locator(`#msg-${ROOT.post_uuid}`).getByText("Launch moved to 10:30.")).toBeVisible({ timeout: 60_000 })
       await tidy(tab)
       let box = tab.locator('[contenteditable="true"]').last()
       const menu = await offers(box, "slash-channel")
@@ -140,7 +142,7 @@ for (const view of views) {
       await runs(box, '"Lunch?" "Yes" "No"', "poll", { channel_id: LAUNCH })
 
       await tab.goto(`/app/chat/${MAYA.user_uuid}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
-      await expect(tab.getByText("Can you check the banner?")).toBeVisible({ timeout: 60_000 })
+      await expect(tab.locator(`#msg-${id(21)}`).getByText("Can you check the banner?")).toBeVisible({ timeout: 60_000 })
       await tidy(tab)
       box = tab.locator('[contenteditable="true"]').last()
       await offers(box, "slash-dm")
@@ -148,7 +150,7 @@ for (const view of views) {
       expect(ran.find((r) => r.command === "remind")?.dm_group_id).toContain(MAYA.user_uuid)
 
       await tab.goto(`/app/chat/group/${CREW}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
-      await expect(tab.getByText("Standup at 9:30 tomorrow.")).toBeVisible({ timeout: 60_000 })
+      await expect(tab.locator(`#msg-${id(31)}`).getByText("Standup at 9:30 tomorrow.")).toBeVisible({ timeout: 60_000 })
       await tidy(tab)
       box = tab.locator('[contenteditable="true"]').last()
       await offers(box, "slash-group")
