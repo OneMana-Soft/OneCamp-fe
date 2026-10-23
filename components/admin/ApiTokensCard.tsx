@@ -18,11 +18,12 @@ import { AdminGet } from "@/services/endpoints/admin"
 import { toast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Loader2, Check, Copy, Key, MoreHorizontal, Plus } from "@/lib/icons"
+import { Loader2, Key, MoreHorizontal, Plus } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import type { CampHue } from "@/lib/campHue"
 import { SpotKey } from "@/components/admin/apiTokenSpot"
+import { RevealCard } from "@/components/admin/revealCard"
 import {
   ApiToken,
   CreatedToken,
@@ -224,43 +225,6 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
   )
 }
 
-/**
- * The token, shown once: mono on --sunken inside a 1px sun ring, a 32px copy
- * button that morphs to a moss check, and the warning in sun ink. Enters at
- * scale .98 and fades in over 220ms.
- */
-function RevealCard({ secret, copied, onCopy }: { secret: string; copied: boolean; onCopy: () => void }) {
-  return (
-    <div data-token-reveal="" className="you-reveal-card space-y-2">
-      <div className="you-reveal-token">
-        <code className="min-w-0 flex-1 break-all font-mono text-xs text-foreground" translate="no">
-          {secret}
-        </code>
-        <button
-          type="button"
-          onClick={onCopy}
-          data-copy-state={copied ? "copied" : "idle"}
-          aria-label={copied ? "Token copied" : "Copy token"}
-          className="you-reveal-copy"
-        >
-          <Copy className={cn("col-start-1 row-start-1 size-4 transition-opacity duration-150", copied ? "opacity-0" : "opacity-100")} aria-hidden="true" />
-          <Check
-            className={cn(
-              "col-start-1 row-start-1 size-4 text-success-ink transition-[opacity,transform] duration-[220ms] ease-[var(--ease-spring)]",
-              copied ? "scale-100 opacity-100" : "scale-50 opacity-0",
-            )}
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-      <p className="text-xs font-medium text-warning-ink">Copy it now. It won&apos;t be shown again.</p>
-      <span role="status" aria-live="polite" className="sr-only">
-        {copied ? "Token copied" : ""}
-      </span>
-    </div>
-  )
-}
-
 /** The new-token dialog's body: the form, then the token itself, shown once. */
 function NewTokenForm({
   onCreated,
@@ -364,7 +328,7 @@ function NewTokenForm({
 
       {created ? (
         <div className="space-y-4">
-          <RevealCard secret={created.plaintext} copied={copyState === "copied" || (everCopied && copyState !== "failed")} onCopy={() => void copySecret()} />
+          <RevealCard secret={created.plaintext} what="token" copied={copyState === "copied" || (everCopied && copyState !== "failed")} onCopy={() => void copySecret()} />
           {copyState === "failed" && <p role="alert" className="text-xs text-danger-ink">Couldn&apos;t copy. Select the token and copy it yourself.</p>}
 
           <div className="flex justify-end">

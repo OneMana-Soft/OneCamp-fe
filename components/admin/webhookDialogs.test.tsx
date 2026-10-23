@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 const makeRequest = vi.hoisted(() => vi.fn())
@@ -86,6 +86,28 @@ describe("new webhook", () => {
     await waitFor(() => expect(url.getAttribute("aria-invalid")).toBe("true"))
     expect(screen.getByText(/starts with https:\/\//)).toBeTruthy()
     expect(toastSpy).not.toHaveBeenCalled()
+  })
+})
+
+// An incoming webhook's token is kept only as its hash (audit A1): the answer
+// that makes it is the one place it can be read, so the dialog shows it there.
+describe("a new incoming webhook", () => {
+  it("shows its address once, with Copy, and closes on Done", async () => {
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL
+    process.env.NEXT_PUBLIC_BACKEND_URL = "https://api.example.com/"
+    onTestFinished(() => void (process.env.NEXT_PUBLIC_BACKEND_URL = base))
+    const onSuccess = vi.fn()
+    const onOpenChange = vi.fn()
+    makeRequest.mockResolvedValueOnce({ webhook: { id: "w9", name: "Alerts", type: "incoming", token: "tok777" } })
+    render(<WebhookCreateDialog open onOpenChange={onOpenChange} onSuccess={onSuccess} />)
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "Alerts" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create webhook" }))
+    await waitFor(() => expect(screen.getByRole("dialog").textContent).toContain("https://api.example.com/webhook/incoming/tok777"))
+    expect(screen.getByRole("button", { name: "Copy address" })).toBeTruthy()
+    expect(onSuccess).toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Done" }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })
 

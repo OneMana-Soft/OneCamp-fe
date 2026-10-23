@@ -30,6 +30,7 @@ import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { groupEvents } from "@/components/admin/webhookParts"
 import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
+import { AddressReveal } from "@/components/admin/webhookAddress"
 
 export const FALLBACK_EVENT_TYPES = [
   "post.created", "post.updated", "post.deleted",
@@ -150,6 +151,8 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
   const post = usePost()
   const [form, setForm] = useState({ ...blankForm })
   const [errors, setErrors] = useState<{ name?: string; target_url?: string; scope?: string }>({})
+  // A new incoming webhook's token: its answer is the one place it can be read.
+  const [madeToken, setMadeToken] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
   const urlRef = useRef<HTMLInputElement>(null)
 
@@ -163,6 +166,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
   const handleClose = () => {
     setForm({ ...blankForm })
     setErrors({})
+    setMadeToken(null)
     onOpenChange(false)
   }
 
@@ -188,7 +192,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
     }
     if (next.scope) return
     try {
-      await post.makeRequest({
+      const made = await post.makeRequest<unknown, { webhook?: { type?: string; token?: string } }>({
         apiEndpoint: PostEndpointUrl.CreateWebhook,
         payload: {
           name: form.name.trim(),
@@ -203,7 +207,8 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
         showToast: true,
       })
       onSuccess()
-      handleClose()
+      if (made?.webhook?.type === "incoming" && made.webhook.token) setMadeToken(made.webhook.token)
+      else handleClose()
     } catch {
       // usePost says why, with the server's reason.
     }
@@ -212,6 +217,19 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
       <DialogContent className="sm:max-w-lg">
+        {madeToken ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{form.name.trim()} is ready</DialogTitle>
+              <DialogDescription>Give this address to the service that posts here.</DialogDescription>
+            </DialogHeader>
+            <AddressReveal token={madeToken} />
+            <DialogFooter>
+              <Button onClick={handleClose}>Done</Button>
+            </DialogFooter>
+          </>
+        ) : (
+        <>
         <DialogHeader>
           <DialogTitle>New webhook</DialogTitle>
           <DialogDescription>{TYPE_HELP[form.type]}</DialogDescription>
@@ -330,6 +348,8 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
             {post.isSubmitting ? "Creating…" : "Create webhook"}
           </Button>
         </DialogFooter>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   )

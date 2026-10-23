@@ -28,7 +28,6 @@ import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { openUI } from "@/store/slice/uiSlice"
 import axiosInstance from "@/lib/axiosInstance"
-import { apiUrl } from "@/lib/utils/apiUrl"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
@@ -37,6 +36,8 @@ import { SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { NeutralChip, RowMenu, StateWord } from "@/components/admin/connectParts"
 import { deliveryState, eventChips, parseEvents, shortUrl } from "@/components/admin/webhookParts"
+import { AddressReveal, incomingUrl } from "@/components/admin/webhookAddress"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
 interface WebhookItem {
@@ -44,7 +45,6 @@ interface WebhookItem {
   name: string
   description?: string
   type: "incoming" | "outgoing"
-  token: string
   secret?: string
   target_url?: string
   channel_id?: string
@@ -74,15 +74,6 @@ interface WebhookLog {
 
 const LOG_PAGE_SIZE = 20
 
-/**
- * Where an incoming webhook is posted to.
- *
- * Through apiUrl, because the deployed API address ends in "/": the card used
- * to add its own and showed "…//webhook/incoming/…", which the API's router
- * does not match, so the URL an admin copied into another service failed. An
- * unset address is said as such instead of inventing localhost.
- */
-const incomingUrl = (token: string) => apiUrl(`webhook/incoming/${token}`)
 
 /**
  * A credential's buttons, in three slots that every row keeps: show or hide,
@@ -147,17 +138,23 @@ const WebhooksCard = () => {
   const [logsError, setLogsError] = useState<string | null>(null)
   const [logsPage, setLogsPage] = useState(1)
   const [logsHasMore, setLogsHasMore] = useState(false)
-  const [tokenVisible, setTokenVisible] = useState<Record<string, boolean>>({})
+  // A regenerated token, shown once: it is kept only as its hash (audit A1).
+  // Kept once closed, so the dialog keeps its words while it animates out.
+  const [revealed, setRevealed] = useState<{ name: string; token: string } | null>(null)
+  const [revealOpen, setRevealOpen] = useState(false)
   const [secretVisible, setSecretVisible] = useState<Record<string, boolean>>({})
   const [selectedLog, setSelectedLog] = useState<WebhookLog | null>(null)
   // The switch's answer before the list re-reads: on at once, back if refused.
   const [activeOverride, setActiveOverride] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState<Record<string, boolean>>({})
 
-  const regenerateToken = async (webhookId: string) => {
+  const regenerateToken = async (webhook: WebhookItem) => {
     try {
-      await axiosInstance.post(`${AdminPost.RegenerateWebhookToken}/${webhookId}/regenerate-token`)
-      toast({ title: "Token regenerated", description: "Give the new token to anything that posts to this webhook." })
+      const res = await axiosInstance.post(`${AdminPost.RegenerateWebhookToken}/${webhook.id}/regenerate-token`)
+      if (res.data?.token) {
+        setRevealed({ name: webhook.name, token: res.data.token })
+        setRevealOpen(true)
+      }
       mutate()
     } catch {
       // The interceptor's toast carries the server's reason.
@@ -184,7 +181,7 @@ const WebhooksCard = () => {
         "The current token stops working at once. Anything that posts to this webhook needs the new one before it can post again.",
       confirmText: "Regenerate token",
       destructive: true,
-      onConfirm: () => void regenerateToken(webhook.id),
+      onConfirm: () => void regenerateToken(webhook),
     })
 
   const handleRegenerateSecret = (webhook: WebhookItem) =>
@@ -434,38 +431,18 @@ const WebhooksCard = () => {
                       <div className={fieldRow("center", "mb-0")}>
                         <span className={fieldLabel}>Webhook URL</span>
                         <div className="flex min-w-0 items-center gap-2">
-                          <code className={credentialValue} translate="no">
-                            {urlBase === ""
-                              ? "No API address is set on this server"
-                              : tokenVisible[webhook.id]
-                                ? incomingUrl(webhook.token)
-                                : `${urlBase}••••••••`}
-                          </code>
+                          {/* Kept only as its hash (audit A1): shown once, when it is made. */}
+                          <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+                            {urlBase === "" ? "No API address is set on this server" : "Hidden. Regenerate to get a new one."}
+                          </span>
                           <CredentialActions>
                             {null}
-                            <Button aria-label="Copy webhook URL" variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                              if (tokenVisible[webhook.id]) copyToClipboard(incomingUrl(webhook.token))
-                            }} disabled={!tokenVisible[webhook.id] || urlBase === ""}><Copy className="h-4 w-4" /></Button>
                             {null}
+                            <Button variant="ghost" size="icon" aria-label="Regenerate the token" className="h-8 w-8" onClick={() => handleRegenerateToken(webhook)} title="Regenerate the token"><RefreshCw className="h-4 w-4" /></Button>
                           </CredentialActions>
                         </div>
                       </div>
                     )}
-                    <div className={fieldRow("center", "mb-0")}>
-                      <span className={fieldLabel}>Token</span>
-                      <div className="flex min-w-0 items-center gap-2">
-                        <code className={credentialValue} translate="no">
-                          {tokenVisible[webhook.id] ? webhook.token : "••••••••••••••••"}
-                        </code>
-                        <CredentialActions>
-                          <Button aria-label={tokenVisible[webhook.id] ? "Hide token" : "Show token"} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setTokenVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
-                            {tokenVisible[webhook.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-                          <Button aria-label="Copy token" variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(webhook.token)}><Copy className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" aria-label="Regenerate the token" className="h-8 w-8" onClick={() => handleRegenerateToken(webhook)} title="Regenerate the token"><RefreshCw className="h-4 w-4" /></Button>
-                        </CredentialActions>
-                      </div>
-                    </div>
                     {webhook.type === "outgoing" && webhook.secret && (
                       <div className={fieldRow("center", "mb-0")}>
                         <span className={fieldLabel}>Signing secret</span>
@@ -554,6 +531,19 @@ const WebhooksCard = () => {
           })}
         </ul>
       )}
+
+      <Dialog open={revealOpen} onOpenChange={setRevealOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{revealed?.name}: its new address</DialogTitle>
+            <DialogDescription>The old one has stopped working. Give this one to the service that posts here.</DialogDescription>
+          </DialogHeader>
+          {revealed && <AddressReveal token={revealed.token} />}
+          <DialogFooter>
+            <Button onClick={() => setRevealOpen(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Sheet open={!!selectedLog} onOpenChange={(o) => { if (!o) setSelectedLog(null) }}>
         <SheetContent className="sm:max-w-lg w-full flex flex-col">
