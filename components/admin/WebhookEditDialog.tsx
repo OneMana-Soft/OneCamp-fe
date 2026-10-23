@@ -27,7 +27,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
-import { FALLBACK_EVENT_TYPES, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
+import { FALLBACK_EVENT_TYPES, INCOMING_CHANNEL_HELP, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { StateWord } from "@/components/admin/connectParts"
@@ -298,7 +298,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
           {webhook?.type === "incoming" && (
             <Field
               label="Channel to post in"
-              help={<>Optional. Used when a message doesn&apos;t name its own: a message can name <code>channel_id</code>, <code>dm_id</code> or <code>group_chat_id</code> instead.</>}
+              help={INCOMING_CHANNEL_HELP}
             >
               <Select
                 value={form.channel_id || NO_CHANNEL_VALUE}
