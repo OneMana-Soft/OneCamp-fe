@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test"
+import { expectReachable } from "./menuReach"
 import { SAM, stubBackend } from "./stubbedApp"
 
 // Mentions that reach (chat P3), in a real browser with no backend: the "@"
 // list in #launch in D-M9's order (this channel's people, recent first; your
-// team; someone not in it; the broadcasts; you last), a message with a room's
+// team; someone not in it; the broadcasts; you last), inside the window with
+// every row in reach, a message with a room's
 // and a team's chips, the question a broadcast asks first, and the channel's
 // "Allow @here and @channel". With SHOTS=<dir> each is saved at 1280 and 390,
 // light and dark.
@@ -95,11 +97,21 @@ for (const view of views) {
       await expect(list.getByText("Not in #launch")).toBeVisible({ timeout: 30_000 })
       await expect(list.getByText("design")).toBeVisible()
       await expect(list.getByText("@channel")).toBeVisible()
+      // All of it in the window: on 19 Oct it flipped above the composer. From
+      // 21 Oct it opened below the "@", off the window with only People's first
+      // row in sight, while toBeVisible passed: it was placed before its rows
+      // had loaded, and never again.
+      await expect(list, "the @ list sits inside the window").toBeInViewport({ ratio: 1 })
       await tab.waitForTimeout(500)
       // It opens on its first row, lit, so Enter picks it.
       await expect(list.getByRole("option").first()).toHaveAttribute("aria-selected", "true")
       console.log(`CURSOR ${await list.locator("[data-menu-cursor]").count()} ${await list.locator("[data-menu-cursor]").first().getAttribute("style").catch(() => "none")}`)
       if (process.env.SHOTS) await tab.screenshot({ path: `${process.env.SHOTS}/reach-list-${view.name}-${scheme}.png` })
+      // Every group's rows can be seen and pressed, each scrolled to in the list.
+      for (const row of await list.getByRole("option").all()) {
+        await row.scrollIntoViewIfNeeded()
+        await expectReachable(row)
+      }
 
       // @channel, then Send: the question names how many it notifies.
       await box.pressSequentially("chan")
