@@ -42,6 +42,15 @@ export const FALLBACK_EVENT_TYPES = [
   "table.rows.changed",
 ]
 
+/**
+ * What an incoming webhook's channel is for, in both its dialogs. It posts only
+ * in channels, as its bot: a message naming a person or a group chat was
+ * written as the admin who made the webhook, and the server refuses it.
+ */
+export const INCOMING_CHANNEL_HELP = (
+  <>Optional. Used when a message doesn&apos;t name its own with <code>channel_id</code>. Incoming webhooks post only in channels; to message people, use an app.</>
+)
+
 /** What a group of events needs said about who it reaches. */
 const GROUP_NOTE: Record<string, string> = {
   doc: "Sent only for docs whoever sets up the webhook can open. A private doc's title is never sent, and doc.updated is at most once a minute per doc.",
@@ -306,7 +315,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
           {form.type === "incoming" && (
             <Field
               label="Channel to post in"
-              help={<>Optional. Used when a message doesn&apos;t name its own: a message can name <code>channel_id</code>, <code>dm_id</code> or <code>group_chat_id</code> instead.</>}
+              help={INCOMING_CHANNEL_HELP}
             >
               <Select
                 value={form.channel_id || NO_CHANNEL_VALUE}

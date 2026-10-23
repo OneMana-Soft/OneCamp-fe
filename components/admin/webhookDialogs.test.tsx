@@ -28,6 +28,15 @@ const chooseOutgoing = async () => {
   await screen.findByRole("checkbox", { name: "post.created" })
 }
 
+// The incoming channel's help offered dm_id and group_chat_id, which were
+// written as the admin who made the webhook; the server refuses both now.
+const expectChannelsOnly = () => {
+  const help = screen.getByText(/Used when a message doesn/).textContent ?? ""
+  expect(help).toMatch(/channel_id/)
+  expect(help).toMatch(/to message people, use an app/)
+  expect(help).not.toMatch(/dm_id|group_chat_id/)
+}
+
 describe("new webhook", () => {
   // The kind was a hand-made radio pair that marked the choice with the page
   // colour alone (1.03:1 against its well); it is the app's segmented control.
@@ -48,6 +57,11 @@ describe("new webhook", () => {
     render(<WebhookCreateDialog open onOpenChange={() => {}} onSuccess={() => {}} />)
     expect(screen.getByRole("heading", { name: "New webhook" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Create webhook" })).toBeTruthy()
+  })
+
+  it("says an incoming webhook posts only in channels", () => {
+    render(<WebhookCreateDialog open onOpenChange={() => {}} onSuccess={() => {}} />)
+    expectChannelsOnly()
   })
 
   // Each event was a <span> with an onClick: not focusable, no role, no
@@ -148,5 +162,10 @@ describe("edit webhook", () => {
   it("ties the active switch to its label", () => {
     render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={webhook} />)
     expect(screen.getByRole("switch", { name: "Active" })).toBeTruthy()
+  })
+
+  it("says an incoming webhook posts only in channels", () => {
+    render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={{ id: "w3", name: "Deploys", type: "incoming", bot_name: "Deploys", is_active: true }} />)
+    expectChannelsOnly()
   })
 })
