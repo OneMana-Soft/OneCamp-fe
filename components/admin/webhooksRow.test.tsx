@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 /**
  * Design v3, admin §A20: a webhook is one 56px row. Its address is elided in
@@ -13,11 +13,14 @@ const fetchState = vi.hoisted(() => ({ value: { data: undefined as unknown, isLo
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => fetchState.value }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: vi.fn(), get: vi.fn(), put: vi.fn() } }))
+const post = vi.hoisted(() => vi.fn())
+const toast = vi.hoisted(() => vi.fn())
+vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
+vi.mock("@/lib/axiosInstance", () => ({ default: { post, get: vi.fn(), put: vi.fn() } }))
 
 import WebhooksCard from "@/components/admin/WebhooksCard"
 import WebhookDeleteDialog from "@/components/admin/WebhookDeleteDialog"
-import { deliveryState, eventChips, groupEvents, shortUrl } from "@/components/admin/webhookParts"
+import { deliveryState, eventChips, groupEvents, pausedWhy, shortUrl } from "@/components/admin/webhookParts"
 
 const LONG = "https://hooks.integrations.example-company.com/services/T000/B000/very-long-secret-path/deploys"
 const hook = {
@@ -76,6 +79,38 @@ describe("a webhook row", () => {
     expect(deliveryState({ ...hook, last_triggered_at: "2026-10-11T11:58:00Z" }, now)).toEqual({ tone: "success", word: "Delivered · 2m ago" })
     expect(deliveryState({ ...hook, failure_count: 4 }, now).tone).toBe("danger")
     expect(deliveryState({ ...hook, is_active: false }, now)).toEqual({ tone: "neutral", word: "Off" })
+  })
+
+  // Audit A9: a webhook pauses itself when its owner leaves, can no longer
+  // read what it's set up for, or keeps failing, and nothing on the list said
+  // so. It says why now, and offers Resume.
+  it("says a paused webhook is paused, and why, whatever else it says", () => {
+    const now = Date.parse("2026-10-11T12:00:00Z")
+    const paused = { ...hook, failure_count: 4, paused_at: "2026-10-11T11:00:00Z" }
+    expect(deliveryState({ ...paused, paused_reason: "owner_cant_read" }, now)).toEqual({ tone: "warning", word: "Paused" })
+    expect(pausedWhy({ ...paused, paused_reason: "owner_cant_read", scope_type: "channel" })).toBe("Paused: its owner can't read the channel it's set up for.")
+    expect(pausedWhy({ ...paused, paused_reason: "owner_cant_read", scope_type: "project" })).toBe("Paused: its owner can't read the project it's set up for.")
+    expect(pausedWhy({ ...paused, paused_reason: "owner_left" })).toBe("Paused: its owner is no longer a member.")
+    expect(pausedWhy({ ...paused, paused_reason: "failing" })).toBe("Paused after failing 50 times in a row.")
+    expect(pausedWhy({ ...paused, paused_reason: "admin" })).toBe("Paused by an admin.")
+    expect(pausedWhy(hook)).toBeNull()
+  })
+
+  it("offers Resume on a paused webhook, and says what the server answered", async () => {
+    const mutate = vi.fn()
+    post.mockResolvedValueOnce({ data: { msg: "Resumed, and it's yours now: its creator couldn't send it any more. It sends only what you can read." } })
+    fetchState.value = {
+      data: { webhooks: [{ ...hook, paused_at: "2026-10-11T11:00:00Z", paused_reason: "owner_cant_read", scope_type: "channel" }] },
+      isLoading: false,
+      isError: undefined,
+      mutate,
+    }
+    render(<WebhooksCard />)
+    expect(document.querySelector("[data-webhook-paused]")?.textContent).toContain("its owner can't read the channel it's set up for")
+    fireEvent.click(screen.getByRole("button", { name: "Resume CRM sync" }))
+    await waitFor(() => expect(mutate).toHaveBeenCalled())
+    expect(post).toHaveBeenCalledWith("/admin/webhooks/w1/resume")
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining("it's yours now") }))
   })
 
   it("groups the event picker by resource", () => {

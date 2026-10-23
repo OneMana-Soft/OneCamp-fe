@@ -49,16 +49,35 @@ export interface DeliveryState {
  * count says.
  */
 export function deliveryState(
-  w: { type: "incoming" | "outgoing"; is_active: boolean; failure_count: number; last_triggered_at?: string },
+  w: { type: "incoming" | "outgoing"; is_active: boolean; failure_count: number; last_triggered_at?: string; paused_at?: string },
   now: number = Date.now(),
 ): DeliveryState {
   if (!w.is_active) return { tone: "neutral", word: "Off" }
+  if (w.paused_at) return { tone: "warning", word: "Paused" }
   const ago = w.last_triggered_at ? relativeTime(w.last_triggered_at, now) : ""
   if (w.type === "outgoing") {
     if (w.failure_count > 0) return { tone: "danger", word: `Failing · ${w.failure_count} in a row` }
     return ago ? { tone: "success", word: `Delivered · ${ago}` } : { tone: "neutral", word: "Nothing sent yet" }
   }
   return ago ? { tone: "success", word: `Used · ${ago}` } : { tone: "neutral", word: "Not used yet" }
+}
+
+/**
+ * Why a paused webhook waits, as the list says it (business/Hooks' reasons), or
+ * null when it isn't paused. Its deliveries wait meanwhile, and Resume sends
+ * them; an admin who resumes one its owner can no longer send takes it over.
+ */
+export function pausedWhy(w: { paused_at?: string; paused_reason?: string; scope_type?: string }): string | null {
+  if (!w.paused_at) return null
+  switch (w.paused_reason) {
+    case "owner_cant_read":
+      return `Paused: its owner can't read the ${w.scope_type === "project" ? "project" : "channel"} it's set up for.`
+    case "owner_left":
+      return "Paused: its owner is no longer a member."
+    case "failing":
+      return "Paused after failing 50 times in a row."
+  }
+  return "Paused by an admin."
 }
 
 /** Whether it fired in the last seven days: deleting it then asks for its name. */
