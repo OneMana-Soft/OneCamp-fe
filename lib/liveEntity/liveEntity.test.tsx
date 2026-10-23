@@ -156,7 +156,7 @@ describe("Live Entity Chips", () => {
     render(<EntityChip kind="task" id={TASK} />)
     await settle()
     const hear = topics.get(TOPIC)!
-    // A restricted task changed, or the order was renumbered (A4): the topic names no task.
+    // Something was said about a restricted task (A4): the topic names no task.
     await act(async () => hear(JSON.stringify({ type: MqttMessageType.Task_Changed, data: { task_uuid: "", reread: true } })))
     await settle()
     expect(reads).toHaveLength(2)
