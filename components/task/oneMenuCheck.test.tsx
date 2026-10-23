@@ -65,8 +65,9 @@ function sources(dir: string): string[] {
 describe("no list draws a check of its own", () => {
   it("leaves no check hidden with opacity-0 or invisible to mark what's off", () => {
     // Not a list's check: a guide step's done mark, in its own ring, and a copy
-    // button's tick, which crossfades with its copy icon once copied.
-    const allowed = new Set(["components/admin/ApiTokensCard.tsx", "components/ui/settingsControls.tsx"])
+    // button's tick, which crossfades with its copy icon once copied (CopyGlyph,
+    // which CopyButton and RevealCard draw).
+    const allowed = new Set(["components/ui/settingsControls.tsx"])
     const drawn = [...sources("components"), ...sources("app")].filter((f) => {
       if (allowed.has(f)) return false
       const src = readFileSync(f, "utf8")

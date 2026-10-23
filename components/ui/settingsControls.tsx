@@ -35,6 +35,27 @@ export function useCopy(ms = 1200) {
   return { state, copy }
 }
 
+/**
+ * A copy button's glyph: its copy icon crossfading to a moss check once
+ * copied. CopyButton and RevealCard both draw it, so the check that waits
+ * hidden until then is drawn in one place. `className` sizes both icons.
+ */
+export function CopyGlyph({ copied, className }: { copied: boolean; className?: string }) {
+  return (
+    <>
+      <Copy className={cn("col-start-1 row-start-1 transition-opacity duration-150", className, copied ? "opacity-0" : "opacity-100")} aria-hidden="true" />
+      <Check
+        className={cn(
+          "col-start-1 row-start-1 text-success-ink transition-[opacity,transform] duration-[220ms] ease-[var(--ease-spring)]",
+          className,
+          copied ? "scale-100 opacity-100" : "scale-50 opacity-0",
+        )}
+        aria-hidden="true"
+      />
+    </>
+  )
+}
+
 /** A 28px icon button that copies, its glyph crossfading to a moss check. */
 export function CopyButton({ value, label, className, size = "sm" }: { value: string; label: string; className?: string; size?: "sm" | "md" }) {
   const { state, copy } = useCopy()
@@ -51,14 +72,7 @@ export function CopyButton({ value, label, className, size = "sm" }: { value: st
           className,
         )}
       >
-        <Copy className={cn("col-start-1 row-start-1 size-3.5 transition-opacity duration-150", state === "copied" ? "opacity-0" : "opacity-100")} aria-hidden="true" />
-        <Check
-          className={cn(
-            "col-start-1 row-start-1 size-3.5 text-success-ink transition-[opacity,transform] duration-[220ms] ease-[var(--ease-spring)]",
-            state === "copied" ? "scale-100 opacity-100" : "scale-50 opacity-0",
-          )}
-          aria-hidden="true"
-        />
+        <CopyGlyph copied={state === "copied"} className="size-3.5" />
       </button>
       <span role="status" aria-live="polite" className="sr-only">
         {state === "copied" ? `${label} copied` : state === "failed" ? `Couldn't copy the ${label}. Select it and copy it by hand.` : ""}
