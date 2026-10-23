@@ -173,8 +173,11 @@ export function FileCard({ file, mediaPath, onOpen, canDelete, onDelete }: FileP
           </>
         ) : null}
       </button>
-      {/* The mini toolbar on the preview. */}
-      <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-0.5 rounded-lg bg-pop/95 p-0.5 opacity-0 shadow-e2 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
+      {/* The mini toolbar on the preview, raised over the name's stretched
+          click area (its after:), which otherwise takes every click on the
+          preview: ⋯ and Download opened the lightbox, and Delete, which only
+          ⋯ offers, couldn't be reached (23 Oct). */}
+      <div className="pointer-events-none absolute right-2 top-2 z-[1] flex items-center gap-0.5 rounded-lg bg-pop/95 p-0.5 opacity-0 shadow-e2 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         <Button variant="ghost" size="icon" className="size-7 text-ink-2" aria-label={`Download ${file.attachment_file_name}`} disabled={!url} onClick={() => url && downloadFile(url, file.attachment_file_name)}>
           <Download className="size-3.5" />
         </Button>
