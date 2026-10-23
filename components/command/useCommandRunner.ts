@@ -29,7 +29,6 @@ import {
 import { upsertCard, dismissCard } from "@/store/slice/commandSlice"
 import type {
     BlockElement,
-    CatalogCommand,
     ClientAction,
     CommandResponse,
 } from "@/types/command"
@@ -61,17 +60,13 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
         { revalidateOnFocus: false, dedupingInterval: 60_000 },
     )
 
-    const catalogRef = useRef<CatalogCommand[]>([])
-    useEffect(() => {
-        catalogRef.current = catalog?.commands || []
-    }, [catalog])
-
     // Register the provider that feeds the "/" menu of this conversation's
-    // composers, on mount, for this surface only, and take it back on unmount
-    // so docs (which never mount this) keep formatting-only.
+    // composers, for this surface only, and again when the catalog comes, so
+    // an open "/" menu takes it in; take it back on unmount so docs (which
+    // never mount this) keep formatting-only.
     useEffect(() => {
+        const all = catalog?.commands ?? []
         const provider = (query: string): BackendCommandEntry[] => {
-            const all = catalogRef.current
             if (!query) return all.slice(0, 10)
             const q = query.toLowerCase()
             return all
@@ -83,7 +78,7 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
                 .slice(0, 10)
         }
         return setBackendCommandProvider(provider, ctx.surfaceKey)
-    }, [ctx.surfaceKey])
+    }, [catalog, ctx.surfaceKey])
 
     // Mentions captured from the composer at command time, keyed by lowercased
     // label → user UUID. Lets /dm @Akash use the EXACT user the picker chose

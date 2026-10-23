@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import { Provider } from "react-redux"
+import { SWRConfig } from "swr"
 import type { Editor } from "@tiptap/react"
 import { SendHorizontal } from "@/lib/icons"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -24,6 +25,18 @@ vi.mock("@/hooks/useVoiceDictation", () => ({
 }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => ({}), useBotKind: () => undefined }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined }), useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }) }))
+// A conversation's runner (CommandSurface) reads its catalog; the answer is held while a test keeps it on the way.
+const catalog = vi.hoisted(() => ({ held: undefined as Promise<void> | undefined }))
+vi.mock("@/services/commandService", () => ({
+  fetchCommandCatalog: async () => {
+    await catalog.held
+    return { commands: CATALOG }
+  },
+  executeCommand: async () => ({ response_type: "ephemeral", text: "" }),
+  interactCommand: async () => ({}),
+  newTriggerID: () => "trigger-1",
+}))
+vi.mock("next/navigation", async (actual) => ({ ...(await actual<typeof import("next/navigation")>()), useRouter: () => ({ push: () => {}, replace: () => {}, prefetch: () => {} }) }))
 
 // jsdom lays nothing out: ProseMirror measures ranges as it scrolls the caret into view.
 if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
@@ -34,6 +47,7 @@ if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
 const { default: store } = await import("@/store/store")
 const { default: MinimalTiptapTextInput } = await import("./textInput")
 const { setBackendCommandProvider } = await import("@/components/minimal-tiptap/extensions/slash-command/slashCommand")
+const { default: CommandSurface } = await import("@/components/command/CommandSurface")
 const { extensionsFor, loadBlocks } = await import("@/components/docEditor/registry/factory")
 const { Editor: TiptapEditor, EditorContent } = await import("@tiptap/react")
 await import("@/components/docEditor/registry")
@@ -56,6 +70,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   removeProvider()
+  catalog.held = undefined
   cleanup()
   document.body.innerHTML = ""
   media.isMobile = false
@@ -113,6 +128,33 @@ describe("a message box's \"/\" menu", () => {
       })
     }
   }
+
+  // The owner's report again (23 Oct): a "/" typed before the conversation's
+  // commands came (a DM as it opens) offered formatting alone, and stayed so.
+  it("takes in its conversation's commands when they come after its menu opened", async () => {
+    removeProvider()
+    let release = () => {}
+    catalog.held = new Promise<void>((r) => (release = r))
+    const { container } = render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <Provider store={store}>
+          <TooltipProvider>
+            <section>
+              <CommandSurface surfaceKey={LAUNCH} channelId={LAUNCH} />
+              <div>{box()}</div>
+            </section>
+          </TooltipProvider>
+        </Provider>
+      </SWRConfig>,
+    )
+    const editor = await editorIn(container)
+    await type(editor, "/")
+    await waitFor(() => expect(menu()).toBeTruthy())
+    expect(menu()!.textContent).not.toContain("/standup")
+    await act(async () => release())
+    // The same menu, still open, with nothing typed again.
+    await waitFor(() => expect(menu()!.textContent).toContain("/standup"))
+  })
 
   it("runs a command picked from the menu in the conversation it was picked in", async () => {
     const ran: Array<{ command: string; surface: string | null }> = []

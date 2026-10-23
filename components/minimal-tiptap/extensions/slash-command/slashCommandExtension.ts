@@ -1,17 +1,7 @@
 import { Extension } from "@tiptap/core"
 import Suggestion from "@tiptap/suggestion"
-import { SlashCommandItem, slashCommandSuggestion, CHAT_COMMANDS } from "./slashCommand"
+import { SlashCommandItem, slashCommandSuggestion, CHAT_COMMANDS, withoutChatCommands } from "./slashCommand"
 import { inCode } from "../suggestion-popup"
-
-/**
- * The chat composer's commands (/remind, /poll, an app's own) are its
- * conversation's (setBackendCommandProvider, per surface). They once reached a
- * doc's "/" beside a thread, and picking one fired it into that composer
- * (how-docs-work N6): only a message box offers them. Pure.
- */
-export function withoutChatCommands(items: SlashCommandItem[]): SlashCommandItem[] {
-  return items.filter((item) => !item.id.startsWith("cmd-"))
-}
 
 interface SlashCommandOptions {
   commands?: SlashCommandItem[]
