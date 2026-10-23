@@ -109,13 +109,20 @@ registerBlock({
 
 // "/": the host's items when it gives them (the chat composer's commands),
 // else what the registry offers this kind of editor (registry/readers.ts
-// slashItemsFor): a doc's blocks and, behind the AI gate, its AI items.
+// slashItemsFor): a doc's blocks and, behind the AI gate, its AI items. A
+// message box also offers its conversation's commands; a doc, a guest's page
+// and a task never do.
 registerBlock({
   id: "slash",
   editors: EVERY_EDITOR,
   edition: "both",
   order: ORDER.slash,
-  create: (ctx) => [SlashCommand.configure({ commands: (ctx.slashCommands as SlashCommandItem[] | undefined) ?? slashItemsFor(ctx.kind, ctx.gate) })],
+  create: (ctx) => [
+    SlashCommand.configure({
+      commands: (ctx.slashCommands as SlashCommandItem[] | undefined) ?? slashItemsFor(ctx.kind, ctx.gate),
+      conversation: ctx.kind === "chat",
+    }),
+  ],
   schema: [],
   shortcuts: [{ typed: ["/"], label: "Insert a block", group: "Blocks", order: 10 }],
 })

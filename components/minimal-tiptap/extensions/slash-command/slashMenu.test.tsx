@@ -53,9 +53,10 @@ describe("the slash menu", () => {
   // MC-13: a chat composer's "/" leads with its commands, under "Commands";
   // it read "Blocks", as a doc's does.
   it("is headed Commands in a chat composer, and Blocks in a doc", async () => {
-    const remove = setBackendCommandProvider(() => [{ command: "remind", description: "Set a reminder", is_builtin: true }])
+    // Filtered by what's typed, as the conversation's own provider is (useCommandRunner).
+    const remove = setBackendCommandProvider((q) => [{ command: "remind", description: "Set a reminder", is_builtin: true }].filter((c) => c.command.includes(q)))
     try {
-      const chat = new Editor({ extensions: [StarterKit, SlashCommand.configure({ commands: CHAT_COMMANDS })], content: "<p></p>" })
+      const chat = new Editor({ extensions: [StarterKit, SlashCommand.configure({ commands: CHAT_COMMANDS, conversation: true })], content: "<p></p>" })
       editors.push(chat)
       render(<EditorContent editor={chat} />)
       await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
@@ -63,6 +64,7 @@ describe("the slash menu", () => {
       const menu = document.querySelector("[data-slash-menu]")!
       expect(menu.querySelector('[role="listbox"]')!.getAttribute("aria-label")).toBe("Commands")
       expect(menu.textContent).toContain("Commands")
+      expect(menu.textContent).toContain("/remind")
       expect(menu.textContent).not.toContain("Blocks")
       await typeInto(chat, "zzqq")
       expect(document.querySelector("[data-slash-menu]")!.textContent).toContain("No command called “zzqq”")

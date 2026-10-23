@@ -399,14 +399,15 @@ const recentBlocks = storedRecents<string>("onecamp-slash-recent", 3, {
 const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
   const listRef = useRef<CommandListHandle>(null)
   const query = (props.query || "").replace(/^\//, "")
+  const slash = props.editor?.extensionManager?.extensions?.find((e: { name: string }) => e.name === "slash-command")?.options
   // A doc's menu is the one configured with AI commands; ask the extension,
   // since the matched items are empty exactly when this matters.
-  const inDoc = !!props.editor?.extensionManager?.extensions
-    ?.find((e: { name: string }) => e.name === "slash-command")
-    ?.options?.commands?.some((c: SlashCommandItem) => c.section === "AI")
+  const inDoc = !!slash?.commands?.some((c: SlashCommandItem) => c.section === "AI")
   // A chat composer's menu leads with its commands (/remind, /poll): it says
-  // so, where it read "Blocks" (MC-13). A doc's stays a block menu.
-  const commands = !!providerFor(commandSurfaceOf(props.editor))
+  // so, where it read "Blocks" (MC-13). A doc's stays a block menu. Decided as
+  // the extension decides its rows (SlashCommand's conversation): the header
+  // read "Commands" over formatting alone while the rows were left out.
+  const commands = !!slash?.conversation && !!providerFor(commandSurfaceOf(props.editor))
 
   const ordered = React.useMemo(() => {
     if (query) {
