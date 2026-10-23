@@ -96,10 +96,10 @@ describe("every mark of an area takes the area's hue", () => {
     expect(COMMAND_AREA["start-instant-meeting"]).toBe("calls")
     expect(COMMAND_AREA["nav-home"]).toBeUndefined()
     expect(COMMAND_AREA["settings"]).toBeUndefined()
-    // Connectors name no area; memory is the agents'.
+    // Connectors name no area. Memory is the agents', which this edition doesn't have (E1): its palette offers none.
     const src = read("components/ui/CommandPalette.tsx")
     expect(src).not.toMatch(/case "(gmail|github)": return <Tile hue="(sky|moss|sun|lake|dusk|berry)"/)
-    expect(src).toMatch(/case "memory": return <Tile hue=\{areaHue\("agents"\)\}/)
+    expect(src).not.toMatch(/case "memory":/)
   })
 
   it("the empty states of an area's own pages draw in the area's hue", () => {
