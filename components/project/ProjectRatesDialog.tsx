@@ -5,9 +5,10 @@
 // the time report and invoices then say what the billable time comes to.
 
 import { displayNameOf } from "@/lib/personName"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
+import { ErrorState } from "@/components/ui/error-state"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
@@ -18,6 +19,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "@/lib/icons"
 import { CURRENCIES, centsOf, fromCents, type ProjectRates } from "@/lib/rates"
+import { apiErrorStatus } from "@/lib/utils/apiError"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { ProjectsGet } from "@/services/endpoints/projects"
 import type { ProjectInfoRawInterface } from "@/types/project"
@@ -42,21 +44,28 @@ export function ProjectRatesDialog({
   const [own, setOwn] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState("")
+  const [retrying, setRetrying] = useState(false)
 
   // The form starts from what's saved, once per opening: a read again in the
-  // background (back to the tab) must not wipe what someone is typing.
+  // background (back to the tab) must not wipe what someone is typing. So a
+  // save sends the version the form was filled from, not a later read's:
+  // rates someone changed meanwhile are refused (409), never saved over.
   const saved = rates.data?.data
   const filled = useRef(false)
+  const version = useRef("")
+  const fill = useCallback((s: ProjectRates) => {
+    filled.current = true
+    version.current = s.updated_at ?? ""
+    if (s.set) setCurrency(s.currency ?? "USD")
+    setEveryone(s.set ? fromCents(s.default_rate_cents) : "")
+    setOwn(Object.fromEntries(s.people.map((p) => [p.user_uuid, fromCents(p.rate_cents)])))
+  }, [])
   useEffect(() => {
     if (!open) filled.current = false
   }, [open])
   useEffect(() => {
-    if (!saved || filled.current) return
-    filled.current = true
-    if (saved.set) setCurrency(saved.currency ?? "USD")
-    setEveryone(saved.set ? fromCents(saved.default_rate_cents) : "")
-    setOwn(Object.fromEntries(saved.people.map((p) => [p.user_uuid, fromCents(p.rate_cents)])))
-  }, [saved])
+    if (saved && !filled.current) fill(saved)
+  }, [saved, fill])
 
   // Everyone on the project, by name, and anyone with a rate who has since
   // left: their rate still prices the time they logged, so it stays.
@@ -86,13 +95,18 @@ export function ProjectRatesDialog({
     setProblem("")
     setBusy(true)
     try {
-      await axiosInstance.post(url, { currency, default_rate_cents: base, people: list })
+      await axiosInstance.post(url, { currency, default_rate_cents: base, people: list, updated_at: version.current })
       await rates.mutate()
       toast({ title: "Rates saved", description: "The time report and invoices now use them." })
       onSaved()
       onOpenChange(false)
-    } catch {
-      // The server's message is shown already.
+    } catch (err) {
+      // The server's message is shown already. Rates changed since the form
+      // was filled are read again and shown, so the next save is made on them.
+      if (apiErrorStatus(err) === 409) {
+        const latest = await rates.mutate()
+        if (latest) fill(latest.data)
+      }
     } finally {
       setBusy(false)
     }
@@ -122,7 +136,20 @@ export function ProjectRatesDialog({
             What this project&apos;s billable time is charged at, per hour. Only the project&apos;s admins see rates and money.
           </DialogDescription>
         </DialogHeader>
-        {rates.isLoading || members.isLoading ? (
+        {/* A form drawn without both reads would save over the rates it never
+            showed: a failed rates read looked like a project with none, in
+            USD. It says the read failed, with Try again, and has no Save. */}
+        {(rates.isError || members.isError) && !(saved && members.data) ? (
+          <ErrorState
+            compact
+            subject="these rates"
+            retrying={retrying}
+            onRetry={() => {
+              setRetrying(true)
+              void Promise.all([rates.isError && rates.mutate(), members.isError && members.mutate()]).finally(() => setRetrying(false))
+            }}
+          />
+        ) : rates.isLoading || members.isLoading || !saved ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
