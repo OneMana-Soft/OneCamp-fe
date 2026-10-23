@@ -117,8 +117,11 @@ for (const view of views) {
         return menu
       }
       // A command typed and sent: it runs in this conversation, and its answer shows here.
+      // Typed where the caret is, as a person goes on typing, never after another click:
+      // ProseMirror counts clicks itself (within 500 ms, at one spot; a click in the menu
+      // between them doesn't reset it), so a third quick click selected the box's line
+      // and the arguments replaced the picked "/poll ", which posted as a plain message.
       const runs = async (box: ReturnType<Page["locator"]>, typed: string, command: string, where: Partial<Ran>) => {
-        await box.click()
         await box.pressSequentially(typed)
         if (view.phone) await tab.getByRole("button", { name: "Send" }).last().click()
         else await box.press("Enter")
@@ -135,7 +138,6 @@ for (const view of views) {
       let box = tab.locator('[contenteditable="true"]').last()
       const menu = await offers(box, "slash-channel")
       // Picked from the menu: /poll waits for its question, then runs here.
-      await box.click()
       await box.pressSequentially("/pol")
       await menu.getByRole("option", { name: /\/poll/ }).first().click()
       await expect(box).toContainText("/poll")
