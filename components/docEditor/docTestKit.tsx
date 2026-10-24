@@ -1,6 +1,7 @@
 // Shared by the doc tests: a real collaboration provider that never opens a
-// socket, and a doc holding one of every block the doc editor writes. Not a
-// test itself (no .test. in the name), so vitest only runs it through them.
+// socket, two tabs' docs joined as the server joins them, and a doc holding one
+// of every block the doc editor writes. Not a test itself (no .test. in the
+// name), so vitest only runs it through them.
 
 import * as Y from "yjs"
 import { HocuspocusProvider } from "@hocuspocus/provider"
@@ -15,6 +16,30 @@ const NO_SOCKET = { on() {}, off() {}, attach() {}, detach() {}, send() {}, dest
  */
 export function offlineProvider(document: Y.Doc = new Y.Doc(), name = "doc-1"): HocuspocusProvider {
   return new HocuspocusProvider({ name, document, websocketProvider: NO_SOCKET as never })
+}
+
+const RELAYED = "relayed"
+
+/**
+ * Two tabs' docs, each update reaching the other as the provider's sync step
+ * hands it on: what the receiving tab's editor throws is caught and kept in
+ * `thrown`, as y-protocols catches it and only logs it, never thrown at the
+ * tab that sent the update.
+ */
+export function twoTabDocs(): { docs: [Y.Doc, Y.Doc]; thrown: string[] } {
+  const docs: [Y.Doc, Y.Doc] = [new Y.Doc(), new Y.Doc()]
+  const thrown: string[] = []
+  docs.forEach((from, i) =>
+    from.on("update", (update: Uint8Array, origin: unknown) => {
+      if (origin === RELAYED) return
+      try {
+        Y.applyUpdate(docs[1 - i], update, RELAYED)
+      } catch (e) {
+        thrown.push(String(e))
+      }
+    }),
+  )
+  return { docs, thrown }
 }
 
 const p = (text: string): JSONContent => ({ type: "paragraph", content: [{ type: "text", text }] })

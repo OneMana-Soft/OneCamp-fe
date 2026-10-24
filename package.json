@@ -150,7 +150,8 @@
   "pnpm": {
     "patchedDependencies": {
       "@radix-ui/react-toast@1.2.15": "patches/@radix-ui__react-toast@1.2.15.patch",
-      "react-resizable-panels@2.1.9": "patches/react-resizable-panels@2.1.9.patch"
+      "react-resizable-panels@2.1.9": "patches/react-resizable-panels@2.1.9.patch",
+      "y-prosemirror@1.3.7": "patches/y-prosemirror@1.3.7.patch"
     }
   }
 }
