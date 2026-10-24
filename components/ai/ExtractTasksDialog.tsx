@@ -26,15 +26,12 @@ import {
   type ProposedTask,
 } from "@/services/taskExtractService"
 import { withAI } from "@/components/common/withFeature"
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 
 interface ProjectOption {
   project_uuid: string
   project_name: string
   project_deleted_at?: string
-}
-
-function isZeroEpoch(s?: string): boolean {
-  return !s || s.startsWith("0001-01-01") || s.startsWith("1970-01-01")
 }
 
 function dueLabel(due?: string): string {
