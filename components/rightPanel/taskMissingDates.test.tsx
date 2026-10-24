@@ -3,6 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { SWRConfig } from "swr"
 import type { ReactNode } from "react"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 // A task with no dates comes from the server with no date fields at all: the
 // task read is the graph's, whose dates are left out when unset (omitempty),
@@ -78,6 +79,8 @@ function wrap() {
 }
 
 afterEach(cleanup)
+// The task is written with dates (created 1 Oct, a date read on 24 Oct); read them against the suite's one today.
+pinTestClock()
 
 describe("a task the server sends without dates", () => {
   it("opens, and its Dates offer to add them", async () => {
