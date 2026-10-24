@@ -1,0 +1,73 @@
+diff --git a/dist/y-prosemirror.cjs b/dist/y-prosemirror.cjs
+index de4d1e6609bba2ffbc2a57048023cdf5bad44b18..615e2aea739b83ba68a0aa35bea3e0a745c05fe4 100644
+--- a/dist/y-prosemirror.cjs
++++ b/dist/y-prosemirror.cjs
+@@ -331,7 +331,26 @@ const restoreRelativeSelection = (tr, relSel, binding) => {
+         relSel.anchor,
+         binding.mapping
+       );
+-      tr.setSelection(prosemirrorState.NodeSelection.create(tr.doc, anchor));
++      const head = relativePositionToAbsolutePosition(
++        binding.doc,
++        binding.type,
++        relSel.head,
++        binding.mapping
++      );
++      if (anchor !== null && head !== null) {
++        // OneCamp's patch (yjs/y-prosemirror#283, after #285): a peer may have deleted the selected
++        // node. Its two ends then meet, and the caret goes to the nearest text where it was, never
++        // onto a neighbouring block, which a second Delete would take. NodeSelection.create threw
++        // there, which left this editor behind its Y.Doc, and its next transaction wrote the stale
++        // doc back over everyone's edits.
++        const $anchor = tr.doc.resolve(anchor);
++        const node = $anchor.nodeAfter;
++        tr.setSelection(
++          anchor !== head && node !== null && prosemirrorState.NodeSelection.isSelectable(node)
++            ? new prosemirrorState.NodeSelection($anchor)
++            : prosemirrorState.Selection.findFrom($anchor, 1, true) || prosemirrorState.Selection.findFrom($anchor, -1, true) || prosemirrorState.Selection.near($anchor)
++        );
++      }
+     } else {
+       const anchor = relativePositionToAbsolutePosition(
+         binding.doc,
+diff --git a/src/plugins/sync-plugin.js b/src/plugins/sync-plugin.js
+index dccfb76918c8c70fe5a5b12372cdabcc9d8c58dd..b612dccd4f280bb8327f13ddf95a7c60a60c6ffb 100644
+--- a/src/plugins/sync-plugin.js
++++ b/src/plugins/sync-plugin.js
+@@ -4,7 +4,7 @@
+ 
+ import { createMutex } from 'lib0/mutex'
+ import * as PModel from 'prosemirror-model'
+-import { AllSelection, Plugin, TextSelection, NodeSelection } from "prosemirror-state"; // eslint-disable-line
++import { AllSelection, Plugin, Selection, TextSelection, NodeSelection } from "prosemirror-state"; // eslint-disable-line
+ import * as math from 'lib0/math'
+ import * as object from 'lib0/object'
+ import * as set from 'lib0/set'
+@@ -257,7 +257,26 @@ const restoreRelativeSelection = (tr, relSel, binding) => {
+         relSel.anchor,
+         binding.mapping
+       )
+-      tr.setSelection(NodeSelection.create(tr.doc, anchor))
++      const head = relativePositionToAbsolutePosition(
++        binding.doc,
++        binding.type,
++        relSel.head,
++        binding.mapping
++      )
++      if (anchor !== null && head !== null) {
++        // OneCamp's patch (yjs/y-prosemirror#283, after #285): a peer may have deleted the selected
++        // node. Its two ends then meet, and the caret goes to the nearest text where it was, never
++        // onto a neighbouring block, which a second Delete would take. NodeSelection.create threw
++        // there, which left this editor behind its Y.Doc, and its next transaction wrote the stale
++        // doc back over everyone's edits.
++        const $anchor = tr.doc.resolve(anchor)
++        const node = $anchor.nodeAfter
++        tr.setSelection(
++          anchor !== head && node !== null && NodeSelection.isSelectable(node)
++            ? new NodeSelection($anchor)
++            : Selection.findFrom($anchor, 1, true) || Selection.findFrom($anchor, -1, true) || Selection.near($anchor)
++        )
++      }
+     } else {
+       const anchor = relativePositionToAbsolutePosition(
+         binding.doc,
