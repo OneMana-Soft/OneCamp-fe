@@ -6,6 +6,7 @@ import { ChevronRight, Circle } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
+import { movingPointerOnly } from "@/lib/ui/stillPointer"
 import { MenuCheck } from "@/components/ui/menuCheck"
 
 const DropdownMenu = DropdownMenuPrimitive.Root
@@ -35,6 +36,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
     )}
     {...ix("item")}
     {...props}
+    {...movingPointerOnly(props)}
   >
     {children}
     <ChevronRight className="ml-auto text-muted-foreground" aria-hidden="true" />
@@ -43,9 +45,8 @@ const DropdownMenuSubTrigger = React.forwardRef<
 DropdownMenuSubTrigger.displayName =
   DropdownMenuPrimitive.SubTrigger.displayName
 
-// A menu and a side menu. At most the room left below (or above) it, and
-// scrolling past that: on a 640px phone the board's Display menu ran 140px
-// off the screen, and its last rows (Done, Manage statuses…) could not be reached.
+// A menu and a side menu: at most the room left below (or above) it, scrolling
+// past that, so a short screen still reaches its last rows.
 const MENU = [
   "max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overscroll-contain",
   "z-[var(--z-dropdown)] min-w-[8rem] overflow-x-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-overlay pointer-events-auto",
@@ -85,9 +86,8 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
  * focus return are Radix's; states are the layer's. Icons keep whatever
  * colour the caller gives them.
  *
- * variant="destructive" is the one red row in a menu (Delete, Remove), so
- * callers stop hand-writing text-danger-ink, with a danger highlight.
- * Optional: every existing call is unchanged.
+ * variant="destructive" is the one red row in a menu (Delete, Remove), with a
+ * danger highlight.
  */
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
@@ -99,11 +99,8 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      // The gap spaces an icon from its words, so an icon's own margin is
-      // dropped ([&>svg]:mr-0): 35 items still carried shadcn's old `mr-2`,
-      // which doubled the gap, so in one menu the words started 8px further
-      // in after one icon than after another (the profile menu: 1241 and 1249)
-      // and a radio item's words, at pl-8, matched neither.
+      // The gap spaces an icon from its words, so an icon's own margin (an old
+      // `mr-2`) is dropped, or a menu's words start at different insets.
       "relative flex select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:mr-0",
       variant === "destructive" && "text-danger-ink [&>svg]:text-danger-ink",
       inset && "pl-8",
@@ -111,6 +108,7 @@ const DropdownMenuItem = React.forwardRef<
     )}
     {...ix("item", { tone: variant === "destructive" ? "danger" : undefined })}
     {...props}
+    {...movingPointerOnly(props)}
   />
 ))
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
@@ -128,6 +126,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
     checked={checked}
     {...ix("item")}
     {...props}
+    {...movingPointerOnly(props)}
   >
     <MenuCheck checked={checked ?? false} className="absolute left-2" />
     {children}
@@ -148,6 +147,7 @@ const DropdownMenuRadioItem = React.forwardRef<
     )}
     {...ix("item")}
     {...props}
+    {...movingPointerOnly(props)}
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>

@@ -35,9 +35,17 @@ export async function openSideMenu(page: Page, menu: Locator, rowName: string | 
   if (by === "pointer") {
     await row.hover()
   } else {
+    // A person sees where ↓ took the focus before pressing again, and so does this.
+    // Radix moves the focus a task after the key (RovingFocusGroup's setTimeout): a
+    // look straight after a press could still see the row before, and the next press,
+    // landing after the move, went past the row. In the share dialog (22 Oct 2026) a
+    // look saw Access ends while a press already sent took the focus on to Remove access.
     for (let i = 0; i < 12; i++) {
       if (await row.evaluate((el) => el === document.activeElement)) break
+      const from = await page.evaluateHandle(() => document.activeElement)
       await page.keyboard.press("ArrowDown")
+      await page.waitForFunction((was) => document.activeElement !== was, from, { timeout: 2_000 }).catch(() => {})
+      await from.dispose()
     }
     await expect(row).toBeFocused()
     await page.keyboard.press("ArrowRight")
