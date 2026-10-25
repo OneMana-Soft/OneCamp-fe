@@ -5,65 +5,28 @@ import type { MarkHue } from "./graphics/hues"
 import { Tile } from "@/components/ui/graphics/Tile"
 
 /**
- * Emphasis of an empty state. Not decoration — it answers "is this space empty
- * because nothing happened yet, or because the user hasn't set the thing up?"
- *
- *  - "muted" (default): a small muted icon and small copy. For an empty list or
- *    panel sitting inside a busier surface, where the empty state is a footnote
- *    and shouldn't outshout the chrome around it.
- *  - "accent": a larger icon, a larger title and body-size copy. For a card or page
- *    whose entire job right now is to invite the first action — no agents, no
- *    tables, no connected servers. This is the presentation four admin cards and
- *    two full pages had each hand-rolled as ~14 identical lines of markup.
- *
- * The two tones exist so dense surfaces stop opting out of the primitive by
- * copy-pasting their own block, which is how the codebase ended up with both
- * idioms and no single place to change either.
+ * "muted" (the default) is a footnote in a busier surface; "accent" is a card
+ * or page whose one job is the first action. Two tones, so a dense surface
+ * never hand-rolls its own block.
  */
 type EmptyStateTone = "muted" | "accent"
 
 interface EmptyStateProps {
   icon?: LucideIcon
-  /**
-   * A spot illustration (components/ui/graphics, the playful layer) above the
-   * heading, in place of the icon: <SpotInbox hue="sky" />. When both are
-   * given the illustration wins. The tone sizes it, 64px muted and 96px
-   * accent, whatever size the spot was given, and it is decorative: the
-   * heading says what is empty. A spot is a whole drawing, not an icon in a
-   * tinted chip, so the rule below still holds.
-   */
+  /** A spot (components/ui/graphics) in place of the icon, sized by the tone; decorative, as the title says what is empty. */
   illustration?: React.ReactNode
   title: string
-  /**
-   * ReactNode rather than string: several empty states need emphasis inside the
-   * sentence — "Click <strong>New import</strong>…", a path in <em> — and while
-   * that was only a string away, those callers kept their own hand-rolled block
-   * instead of adopting the primitive. Widening the type is what lets them in.
-   */
+  /** A node, so the sentence can hold "<strong>New import</strong>". */
   description?: React.ReactNode
-  /** The one next step. One: an empty state with two buttons asks the
-   *  person to make a decision before they have anything to decide about. */
+  /** The one next step: two would ask for a decision before there is one to make. */
   action?: React.ReactNode
   className?: string
-  /**
-   * Classes for the description line, usually its width. The default is a
-   * readable measure (45ch); a page-level empty state can widen it, a narrow
-   * panel can tighten it. tailwind-merge lets the caller's max-w win.
-   */
+  /** The description's classes, usually its width (45ch); the caller's max-w wins. */
   descriptionClassName?: string
-  /**
-   * The title's heading level, so the empty state sits right in the page's
-   * outline: 1 when it is the whole page (an error page), 2 when it is the
-   * page's main content under the page title, 3 (the default, as before)
-   * inside a section, 4 inside a card in a section.
-   */
+  /** The title's level in the page's outline: 1 a whole page, 2 its main content, 3 a section, 4 a card. */
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
   tone?: EmptyStateTone
-  /**
-   * A camp hue for the icon's tile (the playful layer: icons in empty states
-   * sit on a hued tint tile). Take the hue of the section the empty state is
-   * in, so a section keeps one colour. Without it the icon stands bare.
-   */
+  /** The section's camp hue, for the icon's tint tile; without it the icon stands bare. */
   hue?: MarkHue
 }
 
@@ -85,18 +48,12 @@ export function EmptyState({
     <div
       className={cn(
         "flex flex-col items-center justify-center gap-3 text-center",
-        // Horizontal padding differs by tone because the accent copy is wider
-        // (max-w-sm vs 45ch); px-6 on a 360px screen would cost it a
-        // line. Callers override either via className — cn is tailwind-merge.
+        // The accent's copy is wider (max-w-sm): px-6 would cost it a line at 360px.
         accent ? "px-4 py-12" : "px-6 py-12",
         className
       )}
     >
-      {/* In order: a spot illustration, sized by the tone; otherwise an icon
-          with a hue, on that hue's tint tile (the playful layer), in a camp
-          colour and never the accent, which belongs to the action under it;
-          otherwise the icon on its own, in muted ink, as after the calm pass
-          of 10 Oct. */}
+      {/* A spot; else the icon on its hue's tile (a camp colour: the accent is the action's); else the icon in muted ink. */}
       {illustration ? (
         <div
           aria-hidden="true"
@@ -124,8 +81,7 @@ export function EmptyState({
             className={cn(
               // pretty: no sentence ends on a word alone on its last line.
               "text-muted-foreground text-pretty",
-              // 45ch, not a fixed 260px: 260px was a sidebar's width, and on a
-              // page it broke a two-line sentence into four.
+              // 45ch: a fixed 260px broke a page's two-line sentence into four.
               accent ? "text-sm" : "text-xs max-w-[45ch]",
               descriptionClassName
             )}
@@ -134,8 +90,7 @@ export function EmptyState({
           </p>
         )}
       </div>
-      {/* gap-3 already separates the action in the accent layout; the extra
-          mt-1 is kept only for the muted tone so existing callers don't shift. */}
+      {/* gap-3 spaces the accent's action; mt-1 keeps the muted tone's callers where they were. */}
       {action && <div className={cn(!accent && "mt-1")}>{action}</div>}
     </div>
   )

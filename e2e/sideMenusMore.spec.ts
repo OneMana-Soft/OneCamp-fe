@@ -142,6 +142,104 @@ test("a message's Remind me… opens beside its menu, and a time saves the remin
   await expect.poll(() => requests.find((r) => r.path.includes("/later"))?.body).toMatchObject({ item_type: "post", item_id: post(0, MAYA, "").post_uuid })
 })
 
+// A keyboard user with a resting mouse: the side menu opened by → and closed 30 ms
+// later. Opening it made Chrome send the row under the still pointer a pointerout, which a row took for the mouse
+// leaving; its menu took the focus back, and the side menu closed (lib/ui/stillPointer).
+test("a message's Remind me… opened by keyboard stays open while the mouse rests on another row", async ({ page }, testInfo) => {
+  test.setTimeout(150_000)
+  await openChannel(page, testInfo)
+  const menu = await messageMenu(page)
+  const follow = menu.getByRole("menuitem", { name: /Follow thread/ })
+  // The menu settles first (it slides in); then the mouse moves onto the row and rests there.
+  await follow.hover()
+  await expect(follow).toBeFocused()
+  const box = (await follow.boundingBox())!
+  const rest = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
+  await page.mouse.move(rest.x, rest.y)
+  const remind = menu.getByRole("menuitem", { name: /Remind me/ })
+  // From the row under the mouse to Remind me… by the keys alone; the mouse stays where it is.
+  const key = (await remind.boundingBox())!.y < box.y ? "ArrowUp" : "ArrowDown"
+  await expect(async () => {
+    await page.keyboard.press(key)
+    await expect(remind).toBeFocused({ timeout: 200 })
+  }).toPass({ timeout: 10_000 })
+  // Every time the side menu closes, counted from here on.
+  await remind.evaluate((row) => {
+    const w = window as unknown as { sideMenuCloses: number }
+    w.sideMenuCloses = 0
+    new MutationObserver(() => {
+      if (row.getAttribute("aria-expanded") === "false") w.sideMenuCloses++
+    }).observe(row, { attributes: true, attributeFilter: ["aria-expanded"] })
+  })
+  await page.keyboard.press("ArrowRight")
+  await expect(remind).toHaveAttribute("aria-expanded", "true")
+  const side = page.locator(`[id="${await remind.getAttribute("aria-controls")}"]`)
+  const rows = side.locator('[role="menuitem"]')
+  await expect(rows.first()).toBeFocused()
+  // Chrome sends the row under a resting mouse a trusted pointer event when the page changes under it, the
+  // mouse unmoved (a pointerout as the side menu opened). Sent here at the very same place.
+  await page.mouse.move(rest.x, rest.y)
+  // The next key lands in the side menu, still open.
+  await page.keyboard.press("ArrowDown")
+  await expect(rows.nth(1)).toBeFocused()
+  await expect(remind).toHaveAttribute("aria-expanded", "true")
+  expect(await page.evaluate(() => (window as unknown as { sideMenuCloses: number }).sideMenuCloses)).toBe(0)
+})
+
+// The other side of lib/ui/stillPointer: a mouse that moves is still followed. Its boundary events come
+// before the pointermove at its new place, so a real leave never looks still.
+// The message menu can still move after it shows (it grows as its rows fill in, and it opens above its button, so it
+// rises): a row that slides under a resting mouse rightly takes no highlight, so the mouse moves only once it's at rest.
+async function menuAtRest(menu: ReturnType<Page["locator"]>) {
+  let was = ""
+  await expect
+    .poll(async () => {
+      const box = JSON.stringify(await menu.boundingBox())
+      const rest = box === was
+      was = box
+      return rest
+    }, { intervals: [100] })
+    .toBe(true)
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test.describe(`a message's menu under a moving mouse, ${theme}`, () => {
+    test.use({ colorScheme: theme })
+
+    test("the highlight follows the mouse from row to row", async ({ page }, testInfo) => {
+      test.setTimeout(150_000)
+      await openChannel(page, testInfo)
+      const menu = await messageMenu(page)
+      await menuAtRest(menu)
+      const follow = menu.getByRole("menuitem", { name: /Follow thread/ })
+      const copy = menu.getByRole("menuitem", { name: /Copy text/ })
+      await follow.hover()
+      await expect(follow).toBeFocused()
+      await expect(follow).toHaveAttribute("data-highlighted", "")
+      await copy.hover()
+      await expect(copy).toBeFocused()
+      await expect(copy).toHaveAttribute("data-highlighted", "")
+      await expect(follow).not.toHaveAttribute("data-highlighted", "")
+    })
+
+    test("leaving Remind me… for another row closes its side menu", async ({ page }, testInfo) => {
+      test.setTimeout(150_000)
+      await openChannel(page, testInfo)
+      const menu = await messageMenu(page)
+      await menuAtRest(menu)
+      const remind = menu.getByRole("menuitem", { name: /Remind me/ })
+      const follow = menu.getByRole("menuitem", { name: /Follow thread/ })
+      await remind.hover()
+      await expect(remind).toHaveAttribute("aria-expanded", "true")
+      // Away from the side menu (it opens to the right), along the menu's left edge, in steps.
+      const to = (await follow.boundingBox())!
+      await page.mouse.move(to.x + 12, to.y + to.height / 2, { steps: 8 })
+      await expect(follow).toBeFocused()
+      await expect(remind).toHaveAttribute("aria-expanded", "false")
+    })
+  })
+}
+
 test("a message's Save to memory opens beside its menu, and a kind saves it", async ({ page }, testInfo) => {
   test.setTimeout(150_000)
   const requests = await openChannel(page, testInfo)
