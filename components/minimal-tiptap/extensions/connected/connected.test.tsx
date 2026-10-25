@@ -100,7 +100,7 @@ import { GuestReaderContext } from "@/components/minimal-tiptap/guestReader"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import { mentionSuggestionOptions } from "../mention-list/mentionList"
 import { forgetMentionAccess } from "../mention-list/mentionInDoc"
-import { PICK_PAGE, PICK_PROJECT, pickProject, takePick } from "./pick"
+import { PICK_PAGE, PICK_PROJECT, peekPick, pickProject, type Picked } from "./pick"
 import { countMention, mentionCounts } from "@/lib/mentionedOften"
 import { MqttMessageType } from "@/services/mqttService"
 import ProjectPickerDialog from "./ProjectPickerDialog"
@@ -309,7 +309,7 @@ describe("pages in a doc", () => {
   it("/link to page keeps the page's id, never its title", async () => {
     const editor = await docEditor("<p>/link</p>")
     busFor(editor)!.on("openDialog", ({ id }: { id: string }) => {
-      if (id === PICK_PAGE) takePick(PICK_PAGE)?.answer({ id: OTHER_PAGE, name: "Salaries" })
+      if (id === PICK_PAGE) peekPick(PICK_PAGE)?.answer({ id: OTHER_PAGE, name: "Salaries" })
     })
     const link = blockById("connectedSlash")!.slash!.find((s) => s.id === "linkToPage")!
     await act(async () => link.run(editor, { from: 1, to: 6 }))
@@ -559,7 +559,7 @@ describe("a project's tasks and board in a doc", () => {
   ] as const)("/%s puts the project picked in the doc, keeping only its id", async (id, type, attrs) => {
     const editor = await docEditor(`<p>/${id}</p>`)
     busFor(editor)!.on("openDialog", ({ id: dialog }: { id: string }) => {
-      if (dialog === PICK_PROJECT) takePick(PICK_PROJECT)?.answer({ id: PROJECT, name: "Launch" })
+      if (dialog === PICK_PROJECT) peekPick(PICK_PROJECT)?.answer({ id: PROJECT, name: "Launch" })
     })
     const entry = blockById("connectedSlash")!.slash!.find((s) => s.id === id)!
     await act(async () => entry.run(editor, { from: 1, to: 2 + id.length }))
@@ -654,6 +654,43 @@ describe("the project picker", () => {
     failProjects = false
     await act(async () => screen.getByRole("button", { name: "Try again" }).click())
     await vi.waitFor(() => expect(screen.queryByText("Couldn't load your projects")).toBeNull(), { timeout: 5000 })
+  })
+})
+
+describe("a picker React draws twice", () => {
+  // React may throw away a render it hasn't shown (a part that suspends, an
+  // urgent update cutting in) and run it again from the start. The question
+  // must still be there on that second run, or the picker closes unseen and
+  // "/link to page" does nothing (subpages.spec.ts:198, 25 Oct).
+  it("still holds the question it was asked when its first render is thrown away", async () => {
+    const editor = await docEditor("<p></p>")
+    let picked: Picked | null | undefined
+    void pickProject(busFor(editor), "tasks").then((p) => (picked = p))
+    let thrown = false
+    const later = new Promise<void>((done) => setTimeout(done, 20))
+    function SuspendsOnce() {
+      if (!thrown) {
+        thrown = true
+        throw later
+      }
+      return null
+    }
+    const onClose = vi.fn()
+    render(
+      <Provider store={store}>
+        <MediaQueryProvider>
+          <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+            <React.Suspense fallback={null}>
+              <ProjectPickerDialog docId={DOC} onClose={onClose} />
+              <SuspendsOnce />
+            </React.Suspense>
+          </SWRConfig>
+        </MediaQueryProvider>
+      </Provider>,
+    )
+    expect(await screen.findByRole("dialog", undefined, { timeout: 5000 })).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(picked).toBeUndefined()
   })
 })
 

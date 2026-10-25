@@ -10,7 +10,7 @@ import { blocksWithIds } from "@/components/minimal-tiptap/extensions/block-comm
 /**
  * MOVE TO… FOR BLOCKS (B1, with B6's dialog; WAVE_B_CONTRACTS "Dialogs").
  * The block menu stages the blocks here and opens B6's `doc.moveTo` dialog,
- * which takes them (takeBlockMove) and, once a doc is chosen, awaits
+ * which reads them (peekBlockMove, releaseBlockMove) and, once a doc is chosen, awaits
  * moveTo(target): the blocks are added at the end of the target through the
  * API (A4's live writer, so whoever has it open sees them arrive), then
  * deleted here in one transaction. A move that fails throws an Error whose
@@ -86,10 +86,13 @@ export function stageBlockMove(docId: string, editor: Editor, target: BlockTarge
   return true
 }
 
-/** The staged block move for a doc, once; null when none is staged (the dialog moves the page). */
-export function takeBlockMove(docId: string): StagedBlockMove | null {
-  const move = staged.get(docId) ?? null
-  staged.delete(docId)
-  return move
+/** The staged block move for a doc, as its dialog opens (useHandoff); null when none is staged (the dialog moves the page). */
+export function peekBlockMove(docId: string): StagedBlockMove | null {
+  return staged.get(docId) ?? null
+}
+
+/** The dialog showing it has it: it is no longer staged. */
+export function releaseBlockMove(move: StagedBlockMove): void {
+  for (const [doc, m] of staged) if (m === move) staged.delete(doc)
 }
 

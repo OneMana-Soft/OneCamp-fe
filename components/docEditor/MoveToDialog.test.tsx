@@ -1,3 +1,4 @@
+import * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
@@ -9,7 +10,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 
 vi.mock("./chrome/useDoc", () => ({ useDoc: () => ({ doc_title: "Launch notes" }) }))
-vi.mock("./chrome/stagedMove", () => ({ takeStagedMove: () => hoisted.staged }))
+vi.mock("./chrome/stagedMove", () => ({ peekStagedMove: () => hoisted.staged, releaseStagedMove: () => undefined }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isTablet: false, isDesktop: true }) }))
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: { title?: string }) => hoisted.toasts.push(t) }))
 vi.mock("@/hooks/useFetch", () => ({
@@ -52,6 +53,31 @@ describe("Move to… (structure.md P0.5)", () => {
     await act(async () => void render(<MoveToDialog docId="m1" onClose={() => {}} />))
     expect(hoisted.previewDocMove).toHaveBeenCalledWith({ doc_uuid: "d-other", parent_uuid: "p-eng", place: "last", access: "adopt" })
     expect(document.querySelector('[data-doc-move-dialog="access"]')).not.toBeNull()
+  })
+
+  // React may throw a first render away and run it again (a part that
+  // suspends, an urgent update cutting in): the page dropped must still be
+  // the one moved, never the open doc (subpages.spec.ts:198, 25 Oct).
+  it("moves the page dropped on a breadcrumb when its first render is thrown away", async () => {
+    const { stageDrop } = await import("./chrome/stagedDrop")
+    hoisted.previewDocMove.mockResolvedValue({ available: true, can_adopt: true, lose: 2, gain: 0, pages: 0, summary: "2 people lose access." })
+    stageDrop("m1", { page: { uuid: "d-other" }, target: { uuid: "p-eng", title: "Engineering" } })
+    let thrown = false
+    const later = new Promise<void>((done) => setTimeout(done, 20))
+    function SuspendsOnce() {
+      if (!thrown) {
+        thrown = true
+        throw later
+      }
+      return null
+    }
+    render(
+      <React.Suspense fallback={null}>
+        <MoveToDialog docId="m1" onClose={() => {}} />
+        <SuspendsOnce />
+      </React.Suspense>,
+    )
+    await vi.waitFor(() => expect(hoisted.previewDocMove).toHaveBeenCalledWith({ doc_uuid: "d-other", parent_uuid: "p-eng", place: "last", access: "adopt" }))
   })
 
   it("offers recent pages and the top of Docs, never the page itself or where it already is", () => {

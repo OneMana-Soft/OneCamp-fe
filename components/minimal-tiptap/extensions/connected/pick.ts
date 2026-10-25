@@ -4,8 +4,9 @@ import type { DocCommandBus } from "@/components/docEditor/registry/types"
 /**
  * Asking the doc's pickers for a choice (docs C1): a project, to make a task
  * in or to show the tasks or board of, or a page to link. The command that
- * asks waits for the answer; the dialog takes the question as it opens
- * (takePick) and answers once, with null when it closes without a choice.
+ * asks waits for the answer; the dialog reads the question as it opens
+ * (useHandoff: peekPick, then releasePick once it is shown) and answers
+ * once, with null when it closes without a choice.
  */
 
 export interface Picked {
@@ -41,10 +42,12 @@ export const pickProject = (bus: DocCommandBus | undefined, purpose: ProjectPurp
 
 export const pickPage = (bus: DocCommandBus | undefined) => ask(bus, PICK_PAGE)
 
-/** The question a picker dialog answers, taken once as it opens. */
-export function takePick(dialog: Question["dialog"]): Question | null {
-  if (asked?.dialog !== dialog) return null
-  const q = asked
-  asked = null
-  return q
+/** The question a picker dialog answers, as it opens. */
+export function peekPick(dialog: Question["dialog"]): Question | null {
+  return asked?.dialog === dialog ? asked : null
+}
+
+/** The dialog showing it has it: a later question no longer answers this one. */
+export function releasePick(question: Question): void {
+  if (asked === question) asked = null
 }
