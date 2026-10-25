@@ -116,8 +116,8 @@ export const SHOT_THEMES = process.env.SHOTS_DIR ? (["light", "dark"] as const) 
  * Answers the app's API calls: `answers` by path prefix (the longest that
  * matches; withStatus for one that isn't a 200; a function of the URL for one
  * that depends on its query, and of the request for one that depends on what
- * was sent), the profile, the shell's own reads, and 404 for
- * everything else (never 401: that signs the browser out).
+ * was sent, which may answer later), the profile, the shell's own reads, and
+ * 404 for everything else (never 401: that signs the browser out).
  */
 export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answers = {}) {
   const missed: string[] = []
@@ -144,8 +144,9 @@ export async function stubBackend(page: Page, testInfo: TestInfo, answers: Answe
       if (hit) {
         const answer = answers[hit]
         // An answer may depend on the query (a page, a page size) or on what a
-        // write sent: a function of the URL and the request.
-        const { status, json } = statusOf(typeof answer === "function" ? (answer as (url: URL, request: Request) => unknown)(new URL(request.url()), request) : answer)
+        // write sent: a function of the URL and the request. Its promise
+        // answers when the test lets it (a card that fills in late).
+        const { status, json } = statusOf(typeof answer === "function" ? await (answer as (url: URL, request: Request) => unknown)(new URL(request.url()), request) : answer)
         return status === 0 ? route.abort("failed") : route.fulfill({ status, headers, json })
       }
       if (/\/user\/profile$/.test(path)) return route.fulfill({ status: 200, headers, json: { msg: "ok", data: SAM } })
