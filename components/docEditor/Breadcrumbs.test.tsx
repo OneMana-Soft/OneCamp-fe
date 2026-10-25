@@ -116,7 +116,7 @@ describe("the path to a doc (P1, structure.md P0.5)", () => {
     const asked: string[] = []
     const bus = { docId: "me", key: "me", emit: (_: string, p: { id: string }) => asked.push(p.id), on: () => () => {} }
     const { DocBusContext } = await import("@/components/docEditor/registry/commandBus")
-    const { takeStagedDrop } = await import("./chrome/stagedDrop")
+    const { peekStagedDrop } = await import("./chrome/stagedDrop")
     render(
       <TooltipProvider>
         <DocBusContext.Provider value={bus as never}>
@@ -129,7 +129,7 @@ describe("the path to a doc (P1, structure.md P0.5)", () => {
     expect(hoisted.preview).toHaveBeenCalledWith({ doc_uuid: dropped, space: "workspace", place: "last", access: "keep" })
     expect(hoisted.moveDoc).not.toHaveBeenCalled()
     expect(asked).toEqual(["doc.moveTo"])
-    expect(takeStagedDrop("me")).toEqual({ page: { uuid: dropped }, target: { uuid: null, title: "Docs" } })
+    expect(peekStagedDrop("me")).toEqual({ page: { uuid: dropped }, target: { uuid: null, title: "Docs" } })
   })
 
   it("never moves a page unasked: with no Move to… to ask in, it says how to choose", async () => {
@@ -158,7 +158,7 @@ describe("the path to a doc (P1, structure.md P0.5)", () => {
     const asked: string[] = []
     const bus = { docId: "me", key: "me", emit: (_: string, p: { id: string }) => asked.push(p.id), on: () => () => {} }
     const { DocBusContext } = await import("@/components/docEditor/registry/commandBus")
-    const { takeStagedDrop } = await import("./chrome/stagedDrop")
+    const { peekStagedDrop } = await import("./chrome/stagedDrop")
     render(
       <TooltipProvider>
         <DocBusContext.Provider value={bus as never}>
@@ -170,7 +170,7 @@ describe("the path to a doc (P1, structure.md P0.5)", () => {
     await act(async () => fireEvent.drop(document.querySelector('[data-doc-drop-target="a"]')!, { dataTransfer: { types: ["text/plain"], getData: () => dropped } }))
     expect(hoisted.moveDoc).not.toHaveBeenCalled()
     expect(asked).toEqual(["doc.moveTo"])
-    expect(takeStagedDrop("me")).toEqual({ page: { uuid: dropped }, target: { uuid: "a", title: "Engineering" } })
+    expect(peekStagedDrop("me")).toEqual({ page: { uuid: dropped }, target: { uuid: "a", title: "Engineering" } })
   })
 
   it("renames the doc in place for whoever may edit it", async () => {

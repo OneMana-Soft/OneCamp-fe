@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useHandoff } from "@/hooks/useHandoff"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +11,7 @@ import { FolderKanban } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
-import { takePick, PICK_PROJECT, type ProjectPurpose } from "./pick"
+import { peekPick, releasePick, PICK_PROJECT, type ProjectPurpose } from "./pick"
 
 interface ProjectRow {
   project_uuid: string
@@ -35,7 +36,7 @@ const WORDS: Record<ProjectPurpose, { title: string; description: string; none: 
  * a phone.
  */
 export default function ProjectPickerDialog({ onClose }: { docId: string; onClose(): void }) {
-  const [question] = React.useState(() => takePick(PICK_PROJECT))
+  const question = useHandoff(() => peekPick(PICK_PROJECT), releasePick)
   const purpose: ProjectPurpose = question?.purpose ?? "tasks"
   const runs = purpose === "task"
   const res = useFetch<{ data?: ProjectRow[] | { user_projects?: ProjectRow[] } }>(

@@ -19,8 +19,9 @@ import { ChromeSheet } from "./chrome/Sheet"
 import { ChoiceCards, InlineError } from "./chrome/parts"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { navigate } from "./chrome/pageFacts"
-import { takeStagedDrop, type StagedDrop } from "./chrome/stagedDrop"
-import { takeStagedMove, type StagedMove } from "./chrome/stagedMove"
+import { peekStagedDrop, releaseStagedDrop } from "./chrome/stagedDrop"
+import { peekStagedMove, releaseStagedMove } from "./chrome/stagedMove"
+import { useHandoff } from "@/hooks/useHandoff"
 import { useDoc } from "./chrome/useDoc"
 
 
@@ -86,9 +87,9 @@ export function keepWording(p: Pick<DocMovePreview, "space" | "was">): string {
  * blocks instead ("Move 3 blocks to…").
  */
 export default function MoveToDialog({ docId: openDocId, onClose }: { docId: string; onClose(): void }) {
-  const [staged] = React.useState<StagedMove | null>(() => takeStagedMove(openDocId))
+  const staged = useHandoff(() => peekStagedMove(openDocId), releaseStagedMove)
   // A page dropped on a breadcrumb: that page, its new parent already chosen.
-  const [drop] = React.useState<StagedDrop | null>(() => (staged ? null : takeStagedDrop(openDocId)))
+  const drop = useHandoff(() => (staged ? null : peekStagedDrop(openDocId)), releaseStagedDrop)
   const docId = drop?.page.uuid ?? openDocId
   const doc = useDoc(docId)
   const above = useFetch<Envelope<DocAncestors>>(staged ? "" : ancestorsKey(docId), undefined, undefined, OWN_ERRORS).data?.data

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useHandoff } from "@/hooks/useHandoff"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +13,7 @@ import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { listKey } from "@/services/docGraphService"
 import type { DocList } from "@/types/docGraph"
 import { searchReferences } from "../reference-mention/referenceMentionList"
-import { takePick, PICK_PAGE } from "./pick"
+import { peekPick, releasePick, PICK_PAGE } from "./pick"
 
 const RECENT = listKey("recent", { limit: 8 })
 
@@ -22,7 +23,7 @@ const RECENT = listKey("recent", { limit: 8 })
  * as the reader). ↑ ↓ and Enter pick. A sheet on a phone.
  */
 export default function PagePickerDialog({ docId, onClose }: { docId: string; onClose(): void }) {
-  const [question] = React.useState(() => takePick(PICK_PAGE))
+  const question = useHandoff(() => peekPick(PICK_PAGE), releasePick)
   const recent = useFetch<{ data?: DocList }>(question ? RECENT : "", undefined, undefined, OWN_ERRORS).data?.data?.docs ?? []
   const [query, setQuery] = React.useState("")
   const [found, setFound] = React.useState<CommandListItem[] | null>(null)
