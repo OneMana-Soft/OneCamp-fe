@@ -61,6 +61,9 @@ const SHELL_READS: Array<[RegExp, unknown]> = [
   [/\/doc\/exportConsent$/, { consent: { allowed: true, owner: true, private: true } }],
   [/\/doc\/ancestors\/[^/]+$/, { msg: "ok", data: { ancestors: [], truncated: false } }],
   [/\/doc\/backlinks\/[^/]+$/, { msg: "ok", data: { tasks: [], projects: [], docs: [], count: 0 } }],
+  // Admin › Import's review of the people earlier imports added
+  // (components/admin/ImportReviewCard): none.
+  [/\/admin\/import-reviews$/, { projects: [], pending: 0 }],
   [/\/(user\/notificationPreferences|user\/sidebarNav|user\/botKinds|config\/mqttConfig|config\/client|auth\/providers|me\/capabilities|later|doc\/children)$/, { msg: "ok", data: {} }],
 ]
 
@@ -101,6 +104,13 @@ export async function reviewShot(page: Page, name: string, theme: string) {
   expect(await page.getByText("Not in this test").count(), `a shot with the stub's toast, from ${(unanswered.get(page) ?? []).join(", ")}`).toBe(0)
   await page.screenshot({ path: `${dir}/${name}-${page.viewportSize()?.width}-${theme}.png` })
 }
+
+/**
+ * The themes a design spec runs in: dark only when its review shots are
+ * wanted (SHOTS_DIR). A run without them registers no dark case, since a gate
+ * fails on a skipped one.
+ */
+export const SHOT_THEMES = process.env.SHOTS_DIR ? (["light", "dark"] as const) : (["light"] as const)
 
 /**
  * Answers the app's API calls: `answers` by path prefix (the longest that

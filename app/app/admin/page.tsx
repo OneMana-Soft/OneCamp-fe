@@ -17,6 +17,7 @@ import { useJumpFlash } from "@/hooks/useJumpFlash"
 import { SETTINGS_GROUP_LABEL, SETTINGS_PLACES, adminPlace, normaliseAdminTab, type SettingsGroupKey } from "@/lib/adminSections"
 import { useMedia } from "@/context/MediaQueryContext"
 import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
+import { useImportReviewPlace } from "@/lib/importReviews"
 
 // The people tabs wait in their own frame's shape (header, toolbar, six rows),
 // so nothing moves when the card's code arrives and again when its data does;
@@ -39,6 +40,10 @@ const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsers
 const SlackImportCard = dynamic(() => import("@/components/admin/SlackImportCard"), { loading: AdminCardSkeleton })
 const SlackBridgeCard = dynamic(() => import("@/components/admin/SlackBridgeCard"), { loading: AdminCardSkeleton })
 const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { loading: AdminCardSkeleton })
+// The review of who earlier imports added: its code is asked for as the page
+// opens, with its read (useImportReviewPlace), so the Import tab draws once.
+const loadImportReviewCard = () => import("@/components/admin/ImportReviewCard")
+const ImportReviewCard = dynamic(loadImportReviewCard, { loading: () => null })
 const ExportCard = dynamic(() => import("@/components/admin/ExportCard"), { loading: AdminCardSkeleton })
 const AppsCard = dynamic(() => import("@/components/admin/AppsCard"), { loading: AdminCardSkeleton })
 const WorkspaceSettingsCard = dynamic(() => import("@/components/admin/WorkspaceSettingsCard"), { loading: AdminCardSkeleton })
@@ -113,6 +118,9 @@ const AdminPage = () => {
   // and the page cannot know that until the config request answers. A cold
   // load of /app/admin?tab=ai-models, which is what every link to the drill
   // card is, used to open on Teams and stay there.
+  // Where the Import tab draws the review of who earlier imports added, asked
+  // as the page opens so that tab is settled before it draws.
+  const reviewPlace = useImportReviewPlace(loadImportReviewCard)
   const aiState = useFeatureState(FEATURE_AI)
   const callsState = useFeatureState(FEATURE_CALLS)
   const aiAvailable = aiState === "available"
@@ -303,14 +311,23 @@ const AdminPage = () => {
                 </div>
               </TabsContent>
               <TabsContent value="import" className="mt-0">
-                <div className={ADMIN_SECTION_STACK}>
-                  {/* Slack first: chat history is the migration most teams arrive
-                      with, and the other providers carry projects and tasks
-                      (Notion its pages too). The docs' export closes it. */}
-                  <SlackImportCard />
-                  <ImportCard />
-                  <ExportCard />
-                </div>
+                {reviewPlace === null ? (
+                  <AdminCardSkeleton />
+                ) : (
+                  <div className={ADMIN_SECTION_STACK}>
+                    {/* The people earlier imports added, while any are left
+                        to review, above everything, and at the end once all
+                        are decided. Then Slack: chat history is the migration
+                        most teams arrive with, and the other providers carry
+                        projects and tasks (Notion its pages too). The docs'
+                        export closes it. */}
+                    {reviewPlace === "first" && <ImportReviewCard />}
+                    <SlackImportCard />
+                    <ImportCard />
+                    <ExportCard />
+                    {reviewPlace === "last" && <ImportReviewCard />}
+                  </div>
+                )}
               </TabsContent>
               </>
               )}
