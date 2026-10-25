@@ -24,6 +24,8 @@ vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () =>
 vi.mock("@/components/admin/userCard", () => ({ default: () => <p>Members list</p> }))
 // Every other section's cards load lazily; here they are a stub.
 vi.mock("next/dynamic", () => ({ default: () => () => <p>A section</p> }))
+// The Import tab's review of who earlier imports added: none to draw.
+vi.mock("@/lib/importReviews", () => ({ useImportReviewPlace: () => "none" }))
 
 const { default: AdminPage } = await import("./page")
 
