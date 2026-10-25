@@ -229,6 +229,18 @@ describe("CALL-BUG-12: the call says it is recorded, and who started it", () => 
     await act(async () => render(call()))
     expect(document.querySelector("[data-recording-pill]")!.textContent).toContain("Recording · started by Maya Chen")
   })
+
+  // The room connects after the call mounts, and a join brings what the call
+  // already holds with no change event: someone who joins a recorded, locked
+  // call is told at once, not at the next change.
+  it("shows a recording and a lock already there to someone who joins", async () => {
+    await act(async () => render(call()))
+    expect(document.querySelector("[data-recording-pill]")).toBeNull()
+    room.metadata = metadata({ isRecording: true, recordingStartedBy: "Maya Chen", locked: { by: "Maya", since: 1 } })
+    await act(async () => void room.emit("connected"))
+    expect(document.querySelector("[data-recording-pill]")?.textContent).toContain("Recording · started by Maya Chen")
+    expect(document.querySelector("[data-locked-pill]")?.textContent).toContain("Locked · by Maya")
+  })
 })
 
 describe("CALL-BUG-11: someone removed is told why", () => {

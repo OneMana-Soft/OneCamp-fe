@@ -321,8 +321,14 @@ function useCallMetadata(room: Room): CallMetadata {
   useEffect(() => {
     const update = () => setMeta(readCallMetadata(room.metadata));
     update();
+    // This mounts before the room connects, and a join brings what the call
+    // already holds (a recording, captions, a lock) with no change event:
+    // livekit-client sets the room's metadata from the join's answer, then
+    // says Connected.
+    room.on(RoomEvent.Connected, update);
     room.on(RoomEvent.RoomMetadataChanged, update);
     return () => {
+      room.off(RoomEvent.Connected, update);
       room.off(RoomEvent.RoomMetadataChanged, update);
     };
   }, [room]);
