@@ -268,13 +268,18 @@ function ReviewDialog({ project, onClose }: { project: ImportReviewProject; onCl
   else
     body = (
       <>
+        {/* The list's top edge: this line's overlays draw none where the body
+            meets the header, so a hairline held at the body's top, which the
+            rows pass under rather than running up to the description. */}
+        <div aria-hidden="true" className="sticky top-0 z-10 mt-2 h-px bg-line" data-review-edge="" />
         <ul aria-label={`People added to ${name}`} className="divide-y divide-line">
           {people.map((p) => (
             <PersonRow key={p.id} person={p} project={name} busy={busy !== null} onTakeOff={() => void takeOff(p)} />
           ))}
         </ul>
         {more ? (
-          <div className="flex flex-col items-center gap-1 pt-2" data-review-more="">
+          // pb-5: scrolled to its end, Show more clears a sheet footer's 12px fade.
+          <div className="flex flex-col items-center gap-1 pt-2 pb-5" data-review-more="">
             {moreFailed ? (
               <p role="alert" className="text-xs text-danger-ink">
                 Couldn&apos;t load more. Try again.
