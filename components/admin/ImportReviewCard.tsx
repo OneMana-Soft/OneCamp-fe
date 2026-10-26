@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DotWord } from "@/components/admin/PeopleFrame"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useToast } from "@/hooks/use-toast"
+import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import {
   IMPORT_REVIEWS_KEY,
   keepEveryoneLeft,
@@ -247,7 +248,7 @@ function ReviewDialog({ project, onClose }: { project: ImportReviewProject; onCl
     confirm({
       title: `Take everyone left off ${name}?`,
       description: `${left === 1 ? "The 1 person" : `The ${left.toLocaleString("en")} people`} not yet decided lose access to ${name} and everything in it. You can add anyone back from the project's people.`,
-      confirmText: "Take them off",
+      confirmText: "Take everyone left off",
       destructive: true,
       // The question stays open, its action busy, until the first batch is
       // answered, and says why if it's refused. One that closed at once let
@@ -282,6 +283,7 @@ function ReviewDialog({ project, onClose }: { project: ImportReviewProject; onCl
           <div className="flex flex-col items-center gap-1 pt-2 pb-5" data-review-more="">
             {moreFailed ? (
               <p role="alert" className="text-xs text-danger-ink">
+                <SaysLoadFailure />
                 Couldn&apos;t load more. Try again.
               </p>
             ) : null}

@@ -133,7 +133,7 @@ for (const theme of SHOT_THEMES) {
         const ask = page.getByRole("alertdialog", { name: "Take everyone left off Launch?" })
         await expect(ask).toBeVisible()
         await reviewShot(page, "import-review-take-all", theme)
-        await press(ask.getByRole("button", { name: "Take them off" }))
+        await press(ask.getByRole("button", { name: "Take everyone left off" }))
         await expect(ask).toBeHidden()
         for (const name of ["Ann Lee", "Ben Ortiz", "Cal Diaz"]) {
           await expect(people.getByRole("listitem").filter({ hasText: name }).getByText("Taken off")).toBeVisible()
@@ -156,7 +156,7 @@ for (const theme of SHOT_THEMES) {
         })
         await press(people.getByRole("button", { name: "Take everyone left off" }))
         const ask = page.getByRole("alertdialog", { name: "Take everyone left off Launch?" })
-        await press(ask.getByRole("button", { name: "Take them off" }))
+        await press(ask.getByRole("button", { name: "Take everyone left off" }))
         await expect(ask).toBeHidden()
         await expect(people.getByRole("status")).toHaveText("Taking people off… 2 people left")
         await reviewShot(page, "import-review-taking", theme)

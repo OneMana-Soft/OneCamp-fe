@@ -125,8 +125,9 @@ describe("Admin > Import and export: people earlier imports added", () => {
     const dialog = await openLaunch()
     fireEvent.click(within(dialog).getByRole("button", { name: "Take everyone left off" }))
     expect(svc.takeOffEveryoneLeft).not.toHaveBeenCalled()
-    const asked = confirm.mock.calls[0][0] as { title: string; description: string; destructive: boolean; onConfirm(): unknown }
+    const asked = confirm.mock.calls[0][0] as { title: string; description: string; confirmText: string; destructive: boolean; onConfirm(): unknown }
     expect(asked.title).toBe("Take everyone left off Launch?")
+    expect(asked.confirmText).toBe("Take everyone left off")
     expect(asked.description).toMatch(/^The 2 people not yet decided lose access to Launch and everything in it\./)
     expect(asked.destructive).toBe(true)
     let firstBatch: (v: { removed: number; left: number }) => void = () => {}
