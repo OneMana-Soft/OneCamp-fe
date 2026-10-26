@@ -271,8 +271,11 @@ function ReviewDialog({ project, onClose }: { project: ImportReviewProject; onCl
       <>
         {/* The list's top edge: this line's overlays draw none where the body
             meets the header, so a hairline held at the body's top, which the
-            rows pass under rather than running up to the description. */}
-        <div aria-hidden="true" className="sticky top-0 z-10 mt-2 h-px bg-line" data-review-edge="" />
+            rows pass under rather than running up to the description. A
+            dialog's body keeps 4px round what it holds (app/overlay.css), and
+            a sticky line stops inside that, so in a dialog it sits 4px
+            higher, on the body's edge; a phone's sheet keeps none. */}
+        <div aria-hidden="true" className="sticky top-0 z-10 mt-2 h-px bg-line [[data-overlay=float]_&]:-top-1" data-review-edge="" />
         <ul aria-label={`People added to ${name}`} className="divide-y divide-line">
           {people.map((p) => (
             <PersonRow key={p.id} person={p} project={name} busy={busy !== null} onTakeOff={() => void takeOff(p)} />
