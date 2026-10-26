@@ -54,6 +54,26 @@ export function topSheet(page: Page): Locator {
   return page.locator('[data-vaul-drawer][data-state="open"]').last()
 }
 
+/** `el` has stopped moving, a sheet's rise or a growth done: the same box for six frames. */
+export function settled(el: Locator): Promise<void> {
+  return el.evaluate(
+    (node) =>
+      new Promise<void>((done) => {
+        let last = ""
+        let same = 0
+        const frame = () => {
+          const r = node.getBoundingClientRect()
+          const box = `${r.x} ${r.y} ${r.width} ${r.height}`
+          same = box === last ? same + 1 : 0
+          last = box
+          if (same >= 6) done()
+          else requestAnimationFrame(frame)
+        }
+        requestAnimationFrame(frame)
+      }),
+  )
+}
+
 /** Measures `sheet` (a [data-vaul-drawer]) as SheetLayout. */
 export async function sheetLayout(sheet: Locator): Promise<SheetLayout> {
   return sheet.evaluate((root: HTMLElement) => {

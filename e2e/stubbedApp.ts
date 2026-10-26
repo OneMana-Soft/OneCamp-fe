@@ -64,6 +64,8 @@ const SHELL_READS: Array<[RegExp, unknown]> = [
   // Admin › Import's review of the people earlier imports added
   // (components/admin/ImportReviewCard): none.
   [/\/admin\/import-reviews$/, { projects: [], pending: 0 }],
+  // And its earlier imports' re-check (components/admin/ImportAccessCard): none.
+  [/\/admin\/import-access$/, { imports: [] }],
   [/\/(user\/notificationPreferences|user\/sidebarNav|user\/botKinds|config\/mqttConfig|config\/client|auth\/providers|me\/capabilities|later|doc\/children)$/, { msg: "ok", data: {} }],
 ]
 
