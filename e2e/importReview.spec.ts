@@ -182,6 +182,11 @@ for (const theme of SHOT_THEMES) {
         const people = page.getByRole("dialog", { name: "Launch" })
         const rows = people.getByRole("list", { name: "People added to Launch" }).getByRole("listitem")
         await expect(rows).toHaveCount(50)
+        if (phone) {
+          // Measured once the sheet has risen, as the Keep test is: a press at
+          // Show more while the sheet still rises meets what is under it.
+          await expect(people.getByRole("button", { name: "Keep everyone left" })).toBeInViewport({ ratio: 1 })
+        }
         const more = people.getByRole("button", { name: "Show more" })
         // The body scrolled to its end: Show more is what a press at its middle
         // meets, and it ends above the pinned footer and the fade over its top.
