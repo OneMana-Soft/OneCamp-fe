@@ -107,9 +107,10 @@ for (const theme of SHOT_THEMES) {
         await expect(people.getByRole("list", { name: "People added to Launch" })).toBeVisible()
         const keep = people.getByRole("button", { name: "Keep everyone left" })
         if (phone) {
-          // The sheet's actions are pinned at its foot, inside the screen.
-          const box = await keep.boundingBox()
-          expect(box && box.y + box.height).toBeLessThanOrEqual(viewport.height)
+          // The sheet's actions are pinned at its foot, inside the screen once
+          // it has risen: a box measured while the sheet still rises is below
+          // it (the sheet's top at 718 of 844 in one failure's image).
+          await expect(keep).toBeInViewport({ ratio: 1 })
         }
         await reviewShot(page, "import-review-people", theme)
         await press(people.getByRole("button", { name: "Take Ann Lee off Launch" }))
@@ -197,10 +198,21 @@ for (const theme of SHOT_THEMES) {
           const fade = footer ? parseFloat(getComputedStyle(footer, "::before").height) || 0 : 0
           return { met: !!at && (at === button || button.contains(at)), room: footer ? Math.round(footer.getBoundingClientRect().top - fade - r.bottom) : null }
         })
+        // The list's top edge, scrolled: a hairline held at the top of the body,
+        // which the rows pass under rather than running up to the description.
+        const edge = await people.evaluate((root) => {
+          const line = root.querySelector("[data-review-edge]")
+          const body = [root, ...Array.from(root.querySelectorAll("*"))].find(
+            (el) => /auto|scroll/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1,
+          )
+          return line && body ? Math.abs(line.getBoundingClientRect().top - body.getBoundingClientRect().top) : null
+        })
         // Shot before the checks, so the design review sees the foot either way.
         await reviewShot(page, "import-review-more", theme)
         expect(foot.met, "a press at Show more's middle meets Show more").toBe(true)
         expect(foot.room, "px between Show more and the footer's fade").toBeGreaterThanOrEqual(0)
+        expect(edge, "the list has a hairline at its top").not.toBeNull()
+        expect(edge, "px between the scrolled body's top and the list's hairline").toBeLessThanOrEqual(1)
         await press(more)
         await expect(rows).toHaveCount(60)
         await expect(more).toHaveCount(0)
