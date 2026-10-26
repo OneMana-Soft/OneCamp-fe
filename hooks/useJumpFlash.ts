@@ -7,8 +7,8 @@ import { useEffect } from "react"
  * the card scrolls to 24px from the top, smoothly unless the person asked for
  * less motion, and then flashes (design v3, admin §1.6): its ring takes the
  * accent and a 3px halo that fades over 1.2s. The card may arrive after the
- * page does (its code and data load on their own), so it is looked for a few
- * times before giving up.
+ * page does (its code and data load on their own): it is then watched for
+ * (./jumpSeek).
  */
 export function flashCard(id: string): boolean {
   const target = document.getElementById(id)
@@ -24,25 +24,29 @@ export function flashCard(id: string): boolean {
   return true
 }
 
+/** The card the link's #fragment names, or none if it can't be read. */
+export const linked = () => {
+  try {
+    return decodeURIComponent(window.location.hash.slice(1))
+  } catch {
+    return ""
+  }
+}
+
 export function useJumpFlash(key: string) {
   useEffect(() => {
-    let tries = 0
-    let timer: number | undefined
+    let live = true
+    let stop = () => {}
     const seek = () => {
-      const id = decodeURIComponent(window.location.hash.slice(1))
-      if (!id) return
-      if (flashCard(id) || ++tries > 12) return
-      timer = window.setTimeout(seek, 250)
+      const id = linked()
+      if (id && !flashCard(id)) void import("./jumpSeek").then((m) => live && (stop = m.watch(id))).catch(() => undefined)
     }
     seek()
-    const onHash = () => {
-      tries = 0
-      seek()
-    }
-    window.addEventListener("hashchange", onHash)
+    window.addEventListener("hashchange", seek)
     return () => {
-      window.clearTimeout(timer)
-      window.removeEventListener("hashchange", onHash)
+      live = false
+      stop()
+      window.removeEventListener("hashchange", seek)
     }
   }, [key])
 }
