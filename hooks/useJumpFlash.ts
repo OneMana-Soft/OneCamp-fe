@@ -6,9 +6,8 @@ import { useEffect } from "react"
  * A jump to a card (a settings search hit, a deep link with a #fragment):
  * the card scrolls to 24px from the top, smoothly unless the person asked for
  * less motion, and then flashes (design v3, admin §1.6): its ring takes the
- * accent and a 3px halo that fades over 1.2s. The card may arrive after the
- * page does (its code and data load on their own): it is then watched for
- * (./jumpSeek).
+ * accent and a 3px halo that fades over 1.2s. A card that arrives after the
+ * page does is watched for (./jumpSeek).
  */
 export function flashCard(id: string): boolean {
   const target = document.getElementById(id)

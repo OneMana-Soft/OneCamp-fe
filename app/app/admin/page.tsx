@@ -45,6 +45,7 @@ const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { load
 const loadImportReviewCard = () => import("@/components/admin/ImportReviewCard")
 const ImportReviewCard = dynamic(loadImportReviewCard, { loading: () => null })
 const ExportCard = dynamic(() => import("@/components/admin/ExportCard"), { loading: AdminCardSkeleton })
+const ImportAccessCard = dynamic(() => import("@/components/admin/ImportAccessCard"), { loading: () => null })
 const AppsCard = dynamic(() => import("@/components/admin/AppsCard"), { loading: AdminCardSkeleton })
 const WorkspaceSettingsCard = dynamic(() => import("@/components/admin/WorkspaceSettingsCard"), { loading: AdminCardSkeleton })
 const GuestAccessCard = dynamic(() => import("@/components/admin/GuestAccessCard"), { loading: AdminCardSkeleton })
@@ -320,12 +321,13 @@ const AdminPage = () => {
                         are decided. Then Slack: chat history is the migration
                         most teams arrive with, and the other providers carry
                         projects and tasks (Notion its pages too). The docs'
-                        export closes it. */}
+                        export, then the re-check, close it. */}
                     {reviewPlace === "first" && <ImportReviewCard />}
                     <SlackImportCard />
                     <ImportCard />
                     <ExportCard />
                     {reviewPlace === "last" && <ImportReviewCard />}
+                    <ImportAccessCard />
                   </div>
                 )}
               </TabsContent>
