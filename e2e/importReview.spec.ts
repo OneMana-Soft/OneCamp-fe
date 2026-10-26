@@ -226,7 +226,13 @@ for (const theme of SHOT_THEMES) {
         const before = await newImport.boundingBox()
         await expect(section(page)).toBeVisible()
         await expect(page.getByRole("radiogroup", { name: "Tool to import from" })).toBeVisible()
-        expect(await newImport.boundingBox(), "New import moved when the review drew").toEqual(before)
+        // Under a pixel is layout settling onto whole pixels (423.06, 423.02,
+        // then 423.00 on one build); the review drawn above it would move it by
+        // its rows' height.
+        const after = await newImport.boundingBox()
+        for (const side of ["x", "y", "width", "height"] as const) {
+          expect(Math.abs(after![side] - before![side]), `New import's ${side} moved when the review drew`).toBeLessThan(1)
+        }
       })
 
       test("once everyone is decided, the review sits at the tab's end", async ({ page }, testInfo) => {
