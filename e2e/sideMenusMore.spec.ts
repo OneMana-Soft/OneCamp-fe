@@ -202,6 +202,28 @@ async function menuAtRest(menu: ReturnType<Page["locator"]>) {
     .toBe(true)
 }
 
+// Remind me's side menu follows the clock (lib/utils/later reminderChoices): "This evening" only before 16:00, and
+// no "Next week" when tomorrow is Monday. The legs that move through it pin the clock, so its rows don't change
+// with the day the suite runs. Under four rows (a weekday before 16:00) the unpinned leave below failed here, on the
+// AI-free line, where More has no Save to memory row; the pinned clock keeps it off that path.
+// Instants on the same day and part of the day in UTC and in Asia/Kolkata.
+const SUNDAY_MORNING = "2026-10-25T04:00:00Z" // In 1 hour, This evening, Tomorrow morning
+const MONDAY_MORNING = "2026-10-26T04:00:00Z" // and Next week: four rows
+
+/** Maya's More menu at rest under a pinned clock, and Remind me's side menu open by pointer. */
+async function remindOpen(page: Page, testInfo: TestInfo, at: string) {
+  await page.clock.setFixedTime(new Date(at))
+  await openChannel(page, testInfo)
+  const menu = await messageMenu(page)
+  await menuAtRest(menu)
+  // The AI-free edition's More has no Save to memory row, so Follow thread sits a row nearer Remind me.
+  await expect(menu.getByRole("menuitem", { name: /Save to memory/ })).toHaveCount(0)
+  const remind = menu.getByRole("menuitem", { name: /Remind me/ })
+  await remind.hover()
+  await expect(remind).toHaveAttribute("aria-expanded", "true")
+  return { remind, follow: menu.getByRole("menuitem", { name: /Follow thread/ }) }
+}
+
 for (const theme of ["light", "dark"] as const) {
   test.describe(`a message's menu under a moving mouse, ${theme}`, () => {
     test.use({ colorScheme: theme })
@@ -224,16 +246,26 @@ for (const theme of ["light", "dark"] as const) {
 
     test("leaving Remind me… for another row closes its side menu", async ({ page }, testInfo) => {
       test.setTimeout(150_000)
-      await openChannel(page, testInfo)
-      const menu = await messageMenu(page)
-      await menuAtRest(menu)
-      const remind = menu.getByRole("menuitem", { name: /Remind me/ })
-      const follow = menu.getByRole("menuitem", { name: /Follow thread/ })
-      await remind.hover()
-      await expect(remind).toHaveAttribute("aria-expanded", "true")
-      // Away from the side menu (it opens to the right), along the menu's left edge, in steps.
+      const { remind, follow } = await remindOpen(page, testInfo, SUNDAY_MORNING)
+      // Down to the menu's left edge, in steps.
       const to = (await follow.boundingBox())!
       await page.mouse.move(to.x + 12, to.y + to.height / 2, { steps: 8 })
+      await expect(follow).toBeFocused()
+      await expect(remind).toHaveAttribute("aria-expanded", "false")
+    })
+
+    // With four rows, the path above ends inside the side menu's grace area (Radix keeps the highlight off rows
+    // while the mouse heads for an open side menu), and a mouse at rest sends nothing after. Leaving away from the
+    // side menu, on whichever side it opened, is a leave at once.
+    test("leaving Remind me… away from its four-row side menu closes it", async ({ page }, testInfo) => {
+      test.setTimeout(150_000)
+      const { remind, follow } = await remindOpen(page, testInfo, MONDAY_MORNING)
+      const side = page.locator(`[id="${await remind.getAttribute("aria-controls")}"]`)
+      await expect(side.getByRole("menuitem")).toHaveCount(4)
+      const [from, to] = [(await remind.boundingBox())!, (await follow.boundingBox())!]
+      const x = (await side.getAttribute("data-side")) === "left" ? from.x + from.width - 12 : from.x + 12
+      await page.mouse.move(x, from.y + from.height / 2, { steps: 4 })
+      await page.mouse.move(x, to.y + to.height / 2, { steps: 8 })
       await expect(follow).toBeFocused()
       await expect(remind).toHaveAttribute("aria-expanded", "false")
     })
