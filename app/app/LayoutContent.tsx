@@ -39,6 +39,7 @@ import { followKeyboard } from "@/lib/ui/visualViewport";
 import { followHistory, noteRouteChange } from "@/lib/navigation/back";
 import { usePanelPlacement, useShellBand } from "@/components/navigationBar/tablet/useShellBand";
 import { isTabletBand } from "@/lib/ui/shellBand";
+import { useMeetingFrame } from "@/lib/ui/meetingFrame";
 import { OverlaySheet } from "@/components/ui/overlaySheet";
 import { warmBurstsWhenIdle } from "@/lib/celebrateSoon";
 
@@ -128,7 +129,14 @@ function Shell({ children }: { children: React.ReactNode }) {
   // The celebrations' sparks (lib/celebrate) come once the app is idle, so a
   // finish or a moment anywhere in it finds them in (lib/celebrateSoon).
   useEffect(() => warmBurstsWhenIdle(), []);
-  const { isMobile } = useMedia();
+  const media = useMedia();
+  const pathname = usePathname()
+  const path = pathname.split('/')
+  const inMeeting = path.length > 2 && path[2] == "meet"
+  // The phone's frame or the computer's. A call's page keeps the one it
+  // opened in until it is left: a new frame mounts the page anew and hangs
+  // up the call (lib/ui/meetingFrame).
+  const isMobile = useMeetingFrame(media, inMeeting);
   // A tablet's shell (design v3, mobile T1): the rail, and the right panel as
   // a sheet over the page.
   const band = useShellBand();
@@ -137,8 +145,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   // narrower window and on a tablet (lib/ui/shellBand).
   const panelOver = usePanelPlacement() === "over";
   // Split view: a computer or a tablet in landscape; never a phone, nor a
-  // tablet in portrait (views already open stay there, one at a time).
-  const splitOn = !isMobile && band !== "tablet-compact";
+  // tablet in portrait (views already open stay there, one at a time). A
+  // call's page kept in the computer's frame on a phone's width has none.
+  const splitOn = !isMobile && !media.isMobile && band !== "tablet-compact";
   const { panes, order, active, focused, used, sizes, evened } = useSplitView(splitOn);
   useGoKeys(!isMobile);
   // Which bots are agents, read before the first message draws its tag.
@@ -156,14 +165,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [isDragging, setIsDragging] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const pathname = usePathname()
-  const path = pathname.split('/')
   // How far back the app's own history goes, so a back arrow on a page opened
   // from a notification or a link goes up a level instead of out of the app
   // (lib/navigation/back.ts). The router has written history by now.
   useEffect(() => followHistory(), []);
   useEffect(() => noteRouteChange(), [pathname]);
-  const inMeeting = path.length > 2 && path[2] == "meet"
 
   // The right panel: 452px by default, never under 360, at most 60% of the
   // group, and its width kept in pixels (lib/ui/rightPanelSize).
