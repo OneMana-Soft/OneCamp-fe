@@ -201,7 +201,12 @@ describe("the shell under a finger", () => {
   it("splits a tablet in landscape by the width rule, never in portrait, and keeps the sidebar's split button a pointer's", () => {
     expect(CSS).toMatch(/@media \(hover: none\) \{ \.shell-split-btn \{ display: none; \} \}/)
     const layout = readFileSync(join(root, "app/app/LayoutContent.tsx"), "utf8")
-    expect(layout).toMatch(/const splitOn = !isMobile && band !== "tablet-compact"/)
+    // splitOn's parts, not its whole line: off on a phone, and off on a
+    // tablet in portrait (a call kept in its frame on a phone's width adds
+    // its own condition).
+    const splitOn = /const splitOn = ([^;\n]+);/.exec(layout)?.[1] ?? ""
+    expect(splitOn).toMatch(/(^|&& )!isMobile( &&|$)/)
+    expect(splitOn).toContain('band !== "tablet-compact"')
     expect(layout).toMatch(/useSplitView\(splitOn\)/)
     expect(layout).toMatch(/const fitNow = band === "tablet-compact" \? 1 :/)
   })
