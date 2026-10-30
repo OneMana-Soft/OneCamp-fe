@@ -67,6 +67,17 @@ describe("a calendar notice", () => {
     expect(noticeBadge(ev("calendar.rsvp"))).toBe("reply")
   })
 
+  // Calendar head 4: an answer that proposes another time says so, and when.
+  it("tells the organiser of another time proposed, on their own clock, then the note", () => {
+    const p = { proposed_start: new Date(2026, 9, 21, 9).toISOString(), proposed_end: new Date(2026, 9, 21, 9, 45).toISOString() }
+    const member = noticeWords(ev("calendar.rsvp", { response: "tentative", ...p }, { reason: "organiser" }))
+    expect(`${member.actor?.user_name} ${member.verb} ${member.place}`).toBe("Akash proposed a new time for Launch review")
+    expect(member.preview).toMatch(/^Wed 21 Oct, 9:00\sAM – 9:45\sAM$/)
+    const guest = noticeWords(ev("calendar.rsvp", { response: "declined", note: "On a flight then", guest_name: "Alex Kim", guest_email: "alex@example.com", ...p }, { actor: undefined }))
+    expect(`${guest.actor?.user_name} ${guest.verb}`).toBe("Alex Kim proposed a new time for")
+    expect(guest.preview).toMatch(/^Wed 21 Oct, 9:00\sAM – 9:45\sAM · “On a flight then”$/)
+  })
+
   it("says an all-day event's dates as they are", () => {
     const day = ev("calendar.invited", { all_day: "true", date: "2026-10-26", end_date: "2026-10-28", start: "", end: "" })
     expect(noticeWords(day).preview).toBe("Mon 26 Oct – Tue 27 Oct")

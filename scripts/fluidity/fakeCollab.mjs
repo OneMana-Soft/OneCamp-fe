@@ -130,6 +130,10 @@ const lineageOf = (doc) => {
  *   who may do what: deny names a refusal reason (forbidden, gone, unauthenticated, ...)
  * @param {boolean} [o.speaksSession] sends {type:'session'} on each doc connection (A2); false is an older server
  * @param {number} [o.loadDelayMs] how long a doc takes to load on its first sign-in
+ * @param {(socket: number) => boolean} [o.mute] whether the socket-th connection
+ *   (from 1) answers nothing: what the tab sends arrives, nothing comes back,
+ *   and the tab's close never completes, as a first connection through a cold
+ *   edge after a restart (22 Oct, 20:05)
  * @param {string} [o.schemaVersion]
  */
 export function createFakeCollab(o = {}) {
@@ -153,11 +157,12 @@ export function createFakeCollab(o = {}) {
 
   function connect(send, close) {
     stats.sockets++
+    const muted = o.mute?.(stats.sockets) === true
     // name -> { state: 'auth'|'ready'|'refused', queue, readOnly, awareness }
     const perDoc = new Map()
     let open = true
     const out = (bytes) => {
-      if (open) send(bytes)
+      if (open && !muted) send(bytes)
     }
     const conn = { out, perDoc }
 
@@ -255,6 +260,7 @@ export function createFakeCollab(o = {}) {
     }
 
     return {
+      muted,
       receive(bytes) {
         let m
         try {
@@ -386,8 +392,14 @@ export function fakeWebSocketClass(server, sockets = []) {
     }
     close() {
       if (this.readyState >= 2) return
-      this.readyState = 3
       this.peer.closed()
+      // A server that answers nothing never answers the close either: the
+      // browser stays closing.
+      if (this.peer.muted) {
+        this.readyState = 2
+        return
+      }
+      this.readyState = 3
       setTimeout(() => this.dispatch("close", { code: 1000, reason: "" }), 0)
     }
   }

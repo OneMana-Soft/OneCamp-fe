@@ -92,7 +92,7 @@ export function SaveAsTemplateDialog({ projectId, projectName, open, onOpenChang
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={busy || !name.trim()}>
+            <Button type="submit" disabled={!name.trim()} busy={busy}>
               {busy ? "Saving…" : "Save template"}
             </Button>
           </DialogFooter>

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { SAM } from "../stubbedApp"
+import { SAM, reviewShot } from "../stubbedApp"
 import { CollabRelay } from "./collabRelay"
 import { PRIYA, openDocAs } from "./twoPeople"
 
@@ -113,6 +113,47 @@ test("a pasted YouTube link embeds its player, sandboxed, for both", async ({ br
 
   await sam.close()
   await priya.close()
+})
+
+// A picture copied from a web page comes as its file and an <img> of it. It
+// is one picture: uploaded once, placed once (the file handler answers the
+// paste handled, so the HTML isn't pasted as a second one, and ProseMirror's
+// own capture doesn't run the paste again).
+test("a picture copied from a web page pastes as one image, uploaded once", async ({ browser }, testInfo) => {
+  const relay = new CollabRelay()
+  const sam = await openDocAs(browser, testInfo, relay, SAM, { id: DOC })
+  await answer(sam.page, "/uploadFile", { msg: "ok", object_uuid: OBJECT })
+  let uploads = 0
+  sam.page.on("request", (r) => {
+    if (r.method() === "POST" && new URL(r.url()).pathname.endsWith("/uploadFile")) uploads++
+  })
+
+  await sam.body.click()
+  await sam.page.locator('.doc-editor .ProseMirror[contenteditable="true"]').evaluate((el) => {
+    const data = new DataTransfer()
+    const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0))
+    data.items.add(new File([png], "shot.png", { type: "image/png" }))
+    data.setData("text/html", '<meta charset="utf-8"><img src="https://example.com/shot.png">')
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }))
+  })
+
+  // Image nodes, not <img> tags: an image's view draws its preview and its
+  // picture while it loads, and nothing for an address the stub can't serve.
+  const images = sam.body.locator(".node-image")
+  await expect(images).toHaveCount(1, { timeout: 15_000 })
+  await expect.poll(() => uploads, { timeout: 15_000 }).toBe(1)
+  // Still one once anything late has had its chance (ProseMirror's capture runs 50 ms on).
+  await sam.page.waitForLoadState("networkidle")
+  await expect(images).toHaveCount(1)
+  expect(uploads).toBe(1)
+
+  // Clicked, the image wears its own outline alone: no block selection's tint around it.
+  await images.first().click()
+  await expect(images.first().locator(".outline-brand")).toHaveCount(1)
+  await expect(sam.body.locator(".block-selected")).toHaveCount(0)
+  await reviewShot(sam.page, "image-chosen", "light")
+
+  await sam.close()
 })
 
 test("a dropped PDF uploads into the doc and reaches the other person", async ({ browser }, testInfo) => {

@@ -53,3 +53,16 @@ export async function more(page: Page, item: string) {
   await openMore(page, item)
   await page.getByRole("menuitem", { name: item }).click()
 }
+
+/** A phone's Document options sheet, opened again until `item` is in it (as openMore does), and `item` chosen. */
+export async function phoneOption(page: Page, item: string) {
+  const option = page.getByText(item, { exact: true })
+  await expect(async () => {
+    if (!(await option.isVisible())) {
+      await page.keyboard.press("Escape")
+      await page.getByRole("button", { name: "Document options" }).click()
+    }
+    await expect(option).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 30_000 })
+  await option.click()
+}

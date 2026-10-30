@@ -17,7 +17,7 @@
  * sheet on a phone (ResponsiveDialog), with its actions in the pinned footer.
  */
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -26,7 +26,11 @@ import { useSheetMode } from "@/components/ui/overlayMode"
 import { InviteForm } from "@/components/invite/InviteForm"
 import { CheckCircle2, Circle } from "@/lib/icons"
 import { SegmentedProgress } from "@/components/ui/graphics/SegmentedProgress"
+import { useKeyLesson } from "@/components/onboarding/useKeyLesson"
+import { KeyRows } from "@/components/onboarding/KeyboardTip"
+import { markSeen as markKeysTipSeen } from "@/components/onboarding/keysTip"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { app_doc_path } from "@/types/paths"
 import type { OnboardingState } from "@/services/onboardingService"
 import { makeSampleProject, removeSampleProject, type OnboardingSample } from "@/services/onboardingSampleService"
 
@@ -52,6 +56,7 @@ export function runStepDone(key: RunStepKey, state: OnboardingState | null): boo
 
 /** Where the sample project opens. Pure. */
 export const sampleHref = (s: OnboardingSample) => `/app/project/${encodeURIComponent(s.project_uuid)}`
+export const briefHref = (docUUID: string) => `${app_doc_path}/${encodeURIComponent(docUUID)}`
 
 interface Props {
     state: OnboardingState | null
@@ -79,6 +84,11 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
     const step = RUN_STEPS[at]
     const last = at === RUN_STEPS.length - 1
     const sample = state?.sample
+    // The last step's key lesson; the corner tip on Home need not teach it again.
+    const keys = useKeyLesson(step.key === "done")
+    useEffect(() => {
+        if (step.key === "done") markKeysTipSeen()
+    }, [step.key])
 
     const next = () => {
         setError("")
@@ -126,7 +136,7 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
                     <Button variant="ghost" onClick={next} disabled={busy}>
                         Skip for now
                     </Button>
-                    <Button onClick={() => void runSample(true)} disabled={busy} aria-busy={busy || undefined}>
+                    <Button onClick={() => void runSample(true)} busy={busy}>
                         {busy ? "Making it…" : "Make the sample project"}
                     </Button>
                 </>
@@ -136,7 +146,7 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
                     Skip for now
                 </Button>
             ) : (
-                <Button onClick={next} disabled={busy}>
+                <Button onClick={next} busy={busy}>
                     {last ? "Done" : "Next"}
                 </Button>
             )}
@@ -187,8 +197,8 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
             {step.key === "sample" && (
                 <div data-run-step="sample" className="flex flex-col gap-3 text-ui">
                     <p className="text-balance text-ink-2">
-                        A worked client project shows how the pieces fit: dated tasks from kickoff to invoice, a client review step and a box for the client&apos;s sign-off.
-                        Remove it in one step when you&apos;re done looking.
+                        A worked client project shows how the pieces fit: a brief to start from, dated tasks from kickoff to invoice, a client review step and a box for
+                        the client&apos;s sign-off. Remove it in one step when you&apos;re done looking.
                     </p>
                     {sample ? (
                         <div className="flex flex-wrap items-center gap-2 rounded-lg bg-sunken p-3" data-sample-made="">
@@ -200,6 +210,13 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
                                     Open it
                                 </Link>
                             </Button>
+                            {sample.doc_uuid ? (
+                                <Button asChild size="sm" variant="ghost" className="h-11 md:h-8">
+                                    <Link href={briefHref(sample.doc_uuid)} onClick={onClose}>
+                                        Open the brief
+                                    </Link>
+                                </Button>
+                            ) : null}
                             <Button variant="ghost" size="sm" className="h-11 md:h-8" disabled={busy} onClick={() => void runSample(false)}>
                                 Remove the sample
                             </Button>
@@ -226,6 +243,13 @@ export default function OnboardingRun({ state, refresh, onClose }: Props) {
                         </p>
                     ))}
                     <p className="mt-2 text-balance text-ink-2">Anything left stays on Home, under Finish setting up your workspace.</p>
+                    {/* The keys, taught by doing, as Linear's command-menu lesson does
+                        (design-15). A key hint: hidden where there's no keyboard. */}
+                    <section aria-label="Three keys worth knowing" data-kbd-hint="" className="mt-3 rounded-lg bg-sunken p-3">
+                        <p className="text-ui-sm font-medium">Three keys worth knowing</p>
+                        <p className="text-meta text-ink-3">Try one now: each ticks when you do.</p>
+                        <KeyRows pressed={keys.pressed} done={keys.done} />
+                    </section>
                 </div>
             )}
         </ResponsiveDialog>

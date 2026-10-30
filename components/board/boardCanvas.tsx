@@ -20,7 +20,6 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import * as Y from "yjs"
-import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID"
 import { Loader2 } from "@/lib/icons"
 import axiosInstance from "@/lib/axiosInstance"
 import { PostFileUploadURL } from "@/services/endPoints"
@@ -28,17 +27,21 @@ import { BoardsGet, BoardsPost } from "@/services/endpoints/boards"
 import { useToast } from "@/hooks/use-toast"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
-import { sceneSignature, whenSceneReady } from "@/lib/board/scene"
-import { applyShared, cloneElement, liveCount } from "@/lib/board/binding"
-import { collaboratorColour } from "@/components/board/boardColours"
+import { sceneSignature } from "@/lib/board/scene"
+import { useSceneReady } from "@/hooks/useSceneReady"
+import { linkedFromSearch } from "@/lib/board/frames"
+import { frameDrawing, loadBoardViewport, saveBoardViewport } from "@/lib/board/camera"
+import { LOCAL_ORIGIN, applyShared, followShared, liveCount, type BoardElement, type SharedElements } from "@/lib/board/binding"
+import { NOTE_AUTHORS, storeWithMakers } from "@/lib/board/authors"
+import { useBoardPresence } from "@/components/board/boardPresence"
+import { BoardCursors } from "@/components/board/boardCursors"
 import "@excalidraw/excalidraw/index.css"
+// Before Excalidraw loads: its faces come from this server, never esm.sh (V-94).
+import "@/lib/board/excalidrawAssets"
 import "@/components/board/excalidrawTheme.css"
 
 // Types are erased at runtime; importing them as types keeps SSR safe.
-import type {
-  ExcalidrawImperativeAPI,
-  Collaborator,
-} from "@excalidraw/excalidraw/types"
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 
 const Excalidraw = dynamic(
   async () => (await import("@excalidraw/excalidraw")).Excalidraw,
@@ -54,47 +57,12 @@ const Excalidraw = dynamic(
 
 // Origin tag so the Yjs observer can ignore writes this client just made and
 // avoid an echo/update loop.
-const LOCAL_ORIGIN = "board-local"
 
 // Personal Excalidraw library (shapes the user saves or installs from
 // libraries.excalidraw.com). It is a per-browser collection shared across all
 // boards, mirroring excalidraw.com behaviour, so it is persisted in
 // localStorage rather than the shared Yjs document.
 const LIBRARY_STORAGE_KEY = "onecamp:excalidraw:library"
-
-// Per-board camera (scroll + zoom) persisted per browser, mirroring how
-// Excalidraw/Figma/Miro remember where you were in a document. Restoring this
-// on load is what stops a refresh from dropping the user on empty canvas far
-// from their content. Stored client-side only (no backend writes on pan/zoom).
-const VIEWPORT_STORAGE_PREFIX = "onecamp:board:viewport:"
-
-interface BoardViewport {
-  scrollX: number
-  scrollY: number
-  zoom: number
-}
-
-function loadBoardViewport(boardId: string): BoardViewport | null {
-  try {
-    const raw = localStorage.getItem(VIEWPORT_STORAGE_PREFIX + boardId)
-    if (!raw) return null
-    const v = JSON.parse(raw)
-    if (typeof v?.scrollX === "number" && typeof v?.scrollY === "number" && typeof v?.zoom === "number") {
-      return v as BoardViewport
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
-function saveBoardViewport(boardId: string, v: BoardViewport) {
-  try {
-    localStorage.setItem(VIEWPORT_STORAGE_PREFIX + boardId, JSON.stringify(v))
-  } catch {
-    // Private mode / quota: a non-persisted camera is acceptable.
-  }
-}
 
 // isAllowedLibraryHost only permits installing libraries from the official
 // Excalidraw library host, so a crafted "#addLibrary=" link cannot make the
@@ -173,15 +141,8 @@ function BoardCanvas({
     if (wrapRef.current) wrapRef.current.dataset.boardRemote = String(remoteMergesRef.current)
   }, [])
   const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
-  // Whether Excalidraw has finished loading its own (empty) scene. Until it
-  // has, anything put on the canvas is wiped when it does (lib/board/scene,
-  // whenSceneReady), so the drawing and the camera wait for this.
-  const [sceneReady, setSceneReady] = React.useState(false)
-  React.useEffect(() => {
-    setSceneReady(false)
-    if (!api) return
-    return whenSceneReady(() => api.getAppState().isLoading, () => setSceneReady(true))
-  }, [api])
+  // The drawing and the camera wait for Excalidraw's own scene (useSceneReady).
+  const sceneReady = useSceneReady(api)
   // Excalidraw module, loaded client-side so we can render a custom MainMenu
   // (replacing Excalidraw's default menu, which ships its own brand/social
   // links and a "Reset the canvas" item we do not want on a shared board).
@@ -203,6 +164,8 @@ function BoardCanvas({
   // Yjs shared structures from the provider's document.
   const yDoc = provider.document
   const yElements = React.useMemo(() => yDoc.getMap<Record<string, unknown>>("elements"), [yDoc])
+  // Who made each note, stamped as a new note is first shared (lib/board/authors).
+  const yAuthors = React.useMemo(() => yDoc.getMap<unknown>(NOTE_AUTHORS), [yDoc])
   // yFiles holds image METADATA only ({ id, objectUuid, mimeType }) - never raw
   // bytes. Images live in MinIO; clients resolve them to a backend URL.
   const yFiles = React.useMemo(() => yDoc.getMap<Record<string, unknown>>("files"), [yDoc])
@@ -229,6 +192,11 @@ function BoardCanvas({
   // restore so the default 0,0 camera Excalidraw emits during mount can't
   // overwrite the user's remembered position before we apply it.
   const viewportRestoredRef = React.useRef(false)
+  // A link to a frame or an object (?frame=, ?element=) places the camera
+  // itself once its place has synced (the workbench), so a first visit
+  // doesn't frame the whole drawing over it. Read when the board opens: the
+  // workbench puts the address back once it has gone there.
+  const linkedRef = React.useRef<string | null>(null)
   const viewportTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const persistViewport = React.useCallback(
     (scrollX: number, scrollY: number, zoom: number) => {
@@ -245,6 +213,7 @@ function BoardCanvas({
   // own camera once.
   React.useEffect(() => {
     viewportRestoredRef.current = false
+    linkedRef.current = linkedFromSearch(window.location.search)
   }, [boardId])
 
   React.useEffect(() => {
@@ -409,29 +378,6 @@ function BoardCanvas({
       if (toAdd.length > 0) api.addFiles(toAdd as never[])
     }
 
-    // Reconcile the live scene with the shared doc, merging remote element
-    // states over local by version (LWW per element). Safe to call repeatedly;
-    // it is the single source of truth for "render whatever Yjs currently has".
-    const hydrateFromY = () => {
-      applyingRemoteRef.current = true
-      try {
-        resolveFileEntries(Array.from(yFiles.values()) as Record<string, unknown>[])
-        // Outside this person's undo (lib/board/binding).
-        if (applyShared(api, yElements.values() as never) > 0) markRemoteMerge()
-        // What others drew is not a change of ours: Excalidraw's onChange for
-        // it comes after this block, and would otherwise send it back and
-        // upload a fresh thumbnail of a board the viewer only opened.
-        lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted() as never)
-      } finally {
-        applyingRemoteRef.current = false
-      }
-    }
-
-    const onElementsChange = (_event: Y.YMapEvent<Record<string, unknown>>, txn: Y.Transaction) => {
-      if (txn.origin === LOCAL_ORIGIN) return
-      hydrateFromY()
-    }
-
     const onFilesChange = (event: Y.YMapEvent<Record<string, unknown>>, txn: Y.Transaction) => {
       if (txn.origin === LOCAL_ORIGIN) return
       const entries: Record<string, unknown>[] = []
@@ -441,15 +387,25 @@ function BoardCanvas({
       })
       resolveFileEntries(entries)
     }
-
-    // Attach observers first so any update applied during/after the initial
-    // sync is painted, then hydrate from whatever is already present.
-    yElements.observe(onElementsChange)
     yFiles.observe(onFilesChange)
-    hydrateFromY()
+    resolveFileEntries(Array.from(yFiles.values()) as Record<string, unknown>[])
+
+    // The document onto the canvas, outside this person's undo: all of it
+    // now, then each change by the keys it touched, at most one merge a frame
+    // (lib/board/binding followShared). A teammate's move used to re-merge
+    // and re-read every element and file on the board.
+    const follow = followShared(api, yElements as unknown as SharedElements, {
+      onMerged: () => {
+        markRemoteMerge()
+        // What others drew is not a change of ours: Excalidraw's onChange for
+        // it comes after the merge, and would otherwise send it back and
+        // upload a fresh thumbnail of a board the viewer only opened.
+        lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted() as never)
+      },
+    })
 
     return () => {
-      yElements.unobserve(onElementsChange)
+      follow.stop()
       yFiles.unobserve(onFilesChange)
     }
   }, [api, sceneReady, yElements, yFiles, boardId, markRemoteMerge])
@@ -498,13 +454,15 @@ function BoardCanvas({
     // then fit it into view. Poll briefly so a slightly-late first sync still
     // gets framed.
     if (!synced) return
+    if (linkedRef.current) {
+      viewportRestoredRef.current = true
+      return
+    }
     let attempts = 0
     let timer: ReturnType<typeof setTimeout> | null = null
     const tryFit = () => {
       if (viewportRestoredRef.current) return
-      const els = api.getSceneElements()
-      if (els.length > 0) {
-        api.scrollToContent(els, { fitToContent: true, animate: false } as never)
+      if (frameDrawing(api)) {
         viewportRestoredRef.current = true
       } else if (attempts++ < 12) {
         timer = setTimeout(tryFit, 200)
@@ -594,42 +552,11 @@ function BoardCanvas({
       // visible elements the deletion would never reach Yjs and the element
       // would reappear on reload). Fall back to the onChange list if the API
       // is not ready yet.
-      const allEls = sceneNow as readonly {
-        id: string
-        version?: number
-        versionNonce?: number
-        isDeleted?: boolean
-      }[]
+      // The document's map holds Excalidraw's elements as plain records.
+      // A note new to the shared board goes with its maker: this person, a copy's maker too.
+      // Only what changed is walked twice: a drag's frame stamps and writes its moved elements, not the board (miro-06).
       yDoc.transact(() => {
-        for (const el of allEls) {
-          const existing = yElements.get(el.id) as
-            | { version?: number; versionNonce?: number; isDeleted?: boolean }
-            | undefined
-          // Never resurrect a tombstone the shared doc does not have: a deleted
-          // element with no entry in Yjs was either pruned by the server's
-          // compaction or deleted before it ever synced. Re-adding it would
-          // undo pruning and let the document grow back.
-          if (!existing && (el.isDeleted ?? false)) continue
-          const ev = existing?.version ?? -1
-          const elv = el.version ?? 0
-          const liveDeleted = (el as { isDeleted?: boolean }).isDeleted ?? false
-          const storedDeleted = existing?.isDeleted ?? false
-          // Store when the version advanced, when it matches but the nonce
-          // differs (a same-version content change), when brand new, or whenever
-          // the deletion state changed. The explicit isDeleted check is what
-          // makes the eraser stick: a delete/undelete must always reach Yjs even
-          // if the version bookkeeping looks unchanged, otherwise the element
-          // resurrects on reload. Always store a CLONE - never the live, mutated
-          // Excalidraw object (it mutates in place and would alias the snapshot).
-          if (
-            !existing ||
-            ev < elv ||
-            (ev === elv && existing.versionNonce !== el.versionNonce) ||
-            liveDeleted !== storedDeleted
-          ) {
-            yElements.set(el.id, cloneElement(el) as never)
-          }
-        }
+        storeWithMakers(yAuthors, yElements as never, sceneNow as readonly BoardElement[], { id: user.id, name: user.name })
       }, LOCAL_ORIGIN)
 
       // Graceful size warning: count live (non-deleted) elements and warn once
@@ -650,71 +577,15 @@ function BoardCanvas({
       scheduleThumbnail()
 
     },
-    [editable, yDoc, yElements, yFiles, boardId, toast, clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb, scheduleThumbnail, persistViewport],
+    [editable, yDoc, yElements, yAuthors, user.id, user.name, yFiles, boardId, toast, clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb, scheduleThumbnail, persistViewport],
   )
 
   // -------------------------------------------------------------------------
-  // Awareness: broadcast our pointer + selection, and render remote ones as
-  // Excalidraw collaborators (live cursors).
+  // Presence: our name and pointer for the others, and theirs drawn over the
+  // canvas (BoardCursors), over the document's awareness. A member's canvas
+  // always publishes (components/board/boardPresence).
   // -------------------------------------------------------------------------
-  const awareness = provider.awareness
-
-  // Throttle pointer broadcasts (~20/sec). Excalidraw fires onPointerUpdate on
-  // every mouse move; unthrottled this floods awareness for every collaborator.
-  const lastPointerSentRef = React.useRef(0)
-  const handlePointerUpdate = React.useCallback(
-    (payload: { pointer: { x: number; y: number }; button: "down" | "up" }) => {
-      if (!awareness) return
-      const now = Date.now()
-      // Always send button transitions immediately; throttle plain moves.
-      if (payload.button === "up" && now - lastPointerSentRef.current < 50) return
-      lastPointerSentRef.current = now
-      awareness.setLocalStateField("pointer", payload.pointer)
-      awareness.setLocalStateField("button", payload.button)
-    },
-    [awareness],
-  )
-
-  React.useEffect(() => {
-    if (!api || !awareness) return
-
-    // Publish identity once so others can label our cursor.
-    const color = generateColorFromUUID(user.id || "default")
-    awareness.setLocalStateField("user", {
-      id: user.id,
-      name: user.name,
-      color,
-      profileKey: user.profileKey,
-    })
-
-    const onAwareness = () => {
-      const states = awareness.getStates() as Map<number, Record<string, unknown>>
-      const collaborators = new Map<string, Collaborator>()
-      states.forEach((state, clientId) => {
-        if (clientId === awareness.clientID) return
-        const u = state.user as { id?: string; name?: string; color?: string; profileKey?: string } | undefined
-        if (!u?.name) return
-        const pointer = state.pointer as { x: number; y: number } | undefined
-        collaborators.set(String(clientId), {
-          username: u.name,
-          pointer: pointer ? { x: pointer.x, y: pointer.y, tool: "pointer" } : undefined,
-          button: (state.button as "down" | "up") || "up",
-          // Their identity hue (lib/campHue), the colour their avatar and
-          // name carry everywhere else, read from the theme's tokens because
-          // the canvas needs a colour, not a class.
-          color: collaboratorColour(u.name || String(clientId)),
-          id: u.id,
-        } as Collaborator)
-      })
-      api.updateScene({ collaborators: collaborators as never })
-    }
-
-    awareness.on("change", onAwareness)
-    onAwareness()
-    return () => {
-      awareness.off("change", onAwareness)
-    }
-  }, [api, awareness, user.id, user.name, user.profileKey])
+  const handlePointerUpdate = useBoardPresence({ awareness: provider.awareness, user, publish: true })
 
   const handleApi = React.useCallback(
     (instance: ExcalidrawImperativeAPI) => {
@@ -726,7 +597,7 @@ function BoardCanvas({
   )
 
   return (
-    <div ref={wrapRef} className="h-full w-full" data-board-canvas="">
+    <div ref={wrapRef} className="relative h-full w-full" data-board-canvas="">
       <Excalidraw
         excalidrawAPI={handleApi}
         onChange={handleChange as never}
@@ -754,6 +625,7 @@ function BoardCanvas({
           </excalMod.MainMenu>
         )}
       </Excalidraw>
+      <BoardCursors api={api} awareness={provider.awareness} dark={theme === "dark"} />
     </div>
   )
 }

@@ -2,56 +2,39 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   ChevronRight,
-  Globe,
-  Lock,
-  LayoutGrid,
-  Kanban,
-  CalendarDays,
-  BarChart3,
-  LayoutTemplate,
+  ClipboardList,
   Share2,
   MoreHorizontal,
-  Download,
-  Trash2,
   RotateCcw,
   Search,
-  Eye,
   EyeOff,
   Plus,
-  List,
   SlidersHorizontal,
   X,
 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useConfirm } from "@/hooks/useConfirm"
 import { useToast } from "@/hooks/use-toast"
-import { DataTableGrid } from "@/components/table/DataTableGrid"
-import { TableRowList } from "@/components/table/TableRowList"
-import { BoardPart, CalendarPart, ChartPart, PublishPart, RecordPart, SharePart, TrashPart, warmView } from "@/components/table/lazyParts"
+import { DataTableGrid, SelectionPart } from "@/components/table/DataTableGrid"
+import { BoardPart, CalendarPart, ChartPart, FormsPart, GalleryPart, ListPart, TimelinePart, MenusPart, PresencePart, RecordPart, RulesPart, SaveDotPart, SharePart, TrashPart, ViewsPart, warmView } from "@/components/table/lazyParts"
 import { warmCellPickers } from "@/components/table/cellPickerPart"
 import { monthOf } from "@/lib/tables/month"
 import {
   createRow,
-  deleteTable,
-  readEveryRow,
+  rowsByIds,
   updateTable,
   Visibility,
-  ViewType,
-  parseFieldConfig,
-  parseViewConfig,
   type TableRow,
 } from "@/services/tableService"
-import { applyViewRules, fitRules, keepInSight, KEPT_NOTE, loadViewRules, NO_RULES, OPS_FOR, saveViewRules, searchRows, type ViewRules } from "@/lib/tables/viewRules"
-import { fieldKind, filterKind } from "@/lib/fieldTypes/registry"
+import { filterCount, fitRules, freshFilter, groupingOf, keepInSight, KEPT_NOTE, loadViewRules, MAX_FILTERS, namesMe, NO_RULES, saveViewRules, searchRows, withoutComputed, type ViewRules } from "@/lib/tables/viewRules"
 import { ROWS_HELD_MAX } from "@/lib/tables/useTableRows"
 import { useRowWindow } from "@/hooks/useRowWindow"
+import { useFetchOnlyOnce } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
+import type { UserProfileInterface } from "@/types/user"
 import { usePageName } from "@/lib/utils/pageName"
 import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
 import { ToastAction } from "@/components/ui/toast"
@@ -59,28 +42,31 @@ import { formatLocale } from "@/lib/tables/numberFormat"
 import { ViewRulesBar } from "@/components/table/ViewRulesBar"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import { LoadFailureState } from "@/components/ui/load-failure-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TableViewState, TABLE_VIEW_INSET, TOUCH_ROW } from "@/components/table/TableViewFrame"
+import { TableViewState, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
 import { hueFor, type CampHue } from "@/lib/campHue"
-import { viewFromQuery, type ViewChoice } from "@/lib/tables/tableView"
-import { SaveDot, type SaveState } from "@/components/docEditor/SaveDot"
-import { DEFAULT_DISPLAY, ROW_HEIGHTS, listByDefault, loadDisplay, saveDisplay, type TableDisplay } from "@/lib/tables/display"
+import { rowsView, viewFromQuery, type ViewChoice } from "@/lib/tables/tableView"
+import type { SaveState } from "@/components/docEditor/SaveDot"
+import { DEFAULT_DISPLAY, listByDefault, loadDisplay, saveDisplay, type TableDisplay } from "@/lib/tables/display"
 import { useCellCommit } from "@/lib/tables/useCellCommit"
-import { toCsv } from "@/lib/tables/csv"
-import { tablePath, tablesPath } from "@/lib/tables/route"
+import { tablesPath } from "@/lib/tables/route"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
-import { redoChange, restoreTable, undoChange, undoneNote } from "@/lib/tables/ledger"
+import { undoneNote } from "@/lib/tables/undoneNote"
 import { onMac, undoKey } from "@/lib/tables/undoKeys"
-import { useUndoToast } from "@/components/table/ledger/useUndoToast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { focusCarry } from "@/lib/ui/focusCarry"
 import { ix } from "@/lib/ui/interactive"
+import { VIEW_LAYOUTS } from "@/components/table/viewLayouts"
+import { VIEW_TRIGGER, ViewFace } from "@/components/table/views/ViewFace"
 
-const VIEW_TABS: { type: ViewType | "chart"; label: string; icon: typeof LayoutGrid }[] = [
-  { type: "grid", label: "Grid", icon: LayoutGrid },
-  { type: "board", label: "Board", icon: Kanban },
-  { type: "calendar", label: "Calendar", icon: CalendarDays },
-  { type: "chart", label: "Chart", icon: BarChart3 },
-]
+/** The page's dropdown menus' chunk (lazyParts' MenusPart). */
+type Menus = typeof import("@/components/table/TableMenus")
+
+/** The rows a list or a grid draws while it waits. */
+const SKELETON_ROWS = 9
+const NO_SHUT: string[][] = []
+
 
 /** A key on the page that isn't typed into a field. */
 function pageKey(e: KeyboardEvent): boolean {
@@ -103,13 +89,13 @@ function useNarrow(): boolean {
 }
 
 /**
- * The view tabs (T04): 13/510 labels with their glyphs, and one ink underline
- * that slides between them by transform. Saved views need the server, so
- * these are the four built-in views. Tabs of the interaction layer, in the
- * table's own hue: a tinted pill under the pointer, the chosen one's glyph in
- * the hue, the focus ring (TB-19), and a 44px tap under a finger.
+ * The layout tabs (T04): 13/510 labels with glyphs (a phone's glyphs alone,
+ * named for screen readers, so all fit) under one ink underline that slides
+ * by transform; in the table's hue, with the focus ring (TB-19) and a 44px
+ * tap. A saved view (TableViews) keeps one.
  */
-function ViewTabs({ active, onPick, hue }: { active: ViewChoice; onPick: (v: ViewChoice) => void; hue: CampHue }) {
+function ViewTabs({ active, onPick, hue, onForms }: { active: ViewChoice; onPick: (v: ViewChoice) => void; hue: CampHue; onForms?: () => void }) {
+  const narrow = useNarrow()
   const wrap = React.useRef<HTMLDivElement>(null)
   const bar = React.useRef<HTMLSpanElement>(null)
   React.useLayoutEffect(() => {
@@ -119,10 +105,10 @@ function ViewTabs({ active, onPick, hue }: { active: ViewChoice; onPick: (v: Vie
     // A 100 px bar scaled to the tab, so only transform moves.
     b.style.transform = `translateX(${el.offsetLeft + 4}px) scaleX(${(el.offsetWidth - 8) / 100})`
     b.dataset.on = "true"
-  }, [active])
+  }, [active, narrow])
   return (
-    <div ref={wrap} data-hue={hue} data-edge-fade="" className="relative flex h-10 items-center gap-1 overflow-x-auto" role="group" aria-label="View">
-      {VIEW_TABS.map((tab) => {
+    <div ref={wrap} data-hue={hue} data-edge-fade="" className="relative flex h-10 min-w-0 items-center gap-1 overflow-x-auto" role="group" aria-label="View">
+      {VIEW_LAYOUTS.map((tab) => {
         const Icon = tab.icon
         const on = active === tab.type
         return (
@@ -136,12 +122,26 @@ function ViewTabs({ active, onPick, hue }: { active: ViewChoice; onPick: (v: Vie
             onFocus={() => warmView(tab.type)}
             aria-pressed={on}
             {...ix("tab")}
-            className={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-ui-sm font-medium", on ? "text-ink" : "text-ink-3 hover:text-ink-2 [&>svg]:text-ink-4")}
+            className={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-ui-sm font-medium", on ? "text-ink" : "text-ink-3 hover:text-ink-2")}
           >
-            <Icon className="size-3.5" aria-hidden="true" /> {tab.label}
+            <Icon className="size-3.5" aria-hidden="true" /> <span className="max-sm:sr-only">{tab.label}</span>
           </button>
         )
       })}
+      {/* The table's forms (B5), for its managers: a form is the view visitors fill, so it sits with the layouts. */}
+      {onForms ? (
+        <button
+          type="button"
+          data-view-forms=""
+          data-touch-target=""
+          aria-haspopup="dialog"
+          onClick={onForms}
+          {...ix("tab")}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-ui-sm font-medium text-ink-3 hover:text-ink-2"
+        >
+          <ClipboardList className="size-3.5" aria-hidden="true" /> <span className="max-sm:sr-only">Form</span>
+        </button>
+      ) : null}
       <span
         ref={bar}
         aria-hidden="true"
@@ -155,14 +155,41 @@ function ViewTabs({ active, onPick, hue }: { active: ViewChoice; onPick: (v: Vie
 
 export default function TableDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const confirm = useConfirm()
   const tableId = String(params["table-id"] || "")
   const { toast } = useToast()
 
-  // The bundle, and every row the page holds past its first 500, kept live.
-  const held = useRowWindow(tableId)
+  // The view is in the address (?view=board), so a reload or a shared link
+  // opens the same one; replaceState, not a navigation.
+  const [activeView, setActiveView] = React.useState<ViewChoice>(() => viewFromQuery(searchParams.get("view")))
+  const showView = React.useCallback((view: ViewChoice) => {
+    setActiveView(view)
+    const url = new URL(window.location.href)
+    if (view === "grid") url.searchParams.delete("view")
+    else url.searchParams.set("view", view)
+    window.history.replaceState(window.history.state, "", url)
+  }, [])
+  const [query, setQuery] = React.useState("")
+  // Sort and filter: this reader's, for this table, kept in their browser,
+  // and read once its fields are known (rulesFor).
+  const [rules, setRules] = React.useState<ViewRules>(NO_RULES)
+  const [rulesFor, setRulesFor] = React.useState<string | null>(null)
+  // Who "me" is in a people filter, as the server reads it for its windows.
+  const profile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  const me = profile.data?.data?.user_uuid ?? null
+
+  // How this reader looks at the table: row height, hidden fields, widths,
+  // summaries, list mode on a phone.
+  const [display, setDisplay] = React.useState<TableDisplay>(DEFAULT_DISPLAY)
+
+  // The bundle, and the view's rows, kept live: the grid and the phone's list
+  // without a search read the server's windows of the view, in its order
+  // (tables T5c), once the reader's rules for the table are known; every
+  // other view, the rows the page holds past the bundle's first 500.
+  const grouping = groupingOf(rules.groups ?? [])
+  const shut = display.shut[grouping] ?? NO_SHUT
+  const held = useRowWindow(tableId, { rules, windows: rulesFor === tableId && rowsView(activeView) && !query.trim(), summary: display.summary, hidden: display.hidden, shut, colors: display.colors })
+  const windowed = held.windowed
   usePageName(held.bundle?.table?.name)
   const { bundle, isLoading, isError, refresh } = held
   // A row's record and a cell's picker are a click away: their chunks load
@@ -171,7 +198,8 @@ export default function TableDetailPage() {
   React.useEffect(() => {
     if (!loaded) return
     const warm = () => {
-      void RecordPart.warm().catch(() => {})
+      void RecordPart.prefetch()
+      void SelectionPart.prefetch()
       warmCellPickers()
     }
     if (typeof window.requestIdleCallback === "function") {
@@ -184,31 +212,29 @@ export default function TableDetailPage() {
   const reload = React.useCallback(() => void refresh(), [refresh])
   // A change to one row asks for that row's page; one without, for everything held.
   const changed = React.useCallback((rowId?: string) => void refresh(rowId), [refresh])
+  const { put } = held
+  // A row read alone for its record (lone, below) is put back too.
+  const [lone, setLone] = React.useState<TableRow | null>(null)
+  const putSaved = React.useCallback(
+    (row: TableRow) => {
+      put([row])
+      setLone((l) => (l && l.id === row.id ? row : l))
+    },
+    [put],
+  )
 
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
-  // The view is in the address (?view=board), so a reload or a shared link
-  // opens the same one; replaceState, not a navigation.
-  const [activeView, setActiveView] = React.useState<ViewChoice>(() => viewFromQuery(searchParams.get("view")))
-  const showView = React.useCallback((view: ViewChoice) => {
-    setActiveView(view)
-    const url = new URL(window.location.href)
-    if (view === "grid") url.searchParams.delete("view")
-    else url.searchParams.set("view", view)
-    window.history.replaceState(window.history.state, "", url)
-  }, [])
   const [calendarMonth, setCalendarMonth] = React.useState(() => monthOf(new Date()))
-  const [publishing, setPublishing] = React.useState(false)
-  // The publish dialog's chunk mounts the first time it opens, and stays for
-  // its closing.
-  const [publishSeen, setPublishSeen] = React.useState(false)
-  React.useEffect(() => {
-    if (publishing) setPublishSeen(true)
-  }, [publishing])
   const [sharing, setSharing] = React.useState(false)
+  // The table's own forms (B5): opened once their chunk is here, or said when it can't come.
+  const [forms, setForms] = React.useState(false)
+  const openForms = () =>
+    void FormsPart.warm().then(
+      () => setForms(true),
+      () => toast({ title: "Couldn't open the forms. Try again.", variant: "destructive" }),
+    )
   const [trashOpen, setTrashOpen] = React.useState(false)
-  // A deleted table's Undo brings it back, and opens it again.
-  const offerTableUndo = useUndoToast(React.useCallback(() => {}, []))
   const [openRow, setOpenRowState] = React.useState<string | null>(() => searchParams.get("row"))
   // A thread on the open row a link named (a notice, a copied link): its
   // record opens at it, once; stepping to another row lets go of it.
@@ -222,8 +248,11 @@ export default function TableDetailPage() {
     url.searchParams.delete("thread")
     window.history.replaceState(window.history.state, "", url)
   }, [])
-  const [query, setQuery] = React.useState("")
   const [searching, setSearching] = React.useState(false)
+  // Which of the page's dropdown menus is open (TableMenus, a chunk of its own).
+  const [menu, setMenu] = React.useState<"more" | "height" | "fields" | null>(null)
+  const [carryFocus] = React.useState(focusCarry)
+  const warmMenus = React.useCallback(() => void MenusPart.prefetch(), [])
   const searchRef = React.useRef<HTMLInputElement>(null)
   const exporting = React.useRef(false)
   const [saveState, setSaveState] = React.useState<SaveState>("saved")
@@ -245,11 +274,11 @@ export default function TableDetailPage() {
     return `${held.total ?? held.rows.length}:${latest}`
   }, [held.rows, held.total])
 
-  // Sort and filter: this reader's, for this table, kept in their browser.
-  const [rules, setRules] = React.useState<ViewRules>(NO_RULES)
   const fieldsKnown = !!bundle?.fields
   React.useEffect(() => {
-    if (fieldsKnown && bundle?.fields) setRules(loadViewRules(tableId, bundle.fields))
+    if (!fieldsKnown || !bundle?.fields) return
+    setRules(loadViewRules(tableId, bundle.fields))
+    setRulesFor(tableId)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per table, when its fields arrive
   }, [tableId, fieldsKnown])
   const changeRules = React.useCallback(
@@ -264,28 +293,85 @@ export default function TableDetailPage() {
     setRules((r) => fitRules(r, bundle.fields))
   }, [bundle?.fields])
 
-  // How this reader looks at the table: row height, hidden fields, widths,
-  // summaries, list mode on a phone.
-  const [display, setDisplay] = React.useState<TableDisplay>(DEFAULT_DISPLAY)
   React.useEffect(() => setDisplay(loadDisplay(tableId)), [tableId])
   const changeDisplay = React.useCallback(
-    (patch: Partial<TableDisplay>) => {
+    (patch: Partial<TableDisplay> | ((d: TableDisplay) => Partial<TableDisplay>)) => {
       setDisplay((d) => {
-        const next = { ...d, ...patch }
+        const next = { ...d, ...(typeof patch === "function" ? patch(d) : patch) }
         saveDisplay(tableId, next)
         return next
       })
     },
     [tableId],
   )
+  // A saved view, from the views menu.
+  const applyView = React.useCallback(
+    (v: { layout: ViewChoice; rules: ViewRules; display: Partial<TableDisplay> }) => {
+      showView(v.layout)
+      changeRules(v.rules)
+      changeDisplay(v.display)
+    },
+    [showView, changeRules, changeDisplay],
+  )
+  // At once: a link to a view shows it before the table paints.
+  React.useEffect(() => void ViewsPart.prefetch(), [])
+  // A view's link (?v=) paints in its layout from the table's first frame: the bundle lists the views.
+  const linked = bundle?.views?.find((v) => v.id === searchParams.get("v"))
+  const linkedLayout = linked?.type
+  React.useLayoutEffect(() => void (linkedLayout && setActiveView(linkedLayout)), [linkedLayout])
 
-  const ruled = React.useMemo(() => applyViewRules(held.rows, bundle?.fields || [], rules), [held.rows, bundle?.fields, rules])
-  // A row just made here stays in sight, last, until the person moves on, even
-  // where the view's filter or the search would hide it, or its sort put it
-  // elsewhere: R seemed to do nothing, and people pressed it again
-  // (TAB-BUG-14). A toast says why it's out of place; the row is marked.
+  // The server's windows come ruled, in the view's order: the browser applies
+  // the rules only to the rows the page holds, with the rules' own chunk,
+  // which loads beside the bundle. Until it lands, such a view draws its
+  // skeleton, never rows its rules would hide; so does one whose rules name
+  // me until the profile says who that is. A chart reads no rows here.
+  const applying = RulesPart.useLoaded()
+  const awaitingMe = profile.isLoading && namesMe(rules.filters)
+  const ruling = !windowed && (!applying || awaitingMe) && activeView !== "chart"
+  const ruled = React.useMemo(
+    () => (windowed ? held.rows : applying && !awaitingMe ? applying.applyViewRules(held.rows, bundle?.fields || [], rules, me) : []),
+    [windowed, applying, awaitingMe, held.rows, bundle?.fields, rules, me],
+  )
+  // A row just made here stays in sight, last and marked, until the person
+  // moves on, even where the filter, the search or the sort would put it
+  // elsewhere (TAB-BUG-14: R seemed to do nothing); a toast says why. Under
+  // windows the view holds it at its end (useTableRows' tail; keptReason).
   const [added, setAdded] = React.useState<string | null>(null)
-  const { rows: shownRows, kept } = React.useMemo(() => keepInSight(searchRows(ruled, query), ruled, held.rows, added), [ruled, query, held.rows, added])
+  const { rows: shownRows, kept: keptHeld } = React.useMemo(
+    () => (windowed ? { rows: held.rows, kept: null } : keepInSight(searchRows(ruled, query), ruled, held.rows, added)),
+    [windowed, ruled, query, held.rows, added],
+  )
+  const addedRow = windowed && added && held.tail ? held.rows.slice(held.rows.length - held.tail).find((r) => r.id === added) : undefined
+  const keptWindowed = React.useMemo(
+    () => (addedRow && applying ? applying.keptReason(addedRow, bundle?.fields || [], rules, me) : null),
+    [addedRow, applying, bundle?.fields, rules, me],
+  )
+  const kept = windowed ? keptWindowed : keptHeld
+  // A grid grouped (V2b): the server's counts, or the rows' held here (a row kept last after every group); past 1,000 none, and why.
+  const grouped = (activeView === "grid" || activeView === "list") && !!rules.groups
+  const heldGroups = React.useMemo(
+    () => (grouped && !windowed && applying ? applying.groupRows(keptHeld ? shownRows.slice(0, -1) : shownRows, bundle?.fields || [], rules.groups ?? []) : null),
+    [grouped, windowed, applying, keptHeld, shownRows, bundle?.fields, rules.groups],
+  )
+  const refused = windowed ? held.refused : grouped && applying && !heldGroups ? applying.TOO_MANY_GROUPS : null
+  const changeShut = React.useCallback(
+    (next: string[][]) =>
+      changeDisplay((d) => {
+        const shut = { ...d.shut }
+        delete shut[grouping]
+        if (next.length) shut[grouping] = next
+        return { shut }
+      }),
+    [changeDisplay, grouping],
+  )
+  const { groups: groupRules } = rules
+  const { groups: counted, shutRead } = held
+  // The rows held, while they aren't the whole table: the summary bar and the groups' headers say they're of these alone.
+  const heldPart = held.complete ? undefined : held.rows.length
+  const groupView = React.useMemo(
+    () => (grouped && !refused && groupRules ? { levels: groupRules, counts: windowed ? counted : heldGroups, shut, read: windowed ? shutRead : undefined, onShut: changeShut, partial: !windowed && heldPart !== undefined } : null),
+    [grouped, refused, groupRules, windowed, counted, heldGroups, shut, shutRead, changeShut, heldPart],
+  )
   const keptNote = kept ? KEPT_NOTE[kept] : null
   const toldFor = React.useRef<string | null>(null)
   React.useEffect(() => {
@@ -294,6 +380,11 @@ export default function TableDetailPage() {
     toast({ title: keptNote, description: "Your new row stays here until you move on." })
   }, [added, keptNote, toast])
   React.useEffect(() => setAdded(null), [rules, query])
+  // Moved on from the rows added here: under windows they go to their places.
+  const { unpin } = held
+  React.useEffect(() => {
+    if (!added) unpin()
+  }, [added, unpin])
   React.useEffect(() => {
     if (openRow) setAdded((a) => (a === openRow ? a : null))
   }, [openRow])
@@ -302,11 +393,37 @@ export default function TableDetailPage() {
     changeRules({ ...rules, filters: [] })
     setQuery("")
   }, [changeRules, rules])
-  const noMatch = held.rows.length > 0 && shownRows.length === 0
+  const noMatch = !ruling && held.rows.length > 0 && shownRows.length === 0
+  // The table has no rows at all: its count, since a view read in windows
+  // holds none before its first window comes.
+  const noRows = held.total === 0 || (held.total === null && held.rows.length === 0)
   // No hit among the rows read is the answer only once the rest are read (or
   // reading stopped at 10,000, or failed, which the toolbar says): "No rows
   // match" while they were still coming sent people to clear their filters.
-  const noHit = !held.complete && !held.capped && !held.failed ? <TableViewState kind="searching" /> : <TableViewState kind="no-match" onClear={clearFilters} />
+  // A view the server wouldn't read (a 422, airtable-03) says why in its words,
+  // and offers to clear the formula's and rollup's rules it can't answer.
+  const lifted = held.stopped ? withoutComputed(rules, bundle?.fields || []) : null
+  const noHit = held.workingOut ? (
+    <TableViewState kind="working" words={held.workingOut.words} done={held.workingOut.done} total={held.workingOut.total} />
+  ) : held.stopped && held.refused ? (
+    <TableViewState kind="refused" why={held.refused} onClear={lifted ? () => changeRules(lifted) : undefined} />
+  ) : windowed && held.failed ? (
+    // A window that failed (offline, a 5xx, a timeout), a fill's wait included
+    // (DB-42 on airtable-03b): the shared error with Try again, never "no rows match".
+    <ErrorState subject="the rows" onRetry={held.retry} />
+  ) : !held.complete && !held.capped && !held.failed ? (
+    <TableViewState kind="searching" />
+  ) : (
+    <TableViewState kind="no-match" onClear={clearFilters} />
+  )
+  // Said once (DB-40): with no row drawn, the body says a refused view's words
+  // with its button, so the toolbar says them only over rows already drawn (a
+  // later window refused).
+  const refusedInBody = !noRows && held.stopped && !!held.refused && held.count === 0
+  // The same for a failed read with no row drawn (DB-42): the body says it,
+  // with Try again, so the grid draws no row of the server's count meanwhile.
+  const failedInBody = !noRows && windowed && held.failed && held.rows.length === 0
+  const viewCount = failedInBody ? 0 : held.count
 
   // What the views need held: a board, a calendar, a sort, a filter or a
   // search looks at every row (up to 10,000; past that, "Load all"). The grid
@@ -314,12 +431,28 @@ export default function TableDetailPage() {
   // names is read on to, as far as those 10,000: past them it's said once,
   // with "Load all" (a link to a row gone read every row of the table).
   const { all: holdAll, more: holdMore } = held
-  const needsAll = activeView === "board" || activeView === "calendar" || rules.sort.length + rules.filters.length > 0 || query.trim() !== ""
+  const needsAll = !windowed && (activeView === "board" || activeView === "calendar" || rules.sort.length + rules.filters.length > 0 || !!rules.groups || query.trim() !== "")
   React.useEffect(() => {
     if (needsAll) holdAll()
   }, [needsAll, holdAll])
   const openHeld = !!openRow && held.rows.some((r) => r.id === openRow)
-  const seeking = !!openRow && !openHeld && !held.complete && !held.reading && !held.failed && !held.capped
+  const seeking = !windowed && !!openRow && !openHeld && !held.complete && !held.reading && !held.failed && !held.capped
+  // Under windows a row the address names that the windows haven't reached
+  // (or that the view's rules leave out) is read alone, for its record: the
+  // windows aren't read through to find it.
+  const loneId = windowed && openRow && !openHeld ? openRow : null
+  React.useEffect(() => {
+    if (!loneId) return
+    const ac = new AbortController()
+    rowsByIds(tableId, [loneId], ac.signal)
+      .then(([r]) => {
+        if (r) setLone(r)
+      })
+      // Unread (or aborted), its record stays shut; its address opens it on the next load.
+      .catch(() => {})
+    return () => ac.abort()
+  }, [loneId, tableId])
+  const loneRow = loneId && lone?.id === loneId ? lone : null
   // Asked again as each page lands: a page that came back before "reading"
   // was ever drawn left seeking true throughout, and the reading stopped.
   const heldCount = held.rows.length
@@ -348,21 +481,30 @@ export default function TableDetailPage() {
       setSavedAt(new Date())
     }
   }, [])
-  const commit = useCellCommit({ tableId, rows: held.rows, onChange: changed, onSaving })
+  const commit = useCellCommit({ tableId, rows: held.rows, onChange: changed, onSaving, onSaved: putSaved })
+  // Each row's colour and each cell's tint (V3), as the view colours them and its cells show them.
+  const paint = React.useMemo(
+    () => (applying && display.colors && rowsView(activeView) ? applying.paint(held.rows, bundle?.fields || [], display.colors, me, commit.edits, held.summaries) : null),
+    [applying, display.colors, activeView, held.rows, bundle?.fields, me, commit.edits, held.summaries],
+  )
 
-  // Rows made here are the table's last: they're read through to, and a new
-  // one is brought into sight: its first cell takes the focus in the grid, on
-  // every device; the phone's list scrolls to it and opens its record, as the
-  // board and the calendar open theirs. Past the first 10,000 rows it's said,
-  // with "Load all", which reads every row and then goes to it.
-  const [focusRow, setFocusRow] = React.useState<string | null>(null)
+  // A row made here is the table's last, read through to and brought into
+  // sight: the grid focuses its first cell on every device; the phone's list,
+  // the board and the calendar open its record. Past the first 10,000 rows,
+  // "Load all" reads every row, then goes to it.
+  const [focusAt, setFocusAt] = React.useState<{ row: string; field?: string } | null>(null)
   const [listTo, setListTo] = React.useState<string | null>(null)
-  const listMode = narrow && activeView === "grid" && (display.list ?? listByDefault(bundle?.fields || []))
+  const listMode = activeView === "list" || (narrow && activeView === "grid" && (display.list ?? listByDefault(bundle?.fields || [])))
+  // A phone's list is a chunk of its own: asked for once the page knows it's
+  // on a phone, while the table itself is on its way.
+  React.useEffect(() => {
+    if (narrow) void ListPart.prefetch()
+  }, [narrow])
   const { reveal } = held
   const bringIn = React.useCallback(
     (id: string) => {
       setAdded(id)
-      if (activeView === "grid" && !listMode) return setFocusRow(id)
+      if (activeView === "grid" && !listMode) return setFocusAt({ row: id })
       if (listMode) setListTo(id)
       setOpenRow(id)
     },
@@ -371,6 +513,8 @@ export default function TableDetailPage() {
   const onCreated = React.useCallback(
     (rows: TableRow[], focus = false) => {
       if (!rows.length) return
+      // Copies made under windows go to their places in the view, read again.
+      if (windowed && !focus) return void refresh()
       const shown = reveal(rows)
       if (!focus) return
       const id = rows[0].id
@@ -390,7 +534,7 @@ export default function TableDetailPage() {
         ),
       })
     },
-    [reveal, bringIn, toast, holdAll],
+    [windowed, refresh, reveal, bringIn, toast, holdAll],
   )
   const addRow = React.useCallback(async () => {
     try {
@@ -400,8 +544,12 @@ export default function TableDetailPage() {
       // surfaced
     }
   }, [tableId, onCreated])
-  const focused = React.useCallback(() => setFocusRow(null), [])
-  const nearEnd = React.useCallback(() => holdMore(), [holdMore])
+  const focused = React.useCallback(() => setFocusAt(null), [])
+  // Someone's face: their cell, or their row's record where the grid doesn't show it.
+  const goTo = React.useCallback(
+    (row: string, field: string) => (activeView === "grid" && !listMode && shownRows.some((r) => r.id === row) ? setFocusAt({ row, field }) : setOpenRow(row)),
+    [activeView, listMode, shownRows, setOpenRow],
+  )
 
   // ⌘Z undoes the reader's latest change to the table, ⌘⇧Z redoes it (A2),
   // when they aren't typing into a field, whose text the browser undoes.
@@ -414,6 +562,8 @@ export default function TableDetailPage() {
       e.preventDefault()
       void (async () => {
         try {
+          // The ledger loads on the first undo, off the table's first load.
+          const { redoChange, undoChange } = await import("@/lib/tables/ledger")
           const r = want === "undo" ? await undoChange(tableId) : await redoChange(tableId)
           toast(undoneNote(r, want === "redo"))
         } catch (err) {
@@ -490,62 +640,46 @@ export default function TableDetailPage() {
   const t = bundle.table
   const fields = bundle.fields || []
   const rows = held.rows
+  const openShown = !!openRow && shownRows.some((r) => r.id === openRow)
   const sortedFields = fieldOrder(fields)
   const hidden = new Set(display.hidden)
 
-  // Stable payload the templates gallery replays on install (structure only).
-  const templatePayload = {
-    table: { name: t.name, description: t.description || undefined, icon: t.icon || undefined, visibility: t.visibility },
-    fields: sortedFields.map((f) => ({ name: f.name, type: f.type, config: parseFieldConfig(f), position: f.position })),
-    views: (bundle.views || []).map((v) => ({ name: v.name, type: v.type, config: parseViewConfig(v), position: v.position })),
-  }
-
-  // Every row the view shows, not only those the page holds: the rest are read
-  // first, page by page, with a toast that counts them.
-  const exportCsv = async () => {
+  // The export reads every row the view shows: a chunk of its own, read on
+  // use, off the table's first screen.
+  const exportAs = async (format: "csv" | "xlsx") => {
     if (exporting.current) return
     exporting.current = true
-    const n = (x: number) => formatLocale(x, {})
-    const of = held.total === null ? "" : ` of ${n(held.total)}`
-    const note = held.complete ? null : toast({ tone: "loading", title: "Exporting the table", description: `Reading rows: 0${of}` })
     try {
-      const every = held.complete
-        ? rows
-        : await readEveryRow(tableId, { onProgress: (got) => note?.update({ id: note.id, tone: "loading", title: "Exporting the table", description: `Reading rows: ${n(got)}${of}` }) })
-      const out = searchRows(applyViewRules(every, fields, rules), query)
-      const blob = new Blob([toCsv(sortedFields.filter((f) => !hidden.has(f.id)), out)], { type: "text/csv;charset=utf-8" })
-      const a = document.createElement("a")
-      a.href = URL.createObjectURL(blob)
-      a.download = `${t.name || "table"}.csv`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-      note?.update({ id: note.id, tone: "success", title: `Exported ${n(out.length)} ${out.length === 1 ? "row" : "rows"}`, description: undefined })
+      // A filter on me needs who that is: a profile still on its way is read
+      // first, and one that can't be read fails the export, never empties it.
+      const who = me ?? (namesMe(rules.filters) ? (await profile.mutate())?.data?.user_uuid : null)
+      if (who === undefined) throw new Error("the profile couldn't be read")
+      const { exportRows: write } = await import("@/lib/tables/exportRows")
+      await write({ format, tableId, name: t.name, shown: sortedFields.filter((f) => !hidden.has(f.id)), widths: display.widths, fields, rows, complete: held.complete, total: held.total, rules, me: who, answers: bundle.row_query, query, toast })
     } catch {
-      note?.update({ id: note.id, tone: "error", variant: "destructive", title: "Couldn't export the table", description: "Not every row could be read. Try again." })
+      toast({ tone: "error", variant: "destructive", title: "Couldn't export the table", description: "Check your connection and try again." })
     } finally {
       exporting.current = false
     }
   }
 
-  const removeTable = () =>
-    confirm({
-      title: `Delete the table "${t.name}"?`,
-      description: "It's removed for everyone, and kept in the trash with its rows and columns.",
-      confirmText: "Delete table",
-      destructive: true,
-      onConfirm: async () => {
-        try {
-          await deleteTable(tableId)
-          router.push(tablesPath())
-          offerTableUndo("Table deleted", async () => {
-            await restoreTable(tableId)
-            router.push(tablePath(tableId))
-          })
-        } catch {
-          // surfaced
-        }
-      },
-    })
+  // A menu's trigger, alone until the menus' chunk lands (warmed on pointer or
+  // focus; an early click opens it then), then as Radix's: another node, which
+  // carryFocus gives the focus the stand-in had (F7).
+  const menuTrigger = (
+    which: "more" | "height" | "fields",
+    trigger: React.ReactElement<{ onClick?: () => void }>,
+    draw: (m: Menus, trigger: React.ReactElement, open: { open: boolean; onOpenChange: (open: boolean) => void }) => React.ReactNode,
+  ) => (
+    <MenusPart.View
+      fallback={React.cloneElement(trigger, { onClick: () => setMenu(which) })}
+      render={(m) => draw(m, trigger, { open: menu === which, onOpenChange: (open) => setMenu(open ? which : null) })}
+    />
+  )
+  const warmMore = () => {
+    warmMenus()
+    void TrashPart.prefetch()
+  }
 
   const toolbarEnd = (
     <>
@@ -580,59 +714,34 @@ export default function TableDetailPage() {
           <Search className="size-3.5" />
         </Button>
       )}
-      {activeView === "grid" ? (
+      {rowsView(activeView) ? (
         <>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className={cn("h-7 gap-1.5 px-2 text-ui-sm", hidden.size ? "text-ink" : "text-ink-2")}>
-                <EyeOff className="size-3.5" /> <span className="max-sm:hidden">{hidden.size ? `${hidden.size} hidden` : "Fields"}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="content-float w-64 rounded-xl p-1 shadow-e3">
-              <p className="flex h-7 items-center px-2 text-meta font-medium text-ink-3">Fields</p>
-              {sortedFields.map((f, i) => {
-                const G = fieldKind(f.type).glyph
-                const off = hidden.has(f.id)
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    disabled={i === 0}
-                    onClick={() => changeDisplay({ hidden: off ? display.hidden.filter((h) => h !== f.id) : [...display.hidden, f.id] })}
-                    className={cn("flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-ui text-ink hover:bg-press disabled:cursor-default disabled:hover:bg-transparent", TOUCH_ROW)}
-                  >
-                    <G className="size-3.5 text-ink-3" aria-hidden />
-                    <span className={cn("min-w-0 flex-1 truncate", off && "text-ink-3")}>{f.name}</span>
-                    {i === 0 ? <span className="text-meta text-ink-3">Primary</span> : off ? <EyeOff className="size-3.5 text-ink-3" aria-label="Hidden" /> : <Eye className="size-3.5 text-ink-3" aria-label="Shown" />}
-                  </button>
-                )
-              })}
-            </PopoverContent>
-          </Popover>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="Row height" className="text-ink-2">
-                <SlidersHorizontal className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="content-float w-44 rounded-xl p-1 shadow-e3">
-              <p className="flex h-7 items-center px-2 text-meta font-medium text-ink-3">Row height</p>
-              {ROW_HEIGHTS.map((h) => (
-                <DropdownMenuItem key={h.value} onSelect={() => changeDisplay({ rowHeight: h.value })} className={cn(display.rowHeight === h.value && "font-medium text-ink")}>
-                  <span className="flex-1">{h.label}</span>
-                  <span className="text-meta text-ink-3">{h.px}</span>
-                </DropdownMenuItem>
-              ))}
-              {narrow ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => changeDisplay({ list: !listMode })}>
-                    <List /> {listMode ? "Show as a grid" : "Show as a list"}
-                  </DropdownMenuItem>
-                </>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {menuTrigger(
+            "fields",
+            <Button ref={carryFocus} variant="ghost" size="sm" className={cn("h-7 gap-1.5 px-2 text-ui-sm", hidden.size ? "text-ink" : "text-ink-2")} onPointerEnter={warmMenus} onFocus={warmMenus} onPointerDown={warmMenus}>
+              <EyeOff className="size-3.5" /> <span className="max-sm:hidden">{hidden.size ? `${hidden.size} hidden` : "Fields"}</span>
+            </Button>,
+            (m, trigger, open) => <m.FieldsMenu trigger={trigger} {...open} fields={sortedFields} hidden={display.hidden} onHidden={(h) => changeDisplay({ hidden: h })} />,
+          )}
+          {menuTrigger(
+            "height",
+            <Button ref={carryFocus} variant="ghost" size="icon-sm" aria-label="Row height and colour" aria-haspopup="menu" className="text-ink-2" onPointerEnter={warmMenus} onFocus={warmMenus} onPointerDown={warmMenus}>
+              <SlidersHorizontal className="size-3.5" />
+            </Button>,
+            (m, trigger, open) => (
+              <m.RowHeightMenu
+                trigger={trigger}
+                {...open}
+                height={display.rowHeight}
+                onHeight={(h) => changeDisplay({ rowHeight: h })}
+                list={narrow && activeView === "grid" ? listMode : null}
+                onList={() => changeDisplay({ list: !listMode })}
+                fields={fields}
+                colors={display.colors}
+                onColors={(colors) => changeDisplay({ colors })}
+              />
+            ),
+          )}
           <Button size="sm" onClick={() => void addRow()} className="ml-1 gap-1.5" aria-label="New row">
             <Plus className="size-3.5" /> <span className="max-sm:hidden">New row</span>
             <kbd className="kbd max-sm:hidden">R</kbd>
@@ -663,21 +772,30 @@ export default function TableDetailPage() {
           <ChevronRight className="hidden size-3.5 shrink-0 text-ink-4 sm:block" aria-hidden="true" />
           {/* On a phone the name is the hero's alone, under the app's bar. */}
           <span className="truncate px-1 font-medium text-ink max-sm:hidden">{t.name}</span>
-          <SaveDot state={saveState} savedAt={savedAt ?? new Date(t.updated_at)} onRetry={reload} className="ml-1" />
+          <SaveDotPart.View
+            // Its place held, as the saved dot it is when a table opens.
+            fallback={
+              <span data-save-dot="" className="ml-1 inline-flex h-5 items-center px-1">
+                <span aria-hidden="true" className="inline-block size-1.5 shrink-0 rounded-full bg-camp-moss" />
+              </span>
+            }
+            render={(m) => <m.SaveDot state={saveState} savedAt={savedAt ?? new Date(t.updated_at)} onRetry={reload} className="ml-1" />}
+          />
         </nav>
         {bundle.can_manage ? null : (
           // Rows anyone may write come back from the trash; its columns are a manager's.
-          <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted rows" onPointerEnter={() => void TrashPart.warm().catch(() => {})} onFocus={() => void TrashPart.warm().catch(() => {})} onClick={() => setTrashOpen(true)}>
+          <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted rows" onPointerEnter={() => void TrashPart.prefetch()} onFocus={() => void TrashPart.prefetch()} onClick={() => setTrashOpen(true)}>
             <RotateCcw className="size-4" />
           </Button>
         )}
+        {bundle.presence_topic ? <PresencePart.View fallback={null} render={(m) => <m.default tableId={tableId} topic={bundle.presence_topic ?? ""} onGoTo={goTo} />} /> : null}
         {bundle.can_manage && (
           <>
             <Button
               variant="secondary"
               size="sm"
-              onPointerEnter={() => void SharePart.warm().catch(() => {})}
-              onFocus={() => void SharePart.warm().catch(() => {})}
+              onPointerEnter={() => void SharePart.prefetch()}
+              onFocus={() => void SharePart.prefetch()}
               onClick={() => setSharing(true)}
               className="gap-1.5"
               aria-label="Share"
@@ -685,41 +803,23 @@ export default function TableDetailPage() {
             >
               <Share2 className="size-3.5" /> <span className="max-sm:hidden">Share</span>
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="More"
-                  onPointerEnter={() => {
-                    void TrashPart.warm().catch(() => {})
-                    void PublishPart.warm().catch(() => {})
-                  }}
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="content-float w-56 rounded-xl p-1 shadow-e3">
-                <DropdownMenuItem onSelect={() => void saveTable({ visibility: t.visibility === "workspace" ? "private" : "workspace" })}>
-                  {t.visibility === "workspace" ? <Lock /> : <Globe />}
-                  <span className="flex-1">{t.visibility === "workspace" ? "Make private" : "Show to the workspace"}</span>
-                  <span className="text-meta text-ink-3">{t.visibility === "workspace" ? "Workspace" : "Private"}</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setPublishing(true)}>
-                  <LayoutTemplate /> Save as template
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void exportCsv()}>
-                  <Download /> Export CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTrashOpen(true)}>
-                  <RotateCcw /> Trash
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={removeTable} className="text-danger-ink focus:text-danger-ink">
-                  <Trash2 /> Delete table
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {menuTrigger(
+              "more",
+              <Button ref={carryFocus} variant="ghost" size="icon-sm" aria-label="More" aria-haspopup="menu" onPointerEnter={warmMore} onFocus={warmMore} onPointerDown={warmMenus}>
+                <MoreHorizontal className="size-4" />
+              </Button>,
+              (m, trigger, open) => (
+                <m.TableMoreMenu
+                  trigger={trigger}
+                  {...open}
+                  onShare={(visibility) => saveTable({ visibility })}
+                  onExport={(format) => void exportAs(format)}
+                  onTrash={() => setTrashOpen(true)}
+                  tableId={tableId}
+                  bundle={bundle}
+                />
+              ),
+            )}
           </>
         )}
       </header>
@@ -769,33 +869,76 @@ export default function TableDetailPage() {
           </div>
         </div>
 
-        <ViewTabs active={activeView} onPick={showView} hue={hueFor(tableId)} />
+        <div className="flex min-w-0 items-center gap-2">
+          <ViewsPart.View
+            fallback={
+              <span className={VIEW_TRIGGER} data-views-stand-in="">
+                <ViewFace view={linked ?? bundle.views?.[0] ?? null} layout={activeView} />
+              </span>
+            }
+            render={(m) => (
+              <m.TableViews tableId={tableId} views={bundle.views} fields={fields} canManage={!!bundle.can_manage} layout={activeView} rules={rules} display={display} onApply={applyView} />
+            )}
+          />
+          <ViewTabs active={activeView} onPick={showView} hue={hueFor(tableId)} onForms={bundle.can_manage ? openForms : undefined} />
+          <span className="contents" data-view-actions />
+        </div>
 
         {/* One frame for every view (TableViewFrame): the toolbar row, then a
             body that scrolls inside the frame, and one place where a view
             says it has nothing to show. No box: the views sit on the sheet. */}
-        <div className="flex min-h-0 flex-1 flex-col" data-table-frame="">
+        <div className="flex min-h-0 flex-1 flex-col" data-table-frame="" aria-busy={ruling || undefined}>
           {/* The chart has its own choices in the same toolbar row. */}
           {activeView !== "chart" && <ViewRulesBar
             fields={sortedFields}
             rules={rules}
             onChange={changeRules}
-            shown={shownRows.length}
-            held={rows.length}
-            total={held.total}
-            loading={held.complete ? null : { reading: held.reading, failed: held.failed, onLoadAll: () => held.all(true), onRetry: held.retry }}
+            // A view read in windows is the server's whole: its count, once
+            // counted, and no "Load all", since it reads rows as it reaches them.
+            shown={failedInBody ? null : windowed ? (held.counted ? held.count : null) : ruling ? null : shownRows.length}
+            held={windowed ? held.count : rows.length}
+            total={held.stopped || failedInBody ? null : held.total}
+            atLeast={windowed && held.countCapped}
+            working={windowed && held.workingOut !== null}
+            loading={
+              windowed
+                ? held.failed
+                  ? failedInBody
+                    ? null
+                    : { reading: false, failed: true, onRetry: held.retry }
+                  : null
+                : held.complete
+                  ? null
+                  : { reading: held.reading, failed: held.failed, onLoadAll: () => held.all(true), onRetry: held.retry }
+            }
             end={toolbarEnd}
+            notice={refusedInBody ? null : (refused ?? held.sumsOut)}
+            noticeRetry={held.recount ? { busy: held.recounting, onRetry: held.recount } : null}
           />}
-          {activeView === "grid" &&
+          {/* The grid waits for its rules as itself: its header, and its rows as
+              on their way, in the element the rows then fill. */}
+          {ruling && (activeView !== "grid" || listMode) ? (
+            <ViewSkeleton view={activeView === "grid" ? "list" : activeView} />
+          ) : (activeView === "grid" || listMode) &&
             (listMode ? (
               <div>
-                <TableRowList
-                  fields={fields}
-                  rows={shownRows}
-                  onOpen={setOpenRow}
-                  onNearEnd={held.complete ? undefined : nearEnd}
-                  scrollTo={listTo}
-                  empty={rows.length === 0 ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
+                <ListPart.View
+                  fallback={<ViewSkeleton view="list" />}
+                  render={(m) => (
+                    <m.TableRowList
+                      fields={fields}
+                      rows={shownRows}
+                      count={windowed ? viewCount : undefined}
+                      tail={windowed ? held.tail : groupView && keptHeld ? 1 : 0}
+                      grouping={groupView}
+                      hues={paint?.hues}
+                      onOpen={setOpenRow}
+                      onNearEnd={held.complete ? undefined : holdMore}
+                      scrollTo={listTo}
+                      edits={commit.edits}
+                      empty={noRows ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
+                    />
+                  )}
                 />
               </div>
             ) : (
@@ -803,32 +946,44 @@ export default function TableDetailPage() {
                 tableId={tableId}
                 fields={fields}
                 rows={shownRows}
+                count={ruling ? Math.min(held.rows.length, SKELETON_ROWS) : windowed ? viewCount : undefined}
+                tail={windowed ? held.tail : groupView && keptHeld ? 1 : undefined}
+                grouping={groupView}
+                hues={paint?.hues}
+                tints={paint?.tints}
                 canManage={bundle.can_manage}
                 onChange={reload}
                 onCreated={onCreated}
-                focusRow={focusRow}
+                focusRow={focusAt?.row}
+                selectField={focusAt?.field}
                 onFocused={focused}
                 marked={added && keptNote ? { rowId: added, note: keptNote } : null}
                 onRowFocus={leftRow}
-                onNearEnd={held.complete ? undefined : nearEnd}
+                // Waiting for its rules, it draws placeholders, not the rows read: reaching them read the next window on every open.
+                onNearEnd={held.complete || ruling ? undefined : holdMore}
                 commit={commit}
                 rowHeight={display.rowHeight}
                 hidden={display.hidden}
                 widths={display.widths}
                 onWidth={(id, px) => changeDisplay({ widths: { ...display.widths, [id]: px } })}
-                summary={display.summary}
+                summary={ruling ? undefined : display.summary}
                 onSummary={(id, fn) => changeDisplay({ summary: { ...display.summary, [id]: fn } })}
-                loaded={held.complete ? undefined : held.rows.length}
+                loaded={heldPart}
+                // null till the server's sums come ("Sum …"); failed, refused or left out with none kept (V-48): the loaded rows' (DB-22).
+                served={windowed && !held.failed && !refused && (held.summaries || !held.leftOut) ? held.summaries : undefined}
+                windowed={windowed}
+                refusedSums={held.refusedSums}
+                sumsOut={held.sumsOut}
                 onSort={(id, dir) => changeRules({ ...rules, sort: [{ field: id, dir }, ...rules.sort.filter((s) => s.field !== id)].slice(0, 3) })}
                 onFilter={(id) => {
                   const f = fields.find((x) => x.id === id)
-                  if (f) changeRules({ ...rules, filters: [...rules.filters, { field: id, op: OPS_FOR[filterKind(f)][0].op, value: "" }] })
+                  if (f && filterCount(rules.filters) < MAX_FILTERS) changeRules({ ...rules, filters: [...rules.filters, freshFilter(f)] })
                 }}
                 onHide={(id) => changeDisplay({ hidden: [...display.hidden, id] })}
                 onOpenRow={setOpenRow}
                 compact={narrow}
                 empty={
-                  rows.length === 0 ? (
+                  noRows ? (
                     // In the table's own hue, the one its icon wears.
                     <TableViewState kind="no-rows" hue={hueFor(tableId)} />
                   ) : (
@@ -837,7 +992,7 @@ export default function TableDetailPage() {
                 }
               />
             ))}
-          {(activeView === "board" || activeView === "calendar") && noMatch ? (
+          {ruling ? null : (activeView === "board" || activeView === "calendar") && noMatch ? (
             noHit
           ) : activeView === "board" ? (
             <BoardPart.View
@@ -853,6 +1008,48 @@ export default function TableDetailPage() {
                   onCreated={onCreated}
                   onOpenRow={setOpenRow}
                   onOpenGrid={() => showView("grid")}
+                />
+              )}
+            />
+          ) : activeView === "gallery" ? (
+            <GalleryPart.View
+              fallback={<ViewSkeleton view="gallery" />}
+              render={(m) => (
+                <m.TableGallery
+                  tableId={tableId}
+                  fields={fields}
+                  hidden={display.hidden}
+                  rows={shownRows}
+                  count={windowed ? viewCount : undefined}
+                  tail={windowed ? held.tail : 0}
+                  hues={paint?.hues}
+                  edits={commit.edits}
+                  onOpen={setOpenRow}
+                  onNearEnd={held.complete ? undefined : holdMore}
+                  empty={noRows ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
+                />
+              )}
+            />
+          ) : activeView === "timeline" || activeView === "gantt" ? (
+            <TimelinePart.View
+              fallback={<ViewSkeleton view="list" />}
+              render={(m) => (
+                <m.TableTimeline
+                  tableId={tableId}
+                  fields={fields}
+                  rows={shownRows}
+                  count={windowed ? viewCount : undefined}
+                  tail={windowed ? held.tail : 0}
+                  hues={paint?.hues}
+                  edits={commit.edits}
+                  look={display.timeline}
+                  onLook={(timeline) => changeDisplay({ timeline })}
+                  gantt={activeView === "gantt"}
+                  compact={narrow}
+                  onOpen={setOpenRow}
+                  onNearEnd={held.complete ? undefined : holdMore}
+                  onChange={changed}
+                  empty={noRows ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
                 />
               )}
             />
@@ -881,7 +1078,7 @@ export default function TableDetailPage() {
         </div>
       </div>
 
-      {openRow && shownRows.some((r) => r.id === openRow) ? (
+      {openRow && (openShown || loneRow) ? (
         <RecordPart.View
           fallback={null}
           render={(m) => (
@@ -889,7 +1086,11 @@ export default function TableDetailPage() {
               tableId={tableId}
               tableName={t.name}
               fields={fields}
-              rows={shownRows}
+              rows={openShown || !loneRow ? shownRows : [loneRow]}
+              count={windowed && openShown ? held.count : undefined}
+              tail={windowed && openShown ? held.tail : undefined}
+              alone={!openShown}
+              onReach={windowed ? holdMore : undefined}
               rowId={openRow}
               canManage={bundle.can_manage}
               commit={commit}
@@ -902,26 +1103,15 @@ export default function TableDetailPage() {
         />
       ) : null}
 
-      {publishSeen ? (
-        <PublishPart.View
-          fallback={null}
-          render={(m) => <m.PublishTemplateDialog open={publishing} onOpenChange={setPublishing} kind="table" payload={templatePayload} defaultName={t.name} defaultIcon={t.icon || undefined} />}
-        />
-      ) : null}
       {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TableTrash tableId={tableId} fields={fields} onClose={() => setTrashOpen(false)} onRestored={reload} />} /> : null}
 
-      <Dialog open={sharing} onOpenChange={setSharing}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-heading">Share “{t.name}”</DialogTitle>
-            <DialogDescription>Give people outside your workspace a read-only link to this table.</DialogDescription>
-          </DialogHeader>
-          <SharePart.View
-            fallback={<Skeleton className="h-24 w-full rounded-xl" />}
-            render={(m) => <m.GuestLinkSection resourceType="table" resourceId={tableId} canShare={bundle.can_manage} />}
-          />
-        </DialogContent>
-      </Dialog>
+      {forms ? (
+        <FormsPart.View fallback={null} render={(m) => <m.TableFormsDialog tableId={tableId} tableName={t.name} open onOpenChange={setForms} />} />
+      ) : null}
+
+      {sharing ? (
+        <SharePart.View fallback={null} render={(m) => <m.ShareTableDialog tableId={tableId} tableName={t.name} canShare={bundle.can_manage} onClose={() => setSharing(false)} />} />
+      ) : null}
     </div>
   )
 }
@@ -962,10 +1152,18 @@ function TablePageSkeleton({ view = "grid" }: { view?: ViewChoice }) {
 }
 
 /** A view's shape while it loads: the page's, and a view whose chunk is on its way. */
-function ViewSkeleton({ view }: { view: ViewChoice }) {
+function ViewSkeleton({ view }: { view: ViewChoice | "list" }) {
   return (
     <>
-        {view === "board" ? (
+        {view === "list" ? (
+          // The phone's list: rows of 60 px, a title and the values under it.
+          Array.from({ length: SKELETON_ROWS }).map((_, i) => (
+            <div key={i} className="flex h-[60px] flex-col justify-center gap-2 border-b border-line">
+              <Skeleton className={cn("h-2.5", i % 3 === 0 ? "w-40" : i % 3 === 1 ? "w-32" : "w-48")} />
+              <Skeleton className="h-2 w-28" />
+            </div>
+          ))
+        ) : view === "board" ? (
           <div className={cn("flex gap-3", TABLE_VIEW_INSET)}>
             {[3, 2, 1].map((cards, c) => (
               <div key={c} className="w-72 shrink-0 space-y-2 rounded-[16px] bg-sunken p-2">
@@ -984,6 +1182,12 @@ function ViewSkeleton({ view }: { view: ViewChoice }) {
               </div>
             ))}
           </div>
+        ) : view === "gallery" ? (
+          <div className={cn("grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3", TABLE_VIEW_INSET)}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-52 rounded-xl" />
+            ))}
+          </div>
         ) : view === "chart" ? (
           <div className={TABLE_VIEW_INSET}>
             <div className="flex h-[18rem] items-end gap-6 px-6">
@@ -993,7 +1197,7 @@ function ViewSkeleton({ view }: { view: ViewChoice }) {
             </div>
           </div>
         ) : (
-          Array.from({ length: 9 }).map((_, i) => (
+          Array.from({ length: SKELETON_ROWS }).map((_, i) => (
             <div key={i} className="flex h-10 items-center gap-6 border-b border-line px-3">
               <Skeleton className={cn("h-3 rounded", i % 3 === 0 ? "w-40" : i % 3 === 1 ? "w-32" : "w-48")} />
               <Skeleton className="h-3 w-20 rounded" />

@@ -26,7 +26,7 @@ vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => undefined }
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useStatusIsExpired", () => ({ useStatusIsExpired: () => false }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
+vi.mock("@/lib/utils/i18n", () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light", setTheme }) }))
 vi.mock("@/components/activeTheme/activeTheme", () => ({
@@ -34,12 +34,11 @@ vi.mock("@/components/activeTheme/activeTheme", () => ({
   useThemeConfig: () => ({ activeTheme: "onecamp", setActiveTheme: setAccent }),
 }))
 vi.mock("@/components/dialog/appLanguageCombobox", () => ({ AppLanguageCombobox: () => null }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: vi.fn(async (url: string) => (url === "/auth/has-password" ? { data: { has_password: true } } : { data: { data: { isConnected: false, taskSyncEnabled: false } } })),
     post: vi.fn(async () => ({})),
   },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/services/twoFactorService", () => ({
   default: { getStatus: async () => ({ ok: true, data: { enrolled: true, pendingEnrolment: false, unusedRecoveryCodes: 8 } }) },
@@ -61,6 +60,10 @@ import { hueFor } from "@/lib/campHue"
 afterEach(cleanup)
 
 const renderPage = async () => {
+  // Its sections are a chunk of their own, which the shell warms once the
+  // first screen has settled (components/profile/profileSections, fluid-14).
+  const { warmProfileSections } = await import("@/components/profile/profileSections")
+  await warmProfileSections()
   await act(async () => void render(<ProfileSettingsPage />))
 }
 

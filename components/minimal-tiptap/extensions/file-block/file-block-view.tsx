@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { drawnSelected } from "@/components/minimal-tiptap/utils"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
 import { AlertCircle, ArrowUpRight, Download, Loader2, RotateCcw, Trash2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import axiosInstance from "@/lib/axiosInstance"
-import { formatUploadBytes } from "@/lib/utils/uploadLimit"
+import { formatFileSizeForAttachment } from "@/lib/utils/format/formatFileSizeForAttachment"
 import { docFileOf, viewableFileUrl } from "@/lib/docFiles"
 import { isComposingKey } from "@/lib/keys/ime"
 import { fileHref } from "@/lib/codec/mediaLink"
@@ -35,11 +36,11 @@ export function FileBlockView({ node, editor, selected, updateAttributes, delete
   const id = typeof node.attrs.id === "string" ? node.attrs.id : ""
   const upload = useImageUpload(imageUploadsOf(editor, "fileBlock"), id)
   const name = String(node.attrs.name || "File")
-  const size = typeof node.attrs.size === "number" ? formatUploadBytes(node.attrs.size) : ""
+  const size = typeof node.attrs.size === "number" ? formatFileSizeForAttachment(node.attrs.size) : ""
   // An address that isn't safe to follow is no file at all (a hand-written doc can hold anything).
   const src = typeof node.attrs.src === "string" && fileHref(node.attrs.src) ? node.attrs.src : ""
   const kind = String(node.attrs.kind || "file")
-  const ring = selected && "ring-2 ring-brand ring-offset-2 ring-offset-sheet"
+  const ring = drawnSelected(editor, selected) && "ring-2 ring-brand ring-offset-2 ring-offset-sheet"
 
   if (!src || upload?.status === "uploading" || upload?.status === "failed") {
     return (

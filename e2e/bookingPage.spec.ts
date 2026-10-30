@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import { stubBackend } from "./stubbedApp"
 import { overlapping, reachesIn } from "./touchReach"
@@ -9,35 +9,48 @@ import { overlapping, reachesIn } from "./touchReach"
 //   and builds the zone list when that opens.
 //   CAL-BUG-15: the confirmation promised an invite that wasn't sent and hid
 //   the cancel link once the email went out.
+// The page opens on the visitor's month, and the slots below start the day
+// after "today". Every test pins the page's clock to its own today and builds
+// its slots from it, so no test reads the day the suite runs on. Unpinned,
+// they all failed on Fri 30 and Sat 31 Oct 2026: no slot was left in October,
+// and the month the page opened on said "No free times in October".
 
 const SLUG = "sam-rivera"
 
-/** Ten weekday slots from tomorrow, 10:00 and 10:30 UTC. */
-function slots() {
+/** Wed 21 Oct 2026, 10:00 where the suite runs (the browser takes the host's zone): October has slots after it. */
+const NOW = new Date(2026, 9, 21, 10, 0)
+
+/** Ten weekday slots from the day after `today`, at 10:00 and 10:30 local time, so each falls on the day it says in any zone. */
+function slots(today: Date) {
   const out: { start: string; end: string }[] = []
-  const d = new Date()
-  d.setUTCHours(0, 0, 0, 0)
   for (let i = 1; out.length < 10; i++) {
-    const day = new Date(d.getTime() + i * 864e5)
-    if (day.getUTCDay() === 0 || day.getUTCDay() === 6) continue
-    for (const m of [600, 630]) {
-      const start = new Date(day.getTime() + m * 60_000)
+    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i)
+    if (day.getDay() === 0 || day.getDay() === 6) continue
+    for (const m of [0, 30]) {
+      const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 10, m)
       out.push({ start: start.toISOString(), end: new Date(start.getTime() + 30 * 60_000).toISOString() })
     }
   }
   return out
 }
 
-const PAGE = () => ({
+/** The page as the server answers it on `today`: its slots, and bookable for `days` more. */
+const PAGE = (today: Date, days = 30) => ({
   slug: SLUG,
   title: "Intro call",
   description: "",
   duration_minutes: 30,
   owner_name: "Sam Rivera",
   owner_tz: "UTC",
-  slots: slots(),
-  bookable_until: new Date(Date.now() + 30 * 864e5).toISOString(),
+  slots: slots(today),
+  bookable_until: new Date(today.getTime() + days * 864e5).toISOString(),
 })
+
+/** Pins the page's clock to `today`, and stubs the server with the page as it answers then. */
+async function stubAt(page: Page, testInfo: TestInfo, today: Date, data = PAGE(today)) {
+  await page.clock.setFixedTime(today)
+  await stubBackend(page, testInfo, { [`/public/book/${SLUG}`]: { data } })
+}
 
 /** Counts every date formatter the page builds, from its first script on. */
 async function countFormatters(page: Page) {
@@ -65,7 +78,7 @@ for (const [name, viewport] of [
   test(`on ${name}, the page builds a handful of date formatters and one time zone picker`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport)
     await countFormatters(page)
-    await stubBackend(page, testInfo, { [`/public/book/${SLUG}`]: { data: PAGE() } })
+    await stubAt(page, testInfo, NOW)
     await page.goto(`/book/${SLUG}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
     await expect(page.locator("[data-available]").first()).toBeVisible({ timeout: 30_000 })
     const onLoad = await page.evaluate(() => (window as unknown as { __dtf: number }).__dtf)
@@ -81,7 +94,7 @@ for (const [name, viewport] of [
 test("the confirmation says the invite was emailed, and keeps the cancel link", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const app = new URL(String(testInfo.project.use.baseURL || "http://localhost:3001"))
-  await stubBackend(page, testInfo, { [`/public/book/${SLUG}`]: { data: PAGE() } })
+  await stubAt(page, testInfo, NOW)
   // The booking itself: a POST to the page's address (the stub answers by path, so this comes first).
   await page.route(
     (url) => url.origin !== app.origin && url.pathname.endsWith(`/public/book/${SLUG}`),
@@ -123,6 +136,37 @@ test("the confirmation says the invite was emailed, and keeps the cancel link", 
   await expect(page.getByRole("link", { name: "Google Calendar" })).toBeVisible()
 })
 
+// The days at a month's end that the unpinned suite failed on, and the 1st after them. The first slot is Mon 2 Nov
+// 2026 from each of them.
+for (const [when, today] of [
+  ["the last weekday of a month", new Date(2026, 9, 30, 10, 0)], // Fri 30 Oct 2026: Sat 31 ends the month
+  ["a Saturday at a month's end", new Date(2026, 9, 31, 10, 0)], // Sat 31 Oct 2026
+] as const) {
+  test(`on ${when}, the month says it has no free times, and its Next month opens on the first free day`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await stubAt(page, testInfo, today)
+    await page.goto(`/book/${SLUG}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+    const month = page.getByRole("region", { name: "Pick a day" })
+    const none = month.getByText("No free times in October")
+    await expect(none).toBeVisible({ timeout: 30_000 })
+    await expect(month.getByRole("heading", { level: 2 })).toHaveText("October 2026")
+    await expect(month.locator("[data-available]")).toHaveCount(0)
+    await none.getByRole("button", { name: "Next month" }).click()
+    await expect(month.getByRole("heading", { level: 2 })).toHaveText("November 2026")
+    await expect(month.locator("[data-available]").first()).toHaveAttribute("data-day", "2026-11-02")
+  })
+}
+
+test("on the 1st, the page opens on its month and the first free day", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await stubAt(page, testInfo, new Date(2026, 10, 1, 10, 0)) // Sun 1 Nov 2026
+  await page.goto(`/book/${SLUG}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+  const month = page.getByRole("region", { name: "Pick a day" })
+  await expect(month.locator("[data-available]").first()).toHaveAttribute("data-day", "2026-11-02", { timeout: 30_000 })
+  await expect(month.getByRole("heading", { level: 2 })).toHaveText("November 2026")
+  await expect(month.getByText(/^No free times/)).toHaveCount(0)
+})
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 
@@ -132,8 +176,8 @@ test.describe("on a phone", () => {
   // controls is a touch group now (F3b), its controls far enough apart.
   test("a tap on the edge of Previous month goes back a month", async ({ page }, testInfo) => {
     test.setTimeout(120_000)
-    // Bookable for two months more, so Next has a month to go to whatever today is.
-    await stubBackend(page, testInfo, { [`/public/book/${SLUG}`]: { data: { ...PAGE(), bookable_until: new Date(Date.now() + 70 * 864e5).toISOString() } } })
+    // Bookable for 70 days, so Next has a month to go to.
+    await stubAt(page, testInfo, NOW, PAGE(NOW, 70))
     await page.goto(`/book/${SLUG}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
     await expect(page.locator("[data-available]").first()).toBeVisible({ timeout: 30_000 })
     const month = page.getByRole("region", { name: "Pick a day" })

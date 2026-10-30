@@ -17,6 +17,7 @@
 import { isClosedStatus, statusOptionOf, statusOptions, type StatusOption } from "@/lib/taskStatus"
 import type { TaskInfoInterface } from "@/types/task"
 import { displayNameOf } from "@/lib/personName"
+import { dueDateOf } from "@/components/task/DueLabel"
 
 export type Grouping = "status" | "when" | "priority" | "project" | "assignee" | "none"
 
@@ -49,17 +50,10 @@ const STATUS_ORDER = ["backlog", "todo", "inProgress", "inReview", "done"] as co
 const DAY = 86_400_000
 const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 
-function dueOf(t: TaskInfoInterface): Date | null {
-  const v = t.task_due_date
-  if (!v || v.startsWith("0001-01-01") || v.startsWith("1970-01-01")) return null
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? null : d
-}
-
 /** Which "when" a task falls in, today being `now`. The week runs to Sunday. */
 export function whenOf(t: TaskInfoInterface, now: Date = new Date()): NonNullable<TaskGroup["when"]> {
   if (isClosedStatus(t.task_status)) return "done"
-  const d = dueOf(t)
+  const d = dueDateOf(t.task_due_date)
   if (!d) return "none"
   const days = Math.round((dayStart(d) - dayStart(now)) / DAY)
   if (days < 0) return "overdue"

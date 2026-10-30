@@ -32,6 +32,7 @@ import {
   type ImportReviewProject,
 } from "@/lib/importReviews"
 import { appMutate } from "@/lib/swrMutate"
+import { busyWith } from "@/lib/ui/busyWith"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -87,7 +88,7 @@ function ProjectRow({ project, onOpen }: { project: ImportReviewProject; onOpen(
   )
 }
 
-function PersonRow({ person, busy, onTakeOff, project }: { person: ImportReviewPerson; busy: boolean; onTakeOff(): void; project: string }) {
+function PersonRow({ person, running, onTakeOff, project }: { person: ImportReviewPerson; running: string | null; onTakeOff(): void; project: string }) {
   const name = personName(person)
   return (
     <li className="flex items-center gap-3 py-2.5" data-review-person={person.id}>
@@ -104,7 +105,7 @@ function PersonRow({ person, busy, onTakeOff, project }: { person: ImportReviewP
           size="sm"
           className="text-danger-ink hover:text-danger-ink"
           onClick={onTakeOff}
-          disabled={busy}
+          {...busyWith(running, person.id)}
           aria-label={`Take ${name} off ${project}`}
         >
           Take off
@@ -120,7 +121,7 @@ function PeopleSkeleton() {
     <ul role="status" aria-label="Loading who was added" className="divide-y divide-line">
       {Array.from({ length: 4 }).map((_, i) => (
         <li key={i} aria-hidden="true" className="flex items-center gap-3 py-2.5">
-          <Skeleton className="size-7 shrink-0 rounded-full" />
+          <Skeleton variant="circle" className="size-7 shrink-0" />
           <span className="min-w-0 flex-1 space-y-1.5">
             <Skeleton className={i % 2 === 0 ? "h-3.5 w-36" : "h-3.5 w-28"} />
             <Skeleton className="h-3 w-24" />
@@ -269,21 +270,13 @@ function ReviewDialog({ project, onClose }: { project: ImportReviewProject; onCl
   else
     body = (
       <>
-        {/* The list's top edge: this line's overlays draw none where the body
-            meets the header, so a hairline held at the body's top, which the
-            rows pass under rather than running up to the description. A
-            dialog's body keeps 4px round what it holds (app/overlay.css), and
-            a sticky line stops inside that, so in a dialog it sits 4px
-            higher, on the body's edge; a phone's sheet keeps none. */}
-        <div aria-hidden="true" className="sticky top-0 z-10 mt-2 h-px bg-line [[data-overlay=float]_&]:-top-1" data-review-edge="" />
         <ul aria-label={`People added to ${name}`} className="divide-y divide-line">
           {people.map((p) => (
-            <PersonRow key={p.id} person={p} project={name} busy={busy !== null} onTakeOff={() => void takeOff(p)} />
+            <PersonRow key={p.id} person={p} project={name} running={busy} onTakeOff={() => void takeOff(p)} />
           ))}
         </ul>
         {more ? (
-          // pb-5: scrolled to its end, Show more clears a sheet footer's 12px fade.
-          <div className="flex flex-col items-center gap-1 pt-2 pb-5" data-review-more="">
+          <div className="flex flex-col items-center gap-1 pt-2" data-review-more="">
             {moreFailed ? (
               <p role="alert" className="text-xs text-danger-ink">
                 <SaysLoadFailure />
@@ -310,10 +303,10 @@ function ReviewDialog({ project, onClose }: { project: ImportReviewProject; onCl
       footer={
         left > 0 || busy === "all" ? (
           <>
-            <Button variant="ghost" className="text-danger-ink hover:text-danger-ink" onClick={askTakeOffRest} aria-busy={busy === "all" || undefined} disabled={busy !== null}>
+            <Button variant="ghost" className="text-danger-ink hover:text-danger-ink" onClick={askTakeOffRest} {...busyWith(busy, "all")}>
               Take everyone left off
             </Button>
-            <Button onClick={() => void keepRest()} aria-busy={busy === "keep" || undefined} disabled={busy !== null}>
+            <Button onClick={() => void keepRest()} {...busyWith(busy, "keep")}>
               Keep everyone left
             </Button>
           </>

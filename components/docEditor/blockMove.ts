@@ -6,6 +6,7 @@ import { APPEND_BLOCKS_PATH } from "@/services/endpoints/docs"
 import { standAlone, type BlockRef } from "@/components/minimal-tiptap/extensions/block-commands/blocks"
 import { deleteBlocks, runsOf, targetBlocks, type BlockTarget } from "@/components/minimal-tiptap/extensions/block-commands/commands"
 import { blocksWithIds } from "@/components/minimal-tiptap/extensions/block-commands/blockIds"
+import { KEEP_PAGES } from "@/components/minimal-tiptap/extensions/subpage/keepPages"
 
 /**
  * MOVE TO… FOR BLOCKS (B1, with B6's dialog; WAVE_B_CONTRACTS "Dialogs").
@@ -80,7 +81,8 @@ export function stageBlockMove(docId: string, editor: Editor, target: BlockTarge
       const tr = after && deleteBlocks(editor.state, after)
       // Never a quiet half: the dialog says what happened and what to do.
       if (!tr) throw new Error("The blocks were added to that doc, but they're still here too. Delete them here by hand.")
-      editor.view.dispatch(tr)
+      // A page's block among them went too: the page stays where it is.
+      editor.view.dispatch(tr.setMeta(KEEP_PAGES, true))
     },
   })
   return true

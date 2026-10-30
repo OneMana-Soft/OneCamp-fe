@@ -2,6 +2,7 @@ import {createSlice} from "@reduxjs/toolkit";
 import {FilePreview} from "@/store/slice/channelSlice";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {CommentInfoInterface} from "@/types/comment";
+import { commentFrom } from "@/lib/tasks/newComment";
 import {ExtendedComments} from "@/store/slice/channelCommentSlice";
 import {GroupedReaction} from "@/types/reaction";
 import {UserProfileDataInterface} from "@/types/user";
@@ -298,6 +299,19 @@ export const createTaskCommentSlice = createSlice({
             })
         },
 
+        // A comment made with no network was made by the server under an id
+        // of its own (lib/offline): the list's copy takes it, so the server's
+        // copy lands on it, not beside it.
+        madeTaskComment: (state, action: {payload: {from: string, to: string}}) => {
+            const { from, to } = action.payload;
+            for (const list of Object.values(state.taskComments)) {
+                const i = list.findIndex((c) => c.comment_uuid === from);
+                if (i === -1) continue;
+                if (list.some((c) => c.comment_uuid === to)) list.splice(i, 1);
+                else list[i].comment_uuid = to;
+            }
+        },
+
         createNewTaskComment: (state, action: {payload: CreateComment}) => {
             const {taskId, commentText, commentCreatedAt, commentId, commentBy, attachments} = action.payload;
             // Guard: skip if comment already exists (prevents duplicate from
@@ -308,14 +322,7 @@ export const createTaskCommentSlice = createSlice({
             if(!state.taskComments[taskId]) {
                 state.taskComments[taskId] = [] as CommentInfoInterface[]
             }
-            state.taskComments[taskId].push({
-                comment_updated_at: "",
-                comment_by: commentBy,
-                comment_created_at: commentCreatedAt,
-                comment_text: commentText,
-                comment_uuid: commentId,
-                comment_attachments: attachments
-            })
+            state.taskComments[taskId].push(commentFrom({ id: commentId, text: commentText, by: commentBy, createdAt: commentCreatedAt, attachments }))
         },
 
 
@@ -452,6 +459,7 @@ export const {
     removeTaskComment,
     removeTaskCommentByCommentUUID,
     createNewTaskComment,
+    madeTaskComment,
     updateTaskCommentReaction,
     updateTaskCommentReactionByCommentId,
     createTaskCommentReaction,

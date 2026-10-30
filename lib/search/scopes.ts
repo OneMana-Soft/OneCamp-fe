@@ -4,13 +4,14 @@ import type { SearchResult } from "@/services/searchService"
  * The search page's scope chips (hub.md S8) and its grouping by type (S9).
  * Pure, so the grouping and the counts are tested without a page.
  */
-export type SearchScope = "all" | "messages" | "tasks" | "docs" | "projects" | "people" | "channels" | "files"
+export type SearchScope = "all" | "messages" | "tasks" | "docs" | "events" | "projects" | "people" | "channels" | "files"
 
 export const SCOPES: { id: SearchScope; label: string; singular: string; plural: string }[] = [
   { id: "all", label: "All", singular: "result", plural: "results" },
   { id: "messages", label: "Messages", singular: "message", plural: "messages" },
   { id: "tasks", label: "Tasks", singular: "task", plural: "tasks" },
   { id: "docs", label: "Docs", singular: "doc", plural: "docs" },
+  { id: "events", label: "Events", singular: "event", plural: "events" },
   { id: "projects", label: "Projects", singular: "project", plural: "projects" },
   { id: "people", label: "People", singular: "person", plural: "people" },
   { id: "channels", label: "Channels", singular: "channel", plural: "channels" },
@@ -29,6 +30,7 @@ const SCOPE_OF: Record<SearchResult["type"], Exclude<SearchScope, "all">> = {
   channel: "channels",
   team: "channels",
   attachment: "files",
+  event: "events",
 }
 
 export function scopeOf(result: SearchResult): Exclude<SearchScope, "all"> {
@@ -50,10 +52,10 @@ export function scopeCounts(results: SearchResult[]): Record<SearchScope, number
 /**
  * The chips to show: All always, the rest only when they hold something, each
  * named as its group is headed (QA DSA-26: chip "Docs 4" over a group "Docs
- * and boards 4").
+ * and boards 4"). What a chip holds is counts' when given (the server's, for
+ * kinds no page has listed yet), else the results'.
  */
-export function visibleScopes(results: SearchResult[]): typeof SCOPES {
-  const counts = scopeCounts(results)
+export function visibleScopes(results: SearchResult[], counts: Record<SearchScope, number> = scopeCounts(results)): typeof SCOPES {
   return SCOPES.filter((s) => s.id === "all" || counts[s.id] > 0).map((s) =>
     s.id === "all" ? s : { ...s, label: groupLabel(s.id, s.label, results.filter((r) => scopeOf(r) === s.id)) },
   )
@@ -95,20 +97,27 @@ function groupLabel(scope: Exclude<SearchScope, "all">, label: string, rows: Sea
   return held.length === 1 ? held[0] : `${held[0]} and ${held.slice(1).join(" and ").toLowerCase()}`
 }
 
-/** The results grouped by type, in the chips' order, each group in the answer's order. */
-export function groupResults(results: SearchResult[], scope: SearchScope): ResultGroup[] {
+/**
+ * The results grouped by type, in the chips' order, each group in the
+ * answer's order. A group's total is counts' when given (the server's, which
+ * pages not yet fetched are in), never fewer than its rows; under All it
+ * offers "Show all" whenever it holds more than it shows.
+ */
+export function groupResults(results: SearchResult[], scope: SearchScope, counts?: Record<SearchScope, number>): ResultGroup[] {
   const groups: ResultGroup[] = []
   for (const s of SCOPES) {
     if (s.id === "all" || (scope !== "all" && s.id !== scope)) continue
     const rows = results.filter((r) => scopeOf(r) === s.id)
     if (rows.length === 0) continue
-    const capped = scope === "all" && rows.length > ALL_PER_GROUP
+    const total = Math.max(counts?.[s.id] ?? 0, rows.length)
+    const shown = scope === "all" ? rows.slice(0, ALL_PER_GROUP) : rows
+    const capped = scope === "all" && total > shown.length
     groups.push({
       scope: s.id,
       label: groupLabel(s.id, s.label, rows),
-      total: rows.length,
-      rows: capped ? rows.slice(0, ALL_PER_GROUP) : rows,
-      more: capped ? `Show all ${rows.length} ${s.plural}` : null,
+      total,
+      rows: shown,
+      more: capped ? `Show all ${total} ${s.plural}` : null,
     })
   }
   return groups
@@ -123,6 +132,8 @@ export function groupResults(results: SearchResult[], scope: SearchScope): Resul
  * what printed "30 Jun 58746" on the first v3 shots.
  */
 export function resultTime(result: SearchResult): number {
+  // An event's own time is in its line (eventWhen): when it was made says nothing.
+  if (result.type === "event") return 0
   const item = (result as unknown as Record<string, Record<string, unknown> | undefined>)[result.type]
   const t = item?.created_date ?? item?.updated_date
   if (typeof t !== "number" || !Number.isFinite(t) || t <= 0) return 0
@@ -132,13 +143,3 @@ export function resultTime(result: SearchResult): number {
   return Math.round(t / 1e6)
 }
 
-export type SearchSort = "best" | "newest"
-
-/** Best match is the server's order; newest sorts by when each was made, stably. */
-export function sortResults(results: SearchResult[], sort: SearchSort): SearchResult[] {
-  if (sort === "best") return results
-  return results
-    .map((r, i) => ({ r, i, t: resultTime(r) }))
-    .sort((a, b) => b.t - a.t || a.i - b.i)
-    .map((x) => x.r)
-}

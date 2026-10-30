@@ -9,7 +9,13 @@ vi.mock("@/services/importService", async (orig) => ({
     sent.push(input)
     if (refusal) throw refusal
   }),
+  importSignInURL: vi.fn(async () => {
+    if (refusal) throw refusal
+    return "https://launchpad.37signals.com/authorization/new?state=s"
+  }),
 }))
+const goTo = vi.fn()
+vi.mock("@/lib/navigate", () => ({ leaveTo: (url: string) => goTo(url) }))
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 
@@ -20,6 +26,7 @@ afterEach(() => {
   sent.length = 0
   refusal = null
   toast.mockReset()
+  goTo.mockReset()
 })
 
 const fill = (label: RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
@@ -70,5 +77,37 @@ describe("what a connection is missing", () => {
     expect(screen.getByText("Paste the access token.")).toBeTruthy()
     fill(/Access token/, "1/123:abc")
     expect(screen.queryByText("Paste the access token.")).toBeNull()
+  })
+})
+
+// basecamp-46: Basecamp has no tokens to paste, so the admin signs in at it
+// and comes back to the import page.
+describe("connecting a provider by signing in", () => {
+  it("sends the admin to the provider's sign-in, asking for no token", async () => {
+    render(<ImportConnectDialog provider="basecamp" signIn={{ configured: true }} open onOpenChange={() => {}} onConnected={() => {}} />)
+    expect(screen.queryByLabelText(/Access token/)).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Basecamp" }))
+    await waitFor(() => expect(goTo).toHaveBeenCalledWith("https://launchpad.37signals.com/authorization/new?state=s"))
+  })
+
+  // The server's own sentence, once, its settings set as code and its address
+  // a link out (DESIGN-BUILD-2, 20 Oct; components/ui/setupSentence).
+  it("says how to set it up on a server without the provider's app, and offers no sign-in", () => {
+    const setup = "Register an app at launchpad.37signals.com/integrations, then set BASECAMP_OAUTH_CLIENT_ID."
+    render(<ImportConnectDialog provider="basecamp" signIn={{ configured: false, setup }} open onOpenChange={() => {}} onConnected={() => {}} />)
+    expect(screen.getByRole("dialog").textContent).toContain(setup)
+    const link = screen.getByRole("link", { name: "launchpad.37signals.com/integrations" })
+    expect(link.getAttribute("href")).toBe("https://launchpad.37signals.com/integrations")
+    expect(link.getAttribute("target")).toBe("_blank")
+    expect(screen.getByText("BASECAMP_OAUTH_CLIENT_ID").tagName).toBe("CODE")
+    expect(screen.queryByRole("button", { name: "Continue to Basecamp" })).toBeNull()
+  })
+
+  it("says why the sign-in couldn't start, in the dialog", async () => {
+    refusal = { response: { status: 503, data: { code: "provider_error", error: "Couldn't start signing in to Basecamp. Try again." } } }
+    render(<ImportConnectDialog provider="basecamp" signIn={{ configured: true }} open onOpenChange={() => {}} onConnected={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Basecamp" }))
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Couldn't start signing in to Basecamp. Try again."))
+    expect(goTo).not.toHaveBeenCalled()
   })
 })

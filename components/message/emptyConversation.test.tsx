@@ -30,20 +30,12 @@ vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams()
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useMessageResync", () => ({ useMessageResync: () => {} }))
 vi.mock("@/components/typingIndicator/typingIndicatorBar", () => ({ TypingIndicatorBar: () => null, ChannelTypingBar: () => null, ChatTypingBar: () => null, GroupChatTypingBar: () => null }))
-vi.mock("@/components/chat/chatMessages", () => ({
-  ChatMessages: ({ chats }: { chats: unknown[] }) => <p>{`${chats.length} messages`}</p>,
-}))
-vi.mock("@/components/groupChat/groupChatMessages", () => ({
-  GroupChatMessages: ({ chats }: { chats: unknown[] }) => <p>{`${chats.length} messages`}</p>,
-}))
-vi.mock("@/components/channel/channelMessages", () => ({
-  ChannelMessages: ({ posts }: { posts: unknown[] }) => <p>{`${posts.length} messages`}</p>,
+vi.mock("@/components/conversation/ConversationRows", () => ({
+  ConversationRows: ({ rows }: { rows: unknown[] }) => <p>{`${rows.length} messages`}</p>,
 }))
 
 const { default: store } = await import("@/store/store")
-const { ChatMessageList } = await import("@/components/chat/chatMessageList")
-const { GroupChatMessageList } = await import("@/components/groupChat/groupChatMessageList")
-const { ChannelMessageList } = await import("@/components/channel/channelMessageList")
+const { ChannelList, DmList, GroupList } = await import("@/lib/testing/conversationLists")
 
 afterEach(() => {
   cleanup()
@@ -52,12 +44,12 @@ afterEach(() => {
 
 describe("an empty conversation", () => {
   it.each([
-    ["a DM", () => <ChatMessageList chatId="dm-empty" />, () => store.getState().chat.chatMessages["dm-empty"]],
-    ["a DM, from a link to a message", () => <ChatMessageList chatId="dm-linked" messageId="m1" />, () => store.getState().chat.chatMessages["dm-linked"]],
-    ["a group", () => <GroupChatMessageList grpId="grp-empty" />, () => store.getState().groupChat.chatMessages["grp-empty"]],
-    ["a group, from a link to a message", () => <GroupChatMessageList grpId="grp-linked" messageId="m1" />, () => store.getState().groupChat.chatMessages["grp-linked"]],
-    ["a channel", () => <ChannelMessageList channelId="ch-empty" />, () => store.getState().channel.channelPosts["ch-empty"]],
-    ["a channel, from a link to a post", () => <ChannelMessageList channelId="ch-linked" postId="p1" />, () => store.getState().channel.channelPosts["ch-linked"]],
+    ["a DM", () => <DmList other="dm-empty" />, () => store.getState().chat.chatMessages["dm-empty"]],
+    ["a DM, from a link to a message", () => <DmList other="dm-linked" link="m1" />, () => store.getState().chat.chatMessages["dm-linked"]],
+    ["a group", () => <GroupList grpId="grp-empty" />, () => store.getState().groupChat.chatMessages["grp-empty"]],
+    ["a group, from a link to a message", () => <GroupList grpId="grp-linked" link="m1" />, () => store.getState().groupChat.chatMessages["grp-linked"]],
+    ["a channel", () => <ChannelList channelId="ch-empty" />, () => store.getState().channel.channelPosts["ch-empty"]],
+    ["a channel, from a link to a post", () => <ChannelList channelId="ch-linked" link="p1" />, () => store.getState().channel.channelPosts["ch-linked"]],
   ])("renders in %s, and stores nothing for it", (_, list, stored) => {
     render(<Provider store={store}>{list()}</Provider>)
     expect(screen.getByText("0 messages")).toBeTruthy()

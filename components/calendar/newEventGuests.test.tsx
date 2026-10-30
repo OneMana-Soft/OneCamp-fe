@@ -11,7 +11,7 @@ const makeRequest = vi.fn(async (o: { apiEndpoint: string; payload: { search_tex
 )
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => false }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
-vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }) }))
+vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }), useFetch: () => ({ data: undefined, mutate: () => {} }) }))
 
 import { CreateCalendarEventDialog } from "./createCalendarEventDialog"
 import { pinTestClock } from "@/lib/testing/testClock"

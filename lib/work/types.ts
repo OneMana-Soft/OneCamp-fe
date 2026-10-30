@@ -38,6 +38,8 @@ export interface WorkAccess {
   manage: boolean
   manage_people: boolean
   archive: boolean
+  /** For each status with a rule on who moves tasks there, whether they may (a board's read only; mayMoveInto). */
+  move_into?: Record<string, boolean>
 }
 
 /** What the server says someone may do with one task (A1's task_access). */
@@ -46,6 +48,8 @@ export interface TaskAccess {
   delete: boolean
   comment: boolean
   log_time: boolean
+  /** May choose who sees it (WA2). */
+  restrict?: boolean
 }
 
 type Flag = boolean | number | null

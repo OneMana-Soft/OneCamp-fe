@@ -9,13 +9,14 @@
   },
   "scripts": {
     "configure": "node scripts/setup-env.mjs",
-    "dev": "node scripts/calls-assets.mjs && next dev --turbopack -p 3001",
-    "build": "node scripts/calls-assets.mjs && next build",
+    "dev": "node scripts/vendor-assets.mjs && next dev --turbopack -p 3001",
+    "build": "node scripts/vendor-assets.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest",
     "test:unit": "vitest --run",
+    "test:related": "node scripts/relatedTests.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "schema:manifest": "UPDATE_SCHEMA_MANIFEST=1 vitest run components/minimal-tiptap/schemaManifest.test.ts"
@@ -36,6 +37,7 @@
     "@radix-ui/react-checkbox": "^1.1.4",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-dropdown-menu": "^2.1.5",
+    "@radix-ui/react-focus-scope": "1.1.7",
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-popover": "^1.1.15",
@@ -139,6 +141,7 @@
     "baseline-browser-mapping": "^2.11.28",
     "eslint": "^9.39.5",
     "eslint-config-next": "15.1.6",
+    "fake-indexeddb": "6.0.0",
     "jsdom": "^25.0.1",
     "postcss": "^8.5.29",
     "tailwindcss": "^4.1.16",
@@ -150,7 +153,10 @@
     "patchedDependencies": {
       "@radix-ui/react-toast@1.2.15": "patches/@radix-ui__react-toast@1.2.15.patch",
       "react-resizable-panels@2.1.9": "patches/react-resizable-panels@2.1.9.patch",
-      "y-prosemirror@1.3.7": "patches/y-prosemirror@1.3.7.patch"
+      "@radix-ui/react-menu@2.1.16": "patches/@radix-ui__react-menu@2.1.16.patch",
+      "next@16.3.8": "patches/next@16.3.8.patch",
+      "y-prosemirror@1.3.7": "patches/y-prosemirror@1.3.7.patch",
+      "virtua@0.41.5": "patches/virtua@0.41.5.patch"
     }
   }
 }

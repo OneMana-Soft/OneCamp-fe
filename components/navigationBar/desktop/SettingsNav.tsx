@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { ChevronLeft, Lock, Search } from "@/lib/icons"
 import { IntentLink } from "@/components/navigationBar/desktop/IntentLink"
 import { useCapabilities } from "@/hooks/useCapabilities"
@@ -19,7 +20,6 @@ import {
 import { useModKey } from "@/hooks/useModKey"
 import { onEscape } from "@/lib/keys/onEscape"
 import { preloadAdminSection } from "@/components/admin/adminPreload"
-import { flashCard } from "@/hooks/useJumpFlash"
 import { cn } from "@/lib/utils/helpers/cn"
 import { RailItem } from "@/components/navigationBar/desktop/SidebarRail"
 
@@ -91,7 +91,7 @@ export function useSettingsPlaces(isAdmin: boolean, here?: string) {
 export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname() || ""
   const params = useSearchParams()
-  const router = useRouter()
+  const router = useAppRouter()
   const current = placeForLocation(pathname, params?.get("tab") ?? null)
   const places = useSettingsPlaces(isAdmin, current?.key)
   const [query, setQuery] = useState("")
@@ -105,10 +105,18 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
 
   useEffect(() => setBack(lastAppRoute()), [])
 
-  const hits: SettingsHit[] = useMemo(
-    () => searchSettings(query, places.filter((p) => !p.pending && !p.locked).map((p) => p.place)),
-    [query, places],
-  )
+  // Fields come with the first letter typed (lib/settingsFields).
+  const [fields, setFields] = useState<typeof import("@/lib/settingsFields") | null>(null)
+  useEffect(() => {
+    // A field list that fails to load leaves search on the places' names, and
+    // the next letter typed asks for it again.
+    if (query && !fields) void import("@/lib/settingsFields").then(setFields).catch(() => undefined)
+  }, [query, fields])
+
+  const hits: SettingsHit[] = useMemo(() => {
+    const open = places.filter((p) => !p.pending && !p.locked).map((p) => p.place)
+    return [...searchSettings(query, open), ...(fields?.fieldHits(query, open) ?? [])]
+  }, [query, places, fields])
 
   // ⌘ , focuses the search; Esc outside a field goes back to the app.
   useEffect(() => {
@@ -154,12 +162,10 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
   }, [current?.key, query, places])
 
   const openHit = (hit: SettingsHit) => {
-    const href = hit.card ? `${hit.place.href}#${hit.card.id}` : hit.place.href
+    const href = hit.field ? hit.field.href : hit.card ? `${hit.place.href}#${hit.card.id}` : hit.place.href
     setQuery("")
     router.push(href)
-    // Already on that page: no remount to seek the card, so flash it now.
-    const here = window.location.pathname + window.location.search
-    if (hit.card && here === hit.place.href) window.setTimeout(() => flashCard(hit.card!.id), 50)
+    fields?.seekHit(href)
   }
 
   return (
@@ -207,17 +213,18 @@ export function SettingsNav({ isAdmin }: { isAdmin: boolean }) {
                 const Icon = hit.place.icon
                 return (
                   <button
-                    key={`${hit.place.key}#${hit.card?.id ?? ""}`}
+                    key={`${hit.place.key}#${hit.field?.id ?? hit.card?.id ?? ""}`}
                     type="button"
                     data-hit={i === 0 ? "true" : undefined}
+                    data-hit-field={hit.field ? "" : undefined}
                     onClick={() => openHit(hit)}
                     className="snav-row w-full text-left"
                   >
                     <Icon className="size-4 shrink-0" aria-hidden="true" />
                     <span className="min-w-0 flex-1 truncate">
-                      {hit.card ? (
+                      {hit.field || hit.card ? (
                         <>
-                          <span className="text-foreground">{hit.card.title}</span>
+                          <span className="text-foreground">{hit.field?.label ?? hit.card?.title}</span>
                           <span className="text-ink-3"> · {hit.place.label}</span>
                         </>
                       ) : (

@@ -86,7 +86,7 @@ export default function LockDialog({ docId, onClose }: { docId: string; onClose(
             <Button variant="ghost" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            <Button size="sm" disabled={busy || (choice === "hard" && !full)} onClick={() => void go(choice, "Page locked")}>
+            <Button size="sm" disabled={choice === "hard" && !full} busy={busy} onClick={() => void go(choice, "Page locked")}>
               Lock page
             </Button>
           </>
@@ -130,7 +130,7 @@ export default function LockDialog({ docId, onClose }: { docId: string; onClose(
                   Unlock for me
                 </Button>
               )}
-              <Button size="sm" disabled={busy} onClick={() => void go("", "Page unlocked")}>
+              <Button size="sm" busy={busy} onClick={() => void go("", "Page unlocked")}>
                 Unlock for everyone
               </Button>
             </>
@@ -170,7 +170,7 @@ export default function LockDialog({ docId, onClose }: { docId: string; onClose(
             <Button variant="ghost" size="sm" disabled={busy} onClick={() => void go("soft", "It's an edit lock now")}>
               Make it an edit lock
             </Button>
-            <Button size="sm" disabled={busy} onClick={() => void go("", "Page unlocked")}>
+            <Button size="sm" busy={busy} onClick={() => void go("", "Page unlocked")}>
               Unlock for everyone
             </Button>
           </>

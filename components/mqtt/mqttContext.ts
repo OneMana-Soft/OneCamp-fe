@@ -1,11 +1,10 @@
 import { createContext, useContext } from "react"
 
-import type { MqttConnectionState } from "@/types/mqtt"
+import type { MqttConnectionState, TopicLive } from "@/types/mqtt"
 
 // The live connection's context, apart from its provider (mqttProvider.tsx),
-// which brings every realtime handler with it. A reader of the state (the
-// offline notice, on every page, signed in or not) needs only this; until 17
-// Oct 2026 it brought the provider, and every page carried the handlers.
+// which brings every realtime handler with it: a reader of the state (the
+// offline notice, on every page, signed in or not) needs only this.
 
 export interface MqttContextValue {
     connectionState: MqttConnectionState
@@ -14,7 +13,7 @@ export interface MqttContextValue {
     disconnect: () => void
     /** Tries to reconnect now, rather than when the next wait is up. */
     reconnect: () => void
-    subscribeToTopic: (topic: string, callback: (message: string, topic: string) => void) => string
+    subscribeToTopic: (topic: string, callback: (message: string, topic: string) => void, live?: TopicLive) => string
     unsubscribeFromTopic: (subscriptionId: string) => void
 }
 

@@ -23,10 +23,5 @@ export function AddressReveal({ token }: { token: string }) {
   const { state, copy } = useCopy()
   const address = incomingUrl(token)
   const secret = address || token
-  return (
-    <div className="space-y-2">
-      <RevealCard secret={secret} what={address ? "address" : "token"} copied={state === "copied"} onCopy={() => void copy(secret)} />
-      {state === "failed" && <p role="alert" className="text-xs text-danger-ink">Couldn&apos;t copy. Select it and copy it yourself.</p>}
-    </div>
-  )
+  return <RevealCard secret={secret} what={address ? "address" : "token"} copied={state === "copied"} copyFailed={state === "failed"} onCopy={() => void copy(secret)} />
 }

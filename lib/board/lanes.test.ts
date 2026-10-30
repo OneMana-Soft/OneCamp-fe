@@ -42,7 +42,7 @@ describe("priorityLanes", () => {
   it("puts the most urgent first, and a task with no priority under Medium", () => {
     const byStatus = { todo: [task("a", { task_priority: "high" }), task("b", { task_priority: "" })] }
     const lanes = priorityLanes(byStatus, false)
-    expect(lanes.list.map((l) => l.id)).toEqual(["high", "medium", "low"])
+    expect(lanes.list.map((l) => l.id)).toEqual(["urgent", "high", "medium", "low"])
     expect(lanes.laneOf(byStatus.todo[1])).toBe("medium")
     expect(priorityLanes(byStatus, true).list.map((l) => l.id)).toEqual(["high", "medium"])
   })

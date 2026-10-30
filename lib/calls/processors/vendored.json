@@ -1,5 +1,5 @@
 {
-  "about": "The files the call effects load at run time, copied out of node_modules into public/ by scripts/calls-assets.mjs before every build, so this server serves them itself (lib/calls/processors/assets.ts). Each folder names its package's version; calls-assets.test.ts holds them to the installed packages. Each file carries its sha256, which the copy checks: a package that changed under the same version fails the build.",
+  "about": "The files the call effects load at run time, copied out of node_modules into public/ by scripts/vendor-assets.mjs before every build, so this server serves them itself (lib/calls/processors/assets.ts). Each folder names its package's version; calls-assets.test.ts holds them to the installed packages. Each file carries its sha256, which the copy checks: a package that changed under the same version fails the build.",
   "packages": [
     {
       "pkg": "@mediapipe/tasks-vision",

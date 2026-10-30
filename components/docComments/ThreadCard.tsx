@@ -20,7 +20,8 @@
  *   (the doc's owner, full access, an admin) may delete anyone's.
  */
 import * as React from "react"
-import { AlertCircle, Check, RotateCcw } from "@/lib/icons"
+import { AlertCircle, Check, ListTodo, RotateCcw } from "@/lib/icons"
+import dynamic from "next/dynamic"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDispatch } from "react-redux"
 import { MessageContent } from "@/components/rightPanel/messageContent"
@@ -93,6 +94,9 @@ function useSeen(el: React.RefObject<HTMLElement | null>, seen: (() => void) | u
     }, [el, wanted])
 }
 
+/** A thread's task: its chip, or "Make a task" and its dialog, loaded off the first load. */
+const ThreadTaskAction = dynamic(() => import("./ThreadTaskAction").then((m) => m.ThreadTaskAction), { ssr: false })
+
 function IconAction({ label, onClick, children, busy }: { label: string; onClick(): void; children: React.ReactNode; busy?: boolean }) {
     return (
         <Tooltip>
@@ -100,16 +104,18 @@ function IconAction({ label, onClick, children, busy }: { label: string; onClick
                 <button
                     type="button"
                     aria-label={label}
-                    // Busy as Button is (aria-busy), not disabled: a button that
-                    // disables under the keyboard drops focus to the page.
+                    // Busy as Button is (aria-busy, and its spinner in the icon's
+                    // place), not disabled: a button that disables under the
+                    // keyboard drops focus to the page.
                     aria-busy={busy || undefined}
                     onClick={(e) => {
                         e.stopPropagation()
                         if (!busy) onClick()
                     }}
                     {...ix("icon")}
+                    data-press="icon"
                     data-touch-target=""
-                    className="flex size-7 items-center justify-center rounded-md text-ink-3 hover:text-ink aria-busy:pointer-events-none aria-busy:opacity-70 [&_svg]:size-4"
+                    className="flex size-7 items-center justify-center rounded-md text-ink-3 hover:text-ink aria-busy:pointer-events-none [&_svg]:size-4"
                 >
                     {children}
                 </button>
@@ -304,6 +310,17 @@ export const ThreadCard = React.memo(function ThreadCard({ docId, thread, action
                 ) : (
                     <span className="mt-1.5 min-w-0 flex-1 truncate text-meta text-ink-3">{where ?? "On the page"}</span>
                 )}
+                {thread.task_uuid || (thread.can_resolve && open && thread.resource_kind === "doc") ? (
+                    <ThreadTaskAction thread={thread} docId={docId} onLinked={() => void t.refresh()}>
+                        {(start) => (
+                            <span className="flex shrink-0">
+                                <IconAction label="Make a task" onClick={start}>
+                                    <ListTodo aria-hidden="true" />
+                                </IconAction>
+                            </span>
+                        )}
+                    </ThreadTaskAction>
+                ) : null}
                 {thread.can_resolve && (
                     <span className="flex shrink-0">
                         {open ? (

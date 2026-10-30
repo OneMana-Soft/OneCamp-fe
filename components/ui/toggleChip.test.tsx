@@ -32,4 +32,19 @@ describe("a toggle chip", () => {
     fireEvent.click(chip)
     expect(change).toHaveBeenCalledWith(false)
   })
+
+  // Code review (22 Oct): the rules' PickChip was a second toggle chip. A pick
+  // isn't an action, so its tone is neutral (an ink check on the press tint,
+  // never the accent), and off it offers a quiet "+".
+  it("can be a neutral pick, offering a + when off", () => {
+    const { rerender } = render(<ToggleChip tone="neutral" offMark="plus" pressed={false} onPressedChange={() => {}}>Assignee</ToggleChip>)
+    const chip = screen.getByRole("button", { name: "Assignee" })
+    expect(chip.getAttribute("data-interactive")).toBe("toggle")
+    expect(chip.getAttribute("data-tone")).toBe("neutral")
+    expect(chip.querySelector("[data-chip-mark='plus']")).not.toBeNull()
+    rerender(<ToggleChip tone="neutral" offMark="plus" pressed onPressedChange={() => {}}>Assignee</ToggleChip>)
+    expect(chip.querySelector("[data-chip-mark='plus']")).toBeNull()
+    expect(chip.querySelector("[data-menu-check='on']")!.className).toContain("text-ink")
+    expect(chip.className).toContain("bg-press")
+  })
 })

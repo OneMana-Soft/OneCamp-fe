@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { BUILT_IN_STATUSES } from "@/lib/taskStatus"
+import { warmSearchInput } from "@/components/ui/lazy-search-input"
 
 // A project's board shares the list's toolbar (PTC-6) and names the statuses
 // it hides (PTC-5). It drew Assignee and Priority chips of its own, with no
@@ -83,12 +84,14 @@ describe("a project's board", () => {
   })
 
   it("asks the server for what its search names, as the list does", async () => {
+    // The search field is a chunk the glyph warms (components/ui/lazy-search-input): loaded first here.
+    await warmSearchInput()
     vi.useFakeTimers()
     try {
       render(<ProjectTaskKanban projectId={P} />)
       expect(boardKeys().every((k) => !k.includes("filters="))).toBe(true)
       fireEvent.click(screen.getByRole("button", { name: "Search tasks" }))
-      fireEvent.change(screen.getByRole("textbox", { name: "Search tasks" }), { target: { value: "retro" } })
+      fireEvent.change(screen.getByRole("searchbox", { name: "Search tasks" }), { target: { value: "retro" } })
       await act(async () => {
         vi.advanceTimersByTime(350)
       })

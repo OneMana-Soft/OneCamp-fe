@@ -22,8 +22,8 @@ vi.mock("@/hooks/useTaskTime", () => ({
   stopTimer: vi.fn(),
 }))
 
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k }) }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: vi.fn() }, OWN_ERRORS: {} }))
+vi.mock("@/lib/utils/i18n", () => ({ useTranslation: () => ({ t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k }), useWord: (_key: string, fallback: string) => fallback }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: vi.fn() } }))
 vi.mock("@/hooks/useTaskUpdate", () => ({ useTaskUpdate: () => ({ optimisticUpdateTasks: () => {} }) }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: () => Promise.resolve() }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: false, isMobile: true, isTablet: false }) }))

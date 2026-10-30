@@ -25,6 +25,7 @@ import { Extension, InputRule, Node, mergeAttributes, type Editor, type Range } 
 import type { Node as PMNode } from "@tiptap/pm/model"
 import { NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state"
 import type { NodeView } from "@tiptap/pm/view"
+import { once } from "@/lib/lazy/once"
 
 export const INLINE_MATH = "inlineMath"
 export const BLOCK_MATH = "blockMath"
@@ -41,18 +42,7 @@ const latexAttr = {
 
 type Katex = typeof import("./katex")
 let katex: Katex | null = null
-let fetching: Promise<Katex> | null = null
-function loadKatex(): Promise<Katex> {
-  if (katex) return Promise.resolve(katex)
-  fetching ??= import("./katex").then(
-    (m) => (katex = m),
-    (e) => {
-      fetching = null
-      throw e
-    },
-  )
-  return fetching
-}
+const loadKatex: () => Promise<Katex> = once(() => import("./katex").then((m) => (katex = m)))
 
 const views = new WeakMap<Element, MathView>()
 

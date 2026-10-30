@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import { pinTestClock } from "@/lib/testing/testClock"
 import type { ApiEvent } from "@/lib/calendar/eventsApi"
+import type { CalendarEventInterface } from "@/types/calendar"
 import {
   daysSpanned,
   eventInput,
   eventPatch,
   eventValues,
   formProblem,
+  listedValues,
   newEventValues,
   nextHour,
   patchChanges,
@@ -185,5 +187,60 @@ describe("all day", () => {
   it("keeps an event that ends at midnight on its own day", () => {
     const v = newEventValues("UTC", NOW, { start: new Date(2026, 9, 20, 22), end: new Date(2026, 9, 21, 0) })
     expect(withAllDay(v, true).lastDate).toBe("2026-10-20")
+  })
+})
+
+// Time for a task (calendar B1, gcal-new-task-blocks): the form holds a
+// block's task, sends it once, when the block is made, and never a guest.
+describe("time for a task", () => {
+  const TASK = { task_uuid: "t-brief", task_name: "Write the launch brief", task_status: "inProgress", project_uuid: "p-launch", project_name: "Launch" }
+
+  it("reads a block's task from the API and from the calendar's list", () => {
+    expect(newEventValues("UTC", NOW).task).toBeNull()
+    const v = eventValues(api({ kind: "task_block", attendees: [], task: TASK }), null, "UTC")
+    expect([v.kind, v.task]).toEqual(["task_block", TASK])
+    const listed = listedValues(
+      { event_uuid: "b1", event_title: "Write the launch brief", event_start_time: new Date(2026, 9, 16, 14).toISOString(), event_end_time: new Date(2026, 9, 16, 15).toISOString(), event_task: TASK } as CalendarEventInterface,
+      "UTC",
+    )
+    expect([listed.kind, listed.task]).toEqual(["task_block", TASK])
+  })
+
+  it("sends a new block with its task, and nobody on it", () => {
+    const v = { ...newEventValues("UTC", NOW), kind: "task_block" as const, task: TASK, title: "Write the launch brief", rule: "FREQ=DAILY", guests: [{ uuid: "maya", email: "", name: "Maya", optional: false }] }
+    const input = eventInput(v)
+    expect(input).toMatchObject({ kind: "task_block", task_uuid: "t-brief", attendees: [] })
+    expect(input.recurrence).toBeUndefined()
+    expect(eventInput({ ...v, kind: "event" }).task_uuid).toBeUndefined()
+  })
+
+  it("refuses a block without its task, or over whole days", () => {
+    const v = { ...newEventValues("UTC", NOW), kind: "task_block" as const, title: "Writing", task: null }
+    expect(formProblem(v)).toEqual({ field: "task", message: "Choose the task this is time for" })
+    expect(formProblem({ ...v, task: TASK, allDay: true })).toEqual({ field: "end", message: "Time for a task runs from a time to a time, not whole days" })
+    expect(formProblem({ ...v, task: TASK })).toBeNull()
+  })
+
+  it("changes a block without naming its task again", () => {
+    const was = eventValues(api({ kind: "task_block", attendees: [], task: TASK }), null, "UTC")
+    expect(eventPatch({ ...was, title: "Outline the brief" }, was, 4, true)).toEqual({ sequence: 4, title: "Outline the brief" })
+  })
+})
+
+describe("out of office that declines (head 5b)", () => {
+  it("sends its rule only for out of office, and only when it declines", () => {
+    const away = { ...newEventValues("UTC", NOW), kind: "out_of_office" as const, title: "Away", oooDecline: "new" as const, oooMessage: "  Back Monday.  " }
+    expect(eventInput(away).out_of_office).toEqual({ decline: "new", message: "Back Monday." })
+    expect(eventInput({ ...away, oooDecline: "none" }).out_of_office).toBeUndefined()
+    expect(eventInput({ ...away, kind: "event" }).out_of_office).toBeUndefined()
+  })
+
+  it("reads the rule back, and a change sends it only when it changed", () => {
+    const v = eventValues(api({ kind: "out_of_office", out_of_office: { decline: "all", message: "On leave." } }), null, "UTC")
+    expect([v.oooDecline, v.oooMessage]).toEqual(["all", "On leave."])
+    expect(eventValues(api(), null, "UTC").oooDecline).toBe("none")
+    expect(eventPatch(v, v, 3, true).out_of_office).toBeUndefined()
+    expect(eventPatch({ ...v, oooMessage: "Back Friday." }, v, 3, true).out_of_office).toEqual({ decline: "all", message: "Back Friday." })
+    expect(eventPatch({ ...v, oooDecline: "none" }, v, 3, true).out_of_office).toEqual({ decline: "none", message: "On leave." })
   })
 })

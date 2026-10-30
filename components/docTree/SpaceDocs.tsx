@@ -11,14 +11,23 @@
 // it at the tab's edge, so switching from Files to Docs moves nothing. They
 // were a centred column with its buttons floating over it. The buttons are
 // there from the first paint, empty or not, so New doc never moves.
+//
+// Docs & Files (docs F1b): "▾" beside New doc adds a folder, files or a link
+// to the space's top; its rows can be chosen together and coloured or moved
+// at once; files dropped on it, on its rows or while it's empty, upload to
+// the space (or the folder they're dropped on).
 
 import * as React from "react"
 
-import { useTreeLevel } from "@/components/tree/useTree"
+import { readLimit, useTreeLevel } from "@/components/tree/useTree"
 import { useCreateDoc } from "@/components/doc/useCreateDoc"
 import { DocTree, adapterFor } from "@/components/docTree/DocTree"
 import { DocTreeSkeleton } from "@/components/docTree/DocsSection"
 import { SpaceDocsCardHeader } from "@/components/docTree/SpaceDocsCard"
+import { FileDropZone } from "@/components/docFiles/FileDropZone"
+import { NewSplitButton } from "@/components/docFiles/NewMenu"
+import { useFilePicker } from "@/components/docFiles/useFilePicker"
+import { useNodeDialogs } from "@/components/docFiles/useNodeDialogs"
 import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -26,10 +35,11 @@ import { SpotDocs, Tile } from "@/components/ui/graphics"
 import { areaHue } from "@/lib/areas"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { QUICK_DOC_TEMPLATES, templateGlyph } from "@/lib/docTemplates"
-import { LayoutTemplate, Loader2, Plus } from "@/lib/icons"
+import { LayoutTemplate, Loader2 } from "@/lib/icons"
 import type { DocSpace } from "@/types/docGraph"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
-const TemplatePicker = React.lazy(() => import("@/components/docTemplates/TemplatePicker"))
+const TemplatePicker = lazyPiece(() => import("@/components/docTemplates/TemplatePicker"))
 
 /** A page shows this many of a level before "Show more". */
 const PAGE_CAP = 50
@@ -53,9 +63,9 @@ function Empty({
       <span data-empty-illustration="">
         <SpotDocs size={96} hue={areaHue("docs")} />
       </span>
-      <h3 className="mt-4 text-heading text-ink">No docs in this {spaceWord(space)} yet</h3>
+      <h3 className="mt-4 text-heading text-ink">No docs or files in this {spaceWord(space)} yet</h3>
       <p className="mt-1 max-w-[45ch] text-ui text-ink-2">
-        {name ? `Plans, specs and meeting notes for ${name} go here.` : `Plans, specs and meeting notes for this ${spaceWord(space)} go here.`}
+        {`Plans, specs, files and links for ${name ?? `this ${spaceWord(space)}`} go here. Drop files here to upload them.`}
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         {QUICK_DOC_TEMPLATES.map((t) => {
@@ -83,10 +93,16 @@ function Empty({
 
 export default function SpaceDocs({ space, name, variant = "tab" }: { space: DocSpace; name?: string; variant?: "tab" | "card" }) {
   const { create, busy } = useCreateDoc()
-  const [picker, setPicker] = React.useState(false)
-  const { level, loading } = useTreeLevel(adapterFor(space), null, PAGE_CAP)
+  const dialogs = useNodeDialogs()
+  const picker = useFilePicker()
+  // Where things land, as an upload's toast says it.
+  const place = name ?? `this ${spaceWord(space)}`
+  const [templates, setTemplates] = React.useState(false)
+  // What the tree asks for, so the two share one answer (fluid-06, Fix 2).
+  const { level, loading } = useTreeLevel(adapterFor(space), null, readLimit(PAGE_CAP))
   const empty = !!level && level.nodes.length === 0 && level.hidden === 0
-  const newDoc = () => void create({ space, busyKey: `space:${space}` })
+  const busyKey = `space:${space}`
+  const newDoc = () => void create({ space, busyKey })
   const card = variant === "card"
 
   // From a template…, then the one primary at the end. A card's column is
@@ -95,7 +111,7 @@ export default function SpaceDocs({ space, name, variant = "tab" }: { space: Doc
     <Button
       size={card ? "icon-sm" : "sm"}
       variant="secondary"
-      onClick={() => setPicker(true)}
+      onClick={() => setTemplates(true)}
       disabled={!!busy}
       aria-label="From a template"
       className={card ? undefined : "gap-1.5"}
@@ -114,10 +130,14 @@ export default function SpaceDocs({ space, name, variant = "tab" }: { space: Doc
       ) : (
         template
       )}
-      <Button size="sm" onClick={newDoc} disabled={!!busy} className="gap-1.5">
-        {busy === `space:${space}` ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Plus className="size-3.5" aria-hidden="true" />}
-        New doc
-      </Button>
+      <NewSplitButton
+        running={busy}
+        own={busyKey}
+        onPage={newDoc}
+        onFolder={() => dialogs.open({ kind: "folder", place: { space } })}
+        onUpload={() => picker.pick({ space }, place)}
+        onLink={() => dialogs.open({ kind: "link", place: { space } })}
+      />
     </div>
   )
 
@@ -125,16 +145,32 @@ export default function SpaceDocs({ space, name, variant = "tab" }: { space: Doc
     <DocTreeSkeleton rows={4} />
   ) : empty ? (
     <WorkState>
-      <Empty space={space} name={name} create={create} busy={busy} />
+      <FileDropZone place={{ space }} label={place}>
+        <Empty space={space} name={name} create={create} busy={busy} />
+      </FileDropZone>
     </WorkState>
   ) : (
-    <DocTree space={space} label={name ? `${name}'s docs` : "Docs"} dense={false} cap={PAGE_CAP} />
+    <DocTree
+      space={space}
+      label={name ? `${name}'s docs` : "Docs"}
+      dense={false}
+      cap={PAGE_CAP}
+      selectable
+      dropRoot={{ place: { space }, label: place }}
+      moveStart={[{ id: null, title: name ?? `This ${spaceWord(space)}` }]}
+    />
   )
 
-  const picking = picker && (
-    <React.Suspense fallback={null}>
-      <TemplatePicker mode={{ kind: "create", space }} onClose={() => setPicker(false)} />
-    </React.Suspense>
+  const picking = (
+    <>
+      {picker.element}
+      {dialogs.element}
+      {templates && (
+        <React.Suspense fallback={null}>
+          <TemplatePicker mode={{ kind: "create", space }} onClose={() => setTemplates(false)} />
+        </React.Suspense>
+      )}
+    </>
   )
 
   if (card) {

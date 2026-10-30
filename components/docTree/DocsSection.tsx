@@ -16,10 +16,11 @@ import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
 import { app_doc_path } from "@/types/paths"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 // A chunk that failed to load stays failed in React.lazy, so trying again
 // makes a new one.
-const loadGroups = () => React.lazy(() => import("@/components/docTree/DocsTreeGroups"))
+const loadGroups = () => lazyPiece(() => import("@/components/docTree/DocsTreeGroups"))
 let DocsTreeGroups = loadGroups()
 
 /** Rows at the tree's height while its code or its first level arrives. */

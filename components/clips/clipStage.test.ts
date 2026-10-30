@@ -44,8 +44,7 @@ describe("the clip recorder's v3 dress", () => {
 describe("the clip recorder opening", () => {
   const src = readFileSync(join(__dirname, "ClipRecorder.tsx"), "utf8")
   it("focuses the dialog itself", () => {
-    expect(src).toMatch(/onOpenAutoFocus=\{\(e\) => \{\s*e\.preventDefault\(\)/)
-    expect(src).toMatch(/e\.target\.focus\(/)
+    expect(src).toMatch(/onOpenAutoFocus=\{focusDialogItself\}/)
   })
 })
 

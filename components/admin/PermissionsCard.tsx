@@ -41,10 +41,12 @@ function PermissionRow({ policy, onSaved }: { policy: CapabilityPolicy; onSaved:
     const { status, run } = useSaveStatus()
     const id = `permission-${policy.capability.replace(/[^\w-]/g, "-")}`
 
-    const choose = async (who: Who) => {
-        if (who === saved) return
+    const choose = async (who: Who): Promise<boolean> => {
         setPending(who)
-        const ok = await run(() => setCapabilityPolicy(policy.capability, who))
+        const ok = await run(() => setCapabilityPolicy(policy.capability, who), {
+            what: `${meta.label}: ${WHO_OPTIONS.find((o) => o.value === who)?.label}`,
+            undo: () => choose(saved),
+        })
         if (ok) {
             onSaved(who)
             // Refresh the current user's resolved capability set so any gated UI
@@ -52,6 +54,7 @@ function PermissionRow({ policy, onSaved }: { policy: CapabilityPolicy; onSaved:
             mutate(GetEndpointUrl.MyCapabilities)
         }
         setPending(null)
+        return ok
     }
 
     return (
@@ -61,7 +64,7 @@ function PermissionRow({ policy, onSaved }: { policy: CapabilityPolicy; onSaved:
                 aria-label={meta.label}
                 aria-describedby={`${id}-desc`}
                 value={pending ?? saved}
-                onValueChange={(v) => void choose(v as Who)}
+                onValueChange={(v) => v !== saved && void choose(v as Who)}
                 options={WHO_OPTIONS}
                 disabled={status.state === "saving"}
             />

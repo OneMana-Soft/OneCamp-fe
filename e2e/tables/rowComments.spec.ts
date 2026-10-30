@@ -144,8 +144,7 @@ for (const [width, height] of [
       const threads = seed(server)
       const sam = await (await openRecord(server, threads, { width, height, scheme }))(browser, testInfo)
       await sam.page.locator("[data-row-comments]").scrollIntoViewIfNeeded()
-      await sam.page.waitForTimeout(400)
-      await sam.page.screenshot({ path: `${shots}/row-comments-${width}-${scheme}.png` })
+      await sam.page.screenshot({ path: `${shots}/row-comments-${width}-${scheme}.png`, animations: "disabled" })
       await sam.close()
     })
   }

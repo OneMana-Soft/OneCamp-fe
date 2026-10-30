@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
 
-import { SAM, stubBackend } from "./stubbedApp"
+import { SAM, stubBackend, type Answers } from "./stubbedApp"
 
 // The one Event Form (calendar FORM): the full dialog, the event's panel and
 // a phone's page edit with the same form. A new event takes a guest marked
@@ -80,7 +80,7 @@ const colourful = () => {
   ]
 }
 
-async function openApp(page: Page, testInfo: TestInfo, path = "/app/calendar?date=2026-10-21&view=week", events: unknown[] = [listed()]) {
+async function openApp(page: Page, testInfo: TestInfo, path = "/app/calendar?date=2026-10-21&view=week", events: unknown[] = [listed()], more: Answers = {}) {
   const writes: { method: string; url: string; body: unknown }[] = []
   await page.clock.setFixedTime(NOW)
   await page.addInitScript(() => {
@@ -104,7 +104,8 @@ async function openApp(page: Page, testInfo: TestInfo, path = "/app/calendar?dat
     "/user/assignedTaskList": { msg: "ok", data: { user_tasks: [] } },
     "/config/client": { msg: "ok", data: { features: { calendar_repeats: true } } },
     "/event/bookingPages": { msg: "ok", data: [] },
-    "/event/findTime": { msg: "ok", data: { slots: [], busy: {} } },
+    "/event/suggestTimes": { msg: "ok", data: { suggestions: [] } },
+    ...more,
   })
   await page.goto(path, { waitUntil: "domcontentloaded", timeout: 120_000 })
   return writes
@@ -131,6 +132,11 @@ for (const theme of ["light", "dark"] as const) {
       const dialog = page.locator("[data-event-dialog]")
       await dialog.getByRole("textbox", { name: "Title" }).fill("Pricing walkthrough")
       await shot(page, "dialog-new", theme)
+      // "All day" is the shared SwitchRow (A6), a switch named by its label.
+      const allDay = dialog.getByRole("switch", { name: "All day" })
+      await allDay.scrollIntoViewIfNeeded()
+      await expect(allDay).toHaveAttribute("aria-checked", "false")
+      await shot(page, "form-all-day", theme)
       await dialog.getByRole("combobox", { name: "Guests" }).fill("Maya")
       await page.getByRole("option", { name: "Maya Chen" }).click()
       await dialog.getByRole("button", { name: "Mark Maya Chen optional" }).click()
@@ -141,7 +147,7 @@ for (const theme of ["light", "dark"] as const) {
       await dialog.locator("[data-form-guests]").scrollIntoViewIfNeeded()
       await shot(page, "dialog-guests", theme)
       await dialog.getByRole("button", { name: "Add a reminder" }).click()
-      await dialog.getByRole("radio", { name: "Sun" }).click()
+      await dialog.getByRole("radio", { name: "Sun", exact: true }).click()
       await shot(page, "dialog-filled", theme)
       await dialog.getByRole("button", { name: "Create event" }).click()
       await expect(dialog).toHaveCount(0, { timeout: 20_000 })
@@ -155,6 +161,46 @@ for (const theme of ["light", "dark"] as const) {
       })
       const reminders = writes.find((w) => w.url.endsWith("/new-1/reminders"))
       expect((reminders?.body as { minutes: number[] }).minutes).toHaveLength(2)
+    })
+
+    // Head 5b (gcal-9b): out of office declines invitations for you, with a message.
+    test("out of office declines new invitations with a message", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      const writes = await openApp(page, testInfo)
+      await expect(page.locator(`[data-event-uuid="${LAUNCH}"]`).first()).toBeVisible({ timeout: 60_000 })
+      await page.getByRole("button", { name: "New event" }).click()
+      const dialog = page.locator("[data-event-dialog]")
+      await dialog.getByRole("switch", { name: /^Away/ }).click()
+      // Its rows sit right under the Away switch, as its children (DB-25).
+      const under = await dialog.locator("[data-away-rows]").evaluate((el) => el.previousElementSibling?.textContent ?? "")
+      expect(under).toMatch(/^Away/)
+      const decline = dialog.getByRole("combobox", { name: "While you're away" })
+      await decline.scrollIntoViewIfNeeded()
+      await expect(decline).toHaveText("Don't decline")
+      await expect(dialog.getByRole("textbox", { name: "Message with each decline" })).toHaveCount(0)
+      await decline.click()
+      await page.getByRole("option", { name: "Decline new invitations" }).click()
+      await dialog.getByRole("textbox", { name: "Message with each decline" }).fill("Back Monday, ask Maya.")
+      await shot(page, "form-out-of-office", theme)
+      await dialog.getByRole("button", { name: "Create event" }).click()
+      await expect(dialog).toHaveCount(0, { timeout: 20_000 })
+      const created = writes.find((w) => w.method === "POST" && w.url.endsWith("/calendar/events"))
+      expect(created?.body).toMatchObject({ kind: "out_of_office", out_of_office: { decline: "new", message: "Back Monday, ask Maya." } })
+    })
+
+    test("Find a time says it counts only your times when the workspace keeps busy times private", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openApp(page, testInfo, undefined, undefined, {
+        "/event/suggestTimes": { msg: "ok", data: { suggestions: [{ start: at(22, 9), end: at(22, 9, 30), free: [ME.user_uuid], reason: "You're free" }], private: [MAYA.user_uuid] } },
+      })
+      await expect(page.locator(`[data-event-uuid="${LAUNCH}"]`).first()).toBeVisible({ timeout: 60_000 })
+      await page.getByRole("button", { name: "New event" }).click()
+      const dialog = page.locator("[data-event-dialog]")
+      await dialog.getByRole("combobox", { name: "Guests" }).fill("Maya")
+      await page.getByRole("option", { name: "Maya Chen" }).click()
+      await expect(dialog.getByText("Your workspace keeps when people are busy private, so these times count only yours.")).toBeVisible()
+      await expect(dialog.getByText("When you're free this week, in your working hours.")).toBeVisible()
+      await shot(page, "find-time-private", theme)
     })
 
     test("the week is in colour: each event in its own hue, the rest in the calendar's", async ({ page }, testInfo) => {
@@ -174,7 +220,7 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "New event" }).click()
       const colours = page.locator("[data-event-dialog]").getByRole("radiogroup", { name: "Colour" })
       // The calendar's own colour is hollow, a ring in its hue, and says which.
-      const calendar = colours.getByRole("radio", { name: "Calendar colour (Sky)" })
+      const calendar = colours.getByRole("radio", { name: "Calendar colour (Sun)" })
       await expect(calendar).toHaveAttribute("aria-checked", "true")
       await expect(calendar).toHaveAttribute("data-hollow", "true")
       await calendar.focus()
@@ -214,6 +260,18 @@ for (const theme of ["light", "dark"] as const) {
         notes: "<p>Walk the checklist, then decide go or no-go.</p><p>Bring the numbers.</p>",
       })
     })
+
+    // V-34: the card's pencil is named Edit event and does what it says, as
+    // Google Calendar's does: one press and the event is open, editing. Open
+    // details is for reading.
+    test("the card's Edit event opens the event already editing, in one press", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openApp(page, testInfo)
+      await page.locator(`[data-event-uuid="${LAUNCH}"]`).first().click({ timeout: 60_000 })
+      await page.locator("[data-event-card]").getByRole("button", { name: "Edit event" }).click()
+      await expect(page.locator("[data-event-edit]").getByRole("textbox", { name: "Title" })).toHaveValue("Launch review", { timeout: 20_000 })
+      await shot(page, "card-pencil-edit", theme)
+    })
   })
 
   test.describe(`the Event Form on a phone, ${theme}`, () => {
@@ -248,5 +306,95 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.locator("[data-event-edit]").getByRole("textbox", { name: "Title" })).toHaveValue("Launch review", { timeout: 20_000 })
       await shot(page, "phone-edit", theme)
     })
+
+    // V-34 on a phone: the sheet's pencil opens the event's own page editing,
+    // in one tap, where it used to open the page to read.
+    test("the sheet's Edit event opens the event's page already editing, in one tap", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      // From the agenda, a phone's list of the day (a tap on the day grid is a finding of its own).
+      await openApp(page, testInfo, "/app/calendar?date=2026-10-21&view=agenda")
+      await page.locator(`[data-event-uuid="${LAUNCH}"]`).first().tap({ timeout: 60_000 })
+      const pencil = page.locator("[data-event-sheet]").getByRole("button", { name: "Edit event" })
+      await expect(pencil).toBeVisible({ timeout: 20_000 })
+      await pencil.tap()
+      await expect(page.locator("[data-event-edit]").getByRole("textbox", { name: "Title" })).toHaveValue("Launch review", { timeout: 20_000 })
+      await expect(page).toHaveURL(new RegExp(`/app/calendar/event/${LAUNCH}`))
+      await shot(page, "sheet-pencil-edit", theme)
+    })
+
+    // Head 5b (gcal-9b) on a phone: Away on, its rows right under the switch in the sheet.
+    test("out of office declines new invitations from the phone's sheet", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      const writes = await openApp(page, testInfo)
+      await page.getByRole("button", { name: "New event" }).tap({ timeout: 60_000 })
+      const sheet = page.locator("[data-event-dialog]")
+      const away = sheet.getByRole("switch", { name: /^Away/ })
+      await away.scrollIntoViewIfNeeded()
+      await away.tap()
+      const decline = sheet.getByRole("combobox", { name: "While you're away" })
+      await decline.scrollIntoViewIfNeeded()
+      await decline.tap()
+      await page.locator("[data-sheet-panel]").getByRole("option", { name: "Decline new invitations" }).tap()
+      await expect(decline).toHaveText(/Decline new invitations/)
+      const message = sheet.getByRole("textbox", { name: "Message with each decline" })
+      await message.fill("Back Monday, ask Maya.")
+      await message.blur()
+      await sheet.locator("[data-away-rows]").scrollIntoViewIfNeeded()
+      await shot(page, "phone-out-of-office", theme)
+      await sheet.getByRole("button", { name: "Create event" }).tap()
+      await expect(sheet).toHaveCount(0, { timeout: 20_000 })
+      const created = writes.find((w) => w.method === "POST" && w.url.endsWith("/calendar/events"))
+      expect(created?.body).toMatchObject({ kind: "out_of_office", out_of_office: { decline: "new", message: "Back Monday, ask Maya." } })
+    })
+
+    test("Find a time says it counts only your times when the workspace keeps busy times private", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openApp(page, testInfo, undefined, undefined, {
+        "/event/suggestTimes": { msg: "ok", data: { suggestions: [{ start: at(22, 9), end: at(22, 9, 30), free: [ME.user_uuid], reason: "You're free" }], private: [MAYA.user_uuid] } },
+      })
+      await page.getByRole("button", { name: "New event" }).tap({ timeout: 60_000 })
+      const sheet = page.locator("[data-event-dialog]")
+      const guests = sheet.getByRole("combobox", { name: "Guests" })
+      await guests.scrollIntoViewIfNeeded()
+      await guests.fill("Maya")
+      await page.getByRole("option", { name: "Maya Chen" }).tap()
+      const note = sheet.getByText("Your workspace keeps when people are busy private, so these times count only yours.")
+      await note.scrollIntoViewIfNeeded()
+      await expect(note).toBeVisible()
+      await expect(sheet.getByText("When you're free this week, in your working hours.")).toBeVisible()
+      await shot(page, "find-time-private", theme)
+    })
   })
 }
+
+// A select in a sheet is a panel of that sheet, with Back and its name: a
+// phone never stacks a second sheet over the one it is in (components/ui/select,
+// through the combobox's sheet panels).
+test.describe("a select in the new event's sheet, on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+
+  test("opens as a panel of the sheet, and a tap picks what the event is created with", async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    const writes = await openApp(page, testInfo)
+    await page.getByRole("button", { name: "New event" }).tap({ timeout: 60_000 })
+    const sheet = page.locator("[data-event-dialog]")
+    await sheet.getByRole("textbox", { name: "Title" }).fill("Pricing walkthrough")
+    const showAs = sheet.getByRole("combobox", { name: "Show as" })
+    await showAs.scrollIntoViewIfNeeded()
+    await showAs.tap()
+
+    const panel = page.locator("[data-sheet-panel]")
+    await expect(panel).toBeVisible()
+    await expect(page.locator('[data-vaul-drawer][data-state="open"]'), "one sheet, not a sheet over a sheet").toHaveCount(1)
+    await expect(page.getByRole("button", { name: "Back" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Show as" })).toBeVisible()
+    await panel.getByRole("option", { name: "Free" }).tap()
+    await expect(panel).toHaveCount(0)
+    await expect(showAs).toHaveText(/Free/)
+
+    await sheet.getByRole("button", { name: "Create event" }).tap()
+    await expect(sheet).toHaveCount(0, { timeout: 20_000 })
+    const created = writes.find((w) => w.method === "POST" && w.url.endsWith("/calendar/events"))
+    expect(created?.body).toMatchObject({ title: "Pricing walkthrough", transparency: "transparent" })
+  })
+})

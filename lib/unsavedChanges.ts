@@ -5,10 +5,15 @@
  * forgets them when they are saved, put back or the bar goes. The guard on
  * in-app links (components/ui/UnsavedChangesGuard) and the admin page's
  * section menu read it. Module state, not React state: nothing renders from
- * it, it is only asked at the moment someone tries to leave.
+ * it, it is only asked at the moment someone tries to leave. A reload the
+ * page makes by itself for a new build waits while any are here
+ * (lib/chunkRecovery holdReload).
  */
 
+import { holdReload } from "@/lib/newBuild"
+
 const unsaved = new Map<string, string>()
+holdReload(() => unsaved.size > 0)
 
 /** A bar with changes waiting, by the bar's id and what it calls them. */
 export function markUnsaved(id: string, what: string): void {

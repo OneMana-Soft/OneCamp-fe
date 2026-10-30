@@ -3,6 +3,7 @@
 import type { Editor } from "@tiptap/core"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import { dateWords } from "@/lib/codec/connectedValues"
+import { randomUUID } from "@/lib/utils/randomUUID"
 import type { LaterItem, SaveLaterInput } from "@/services/laterService"
 import { trackPos } from "../smart-paste/smartPaste"
 import { reminderTime } from "./parseDate"
@@ -30,7 +31,7 @@ export async function remindAt(editor: Editor, pos: number, save: (input: SaveLa
   try {
     const item = await save({
       item_type: "reminder",
-      item_id: crypto.randomUUID(),
+      item_id: randomUUID(),
       link: docId ? `/app/doc/${docId}` : "/app/later",
       title: lineOf(editor, pos) || dateWords(node.attrs.date),
       remind_at: when.toISOString(),

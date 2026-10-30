@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
-import { stubBackend } from "./stubbedApp"
-import { layersOverSheet, scrimOverLowerSheet, sheetLayout, topSheet, type SheetLayout } from "./sheetLayout"
+import { expectHomeSettled, stubBackend } from "./stubbedApp"
+import { LAYERED_SCRIM, footIsGutter, layersOverSheet, scrimOverLayerBelow, sheetLayout, topScrimFill, topSheet, type SheetLayout } from "./sheetLayout"
 import { openKeyboard } from "./keyboard"
 
 // The phone's sheets (components/ui/drawer, design v3 mobile C5) keep one
@@ -31,6 +31,7 @@ function keepsTheRules(name: string, l: SheetLayout) {
   }
   expect(l.clipped, `${name}: a field's halo cut off at the edge of what clips it`).toEqual([])
   expect(l.inline, `${name}: a height or a bottom left written on the sheet`).toEqual({ height: "", bottom: "" })
+  expect(l.seeThrough, `${name}: what scrolls shows through a pinned part`).toEqual([])
 }
 
 async function nothingOver(page: Page, name: string) {
@@ -40,14 +41,19 @@ async function nothingOver(page: Page, name: string) {
 }
 
 /**
- * The sheet on top, once it has risen: no animation running on it, and none
- * of its rise left in its transform. WebKit calls the rise finished while the
- * sheet still stands up to 70px low, for a second or more on a busy machine.
+ * The sheet on top, once it has risen: no animation running on it or in it
+ * (a panel's slide in, which a measure taken mid-slide reads as running
+ * sideways), and none of its rise left in its transform. WebKit calls the rise
+ * finished while the sheet still stands up to 70px low, for a second or more
+ * on a busy machine. An endless animation (a spinner) never finishes, so it
+ * doesn't count.
  */
 async function risen(page: Page) {
   const sheet = topSheet(page)
   await expect(sheet).toBeVisible()
-  await expect.poll(() => sheet.evaluate((el) => el.getAnimations().filter((a) => a.playState === "running").length)).toBe(0)
+  await expect
+    .poll(() => sheet.evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).length))
+    .toBe(0)
   await expect
     .poll(() => sheet.evaluate((el) => Math.abs(new DOMMatrixReadOnly(getComputedStyle(el).transform).m42)), { timeout: 30_000 })
     .toBeLessThan(0.5)
@@ -62,10 +68,11 @@ async function statusSheet(page: Page, testInfo: TestInfo) {
     "/activity/unified": { msg: "ok", data: null },
     "/user/assignedTaskList": { msg: "ok", data: null },
     "/event/getEvents": { msg: "ok", data: null },
-    "/project/overview": { msg: "ok", data: null },
+    "/project/overview": { msg: "ok", data: { projects: [] } },
     "/ch/suggested": { msg: "ok", data: [] },
   })
   await page.goto("/app/home", { waitUntil: "domcontentloaded", timeout: 180_000 })
+  await expectHomeSettled(page)
   await page.getByRole("button", { name: "Your profile" }).first().click({ timeout: 120_000 })
   await expect(page.locator("[data-you-status]")).toBeVisible({ timeout: 60_000 })
   keepsTheRules("the You sheet", await sheetLayout(await risen(page)))
@@ -122,7 +129,8 @@ for (const phone of PHONES) {
       expect(emoji.height, "the emoji sheet: about half the screen").toBeLessThanOrEqual(Math.round(phone.height * 0.6))
       expect(emoji.emptyBelow, "the emoji sheet: empty under its emoji").toBeLessThanOrEqual(24)
       keepsTheRules("the emoji sheet", emoji)
-      expect(await scrimOverLowerSheet(page), "the status sheet is left undimmed above the emoji sheet's scrim").toBe(true)
+      expect(await scrimOverLayerBelow(page), "the status sheet is left undimmed above the emoji sheet's scrim").toBe(true)
+      expect(await topScrimFill(page), "the emoji sheet's scrim is the lighter one a layer wears").toBe(LAYERED_SCRIM.light)
       // Searching keeps the half sheet where no on-screen keyboard comes up (a
       // computer's narrow window). With one up the sheet stands on it and
       // takes what it leaves, so the finds show; once it goes, the sheet is
@@ -164,7 +172,7 @@ for (const phone of PHONES) {
       await expect(page.locator("[data-sheet-panel]")).toBeVisible()
       await expect(page.getByRole("button", { name: "Back" })).toBeVisible()
       await expect(page.getByRole("heading", { name: "Clears at" })).toBeVisible()
-      keepsTheRules("the time panel", await sheetLayout(topSheet(page)))
+      keepsTheRules("the time panel", await sheetLayout(await risen(page)))
       await inReach(page, /^(Set status|Save)$/, "with the time panel open")
       const pick = list.getByRole("option").nth(2)
       const picked = ((await pick.locator("span").first().textContent()) ?? "").trim()
@@ -199,12 +207,15 @@ for (const phone of PHONES) {
       const rest = await sheetLayout(sheet)
       keepsTheRules("the status sheet", rest)
       await inReach(page, /^(Set status|Save)$/, "at rest")
+      // Its foot is its gutter, never under 16px, on the keyboard too: the one rule for every phone sheet (V-73).
+      await footIsGutter(sheet, "the status sheet")
       for (const kind of ["visual", "resize"] as const) {
         await field.focus()
         const close = await openKeyboard(page, kind)
         await expect.poll(() => onKeyboard(page), { message: `the status sheet isn't on the ${kind} keyboard` }).toBe(true)
         await inReach(page, /^(Set status|Save)$/, `with the ${kind} keyboard up`)
         keepsTheRules(`the status sheet on the ${kind} keyboard`, await sheetLayout(sheet))
+        await footIsGutter(sheet, `the status sheet on the ${kind} keyboard`)
         await sheet.locator("h2").first().tap()
         await close()
         await expect.poll(async () => (await sheetLayout(sheet)).height, { message: `the status sheet's height after the ${kind} keyboard` }).toBe(rest.height)

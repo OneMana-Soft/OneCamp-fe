@@ -7,7 +7,7 @@ afterEach(() => {
 })
 
 const post = vi.fn(() => Promise.resolve({ data: {} }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...(a as [])) }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...(a as [])) } }))
 vi.mock("@/hooks/useTaskUpdate", () => ({ useTaskUpdate: () => ({ optimisticUpdateTasks: () => {} }) }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: () => Promise.resolve() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: () => {} }) }))

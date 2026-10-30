@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync, existsSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * Chat's motion (design v3 chat, §1.3 and §4.3). Every chat keyframe moves by
@@ -10,7 +11,7 @@ import { describe, expect, it } from "vitest"
  * a reduced-motion pair (a short fade).
  */
 const CSS = readFileSync(join(__dirname, "globals.css"), "utf8")
-const CHAT_KEYFRAMES = ["msg-in", "msg-in-own", "row-out", "pill-in", "react-pop", "react-out", "count-in", "count-out", "panel-in", "pop-in", "toolbar-in", "glow-settle", "typing-bob", "orbit-in", "orbit-in-counter", "twinkle", "live-halo", "nudge", "line-draw", "indeterminate", "clock-hand", "empty-out", "fade-in"]
+const CHAT_KEYFRAMES = ["msg-in", "msg-in-own", "row-out", "pill-in", "react-pop", "react-out", "count-in", "count-out", "panel-in", "pop-in", "glow-settle", "typing-bob", "orbit-in", "orbit-in-counter", "twinkle", "live-halo", "nudge", "line-draw", "indeterminate", "clock-hand", "empty-out", "fade-in"]
 const COMPOSITED = new Set(["transform", "opacity", "scale", "translate", "rotate"])
 
 function keyframe(name: string): string {
@@ -25,15 +26,6 @@ function keyframe(name: string): string {
 }
 
 const CHAT_DIRS = ["components/message", "components/rightPanel", "components/textInput", "components/typingIndicator", "components/MessageDesktopHover", "components/channel", "components/chat", "components/groupChat", "components/reactionPicker", "components/messages"]
-function files(dir: string, out: string[] = []): string[] {
-  if (!existsSync(dir)) return out
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name)
-    if (e.isDirectory()) files(p, out)
-    else if (/\.tsx?$/.test(e.name) && !/\.test\./.test(e.name)) out.push(p)
-  }
-  return out
-}
 
 describe("chat motion", () => {
   it.each(CHAT_KEYFRAMES)("%s moves by transform and opacity only", (name) => {
@@ -41,6 +33,14 @@ describe("chat motion", () => {
     const props = [...body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1])
     expect(props.length).toBeGreaterThan(0)
     for (const p of props) expect(COMPOSITED, `${name}: ${p}`).toContain(p)
+  })
+
+  it("fades the hover toolbar in, so More is where it rests from its first frame", () => {
+    // A click target never moves under the pointer. The toolbar entered by 2px and .98 for
+    // 120 ms, and a click checked inside that window met a moving More (CALLS-LEAD-23, 27 Oct).
+    expect(CSS).toMatch(/--animate-toolbar-in: fade-in 120ms /)
+    const body = keyframe("fade-in").replace(/\/\*[\s\S]*?\*\//g, "")
+    expect([...body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1])).toEqual(["opacity", "opacity"])
   })
 
   it("times the tokens as the spec says", () => {
@@ -64,7 +64,7 @@ describe("chat motion", () => {
 
   it("keeps bounce, ping and pulse out of a conversation unless motion-safe", () => {
     const wrong: string[] = []
-    for (const f of CHAT_DIRS.flatMap((d) => files(d))) {
+    for (const f of sourceFiles(CHAT_DIRS, /\.tsx?$/)) {
       const src = readFileSync(f, "utf8")
       for (const m of src.matchAll(/(\S*)animate-(bounce|ping|pulse)\b/g)) if (!m[1].endsWith("motion-safe:")) wrong.push(`${f}: ${m[0]}`)
     }

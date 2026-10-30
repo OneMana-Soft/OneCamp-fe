@@ -11,13 +11,15 @@
 
 import * as React from "react"
 import "@/components/table/table.css"
-import { TableField, TableRow, RelationRef, isHiddenRef, isNumeric, optionsOf, parseRowValues, computedOf } from "@/services/tableService"
+import { TableField, TableRow, RelationRef, isHiddenRef, alignsRight, optionsOf, parseRowValues, computedOf } from "@/services/tableService"
 import { Check, Lock } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
 import { OptionChip, tintedFields } from "@/components/table/optionChip"
-import { dayOf } from "@/components/table/gridCells"
+import { PeopleFaces, Stars } from "@/components/table/kindViews"
+import { durationFormat, durationText, idText, momentText, momentTitle, ratingMax, statusGroupOf, telHref } from "@/lib/fieldTypes/kindsMore"
 import { fieldKind } from "@/lib/fieldTypes/registry"
-import { formatNumber, hiddenText, numberFormatOf, safeHref, shortDay, urlHost } from "@/lib/tables/cellFormat"
+import { dayOf, formatNumber, hiddenText, numberFormatOf, safeHref, urlHost } from "@/lib/tables/cellFormat"
+import { shortDate } from "@/lib/utils/date/shortDate"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -38,14 +40,14 @@ function CellValue({ field, value, tinted }: { field: TableField; value: unknown
     case "formula":
     case "rollup": {
       const result = computedOf(field).result
-      const shown = showFormulaValue(value, result)
+      const shown = showFormulaValue(value, result, numberFormatOf(field))
       if (shown.kind === "error")
         return (
           <span className="text-meta font-medium text-danger-ink" title={shown.message}>
             #ERROR
           </span>
         )
-      return <span className="text-ink-2">{formulaText(value, result)}</span>
+      return <span className="text-ink-2">{formulaText(value, result, numberFormatOf(field))}</span>
     }
 
     case "checkbox":
@@ -64,18 +66,56 @@ function CellValue({ field, value, tinted }: { field: TableField; value: unknown
     }
 
     case "select":
-    case "multi_select": {
+    case "multi_select":
+    case "status": {
       const opts = optionsOf(field)
       const arr = Array.isArray(value) ? value : [value]
+      // A status is its lozenge, tinted, with its group's glyph (STEP5 spec E).
+      const status = field.type === "status"
       return (
         <span className="flex flex-wrap gap-1">
           {arr.map((v, i) => {
             const label = String(v)
-            return <OptionChip key={i} label={label} color={opts.find((o) => o.label === label)?.color} tinted={tinted} />
+            const o = opts.find((x) => x.label === label)
+            return <OptionChip key={i} label={label} color={o?.color} tinted={tinted || status} group={status ? (o ? statusGroupOf(o) : "todo") : undefined} />
           })}
         </span>
       )
     }
+
+    // Tables B1's kinds, read only, as a member's grid draws them.
+    case "people":
+    case "created_by":
+    case "modified_by":
+      return <PeopleFaces refs={Array.isArray(value) ? (value as RelationRef[]) : []} readOnly />
+
+    case "rating":
+      return typeof value === "number" ? <Stars value={Math.min(Math.round(value), ratingMax(field))} max={ratingMax(field)} label={field.name} /> : <span>{String(value)}</span>
+
+    case "duration":
+      return <span className="tabular-nums">{typeof value === "number" ? durationText(value, durationFormat(field)) : String(value)}</span>
+
+    case "phone": {
+      const tel = telHref(String(value))
+      return tel ? (
+        <a href={tel} className="tabular-nums text-ink hover:underline">
+          {String(value)}
+        </a>
+      ) : (
+        <span className="tabular-nums">{String(value)}</span>
+      )
+    }
+
+    case "autonumber":
+      return <span className="text-meta font-[510] tabular-nums text-ink-3">{idText(field, value)}</span>
+
+    case "created_time":
+    case "modified_time":
+      return (
+        <span className="text-meta tabular-nums text-ink-3" title={momentTitle(value) || undefined}>
+          {momentText(value)}
+        </span>
+      )
 
     case "relation": {
       // By name; what the guest can't see as one chip, never by its id.
@@ -102,7 +142,7 @@ function CellValue({ field, value, tinted }: { field: TableField; value: unknown
 
     case "date": {
       const d = dayOf(value)
-      return <span>{d ? shortDay(d) : String(value)}</span>
+      return <span>{d ? shortDate(d) : String(value)}</span>
     }
 
     case "url": {
@@ -165,11 +205,11 @@ export function GuestTableViewer({ fields, rows, total }: GuestTableViewerProps)
                   data-frozen={i === 0 || undefined}
                   className={cn(
                     "h-9 whitespace-nowrap px-3 text-ui-sm font-medium text-ink-2",
-                    isNumeric(f) ? "text-right" : "text-left",
+                    alignsRight(f) ? "text-right" : "text-left",
                     i === 0 && "!left-0 pl-5 sm:pl-8",
                   )}
                 >
-                  <span className={cn("inline-flex items-center gap-1.5", isNumeric(f) && "flex-row-reverse")}>
+                  <span className={cn("inline-flex items-center gap-1.5", alignsRight(f) && "flex-row-reverse")}>
                     <G className="size-3.5 text-ink-3" aria-hidden />
                     {f.name}
                   </span>
@@ -196,7 +236,7 @@ export function GuestTableViewer({ fields, rows, total }: GuestTableViewerProps)
                       data-frozen={i === 0 || undefined}
                       className={cn(
                         "h-10 px-3 py-2 align-middle text-ink",
-                        isNumeric(f) && "text-right tabular-nums",
+                        alignsRight(f) && "text-right tabular-nums",
                         i === 0 && "!left-0 pl-5 font-medium sm:pl-8 max-sm:max-w-[140px] max-sm:truncate",
                       )}
                     >

@@ -3,7 +3,7 @@ import { act, cleanup, render, renderHook } from "@testing-library/react"
 import * as Y from "yjs"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 
-import { holdsMine, parsePersisted, useSaveProgress, useSlowSave, type SaveProgress } from "@/components/docEditor/docSaveState"
+import { docSaveState, holdsMine, parsePersisted, useSaveProgress, useSlowSave, type SaveProgress } from "@/components/docEditor/docSaveState"
 import { saveDotCopy } from "@/components/docEditor/SaveDot"
 import { pinTestClock } from "@/lib/testing/testClock"
 
@@ -177,12 +177,23 @@ describe("useSlowSave", () => {
 })
 
 describe("the save dot's words", () => {
-  it("says when the doc was stored, and how many changes wait offline", () => {
+  // Offline, no count: what waits is a count of keystrokes, which tells a reader nothing (V-21, design review).
+  it("says when the doc was stored, and that changes made offline are kept", () => {
     const at = new Date("2026-10-12T09:41:07")
     expect(saveDotCopy("saved", at, true)).toMatch(/^Saved · /)
     expect(saveDotCopy("saved", null, true)).toBe("Saved to the live doc")
-    expect(saveDotCopy("offline", null, true, 3)).toBe("Offline. 3 changes waiting to sync")
-    expect(saveDotCopy("offline", null, true, 1)).toBe("Offline. 1 change waiting to sync")
-    expect(saveDotCopy("offline", null, true, 0)).toBe("Offline. Changes are kept and will sync")
+    expect(saveDotCopy("saved", null, true, "board")).toBe("Saved to the live board")
+    expect(saveDotCopy("offline", null, true)).toBe("Offline. Changes are kept and will sync")
+    expect(saveDotCopy("offline", null, true, "board")).toBe("Offline. Changes are kept and will sync")
+  })
+
+  // The device online and only the live connection down: the dot says what the
+  // connection pill says, "Reconnecting", not "Offline" (V-21).
+  it("says reconnecting while only the live connection is down", () => {
+    expect(saveDotCopy("reconnecting", null, true)).toBe("Reconnecting. Changes are kept and will sync")
+    const live = { live: true, synced: false, everSynced: true }
+    expect(docSaveState({ ...live, collabStatus: "disconnected" })).toBe("reconnecting")
+    expect(docSaveState({ ...live, collabStatus: "offline" })).toBe("offline")
+    expect(docSaveState({ live: true, collabStatus: "disconnected", synced: false, everSynced: false })).toBe("connecting")
   })
 })

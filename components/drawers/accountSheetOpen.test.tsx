@@ -35,7 +35,7 @@ vi.mock("@/components/activeTheme/activeTheme", () => ({ useThemeConfig: () => (
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light", setTheme: () => {} }) }))
 vi.mock("@/components/invite/MemberInviteDialog", () => ({ MemberInviteDialog: () => null }))
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil: null, focusUntil: null }) }))
-vi.mock("@/hooks/useStartFocus", () => ({ useStartFocus: () => ({ startFocus: async () => true, starting: false }) }))
+vi.mock("@/hooks/useFocusTime", () => ({ useFocusTime: () => ({ start: async () => true, end: async () => true, busy: false }) }))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 // The shell's UI state, a store as react-redux reads one: the Home bar's avatar opens the account sheet in it.
 const shell = vi.hoisted(() => {

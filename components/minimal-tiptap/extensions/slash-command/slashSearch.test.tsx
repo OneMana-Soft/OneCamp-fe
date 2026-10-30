@@ -6,7 +6,8 @@ import StarterKit from "@tiptap/starter-kit"
 import { Mention } from "@tiptap/extension-mention"
 
 import { SlashCommand } from "./slashCommandExtension"
-import { CHAT_COMMANDS, setBackendCommandProvider, slashCommandSuggestion, type BackendCommandEntry } from "./slashCommand"
+import { CHAT_COMMANDS, slashCommandSuggestion } from "./slashCommand"
+import { setBackendCommandProvider, type BackendCommandEntry } from "@/components/command/commandItems"
 import "@/components/docEditor/registry"
 import { slashItemsFor } from "@/components/docEditor/registry/readers"
 
@@ -31,7 +32,7 @@ const users = [
   { user_uuid: "u-sam", uid: "0x1", user_full_name: "Sam Rivera", user_name: "sam", is_bot: false },
   { user_uuid: "u-maya", uid: "0x2", user_full_name: "Maya Chen", user_name: "maya", is_bot: false },
 ]
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: vi.fn(async () => ({ status: 200, data: { users } })), post: vi.fn(async () => ({ data: {} })) },
 }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))

@@ -6,6 +6,8 @@ import { join } from "node:path"
 import type { SearchResult } from "@/services/searchService"
 import { hueFor } from "@/lib/campHue"
 import { personHue } from "@/lib/utils/getAvatarColor"
+import { eventWhen } from "@/lib/search/eventWhen"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
 
@@ -26,6 +28,8 @@ const HITS: Record<string, SearchResult> = {
 }
 
 afterEach(cleanup)
+// The event hits below write dates (app/testClock.test.ts).
+pinTestClock()
 
 const lead = (r: SearchResult) => {
   const { container } = render(<ul><SearchResultRow result={r} onOpen={() => {}} href="/x" /></ul>)
@@ -68,6 +72,34 @@ describe("a search result's anatomy", () => {
     cleanup()
     // A message's row, in its author's.
     expect(lead(HITS.post).closest("[data-hub-row]")?.getAttribute("data-hue")).toBe(personHue("Sam Rivera"))
+  })
+
+  // gcal-13: an event leads with the calendar glyph in ink-3, as a board
+  // does, and its row keeps the accent. Its line says it repeats, when (in
+  // the reader's own time, the app's one way) and where; a match in its notes
+  // is the passage; and it has no "made" date: its own time is its line.
+  it("leads an event with the calendar glyph, says when and where, and shows the notes it matched in", () => {
+    const start = Date.UTC(2026, 9, 29, 9, 0) / 1000
+    const event: SearchResult = {
+      type: "event",
+      event: { event_uuid: "e7", event_title: "Design review", event_location: "Room 4", event_repeats: true, event_start: start, event_end: start + 1800, event_calendar_id: "c1", created_date: 1791614952 },
+      highlight: { event_notes: ["Bring the <mark>launch</mark> mocks"] },
+    }
+    const glyph = lead(event)
+    expect(glyph.getAttribute("data-search-lead")).toBe("event")
+    expect(glyph.className).toContain("text-ink-3")
+    expect(glyph.querySelector("svg")?.getAttribute("class")).toMatch(/lucide-calendar-days/)
+    expect(glyph.closest("[data-hub-row]")?.hasAttribute("data-hue")).toBe(false)
+    cleanup()
+    const { container } = render(<ul><SearchResultRow result={event} onOpen={() => {}} href="/app/calendar/event/e7" /></ul>)
+    expect(container.textContent).toContain(`Repeating event · ${eventWhen(event.event)} · Room 4`)
+    expect(container.querySelector("[data-search-snippet] mark")?.textContent).toBe("launch")
+    expect(container.querySelector(".hub-row-meta")).toBeNull()
+    cleanup()
+    // A single all-day event, with no place: "Event" and its day alone.
+    const { container: allDay } = render(<ul><SearchResultRow result={{ type: "event", event: { event_uuid: "e8", event_title: "Offsite", event_start_date: "2026-10-30", event_end_date: "2026-10-31", event_repeats: false } }} onOpen={() => {}} /></ul>)
+    expect(allDay.textContent).toContain("Event · Fri 30 Oct")
+    expect(allDay.textContent).not.toContain("Fri 30 Oct ·")
   })
 
   it("says where a message is and who wrote it", () => {

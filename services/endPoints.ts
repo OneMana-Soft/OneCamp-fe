@@ -1,5 +1,5 @@
 /**
- * Centralised endpoint URL enums.
+ * Shared endpoint URL enums.
  *
  * IMPORTANT: many entries intentionally share the same string value
  * because they are URL *prefixes* that callers extend with a path
@@ -20,6 +20,7 @@ export enum GetEndpointUrl {
     AdminRetention = "/admin/retention",
     AdminPush = "/admin/push",
     SelfProfile = "/user/profile",
+    ApprovalsWaiting = "/approvals/waiting",
     SelfProfileSideNav = "/user/sidebarNav",
     UserListNotBelongToChannel = "user/usersListNotBelongToChannelId",
     ChannelBasicInfo = "/ch/channelBasicInfo",
@@ -123,7 +124,6 @@ export enum PostEndpointUrl {
     UpdateDoc = "/doc/updateDoc",
     CreateBoard = "/board/createBoard",
     DeleteBoard = "/board/deleteBoard",
-    GenerateBoardDiagram = "/board/aiGenerate",
     UpdateBoardPermissions = "/board/updateBoardPermissions",
     JoinChannel = "/ch/joinChannel",
     UpdateChannel = "/ch/updateInfo",
@@ -215,6 +215,7 @@ export enum PostEndpointUrl {
     UpdateTaskDesc = "/task/updateTaskDesc",
     UpdateTaskStartDate = "/task/updateTaskStartDate",
     UpdateTaskDueDate = "/task/updateTaskDueDate",
+    UpdateTaskEstimate = "/task/updateTaskEstimate",
     UpdateTaskAssignee = "/task/updateTaskAssignee",
     UnArchiveTask = "/task/undeleteTask",
     ArchiveTask = "/task/deleteTask",
@@ -240,7 +241,7 @@ export enum PostEndpointUrl {
 
     GoogleCalendarUnlink = "/integration/google-calendar/unlink",
     CreateCalendarEvent = "/event/createEvent",
-    UpdateCalendarEvent = "/event/updateEvent",
+    EndFocus = "/event/endFocus",
 
     PauseNotifications = "/user/notificationPause",
     NotifyAnyway = "/user/notifyAnyway",
@@ -282,8 +283,4 @@ export enum PostEndpointUrl {
     RunArchiveJob = "/admin/archive/run", // append /{entityType}
     RestoreArchiveItems = "/admin/archive/restore",
     UndoArchiveJob = "/admin/archive/undo", // append /{jobId}
-
 }
-
-// Docs programme: a package's base path, one line per package at its merge
-// (PROGRAM.md §3.6).

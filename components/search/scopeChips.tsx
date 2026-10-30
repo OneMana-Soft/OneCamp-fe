@@ -2,9 +2,10 @@
 
 /**
  * The search page's scope chips (hub.md S8): All, then each type that has
- * results, each with its count. The selected chip is one raised knob that
- * slides between them; ⌥1–9 picks a chip from the keyboard. On a phone they
- * are one scrolling row with an edge fade.
+ * results, each with its count: the server's honest count (D-23), so never
+ * "12+". The selected chip is one raised knob that slides between them; ⌥1–9
+ * picks a chip from the keyboard. On a phone they are one scrolling row with
+ * an edge fade.
  */
 import { useEffect, useRef } from "react"
 
@@ -15,14 +16,11 @@ import type { SearchScope } from "@/lib/search/scopes"
 export function ScopeChips({
   scopes,
   counts,
-  more = false,
   value,
   onChange,
 }: {
   scopes: { id: SearchScope; label: string }[]
   counts: Record<SearchScope, number>
-  /** The search has more than the results counted: each count reads "12+". */
-  more?: boolean
   value: SearchScope
   onChange: (scope: SearchScope) => void
 }) {
@@ -66,10 +64,7 @@ export function ScopeChips({
               )}
             >
               {s.label}
-              <span className="font-book text-ink-3 tabular-nums">
-                {counts[s.id]}
-                {more ? "+" : ""}
-              </span>
+              <span className="font-book text-ink-3 tabular-nums">{counts[s.id].toLocaleString("en-GB")}</span>
             </button>
           )
         })}

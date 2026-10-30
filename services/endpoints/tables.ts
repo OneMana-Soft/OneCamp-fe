@@ -9,10 +9,12 @@
 export enum TablesGet {
     GetTableRows = "/tables", // append /{id}/rows
     GetTableFields = "/tables", // append /{id}/fields
+    GetTableAIFills = "/tables", // append /{id}/ai-fills
     PickTableRows = "/tables", // append /{id}/rows/pick?q=
     GetTableRowHistory = "/tables", // append /{id}/rows/{rowId}/history?before=
     GetTableTrash = "/tables", // append /{id}/trash?before=
     GetTablesTrash = "/tables/trash",
+    GetTableFile = "/tables", // append /{id}/files/{fileId}: the file's address
 }
 
 export enum TablesPost {
@@ -25,7 +27,6 @@ export enum TablesPost {
     PatchTableRow = "/tables", // append /{id}/rows/{rowId}/patch (only the cells sent)
     ChangeTableLinks = "/tables", // append /{id}/rows/{rowId}/links
     PreviewTableFormula = "/tables", // append /{id}/formula/preview
-    DeleteTableRow = "/tables", // append /{id}/rows/{rowId}/delete
     BatchTableRows = "/tables", // append /{id}/rows/batch (up to 1,000 rows, one change set)
     MoveTableRows = "/tables", // append /{id}/rows/move
     UndoTableChange = "/tables", // append /{id}/undo
@@ -33,8 +34,13 @@ export enum TablesPost {
     RestoreTableTrash = "/tables", // append /{id}/trash/restore
     RestoreTable = "/tables", // append /{id}/restore
     AggregateTable = "/tables", // append /{id}/aggregate (read-only)
+    QueryTableRows = "/tables", // append /{id}/query (read-only: a window of a view's rows, in its order)
+    ExportTable = "/tables", // append /{id}/export (read-only: a view as an Excel workbook)
+    SetTablePresence = "/tables", // append /{id}/presence (who is on it, and where)
     CreateTableField = "/tables", // append /{id}/fields
     UpdateTableField = "/tables", // append /{id}/fields/{fieldId}/update
     DeleteTableField = "/tables", // append /{id}/fields/{fieldId}/delete
     FillTableAIColumn = "/tables", // append /{id}/fields/{fieldId}/ai-fill
+    StopTableAIFill = "/tables", // append /{id}/fields/{fieldId}/ai-fill/stop
+    TableViews = "/tables", // append /{id}/views, or /{id}/views/{viewId}/update, /delete or /lock
 }

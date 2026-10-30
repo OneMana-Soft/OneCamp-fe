@@ -3,22 +3,21 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useState, type ReactNode } from "react"
-import { GoalDialog } from "@/components/goals/GoalDialog"
+import dynamic from "next/dynamic"
 import { GoalOwner } from "@/components/goals/GoalOwner"
 import { GoalProgress, GoalRing, PaceWords } from "@/components/goals/GoalProgress"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotSearch, SpotTasks } from "@/components/ui/graphics/spots"
 import { HealthWord } from "@/components/projectUpdates/HealthPill"
-import { WorkState, workToolbar } from "@/components/task/workFrame"
+import { WorkRowsLoading, WorkState, workToolbar } from "@/components/task/workFrame"
 import { WorkSearch } from "@/components/task/WorkTabs"
 import { Button } from "@/components/ui/button"
 import { Chip } from "@/components/ui/chip"
 import { ErrorState } from "@/components/ui/error-state"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Skeleton } from "@/components/ui/skeleton"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useGoals } from "@/hooks/useGoals"
-import { useStoredState } from "@/hooks/useStoredState"
+import { isBoolean, useStoredState } from "@/hooks/useStoredState"
 import { ChevronDown, Filter, Plus } from "@/lib/icons"
 import { checkInDue, dueLabel, filterGoals, goalTree, measureLine, overdue, type GoalSummary } from "@/lib/goals"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -28,6 +27,9 @@ import type { UserProfileInterface } from "@/types/user"
 import { ix } from "@/lib/ui/interactive"
 import { MenuCheck } from "@/components/ui/menuCheck"
 import { areaHue } from "@/lib/areas"
+
+// The goal form is a chunk of its own: it loads as it opens, never with the page.
+const GoalDialog = dynamic(() => import("@/components/goals/GoalDialog").then((m) => m.GoalDialog), { loading: () => null })
 
 /** The goals table's columns (work.md W42): ring, title and line, owner, pace, health. */
 const GOAL_COLUMNS = "grid grid-cols-[28px_minmax(0,1fr)_150px_230px_130px] items-center gap-x-3 pr-6"
@@ -78,7 +80,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const me = self.data?.data?.user_uuid
   const [status, setStatus] = useStoredState<"open" | "closed">("oc_goals_status", "open", isStatus)
-  const [mine, setMine] = useStoredState<boolean>("oc_goals_mine", false, (v): v is boolean => typeof v === "boolean")
+  const [mine, setMine] = useStoredState<boolean>("oc_goals_mine", false, isBoolean)
   const [query, setQuery] = useState("")
   const [creating, setCreating] = useState(false)
   const [folded, setFolded] = useState<Set<string>>(() => new Set())
@@ -104,18 +106,8 @@ export function GoalsView({ compact }: { compact: boolean }) {
         <ErrorState subject="the goals" onRetry={() => void refresh()} />
       </WorkState>
     )
-  } else if (isLoading && !goals) {
-    body = (
-      <div aria-busy>
-        {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className="flex h-14 items-center gap-3 border-b border-line px-6">
-            <Skeleton className="size-7 rounded-full" />
-            <Skeleton className="h-3.5 w-1/3" />
-            <Skeleton className="ml-auto h-1.5 w-40" />
-          </div>
-        ))}
-      </div>
-    )
+  } else if (isLoading && goals === undefined) {
+    body = <WorkRowsLoading kind="goals" compact={compact} />
   } else if (all.length === 0) {
     body = (
       <WorkState>
@@ -138,7 +130,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
         {shown.map(({ goal, depth }) => (
           <li key={goal.id} className="border-b border-line">
             {/* A goal on a phone (W42): 64 px, the ring at 32 and the title and health on line 1. */}
-            <Link href={href(goal)} {...ix("row")} className="flex h-16 items-center gap-3" style={{ paddingLeft: depth * 16 }}>
+            <Link href={href(goal)} data-goal-row="" {...ix("row")} className="flex h-16 items-center gap-3" style={{ paddingLeft: depth * 16 }}>
               <GoalRing goal={goal} size={32} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-3">

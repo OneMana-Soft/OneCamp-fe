@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { ActivityCard } from "@/components/activity/activityCard"
 import { ActivityFeedFrame } from "@/components/activity/activityFeedFrame"
@@ -107,7 +108,7 @@ export function ActivityFeedList({
     pane?: InboxPane
 }) {
     const searchParams = useSearchParams()
-    const router = useRouter()
+    const router = useAppRouter()
     const pathname = usePathname()
     // This edition has no AI, so the filters never offer agents.
     const aiAvailable = false

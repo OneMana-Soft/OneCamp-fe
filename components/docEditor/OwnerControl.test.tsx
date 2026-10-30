@@ -31,7 +31,7 @@ describe("handing a doc on (A5 §4)", () => {
     render(<OwnerControl docId="o1" onClose={close} />)
     expect(screen.getByText("Recovered by a workspace admin")).toBeTruthy()
     expect(screen.getByText(/Left the company/)).toBeTruthy()
-    fireEvent.change(screen.getByRole("textbox", { name: "Search people" }), { target: { value: "as" } })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search people" }), { target: { value: "as" } })
     // The owner isn't offered to themselves.
     const asha = await screen.findByRole("button", { name: /Asha Rao/ }, { timeout: 2000 })
     expect(screen.queryByRole("button", { name: /^Me$/ })).toBeNull()

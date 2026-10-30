@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 import { describe, expect, it } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * Design v3, admin §1.3 and §1.5: the admin and settings area is cards at e1,
@@ -18,20 +19,11 @@ import { describe, expect, it } from "vitest"
  */
 const ROOT = process.cwd()
 
-function files(dir: string, out: string[] = []): string[] {
-  for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
-    const p = join(dir, e.name)
-    if (e.isDirectory()) files(p, out)
-    else if (e.name.endsWith(".tsx") && !/\.test\.tsx$/.test(e.name)) out.push(p)
-  }
-  return out
-}
-
 const count = (dirs: string[], re: RegExp) => {
   const per: Record<string, number> = {}
   let total = 0
   for (const d of dirs)
-    for (const f of files(d)) {
+    for (const f of sourceFiles([d], /\.tsx$/)) {
       const n = (readFileSync(join(ROOT, f), "utf8").match(re) || []).length
       if (n) per[relative(ROOT, join(ROOT, f))] = n
       total += n

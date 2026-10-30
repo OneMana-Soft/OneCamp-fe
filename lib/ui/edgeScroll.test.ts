@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { EDGE_SCROLL, edgeScroller, edgeSpeed, scrollersAt } from "./edgeScroll"
+import { EDGE_SCROLL, HIT_KEEP_MS, edgeScroller, edgeSpeed, scrollersAt } from "./edgeScroll"
 
 // INTERACTION_SPEC.md §2.5: a 48px edge under a pointer, 64px under a finger,
 // 0 to 18px a frame, both axes, the innermost scroller first.
@@ -107,6 +107,53 @@ describe("edgeScroller", () => {
     run()
     expect(el.scrollTop).toBe(0)
     s.stop()
+  })
+
+  // A long list's drag (L-1): the hit test and the ancestors' styles took 3 to
+  // 8 ms of every frame. The scrollers found stay while the pointer is inside
+  // the innermost, until one scrolls, for HIT_KEEP_MS at most.
+  it("finds the scrollers under the pointer once while it moves inside the innermost", () => {
+    const el = scroller(1000)
+    el.style.overflowY = "auto"
+    Object.defineProperty(el, "scrollHeight", { value: 1300 })
+    Object.defineProperty(el, "clientHeight", { value: 300 })
+    const hits = vi.fn(() => [el, document.body, document.documentElement])
+    document.elementsFromPoint = hits
+    // The clock the scrollers' age is read by, moved by hand.
+    let now = 1000
+    vi.spyOn(performance, "now").mockImplementation(() => now)
+    const s = edgeScroller()
+    for (const y of [200, 210, 220, 230]) {
+      s.follow(300, y)
+      run()
+      now += 30
+    }
+    expect(hits).toHaveBeenCalledTimes(1)
+    expect(el.scrollTop).toBe(0)
+    // Kept for HIT_KEEP_MS at most: a nested scroller it entered is found then.
+    now += HIT_KEEP_MS
+    s.follow(300, 240)
+    run()
+    expect(hits).toHaveBeenCalledTimes(2)
+    hits.mockClear()
+    // At its edge, still inside: it scrolls with what it found, and, as it
+    // scrolled, looks again on the next step.
+    s.follow(300, 399)
+    run()
+    expect(hits).toHaveBeenCalledTimes(0)
+    expect(el.scrollTop).toBe(18)
+    run()
+    expect(hits).toHaveBeenCalledTimes(1)
+    expect(el.scrollTop).toBe(36)
+    s.stop()
+    // Out of the innermost, it looks again.
+    s.follow(300, 200)
+    run()
+    s.follow(50, 200)
+    run()
+    expect(hits).toHaveBeenCalledTimes(3)
+    s.stop()
+    vi.restoreAllMocks()
   })
 
   it("scrolls nothing when there is no scroller", () => {

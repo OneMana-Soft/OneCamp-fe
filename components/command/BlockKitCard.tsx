@@ -90,12 +90,17 @@ const BlockKitCard: React.FC<BlockKitCardProps> = ({ blocks, onAction, busyActio
                         return <hr key={i} className="border-border/60" />
                     case "image":
                         return (
-                            <div key={i} className="overflow-hidden rounded-lg bg-muted/40">
+                            // At its own size, never wider than the card: a GIF
+                            // stretched to the card's width sat letterboxed in a
+                            // 685px well at 1280. At most 200px tall on a phone,
+                            // so the card, the box and some of the conversation
+                            // fit above the keyboard.
+                            <div key={i} className="w-fit max-w-full overflow-hidden rounded-lg bg-muted/40">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={block.image_url}
                                     alt={block.alt_text || "image"}
-                                    className="w-full max-h-80 object-contain transition-opacity duration-150"
+                                    className="block h-auto max-h-[200px] w-auto max-w-full transition-opacity duration-150 md:max-h-80 md:max-w-[400px]"
                                     loading="eager"
                                 />
                             </div>

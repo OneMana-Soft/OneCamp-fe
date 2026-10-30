@@ -14,6 +14,7 @@ import { SHIPPED } from '@/lib/codec/schema'
 import { entityHref, keptTableNode } from '@/lib/codec/markdown'
 import { readTable } from '@/lib/codec/markdownParse'
 import { isSafeHref } from '@/lib/utils/safeHref'
+import { fetchFile } from '@/lib/http/fetchFile'
 
 type Docx = typeof import('docx')
 type Block = InstanceType<Docx['Paragraph']> | InstanceType<Docx['Table']>
@@ -348,22 +349,11 @@ class WordWriter {
   }
 }
 
-const backendOrigin = () => {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_BACKEND_URL || '').origin
-  } catch {
-    return ''
-  }
-}
-
 /** A picture for the file: as it is when Word takes it, drawn again as PNG when not (WebP, SVG). */
 async function fetchImage(src: string): Promise<LoadedImage | null> {
   if (!/^https?:\/\//i.test(src) && !src.startsWith('/')) return null
-  const url = new URL(src, window.location.href)
-  const ours = url.origin === backendOrigin() || url.origin === window.location.origin
-  const res = await fetch(url.href, { credentials: ours ? 'include' : 'omit' })
-  if (!res.ok) return null
-  const blob = await res.blob()
+  const blob = await fetchFile(new URL(src, window.location.href).href)
+  if (!blob) return null
   const kind = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/bmp': 'bmp' } as const)[blob.type as 'image/png']
   const object = URL.createObjectURL(blob)
   try {

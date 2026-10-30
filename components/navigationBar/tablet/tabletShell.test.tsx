@@ -214,8 +214,11 @@ describe("the shell under a finger", () => {
   it("opens the right panel over the page on a tablet and under 1100px, on a scrim that closes it", () => {
     const layout = readFileSync(join(root, "app/app/LayoutContent.tsx"), "utf8")
     const overlay = layout.slice(layout.indexOf("const panelOverlay = "), layout.indexOf("const viewProps = "))
-    // The shared sheet over the page, its scrim closing it (components/ui/overlaySheet).
-    expect(overlay).toMatch(/<OverlaySheet[\s\S]*?onClose=\{\(\) => dispatch\(closeRightPanel\(\)\)\}/)
+    // The right panel's ONE sheet over the page (components/rightPanel/RightPanelSheet): the shared
+    // OverlaySheet (components/ui/overlaySheet), its scrim closing the panel.
+    const sheet = readFileSync(join(root, "components/rightPanel/RightPanelSheet.tsx"), "utf8")
+    expect(overlay).toMatch(/<RightPanelSheet[^>]*shape="shell-panel-sheet shell-panel-over"[^>]*\bover>/)
+    expect(sheet).toMatch(/<OverlaySheet[\s\S]*?onClose=\{\(\) => dispatch\(closeRightPanel\(\)\)\}/)
     expect(overlay).toMatch(/shell-panel-over/)
     // A tablet draws it over the page, never as a column: its placement is
     // always "over" (lib/ui/shellBand), and the column only comes beside.

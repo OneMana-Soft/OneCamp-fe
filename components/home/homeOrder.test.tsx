@@ -86,6 +86,50 @@ describe("the lazy sections", () => {
   })
 })
 
+describe("the greeting's line", () => {
+  // It counted the list's source, not what the list had resolved: "1 overdue"
+  // stayed after the overdue task was done (DESIGN-BUILD-3). Then it counted
+  // from reads of its own, over the list's loading rows, without the AI's rows
+  // (21 Oct 2026): it says what the list shows now, on both layouts.
+  it("says what the list shows, from the page's state the list tells, on both layouts", () => {
+    for (const src of [desktop, phone]) {
+      expect(src).toMatch(/const needsGone = useNeedsGoneState\(\)/)
+      expect(src).toMatch(/glanceOf\(needsGone\.shown\)/)
+      expect(src).toMatch(/<NeedsGoneContext\.Provider value=\{needsGone\}>/)
+      expect(src).not.toMatch(/useHomeNeeds|pendingAction/)
+    }
+  })
+
+  // The phone greeted by the sidenav's self, which /user/sidebarNav fills
+  // without user_full_name: "Good evening" on a phone, "Good evening, Sam" on
+  // a computer (DESIGN-BUILD-9, 23 Oct).
+  it("greets by the member's own profile on both layouts", () => {
+    for (const src of [desktop, phone]) {
+      expect(src).toMatch(/homeGreeting\(new Date\(\)\.getHours\(\), selfProfile\.data\?\.data\)/)
+    }
+  })
+
+  // A two-line clamp on the phone cut "Now: Design review, until 9:07 PM" to
+  // "Now: Design…" (DESIGN-BUILD-9, 23 Oct). GlanceLine keeps each fact whole
+  // and lets the meeting's title wrap, so the line reads whole at any width.
+  it("never clamps the line on either layout", () => {
+    for (const src of [desktop, phone]) {
+      expect(src).not.toMatch(/<GlanceLine[^>]*line-clamp/)
+    }
+  })
+})
+
+describe("a row that takes focus itself", () => {
+  // What needs me now moves focus row to row with J and K (design-01): a hub
+  // row with its own tab stop showed its tools on focus but no ring, so the
+  // keyboard's place was a guess. The interaction layer's inset ring, as a row
+  // of that layer has it.
+  it("shows the inset focus ring", () => {
+    const css = read("app/hub.css")
+    expect(css).toMatch(/\[data-hub-row\]\[tabindex\]:not\(\[data-interactive\]\):focus-visible \{\s*outline: var\(--ix-ring\) solid var\(--ring\);\s*outline-offset: calc\(var\(--ix-ring\) \* -1\);/)
+  })
+})
+
 describe("Home's entrance", () => {
   it("rises once per session, on the home route, with transform and opacity only", () => {
     expect(desktop).toMatch(/useRiseOnce\("\/app\/home"\)/)

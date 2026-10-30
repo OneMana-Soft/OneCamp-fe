@@ -5,6 +5,7 @@ import { ReactNodeViewRenderer } from "@tiptap/react"
 import { lazyNodeView } from "../lazyNodeView"
 import { dataAttr } from "../link/dataAttr"
 import { blockLink, idAttr } from "../connected/attrs"
+import { followBlocks } from "./leaving"
 
 const SubpageView = lazyNodeView(() => import("./SubpageView").then((m) => m.SubpageView), 34)
 
@@ -40,5 +41,10 @@ export const Subpage = Node.create({
   addNodeView() {
     // Pages one after another read as one list, 4 px apart, not a block's 12 px (doc.css).
     return ReactNodeViewRenderer(SubpageView, { className: "[.node-subpage+&]:mt-0!" })
+  },
+
+  // A child page whose last block the person deletes goes to the trash, with Undo (docs C7a).
+  onTransaction({ transaction }) {
+    followBlocks(this.editor, transaction)
   },
 })

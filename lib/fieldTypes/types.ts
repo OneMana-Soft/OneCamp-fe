@@ -44,4 +44,15 @@ export interface FieldKind {
   parse?: Parser
   /** Whether a new row's cell can start with a value (its default). */
   defaults: boolean
+  /** Its group in the new column menu. */
+  group: FieldKindGroup
+  /** Whether the new column menu offers it: a kind kept only for the columns that have it isn't. */
+  offered: boolean
+  /** Read from the row itself (its id, when it was made or changed, and by whom), which nobody writes. */
+  fromRow?: boolean
+  /** A number of its kind as it reads, in the summary bar (a duration's 1:30), when not as a number. */
+  numberText?: (n: number, field: TableField) => string
 }
+
+/** The new column menu's groups, in order. */
+export type FieldKindGroup = "Basic" | "Advanced" | "About each row"

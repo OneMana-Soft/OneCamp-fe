@@ -82,11 +82,13 @@ function Row({
           )}
           {!failed && (
             <Popover open={pick} onOpenChange={setPick}>
+              {/* Open, it tints in ink beside the popover's orange Schedule. */}
               <PopoverTrigger asChild>
-                <Button size="sm" variant="secondary" className="h-7 gap-1">
+                <Button size="sm" variant="secondary" className="h-7 gap-1" data-tone={pick ? "neutral" : undefined}>
                   <CalendarClock className="h-3.5 w-3.5" /> Reschedule
                 </Button>
               </PopoverTrigger>
+              {/* Held sideways, the custom time ran off the top: the shared PopoverContent keeps it to the room, scrolling. */}
               <PopoverContent className="w-64 p-2">
                 <SchedulePicker
                   onPick={async (at) => {

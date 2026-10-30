@@ -27,6 +27,8 @@ export type CalendarCommand =
   | 'week'
   | 'month'
   | 'agenda'
+  | 'custom'
+  | 'year'
   | 'newEvent'
   | 'open'
   | 'duplicate'
@@ -54,6 +56,8 @@ export const CALENDAR_KEYS: readonly CalendarKeyRow[] = [
   { keys: 'w', alt: ['2'], label: 'Week view', command: 'week' },
   { keys: 'm', alt: ['3'], label: 'Month view', command: 'month' },
   { keys: 'a', alt: ['5'], label: 'Agenda', command: 'agenda' },
+  { keys: 'x', alt: ['4'], label: 'Custom view', command: 'custom' },
+  { keys: 'y', alt: ['6'], label: 'Year view', command: 'year' },
   { keys: 'c', label: 'New event', command: 'newEvent' },
   { keys: 'e', label: 'Open the selected event', command: 'open' },
   { keys: 'Mod-d', label: 'Duplicate the selected event', command: 'duplicate' },

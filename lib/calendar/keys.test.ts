@@ -40,3 +40,17 @@ describe("the calendar's key table", () => {
     expect(rows).toContainEqual({ keys: "Alt + ↑ or Alt + ↓", does: "Move the focused event 15 minutes" })
   })
 })
+
+describe("Google's year view key", () => {
+  it("is Y or 6", () => {
+    expect(calendarKeyRow(press("y"), false)?.command).toBe("year")
+    expect(calendarKeyRow(press("6"), false)?.command).toBe("year")
+  })
+})
+
+describe("Google's custom view key", () => {
+  it("is X or 4", () => {
+    expect(calendarKeyRow(press("x"), false)?.command).toBe("custom")
+    expect(calendarKeyRow(press("4"), false)?.command).toBe("custom")
+  })
+})

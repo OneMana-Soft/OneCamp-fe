@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from 'react'
+import { drawnSelected } from "@/components/minimal-tiptap/utils"
 import { createPortal } from 'react-dom'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
 import type { ElementDimensions } from '../hooks/use-drag-resize'
@@ -292,14 +293,18 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
   const pos = () => (typeof getPos === 'function' ? getPos() : undefined)
   const act = (id: 'crop' | 'alt' | 'link' | 'replace') => runAction(editor, getPos, node.nodeSize, id)
 
+  // A box can hold its pictures shorter than a message shows them
+  // (--editor-image-max-h, set by the phone's box): the picture keeps its
+  // shape, narrower, so the words around it stay in the box's height. Unset,
+  // the picture is as it always was.
   const frame: React.CSSProperties = full
     ? { width: '100%', aspectRatio: hasPixelDims && Number.isFinite(aspectRatio) ? String(aspectRatio) : undefined }
     : {
-        width: hasPixelDims ? `${currentWidth}px` : '100%',
+        width: hasPixelDims ? `min(${currentWidth}px, calc(var(--editor-image-max-h, 99999px) * ${currentWidth / currentHeight}))` : '100%',
         maxWidth: '100%',
         aspectRatio: hasPixelDims ? `${currentWidth} / ${currentHeight}` : undefined,
-        minHeight: hasPixelDims ? undefined : `${UNKNOWN_DIMS_MIN_HEIGHT}px`,
-        maxHeight: cropped ? undefined : `${MAX_HEIGHT}px`,
+        minHeight: hasPixelDims ? undefined : `min(${UNKNOWN_DIMS_MIN_HEIGHT}px, var(--editor-image-max-h, ${UNKNOWN_DIMS_MIN_HEIGHT}px))`,
+        maxHeight: cropped ? undefined : `var(--editor-image-max-h, ${MAX_HEIGHT}px)`,
       }
   // The crop's part, scaled to fill the frame: the picture runs past it on every side.
   const cropStyle: React.CSSProperties | undefined = cropped
@@ -340,7 +345,7 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
       <div className={cn('group/node-image relative', ALIGN[align])} style={full ? undefined : { maxWidth: `min(${maxWidth}px, 100%)`, width: hasPixelDims ? currentWidth : '100%' }}>
         <div
           className={cn('relative overflow-hidden rounded-md', {
-            'outline outline-2 outline-offset-1 outline-brand': selected || isResizing,
+            'outline outline-2 outline-offset-1 outline-brand': drawnSelected(editor, selected) || isResizing,
             'bg-sunken': loading || imageState.error,
           })}
           style={frame}
@@ -435,7 +440,7 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
             label="Picture"
             className={cn(
               'absolute right-2 top-2 opacity-0 transition-opacity duration-[140ms] focus-within:opacity-100 group-hover/node-image:opacity-100 [@media(hover:none)]:opacity-100 max-sm:hidden',
-              selected && 'opacity-100',
+              drawnSelected(editor, selected) && 'opacity-100',
             )}
           >
             {docEditing ? (

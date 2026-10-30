@@ -1,6 +1,7 @@
 "use client"
 
 import type { Editor } from '@tiptap/react'
+import { NodeSelection } from '@tiptap/pm/state'
 import type { UseMinimalTiptapEditorProps } from './hooks/use-minimal-tiptap'
 
 type ShortcutKeyResult = {
@@ -172,3 +173,15 @@ export const filterFiles = <T extends FileInput>(files: T[], options: FileValida
 
   return [validFiles, errors]
 }
+
+/**
+ * Whether a node view draws itself selected: only while its editor edits, and
+ * only when it is the one block selected (a NodeSelection). A read-only editor
+ * (a message, a doc you can only read) that opens on a block, as a GIF sent
+ * from the box does, opens with that block selected, so every GIF someone sent
+ * wore the selection outline (DESIGN-BUILD-10's M3). Blocks chosen as blocks
+ * (Esc, a restored page) wear the block selection's own look, and wore both
+ * (DESIGN-BUILD-13).
+ */
+export const drawnSelected = (editor: Editor, selected: boolean): boolean =>
+  selected && editor.isEditable && editor.state.selection instanceof NodeSelection

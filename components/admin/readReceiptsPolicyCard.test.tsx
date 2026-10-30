@@ -12,9 +12,8 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 const api = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }))
 // The card reads the workspace's settings through the one shared SWR key
 // (useWorkspaceSettings); the request it makes answers from api.get.
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: async () => ({ data: { data: await api.get() } }), post: vi.fn() },
-  OWN_ERRORS: {},
 }))
 vi.mock("@/services/settingsService", async (orig) => ({
   ...(await orig<typeof import("@/services/settingsService")>()),

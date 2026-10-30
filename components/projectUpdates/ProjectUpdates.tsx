@@ -19,6 +19,7 @@ import { UpdateComposer } from "@/components/projectUpdates/UpdateComposer"
 import { ErrorState } from "@/components/ui/error-state"
 import { SpotDocs } from "@/components/ui/graphics/spots"
 import { WorkState, workToolbar } from "@/components/task/workFrame"
+import { MilestonesSection } from "@/components/work/milestones/MilestonesSection"
 import { useProjectHue } from "@/lib/projectHue"
 
 /**
@@ -80,6 +81,7 @@ export function ProjectUpdates({ projectId, projectName }: { projectId: string; 
         )}
       </div>
     <div data-updates="" className="flex w-full max-w-[720px] flex-col gap-4 px-4 pb-10 pt-4">
+      <MilestonesSection projectId={projectId} />
       {canPost && !isError && !isLoading && (
         composer && !composer.editing ? (
           composerFor(undefined, composer.health)

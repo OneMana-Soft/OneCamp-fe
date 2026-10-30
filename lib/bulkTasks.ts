@@ -20,6 +20,10 @@ export type BulkChange =
   | { field: "tags"; tag: string; add: boolean }
   /** A due date as the server keeps it (an ISO time), or "" for none. */
   | { field: "due"; value: string }
+  /** Into a cycle (its id), or "" for the backlog. */
+  | { field: "cycle"; value: string }
+  /** Into one of the project's milestones (its id), or "" for none. */
+  | { field: "milestone"; value: string }
   /** Into the trash, and back out of it (Undo). */
   | { field: "delete" }
   | { field: "restore" }
@@ -62,6 +66,11 @@ export function bulkRequest(t: TaskInfoInterface, change: BulkChange): BulkReque
       if (sameMoment(t.task_due_date, change.value)) return null
       return { endpoint: PostEndpointUrl.UpdateTaskDueDate, payload: { task_due_date: change.value }, patch: { task_due_date: change.value } }
     }
+    // The server answers the ones already there as unchanged.
+    case "cycle":
+      return { endpoint: "/task/cycle", payload: { cycle_id: change.value }, patch: {} }
+    case "milestone":
+      return { endpoint: "/task/milestone", payload: { milestone_id: change.value }, patch: {} }
     case "delete":
       if (isDeleted(t)) return null
       return { endpoint: PostEndpointUrl.ArchiveTask, payload: {}, patch: {}, removes: true }
@@ -70,6 +79,10 @@ export function bulkRequest(t: TaskInfoInterface, change: BulkChange): BulkReque
       return { endpoint: PostEndpointUrl.UnArchiveTask, payload: {}, patch: { task_deleted_at: NO_TIME } }
   }
 }
+
+/** The change as POST /task/bulk names it; null keeps each task's own request (an assignee). */
+export const bulkOp = (c: BulkChange): { op: string; value: string } | null =>
+  c.field === "assignee" ? null : c.field === "tags" ? { op: c.add ? "tag_add" : "tag_remove", value: c.tag } : { op: c.field, value: "value" in c ? c.value : "" }
 
 /** The zero time the server writes for "never" (a live task's deletion time). */
 const NO_TIME = "0001-01-01T00:00:00Z"

@@ -1,26 +1,22 @@
 "use client"
 
 import { useState, useEffect, memo, useCallback } from "react"
-import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { X, ChevronLeft, ChevronRight, Download, Info, Link, RotateCcw, Loader2 } from "@/lib/icons"
-import { File as FileIcon, ZoomIn, ZoomOut } from "@/lib/icons"
+import { X, ChevronLeft, ChevronRight, Download, Info, Link, Loader2 } from "@/lib/icons"
 import { AttachmentMediaReq, AttachmentType } from "@/types/attachment"
 import { useMediaFetch } from "@/hooks/useFetch"
 import { GetMediaURLRes } from "@/types/file"
 import { formatFileSizeForAttachment } from "@/lib/utils/format/formatFileSizeForAttachment"
 import { formatDateForAttachment } from "@/lib/utils/date/formatDateforAttachment"
-import VideoPlayer from "@/components/attachments/videoPlayer"
-import { AudioPlayer } from "@/components/fileUpload/AudioPlayer"
-import DocumentViewer from "@/components/attachments/documentViewer"
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
+import { renderAsPerAttachmentType, type StageMedia } from "@/components/attachments/mediaStage"
 import { useMedia } from "@/context/MediaQueryContext"
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
 import { cn } from "@/lib/utils/helpers/cn"
 import { FileGlyph } from "@/components/fileIcon/fileTypeIcon"
 import { truncateFileName } from "@/lib/utils/format/truncateFileName"
 import { downloadFile } from "@/lib/utils/file/downloadFile"
-import { isImageByExtension, viewableDocumentType } from "@/lib/utils/file/getAttachmentType"
+import { isImageByExtension } from "@/lib/utils/file/getAttachmentType"
 import { useAttachmentAddOn } from "@/lib/addOns/attachments"
 import type { AttachmentSource } from "@/lib/addOns/core"
 
@@ -331,169 +327,14 @@ export function MediaLightboxDialog({
     const barButtonClass =
         "size-8 rounded-[16px] text-white/70 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
 
-    const renderAsPerAttachmentType = (
-        attachmentString: AttachmentType,
-        fileName: string,
-    ) => {
-        switch (attachmentString) {
-            case "image":
-                return (
-                    <div
-                        className="relative h-full w-full flex items-center justify-center overflow-hidden"
-                        style={{ touchAction: "none" }}
-                    >
-                        <TransformWrapper
-                            initialScale={1}
-                            minScale={0.5}
-                            maxScale={8}
-                            centerOnInit
-                            wheel={{ step: 0.2 }}
-                        >
-                            {({ zoomIn, zoomOut, resetTransform }) => (
-                                <>
-                                    <div
-                                        className={cn(
-                                            "absolute z-[var(--z-sticky)] flex h-9 items-center gap-0.5 rounded-[18px] px-1",
-                                            "bg-[rgb(30_31_35/.9)] ring-1 ring-white/10",
-                                            "bottom-[calc(theme(spacing.6)+env(safe-area-inset-bottom))]",
-                                            "left-1/2 -translate-x-1/2",
-                                        )}
-                                        role="toolbar"
-                                        aria-label="Image zoom controls"
-                                        data-touch-group=""
-                                    >
-                                        <Button
-                                            data-tone="light"
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => zoomIn()}
-                                            className="size-7 rounded-[14px] text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
-                                            aria-label="Zoom in"
-                                        >
-                                            <ZoomIn className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            data-tone="light"
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => zoomOut()}
-                                            className="size-7 rounded-[14px] text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
-                                            aria-label="Zoom out"
-                                        >
-                                            <ZoomOut className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            data-tone="light"
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => resetTransform()}
-                                            className="size-7 rounded-[14px] text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
-                                            aria-label="Reset zoom"
-                                        >
-                                            <RotateCcw className="h-4 w-4" />
-                                        </Button>
-                                        <div
-                                            aria-hidden
-                                            className="w-px self-stretch bg-white/15 mx-0.5"
-                                        />
-                                        <Button
-                                            data-tone="light"
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={handleDownload}
-                                            className="size-7 rounded-[14px] text-white/80 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50"
-                                            aria-label="Download"
-                                        >
-                                            <Download className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                    <TransformComponent
-                                        wrapperStyle={{ width: "100%", height: "100%" }}
-                                        contentStyle={{
-                                            width: "100%",
-                                            height: "100%",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                        }}
-                                    >
-                                        <div
-                                            key={currentMedia.attachment_uuid}
-                                            className="relative w-full h-full flex items-center justify-center"
-                                        >
-                                            {(mediaReq.isLoading || mediaReq.isValidating) &&
-                                                !mediaReq.data?.url &&
-                                                !currentMedia.initial_url && (
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10">
-                                                        <Loader2 className="h-10 w-10 text-white animate-spin" />
-                                                    </div>
-                                                )}
-                                            <Image
-                                                src={
-                                                    mediaReq.data?.url ||
-                                                    currentMedia.initial_url ||
-                                                    "/placeholder.svg"
-                                                }
-                                                alt={fileName}
-                                                fill
-                                                priority
-                                                sizes="100vw"
-                                                className={cn(
-                                                    "object-contain transition duration-200",
-                                                    (mediaReq.isLoading || mediaReq.isValidating) &&
-                                                        !mediaReq.data?.url &&
-                                                        !currentMedia.initial_url
-                                                        ? "opacity-0 scale-95"
-                                                        : "opacity-100 scale-100",
-                                                )}
-                                                unoptimized={true}
-                                                draggable={false}
-                                            />
-                                        </div>
-                                    </TransformComponent>
-                                </>
-                            )}
-                        </TransformWrapper>
-                    </div>
-                )
-
-            case "video":
-                return (
-                    <VideoPlayer
-                        key={currentMedia.attachment_uuid}
-                        url={mediaReq.data?.url || ""}
-                        fileName={fileName}
-                    />
-                )
-
-            case "audio":
-                return (
-                    <AudioPlayer key={currentMedia.attachment_uuid} url={mediaReq.data?.url || ""} />
-                )
-
-            case "document":
-            case "other":
-                const viewable = viewableDocumentType(fileName)
-
-                if (viewable) {
-                    return (
-                        <DocumentViewer
-                            key={currentMedia.attachment_uuid}
-                            url={mediaReq.data?.url || ""}
-                            type={viewable}
-                        />
-                    )
-                }
-
-                return (
-                    <div className="flex flex-col items-center justify-center p-6 text-center">
-                        <FileIcon className="md:h-24 md:w-24 h-16 w-16 text-muted-foreground mb-4" />
-                        <p className="md:text-lg font-medium truncate max-w-full text-foreground">
-                            {currentMedia?.attachment_file_name}
-                        </p>
-                    </div>
-                )
-        }
+    // The stage's file: its address, signed for a few minutes, the download,
+    // and its type for its card when the stage can't draw it.
+    const stageMedia: StageMedia = {
+        key: currentMedia.attachment_uuid,
+        url: mediaReq.data?.url || currentMedia.initial_url || "",
+        loading: (mediaReq.isLoading || mediaReq.isValidating) && !mediaReq.data?.url && !currentMedia.initial_url,
+        onDownload: handleDownload,
+        mime: currentMedia.attachment_raw_type,
     }
 
     const effectiveType = resolveEffectiveType(currentMedia)
@@ -509,8 +350,10 @@ export function MediaLightboxDialog({
                 cap the stage stopped 15% short of the bottom, the page showed
                 undimmed beneath it and the zoom bar floated mid-screen. */}
             <DialogContent
-                className="!fixed !inset-0 !left-0 !top-0 !h-dvh !max-h-none !w-screen !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden !rounded-none border-0 bg-[rgb(8_9_10/.92)] p-0 !shadow-none [&>button]:hidden"
+                className="!fixed !inset-0 !left-0 !top-0 !h-dvh !max-h-none !w-screen !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden !rounded-none border-0 bg-[rgb(8_9_10/.92)] max-sm:bg-[rgb(8_9_10)] p-0 !shadow-none [&>button]:hidden"
                 data-lightbox=""
+                // Edge to edge on a phone too, not a sheet (app/phone.css C5d).
+                data-full-screen=""
             >
                 <DialogHeader className="sr-only">
                     <DialogTitle>{currentMedia?.attachment_file_name}</DialogTitle>
@@ -526,8 +369,11 @@ export function MediaLightboxDialog({
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-ui font-medium text-white">{currentMedia?.attachment_file_name}</p>
                                 <p className="truncate text-meta text-white/60 tabular-nums">
-                                    {formatFileSizeForAttachment(currentMedia?.attachment_size || 0)} ·{" "}
-                                    {formatDateForAttachment(currentMedia?.attachment_created_at || "")}
+                                    {formatFileSizeForAttachment(currentMedia?.attachment_size || 0)}
+                                    {/* A file with no date (a table's file carries none) shows its size alone. */}
+                                    {currentMedia?.attachment_created_at && !isZeroEpoch(currentMedia.attachment_created_at)
+                                        ? ` · ${formatDateForAttachment(currentMedia.attachment_created_at)}`
+                                        : null}
                                 </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-0.5">
@@ -574,7 +420,7 @@ export function MediaLightboxDialog({
 
                         <div className="relative flex flex-1 items-center justify-center overflow-hidden pt-14">
                             <div key={currentMedia.attachment_uuid} className="content-view-in flex size-full items-center justify-center">
-                                {renderAsPerAttachmentType(effectiveType, currentMedia?.attachment_file_name || "unknown")}
+                                {renderAsPerAttachmentType(effectiveType, currentMedia?.attachment_file_name || "unknown", stageMedia)}
                             </div>
 
                             {allMedia.length > 1 && (

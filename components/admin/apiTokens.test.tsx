@@ -222,6 +222,24 @@ describe("the token, shown once", () => {
     expect(onCreatingChange).toHaveBeenCalledWith(false)
   })
 
+  // A copy the clipboard refused counted as one: closing asked nothing, and
+  // once the failure faded the card said "Token copied" (CR-15, 23 Oct).
+  it("still asks before closing after a copy the clipboard refused, and never says copied", async () => {
+    const onCreatingChange = await makeOne()
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("Write permission denied."))
+    vi.useFakeTimers()
+    try {
+      await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "Copy token" })))
+      act(() => void vi.advanceTimersByTime(1_500))
+      expect(within(dialog()).queryByRole("button", { name: "Token copied" })).toBeNull()
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Done" }))
+      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Close without copying?" }))
+      expect(onCreatingChange).not.toHaveBeenCalledWith(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("closes without asking once it has been copied", async () => {
     const onCreatingChange = await makeOne()
     await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "Copy token" })))

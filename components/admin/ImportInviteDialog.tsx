@@ -26,7 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Loader2, Users } from "@/lib/icons"
+import { Users } from "@/lib/icons"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -193,15 +193,8 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>
                 Not now
               </Button>
-              <Button onClick={send} disabled={sending || count === 0}>
-                {sending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Inviting {progress.done} of {progress.total}…
-                  </>
-                ) : (
-                  `Invite ${count} ${count === 1 ? "person" : "people"}`
-                )}
+              <Button onClick={send} disabled={count === 0} busy={sending}>
+                {sending ? `Inviting ${progress.done} of ${progress.total}…` : `Invite ${count} ${count === 1 ? "person" : "people"}`}
               </Button>
             </>
           )}

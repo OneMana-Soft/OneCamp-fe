@@ -1,6 +1,6 @@
 import { avatarSeed } from "@/lib/utils/getAvatarColor";
 import { displayNameOf } from "@/lib/personName"
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, isSameDay } from "date-fns";
 import { shortDateTime } from "@/lib/utils/date/shortDate";
@@ -8,18 +8,20 @@ import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { CalendarPost } from "@/services/endpoints/calendar";
-import type { CalendarEventInterface, GetEventsResponse } from "@/types/calendar";
+import type { CalendarEventInterface, EventProposal, GetEventsResponse } from "@/types/calendar";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ErrorState } from "@/components/ui/error-state";
 import { UserProfileInterface } from "@/types/user";
-import { Trash2, LogOut, Ellipsis, Video } from "@/lib/icons";
-import { joinLinkOf, joinOffer } from "@/lib/calendar/joinLink";
+import { Trash2, LogOut, Ellipsis, Video, VideoOff } from "@/lib/icons";
+import { eventCallChoice, eventCallOf, joinOffer } from "@/lib/calendar/joinLink";
+import { useEventCallActions } from "@/components/calendar/useEventCallActions";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EventMenuRows, type EventMenuItem } from "@/components/calendar/eventMenu";
 import { Edit2 } from "@/lib/icons";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { SpotError } from "@/components/ui/graphics";
-import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
+import { OWN_HUE } from "@/components/calendar/calendarTones";
+import { isCampHue } from "@/lib/campHue";
 import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,19 +42,24 @@ import { SafeHtml } from "@/components/safeHtml/SafeHtml";
 import { clockTime } from "@/lib/utils/date/clock";
 import { FEATURE_CALENDAR_REPEATS, useFeature } from "@/hooks/useClientConfig";
 import { ScopePromptView, useScopePrompt } from "@/components/calendar/scopePrompt";
-import { lazyView } from "@/components/task/LazyView";
+import { lazyView } from "@/lib/lazy/lazyView";
 import type { EventFormValues, FormProblem } from "@/lib/calendar/eventForm";
 import { isRichNotes } from "@/lib/calendar/richNotes";
 import { useWhenIdle } from "@/hooks/useWhenIdle";
 import { isInstanceId, seriesIdOf } from "@/lib/calendar/instanceId";
-import { apiEventUrl, deleteApiEventRequest, guestLinkRequest, nudgeGuestsRequest, patchApiEventRequest, readApiEventRequest, readerZone, type Answer, type ApiEvent } from "@/lib/calendar/eventsApi";
+import { apiEventUrl, deleteApiEventRequest, dismissProposalRequest, guestLinkRequest, nudgeGuestsRequest, patchApiEventRequest, readApiEventRequest, readerZone, type Answer, type ApiEvent } from "@/lib/calendar/eventsApi";
 import { eventGuests } from "@/components/calendar/rsvp/eventGuests";
 import { EventGuestList } from "@/components/calendar/rsvp/guestList";
+import type { FaceGuest } from "@/components/calendar/rsvp/guestFaces";
 import { YourAnswer } from "@/components/calendar/rsvp/yourAnswer";
 import { sendAnswer } from "@/components/calendar/rsvp/sendAnswer";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { toast } from "@/hooks/use-toast";
 import { TellGuestsView, useTellGuests } from "@/components/calendar/tellGuests";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
+
+// Google's G, shown only on its events: a chunk of its own, off the event page's first load.
+const GoogleMark = lazyPiece(() => import("@/components/ui/graphics/GoogleMark").then((m) => ({ default: m.GoogleMark })));
 
 // What only an edit, a question or a menu's item needs, each a chunk of its
 // own, as the calendar's grid keeps them (calendarApp.tsx): the repeat editor
@@ -71,9 +78,15 @@ const fetchAhead = () =>
 interface EventInfoPanelProps {
     eventUUID: string;
     onClose?: () => void;
+    /**
+     * A press of the card's pencil, Edit event (V-34), by when it was pressed:
+     * the event opens editing, once per press, as soon as it is in and this
+     * person may change it. Opened to read, there is none.
+     */
+    editRequest?: number;
 }
 
-export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelProps) {
+export default function EventInfoPanel({ eventUUID, onClose, editRequest }: EventInfoPanelProps) {
     const post = usePost();
     const { copy } = useCopyToClipboard();
     const [isEditing, setIsEditing] = useState(false);
@@ -88,6 +101,8 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         { shouldRetryOnError: (err) => !isUnavailable(err) },
         OWN_ERRORS,
     );
+    // Its own call is for whoever may change it to add and take off (calendar B11).
+    const callActions = useEventCallActions(eventUUID, () => mutate());
     const { cache, mutate: globalMutate } = useSWRConfig();
     const listed = React.useMemo(() => listedCopy(cache, eventUUID), [cache, eventUUID]);
     const gone = isUnavailable(isError);
@@ -113,8 +128,15 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     useWhenIdle(fetchAhead);
 
     const currentUserUUID = selfProfile?.data?.user_uuid;
-    const isCreator = event?.event_created_by?.user_uuid === currentUserUUID;
+    // On a calendar the person subscribes to (B8), an event is theirs to see,
+    // never to change: it changes where that calendar is published.
+    const readOnly = !!event?.event_read_only;
+    const isCreator = event?.event_created_by?.user_uuid === currentUserUUID && !readOnly;
     const isParticipant = event?.event_participants?.some(p => p.user_uuid === currentUserUUID);
+    // Who may change the event here: its organiser, or a guest the organiser
+    // lets change it (not what guests may do otherwise). Edit event, and an
+    // edit asked for on opening (editRequest), go by this one rule.
+    const mayEdit = isCreator || (!!isParticipant && !!apiEvent?.guests_can_modify);
 
     // The Event Form's values while it is being edited (calendar FORM):
     // read from the calendar's own API where it keeps its events, else from
@@ -129,17 +151,38 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         setIsEditing(false);
         setDraft(null);
     }, [eventId]);
+    // Edit opens the Event Form with the event as it is now (below).
+    const startEditing = React.useCallback(() => {
+        setDraft(null);
+        setProblem(null);
+        setIsEditing(true);
+    }, []);
+    // Opened by the card's pencil, Edit event (V-34): editing at once, once
+    // per press, as soon as the event is in and this person may change it.
+    // After the reset above, which runs first when the event's id arrives.
+    const editAnswered = React.useRef<number | undefined>(undefined);
+    React.useEffect(() => {
+        if (!editRequest || editAnswered.current === editRequest || !eventId || !mayEdit) return;
+        editAnswered.current = editRequest;
+        startEditing();
+    }, [editRequest, eventId, mayEdit, startEditing]);
     // The form's values come with the edit kit, fetched when the page was idle,
     // so usually here already: from the calendar's API where it keeps its
     // events, else from the event as listed (the old stores).
+    // An edit begun before the API answered starts from the event as listed;
+    // once the API answers, a form nobody has changed yet takes its values
+    // (its colour, its calendar, guests' roles), which a save changes from.
+    const fromList = React.useRef(false);
     React.useEffect(() => {
-        if (!isEditing || draft || !event) return;
+        const upgrade = !!draft && draft === was && fromList.current && !!apiEvent;
+        if (!isEditing || (draft && !upgrade) || !event) return;
         let live = true;
         const zone = readerZone();
         EventFormView.warm().then(
             (m) => {
                 if (!live) return;
                 const values = apiEvent ? m.eventValues(apiEvent, m.ownReminders(event), zone) : m.listedValues(event, zone);
+                fromList.current = !apiEvent;
                 setDraft(values);
                 setWas(values);
             },
@@ -148,7 +191,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         return () => {
             live = false;
         };
-    }, [isEditing, draft, event, apiEvent]);
+    }, [isEditing, draft, was, event, apiEvent]);
 
     // In the right panel the shared header carries the view's actions and the
     // close button; on the phone's own page the app bar has the way back.
@@ -186,7 +229,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // before, counted in days (a day the clocks change on isn't 24 hours).
     const allDay = allDayItem(event, start, end);
     const lastMoment = allDay ? allDayLastDay(start, end) : end;
-    const callLink = joinLinkOf(event);
+    // Its own call (calendar B11), else the link in its notes.
+    const call = eventCallOf(event, window.location.origin);
+    const callLink = call?.join ?? null;
     const join = joinOffer(callLink, start, end, new Date());
 
     // Edit opens the Event Form with the event as it is now; Save sends what
@@ -195,26 +240,23 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // guests would hear of, or through the /event routes for the old stores.
     // After this and following or all events, its id may name another
     // instance, so the panel closes and the lists show where everything went.
-    const startEditing = () => {
-        setDraft(null);
-        setProblem(null);
-        setIsEditing(true);
-    };
     const stopEditing = () => {
         setIsEditing(false);
         setDraft(null);
     };
-    const saveDraft = async () => {
-        if (!draft || !was || saving) return;
+    // Saves a change: the edited draft, or a guest's proposed time (calendar
+    // head 4), which is for its one event of a series without asking.
+    const saveChange = async (next: EventFormValues, before: EventFormValues, scope?: "this") => {
+        if (saving) return;
         // Here already: the draft came with it.
         const m = await EventFormView.warm();
-        const wrong = m.formProblem(draft);
+        const wrong = m.formProblem(next);
         setProblem(wrong);
         if (wrong) return;
         const go = async () => {
             setSaving(true);
-            const deps = { makeRequest: post.makeRequest, askScope, askTell };
-            const r = apiEvent ? await m.saveEventChange(deps, { v: draft, was, api: apiEvent, organiser: isCreator }) : await m.saveLegacyChange(deps, event.event_uuid, draft);
+            const deps = { makeRequest: post.makeRequest, askScope: scope ? async () => scope : askScope, askTell };
+            const r = apiEvent ? await m.saveEventChange(deps, { v: next, was: before, api: apiEvent, organiser: isCreator }) : await m.saveLegacyChange(deps, event.event_uuid, next);
             setSaving(false);
             if (!r.saved) {
                 // Changed meanwhile: read again, and the edit stays open. Gone: the panel says so.
@@ -232,7 +274,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         };
         // A booked meeting asks before its time changes, naming its guest (CAL-BUG-4).
         const booking = event.event_booking;
-        const times = m.whenOf(draft);
+        const times = m.whenOf(next);
         const at = (w: { at?: string; date?: string }) => new Date(w.at ?? `${w.date}T00:00:00`);
         const minute = (d: Date) => Math.floor(d.getTime() / 60_000);
         const moved = minute(at(times.start)) !== minute(start) || minute(at(times.end)) !== minute(end);
@@ -245,6 +287,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
             }
         }));
     };
+    const saveDraft = () => (draft && was ? saveChange(draft, was) : undefined);
     const handleClose = close;
 
     // Every list of events on screen asks again: the calendar's ranges and Home's today.
@@ -338,14 +381,32 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // guest invited by email.
     const guestView = eventGuests(event, currentUserUUID);
     const ended = end <= new Date();
+    const callChoice = eventCallChoice(event, { mayChange: mayEdit, google: onGoogle, ended });
     const answering = !onGoogle && !isCreator && guestView.answered && guestView.mine !== undefined && !ended;
-    const answer = async (a: Answer, note?: string) => {
-        const ok = await sendAnswer({ post, askScope, selfId: currentUserUUID }, event, a, note);
+    const answer = async (a: Answer, note?: string, proposal?: EventProposal | null) => {
+        const ok = await sendAnswer({ post, askScope, selfId: currentUserUUID }, event, a, note, proposal);
         if (ok !== null) {
             await mutate();
             refreshLists();
         }
         return ok;
+    };
+    // A guest's proposed time (calendar head 4), for whoever may change the
+    // event (mayEdit, as the server rules): used as any change is, or dismissed.
+    const changesEvent = !onGoogle && !!apiEvent && mayEdit;
+    const useProposal = async (p: EventProposal) => {
+        if (!apiEvent) return;
+        const m = await EventFormView.warm();
+        const now = m.eventValues(apiEvent, m.ownReminders(event), readerZone());
+        await saveChange({ ...now, start: new Date(p.start), end: new Date(p.end) }, now, "this");
+    };
+    const dismissProposal = async (g: FaceGuest) => {
+        try {
+            await post.makeRequest(dismissProposalRequest(event.event_uuid, g.outside ? { email: g.email } : { user_uuid: g.key }));
+            await mutate();
+        } catch {
+            // The toast said why.
+        }
     };
     const nudge = async () => {
         try {
@@ -387,6 +448,11 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // (PTC-53).
     // (The AI edition adds a prep brief and "Find a better time" here.)
     const viewActions: EventAction[] = [
+        ...(callChoice === "remove"
+            ? [{ label: "Remove call", icon: VideoOff, onSelect: callActions.remove, destructive: true }]
+            : callChoice === "add"
+              ? [{ label: "Add a call", icon: Video, onSelect: () => void callActions.add() }]
+              : []),
         ...(isCreator
             ? [
                   { label: "Delete event", icon: Trash2, onSelect: handleDelete, destructive: true },
@@ -394,8 +460,8 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
               ]
             : isParticipant
               ? [
-                    // A guest the organiser lets change the event edits it too (not what guests may do).
-                    ...(apiEvent?.guests_can_modify ? [{ label: "Edit event", icon: Edit2, onSelect: startEditing, main: true }] : []),
+                    // A guest the organiser lets change the event edits it too (mayEdit).
+                    ...(mayEdit ? [{ label: "Edit event", icon: Edit2, onSelect: startEditing, main: true }] : []),
                     { label: "Leave event", icon: LogOut, onSelect: handleLeave, destructive: true },
                 ]
               : []),
@@ -406,7 +472,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
             <Button variant="ghost" size="sm" className="h-8" onClick={stopEditing}>
                 Cancel
             </Button>
-            <Button size="sm" className="h-8" onClick={() => void saveDraft()} disabled={saving || !draft} aria-busy={saving || undefined}>
+            <Button size="sm" className="h-8" onClick={() => void saveDraft()} disabled={!draft} busy={saving}>
                 {saving ? "Saving…" : "Save"}
             </Button>
         </>
@@ -437,6 +503,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                         note={guestView.faces.find((f) => f.key === currentUserUUID)?.note}
                         organiserName={displayNameOf(event.event_created_by) || "the organiser"}
                         onAnswer={answer}
+                        proposal={guestView.myProposal}
+                        // A time is proposed for one event: a whole series (opened by its own id) takes none.
+                        proposeFrom={allDay || (apiEvent?.recurrence && !isInstanceId(event.event_uuid)) ? undefined : { start, end }}
                         className=""
                     />
                 ) : undefined
@@ -449,14 +518,19 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     <div data-event-view="">
                         <h2 className="text-xl font-medium tracking-tight text-foreground text-balance sm:text-2xl">{event.event_title}</h2>
                         <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
-                            <IdentityMark variant="dot" hue={onGoogle ? CALENDAR_HUE.google : CALENDAR_HUE.onecamp} />
-                            {onGoogle ? "Google Calendar" : "Personal event"}
+                            {onGoogle ? <Suspense fallback={null}><GoogleMark className="size-3.5 shrink-0" /></Suspense> : <IdentityMark variant="dot" hue={isCampHue(event.calendar_hue) ? event.calendar_hue : OWN_HUE} />}
+                            {onGoogle ? "Google Calendar" : event.calendar_name || "Personal event"}
                         </p>
+                        {readOnly ? (
+                            <p className="mt-1 text-meta text-ink-3" data-event-read-only="">
+                                From a calendar you subscribe to: it changes only where it&apos;s published.
+                            </p>
+                        ) : null}
                         {/* Its first action, while there is a call to join
                             (lib/calendar/joinLink), as the event's pop card has it. */}
                         {callLink && join ? (
                             <Button asChild size="sm" variant={join === "primary" ? "default" : "secondary"} className="mt-4">
-                                <a href={callLink} target="_blank" rel="noopener noreferrer">
+                                <a href={callLink} {...(call?.own ? {} : { target: "_blank", rel: "noopener noreferrer" })}>
                                     <Video />
                                     Join call
                                 </a>
@@ -543,6 +617,8 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             onCopyLink={(email, name) => void copyLink(email, name)}
                             emailOnAnswers={apiEvent?.email_on_answers}
                             onEmailOnAnswers={apiEvent ? (on) => void setEmailOnAnswers(on) : undefined}
+                            onUseProposal={changesEvent && !ended ? useProposal : undefined}
+                            onDismissProposal={changesEvent ? dismissProposal : undefined}
                         />
 
                         <section className="mt-6 space-y-2">

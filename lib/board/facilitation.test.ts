@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatClock, tally, timeLeft, toggleVote, votableNotes, voteKey } from "./facilitation"
+import { barForms, formatClock, giveWaySteps, tally, timeLeft, toggleVotes, votableNotes, voteKey } from "./facilitation"
 import { followView, sceneToLocal, clientToScene, viewCentre } from "./viewport"
 
 describe("dot voting", () => {
@@ -14,10 +14,20 @@ describe("dot voting", () => {
     expect(votableNotes(els).map((v) => [v.id, v.text])).toEqual([["r", "Ship it"], ["loose", "Idea"]])
   })
 
-  it("keeps to the allowance, one vote per note", () => {
-    expect(toggleVote([], "a", 2)).toEqual(["a"])
-    expect(toggleVote(["a"], "a", 2)).toEqual([])
-    expect(toggleVote(["a", "b"], "c", 2)).toBeNull()
+  it("votes for several notes at once, takes them all back when each has one, and keeps to the allowance", () => {
+    // One note at a time (the facilitation bar's dots): a vote, taken back, and none past the allowance.
+    expect(toggleVotes([], ["a"], 2)).toEqual(["a"])
+    expect(toggleVotes(["a"], ["a"], 2)).toEqual([])
+    expect(toggleVotes(["a", "b"], ["c"], 2)).toBeNull()
+    // The missing ones are added, the ones already voted for stay.
+    expect(toggleVotes(["a"], ["a", "b"], 3)).toEqual(["a", "b"])
+    // Every one has the vote: all of them come back, the rest stay.
+    expect(toggleVotes(["a", "b", "c"], ["a", "b"], 3)).toEqual(["c"])
+    // Past the allowance nothing changes, not part of it.
+    expect(toggleVotes(["a"], ["b", "c"], 2)).toBeNull()
+    // A note named twice is one note; none named changes nothing.
+    expect(toggleVotes([], ["a", "a"], 1)).toEqual(["a"])
+    expect(toggleVotes(["a"], [], 1)).toEqual(["a"])
   })
 
   it("counts one round, ignores deleted notes and repeats", () => {
@@ -41,6 +51,36 @@ describe("timer", () => {
     expect(formatClock(245_000)).toBe("4:05")
     expect(formatClock(8_200)).toBe("0:09")
     expect(formatClock(3_600_000)).toBe("1:00:00")
+  })
+})
+
+// The compact bar's one priority (design review, 29 Oct): at 390 a viewer's bar cut "started voting" and
+// cut the names to nothing. A name gives way first, by itself (down to its first letter and "…"); these
+// steps come only when that isn't enough, in one order, each one segment's next shorter form.
+describe("the compact bar's give-way priority", () => {
+  it("gives way in one order: following's words, the voter's name, the presenter's words, the round's word, the presenter's name", () => {
+    expect(giveWaySteps({ presenter: "following", voting: "named" })).toEqual(["followIcon", "votingWord", "votingIcon"])
+    expect(giveWaySteps({ presenter: "someone", voting: "named" })).toEqual(["votingWord", "presenterName", "votingIcon", "presenterIcon"])
+    expect(giveWaySteps({ presenter: "someone", voting: "count" })).toEqual(["presenterName", "presenterIcon"])
+    expect(giveWaySteps({ presenter: "following", voting: null })).toEqual(["followIcon"])
+    expect(giveWaySteps({ presenter: null, voting: "named" })).toEqual(["votingWord", "votingIcon"])
+  })
+  it("never takes your own state's words, or an editor's votes left", () => {
+    expect(giveWaySteps({ presenter: "you", voting: "count" })).toEqual([])
+    expect(giveWaySteps({ presenter: null, voting: "count" })).toEqual([])
+    expect(giveWaySteps({ presenter: null, voting: null })).toEqual([])
+  })
+  it("draws each segment in the form the steps given leave it", () => {
+    const crowded = { presenter: "someone", voting: "named" } as const
+    expect(barForms(crowded, 0)).toEqual({ presenter: "full", voting: "full" })
+    expect(barForms(crowded, 1)).toEqual({ presenter: "full", voting: "word" })
+    expect(barForms(crowded, 2)).toEqual({ presenter: "name", voting: "word" })
+    expect(barForms(crowded, 3)).toEqual({ presenter: "name", voting: "icon" })
+    expect(barForms(crowded, 4)).toEqual({ presenter: "icon", voting: "icon" })
+    expect(barForms(crowded, 9)).toEqual({ presenter: "icon", voting: "icon" })
+    // Following, the frame's label names the presenter: the segment's icon is enough, and goes first.
+    expect(barForms({ presenter: "following", voting: "named" }, 1)).toEqual({ presenter: "icon", voting: "full" })
+    expect(barForms({ presenter: "you", voting: "count" }, 3)).toEqual({ presenter: "full", voting: "full" })
   })
 })
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 // Where new members start: the admin sees #general as the default until they
 // choose, picks public channels, and a refusal from the server is said in its
@@ -7,8 +7,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // Design v3 (admin A7): each tick saves at once (no dock), with the saved
 // tick beside the channel; a refusal puts the box back and says why in place.
 
-const toast = vi.fn()
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
+const toast = vi.hoisted(() => vi.fn())
+vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
 
 const api = vi.hoisted(() => ({
   get: vi.fn(),
@@ -71,7 +71,8 @@ describe("choosing where new members start", () => {
     expect(api.set).toHaveBeenLastCalledWith(["g", "n", "r"])
     expect(document.querySelector("[data-saved-tick]")?.textContent).toBe("Saved")
     expect(screen.queryByText(/new members join #general/i)).toBeNull()
-    expect(toast).not.toHaveBeenCalled()
+    // The tick, and the toast offers the change back (design-14).
+    await waitFor(() => expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "#news is on" })))
   })
 
   it("can choose none, and says what that means", async () => {

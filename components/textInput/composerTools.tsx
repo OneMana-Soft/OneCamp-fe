@@ -20,12 +20,14 @@ import { AtSign, ArrowUp, BarChart3, ChevronDown, Clock, ListTodo, Loader2, Mic,
 import { cn } from "@/lib/utils/helpers/cn"
 import { openUI } from "@/store/slice/uiSlice"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
-import { formatSendAt, toLocalInputValue } from "@/lib/messages/schedulePresets"
+import { formatSendAt } from "@/lib/messages/schedulePresets"
 import { useModKey } from "@/hooks/useModKey"
 import { ACTION_TIP_ABOVE, ACTION_TIP_ABOVE_END } from "@/components/MessageDesktopHover/actionTip"
 import { clockTime } from "@/lib/utils/date/clock"
 
 const ClipRecorder = dynamic(() => import("@/components/clips/ClipRecorder"), { ssr: false })
+// Send later's own moment, Schedule send's (the server's window, and why not): loaded when Custom time… is chosen.
+const CustomSendTime = dynamic(() => import("@/components/messages/scheduleSendButton").then((m) => m.CustomSendTime), { ssr: false, loading: () => <div className="h-[156px] md:h-[132px]" /> })
 
 /** A tool in the composer's row (design v3 chat, C38): 28px, the icon 16px in ink-3. */
 export const COMPOSER_TOOL =
@@ -337,10 +339,10 @@ export function DictationStrip({ dictation }: { dictation: Dictation }) {
             {dictation.recording && (
                 <>
                     <Button type="button" size="xs" variant="ghost" onClick={dictation.stop}>
-                        <Square className="!size-3 fill-current" aria-hidden="true" /> Stop <kbd className="kbd ml-0.5">⏎</kbd>
+                        <Square className="!size-3 fill-current" aria-hidden="true" /> Stop <kbd className="kbd ml-0.5 pointer-coarse:hidden">⏎</kbd>
                     </Button>
                     <Button type="button" size="xs" variant="ghost" onClick={dictation.cancel}>
-                        Cancel <kbd className="kbd ml-0.5">esc</kbd>
+                        Cancel <kbd className="kbd ml-0.5 pointer-coarse:hidden">esc</kbd>
                     </Button>
                 </>
             )}
@@ -433,7 +435,7 @@ export const SendSplit = React.memo(function SendSplit({
 }) {
     const arrow = React.useRef<SVGSVGElement>(null)
     const [open, setOpen] = React.useState(false)
-    const [custom, setCustom] = React.useState<string | null>(null)
+    const [custom, setCustom] = React.useState(false)
     const ready = !nothingToSend && !disabled
     const now = new Date()
     const send = () => {
@@ -442,8 +444,6 @@ export const SendSplit = React.memo(function SendSplit({
         }
         onSend()
     }
-    const customAt = custom ? new Date(custom) : null
-    const customOk = !!customAt && !Number.isNaN(customAt.getTime()) && customAt.getTime() > Date.now() + 60_000
     return (
         <div data-send-split="" className="flex items-center">
             <button
@@ -463,7 +463,7 @@ export const SendSplit = React.memo(function SendSplit({
                 <ArrowUp ref={arrow} className="size-4" aria-hidden="true" />
             </button>
             {onSchedule && (
-                <DropdownMenu open={open} onOpenChange={(o) => { setOpen(o); if (!o) setCustom(null) }} modal={false}>
+                <DropdownMenu open={open} onOpenChange={(o) => { setOpen(o); if (!o) setCustom(false) }} modal={false}>
                     <DropdownMenuTrigger asChild>
                         <button
                             type="button"
@@ -483,7 +483,7 @@ export const SendSplit = React.memo(function SendSplit({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent side="top" align="end" sideOffset={8} className="pop-surface w-72 p-1">
                         <DropdownMenuLabel className="px-2 pb-1 pt-1.5 text-meta font-medium text-ink-3">Send later</DropdownMenuLabel>
-                        {custom === null ? (
+                        {!custom ? (
                             <>
                                 {sendLaterChoices(now).map((c) => (
                                     <DropdownMenuItem key={c.key} onSelect={() => onSchedule(c.at)}>
@@ -495,27 +495,18 @@ export const SendSplit = React.memo(function SendSplit({
                                 <DropdownMenuItem
                                     onSelect={(e) => {
                                         e.preventDefault()
-                                        setCustom(toLocalInputValue(new Date(now.getTime() + 2 * 60 * 60 * 1000)))
+                                        setCustom(true)
                                     }}
                                 >
                                     <Clock className="text-ink-3" aria-hidden="true" /> Custom time…
                                 </DropdownMenuItem>
                             </>
                         ) : (
-                            // Custom time swaps the menu's content, no second popover.
-                            <div className="flex flex-col gap-2 px-2 pb-2 pt-1 animate-fade-in">
-                                <input
-                                    type="datetime-local"
-                                    aria-label="Send at"
-                                    value={custom}
-                                    min={toLocalInputValue(now)}
-                                    onChange={(e) => setCustom(e.target.value)}
-                                    onKeyDown={(e) => e.stopPropagation()}
-                                    className="field-surface h-8 w-full min-w-0 rounded-md px-2 text-ui-sm"
-                                />
-                                <Button size="sm" className="self-end" disabled={!customOk} onClick={() => { if (customAt) { onSchedule(customAt); setOpen(false) } }}>
-                                    Schedule
-                                </Button>
+                            // Custom time swaps the menu's content, no second popover. Its
+                            // keys are its own: the menu would take Tab, and the letters
+                            // typed into a day or a time for its type-ahead.
+                            <div className="px-2 pb-2 pt-1 animate-fade-in" onKeyDown={(e) => e.stopPropagation()}>
+                                <CustomSendTime leadMs={2 * 60 * 60 * 1000} onPick={(at) => { onSchedule(at); setOpen(false) }} />
                             </div>
                         )}
                     </DropdownMenuContent>
@@ -573,12 +564,16 @@ export function countComposerSend() {
     }
 }
 
-/** "⏎ send ⇧⏎ new line" in kbd chips, until someone has sent twenty messages. */
+/**
+ * "⏎ send ⇧⏎ new line" in kbd chips, until someone has sent twenty messages,
+ * and only on a computer (a fine pointer, as lib/ui/shellBand reads one): a
+ * phone or a tablet has no Enter key to press.
+ */
 export function SendHint() {
     const [show] = React.useState(() => typeof window === "undefined" || composerSends() < HINT_SENDS)
     if (!show) return null
     return (
-        <span data-send-hint="" className="mr-2 hidden items-center gap-1 whitespace-nowrap text-meta text-ink-3 @[640px]/composer:flex">
+        <span data-send-hint="" className="mr-2 hidden items-center gap-1 whitespace-nowrap text-meta text-ink-3 @[640px]/composer:pointer-fine:flex">
             <kbd className="kbd">⏎</kbd> send <kbd className="kbd ml-1.5">⇧⏎</kbd> new line
         </span>
     )

@@ -729,3 +729,19 @@
     line-height: 1.75rem;
   }
 }
+
+/* What a package draws at the doc's foot (the 'foot' slot: C7a's Pages
+   inside) sits in from the sides as the body's text does, as the gutter's
+   layer is padded (docInput: px-5 md:px-8, md:px-12 at full width). A
+   margin, so the package keeps its own padding. */
+:is(.doc-measure, .doc-measure-full) > [data-doc-foot] {
+  margin-inline: 1.25rem;
+}
+@media (min-width: 48rem) {
+  .doc-measure > [data-doc-foot] {
+    margin-inline: 2rem;
+  }
+  .doc-measure-full > [data-doc-foot] {
+    margin-inline: 3rem;
+  }
+}

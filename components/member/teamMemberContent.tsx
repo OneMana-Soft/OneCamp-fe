@@ -8,12 +8,29 @@ import {UserListInterfaceResp, type UserProfileInterface} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {TeamInfoRawInterface, TeamMemberAddOrRemoveInterface} from "@/types/team";
-import AddTeamMemberCombobox from "@/components/combobox/addTeamMemberCombobox";
+import { lazyPart } from "@/lib/lazy/lazyPart";
+import { PartRetry } from "@/components/ui/part-retry";
+
 import {useState} from "react";
 import {Button} from "@/components/ui/button";
 import {useToast} from "@/hooks/use-toast";
 import axiosInstance, {OWN_ERRORS} from "@/lib/axiosInstance";
 import {apiErrorMessage} from "@/lib/utils/apiError";
+
+// The member adder only admins see: SA-3's combobox, a chunk of its own
+// (lib/lazy/lazyPart). Its room is kept while it comes, and Try again takes
+// its place if it can't.
+const memberAdder = lazyPart<{ url: string; onAdd: (userUuid: string) => void | Promise<void> }>(
+    () => import("@/components/combobox/addMemberCombobox").then((m) => m.AddMemberCombobox),
+    {
+        placeholder: function AdderRoom() {
+            return <div aria-hidden="true" className="h-11 w-full rounded-md bg-raised shadow-e1 md:h-8" />;
+        },
+        failed: function AdderRetry({ retry }) {
+            return <PartRetry what="the member picker" retry={retry} className="w-full justify-center" />;
+        },
+    },
+);
 
 
 interface memberContentProp {
@@ -227,7 +244,7 @@ export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
             )}
             {canAdd && (
                 <div className="flex-shrink-0">
-                    <AddTeamMemberCombobox handleAddMember={handleAddMember} teamId={teamId}/>
+                    <memberAdder.Part url={teamId ? `${PeopleGet.UsersListWhoDontBelongToTheTeam}/${teamId}` : ""} onAdd={handleAddMember} />
                 </div>
             )}
             <div className="flex-1 min-h-0 flex flex-col">

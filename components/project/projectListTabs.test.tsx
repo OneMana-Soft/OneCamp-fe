@@ -7,6 +7,7 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoadi
 vi.mock("@/components/project/projectListTabContent", () => ({ ProjectListTabContent: ({ selectedTab }: { selectedTab: string }) => <div data-testid={`content-${selectedTab}`} /> }))
 vi.mock("@/components/project/projectTaskKanban", () => ({ ProjectTaskKanban: () => <div data-testid="content-board" /> }))
 vi.mock("@/components/project/timeline/ProjectTimeline", () => ({ ProjectTimeline: () => <div data-testid="content-timeline" /> }))
+vi.mock("@/components/work/backlog/ProjectBacklog", () => ({ default: () => <div data-testid="content-backlog" /> }))
 vi.mock("@/components/projectUpdates/ProjectUpdates", () => ({ ProjectUpdates: () => <div data-testid="content-updates" /> }))
 vi.mock("@/components/project/ProjectGlanceLine", () => ({ ProjectGlanceLine: () => <p data-testid="glance" /> }))
 // The phone's one "⋯": the tools, then notifications, the name and the members.
@@ -32,10 +33,10 @@ afterEach(() => {
 })
 
 describe("a project's tabs on a phone", () => {
-  it("are the computer's six, Docs among them (PTC-12)", () => {
+  it("are the computer's seven, Docs and the backlog among them (PTC-12, B3)", () => {
     render(<ProjectListTabs projectId="p" />)
     const names = screen.getAllByRole("tab").map((t) => t.textContent)
-    expect(names).toEqual(["Tasks", "Board", "Timeline", "Updates", "Files", "Docs"])
+    expect(names).toEqual(["Tasks", "Board", "Backlog", "Timeline", "Updates", "Attachments", "Docs & Files"])
   })
 
   it("keep the project's line above the tabs, so no tab jumps when chosen", () => {
@@ -46,7 +47,7 @@ describe("a project's tabs on a phone", () => {
   })
 
   it("open the tab a link names, in the desktop's words or the phone's", async () => {
-    for (const [tab, panel] of [["kanban", "board"], ["attachments", "attachment"], ["updates", "updates"]]) {
+    for (const [tab, panel] of [["kanban", "board"], ["backlog", "backlog"], ["attachments", "attachment"], ["updates", "updates"]]) {
       search = `tab=${tab}`
       render(<ProjectListTabs projectId="p" />)
       // The board and updates are chunks of their own, so they arrive a tick later.

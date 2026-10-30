@@ -1,4 +1,4 @@
-import { hueFor, isCampHue, type CampHue } from "@/lib/campHue"
+import { campHueOf, hueFor, isCampHue, type CampHue } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { projectHue } from "@/lib/projectHue"
 
@@ -14,14 +14,29 @@ import { projectHue } from "@/lib/projectHue"
  *   focus   the same hue, hatched: protected time, not a meeting
  *   away    no hue at all, a dashed outline: an absence
  *   task    the project's hue, with a task glyph where it is drawn
+ *   block   time for a task: an event in its task's project's hue (else
+ *           the calendar's), led by the task's glyph, so it says where the
+ *           task stands
  */
 
-export type CalendarKind = "event" | "focus" | "away" | "task"
+export type CalendarKind = "event" | "focus" | "away" | "task" | "block"
 
-/** The calendars a person has here, each in a fixed hue. */
-export const CALENDAR_HUE: Record<"onecamp" | "google", CampHue> = {
-  onecamp: "sky",
-  google: "lake",
+/**
+ * Your own calendar's hue: sun, the calendar's own colour, as its area's mark
+ * is (DESIGN-BUILD-3's ruling, 20 Oct). Named here, never read from the area
+ * table: an event's colour is the event's own (the areas guard).
+ */
+export const OWN_HUE: CampHue = "sun"
+
+/**
+ * Another calendar's (an import's, a teammate's, Google's): the one picked,
+ * else one from its id that is never your own's: the one hash (hueFor) again,
+ * on the id with a mark, until it isn't. Pure.
+ */
+export function otherHue(id: string, chosen?: string | null): CampHue {
+  let h = hueFor(id, chosen)
+  for (let mark = ""; h === OWN_HUE && !campHueOf(chosen); ) h = hueFor(id + (mark += "'"))
+  return h
 }
 
 export interface CalendarItemLike {
@@ -32,10 +47,16 @@ export interface CalendarItemLike {
   task_project?: { project_uuid?: string } | null
   /** The event's own colour (the Event Form), where the calendar keeps its own events. */
   event_hue?: string
+  /** Its calendar's colour, when that isn't Personal's (calendar A6). */
+  calendar_hue?: string
+  /** A task block's task (B1): where it stands, and its project. */
+  event_task?: { task_status?: string; project_uuid?: string } | null
 }
 
+/** What an item is: a task, time for a task (a block), time off, focus time, or an event. Pure. */
 export function kindOf(item: CalendarItemLike): CalendarKind {
   if (item.isTask) return "task"
+  if (item.event_task) return "block"
   if (item.event_is_away) return "away"
   return item.event_is_focus ? "focus" : "event"
 }
@@ -43,9 +64,12 @@ export function kindOf(item: CalendarItemLike): CalendarKind {
 /** The hue an item is drawn in: its project's for a task, its calendar's otherwise. */
 export function hueOf(item: CalendarItemLike): CampHue {
   if (item.isTask) return item.task_project?.project_uuid ? projectHue(item.task_project.project_uuid) : hueFor(item.event_uuid)
-  // An event's own colour first (STEP5_PLAN §3 C, the week in colour); Google's keep Google's hue for now.
-  if (!item.event_uuid.startsWith("gcal-") && isCampHue(item.event_hue)) return item.event_hue
-  return item.event_uuid.startsWith("gcal-") ? CALENDAR_HUE.google : CALENDAR_HUE.onecamp
+  // Time for a task is in its task's project's hue, beside the task itself.
+  if (item.event_task?.project_uuid) return projectHue(item.event_task.project_uuid)
+  // Its own colour (STEP5_PLAN §3 C), else its calendar's (A6); Google's are Google's.
+  if (item.event_uuid.startsWith("gcal-")) return otherHue("google")
+  if (isCampHue(item.event_hue)) return item.event_hue
+  return isCampHue(item.calendar_hue) ? item.calendar_hue : OWN_HUE
 }
 
 export interface CalendarTone {

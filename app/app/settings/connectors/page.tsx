@@ -1,7 +1,12 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import ConnectorsCard from "@/components/connectors/ConnectorsCard"
 import { SectionHeader } from "../SectionHeader"
+
+// Bringing your Slack DMs shows once your team has imported Slack, and loads
+// on its own: the page's first load stays what it was.
+const SlackDMsCard = dynamic(() => import("@/components/connectors/SlackDMsCard"), { ssr: false })
 
 export default function ConnectorsSettingsPage() {
     return (
@@ -11,6 +16,7 @@ export default function ConnectorsSettingsPage() {
                 and actions like sending email always ask you first.
             </SectionHeader>
             <ConnectorsCard />
+            <SlackDMsCard />
         </div>
     )
 }

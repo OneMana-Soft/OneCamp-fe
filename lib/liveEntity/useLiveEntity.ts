@@ -33,6 +33,6 @@ export function useLiveEntity<D = unknown>(kind: string, id: string | null | und
     },
     [hears, kind, id],
   )
-  useMqttTopic({ topic: hears && snap.topic ? snap.topic : "", onMessage })
+  useMqttTopic({ topic: hears && snap.topic ? snap.topic : "", onMessage, onLive: () => id && refreshEntity(kind, id) })
   return snap as LiveEntity<D>
 }

@@ -10,7 +10,7 @@ const ZERO = "0001-01-01T00:00:00Z"
 const hana = { user_uuid: "m3", user_name: "Hana Kobayashi", user_full_name: "Hana Kobayashi", user_email_id: "hana@kestrel.example", user_deleted_at: ZERO }
 
 const http = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: http.get, post: http.post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: http.get, post: http.post } }))
 const makeRequest = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 const toast = vi.hoisted(() => vi.fn())

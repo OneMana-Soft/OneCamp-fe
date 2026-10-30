@@ -63,6 +63,48 @@ describe("a table's trash", () => {
     expect(ledger.restoreFromTrash).toHaveBeenCalledWith("t", { fields: ["cost"] })
   })
 
+  // Busy is a line's own restore only: the rest wait, without a spinner of their own.
+  it("shows the one being restored as busy, and the rest waiting", async () => {
+    ledger.readTableTrash.mockResolvedValue({
+      rows: [
+        { id: "r1", values: { item: "Booth" }, deleted_at: now },
+        { id: "r2", values: { item: "Banner" }, deleted_at: now },
+      ],
+      more: false,
+      fields: [{ field: { id: "cost", table_id: "t", name: "Cost", type: "number", config: "{}", position: 3, deleted_at: now } }],
+    })
+    ledger.restoreFromTrash.mockReturnValue(new Promise(() => {}))
+    render(<TableTrash tableId="t" fields={fields} onClose={vi.fn()} onRestored={vi.fn()} />)
+    const booth = await screen.findByRole<HTMLButtonElement>("button", { name: "Restore Booth" })
+    await act(async () => fireEvent.click(booth))
+    expect(booth.getAttribute("aria-busy")).toBe("true")
+    expect(booth.disabled).toBe(false)
+    for (const name of ["Restore Banner", "Restore Cost"]) {
+      const other = screen.getByRole<HTMLButtonElement>("button", { name })
+      expect(other.disabled).toBe(true)
+      expect(other.getAttribute("aria-busy")).toBeNull()
+    }
+  })
+
+  it("is busy restoring them all, while every line waits", async () => {
+    ledger.readTableTrash.mockResolvedValue({
+      rows: [
+        { id: "r1", values: { item: "Booth" }, deleted_at: now },
+        { id: "r2", values: { item: "Banner" }, deleted_at: now },
+      ],
+      more: false,
+      fields: [],
+    })
+    ledger.restoreFromTrash.mockReturnValue(new Promise(() => {}))
+    render(<TableTrash tableId="t" fields={fields} onClose={vi.fn()} onRestored={vi.fn()} />)
+    const all = await screen.findByRole<HTMLButtonElement>("button", { name: "Restore all 2" })
+    await act(async () => fireEvent.click(all))
+    expect(ledger.restoreFromTrash).toHaveBeenCalledWith("t", { rows: ["r1", "r2"] })
+    expect(all.getAttribute("aria-busy")).toBe("true")
+    expect(all.disabled).toBe(false)
+    for (const name of ["Restore Booth", "Restore Banner"]) expect(screen.getByRole<HTMLButtonElement>("button", { name }).disabled).toBe(true)
+  })
+
   it("says it's empty", async () => {
     ledger.readTableTrash.mockResolvedValue({ rows: [], more: false, fields: [] })
     render(<TableTrash tableId="t" fields={fields} onClose={vi.fn()} onRestored={vi.fn()} />)

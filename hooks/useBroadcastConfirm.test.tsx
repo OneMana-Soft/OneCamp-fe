@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { renderHook, act } from "@testing-library/react"
 
 const { get, dispatch } = vi.hoisted(() => ({ get: vi.fn(), dispatch: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: (...a: unknown[]) => get(...a) }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: (...a: unknown[]) => get(...a) } }))
 vi.mock("react-redux", () => ({ useDispatch: () => dispatch }))
 // What the app's confirm was asked: the opened confirm's options.
 const confirm = { get calls() { return dispatch.mock.calls.map((c) => c[0].payload.data) } }
@@ -38,7 +39,7 @@ describe("asking before a broadcast", () => {
     const send = vi.fn()
     const { result } = renderHook(() => useBroadcastConfirm())
     await act(() => result.current("c-1", "launch", `<p>${chip("channel")} ship</p>`, send))
-    expect(get).toHaveBeenCalledWith("/conversations/channel/c-1/broadcasts?reach=channel", {})
+    expect(get).toHaveBeenCalledWith("/conversations/channel/c-1/broadcasts?reach=channel", OWN_ERRORS)
     expect(send).not.toHaveBeenCalled()
     expect(confirm.calls).toEqual([expect.objectContaining({ title: "Notify 41 people?", confirmText: "Send" })])
     confirm.calls[0].onConfirm()

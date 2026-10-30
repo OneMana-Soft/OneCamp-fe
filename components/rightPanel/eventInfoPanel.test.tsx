@@ -11,6 +11,8 @@ const SAM = { user_uuid: "289b6b5d-c30c-427a-bcec-634cb294f285", user_name: "Sam
 const MAYA = { user_uuid: "5e1f0000-0000-4000-8000-000000000002", user_name: "Maya", user_full_name: "Maya Chen", user_profile_object_key: "" }
 const JONAS = { user_uuid: "5e1f0000-0000-4000-8000-000000000003", user_name: "Jonas", user_full_name: "Jonas Berg", user_profile_object_key: "" }
 let participants: (typeof SAM)[] = []
+// Who organised it: Sam, the reader, unless a test says otherwise.
+let organiser = SAM
 let times = { event_start_time: "2026-09-28T09:30:00", event_end_time: "2026-09-28T09:45:00" }
 let loading = false
 let eventId = "e1"
@@ -22,10 +24,16 @@ let booking: { guest_name: string; page_title: string; guest_told: boolean } | u
 const asked: string[] = []
 // The event's notes, where a call link would be.
 let description = ""
-const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, event_description: description, event_created_by: SAM, event_participants: participants, ...(booking ? { event_booking: booking } : {}) })
+// Anything else the server says of the event (its guests' answers, what guests may do).
+let more: Record<string, unknown> = {}
+// The calendar's own API (its one store, where events repeat): off unless a test turns it on.
+let repeats = false
+const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, event_description: description, event_created_by: organiser, event_participants: participants, ...(booking ? { event_booking: booking } : {}), ...more })
 // The server's optional features (useClientConfig), asked of nothing here:
 // repeats are off, as on a server whose calendar isn't in its one store.
-vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => false }))
+// Guests' working hours (calendar A3): none kept here.
+vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({}) }))
+vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => repeats }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
@@ -33,6 +41,8 @@ vi.mock("@/hooks/useFetch", () => ({
     if (url.startsWith("/event/getEvents")) return { data: { data: [] }, isLoading: false, mutate: vi.fn() }
     if (loading) return { data: undefined, isLoading: true, mutate: vi.fn() }
     if (failure) return { data: undefined, isLoading: false, isError: { response: failure }, mutate: vi.fn() }
+    // The calendar's own API says what guests may do (guests_can_modify).
+    if (url === `/calendar/events/${encodeURIComponent(eventId)}`) return { data: { data: { event_uuid: eventId, ...more } }, isLoading: false, mutate: vi.fn() }
     return { data: url === `/event/getEvent/${encodeURIComponent(eventId)}` ? { data: standup() } : undefined, isLoading: false, mutate: vi.fn() }
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: SAM.user_uuid } } }),
@@ -54,6 +64,7 @@ vi.mock("@/lib/calendar/confirmDelete", async (importOriginal) => {
 
 import EventInfoPanel from "./eventInfoPanel"
 import { deleteEventRequest } from "@/lib/calendar/confirmDelete"
+import { addCallRequest } from "@/lib/calendar/eventsApi"
 
 // The Event Form is a chunk of its own: its first load, on a busy machine, can
 // take longer than a test's usual 5 s.
@@ -73,7 +84,16 @@ afterEach(() => {
   askedToDelete.mockReset()
   booking = undefined
   description = ""
+  more = {}
+  repeats = false
+  organiser = SAM
 })
+
+/** An event's times, `fromMin` to `toMin` minutes from now. */
+const around = (fromMin: number, toMin: number) => {
+  const t = Date.now()
+  return { event_start_time: new Date(t + fromMin * 60_000).toISOString(), event_end_time: new Date(t + toMin * 60_000).toISOString() }
+}
 
 function panel(props: { onClose?: () => void; uuid?: string } = {}) {
   return render(
@@ -221,10 +241,104 @@ describe("an event in the side panel", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Enter" })
     expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Delete event"])
   })
+
+  it("offers its organiser a call of its own while it hasn't ended, and adds one", () => {
+    times = around(60, 90)
+    panel({ onClose: vi.fn() })
+    fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Enter" })
+    // This edition offers no prep brief and no AI-found better time.
+    expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Add a call", "Delete event"])
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add a call" }))
+    expect(makeRequest).toHaveBeenCalledWith(addCallRequest("e1"))
+  })
 })
 
 // CAL-BUG-7: on a phone, and from a link, the panel looked for the event in
 // today's month only, so any other event read "This event isn't available".
+// V-34: the card's pencil, Edit event, opens the event editing, once, as
+// Google Calendar's does. Opened to read, it reads; a guest the organiser
+// doesn't let change it reads too: the pencil's ask never widens who edits.
+describe("an event opened by the card's pencil", () => {
+  const asked = (editRequest?: number) =>
+    render(
+      <TooltipProvider>
+        <EventInfoPanel eventUUID="e1" editRequest={editRequest} />
+      </TooltipProvider>,
+    )
+
+  it("opens editing, with Save and Cancel, without a press of its own", async () => {
+    asked(1)
+    expect(await screen.findByRole("textbox", { name: "Title" }, { timeout: 8000 })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
+  })
+
+  it("opens to read when it isn't asked to edit", () => {
+    asked(undefined)
+    expect(screen.getByRole("button", { name: "Edit event" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull()
+  })
+
+  it("asks once per press: Cancel leaves the form, and only a new press opens it again", async () => {
+    const { rerender } = asked(1)
+    await screen.findByRole("textbox", { name: "Title" }, { timeout: 8000 })
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull()
+    rerender(
+      <TooltipProvider>
+        <EventInfoPanel eventUUID="e1" editRequest={1} />
+      </TooltipProvider>,
+    )
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull()
+    rerender(
+      <TooltipProvider>
+        <EventInfoPanel eventUUID="e1" editRequest={2} />
+      </TooltipProvider>,
+    )
+    expect(await screen.findByRole("textbox", { name: "Title" }, { timeout: 8000 })).toBeTruthy()
+  })
+
+  it("opens to read for a guest the organiser doesn't let change it", () => {
+    organiser = MAYA
+    participants = [SAM]
+    asked(1)
+    expect(screen.getByRole("heading", { name: "Standup" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Edit event" })).toBeNull()
+  })
+})
+
+// A guest's proposed time is used or set aside by whoever may change the
+// event (mayEdit, the server's rule): a guest the organiser lets change it,
+// never a reader who isn't on it, however open it is to its guests.
+describe("a guest's proposed time", () => {
+  // An hour after the standup: from its own times, so the file keeps to its dates.
+  const later = (iso: string) => new Date(new Date(iso).getTime() + 3_600_000).toISOString()
+  const proposal = { start: later(times.event_start_time), end: later(times.event_end_time) }
+  const proposedByJonas = (alsoAnswered: object[] = []) => {
+    organiser = MAYA
+    more = { guests_can_modify: true, event_guests: [{ user_uuid: JONAS.user_uuid, role: "required", response: "tentative", proposal }, ...alsoAnswered] }
+  }
+
+  it("can be set aside by a guest the organiser lets change the event", async () => {
+    repeats = true
+    proposedByJonas([{ user_uuid: SAM.user_uuid, role: "required", response: "accepted" }])
+    participants = [SAM, JONAS]
+    panel()
+    expect(await screen.findByRole("button", { name: /^Dismiss .*'s proposal$/ }, { timeout: 8000 })).toBeTruthy()
+  })
+
+  it("offers nothing to do with it to a reader who isn't on the event", async () => {
+    repeats = true
+    proposedByJonas()
+    participants = [JONAS]
+    panel()
+    expect(await screen.findByText(/^Proposes/, undefined, { timeout: 8000 })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /^Dismiss .*'s proposal$/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Use this time" })).toBeNull()
+  })
+})
+
 describe("an event opened by its id", () => {
   const listKey = "/event/getEvents?startDate=2026-09-28T00:00:00.000Z&endDate=2026-11-01T23:59:59.999Z"
 
@@ -394,11 +508,6 @@ describe("deleting", () => {
 
 // Step 3, part 2: the panel had no Join at all; the popover's comes first.
 describe("the event panel's Join", () => {
-  const around = (fromMin: number, toMin: number) => {
-    const t = Date.now()
-    return { event_start_time: new Date(t + fromMin * 60_000).toISOString(), event_end_time: new Date(t + toMin * 60_000).toISOString() }
-  }
-
   it("joins a call that is on, first, under the line that says whose event it is", () => {
     times = around(-5, 25)
     description = "<p>Dial in: https://meet.example.com/standup</p>"

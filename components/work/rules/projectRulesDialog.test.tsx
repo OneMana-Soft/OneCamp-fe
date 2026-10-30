@@ -13,6 +13,17 @@ const rule = (over: Partial<Rule> = {}): Rule => ({
 })
 let payload: RulesPayload
 let runs: RuleRun[] = []
+// The project's forms, which a rule can run on.
+const projectForms = [
+  { id: "f1", token: "t", title: "Launch requests", description: "", active: true, priority: "medium", title_field: "what", fields: [
+    { id: "what", label: "What do you need?", type: "short_text", required: true },
+    { id: "about", label: "About you", type: "section", required: false },
+    { id: "email", label: "Your email", type: "email", required: true },
+  ] },
+  { id: "f2", token: "u", title: "Bug reports", description: "", active: true, priority: "medium", title_field: "q1", fields: [{ id: "q1", label: "What broke?", type: "short_text", required: true }] },
+  // One that adds table rows: no task for a rule to run on (package 9 R4b).
+  { id: "f3", token: "v", title: "Vendor sign-up", description: "", active: true, priority: "medium", title_field: "", target_table: "t1", fields: [{ id: "q1", label: "Company", type: "short_text", required: true, maps_to: "column:c1" }] },
+]
 vi.mock("@/hooks/useProjectRules", () => ({
   useProjectRules: () => ({ payload, isLoading: false, error: undefined, save, setActive, remove, refresh: vi.fn() }),
   useRuleRuns: () => ({ runs, isLoading: false, error: undefined, undo, refresh: vi.fn() }),
@@ -21,8 +32,16 @@ vi.mock("@/hooks/useProjectStatuses", async () => {
   const { BUILT_IN_STATUSES } = await import("@/lib/taskStatus")
   return { useProjectStatuses: () => ({ options: BUILT_IN_STATUSES }) }
 })
+// The project's people, and the workspace's AI teammates a rule may ask.
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: () => ({ data: { data: { project_members: [{ user_uuid: "ana", user_name: "ana", user_full_name: "Ana Ruiz" }, { user_uuid: "bot", is_bot: true, user_name: "bot" }] } }, isLoading: false, mutate: vi.fn() }),
+  useFetch: (url: string) =>
+    !url
+      ? { data: undefined, isLoading: false, mutate: vi.fn() }
+      : url === "/user/dm-ai-targets"
+      ? { data: { data: [{ user_uuid: "t1", user_name: "Triage Bot", is_bot: true }] }, isLoading: false, mutate: vi.fn() }
+      : url.endsWith("/forms")
+      ? { data: { data: { forms: projectForms, can_edit: true } }, isLoading: false, mutate: vi.fn() }
+      : { data: { data: { project_members: [{ user_uuid: "ana", user_name: "ana", user_full_name: "Ana Ruiz" }, { user_uuid: "bot", is_bot: true, user_name: "bot" }] } }, isLoading: false, mutate: vi.fn() },
 }))
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
@@ -82,9 +101,24 @@ describe("a project's rules", () => {
     payload = { rules: [], can_manage: true, templates: [], max: 50 }
     render(<ProjectRulesDialog projectId="p" onClose={() => {}} />)
     fireEvent.click(screen.getByRole("button", { name: /New rule/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Add an action/ }))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Make rule" })))
     expect(save).not.toHaveBeenCalled()
-    expect(screen.getByRole("alert").textContent).toBe("Name the rule.")
+    expect(screen.getByRole("alert").textContent).toBe("Write the comment.")
+  })
+
+  it("names a new rule from what it does until someone types a name, and again once it's cleared", async () => {
+    payload = { rules: [], can_manage: true, templates: [], max: 50 }
+    render(<ProjectRulesDialog projectId="p" onClose={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: /New rule/ }))
+    const name = screen.getByLabelText("Name") as HTMLInputElement
+    expect(name.value).toBe("A task is made: share it out by turns")
+    fireEvent.change(name, { target: { value: "Spread new work" } })
+    fireEvent.click(screen.getByRole("button", { name: /Add a condition/ }))
+    expect(name.value).toBe("Spread new work")
+    fireEvent.change(name, { target: { value: "" } })
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Make rule" })))
+    expect((save.mock.calls[0] as unknown as [{ name: string }])[0].name).toBe("A task is made: share it out by turns")
   })
 
   it("stops making rules at the project's cap", () => {
@@ -118,5 +152,74 @@ describe("the history", () => {
     expect(undoable(run({ steps: [{ type: "add_comment", status: "ok", detail: "commented" }] }))).toBe(false)
     expect(undoable(run({ status: "undone" }))).toBe(false)
     expect(runSummary(run({ status: "failed", steps: [{ type: "set_status", status: "failed", detail: "not allowed" }] }))).toBe("couldn't set status: not allowed")
+  })
+
+  it("says how many tasks a schedule found and reached, never its two hundred steps", () => {
+    const steps = ["a", "a", "b", "c"].map((t, i) => ({ type: "notify", status: i === 3 ? ("failed" as const) : ("ok" as const), task_id: t, detail: "told 1" }))
+    expect(runSummary(run({ matched: 5, steps }))).toBe("Matched 5 · acted on 3 · 1 couldn't")
+    expect(runSummary(run({ matched: 0, steps: [] }))).toBe("Matched 0 · acted on 0")
+  })
+
+  it("shows a schedule's next run and the ready-made rules that run on time", async () => {
+    const next = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString()
+    payload = {
+      rules: [rule({ trigger_type: "schedule", trigger_config: { repeat: "FREQ=WEEKLY;BYDAY=MO", at: "09:00" }, actions: [{ type: "create_task", task_name: "Review" }], next_run_at: next })],
+      can_manage: true, max: 50, agents: true,
+      templates: [{ key: "agent", name: "An agent reads every new bug", description: "", hue: "agent", trigger_type: "task_created", conditions: {}, actions: [{ type: "ask_agent", text: "?" }], needs_ai: true }],
+    }
+    render(<ProjectRulesDialog projectId="p" onClose={() => {}} />)
+    expect(document.querySelector("[data-rule-next]")?.textContent).toMatch(/^next /)
+    expect(screen.getByText(/every Monday/i)).toBeTruthy()
+  })
+})
+
+describe("a rule on a form (package 9 R4)", () => {
+  it("reads as the form's name, and runs on the form an admin picks, with its answers as words to use", async () => {
+    payload = { rules: [rule({ id: "r2", name: "Requests come in", trigger_type: "form_submitted", trigger_config: { form_id: "f1" }, conditions: {} })], can_manage: true, templates: [], max: 50 }
+    render(<ProjectRulesDialog projectId="p" onClose={() => {}} />)
+    expect(words(screen.getByText("Requests come in").closest("li")!)).toMatch(/^When ‘Launch requests’ is sent/)
+    fireEvent.click(screen.getByRole("button", { name: /New rule/ }))
+    const builder = document.querySelector("[data-rule-builder]") as HTMLElement
+    const trigger = within(builder).getByRole("combobox", { name: "Trigger" })
+    await act(async () => {
+      trigger.focus()
+      fireEvent.keyDown(trigger, { key: "Enter" })
+    })
+    await act(async () => fireEvent.keyDown(await screen.findByRole("option", { name: "A form is sent" }), { key: "Enter" }))
+    // The first of the project's forms, to start from.
+    expect(within(builder).getByRole("combobox", { name: "Form" }).textContent).toBe("Launch requests")
+    const said = builder.querySelector("[data-rule-variables]")!.textContent
+    expect(said).toContain("{form}")
+    expect(said).toContain("{project}")
+    expect(said).toContain("{answer:what}")
+    expect(said).toContain("What do you need?")
+    expect(said).toContain("{answer:email}")
+    expect(said).not.toContain("{status}")
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Make rule" })))
+    const [sent] = save.mock.calls[0] as unknown as [{ trigger_type: string; trigger_config: { form_id?: string } }]
+    expect(sent.trigger_type).toBe("form_submitted")
+    expect(sent.trigger_config.form_id).toBe("f1")
+  })
+})
+
+describe("a rule on a form that adds table rows (package 9 R4b)", () => {
+  it("isn't offered: only the forms that make tasks are", async () => {
+    payload = { rules: [], can_manage: true, templates: [], max: 50 }
+    render(<ProjectRulesDialog projectId="p" onClose={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: /New rule/ }))
+    const builder = document.querySelector("[data-rule-builder]") as HTMLElement
+    const trigger = within(builder).getByRole("combobox", { name: "Trigger" })
+    await act(async () => {
+      trigger.focus()
+      fireEvent.keyDown(trigger, { key: "Enter" })
+    })
+    await act(async () => fireEvent.keyDown(await screen.findByRole("option", { name: "A form is sent" }), { key: "Enter" }))
+    const form = within(builder).getByRole("combobox", { name: "Form" })
+    await act(async () => {
+      form.focus()
+      fireEvent.keyDown(form, { key: "Enter" })
+    })
+    expect(screen.getByRole("option", { name: "Bug reports" })).toBeTruthy()
+    expect(screen.queryByRole("option", { name: "Vendor sign-up" })).toBeNull()
   })
 })

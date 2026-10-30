@@ -24,8 +24,10 @@ const info = {
     doc_created_by: ME,
     doc_mqtt_topic: "doc/topic",
 }
+// The doc's guests' conversation, when a test gives one; every other read is the doc.
+const guests = vi.hoisted(() => ({ thread: undefined as unknown }))
 vi.mock("@/hooks/useFetch", () => ({
-    useFetch: () => ({ data: { data: info }, isError: undefined, mutate: vi.fn() }),
+    useFetch: (url: string) => ({ data: url.startsWith("/doc/guest-thread") && guests.thread ? guests.thread : { data: info }, isError: undefined, mutate: vi.fn() }),
     useFetchOnlyOnce: () => ({ data: { data: ME } }),
 }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))
@@ -63,7 +65,8 @@ const { DocCommentList } = await import("./docCommentList")
 const { setUi, uiOf } = await import("@/components/docComments/commentsUi")
 const { TooltipProvider } = await import("@/components/ui/tooltip")
 
-const comment = (id: string, thread: string, by = ME, text = `<p>${id}</p>`, at = "2026-10-12T09:00:00Z") => ({
+const AT = "2026-10-12T09:00:00Z"
+const comment = (id: string, thread: string, by = ME, text = `<p>${id}</p>`, at = AT) => ({
     comment_uuid: id,
     thread_id: thread,
     comment_text: text,
@@ -134,6 +137,18 @@ describe("a doc's comments beside it", () => {
         vi.mocked(api.reopenThread).mockResolvedValueOnce({ ...thread("t1"), updated_at: "2026-10-12T09:40:00Z" })
         fireEvent.click(within(resolved).getByRole("button", { name: "Reopen" }))
         await waitFor(() => expect(screen.getByText("Nothing resolved yet")).toBeTruthy())
+    })
+
+    it("says no comments yet only when the whole panel is empty, never over the guests' comments", async () => {
+        vi.mocked(api.listThreads).mockResolvedValue([])
+        guests.thread = { data: { comments: [{ id: "c1", guest_name: "Dana", body: "Is section 2 final?", created_at: AT, author_id: "guest-a" }], can_reply: false, can_moderate: false } }
+        try {
+            show()
+            expect(await screen.findByText("Is section 2 final?")).toBeTruthy()
+            expect(screen.queryByText("No comments yet")).toBeNull()
+        } finally {
+            guests.thread = undefined
+        }
     })
 
     it("says a failed read is an error, with Try again, and never that there are no comments", async () => {

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { RowProp } from "@/components/task/GroupedTaskList"
 import type { ListDisplay } from "@/components/task/WorkToolbar"
+import { ExportCSVButton } from "@/components/task/ExportCSVButton"
 import { WorkSegmented } from "@/components/task/WorkTabs"
 import { useProjectFields } from "@/hooks/useProjectFields"
 import { useTaskViews } from "@/hooks/useTaskViews"
@@ -52,6 +53,7 @@ export function DisplayMenuBody<TData>({
   layout,
   onLayout,
   onReset,
+  onExport,
 }: { projectId?: string; table: Table<TData> } & ListDisplay) {
   const scope = taskViewScope(projectId)
   const { views, save, busy } = useTaskViews(scope)
@@ -172,9 +174,12 @@ export function DisplayMenuBody<TData>({
           </form>
         )}
         {naming === null && (
-          <Button variant="ghost" size="sm" className="text-ink-3" onClick={onReset}>
-            Reset
-          </Button>
+          <span className="flex items-center">
+            {onExport && <ExportCSVButton onExport={onExport} />}
+            <Button variant="ghost" size="sm" className="text-ink-3" onClick={onReset}>
+              Reset
+            </Button>
+          </span>
         )}
       </div>
     </>

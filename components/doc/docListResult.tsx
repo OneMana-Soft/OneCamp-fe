@@ -12,6 +12,7 @@ import { PagedListFooter } from "@/components/doc/usePagedList"
 import { ArrowRight, Loader2, Plus } from "@/lib/icons"
 import { SpotDocs, SpotInbox, SpotSearch, Tile } from "@/components/ui/graphics"
 import { Button } from "@/components/ui/button"
+import { busyWith } from "@/lib/ui/busyWith"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { QUICK_DOC_TEMPLATES, templateGlyph } from "@/lib/docTemplates"
@@ -20,9 +21,10 @@ import type { DocTab } from "@/lib/utils/docTab"
 import type { DocListItem } from "@/types/docGraph"
 import { app_doc_path } from "@/types/paths"
 import { areaHue } from "@/lib/areas"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 // The archive's rows load with the Archived tab: most visits never open it.
-const RestoreRow = React.lazy(() => import("@/components/doc/RestoreRow").then((m) => ({ default: m.RestoreRow })))
+const RestoreRow = lazyPiece(() => import("@/components/doc/RestoreRow").then((m) => ({ default: m.RestoreRow })))
 
 // The skeletons live in docSkeletons.tsx, light enough for the page to draw
 // before this list's code is here; they stay importable from the list.
@@ -263,7 +265,7 @@ function DocsEmpty({ space, title = EMPTY.mine.title, description = EMPTY.mine.d
                     )
                 })}
             </div>
-            <Button size="sm" className="mt-5 gap-1.5" onClick={() => void create({ space })} disabled={!!busy}>
+            <Button size="sm" className="mt-5 gap-1.5" onClick={() => void create({ space })} {...busyWith(busy, "blank")}>
                 <Plus className="size-3.5" aria-hidden="true" /> {space === "workspace" ? "New workspace doc" : "New doc"}
             </Button>
         </div>

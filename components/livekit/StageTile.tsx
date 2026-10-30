@@ -18,13 +18,43 @@ import {
   type TrackReference,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react"
-import { ConnectionQuality, Track, type Participant } from "livekit-client"
+import { ConnectionQuality, ParticipantKind, Track, type Participant } from "livekit-client"
 import { Pin, PinOff } from "@/lib/icons"
 import type { PersonAction } from "@/lib/calls/control"
 import { cn } from "@/lib/utils/helpers/cn"
-import { CameraOffFace, NamePlate, SpeakingRing, cameraIsOff, isAgentParticipant, useRing } from "./CallStage"
+import dynamic from "next/dynamic"
+import { useHandPlace } from "./handsQueue"
+
+// A raised hand's badge: drawn once someone raises one, so not with the call.
+const HandBadge = dynamic(() => import("./HandBadge").then((m) => m.HandBadge), { ssr: false })
+import { NamePlate, SpeakingRing, StageFace, useRing } from "./CallStage"
 import { guestName } from "./callLevels"
-import { PersonActionsMenu } from "./callHosting"
+import { useTileWho } from "./callSelf"
+import { PersonActionsMenu, useCallPart } from "./callHosting"
+
+/** Whether a tile shows a face rather than a picture: a camera with nothing to show. Pure. */
+export function cameraIsOff(trackRef: Pick<TrackReferenceOrPlaceholder, "source" | "publication">, muted: boolean): boolean {
+  return trackRef.source === Track.Source.Camera && (!trackRef.publication || muted)
+}
+
+/** An agent in a call is a LiveKit agent participant: drawn as the agent square, never a person. */
+export function isAgentParticipant(p: { kind?: ParticipantKind } | undefined): boolean {
+  return p?.kind === ParticipantKind.AGENT
+}
+
+/**
+ * A person whose camera is off, in their own colour, inside a LiveKit tile.
+ * LiveKit's placeholder was the same grey silhouette for everybody.
+ */
+export function CameraOffFace({ trackRef, size = "md" }: { trackRef: TrackReferenceOrPlaceholder; size?: "sm" | "md" | "lg" }) {
+  const muted = useIsMuted(trackRef)
+  const who = trackRef.participant
+  const shown = useTileWho(who)
+  if (!cameraIsOff(trackRef, muted)) return null
+  const { name } = guestName(shown.identity, shown.name || shown.identity || "Guest")
+  // A small tile's plate already says the name.
+  return <StageFace identity={shown.identity} name={name} agent={isAgentParticipant(who)} showName={size !== "sm"} />
+}
 
 /** A participant's audio level, read 10 times a second while they speak, else 0. */
 export function useAudioLevel(participant: Participant, speaking: boolean): number {
@@ -69,17 +99,24 @@ export function StageTile({
 }) {
   const trackRef = useEnsureTrackRef(given)
   const who = trackRef.participant
-  const speaking = useIsSpeaking(who)
-  const level = useAudioLevel(who, speaking)
-  const ring = useRing(speaking ? Math.max(level, 0.05) : 0)
   const mic = { participant: who, source: Track.Source.Microphone, publication: who.getTrackPublication?.(Track.Source.Microphone) } as TrackReferenceOrPlaceholder
   const micMuted = useIsMuted(mic)
+  // The voice detector lags a microphone closing (push to talk let go), and
+  // the mute is known at once: a closed microphone is never speaking.
+  const speaking = useIsSpeaking(who) && !micMuted
+  const level = useAudioLevel(who, speaking)
+  const ring = useRing(speaking ? Math.max(level, 0.05) : 0)
   const camMuted = useIsMuted(trackRef)
   const { quality } = useConnectionQualityIndicator({ participant: who })
   const screen = trackRef.source === Track.Source.ScreenShare
+  const handPlace = useHandPlace(who.identity)
   const showVideo = !!trackRef.publication && !cameraIsOff(trackRef, camMuted)
-  const { name, guest } = guestName(who.identity || "", who.name || who.identity || "Guest")
+  // Your own part has no identity or name until the call connects: the call's token says both (callSelf).
+  const shown = useTileWho(who)
+  const { name, guest } = guestName(shown.identity, shown.name || shown.identity || "Guest")
   const agent = isAgentParticipant(who)
+  // Someone let in by the call's invite, as the server names their part (calls HU13).
+  const invited = useCallPart(who).role === "invitee"
   const reconnecting = quality === ConnectionQuality.Lost
   const actions = actionsFor && !who.isLocal && !agent && !screen ? actionsFor(who) : []
 
@@ -101,7 +138,8 @@ export function StageTile({
       <CameraOffFace trackRef={trackRef} size={size} />
       {/* A 4% white overlay on hover. */}
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-white/0 transition-colors group-hover/tile:bg-white/[0.04]" />
-      {!screen ? <SpeakingRing identity={who.identity} name={name} opacity={ring} agent={agent} /> : null}
+      {!screen ? <SpeakingRing identity={shown.identity} name={name} opacity={ring} agent={agent} /> : null}
+      {handPlace !== null && !screen ? <HandBadge place={handPlace} className="absolute left-2 top-2 z-[3]" /> : null}
       <NamePlate
         name={screen ? `${name} is presenting` : name}
         muted={!screen && micMuted}
@@ -109,6 +147,7 @@ export function StageTile({
         level={level}
         guest={guest}
         agent={agent}
+        invited={invited && !screen}
         poor={quality === ConnectionQuality.Poor}
       />
       {reconnecting ? (

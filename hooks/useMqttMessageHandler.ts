@@ -11,7 +11,7 @@ import {useTaskMessageHandlers} from "@/hooks/useTaskMessageHandlers";
 import {useDocMessageHandlers} from "@/hooks/useDocMessageHandlers";
 import {useActivityMessageHandlers} from "@/hooks/useActivityMessageHandlers";
 import mqttService from "@/services/mqttService";
-import { CONTENT_IO_JOB_EVENT } from "@/lib/export/contentIO";
+import { CONTENT_IO_JOB_EVENT } from "@/lib/export/contentIOEvent";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
 import { appMutate as mutate } from "@/lib/swrMutate";
@@ -36,7 +36,6 @@ import { toPendingActionSurface, type PendingAction } from "@/services/pendingAc
 import { statusFieldsFromMessage } from "@/lib/taskStatus";
 import { importProgressStale } from "@/lib/importLive";
 import { emitDocMeta } from "@/lib/docMeta/bus";
-import { applyConversationAccess, readConversationAccess } from "@/lib/mqtt/conversationAccess";
 import { isDesktopApp } from "@/lib/desktopApp";
 import { noteUnhandledMqttType } from "@/lib/mqtt/unhandledType";
 
@@ -396,8 +395,18 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         break
 
                     case MqttMessageType.Task_Changed:
-                        // For the chips and task lists that watch the topic
-                        // themselves (lib/liveEntity): they read the task again.
+                        // New places in the project's order re-sort its lists
+                        // and board (L-1). The chips and doc task lists watch
+                        // the topic themselves (lib/liveEntity) and read again.
+                        taskHandler.handleTaskChangedMessage(messageStr)
+                        break
+
+                    case MqttMessageType.Project_Statuses:
+                        // Its boards and pickers read them again, whatever is open.
+                        void import("@/lib/board/statusesMessage").then((m) => {
+                            const key = m.statusesKeyOfMessage(messageStr)
+                            if (key) void mutate(key)
+                        })
                         break
 
                     case MqttMessageType.Call_State:
@@ -421,6 +430,10 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                         // An import got further (business/ContentIO's Job);
                         // the import dialog listens (lib/export/contentIO).
                         window.dispatchEvent(new CustomEvent(CONTENT_IO_JOB_EVENT, { detail: JSON.parse(messageStr)?.data }))
+                        break
+
+                    case MqttMessageType.Preference:
+                        void import("@/lib/preferences/usePreference").then((m) => m.applyPreferenceMessage(JSON.parse(messageStr)?.data))
                         break
 
                     case MqttMessageType.Desktop_Notice: {
@@ -515,13 +528,20 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
                     }
 
                     case MqttMessageType.Conversation_Access: {
-                        // A conversation became this member's, or stopped
-                        // being theirs: the topics are fetched again and the
-                        // lists showing it refresh (lib/mqtt/conversationAccess).
-                        const access = readConversationAccess(JSON.parse(messageStr)?.data)
-                        if (access) {
-                            applyConversationAccess(access, { refreshTopics: () => refreshTopicsRef.current?.(), mutate })
-                        }
+                        // A conversation, project or team became this member's,
+                        // or stopped being theirs: the topics are fetched again
+                        // and the lists showing it refresh. Fetched on the first.
+                        const data = JSON.parse(messageStr)?.data
+                        void import("@/lib/mqtt/conversationAccess").then(
+                            (m) => {
+                                const access = m.readConversationAccess(data)
+                                if (access) m.applyConversationAccess(access, { refreshTopics: () => refreshTopicsRef.current?.(), mutate })
+                            },
+                            // Without its code the lists can't refresh, but
+                            // the topics still can: a tab must stop hearing
+                            // what was taken away.
+                            () => refreshTopicsRef.current?.(),
+                        )
                         break
                     }
 

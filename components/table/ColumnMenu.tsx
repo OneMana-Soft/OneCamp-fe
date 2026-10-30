@@ -5,13 +5,19 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { AlertTriangle, ChevronDown, Loader2, Plus } from "@/lib/icons"
 import { Spark } from "@/components/ui/graphics"
-import { fieldProblem, formulaOf, isNumeric, parseFieldConfig, type FieldPatch, type FieldType, type TableField } from "@/services/tableService"
+import { alignsRight, fieldProblem, formulaOf, parseFieldConfig, type FieldType, type TableField } from "@/services/tableService"
+import type { FieldPatch } from "@/services/tableCalls"
 import { fieldKind } from "@/lib/fieldTypes/registry"
 import { ix } from "@/lib/ui/interactive"
 import { returnFocusOnlyForKeys } from "@/lib/ui/inputModality"
-import { lazyView } from "@/components/task/LazyView"
+import { lazyView } from "@/lib/lazy/lazyView"
 
 export type ColumnPage = "main" | "type" | "options" | "format" | "formula" | "relation" | "rollup" | "ai" | "settings"
+
+/** The page that sets up a field of this type (a formula's, a relation's or a rollup's), or null for a type with none. */
+export function settingsPageOf(type: FieldType | undefined): ColumnPage | null {
+  return type === "formula" || type === "relation" || type === "rollup" ? type : null
+}
 
 /**
  * A column's save from its menu: what it changes, and nothing else
@@ -44,8 +50,8 @@ export function aiPromptOf(config: { [k: string]: unknown }): string {
  */
 const MenuPart = lazyView(() => import("@/components/table/columnMenu/ColumnMenuBody"))
 const AddPart = lazyView(() => import("@/components/table/columnMenu/AddColumnBody"))
-const warmMenu = () => void MenuPart.warm().catch(() => {})
-const warmAdd = () => void AddPart.warm().catch(() => {})
+const warmMenu = () => void MenuPart.prefetch()
+const warmAdd = () => void AddPart.prefetch()
 
 /** Both menus' chunks, loaded: what a test that opens a menu waits for first. */
 export const loadColumnMenus = () => Promise.all([MenuPart.warm(), AddPart.warm()])
@@ -96,7 +102,7 @@ export function ColumnHeader(props: ColumnHeaderProps) {
   const { field, canManage, frozen, index, openPage, onOpenPage, onHover, onResizeStart, onAutoFit } = props
   const open = openPage !== null
   const page = openPage ?? "main"
-  const numeric = isNumeric(field)
+  const numeric = alignsRight(field)
   const Glyph = fieldKind(field.type).glyph
   const config = parseFieldConfig(field)
   const savedAiPrompt = aiPromptOf(config)
@@ -148,6 +154,7 @@ export function ColumnHeader(props: ColumnHeaderProps) {
     <th
       scope="col"
       data-frozen={frozen || undefined}
+      data-sticky-lead={frozen || undefined}
       data-col-index={index}
       onPointerEnter={() => onHover?.(index)}
       onPointerLeave={() => onHover?.(null)}
@@ -205,7 +212,7 @@ export function AddColumn({
 }: {
   tableId: string
   fields: TableField[]
-  onCreate: (input: ColumnCreateInput) => Promise<void>
+  onCreate: (input: ColumnCreateInput) => Promise<unknown>
 }) {
   const [open, setOpen] = React.useState(false)
   return (

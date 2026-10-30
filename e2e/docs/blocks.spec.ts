@@ -1,15 +1,19 @@
-import { expect, test, type Browser, type Locator, type Page, type TestInfo } from "@playwright/test"
+import { expect, test, type Locator, type Page, type Request } from "@playwright/test"
 
-import { SAM, docInfo, stubBackend } from "../stubbedApp"
+import { holdUntil } from "../sheetLayout"
+import { SAM, docInfo, type Answers } from "../stubbedApp"
 import { CollabRelay } from "./collabRelay"
-import { PRIYA, blockIds, openDocAs, type DocTab, type Person } from "./twoPeople"
+import { openDocWith } from "./docWith"
+import { PRIYA, blockIds, openDocAs, type DocTab } from "./twoPeople"
+import { grip, handle, hover, menu, settled } from "./blockHandle"
 
 // The hand on blocks (B1; editor.md P0-2, P0-3, P1-6, P1-14; content.md
 // D10): the handle on a block's first line, the block menu by pointer and by
 // keyboard alone, Tab nesting with focus kept, a drag that moves a block once
 // for everyone, columns by a drag beside a block, a link that lands on its
-// block, and a phone's long-press. Two people where it matters, each in a
-// browser of their own on A1's relay; nothing reaches a server.
+// block, a phone's long-press, and a block one person deletes staying deleted
+// for the other. Two people where it matters, each in a browser of their own
+// on A1's relay; nothing reaches a server.
 
 const DOC = "3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
 
@@ -36,35 +40,7 @@ const texts = (tab: DocTab) =>
       return copy.textContent ?? ""
     }),
   )
-const handle = (page: Page) => page.locator(".block-handle-floating")
-const grip = (page: Page) => page.getByRole("button", { name: "Drag to move or click for options" })
-const menu = (page: Page) => page.locator("[data-block-menu]")
 const search = (page: Page) => page.getByRole("combobox", { name: "Search actions" })
-
-/** The pointer over a block's first line, moving as a hand does. */
-async function hover(page: Page, block: Locator) {
-  const box = (await block.boundingBox())!
-  await page.mouse.move(box.x + 30, box.y + 2)
-  await page.mouse.move(box.x + 40, box.y + 6, { steps: 3 })
-  await expect(handle(page)).toHaveAttribute("data-visible", "true")
-  await settled(page)
-}
-
-/** The handle has stopped gliding: its grip is where it was a moment ago. */
-async function settled(page: Page) {
-  let last = ""
-  await expect
-    .poll(
-      async () => {
-        const now = JSON.stringify(await grip(page).boundingBox())
-        const same = now === last
-        last = now
-        return same
-      },
-      { intervals: [60, 60, 120] },
-    )
-    .toBe(true)
-}
 
 /**
  * Drags a block by its grip to a point, in steps a pointer takes. Without an
@@ -275,49 +251,105 @@ test("a link to a block opens the doc at it, flashing in the sender's colour", a
   await priya.close()
 })
 
-/** A doc on a phone: a touch screen 390 px wide. */
-async function openOnPhone(browser: Browser, testInfo: TestInfo, relay: CollabRelay, person: Person, id: string): Promise<DocTab> {
-  const context = await browser.newContext({
-    baseURL: String(testInfo.project.use.baseURL || "http://localhost:3001"),
-    viewport: { width: 390, height: 844 },
-    hasTouch: true,
-    isMobile: true,
-  })
-  const page = await context.newPage()
-  await stubBackend(page, testInfo, {
-    [`/doc/getDocInfo/${id}`]: docInfo({ doc_uuid: id, doc_title: "Launch plan", doc_body: "<p></p>", edit: true }),
-    "/user/profile": { msg: "ok", data: person },
-    "/auth/token": { data: { token: `e2e-${person.user_name}` } },
-  })
-  await relay.attach(page, person.user_full_name)
-  await page.goto(`/app/doc/${id}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
-  const body = page.locator('.doc-editor .ProseMirror[contenteditable="true"]')
-  await expect(body).toBeVisible({ timeout: 60_000 })
-  return { page, body, close: () => context.close() }
-}
-
 test("on a phone, a long-press on a block opens its sheet, whose moves keep it open", async ({ browser }, testInfo) => {
   const relay = new CollabRelay()
   const id = `${DOC.slice(0, -1)}6`
   const sam = await openDocAs(browser, testInfo, relay, SAM, { id })
   await write(sam, ["one", "two", "three"])
-  const phone = await openOnPhone(browser, testInfo, relay, PRIYA, id)
+  const phone = await openDocAs(browser, testInfo, relay, PRIYA, { id }, { phone: true })
   await expect(phone.body).toContainText("three", { timeout: 15_000 })
 
-  const two = (await paragraphs(phone).nth(1).boundingBox())!
-  const cdp = await phone.page.context().newCDPSession(phone.page)
-  const at = { x: Math.round(two.x + 20), y: Math.round(two.y + two.height / 2) }
   const sheet = phone.page.locator("[data-block-sheet]")
   // The finger stays down until the sheet is up (it opens at 500 ms).
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] })
-  await expect(sheet).toBeVisible({ timeout: 15_000 })
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  await holdUntil(phone.page, paragraphs(phone).nth(1), sheet)
   await sheet.getByRole("button", { name: "Move down" }).click()
   await expect.poll(() => texts(phone), { timeout: 15_000 }).toEqual(["one", "three", "two"])
   // Still open, for the block where it went: at the bottom it only goes up.
   await expect(sheet.getByRole("button", { name: "Move up" })).toBeVisible()
   await expect(sheet.getByRole("button", { name: "Move down" })).toHaveCount(0)
   await expect.poll(() => texts(sam), { timeout: 15_000 }).toEqual(["one", "three", "two"])
+  await sam.close()
+  await phone.close()
+})
+
+// A child page, for the page block Sam links with /link to page.
+const NOTES = "3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c60"
+type Ref = { kind: string; id: string }
+/** What a page block reads: the picker's recent pages, its live title, its page and the page's place. */
+const PAGES: Answers = {
+  "/doc/list": { msg: "ok", data: { scope: "recent", count: 1, docs: [{ doc_uuid: NOTES, doc_title: "Launch notes", path: [] }] } },
+  "/entities": (_url: URL, request: Request) => ({
+    msg: "ok",
+    data: ((request.postDataJSON() ?? {}).refs as Ref[]).map((r) => ({ ...r, access: "ok", data: { title: "Launch notes" } })),
+  }),
+  "/doc/children": { msg: "ok", data: { parent: "", nodes: [], hidden: 0, count: 0, next_cursor: "" } },
+  [`/doc/getDocInfo/${NOTES}`]: docInfo({ doc_uuid: NOTES, doc_title: "Launch notes", doc_body: "<p>Notes</p>", edit: true }),
+  [`/doc/ancestors/${NOTES}`]: { msg: "ok", data: { ancestors: [], truncated: false } },
+}
+const pageBlocks = (tab: DocTab) => tab.body.locator("[data-subpage]")
+
+/** Links the child page at the doc's end, which leaves the caret on its block. */
+async function linkPage(tab: DocTab) {
+  await tab.body.click()
+  await tab.page.keyboard.type("/link")
+  const entry = tab.page.getByRole("option", { name: /^Link to page/ })
+  await expect(entry).toBeVisible({ timeout: 15_000 })
+  await entry.click()
+  await tab.page.getByRole("option", { name: "Launch notes" }).click()
+  await expect(pageBlocks(tab)).toHaveCount(1, { timeout: 15_000 })
+}
+
+/**
+ * The block is gone from both tabs, and stays gone once the tab that held it
+ * writes again; neither editor threw while taking the other's updates.
+ */
+async function staysDeleted(relay: CollabRelay, holder: DocTab, deleter: DocTab) {
+  await expect(pageBlocks(deleter)).toHaveCount(0)
+  await expect(pageBlocks(holder)).toHaveCount(0, { timeout: 15_000 })
+  await holder.body.click()
+  await holder.page.keyboard.type("Sam carries on")
+  await expect(deleter.body).toContainText("Sam carries on", { timeout: 15_000 })
+  await expect(pageBlocks(holder)).toHaveCount(0)
+  await expect(pageBlocks(deleter)).toHaveCount(0)
+  expect(relay.updateErrors).toEqual([])
+}
+
+test("a page block one person deletes stays deleted for the other, whose tab held it", async ({ browser }, testInfo) => {
+  const relay = new CollabRelay()
+  const id = `${DOC.slice(0, -1)}8`
+  const sam = await openDocWith(browser, testInfo, relay, SAM, { id }, PAGES)
+  const priya = await openDocWith(browser, testInfo, relay, PRIYA, { id }, PAGES)
+  await linkPage(sam)
+  await expect(pageBlocks(priya)).toHaveCount(1, { timeout: 15_000 })
+
+  await hover(priya.page, pageBlocks(priya))
+  await grip(priya.page).click()
+  await expect(menu(priya.page)).toBeVisible()
+  await priya.page.keyboard.type("Delete")
+  await priya.page.keyboard.press("Enter")
+  await staysDeleted(relay, sam, priya)
+  await sam.close()
+  await priya.close()
+})
+
+test("on a phone, a page block deleted from its sheet stays deleted for the other, whose tab held it", async ({ browser }, testInfo) => {
+  const relay = new CollabRelay()
+  const id = `${DOC.slice(0, -1)}9`
+  const sam = await openDocWith(browser, testInfo, relay, SAM, { id }, PAGES)
+  const phone = await openDocWith(browser, testInfo, relay, PRIYA, { id }, PAGES, { width: 390, height: 844, isMobile: true, hasTouch: true })
+  await linkPage(sam)
+  await expect(pageBlocks(phone)).toHaveCount(1, { timeout: 15_000 })
+
+  const box = (await pageBlocks(phone).boundingBox())!
+  const cdp = await phone.page.context().newCDPSession(phone.page)
+  const at = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
+  const sheet = phone.page.locator("[data-block-sheet]")
+  // The finger stays down until the sheet is up (it opens at 500 ms).
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] })
+  await expect(sheet).toBeVisible({ timeout: 15_000 })
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  await sheet.getByRole("button", { name: "Delete", exact: true }).click()
+  await staysDeleted(relay, sam, phone)
   await sam.close()
   await phone.close()
 })

@@ -68,3 +68,21 @@ describe("people in a doc", () => {
     expect(followersOf(s, 3)).toEqual([])
   })
 })
+
+describe("people on a board", () => {
+  // A board tab says its person and where it points (components/board/boardPresence), and its idle state as a doc's tab does.
+  it("is one person across their board tabs, the tab that pointed last first, idle only when every tab says so", () => {
+    const seen = newSeen()
+    presenceOf(states([[1, { user: maya, pointer: { x: 0, y: 0 } }], [2, { user: maya, pointer: { x: 5, y: 5 } }], [3, { user: sam1, idle: true }]]), 3, seen, null, 1000)
+    const p = presenceOf(states([[1, { user: maya, pointer: { x: 0, y: 0 } }], [2, { user: maya, pointer: { x: 9, y: 9 } }], [3, { user: sam1, idle: true }]]), 3, seen, null, 2000)
+    expect(p.people["u-maya"]).toEqual({ clients: [2, 1], name: "Maya Chen", idle: false })
+    expect(p.people["u-sam-1"].idle).toBe(true)
+    expect(p.self).toBe("u-sam-1")
+    expect(p.edit).toBeNull()
+  })
+
+  it("leaves out a board tab that hasn't named its person yet", () => {
+    const p = presenceOf(states([[1, { pointer: { x: 1, y: 1 } }], [2, { user: maya }]]), 9, newSeen(), null, 1000)
+    expect(Object.keys(p.people)).toEqual(["u-maya"])
+  })
+})

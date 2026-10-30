@@ -5,12 +5,21 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  '@radix-ui/react-menu@2.1.16':
+    hash: w7io63agi3uw7dnkejsaqmvu4y
+    path: patches/@radix-ui__react-menu@2.1.16.patch
   '@radix-ui/react-toast@1.2.15':
-    hash: 5oz6sp6k4zlhz53flzukuboulm
+    hash: 3xx7gja5eyvqgeyreckqmd5qwi
     path: patches/@radix-ui__react-toast@1.2.15.patch
+  next@16.3.8:
+    hash: eesfbju4fcbnzwl4rmwehwzshq
+    path: patches/next@16.3.8.patch
   react-resizable-panels@2.1.9:
     hash: 2q6bxin2lkv5rrotidxbfkmjtu
     path: patches/react-resizable-panels@2.1.9.patch
+  virtua@0.41.5:
+    hash: 7jcin36lrv5cavn5iafefiim44
+    path: patches/virtua@0.41.5.patch
   y-prosemirror@1.3.7:
     hash: 24bwr426rwirthnl2zabwi6vjm
     path: patches/y-prosemirror@1.3.7.patch
@@ -64,6 +73,9 @@ importers:
       '@radix-ui/react-dropdown-menu':
         specifier: ^2.1.5
         version: 2.1.16(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@radix-ui/react-focus-scope':
+        specifier: 1.1.7
+        version: 1.1.7(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@radix-ui/react-icons':
         specifier: ^1.3.2
         version: 1.3.2(react@19.2.0)
@@ -102,7 +114,7 @@ importers:
         version: 1.1.13(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@radix-ui/react-toast':
         specifier: 1.2.15
-        version: 1.2.15(patch_hash=5oz6sp6k4zlhz53flzukuboulm)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 1.2.15(patch_hash=3xx7gja5eyvqgeyreckqmd5qwi)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@radix-ui/react-toggle':
         specifier: ^1.1.1
         version: 1.1.10(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -249,7 +261,7 @@ importers:
         version: 5.14.1
       next:
         specifier: 16.3.8
-        version: 16.3.8(@babel/core@7.29.7)(@playwright/test@1.60.0)(@types/node@20.19.43)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(sass@1.93.2)
+        version: 16.3.8(patch_hash=eesfbju4fcbnzwl4rmwehwzshq)(@babel/core@7.29.7)(@playwright/test@1.60.0)(@types/node@20.19.43)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(sass@1.93.2)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -309,7 +321,7 @@ importers:
         version: 1.1.2(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       virtua:
         specifier: ^0.41.5
-        version: 0.41.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 0.41.5(patch_hash=7jcin36lrv5cavn5iafefiim44)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
@@ -368,6 +380,9 @@ importers:
       eslint-config-next:
         specifier: 15.1.6
         version: 15.1.6(eslint@9.39.5(jiti@2.6.1))(typescript@5.9.3)
+      fake-indexeddb:
+        specifier: 6.0.0
+        version: 6.0.0
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
@@ -4122,6 +4137,10 @@ packages:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
     engines: {node: '>=12.0.0'}
 
+  fake-indexeddb@6.0.0:
+    resolution: {integrity: sha512-YEboHE5VfopUclOck7LncgIqskAqnv4q0EWbYCaxKKjAvO93c+TJIaBuGy8CBFdbg9nKdpN3AuPRwVBJ4k7NrQ==}
+    engines: {node: '>=18'}
+
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -7571,7 +7590,7 @@ snapshots:
       '@radix-ui/react-compose-refs': 1.1.2(@types/react@19.2.2)(react@19.2.0)
       '@radix-ui/react-context': 1.1.2(@types/react@19.2.2)(react@19.2.0)
       '@radix-ui/react-id': 1.1.1(@types/react@19.2.2)(react@19.2.0)
-      '@radix-ui/react-menu': 2.1.16(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@radix-ui/react-menu': 2.1.16(patch_hash=w7io63agi3uw7dnkejsaqmvu4y)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@radix-ui/react-primitive': 2.1.3(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@radix-ui/react-use-controllable-state': 1.2.2(@types/react@19.2.2)(react@19.2.0)
       react: 19.2.0
@@ -7674,7 +7693,7 @@ snapshots:
       '@types/react': 19.2.2
       '@types/react-dom': 19.2.2(@types/react@19.2.2)
 
-  '@radix-ui/react-menu@2.1.16(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@radix-ui/react-menu@2.1.16(patch_hash=w7io63agi3uw7dnkejsaqmvu4y)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@radix-ui/primitive': 1.1.3
       '@radix-ui/react-collection': 1.1.7(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -8093,7 +8112,7 @@ snapshots:
       '@types/react': 19.2.2
       '@types/react-dom': 19.2.2(@types/react@19.2.2)
 
-  '@radix-ui/react-toast@1.2.15(patch_hash=5oz6sp6k4zlhz53flzukuboulm)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@radix-ui/react-toast@1.2.15(patch_hash=3xx7gja5eyvqgeyreckqmd5qwi)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@radix-ui/primitive': 1.1.3
       '@radix-ui/react-collection': 1.1.7(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -10197,6 +10216,8 @@ snapshots:
 
   expect-type@1.3.0: {}
 
+  fake-indexeddb@6.0.0: {}
+
   fast-deep-equal@3.1.3: {}
 
   fast-glob@3.3.1:
@@ -11049,7 +11070,7 @@ snapshots:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  next@16.3.8(@babel/core@7.29.7)(@playwright/test@1.60.0)(@types/node@20.19.43)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(sass@1.93.2):
+  next@16.3.8(patch_hash=eesfbju4fcbnzwl4rmwehwzshq)(@babel/core@7.29.7)(@playwright/test@1.60.0)(@types/node@20.19.43)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(sass@1.93.2):
     dependencies:
       '@next/env': 16.3.8
       '@swc/helpers': 0.5.23
@@ -12163,7 +12184,7 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
 
-  virtua@0.41.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  virtua@0.41.5(patch_hash=7jcin36lrv5cavn5iafefiim44)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     optionalDependencies:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)

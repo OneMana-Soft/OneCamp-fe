@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useCallback } from "react"
+import { memo, useCallback, useRef } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import {
@@ -10,6 +10,8 @@ import {
     type TaskCommentInputState,
 } from "@/store/slice/createTaskCommentSlice"
 import { usePost } from "@/hooks/usePost"
+import { usePhone } from "@/hooks/usePhone"
+import { fromFoot, useRootPlace } from "@/components/livekit/rootPlace"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags"
@@ -17,10 +19,21 @@ import type { CreateTaskCommentInterface } from "@/types/task"
 import type { CreateCommentResInterface } from "@/types/comment"
 import type { UserProfileInterface } from "@/types/user"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Eye, SendHorizontal } from "@/lib/icons"
+import { Eye, SendHorizontal, WifiOff } from "@/lib/icons"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { TaskCommentFileUpload } from "@/components/fileUpload/taskCommentFileUpload"
 import type { Content } from "@tiptap/core"
+
+const nowhere = { current: null }
+
+// On a phone the box owns the screen's foot: it publishes its top as a
+// composer sheet does, so toasts and the connection pill sit above it.
+function usePhoneFoot() {
+    const ref = useRef<HTMLDivElement>(null)
+    const phone = usePhone()
+    useRootPlace("--mobile-drawer-h", phone ? ref : nowhere, fromFoot, phone)
+    return ref
+}
 
 interface TaskCommentComposerProps {
     taskUUID: string
@@ -51,11 +64,10 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
     hasAttachments = false,
     frame,
 }: TaskCommentComposerProps) {
+    const foot = usePhoneFoot()
     return (
-        // Tighter on a phone, where the task page has no bottom bar: clear of
-        // the home indicator (safe-area inset), and less of the screen spent
-        // on an empty box above the task's own fields.
-        <div data-task-comment-box="" className="flex-shrink-0 border-t px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:p-4">
+        // Tighter on a phone: clear of the home indicator, less empty box.
+        <div ref={foot} data-task-comment-box="" className="flex-shrink-0 border-t px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:p-4">
             <div data-composer-frame={frame ? "page" : undefined} className={frame}>
             <MinimalTiptapTextInput
                 throttleDelay={300}
@@ -82,26 +94,29 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
 })
 
 /**
- * In the box's place, for someone who reads a task but can't comment on it (a
- * project's viewer): said quietly, in the server's words, never a box that
- * refuses what is typed in it (Work Access, A1).
+ * In the box's place for a project's viewer, who can't comment: said quietly,
+ * never a box that refuses what is typed (Work Access, A1). later: a task made
+ * on this device whose project's access it doesn't hold (lib/work/access
+ * accessHeldBack): it can be changed once back online, so it never says
+ * view-only.
  */
-export function TaskCommentNote({ frame }: { frame?: string }) {
+export function TaskCommentNote({ frame, later }: { frame?: string; later?: boolean }) {
+    const foot = usePhoneFoot()
     return (
-        <div data-task-comment-note="" className="flex-shrink-0 border-t px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4">
+        <div ref={foot} data-task-comment-note="" className="flex-shrink-0 border-t px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-4">
             <p data-composer-frame={frame ? "page" : undefined} className={cn("flex items-center gap-2 text-ui-sm text-ink-3", frame)}>
-                <Eye className="size-3.5 shrink-0" aria-hidden="true" />
-                <span>You can see this project but not comment in it.</span>
+                {later ? <WifiOff className="size-3.5 shrink-0" aria-hidden="true" /> : <Eye className="size-3.5 shrink-0" aria-hidden="true" />}
+                <span data-task-comment-later={later ? "" : undefined}>
+                    {later ? "You can change and comment on it when you're back online." : "You can see this project but not comment in it."}
+                </span>
             </p>
         </div>
     )
 }
 
 /**
- * The composer with what it needs from the store: the comment being written,
- * its files, and sending it. It reads them itself, so the panel above it does
- * not: the panel read the draft, and every keystroke in a comment rendered the
- * whole panel again.
+ * The composer with the draft, its files and sending it, read here so a
+ * keystroke doesn't render the whole panel above it again.
  */
 export const TaskCommentBox = memo(function TaskCommentBox({
     taskUUID,

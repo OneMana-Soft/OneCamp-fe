@@ -1,17 +1,12 @@
 "use client"
 
 import { useState, useCallback, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
-import { useDispatch } from "react-redux"
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch"
+import { useAppRouter } from "@/lib/navigation/appRouter"
+import { useFetch } from "@/hooks/useFetch"
 import { useDebounce } from "@/hooks/useDebounce"
+import { useSearchResultActions } from "@/hooks/useSearchResultActions"
 import { fetchSearchPage, GlobalSearchGet, SearchResult } from "@/services/searchService"
 import { searchWithinHref, withinParam, type SearchWithin } from "@/lib/search/within"
-import { openUI } from "@/store/slice/uiSlice"
-import type {UserProfileInterface} from "@/types/user";
-import {GetEndpointUrl} from "@/services/endPoints";
-import { resultPath } from "@/lib/search/resultPath";
-import { getAttachmentLightboxData } from "@/lib/utils/helpers/search";
 
 const NO_RESULTS: SearchResult[] = []
 
@@ -30,9 +25,7 @@ export const useSearch = ({
     const [inputValue, setInputValue] = useState(initialQuery)
     const debouncedValue = useDebounce(inputValue, debounceMs)
     const [open, setOpen] = useState(false)
-    const router = useRouter()
-    const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-    const dispatch = useDispatch()
+    const router = useAppRouter()
 
     const searching = debouncedValue.trim().length >= 2
     const q = debouncedValue.trim()
@@ -137,27 +130,11 @@ export const useSearch = ({
     // One mapping for where a hit opens (resultPath), as the page's links and
     // the palette's rows use: this switch spelled it out a second time, and
     // sent a DM message to /app/chat/<message id>. A person opens their card.
-    const handleResultClick = useCallback((result: SearchResult) => {
+    const closeOnOpen = useCallback(() => {
         setOpen(false)
         setInputValue("")
-
-        if (result.type === "user") {
-            dispatch(openUI({ key: 'otherUserProfile', data: { userUUID: result.user?.user_id } }))
-            return
-        }
-        const path = resultPath(result, selfProfile.data?.data.user_uuid || "")
-        if (path) router.push(path)
-    }, [router, dispatch, selfProfile.data?.data.user_uuid])
-
-    const handlePreview = useCallback((result: SearchResult) => {
-        const lightboxData = getAttachmentLightboxData(result, selfProfile.data?.data.user_uuid || "")
-        if (lightboxData) {
-            dispatch(openUI({
-                key: 'attachmentLightbox',
-                data: lightboxData
-            }))
-        }
-    }, [dispatch, selfProfile.data?.data.user_uuid])
+    }, [])
+    const { handleResultClick, handlePreview } = useSearchResultActions(closeOnOpen)
 
     return {
         inputValue,

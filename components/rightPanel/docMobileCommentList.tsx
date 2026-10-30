@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { DocAccessNote } from "@/components/docEditor/DocAccessNote"
 import { useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -11,6 +12,10 @@ import { CommentComposer } from "@/components/docComments/CommentComposer"
 import { ThreadRow } from "@/components/docComments/ThreadRow"
 import { ThreadsSkeleton, ThreadsToolbar, useThreadList } from "@/components/docComments/ThreadsPanelParts"
 import { useDocThreads } from "@/components/docComments/useDocThreads"
+import { guestsSpoke, useGuestConversation } from "@/components/docComments/useGuestConversation"
+
+// The doc's conversation with its guests, loaded off the first load: most docs have none.
+const GuestConversation = dynamic(() => import("@/components/docComments/GuestConversation").then((m) => m.GuestConversation), { ssr: false })
 
 /**
  * A doc's comments on a phone (docs programme B7): its threads, Open and
@@ -22,6 +27,8 @@ import { useDocThreads } from "@/components/docComments/useDocThreads"
 export const DocMobileCommentList = ({ docId }: { docId: string }) => {
     const t = useDocThreads(docId)
     const view = useThreadList(docId, t)
+    // "No comments yet" only when the whole page is: not over guests' comments.
+    const guests = guestsSpoke(useGuestConversation(docId))
 
     // A notice names one comment (?comment=): its thread's own page, once it is here.
     const router = useRouter()
@@ -72,7 +79,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                         description="Resolve a thread when it's settled. It's kept here, and can be reopened."
                         className="py-8"
                     />
-                ) : view.list.length === 0 ? (
+                ) : view.list.length === 0 && guests === false ? (
                     <EmptyState
                         icon={MessageSquare}
                         title="No comments yet"
@@ -86,6 +93,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                 ) : (
                     view.list.map((th) => <ThreadRow key={th.id} docId={docId} thread={th} />)
                 )}
+                {!t.isDeleted ? <GuestConversation docId={docId} /> : null}
             </div>
             {!t.canComment && !t.isDeleted && t.level !== "none" && (
                 // Said, never a box that silently isn't there (docs incident, 14 Oct 2026).

@@ -1,0 +1,44 @@
+diff --git a/dist/index.js b/dist/index.js
+index 4d102d0cf4c9f82dcf13a384e5af0af36a4285d3..164a29c00aa793ae5bae41b3e12199a5adb265c4 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -813,7 +813,16 @@ var MenuSubContent = React.forwardRef(
+           if (event.target !== subContext.trigger) context.onOpenChange(false);
+         }),
+         onEscapeKeyDown: (0, import_primitive.composeEventHandlers)(props.onEscapeKeyDown, (event) => {
+-          rootContext.onClose();
++          // OneCamp patch (patches/@radix-ui__react-menu@2.1.16.patch): Esc closes
++          // this side menu alone and gives its row the focus back, as the close
++          // arrow does: one layer a press (the interaction spec's rule 7). It closed
++          // the whole menu, and the next press closed what held the menu (the share
++          // dialog's Access ends). A press while the side menu is already closing is
++          // the menu's.
++          if (context.open) {
++            context.onOpenChange(false);
++            subContext.trigger?.focus();
++          } else rootContext.onClose();
+           event.preventDefault();
+         }),
+         onKeyDown: (0, import_primitive.composeEventHandlers)(props.onKeyDown, (event) => {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 10eefb0533ee4fa16b7f0e42671969c2c4464835..d47eaf5ccbf5b582b2b37911f18ebcbb516ec358 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -746,7 +746,16 @@ var MenuSubContent = React.forwardRef(
+           if (event.target !== subContext.trigger) context.onOpenChange(false);
+         }),
+         onEscapeKeyDown: composeEventHandlers(props.onEscapeKeyDown, (event) => {
+-          rootContext.onClose();
++          // OneCamp patch (patches/@radix-ui__react-menu@2.1.16.patch): Esc closes
++          // this side menu alone and gives its row the focus back, as the close
++          // arrow does: one layer a press (the interaction spec's rule 7). It closed
++          // the whole menu, and the next press closed what held the menu (the share
++          // dialog's Access ends). A press while the side menu is already closing is
++          // the menu's.
++          if (context.open) {
++            context.onOpenChange(false);
++            subContext.trigger?.focus();
++          } else rootContext.onClose();
+           event.preventDefault();
+         }),
+         onKeyDown: composeEventHandlers(props.onKeyDown, (event) => {

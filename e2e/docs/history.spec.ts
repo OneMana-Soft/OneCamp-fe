@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { layersOverSheet, scrimOverLayerBelow } from "../sheetLayout"
 import { SAM } from "../stubbedApp"
 import { bigVersion } from "./bigVersions"
 import { CollabRelay } from "./collabRelay"
@@ -89,6 +90,11 @@ test("reads a version, marks its changes, names it, and restores it live after a
   await sheet.locator("[data-restore-version]").click()
   const ask = tab.page.getByRole("alertdialog")
   await expect(ask).toContainText("for everyone, at once")
+  // A computer keeps the confirm a dialog in the middle of the screen; a
+  // phone's is a sheet (below).
+  await expect(ask).not.toHaveAttribute("data-v3-sheet", /.*/)
+  const box = (await ask.boundingBox())!
+  expect(Math.abs(box.x + box.width / 2 - tab.page.viewportSize()!.width / 2)).toBeLessThan(2)
   await ask.getByRole("button", { name: "Restore version" }).click()
   await expect.poll(() => sent.find((w) => w.path === "/doc/versions/v2/restore")?.body).toEqual({ doc_uuid: DOC })
   await expect(tab.page.locator("[data-history-sheet]")).toHaveCount(0)
@@ -108,6 +114,41 @@ test("on a phone, opens from the doc's sheet as a sheet: the list, then a versio
   await expect(sheet.locator("[data-restore-version]")).toBeVisible()
   await sheet.getByRole("button", { name: "Versions" }).click()
   await expect(sheet.getByRole("listbox", { name: "Versions" })).toBeVisible()
+  await tab.close()
+})
+
+// Owner, 18 Oct: on a phone every dialog is a sheet. Restore asks in a sheet
+// of its own over the history sheet (components/ui/alert-dialog): on the
+// bottom edge at the screen's width, its dim over the sheet under it, and
+// Restore version over Cancel, each 44px tall and whole on the screen.
+test("on a phone, Restore asks in a sheet of its own, its actions in a thumb's reach", async ({ browser }, testInfo) => {
+  const relay = new CollabRelay()
+  const tab = await openDocWith(browser, testInfo, relay, SAM, { id: DOC }, answers(NEWER, OLDER), { width: 390, height: 844, isMobile: true, hasTouch: true })
+  const sent = writes(tab.page)
+  await tab.page.getByRole("button", { name: "Document options" }).tap()
+  await tab.page.getByText("Version history", { exact: true }).tap()
+  const sheet = tab.page.locator("[data-history-sheet]")
+  await sheet.getByRole("option").nth(1).tap()
+  await sheet.locator("[data-restore-version]").tap()
+
+  const ask = tab.page.getByRole("alertdialog")
+  await expect(ask).toHaveAttribute("data-v3-sheet", "")
+  await expect
+    .poll(async () => {
+      const b = (await ask.boundingBox())!
+      return [Math.round(b.x), Math.round(b.width), Math.round(b.y + b.height)]
+    })
+    .toEqual([0, 390, 844])
+  expect(await layersOverSheet(tab.page)).toEqual({ modals: [], popovers: [] })
+  expect(await scrimOverLayerBelow(tab.page), "the confirm's scrim dims the history sheet").toBe(true)
+  const restore = (await ask.getByRole("button", { name: "Restore version" }).boundingBox())!
+  const cancel = (await ask.getByRole("button", { name: "Cancel" }).boundingBox())!
+  expect(Math.min(restore.height, cancel.height)).toBeGreaterThanOrEqual(44)
+  expect(cancel.y).toBeGreaterThanOrEqual(restore.y + restore.height)
+  expect(cancel.y + cancel.height).toBeLessThanOrEqual(844)
+
+  await ask.getByRole("button", { name: "Restore version" }).tap()
+  await expect.poll(() => sent.find((w) => w.path === "/doc/versions/v1/restore")?.body).toEqual({ doc_uuid: DOC })
   await tab.close()
 })
 

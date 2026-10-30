@@ -3,6 +3,7 @@ import { join } from "node:path"
 
 import { act, cleanup, fireEvent, render } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { PROFILE_HREF } from "@/lib/adminSections"
 
 // The right panel's code is fetched ahead of its first open (fluid-18,
 // FLUIDITY-LEAD 20 Oct 2026). The preload lived in RightPanel, which the shell
@@ -104,7 +105,7 @@ describe("the right panel's code, fetched ahead", () => {
     await pass(QUIET_MS - 50)
     expect(router.prefetch).not.toHaveBeenCalled()
     await pass(400)
-    expect(router.prefetch.mock.calls.map((c) => c[0])).toEqual(["/app/inbox", "/app/settings"])
+    expect(router.prefetch.mock.calls.map((c) => c[0])).toEqual(["/app/inbox", "/app/settings", PROFILE_HREF])
     // In full, with the page's own code, as IntentLink's prefetch={true}: "auto" left it for the press.
     expect(router.prefetch.mock.calls.every((c) => c[1]?.kind === "full")).toBe(true)
     const firstPanel = Math.min(...loads.map((l) => l.mock.invocationCallOrder[0]))

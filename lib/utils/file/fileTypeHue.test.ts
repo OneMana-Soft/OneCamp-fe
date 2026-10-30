@@ -30,9 +30,27 @@ describe("a file's kind and hue", () => {
   })
 
   it("splits a long name so its start truncates and its extension stays", () => {
-    expect(splitForMiddle("OneCamp brand guidelines, final for the agency.pdf")).toEqual(["OneCamp brand guidelines, final for the ag", "ency.pdf"])
-    expect(splitForMiddle("Load test results.xlsx")).toEqual(["Load test res", "ults.xlsx"])
     expect(splitForMiddle("staging-logs-from-last-night")).toEqual(["staging-logs-from-last", "-night"])
     expect(splitForMiddle("short.pdf")).toEqual(["short.pdf", ""])
+    expect(splitForMiddle("IMG_0001.jpg")).toEqual(["IMG_0001.jpg", ""])
+    // A table's file chip keeps a short name's type too.
+    expect(splitForMiddle("Logo.png", true)).toEqual(["Logo", ".png"])
+    expect(splitForMiddle("README", true)).toEqual(["README", ""])
+  })
+
+  // DESIGN-BUILD-5, 22 Oct: "q4-launch-checkou…inal.png" read as a cut word.
+  it("keeps the last word before the extension whole when it's 4 to 10 letters", () => {
+    expect(splitForMiddle("q4-launch-checkout-flow-screenshot-final.png")).toEqual(["q4-launch-checkout-flow-screenshot-", "final.png"])
+    expect(splitForMiddle("screenshot_20261022_153045.png")).toEqual(["screenshot_20261022_", "153045.png"])
+    expect(splitForMiddle("my.report.final.pdf")).toEqual(["my.report.", "final.pdf"])
+    // A space goes with the tail, which keeps it: the truncating head would drop it.
+    expect(splitForMiddle("OneCamp brand guidelines, final for the agency.pdf")).toEqual(["OneCamp brand guidelines, final for the", " agency.pdf"])
+    expect(splitForMiddle("Load test results.xlsx")).toEqual(["Load test", " results.xlsx"])
+    // A long name is cut by the same rule, with keepExtension or without.
+    expect(splitForMiddle("Load test results.xlsx", true)).toEqual(["Load test", " results.xlsx"])
+    // A shorter last word takes the one before it along.
+    expect(splitForMiddle("report-2026-10-22.pdf")).toEqual(["report-2026-", "10-22.pdf"])
+    // A longer one keeps its last 4 letters.
+    expect(splitForMiddle("Quarterly_reconciliation.xlsx")).toEqual(["Quarterly_reconcilia", "tion.xlsx"])
   })
 })

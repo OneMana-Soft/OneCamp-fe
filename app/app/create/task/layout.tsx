@@ -2,10 +2,9 @@
 
 import { useMedia } from "@/context/MediaQueryContext";
 import { useEffect, useRef } from "react";
-import { useDispatch } from "react-redux";
-import { openUI } from "@/store/slice/uiSlice";
 import { useRouter } from "next/navigation";
 import { app_my_task_path } from "@/types/paths";
+import { taskAddressQuery } from "@/lib/task/taskAddressParams";
 
 /**
  * Layout for the /app/create/task route.
@@ -14,10 +13,10 @@ import { app_my_task_path } from "@/types/paths";
  * Desktop should never see the page surface — the canonical desktop
  * affordance is the CreateTask dialog opened in place from wherever
  * the user is. If a desktop user lands here directly (deep link, refresh,
- * or stale tab) we open the dialog and `router.replace(...)` to /app/myTask
- * so the history entry isn't a no-op page that flashes briefly between
- * pushes. We use replace, not push, so Back doesn't bounce the user
- * through this empty stub.
+ * or stale tab) we `router.replace(...)` to /app/myTask with ?open=createTask,
+ * and the shell's one query reader (hooks/useOpenFromUrl) opens the dialog
+ * with whatever fields the link named (?title=…&project=Q4). Replace, not
+ * push, so Back doesn't bounce the user through this empty stub.
  */
 export default function CreateTaskLayout({
     children,
@@ -25,7 +24,6 @@ export default function CreateTaskLayout({
     children: React.ReactNode;
 }>) {
     const { isMobile, isDesktop } = useMedia()
-    const dispatch = useDispatch();
     const router = useRouter()
     const handledRef = useRef(false)
 
@@ -35,10 +33,10 @@ export default function CreateTaskLayout({
         // first paint — we only want one redirect + dialog open.
         if (isDesktop && !handledRef.current) {
             handledRef.current = true
-            dispatch(openUI({ key: 'createTask' }))
-            router.replace(app_my_task_path)
+            const fields = taskAddressQuery(new URLSearchParams(window.location.search))
+            router.replace(`${app_my_task_path}?open=createTask${fields ? `&${fields}` : ""}`)
         }
-    }, [isDesktop, dispatch, router]);
+    }, [isDesktop, router]);
 
     return (
         <>

@@ -10,20 +10,16 @@ import store from "@/store/store"
 // the workspace and asks no AI.
 
 const asked: string[] = []
-vi.mock("@/lib/axiosInstance", async (importOriginal) => {
-  const ask = (url: string) => {
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
+  default: Object.fromEntries(["get", "post", "put", "patch", "delete"].map((m) => [m, (url: string) => {
     asked.push(url)
     return Promise.resolve({ data: {} })
-  }
-  return {
-    ...(await importOriginal<typeof import("@/lib/axiosInstance")>()),
-    default: { get: ask, post: ask, put: ask, patch: ask, delete: ask },
-  }
-})
+  }])),
+}))
 const router = { push: () => {} }
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/app/home" }))
 const answer = { data: { data: { user_is_admin: true } }, isLoading: false, isError: undefined, mutate: () => {} }
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => answer }))
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => answer, useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }) }))
 let config: { features: Record<string, boolean> } = { features: {} }
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),

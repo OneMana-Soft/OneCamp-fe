@@ -5,13 +5,24 @@
  * everyone over the call's own signals (lib/calls/signals) and floated up the
  * stage's left edge with who sent them. UI only: nothing is kept, and the
  * Call State package (#29) takes the signals over when it lands.
+ *
+ * A reaction never reaches the server, so while the people running the call
+ * hold reactions (meet-12) every screen drops a held sender's, read from the
+ * room's metadata and the sender's attributes, which only the server sets: a
+ * changed client can't put one on anyone else's stage.
  */
 
 import * as React from "react"
 import { RoomEvent, type DataPacket_Kind, type RemoteParticipant, type Room } from "livekit-client"
 import { CALL_SIGNAL_TOPIC, REACTION_NAMES, encodeSignal, readReaction, type CallReaction } from "@/lib/calls/signals"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
+import { heldFor, partOf } from "@/lib/calls/control"
 import { guestName } from "./callLevels"
+import { readCallMetadata } from "./callState"
+
+/** Whether the call holds reactions for this person now. */
+const reactionsHeld = (room: Room, attributes: Readonly<Record<string, string>> | undefined) =>
+  heldFor(readCallMetadata(room.metadata).held, partOf(attributes)).has("react")
 
 export interface FloatingReaction {
   id: number
@@ -57,7 +68,7 @@ export function useCallReactions(room: Room | undefined) {
     if (!room) return
     const onData = (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
       const r = readReaction(payload, participant, topic)
-      if (r) add(r.emoji, r.identity, guestName(r.identity, r.name).name, false)
+      if (r && !reactionsHeld(room, participant?.attributes)) add(r.emoji, r.identity, guestName(r.identity, r.name).name, false)
     }
     room.on(RoomEvent.DataReceived, onData)
     return () => {
@@ -68,7 +79,8 @@ export function useCallReactions(room: Room | undefined) {
   const send = React.useCallback(
     (emoji: CallReaction) => {
       const me = room?.localParticipant
-      if (!me) return
+      // Held, it would reach nobody's stage: it doesn't float on yours either.
+      if (!room || !me || reactionsHeld(room, me.attributes)) return
       // LiveKit never hands a packet back to its sender: yours floats here.
       if (!add(emoji, me.identity, "You", true)) return
       void me.publishData(encodeSignal("reaction", { emoji }), { reliable: false, topic: CALL_SIGNAL_TOPIC }).catch(() => {})

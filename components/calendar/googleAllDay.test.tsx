@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import type { CalendarEventInterface } from "@/types/calendar"
+
+// The card's Remove call asks through the app's dialog (calendar B11): not this file's case.
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 import { itemsByDay, layoutWeek, placeItems } from "./calendarLayout"
 import { WeekView } from "./weekView"
 import { EventPopover } from "./eventPopover"

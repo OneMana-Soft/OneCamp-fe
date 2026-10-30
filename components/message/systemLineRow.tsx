@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, useMemo } from "react"
-import Link from "next/link"
+import { IntentLink } from "@/components/navigationBar/desktop/IntentLink"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
@@ -32,14 +32,14 @@ export const SystemLineRow = memo(function SystemLineRow({ html, facts }: { html
                 {link && (
                     <>
                         {" "}
-                        <Link
+                        <IntentLink
                             href={link.href}
                             data-interactive="link"
                             data-touch-target=""
                             className="relative rounded-sm font-medium text-brand-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
                             {link.label}
-                        </Link>
+                        </IntentLink>
                     </>
                 )}
             </p>

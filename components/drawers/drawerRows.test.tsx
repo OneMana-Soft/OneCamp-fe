@@ -24,6 +24,15 @@ describe("a drawer row", () => {
     expect(tile.className).toMatch(/\bsize-8\b/)
   })
 
+  // DESIGN-BUILD-3, 20 Oct 2026: the calendar's Google row cut its own
+  // result ("Connected as sam@gmail.com · In step …") on a phone.
+  it("wraps its description to two lines before it cuts it", () => {
+    render(<DrawerItem icon={CircleUser} label="Google Calendar" description="sam@gmail.com · In step with Google · 2m ago" onClick={() => {}} />)
+    const line = screen.getByText("sam@gmail.com · In step with Google · 2m ago")
+    expect(line.className.split(/\s+/)).toContain("line-clamp-2")
+    expect(line.className.split(/\s+/)).not.toContain("truncate")
+  })
+
   it("is the one row every drawer uses", () => {
     const dir = __dirname
     for (const f of readdirSync(dir).filter((f) => f.endsWith(".tsx") && !f.includes(".test.") && f !== "drawerItem.tsx")) {

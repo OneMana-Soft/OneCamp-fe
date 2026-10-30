@@ -130,8 +130,8 @@ export function moveWithin(ids: readonly string[], move: TreeMove, isSource: boo
   return move.place === "first" ? [move.id, ...out] : [...out, move.id]
 }
 
-/** The line a drop would draw: above, below, or around the row. */
-export function DropMark({ zone, depth }: { zone: DropZone | null; depth: number }) {
+/** The line a drop would draw: above, below, or around the row; inset is the row's room before its indent. */
+export function DropMark({ zone, depth, inset = 8 }: { zone: DropZone | null; depth: number; inset?: number }) {
   if (!zone) return null
   if (zone === "inside") {
     return <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-md ring-2 ring-brand" data-drop="inside" />
@@ -141,7 +141,7 @@ export function DropMark({ zone, depth }: { zone: DropZone | null; depth: number
       aria-hidden="true"
       data-drop={zone}
       className={`pointer-events-none absolute right-1 h-0.5 rounded-xs bg-brand ${zone === "before" ? "-top-px" : "-bottom-px"}`}
-      style={{ left: 8 + depth * 16 }}
+      style={{ left: inset + depth * 16 }}
     />
   )
 }

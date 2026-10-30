@@ -24,7 +24,7 @@ vi.mock("@/hooks/usePost", () => ({
     isSubmitting: false,
   }),
 }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: () => new Promise(() => {}), post: () => new Promise(() => {}), interceptors: { request: { use: () => 0 }, response: { use: () => 0 } } },
   // The panel's own reads (its Type row's picker) ask for no error toast.
   OWN_ERRORS: { suppressErrorToast: true },
@@ -83,6 +83,8 @@ afterEach(cleanup)
 pinTestClock()
 
 describe("a task the server sends without dates", () => {
+  // The task writes dates (created, updated), so today is the suite's one day.
+  pinTestClock()
   it("opens, and its Dates offer to add them", async () => {
     render(<TaskInfoPanel taskUUID={UNDATED.task_uuid} />, { wrapper: wrap() })
     await act(() => new Promise((r) => setTimeout(r, 300)))

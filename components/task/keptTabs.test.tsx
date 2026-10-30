@@ -1,8 +1,12 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { useEffect, useState } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+// Today is TEST_TODAY wherever the code under test reads the time.
+pinTestClock()
 
 afterEach(cleanup)
 
@@ -58,5 +62,21 @@ describe("tabs kept once seen", () => {
     choose("Board")
     expect(new URL(window.location.href).searchParams.get("tab")).toBe("board")
     expect(window.location.pathname).toBe("/app/project/p")
+  })
+
+  it("sets and drops several keys in one write, and writes nothing when nothing changes", () => {
+    window.history.replaceState(null, "", "/app/calendar?date=2026-10-01&view=month&event=e1&tab=x")
+    let inAddress!: ReturnType<typeof useTabInAddress>
+    function Probe() {
+      inAddress = useTabInAddress()
+      return null
+    }
+    render(<Probe />)
+    const writes = vi.spyOn(window.history, "replaceState")
+    expect(inAddress({ date: "2026-10-21", view: null, event: null })).toBe("date=2026-10-21&tab=x")
+    expect(window.location.pathname + window.location.search).toBe("/app/calendar?date=2026-10-21&tab=x")
+    expect(inAddress({ view: null, date: "2026-10-21" })).toBeNull()
+    expect(writes).toHaveBeenCalledTimes(1)
+    writes.mockRestore()
   })
 })

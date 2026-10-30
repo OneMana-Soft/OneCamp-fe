@@ -1,10 +1,9 @@
 import { useOpenBeside } from "@/hooks/useOpenBeside";
 import { PinnedMenuItem } from "@/components/conversation/pins/PinnedMenuItem";
+import { ConnectedTrigger } from "@/components/workGraph/ConnectedTrigger"
 import { searchWithinHref } from "@/lib/search/within";
 import {useFetch} from "@/hooks/useFetch";
 import { ChannelWelcome, useWelcomeSend } from "@/components/onboarding/ChannelWelcome";
-import { useScheduleSend } from "@/context/ScheduleSendContext";
-import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { openChannelDetails } from "@/components/channel/details/openChannelDetails";
 import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
@@ -12,10 +11,7 @@ import { ChannelInfoInterfaceResp } from "@/types/channel";
 import { useChannelNotification } from "@/hooks/useConversationNotification";
 import { useJoinChannel } from "@/hooks/useJoinChannel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
-import CommandSurface from "@/components/command/CommandSurface";
-import { Info, Search, SendHorizontal, Star, Clapperboard, Megaphone, MoreHorizontal, MessageSquare, FileArchive } from "@/lib/icons";
+import { Info, Search, Star, Clapperboard, Megaphone, MoreHorizontal, MessageSquare, FileArchive } from "@/lib/icons";
 import { ChannelTile } from "@/components/ui/graphics/ChannelTile";
 import { HEADER_ICON, HuddleBanner, HuddleButton, MemberStack, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
 import { displayNameOf } from "@/lib/personName";
@@ -23,41 +19,29 @@ import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {usePost} from "@/hooks/usePost";
-import {memo, useEffect, useRef, useState} from "react";
-import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
-import type { Content } from "@tiptap/react";
-import { useBroadcastConfirm } from "@/hooks/useBroadcastConfirm"
-import { useNotToldPrompt } from "@/hooks/useNotToldPrompt"
-import { useStableCallback } from "@/hooks/useStableCallback";
-import { ComposerReplyPill } from "@/components/message/composerReplyPill";
+import { useEffect, useMemo, useState } from "react";
 import {openUI} from "@/store/slice/uiSlice";
 import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
-import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
-import {
-    
-    updateChannelInputText, MessageInputState, clearChannelReplyTarget
-} from "@/store/slice/channelSlice";
-
-import {ChannelMessageList} from "@/components/channel/channelMessageList";
+import { channelList } from "@/components/conversation/ChannelRows";
+import { ConversationMessages } from "@/components/conversation/ConversationMessages";
+import { Composer } from "@/components/conversation/Composer";
+import { useChannelSend } from "@/hooks/useChannelSend";
 import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
 import { ComposerNotice } from "@/components/channel/composerNotice";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {app_channel_call} from "@/types/paths";
 import Link from "next/link";
 import {ChatSkeleton} from "@/components/ui/AppSkeleton";
-import {usePublishTyping} from "@/hooks/usePublishTyping";
-import {useUploadFile} from "@/hooks/useUploadFile";
 import { FeatureGate } from "@/components/common/withFeature"
 import { WithTooltip } from "@/components/common/withTooltip"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 import { ChannelGuestTag } from "@/components/channel/channelGuestTag"
 
-const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
-
-export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean}) => {
+export const ChannelIdDesktop = ({channelId, handleSend: send, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, focusComposer?: boolean}) => {
     // A new member's first landing (admin E5): the welcome card heads the
     // feed until their first message goes.
     const [handleSend, welcomeSent] = useWelcomeSend(send)
+    const list = useMemo(() => channelList(channelId), [channelId])
     const dispatch = useDispatch()
     const postFav  = usePost()
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}`:'')
@@ -89,6 +73,8 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
     // Above the early returns: a hook runs on every render or none.
     // Where views can't sit side by side (a phone, a tablet) it opens the call's page.
     const openBeside = useOpenBeside();
+    // A send asks first where a broadcast would (hooks/useChannelSend).
+    const sendThrough = useChannelSend(channelId, channelDisplayName);
 
     if(!channelId) return
 
@@ -119,8 +105,6 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
         }
     }
 
-
-
     // One Details sheet (C49): the name, the stack and More › Details open it.
     const openDetails = () => dispatch(openChannelDetails(channelId))
     const openMembers = openDetails
@@ -130,11 +114,8 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
         ...(channelInfo.data?.channel_info.ch_members || []).filter((m) => !m.is_bot).slice(0, 3).map((m) => ({ uuid: m.user_uuid, name: displayNameOf(m), profileKey: m.user_profile_object_key })),
     ]
 
-
     const channelCallHref = `${app_channel_call}/${channelId}`;
     const channelRecordingHref = `/app/channel/${channelId}/recording`;
-
-
 
     const renderChatInput = () =>{
 
@@ -171,16 +152,14 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
         }
 
         return (
-            <ChannelComposer
-                channelId={channelId}
+            <Composer
                 handleSend={handleSend}
                 placeholder={channelComposerPlaceholder(channelDisplayName)}
-                focusComposer={focusComposer}
-                channelName={channelDisplayName}
+                autoFocus={focusComposer}
+                sendThrough={sendThrough}
             />
         )
     }
-
 
     return (
         <div className='flex flex-col h-full w-full min-w-0'>
@@ -224,6 +203,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
                             <HuddleButton href={channelCallHref} live={channelCallActive} onOpen={(e) => openBeside({ kind: "call-channel", id: channelId }, e)} />
                         </span>
                     </FeatureGate>
+                    <ConnectedTrigger kind="channel" id={channelId} title={channelDisplayName === "channel" ? "" : channelDisplayName} tip="Connected" className="size-7 rounded-md" />
                     {/* Search in this channel, said and removable on the search page (QA F-15). */}
                     <WithTooltip label="Search in this channel">
                         <Button asChild size='icon' variant='ghost' className={HEADER_ICON}>
@@ -268,7 +248,7 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
             )}
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
                 <ChannelWelcome channelId={channelId} channelName={channelDisplayName} info={channelInfo.data?.channel_info} show={focusComposer} sent={welcomeSent} className="mx-5 mt-4 max-w-[760px]" />
-                <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin} unreadOnOpen={unreadCount}/>
+                <ConversationMessages list={list} isAdmin={channelInfo.data?.channel_info.ch_is_admin}/>
             </div>
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] bg-sheet px-5 pb-[18px]">
                 <div className="w-full max-w-[800px]">
@@ -279,93 +259,3 @@ export const ChannelIdDesktop = ({channelId, handleSend: send, unreadCount, focu
         </div>
     )
 }
-/**
- * The channel's message box and what sits on it (a reply being written, the
- * messages scheduled here). Its own component because it is the only part of
- * the channel that changes as someone types: the draft is read here, so the
- * header and the conversation above it no longer re-render as it changes.
- */
-const ChannelComposer = memo(function ChannelComposer({ channelId, channelName, handleSend, placeholder, focusComposer }: {
-    channelId: string
-    /** For the question a broadcast asks first ("Notify 42 people?"). */
-    channelName?: string
-    handleSend: (latestContent?: string) => boolean | void
-    placeholder: string
-    focusComposer?: boolean
-}) {
-    const dispatch = useDispatch()
-    const scheduleSend = useScheduleSend()
-    const uploadFile = useUploadFile()
-    const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
-    const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
-    // The same function for the life of the composer, so the editor's action
-    // row (memoised in textInput) keeps its buttons as the parent re-renders.
-    // A first message here bursts from the new row's avatar (C60).
-    const rootRef = useRef<HTMLDivElement>(null)
-    const undoSchedule = useUndoSchedule(scheduleSend?.target)
-    // A broadcast to a channel of six or more asks first (D-T12).
-    const confirmBroadcast = useBroadcastConfirm()
-    // Someone named who isn't in the channel wasn't told: it says so (MC-83).
-    const notTold = useNotToldPrompt()
-    const send = useStableCallback((latestContent?: string) => {
-        const html = latestContent ?? channelState.inputTextHTML
-        void confirmBroadcast(channelId, channelName ?? "", html, () => {
-            const sent = handleSend(latestContent)
-            if (sent) celebrateFirstMessage()
-            if (sent !== false) void notTold(channelId, channelName ?? "", html)
-        })
-    })
-    const onChange = useStableCallback((content: Content) => {
-        publishTyping(content as string)
-        dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
-    })
-    const onActionFiles = useStableCallback(async (files: File[]) => {
-        if (!files?.length) return;
-        const valid = uploadFile.validateFiles(files);
-        if (valid.length === 0) return;
-        await uploadFile.makeRequestToUploadToChannel(valid as unknown as FileList, channelId);
-    })
-    const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'channelFileUpload' })) })
-
-    return (<div ref={rootRef}>
-        <CommandSurface
-            surfaceKey={channelId}
-            channelId={channelId}
-            onComposerText={(text) =>
-                dispatch(updateChannelInputText({ channelId, inputTextHTML: `<p>${text}</p>` }))
-            }
-            onComposerHtml={(html) =>
-                dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))
-            }
-        />
-        {channelState.replyToUuid && (
-            <ComposerReplyPill
-                authorName={channelState.replyToAuthorName}
-                text={channelState.replyToText}
-                onCancel={() => dispatch(clearChannelReplyTarget({ channelId }))}
-            />
-        )}
-        {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
-        <MinimalTiptapTextInput
-            throttleDelay={300}
-            autoFocus={focusComposer}
-            attachmentOnclick={openUpload}
-            onActionFiles={onActionFiles}
-            variant="chat"
-            output="html"
-            content={channelState.inputTextHTML}
-            contentRevision={channelState.restoredUnsent}
-            placeholder={placeholder}
-            editable={true}
-            ButtonIcon={SendHorizontal}
-            hasAttachments={(channelState.filesUploaded?.length ?? 0) > 0}
-            buttonOnclick={send}
-            onSchedule={scheduleSend?.schedule}
-            editorClassName="focus:outline-none"
-            onChange={onChange}
-            onUndoSchedule={undoSchedule}
-        >
-            <ChannelFileUpload channelId={channelId}/>
-        </MinimalTiptapTextInput>
-    </div>)
-})

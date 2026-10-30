@@ -62,7 +62,7 @@ describe("the people in New message", () => {
 
   it("says so when no one matches", () => {
     render(<SelectUserToMessageDropdown onSelect={() => {}} />)
-    fireEvent.change(screen.getByRole("textbox", { name: "Search people" }), { target: { value: "zzq" } })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search people" }), { target: { value: "zzq" } })
     expect(screen.getByText("No one called “zzq” here")).toBeTruthy()
   })
 

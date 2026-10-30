@@ -1,8 +1,19 @@
 diff --git a/dist/index.js b/dist/index.js
-index 89b40c46b070a7ec3264bf87fa157be7f1ac174b..9eab0d149efa05fa569c903ce3664d294bc3fe85 100644
+index 89b40c46b070a7ec3264bf87fa157be7f1ac174b..ac84e3bf68e57a173baa54f84e97733256fdd364 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -422,13 +422,15 @@ var ToastImpl = React.forwardRef(
+@@ -402,6 +402,10 @@ var ToastImpl = React.forwardRef(
+     React.useEffect(() => {
+       if (open && !context.isClosePausedRef.current) startTimer(duration);
+     }, [open, duration, context.isClosePausedRef, startTimer]);
++    // OneCamp patch (patches/@radix-ui__react-toast@1.2.15.patch): a toast gone
++    // before its time takes its close timer with it. Left running, it closed
++    // the toast afterwards, and reached for a document a test had torn down.
++    React.useEffect(() => () => window.clearTimeout(closeTimerRef.current), []);
+     React.useEffect(() => {
+       onToastAdd();
+       return () => onToastRemove();
+@@ -422,13 +426,15 @@ var ToastImpl = React.forwardRef(
        ),
        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToastInteractiveProvider, { scope: __scopeToast, onClose: handleClose, children: ReactDOM.createPortal(
          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Collection.ItemSlot, { scope: __scopeToast, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -24,10 +35,21 @@ index 89b40c46b070a7ec3264bf87fa157be7f1ac174b..9eab0d149efa05fa569c903ce3664d29
                import_react_primitive.Primitive.li,
                {
 diff --git a/dist/index.mjs b/dist/index.mjs
-index cca1a95f8687577a8d86b213ab735e32221139ef..f54f913c65b59421ae5f4377c5aa1dce5bb35acf 100644
+index cca1a95f8687577a8d86b213ab735e32221139ef..255840bba2d8c094908e0ca1ba4e27625f7deedf 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -373,13 +373,15 @@ var ToastImpl = React.forwardRef(
+@@ -353,6 +353,10 @@ var ToastImpl = React.forwardRef(
+     React.useEffect(() => {
+       if (open && !context.isClosePausedRef.current) startTimer(duration);
+     }, [open, duration, context.isClosePausedRef, startTimer]);
++    // OneCamp patch (patches/@radix-ui__react-toast@1.2.15.patch): a toast gone
++    // before its time takes its close timer with it. Left running, it closed
++    // the toast afterwards, and reached for a document a test had torn down.
++    React.useEffect(() => () => window.clearTimeout(closeTimerRef.current), []);
+     React.useEffect(() => {
+       onToastAdd();
+       return () => onToastRemove();
+@@ -373,13 +377,15 @@ var ToastImpl = React.forwardRef(
        ),
        /* @__PURE__ */ jsx(ToastInteractiveProvider, { scope: __scopeToast, onClose: handleClose, children: ReactDOM.createPortal(
          /* @__PURE__ */ jsx(Collection.ItemSlot, { scope: __scopeToast, children: /* @__PURE__ */ jsx(

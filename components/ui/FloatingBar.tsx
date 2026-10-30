@@ -62,7 +62,7 @@ export const FloatingBar = React.forwardRef<HTMLDivElement, FloatingBarProps>(fu
       data-escape-own={!!onEscape ? "" : undefined}
       onKeyDown={handleKeyDown}
       className={cn(
-        "content-float z-[var(--z-popover)] inline-flex h-[34px] items-center gap-0.5 rounded-[10px] bg-pop p-[3px] text-ink shadow-e3",
+        "content-float z-[var(--z-popover)] inline-flex h-[var(--float-bar)] items-center gap-0.5 rounded-[10px] bg-pop p-[3px] text-ink shadow-e3",
         follow && "content-float-follow",
         below && "float-below",
         className,

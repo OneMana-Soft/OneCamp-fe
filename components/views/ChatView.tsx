@@ -13,6 +13,8 @@ import { ScheduleSendContext } from "@/context/ScheduleSendContext";
 import { useDispatch, useStore } from "react-redux";
 import { RootState } from "@/store/store";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { useListPreviewFill } from "@/components/conversation/useListPreviewFill";
+import { dmWith } from "@/lib/conversation/route";
 import { ChatIdMobile } from "@/components/chat/chatIdMobile";
 import { ChatIdDesktop } from "@/components/chat/chatIdDesktop";
 import {
@@ -35,7 +37,7 @@ import {
   UpdateMessageInChatList,
   UpdateUnreadCountToZero,
 } from "@/store/slice/chatSlice";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { addUserToUserChatList, resetUserChatUnread } from "@/store/slice/userSlice";
 import { clearChatUnread } from "@/services/unreadCache";
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
@@ -55,6 +57,8 @@ import { claimFirstMessage, isFirstMessage } from "@/lib/chat/firstMessage";
 import axiosInstance from "@/lib/axiosInstance";
 import { useToast } from "@/hooks/use-toast";
 import { NOT_SENT_TOAST, type Draft } from "@/lib/chat/unsentMessage";
+import { useUnreadOnOpen } from "@/hooks/useUnreadOnOpen";
+import { OpenCount } from "@/components/conversation/openCount";
 
 const EMPTY_INPUT_STATE: Partial<RootState["chat"]["chatInputState"][string]> = {};
 
@@ -72,14 +76,14 @@ export function ChatView({ chatId }: { chatId: string }) {
     GetEndpointUrl.SelfProfile
   );
 
-  // How many were unread on opening, read once (see ChannelView).
-  const [unreadOnOpen] = useState(() => {
-    const self = store.getState().users.userSidebar.userChats
-    const me = selfProfile.data?.data.user_uuid
-    if (!me) return 0
-    const grpId = getGroupingId(chatId, me)
-    return self.find((chat) => chat.dm_grouping_id === grpId)?.dm_unread || 0
-  });
+  const latestKey = chatId ? GetEndpointUrl.GetChatLatestMessage + "/" + chatId : '';
+
+  // How many were unread on opening, read once (see ChannelView); at a link, no latest page is read.
+  const me = selfProfile.data?.data.user_uuid
+  const grouping = me && chatId ? getGroupingId(chatId, me) : undefined
+  useListPreviewFill(dmWith(chatId, me))
+  const unreadOnOpen = useUnreadOnOpen(grouping, (s) => s.users.userSidebar.userChats.find((chat) => chat.dm_grouping_id === grouping)?.dm_unread,
+    (a) => a.data?.user_dms?.find((d) => d.dm_grouping_id === grouping)?.dm_unread, inPane || !viewingLinkedMessage("messageId") ? latestKey : "")
 
   const { isMobile, isDesktop } = useMedia();
 
@@ -87,8 +91,6 @@ export function ChatView({ chatId }: { chatId: string }) {
     chatId ? `${GetEndpointUrl.SelfProfile}/${chatId}` : ''
   );
   const { missing, retry, retrying } = useConversationMissing("dm", chatId);
-
-  const latestKey = chatId ? GetEndpointUrl.GetChatLatestMessage + "/" + chatId : '';
 
   useEffect(() => {
     if (otherUserInfo.data?.data && selfProfile.data?.data) {
@@ -308,9 +310,12 @@ export function ChatView({ chatId }: { chatId: string }) {
   return (
     <PendingSendContext.Provider value={actions}>
       <ScheduleSendContext.Provider value={schedule}>
-      {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} unreadCount={unreadOnOpen} />}
+      {/* The count reaches only the list and the catch-up banner (components/conversation/openCount). */}
+      <OpenCount.Provider value={unreadOnOpen}>
+      {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} />}
 
-      {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} unreadCount={unreadOnOpen} />}
+      {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} />}
+      </OpenCount.Provider>
       </ScheduleSendContext.Provider>
     </PendingSendContext.Provider>
   );

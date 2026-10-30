@@ -22,7 +22,9 @@ describe("doc embeds", () => {
   )
 
   it("grows a poll's bars by scaling, not by animating their width", () => {
-    const poll = read("extensions/poll/poll-view.tsx")
+    // The bars are the shared poll choices', a message's poll's and a call's.
+    expect(read("extensions/poll/poll-view.tsx")).toMatch(/<PollChoices\b/)
+    const poll = read("../poll/PollChoices.tsx")
     expect(poll).not.toMatch(/transition-\[width\]/)
     expect(poll).toMatch(/scaleX\(/)
   })

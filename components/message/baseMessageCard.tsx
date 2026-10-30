@@ -17,6 +17,7 @@ import { useMessageAddOn } from "@/lib/addOns/messages"
 import type { AttachmentSource } from "@/lib/addOns/core"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTouchReveal } from "@/hooks/useTouchReveal"
+import { whenListStill } from "@/lib/ui/scrollState"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
 import type { UserProfileDataInterface, UserProfileInterface } from "@/types/user"
@@ -286,6 +287,7 @@ export const BaseMessageCard = React.memo(({
   // The pointer has rested on this message, or focus is inside it.
   const [actionsWanted, setActionsWanted] = useState(false)
   const intent = useRef(0)
+  const pointerIn = useRef(false)
   useEffect(() => () => window.clearTimeout(intent.current), [])
   // An edit in place: a save that fails opens the box again holding what
   // was typed (hooks/useEditInPlace, F-06).
@@ -432,11 +434,16 @@ export const BaseMessageCard = React.memo(({
       data-message-row=""
       data-for-me={forMe || undefined}
       data-failed={failed || undefined}
-      onPointerEnter={() => {
+      onPointerEnter={(e) => {
+        const row = e.currentTarget
+        pointerIn.current = true
         window.clearTimeout(intent.current)
-        intent.current = window.setTimeout(() => setActionsWanted(true), HOVER_INTENT_MS)
+        // A row its list carries under a resting pointer builds them once
+        // the list settles, and only if the pointer is on it then.
+        intent.current = window.setTimeout(() => whenListStill(row, () => pointerIn.current && setActionsWanted(true)), HOVER_INTENT_MS)
       }}
       onPointerLeave={() => {
+        pointerIn.current = false
         window.clearTimeout(intent.current)
         setActionsWanted(false)
       }}
@@ -456,8 +463,9 @@ export const BaseMessageCard = React.memo(({
         continued && !isMessageEditEnabled ? "py-px" : "py-1.5",
         "transition-colors duration-[140ms] ease-out",
         // Hover is the ink overlay, colour only: a row never moves under the
-        // pointer. Keyboard focus inside adds the 2px accent bar.
-        !forMe && !isMessageEditEnabled && "hover:bg-hover has-[:focus-visible]:bg-hover",
+        // pointer, and one a moving list carries under it waits for the list
+        // to settle. Keyboard focus inside adds the 2px accent bar.
+        !forMe && !isMessageEditEnabled && "settled:hover:bg-hover has-[:focus-visible]:bg-hover",
         !forMe && (busy || touchReveal.revealed) && "bg-hover",
         // For you: the accent's soft ground at 70% and a 2px bar on the edge.
         forMe && "bg-brand-muted/70 dark:bg-[color-mix(in_oklab,var(--brand)_10%,transparent)]",

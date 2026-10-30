@@ -13,34 +13,59 @@
 //    at; everyone else follows along until they move the board themselves.
 //
 // The timer and votes live in the board's Yjs document (map "facilitation",
-// map "votes"), so they survive a reload and reach late joiners. Presenting
-// travels over awareness: it ends when the presenter leaves. The rules are in
-// lib/board/facilitation, tested.
+// map "votes"), so they survive a reload and reach late joiners; the votes
+// through components/board/useBoardVoting, which the notes bar's Vote shares.
+// Presenting travels over awareness: it ends when the presenter leaves. The
+// rules are in lib/board/facilitation, tested.
 
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { Pause, Play, Plus, Presentation, Timer, Vote, X } from "@/lib/icons"
+import { Ellipsis, Pause, Play, Plus, Presentation, Timer, Vote, X } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { celebrate } from "@/lib/celebrateSoon"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useToast } from "@/hooks/use-toast"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useBoardView } from "@/hooks/useBoardView"
 import { useMedia } from "@/context/MediaQueryContext"
 import { cn } from "@/lib/utils/helpers/cn"
+import { BarPicker } from "@/components/board/barPicker"
+import ResultsList from "@/components/board/boardResults"
 import {
+  BAR_MAX_COMPUTER,
+  BAR_SURFACE,
+  FacilitationDock,
+  PRESENTING_FIELD,
+  TIMER_KEY,
+  facilitationOf,
+  presentersIn,
+  timerIn,
+  type Presenter,
+} from "@/components/board/facilitationDock"
+import { useGiveWay } from "@/components/board/useGiveWay"
+import { useBoardVoting } from "@/components/board/useBoardVoting"
+import {
+  barForms,
   formatClock,
+  giveWaySteps,
   tally,
   timeLeft,
-  toggleVote,
   votableNotes,
-  voteKey,
   type BoardTimer,
-  type BoardVoting,
+  type CompactBar,
   type Votable,
 } from "@/lib/board/facilitation"
-import { followView, sceneToLocal, type BoardView } from "@/lib/board/viewport"
-import { ix } from "@/lib/ui/interactive"
+import { followView, sceneToLocal } from "@/lib/board/viewport"
 
 interface Props {
   provider: HocuspocusProvider
@@ -49,16 +74,8 @@ interface Props {
   editable: boolean
 }
 
-interface Presenter {
-  clientId: number
-  userId: string
-  name: string
-  view: Pick<BoardView, "scrollX" | "scrollY" | "zoom" | "width" | "height">
-}
-
 const TIMER_MINUTES = [1, 3, 5, 10, 15]
 const VOTES_EACH = [1, 3, 5, 10]
-const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 /** A short two-note chime from Web Audio, so there is no sound file to ship. */
 function chime() {
@@ -84,34 +101,24 @@ function chime() {
 
 export default function BoardFacilitation({ provider, api, user, editable }: Props) {
   const yDoc = provider.document
-  const yFac = React.useMemo(() => yDoc.getMap<unknown>("facilitation"), [yDoc])
-  const yVotes = React.useMemo(() => yDoc.getMap<unknown>("votes"), [yDoc])
+  const yFac = React.useMemo(() => facilitationOf(yDoc), [yDoc])
   const awareness = provider.awareness
-  const { isMobile } = useMedia()
-  const { toast } = useToast()
+  const { isMobile, isTablet } = useMedia()
 
   const [timer, setTimer] = React.useState<BoardTimer | null>(null)
-  const [voting, setVoting] = React.useState<BoardVoting | null>(null)
-  const [votes, setVotes] = React.useState<[string, unknown][]>([])
+  const { voting, votes, myVotes, votesLeft, vote, startVoting, endVoting, clearVoting } = useBoardVoting(provider, user, editable)
   const [now, setNow] = React.useState(() => Date.now())
 
   // ---- Shared state ------------------------------------------------------
   React.useEffect(() => {
     const sync = () => {
-      setTimer((yFac.get("timer") as BoardTimer | undefined) ?? null)
-      setVoting((yFac.get("voting") as BoardVoting | undefined) ?? null)
+      setTimer(timerIn(yFac))
     }
     sync()
     yFac.observe(sync)
     return () => yFac.unobserve(sync)
   }, [yFac])
 
-  React.useEffect(() => {
-    const sync = () => setVotes(Array.from(yVotes.entries()))
-    sync()
-    yVotes.observe(sync)
-    return () => yVotes.unobserve(sync)
-  }, [yVotes])
 
   // ---- Timer -------------------------------------------------------------
   const left = timer ? timeLeft(timer, now) : 0
@@ -135,20 +142,20 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
 
   const startTimer = (minutes: number) => {
     setNow(Date.now())
-    setShared("timer", { endsAt: Date.now() + minutes * 60_000, durationMs: minutes * 60_000, byName: user.name } satisfies BoardTimer)
+    setShared(TIMER_KEY, { endsAt: Date.now() + minutes * 60_000, durationMs: minutes * 60_000, byName: user.name } satisfies BoardTimer)
   }
-  const pauseTimer = () => timer && setShared("timer", { endsAt: timer.endsAt, durationMs: timer.durationMs, byName: timer.byName, pausedLeftMs: left })
+  const pauseTimer = () => timer && setShared(TIMER_KEY, { endsAt: timer.endsAt, durationMs: timer.durationMs, byName: timer.byName, pausedLeftMs: left })
   const resumeTimer = () => {
     if (!timer) return
     setNow(Date.now())
-    setShared("timer", { endsAt: Date.now() + left, durationMs: timer.durationMs, byName: timer.byName })
+    setShared(TIMER_KEY, { endsAt: Date.now() + left, durationMs: timer.durationMs, byName: timer.byName })
   }
   const addMinute = () => {
     if (!timer) return
     setNow(Date.now())
     const base = { durationMs: timer.durationMs + 60_000, byName: timer.byName }
     setShared(
-      "timer",
+      TIMER_KEY,
       timer.pausedLeftMs !== undefined
         ? { ...base, endsAt: timer.endsAt, pausedLeftMs: timer.pausedLeftMs + 60_000 }
         : { ...base, endsAt: Math.max(Date.now(), timer.endsAt) + 60_000 },
@@ -164,36 +171,12 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
     return api.onChange((els) => read(els))
   }, [api, voting])
 
-  const myVotes = React.useMemo(() => {
-    if (!voting) return [] as string[]
-    const v = votes.find(([k]) => k === voteKey(voting.id, user.id))?.[1]
-    return Array.isArray(v) ? (v as string[]) : []
-  }, [votes, voting, user.id])
   const results = React.useMemo(
     () => (voting?.closedAt ? tally(votes, voting.id, new Set(notes.map((n) => n.id))) : []),
     [voting, votes, notes],
   )
   const counts = React.useMemo(() => new Map(results.map((r) => [r.id, r.count])), [results])
 
-  const startVoting = (perPerson: number) =>
-    yDoc.transact(() => {
-      yFac.set("voting", { id: newId(), perPerson, byId: user.id, byName: user.name } satisfies BoardVoting)
-    })
-  const endVoting = () => voting && setShared("voting", { ...voting, closedAt: Date.now() })
-  const clearVoting = () =>
-    yDoc.transact(() => {
-      if (voting) for (const k of Array.from(yVotes.keys())) if (k.startsWith(`${voting.id}:`)) yVotes.delete(k)
-      yFac.delete("voting")
-    })
-  const vote = (noteId: string) => {
-    if (!voting || voting.closedAt || !editable) return
-    const next = toggleVote(myVotes, noteId, voting.perPerson)
-    if (!next) {
-      toast({ title: `You've used all ${voting.perPerson} votes`, description: "Take one back to vote for something else." })
-      return
-    }
-    yDoc.transact(() => yVotes.set(voteKey(voting.id, user.id), next))
-  }
   const goTo = (noteId: string) => {
     const el = api.getSceneElements().find((e) => e.id === noteId)
     if (el) api.scrollToContent(el, { fitToContent: false, animate: true })
@@ -209,15 +192,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   const declined = React.useRef<Set<number>>(new Set())
 
   React.useEffect(() => {
-    const read = () => {
-      const out: Presenter[] = []
-      ;(awareness?.getStates() as Map<number, Record<string, unknown>> | undefined)?.forEach((state, clientId) => {
-        if (clientId === awareness?.clientID) return
-        const p = state.presenting as Omit<Presenter, "clientId"> | null | undefined
-        if (p?.view) out.push({ ...p, clientId })
-      })
-      setPresenters(out)
-    }
+    const read = () => setPresenters(presentersIn(awareness))
     read()
     awareness?.on("change", read)
     return () => awareness?.off("change", read)
@@ -227,11 +202,11 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   React.useEffect(() => {
     if (!awareness) return
     if (!presenting || !view) {
-      awareness.setLocalStateField("presenting", null)
+      awareness.setLocalStateField(PRESENTING_FIELD, null)
       return
     }
     const t = setTimeout(() => {
-      awareness.setLocalStateField("presenting", {
+      awareness.setLocalStateField(PRESENTING_FIELD, {
         userId: user.id,
         name: user.name,
         view: { scrollX: view.scrollX, scrollY: view.scrollY, zoom: view.zoom, width: view.width, height: view.height },
@@ -239,7 +214,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
     }, 80)
     return () => clearTimeout(t)
   }, [awareness, presenting, view, user.id, user.name])
-  React.useEffect(() => () => awareness?.setLocalStateField("presenting", null), [awareness])
+  React.useEffect(() => () => awareness?.setLocalStateField(PRESENTING_FIELD, null), [awareness])
 
   // Someone starts presenting: follow them, unless we already said no to them.
   const presenter = presenters.find((p) => p.clientId === following) ?? null
@@ -282,7 +257,6 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   // ---- Render ------------------------------------------------------------
   const timeUp = !!timer && left === 0 && timer.pausedLeftMs === undefined
   const lastTen = !!timer && !timeUp && left <= 10_000
-  const votesLeft = voting ? voting.perPerson - myVotes.length : 0
   const idle = !timer && !voting && !presenting && presenters.length === 0
   const top3 = new Set(results.slice(0, 3).filter((r) => r.count > 0).map((r) => r.id))
 
@@ -299,51 +273,112 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
     return () => cancelAnimationFrame(raf)
   }, [voting, winner])
 
-  if (idle && !editable) return null
+  const sheet = useSheetMode()
+  // The round whose results are open, so a new round's are closed until asked for.
+  const [resultsOf, setResultsOf] = React.useState<string | null>(null)
 
+  // Below 1024 px, once anything is on, each segment says only its state and every action is in one
+  // menu, a sheet on a phone. In one row with their actions (End voting, the timer's four, Present)
+  // the bar ran to ~440 px at 390 and scrolled, cutting "Present" at "Pre" (design review, 29 Oct).
+  // Idle, the three ways to start fit, and stay in the bar.
+  const compact = !idle && (isMobile || isTablet)
+  // Short of room, the compact bar's names give way first, then its segments' words, in one order
+  // (lib/board/facilitation's giveWaySteps), measured before paint and only as far as the row needs:
+  // a tablet keeps every word that a phone at 390 can't (design review, 29 Oct).
+  const compactBar: CompactBar = {
+    presenter: presenting ? "you" : presenter ? "following" : presenters.length > 0 ? "someone" : null,
+    voting: voting && !voting.closedAt ? (editable ? "count" : "named") : null,
+  }
+  const barRef = React.useRef<HTMLDivElement>(null)
+  const [room, setRoom] = React.useState<HTMLDivElement | null>(null)
+  const barWords = [compact, compactBar.presenter, (presenter ?? presenters[0])?.name, compactBar.voting, voting?.byName, votesLeft, !!voting?.closedAt, timer ? timeUp : null, editable]
+  const given = useGiveWay(barRef, room, compact ? giveWaySteps(compactBar).length : 0, barWords.join("|"))
+  const forms = barForms(compactBar, given)
+
+  if (idle && !editable) return null
   const segments: React.ReactNode[] = []
+  const follow = (p: Presenter) => {
+    declined.current.delete(p.clientId)
+    setFollowing(p.clientId)
+  }
+  const present = () => {
+    setFollowing(null)
+    setPresenting(true)
+  }
+  const stopTimer = () => setShared(TIMER_KEY, null)
+  const paused = timer?.pausedLeftMs !== undefined
+  const timerChoices = TIMER_MINUTES.map((m) => ({ label: `${m} min`, onPick: () => startTimer(m) }))
+  const voteChoices = VOTES_EACH.map((n) => ({ label: `${n} ${n === 1 ? "vote" : "votes"}`, onPick: () => startVoting(n) }))
+  const textOf = (id: string) => notes.find((n) => n.id === id)?.text ?? ""
 
   if (presenting) {
     segments.push(
-      <Segment key="presenting" tone="about-you">
-        <Presentation className="size-4" aria-hidden />
-        <span>You&apos;re presenting</span>
-        <SegmentButton onClick={() => setPresenting(false)}>Stop</SegmentButton>
+      <Segment key="presenting" tone="about-you" fit={compact}>
+        <Presentation className="size-4 shrink-0" aria-hidden />
+        <span className="shrink-0">{compact ? "Presenting" : "You're presenting"}</span>
+        {!compact && <SegmentButton onClick={() => setPresenting(false)}>Stop</SegmentButton>}
       </Segment>,
     )
   } else if (presenters.length > 0) {
+    const name = (presenter ?? presenters[0]).name
     segments.push(
-      <Segment key="presenter" tone="about-you">
-        <Presentation className="size-4" aria-hidden />
-        {presenter ? (
+      <Segment key="presenter" tone="about-you" fit={compact}>
+        <Presentation className="size-4 shrink-0" aria-hidden />
+        {forms.presenter === "icon" ? (
+          // Following, the frame's label names the presenter.
+          <span className="sr-only">{presenter ? `Following ${name}` : `${name} is presenting`}</span>
+        ) : forms.presenter === "name" ? (
           <>
-            <span>Following {presenter.name}</span>
-            <SegmentButton onClick={stopFollowing}>Stop</SegmentButton>
+            <BarName name={name} />
+            <span className="sr-only">{" is presenting"}</span>
           </>
+        ) : presenter ? (
+          <NamedState before="Following" name={name} />
         ) : (
-          <>
-            <span>{presenters[0].name} is presenting</span>
-            <SegmentButton
-              onClick={() => {
-                declined.current.delete(presenters[0].clientId)
-                setFollowing(presenters[0].clientId)
-              }}
-            >
-              Follow
-            </SegmentButton>
-          </>
+          <NamedState name={name} after="is presenting" />
         )}
+        {!compact &&
+          (presenter ? (
+            <SegmentButton onClick={stopFollowing}>Stop</SegmentButton>
+          ) : (
+            <SegmentButton onClick={() => follow(presenters[0])}>Follow</SegmentButton>
+          ))}
       </Segment>,
     )
   }
 
   if (voting && !voting.closedAt) {
     segments.push(
-      <Segment key="voting">
-        <span className="text-ink-2">
-          {editable ? (votesLeft > 0 ? `Voting · ${votesLeft} left` : "Voting · all used") : `${voting.byName} started voting`}
-        </span>
-        {editable && voting.perPerson <= 10 ? (
+      <Segment key="voting" fit={compact}>
+        {compact && <Vote className="size-4 shrink-0 text-ink-3" aria-hidden />}
+        {!editable ? (
+          forms.voting === "full" ? (
+            <NamedState name={voting.byName} after="started voting" className="text-ink-2" />
+          ) : (
+            <>
+              {forms.voting === "word" && (
+                <span aria-hidden="true" className="shrink-0 text-ink-2">
+                  Voting
+                </span>
+              )}
+              <span className="sr-only">{`${voting.byName} started voting`}</span>
+            </>
+          )
+        ) : (
+          <span className="shrink-0 text-ink-2">
+            {compact ? (
+              <>
+                <span className="sr-only">Voting · </span>
+                {votesLeft > 0 ? `${votesLeft} left` : "All used"}
+              </>
+            ) : votesLeft > 0 ? (
+              `Voting · ${votesLeft} left`
+            ) : (
+              "Voting · all used"
+            )}
+          </span>
+        )}
+        {!compact && editable && voting.perPerson <= 10 ? (
           <span className="flex items-center gap-1" aria-hidden="true">
             {Array.from({ length: voting.perPerson }, (_, i) => (
               <span
@@ -356,56 +391,53 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
             ))}
           </span>
         ) : null}
-        {editable && <SegmentButton onClick={endVoting}>End voting</SegmentButton>}
+        {!compact && editable && <SegmentButton onClick={endVoting}>End voting</SegmentButton>}
       </Segment>,
     )
   }
+  // The leader's words truncate, so a long note never widens the bar. Cut short, they are a box
+  // of their own, and a name read from boxes gets a space at each of their edges ("Results: “ Book
+  // the venue ” leads"), so the button carries its words whole as its name.
+  const tie = results.length > 1 && results[0].count === results[1].count
+  const leader = !compact && !tie && results.length > 0 ? textOf(results[0].id) : null
+  const resultsLabel = compact ? (
+    "Results"
+  ) : tie ? (
+    "Results: a tie at the top"
+  ) : leader !== null ? (
+    <>
+      Results: “<BarName name={leader} className="max-w-[12rem]" />” leads
+    </>
+  ) : (
+    "Results"
+  )
   if (voting?.closedAt) {
+    const closed = voting.id
     segments.push(
-      <Segment key="results">
-        <Popover>
-          <PopoverTrigger asChild>
-            <SegmentButton>
-              <Vote className="size-3.5" aria-hidden />
-              {results.length > 1 && results[0].count === results[1].count
-                ? "Results: a tie at the top"
-                : results.length > 0
-                  ? `Results: “${notes.find((n) => n.id === results[0].id)?.text ?? ""}” leads`
-                  : "Results"}
+      <Segment key="results" quiet={compact}>
+        <BarPicker
+          title="Results"
+          open={resultsOf === closed}
+          onOpenChange={(open) => setResultsOf(open ? closed : null)}
+          trigger={
+            <SegmentButton aria-label={leader !== null ? `Results: “${leader}” leads` : undefined}>
+              {/* On a phone the word alone: beside a presenter's chip and the clock, the icon cut "Presenting" short (DB-34). */}
+              {!compact && <Vote className="size-3.5" aria-hidden />}
+              <span className="flex min-w-0 items-center">{resultsLabel}</span>
             </SegmentButton>
-          </PopoverTrigger>
-          <PopoverContent side="top" sideOffset={10} className="content-float w-72 rounded-xl bg-pop p-1.5 shadow-e3">
-            {results.length === 0 ? (
-              <p className="p-2 text-ui-sm text-ink-2">Nobody voted.</p>
-            ) : (
-              <ol className="grid gap-0.5">
-                {results.slice(0, 10).map((r, i) => {
-                  const max = results[0].count || 1
-                  return (
-                    <li key={r.id}>
-                      <button
-                        type="button"
-                        onClick={() => goTo(r.id)}
-                        {...ix("item")}
-                        className="relative flex h-9 w-full items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-ui"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="board-grow absolute inset-y-1 left-1 origin-left rounded-md bg-press"
-                          style={{ width: `calc(${(r.count / max) * 100}% - 8px)`, ["--i" as string]: i }}
-                        />
-                        <span className="relative w-4 text-meta tabular-nums text-ink-3">{i + 1}</span>
-                        <span className="relative min-w-0 flex-1 truncate text-ink">{notes.find((n) => n.id === r.id)?.text}</span>
-                        <span className="relative text-meta font-semibold tabular-nums text-ink">{r.count}</span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ol>
-            )}
-          </PopoverContent>
-        </Popover>
-        {editable && (
+          }
+        >
+          <ResultsList
+            results={results}
+            textOf={textOf}
+            onGo={(id) => {
+              goTo(id)
+              // On a phone the sheet steps aside, so the note shows.
+              if (sheet) setResultsOf(null)
+            }}
+          />
+        </BarPicker>
+        {!compact && editable && (
           <SegmentIcon label="Clear the results" onClick={clearVoting}>
             <X />
           </SegmentIcon>
@@ -434,9 +466,9 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
         >
           {timeUp ? "Time's up" : formatClock(left)}
         </span>
-        {editable && !timeUp && (
+        {!compact && editable && !timeUp && (
           <>
-            {timer.pausedLeftMs !== undefined ? (
+            {paused ? (
               <SegmentIcon label="Resume" onClick={resumeTimer}>
                 <Play />
               </SegmentIcon>
@@ -448,8 +480,8 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
             <SegmentButton onClick={addMinute}>+1 min</SegmentButton>
           </>
         )}
-        {editable && (
-          <SegmentIcon label={timeUp ? "Dismiss" : "Stop the timer"} onClick={() => setShared("timer", null)}>
+        {!compact && editable && (
+          <SegmentIcon label={timeUp ? "Dismiss the timer" : "Stop the timer"} onClick={stopTimer}>
             <X />
           </SegmentIcon>
         )}
@@ -457,35 +489,116 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
     )
   }
 
-  // Starting things (editors).
-  if (editable && (!timer || !voting || !presenting)) {
+  // Starting things (editors): in the bar, or in its menu while it is compact.
+  if (editable && !compact && (!timer || !voting || !presenting)) {
     segments.push(
       <Segment key="start" quiet>
-        {!timer && (
-          <Choice icon={<Timer className="size-3.5" />} label="Timer" options={TIMER_MINUTES.map((m) => ({ label: `${m} min`, onPick: () => startTimer(m) }))} side="top" />
-        )}
-        {!voting && (
-          <Choice
-            icon={<Vote className="size-3.5" />}
-            label="Vote"
-            heading="Votes for each person"
-            options={VOTES_EACH.map((n) => ({ label: `${n} ${n === 1 ? "vote" : "votes"}`, onPick: () => startVoting(n) }))}
-            side="top"
-          />
-        )}
+        {!timer && <Choice icon={<Timer className="size-3.5" />} label="Timer" options={timerChoices} />}
+        {!voting && <Choice icon={<Vote className="size-3.5" />} label="Vote" heading="Votes for each person" options={voteChoices} />}
         {!presenting && (
-          <SegmentButton
-            onClick={() => {
-              setFollowing(null)
-              setPresenting(true)
-            }}
-          >
+          <SegmentButton onClick={present}>
             <Presentation className="size-3.5" aria-hidden />
             Present
           </SegmentButton>
         )}
       </Segment>,
     )
+  }
+
+  // Compact, every action, in the bar's order: presenting, voting, the timer.
+  if (compact) {
+    const groups: React.ReactNode[][] = [[], [], []]
+    const [presentingRows, votingRows, timerRows] = groups
+    if (presenting) {
+      presentingRows.push(
+        <DropdownMenuItem key="stop" onSelect={() => setPresenting(false)}>
+          <Presentation />
+          Stop presenting
+        </DropdownMenuItem>,
+      )
+    } else if (presenter) {
+      presentingRows.push(
+        <DropdownMenuItem key="unfollow" onSelect={stopFollowing}>
+          <Presentation />
+          Stop following
+        </DropdownMenuItem>,
+      )
+    } else if (presenters.length > 0) {
+      presentingRows.push(
+        <DropdownMenuItem key="follow" onSelect={() => follow(presenters[0])}>
+          <Presentation />
+          Follow {presenters[0].name}
+        </DropdownMenuItem>,
+      )
+    }
+    if (editable && !presenting) {
+      presentingRows.push(
+        <DropdownMenuItem key="present" onSelect={present}>
+          <Presentation />
+          Present
+        </DropdownMenuItem>,
+      )
+    }
+    if (editable && voting && !voting.closedAt) {
+      votingRows.push(
+        <DropdownMenuItem key="end" onSelect={endVoting}>
+          <Vote />
+          End voting
+        </DropdownMenuItem>,
+      )
+    }
+    if (editable && voting?.closedAt) {
+      votingRows.push(
+        <DropdownMenuItem key="clear" onSelect={clearVoting}>
+          <X />
+          Clear the results
+        </DropdownMenuItem>,
+      )
+    }
+    if (editable && !voting) votingRows.push(<ChoiceStep key="vote" icon={<Vote />} label="Vote" heading="Votes for each person" options={voteChoices} />)
+    if (editable && timer && !timeUp) {
+      timerRows.push(
+        <DropdownMenuItem key="pause" onSelect={paused ? resumeTimer : pauseTimer}>
+          {paused ? <Play /> : <Pause />}
+          {paused ? "Resume" : "Pause"}
+        </DropdownMenuItem>,
+        <DropdownMenuItem key="minute" onSelect={addMinute}>
+          <Plus />
+          +1 min
+        </DropdownMenuItem>,
+      )
+    }
+    if (editable && timer) {
+      timerRows.push(
+        <DropdownMenuItem key="stop-timer" onSelect={stopTimer}>
+          <X />
+          {timeUp ? "Dismiss the timer" : "Stop the timer"}
+        </DropdownMenuItem>,
+      )
+    }
+    if (editable && !timer) timerRows.push(<ChoiceStep key="timer" icon={<Timer />} label="Timer" options={timerChoices} />)
+    const shown = groups.filter((g) => g.length > 0)
+    if (shown.length > 0) {
+      segments.push(
+        <Segment key="actions" quiet>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <SegmentIcon label="Facilitation options" className="max-sm:size-9">
+                <Ellipsis />
+              </SegmentIcon>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="end" sideOffset={10} className="w-56">
+              {shown.map((rows, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <DropdownMenuSeparator />}
+                  {rows}
+                </React.Fragment>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </Segment>,
+      )
+    }
   }
 
   return (
@@ -524,7 +637,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
                 key={n.id}
                 type="button"
                 style={{ left: pos.left, top: pos.top }}
-                onClick={() => vote(n.id)}
+                onClick={() => vote([n.id])}
                 aria-pressed={mine}
                 aria-label={`${mine ? "Take back your vote for" : "Vote for"} ${n.text}`}
                 title={mine ? "Take your vote back" : "Vote"}
@@ -540,22 +653,18 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
         </div>
       )}
 
+      {/* As wide as the bar may be: the compact bar counts its give-way steps again when this changes. */}
+      <div ref={setRoom} aria-hidden="true" className={cn("pointer-events-none invisible absolute inset-x-3 bottom-0 h-0", !isMobile && BAR_MAX_COMPUTER)} />
+
       {segments.length > 0 && (
-        <div
-          className={cn(
-            "pointer-events-none absolute left-1/2 z-20 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 justify-center",
-            // On a phone, above the canvas's footer and the board's own buttons:
-            // at the top it covered Excalidraw's tool row. On a computer, docked
-            // above the tool bar at the bottom centre.
-            isMobile ? "bottom-[8.5rem]" : "bottom-[72px]",
-          )}
-        >
+        <FacilitationDock>
           <div
+            ref={barRef}
             role="toolbar"
             aria-label="Facilitation"
             data-board-chrome=""
             data-facilitation=""
-            className="content-float pointer-events-auto flex h-11 max-w-full items-center overflow-x-auto rounded-[22px] bg-pop px-1.5 text-ui-sm text-ink shadow-e3"
+            className={cn(BAR_SURFACE, "h-11 overflow-x-auto text-ui-sm")}
           >
             {segments.map((seg, i) => (
               <React.Fragment key={i}>
@@ -564,18 +673,25 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
               </React.Fragment>
             ))}
           </div>
-        </div>
+        </FacilitationDock>
       )}
     </>
   )
 }
 
-/** One part of the facilitation cluster. */
-function Segment({ children, tone, quiet }: { children: React.ReactNode; tone?: "about-you" | "sun"; quiet?: boolean }) {
+/**
+ * One part of the facilitation cluster (data-bar-segment: the e2e holds each of its words inside it).
+ * A part that may `fit` gives way first when the bar is short of room: its names truncate, never below
+ * their first letter (BarName), and its words never do. A row still short of room would scroll, so the
+ * compact bar's priority shortens a part instead (useGiveWay).
+ */
+function Segment({ children, tone, quiet, fit }: { children: React.ReactNode; tone?: "about-you" | "sun"; quiet?: boolean; fit?: boolean }) {
   return (
     <div
+      data-bar-segment=""
       className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[16px] px-2",
+        "flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[16px] px-2",
+        fit ? "shrink" : "shrink-0",
         tone === "about-you" && "bg-brand-muted text-brand-text",
         tone === "sun" && "bg-camp-sun-tint text-camp-sun-ink",
         quiet && "gap-0.5 px-0.5",
@@ -605,59 +721,111 @@ const SegmentButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttrib
   )
 })
 
-function SegmentIcon({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+/** An icon's button in the cluster, named by `label`; a menu's trigger too (it takes the menu's ref and props). */
+const SegmentIcon = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }>(function SegmentIcon(
+  { label, className, children, type = "button", ...rest },
+  ref,
+) {
   return (
     <button
-      type="button"
-      onClick={onClick}
+      ref={ref}
+      type={type}
       aria-label={label}
       title={label}
-      className="inline-flex size-7 shrink-0 items-center justify-center rounded-[14px] text-ink-3 outline-none transition-colors hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&_svg]:size-3.5"
+      className={cn(
+        "inline-flex size-7 shrink-0 items-center justify-center rounded-[14px] text-ink-3 outline-none transition-colors hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand [&_svg]:size-3.5",
+        className,
+      )}
+      {...rest}
     >
       {children}
     </button>
   )
+})
+
+/**
+ * A person's name and the words of their state, as one part: "Following ann", "ann is presenting",
+ * "Lee started voting". The words stay whole, and the name gives way first (BarName).
+ */
+function NamedState({ name, before, after, className }: { name: string; before?: string; after?: string; className?: string }) {
+  return (
+    <span className={cn("flex items-center gap-1", className)}>
+      {/* The spaces are the words' own, so the part reads as one line ("Following ann"); a line's end drops them. */}
+      {before && <span className="shrink-0">{`${before} `}</span>}
+      <BarName name={name} />
+      {after && <span className="shrink-0">{` ${after}`}</span>}
+    </span>
+  )
 }
 
-function Choice({
-  icon,
-  label,
-  heading,
-  options,
-  side,
-}: {
+/**
+ * A name on the bar, which gives way to the words beside it down to its first letter and "…", and no
+ * further: at 390 names were cut to nothing (design review, 29 Oct). An unseen copy of those two (the
+ * grid's ::after, so it is no part of the bar's text) holds the name's least width; past it the row
+ * scrolls, and the compact bar's priority takes a step instead. A name of four letters or fewer is its
+ * own least: cut, it would hardly be shorter, and "Al" in the room of "A…" would leave a gap after it.
+ */
+function BarName({ name, className }: { name: string; className?: string }) {
+  const letters = Array.from(name)
+  return (
+    <span
+      data-least={letters.length <= 4 ? name : `${letters[0]}…`}
+      className={cn(
+        "grid after:invisible after:col-start-1 after:row-start-1 after:whitespace-nowrap after:content-[attr(data-least)]",
+        className,
+      )}
+    >
+      <span data-bar-name="" className="col-start-1 row-start-1 truncate">
+        {name}
+      </span>
+    </span>
+  )
+}
+
+interface ChoiceProps {
   icon: React.ReactNode
   label: string
   heading?: string
   options: { label: string; onPick: () => void }[]
-  side: "top" | "bottom"
-}) {
-  const [open, setOpen] = React.useState(false)
+}
+
+/** A way to start something, picked from a short list: a menu above the bar, an action sheet on a phone. */
+function Choice({ icon, label, heading, options }: ChoiceProps) {
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <SegmentButton>
           {icon}
           {label}
         </SegmentButton>
-      </PopoverTrigger>
-      <PopoverContent side={side} sideOffset={10} className="content-float w-44 rounded-xl bg-pop p-1 shadow-e3">
-        {heading && <p className="px-2 py-1 text-meta font-medium text-ink-3">{heading}</p>}
-        {options.map((o) => (
-          <button
-            key={o.label}
-            type="button"
-            onClick={() => {
-              o.onPick()
-              setOpen(false)
-            }}
-            {...ix("item")}
-            className="flex h-8 w-full items-center rounded-lg px-2 text-left text-ui text-ink"
-          >
-            {o.label}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" sideOffset={10} className="w-44">
+        {heading && <DropdownMenuLabel>{heading}</DropdownMenuLabel>}
+        <ChoiceRows options={options} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
+}
+
+/** The same list as a step in the compact bar's menu; on a phone the step's head says the heading. */
+function ChoiceStep({ icon, label, heading, options }: ChoiceProps) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger textValue={heading ?? label}>
+        {icon}
+        {label}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-44">
+        <ChoiceRows options={options} />
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  )
+}
+
+function ChoiceRows({ options }: Pick<ChoiceProps, "options">) {
+  return options.map((o) => (
+    <DropdownMenuItem key={o.label} onSelect={o.onPick}>
+      {o.label}
+    </DropdownMenuItem>
+  ))
 }

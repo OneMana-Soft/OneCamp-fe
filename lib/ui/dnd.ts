@@ -21,6 +21,7 @@ import {
   type UniqueIdentifier,
 } from "@dnd-kit/core"
 
+import { isAppleTouch } from "@/lib/platform"
 import { announce } from "@/lib/ui/announce"
 import { edgeScroller } from "@/lib/ui/edgeScroll"
 import { PRESS_LIFT } from "@/lib/ui/pressLift"
@@ -69,11 +70,29 @@ export const collisionDetection: CollisionDetection = (args) => {
   return hits.length ? hits : rectIntersection(args)
 }
 
+/**
+ * dnd-kit's TouchSensor without its standing listener, except on iOS and
+ * iPadOS. Mounted, it put a touchmove listener that isn't passive on the
+ * window for as long as the surface stayed open, so every touch scroll of the
+ * page waited for the main thread: a phone's list in manual order scrolled
+ * worse than in any other sort (FLUID17-P2, 21 Oct 2026). What stops the page
+ * under a finger is the press's own listener, on the pressed element from its
+ * touchstart, and a lifted drag's (lib/ui/pressLift holdLifted), on the
+ * window until the drop. WebKit on iOS settles at touchstart whether a
+ * touch's moves can be cancelled, so a listener added as a hold lifts comes
+ * too late there: an iPhone or iPad keeps dnd-kit's standing one.
+ */
+export class HoldTouchSensor extends TouchSensor {
+  static setup(): () => void {
+    return isAppleTouch() ? TouchSensor.setup() : () => {}
+  }
+}
+
 /** A mouse lifts after 5px, a finger after a 250ms hold within 8px (lib/ui/pressLift, D11); the keyboard: Space lifts, Space or Enter drops, Escape or Tab puts back. */
 export function useDndSensors(coordinateGetter: KeyboardCoordinateGetter = containerCoordinates) {
   return useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: PRESS_LIFT.travel } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: PRESS_LIFT.hold, tolerance: PRESS_LIFT.slop } }),
+    useSensor(HoldTouchSensor, { activationConstraint: { delay: PRESS_LIFT.hold, tolerance: PRESS_LIFT.slop } }),
     useSensor(KeyboardSensor, {
       coordinateGetter,
       keyboardCodes: { start: [KeyboardCode.Space], cancel: [KeyboardCode.Esc, KeyboardCode.Tab], end: [KeyboardCode.Space, KeyboardCode.Enter] },
@@ -81,14 +100,19 @@ export function useDndSensors(coordinateGetter: KeyboardCoordinateGetter = conta
   )
 }
 
+/** Where a mouse or a finger event happened; null for a key, which has no place. */
+export function eventPoint(e: Event | null | undefined): { x: number; y: number; touch: boolean } | null {
+  if (!e || e instanceof KeyboardEvent) return null
+  const touch = (e as TouchEvent).touches?.[0] ?? (e as TouchEvent).changedTouches?.[0]
+  const x = touch?.clientX ?? (e as MouseEvent).clientX
+  const y = touch?.clientY ?? (e as MouseEvent).clientY
+  return x === undefined || y === undefined ? null : { x, y, touch: !!touch }
+}
+
 /** Where the pointer or finger is during a drag; null for the keyboard, which has none. */
 export function dragPoint(e: DragMoveEvent | DragEndEvent): { x: number; y: number; touch: boolean } | null {
-  const start = e.activatorEvent
-  if (!start || start instanceof KeyboardEvent) return null
-  const touch = (start as TouchEvent).touches?.[0]
-  const x = touch?.clientX ?? (start as MouseEvent).clientX
-  const y = touch?.clientY ?? (start as MouseEvent).clientY
-  return x === undefined || y === undefined ? null : { x: x + e.delta.x, y: y + e.delta.y, touch: !!touch }
+  const at = eventPoint(e.activatorEvent)
+  return at && { x: at.x + e.delta.x, y: at.y + e.delta.y, touch: at.touch }
 }
 
 /** Where an item is, for the words a drag says: its container and, when the container keeps an order, its place in it. */
@@ -103,6 +127,8 @@ export interface DragWords {
   name: (id: UniqueIdentifier) => string
   /** Where an item or a target is. */
   place: (id: UniqueIdentifier) => DragPlace | null
+  /** What a target does, said as an item comes over it where that says more than its place ("Swap with Launch plan"). */
+  over?: (id: UniqueIdentifier) => string | null
 }
 
 const at = (p: DragPlace | null) => (p ? (p.position && p.count ? `${p.container}, position ${p.position} of ${p.count}` : p.container) : "")
@@ -111,14 +137,14 @@ const at = (p: DragPlace | null) => (p ? (p.position && p.count ? `${p.container
  * The words (§5.1), said through the app's one live region (lib/ui/announce)
  * rather than @dnd-kit's own, which stays silent.
  */
-export function dragAnnouncements({ name, place }: DragWords): Announcements {
+export function dragAnnouncements({ name, place, over: does }: DragWords): Announcements {
   const say = (text: string) => {
     announce(text)
     return undefined
   }
   return {
     onDragStart: ({ active }) => say(`Picked up ${name(active.id)}. ${at(place(active.id))}.`),
-    onDragOver: ({ over }) => (over ? say(`${at(place(over.id))}.`) : undefined),
+    onDragOver: ({ over }) => (over ? say(`${does?.(over.id) ?? at(place(over.id))}.`) : undefined),
     onDragEnd: ({ active, over }) => (over ? say(`Dropped ${name(active.id)} in ${at(place(over.id))}.`) : say(`Cancelled. ${name(active.id)} is back in ${at(place(active.id))}.`)),
     onDragCancel: ({ active }) => say(`Cancelled. ${name(active.id)} is back in ${at(place(active.id))}.`),
   }

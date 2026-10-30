@@ -20,15 +20,13 @@ import * as React from "react"
 import type { Editor } from "@tiptap/core"
 import type { SlotProps } from "@/components/docEditor/registry/types"
 import { useDocBus } from "@/components/docEditor/registry/commandBus"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { collaboratorHue } from "@/lib/identityHue"
-import { cn } from "@/lib/utils/helpers/cn"
 import { onEscape } from "@/lib/keys/onEscape"
 import { setPresenceControl } from "./control"
+import { FollowFrame } from "./FollowFrame"
+import { usePublishIdle } from "./idle"
 import { followersOf, type AwarenessState } from "./people"
 import { awarenessOf, flagCaret, posOf, scrollerOf, showPos, showView, viewOf, type AwarenessLike, type View } from "./live"
 
-const IDLE_AFTER = 2 * 60_000
 const PAGE_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "])
 
 export default function PresenceOverlay({ editor }: SlotProps) {
@@ -111,68 +109,7 @@ function Presence({ editor, awareness }: { editor: Editor; awareness: AwarenessL
   }, [bus.key, jump, follow, following])
   React.useEffect(() => () => setPresenceControl(bus.key, null), [bus.key])
 
-  const user = leader?.user
-  const agent = user?.kind === "agent"
-  const hue = agent ? "[--hue-a1:var(--agent-a1)] [--hue-a2:var(--agent-a2)]" : user ? HUE_CLASS[collaboratorHue({ id: user.id, name: user.name, hue: user.hue })] : ""
-  return (
-    <>
-      {following !== null && leader && (
-        <div className={cn("pointer-events-none absolute inset-0 z-[15] ring-2 ring-inset ring-[var(--hue-a1)]", hue)} data-following="">
-          <div className="content-float pointer-events-auto absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-lg bg-[var(--hue-a2)] py-1 pl-2.5 pr-1 text-meta font-medium text-white shadow-e3">
-            <span>Following {leaderName}</span>
-            <kbd className="rounded-xs bg-white/[0.18] px-1 font-sans text-micro">Esc</kbd>
-            <button
-              type="button"
-              onClick={() => stop(`Stopped following ${leaderName}`)}
-              className="rounded-md px-1.5 py-0.5 outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
-            >
-              Stop
-            </button>
-          </div>
-        </div>
-      )}
-      <span className="sr-only" role="status" aria-live="polite">
-        {said}
-      </span>
-    </>
-  )
-}
-
-/** Says this tab's idle state in its awareness state. */
-function usePublishIdle(awareness: AwarenessLike) {
-  React.useEffect(() => {
-    // Unknown until said: a tab opened out of sight says it is idle 2 minutes on.
-    let idle: boolean | null = null
-    let last = 0
-    const set = (next: boolean) => {
-      if (next === idle) return
-      idle = next
-      awareness.setLocalStateField("idle", next)
-    }
-    let timer = window.setTimeout(() => set(true), IDLE_AFTER)
-    const active = () => {
-      if (document.visibilityState === "hidden") return
-      const now = Date.now()
-      if (idle === false && now - last < 1000) return
-      last = now
-      set(false)
-      window.clearTimeout(timer)
-      timer = window.setTimeout(() => set(true), IDLE_AFTER)
-    }
-    // A tab out of sight goes idle after the same 2 minutes, whatever moved.
-    const seen = () => {
-      if (document.visibilityState === "visible") active()
-    }
-    const events = ["pointerdown", "pointermove", "keydown", "wheel", "touchstart", "focus"] as const
-    for (const e of events) window.addEventListener(e, active, { capture: true, passive: true })
-    document.addEventListener("visibilitychange", seen)
-    active()
-    return () => {
-      window.clearTimeout(timer)
-      for (const e of events) window.removeEventListener(e, active, { capture: true })
-      document.removeEventListener("visibilitychange", seen)
-    }
-  }, [awareness])
+  return <FollowFrame leader={following !== null && leader ? { ...leader.user, name: leaderName } : null} said={said} onStop={() => stop(`Stopped following ${leaderName}`)} />
 }
 
 /** While someone follows this tab, it says where it is looking (its top block), as it scrolls. */

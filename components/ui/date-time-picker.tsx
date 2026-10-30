@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { parseEventText, parsedRange } from "@/lib/calendar/parseEventText"
 import { clockTime } from "@/lib/utils/date/clock"
 import { ix } from "@/lib/ui/interactive"
+import { MenuCheck } from "@/components/ui/menuCheck"
 
 interface DateTimePickerProps {
   value?: Date
@@ -130,19 +131,25 @@ export function TimeList({
             tabIndex={i === cursor ? 0 : -1}
             onFocus={() => setCursor(i)}
             onClick={() => onPick(m)}
-            {...ix("row")}
+            // The chosen time is the layer's selected row in ink (its tint and
+            // leading bar, neutral) with a check, as Select marks its chosen
+            // item and the month its chosen day, and its weight. In the
+            // accent it was a second orange thing beside Pause or Schedule
+            // (DESIGN-BUILD-3); before that an inverted bg-ink slab, a light
+            // block in dark mode (SHADCN-AUDIT). The pointer's and the keys'
+            // row keeps the accent's tint.
+            {...ix("row", selected ? { tone: "neutral" } : undefined)}
             className={cn(
-              "flex w-full items-center justify-between tabular-nums text-ink",
+              "flex w-full items-center justify-between gap-2 tabular-nums text-ink",
               flow ? "h-11 rounded-[10px] px-3 text-ui" : "h-7 rounded-md px-2 text-ui-sm",
-              // The chosen time is the layer's selected row (its tint and
-              // leading bar, from tokens in both themes) and its weight, the
-              // cue that isn't colour. It was bg-ink text-sheet, an inverted
-              // slab that read as a light block in dark mode (SHADCN-AUDIT).
               selected && "font-medium",
             )}
           >
             <span>{clockTime(d)}</span>
-            {since !== undefined ? <span className="text-meta text-ink-3">{durationText(m - since)}</span> : null}
+            <span className="flex items-center gap-2">
+              {since !== undefined ? <span className="text-meta text-ink-3">{durationText(m - since)}</span> : null}
+              <MenuCheck checked={selected} />
+            </span>
           </button>
         )
       })}

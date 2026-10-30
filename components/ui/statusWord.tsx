@@ -21,6 +21,11 @@ const DOT: Record<StatusTone, string> = {
   neutral: "bg-faint-foreground",
 }
 
+/** The dot alone, where something else says the state in words (a saved view's trigger names it "changed"): in a tone's colour, or in the caller's. */
+export function StatusDot({ tone, className }: { tone?: StatusTone; className?: string }) {
+  return <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", tone && DOT[tone], className)} />
+}
+
 export function StatusWord({
   tone = "neutral",
   children,
@@ -32,7 +37,7 @@ export function StatusWord({
 }) {
   return (
     <span data-status-word={tone} className={cn("inline-flex items-center gap-1.5 text-foreground", className)}>
-      <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", DOT[tone])} />
+      <StatusDot tone={tone} />
       {children}
     </span>
   )

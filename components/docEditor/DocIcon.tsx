@@ -5,8 +5,9 @@ import { FileText } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { docHue, docIconOf } from "@/lib/docLook"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
-const Glyph = React.lazy(() => import("@/components/docEditor/chrome/glyphs"))
+const Glyph = lazyPiece(() => import("@/components/docEditor/chrome/glyphs"))
 
 /**
  * A page's icon wherever a page is named (D-2; B6 owns it, B5, C1 and C2 use

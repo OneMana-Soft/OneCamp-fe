@@ -13,6 +13,9 @@ vi.mock("@tanstack/react-virtual", () => ({
     return { getVirtualItems: () => items, getTotalSize: () => start - scrollMargin, scrollToIndex: () => {} }
   },
 }))
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, isError: false, mutate: () => Promise.resolve() }) }))
+vi.mock("@/hooks/useFetch", () => {
+  const nothing = () => ({ data: undefined, isLoading: false, isError: false, mutate: () => Promise.resolve() })
+  return { useFetch: nothing, useFetchOnlyOnce: nothing }
+})
 vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useSelector: () => "" }))
-vi.mock("@/hooks/useTimelineView", async (orig) => ({ ...(await orig<typeof import("@/hooks/useTimelineView")>()), useTimelineView: () => ({ onScroll: () => {}, goToday: () => {} }) }))
+vi.mock("@/hooks/useTimelineView", async (orig) => ({ ...(await orig<typeof import("@/hooks/useTimelineView")>()), useTimelineView: ({ scrollRef }: { scrollRef: { current: HTMLDivElement | null } }) => ({ onScroll: () => {}, goToday: () => {}, scrollerRef: (el: HTMLDivElement | null) => void (scrollRef.current = el) }) }))

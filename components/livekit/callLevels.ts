@@ -18,6 +18,33 @@ export const RING_HOLD_MS = 300
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 
 /**
+ * A level sampled many times a second (the green room's microphone), for the
+ * few parts that draw it to listen to: the screen around them doesn't draw
+ * again with every sample. Every sample is told, an unchanged one too: a
+ * meter's smoothing moves on each.
+ */
+export interface LevelSource {
+  read(): number
+  listen(onSample: () => void): () => void
+}
+
+export function levelSource(): LevelSource & { write(level: number): void } {
+  let level = 0
+  const listeners = new Set<() => void>()
+  return {
+    read: () => level,
+    write(next) {
+      level = next
+      for (const listener of listeners) listener()
+    },
+    listen(onSample) {
+      listeners.add(onSample)
+      return () => void listeners.delete(onSample)
+    },
+  }
+}
+
+/**
  * The 5-bar mic meter: how many bars to light, from a level and the previous
  * smoothed level. Speech is quiet on a linear scale, so the level is read on a
  * square root, which lights a bar or two for normal speech and all five when
@@ -70,4 +97,9 @@ export function formatElapsed(ms: number): string {
 export function guestName(identity: string, name: string): { name: string; guest: boolean } {
   const guest = identity.startsWith("guest-")
   return { name: guest ? name.replace(/^Guest:\s*/, "") || "Guest" : name, guest }
+}
+
+/** A guest's name as a board's people see it, "Priya (guest)", from their call identity and name. Pure. */
+export function asGuest(identity: string, name: string): string {
+  return `${guestName(identity, name).name} (guest)`
 }

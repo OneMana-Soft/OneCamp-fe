@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { cycleLabel, percentDone, timeLeft, type Cycle } from "@/lib/tasks/cycles"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
-import { lazyView } from "@/components/task/LazyView"
+import { lazyView } from "@/lib/lazy/lazyView"
 
 // The burndown and its chart load when a cycle's chart is asked for.
 const CycleBurndownDialog = dynamic(() => import("@/components/task/cycleBurndownDialog").then((m) => m.CycleBurndownDialog), { loading: () => null })

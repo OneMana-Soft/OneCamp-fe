@@ -70,6 +70,14 @@ export interface Unlocked {
   expires_in: number
 }
 
+/** What a published address answers now (docs C6): a live page, a password page, an expired one, or none. */
+export type PageState = "live" | "locked" | "gone" | "missing"
+
+/** Asks what an address answers, without the page: a public call, with no session and no cookie. */
+export function pageState(slug: string): Promise<PublicResult<{ state: PageState }>> {
+  return publicCall<{ state: PageState }>(`${pagePath({ slug })}/state`, { credentials: "omit" })
+}
+
 /** A password page's unlock for its password: a public call, with no session and no cookie. */
 export function unlockPage(ref: PageRef, password: string): Promise<PublicResult<Unlocked>> {
   return publicCall<Unlocked>(`${pagePath(ref)}/unlock`, {

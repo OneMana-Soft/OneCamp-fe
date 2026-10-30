@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from "react"
 import useSWR from "swr"
 import { appMutate as globalMutate } from "@/lib/swrMutate"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
+import { InstantSwitch } from "@/components/ui/instantSwitch"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Field } from "@/components/ui/field"
@@ -23,7 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useSecretReentry } from "@/hooks/useSecretReentry"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Check, X, Upload, Loader2, ImageIcon, Pencil } from "@/lib/icons"
+import { Plus, Trash2, Check, X, Upload, Loader2, ImageIcon, Pencil, Key } from "@/lib/icons"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
@@ -35,6 +35,7 @@ import {
 import { useUploadFile } from "@/hooks/useUploadFile"
 import MarketplaceCard from "@/components/admin/MarketplaceCard"
 import AppIcon from "@/components/admin/AppIcon"
+import AppAccessSheet from "@/components/admin/AppAccessSheet"
 import { CommandChip } from "@/components/admin/appParts"
 import type { AppView, AppCommandInput, CreateAppRequest } from "@/types/app"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -82,6 +83,8 @@ export default function AppsCard() {
 
     const [createOpen, setCreateOpen] = useState(false)
     const [editApp, setEditApp] = useState<AppView | null>(null)
+    // The app whose access (its user, scopes, places and tokens) is open.
+    const [accessApp, setAccessApp] = useState<AppView | null>(null)
     const [confirmDelete, setConfirmDelete] = useState<AppView | null>(null)
     const [busy, setBusy] = useState(false)
 
@@ -102,17 +105,19 @@ export default function AppsCard() {
         }
     }, [toast, mutate])
 
+    // A failure says why here and rejects: the switch springs back.
     const handleToggle = useCallback(async (app: AppView, enabled: boolean) => {
         try {
             await setAppEnabled(app.id, enabled)
-            mutate()
         } catch (e) {
             toast({
                 title: enabled ? `Couldn't turn on ${app.name}` : `Couldn't turn off ${app.name}`,
                 description: apiErrorMessage(e, "Try again in a moment."),
                 variant: "destructive",
             })
+            throw e
         }
+        void mutate()
     }, [mutate, toast])
 
     const handleDelete = useCallback(async () => {
@@ -190,6 +195,7 @@ export default function AppsCard() {
                                     app={app}
                                     onToggle={handleToggle}
                                     onEdit={() => setEditApp(app)}
+                                    onAccess={() => setAccessApp(app)}
                                     onDelete={() => setConfirmDelete(app)}
                                     onConnect={() => startOAuthInstall(app.id)}
                                     onDisconnect={() => handleDisconnect(app)}
@@ -215,6 +221,9 @@ export default function AppsCard() {
                     onClose={() => setCreateOpen(false)}
                     onSaved={() => { setCreateOpen(false); mutate(); globalMutate("admin-marketplace") }}
                 />
+            )}
+            {accessApp && (
+                <AppAccessSheet appId={accessApp.id} appName={accessApp.name} onClose={() => setAccessApp(null)} />
             )}
             {editApp && (
                 <AppEditor
@@ -245,11 +254,12 @@ export default function AppsCard() {
 }
 
 function AppRow({
-    app, onToggle, onEdit, onDelete, onConnect, onDisconnect,
+    app, onToggle, onEdit, onAccess, onDelete, onConnect, onDisconnect,
 }: {
     app: AppView
-    onToggle: (app: AppView, enabled: boolean) => void
+    onToggle: (app: AppView, enabled: boolean) => Promise<unknown>
     onEdit: () => void
+    onAccess: () => void
     onDelete: () => void
     onConnect: () => void
     onDisconnect: () => void
@@ -284,11 +294,23 @@ function AppRow({
                         ? <Button size="sm" variant="ghost" className="mr-1 h-8" onClick={onDisconnect}>Disconnect</Button>
                         : <Button size="sm" variant="outline" className="mr-1 h-8" onClick={onConnect}>Connect</Button>
                 )}
-                <Switch checked={app.is_enabled} onCheckedChange={(v) => onToggle(app, v)} aria-label={`Use ${app.name}`} className="mr-1" />
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit} aria-label={`Edit ${app.name}`}>
+                <InstantSwitch
+                    checked={app.is_enabled}
+                    onSave={(v) => onToggle(app, v)}
+                    what={(v) => (v ? `${app.name} is on` : `${app.name} is off`)}
+                    aria-label={`Use ${app.name}`}
+                    className="mr-1"
+                />
+                {/* A built-in app is OneCamp's own: it has no tokens of its own to give. */}
+                {app.kind !== "builtin" && (
+                    <Button size="icon" variant="ghost" className="size-11 md:size-8" onClick={onAccess} aria-label={`Access and tokens for ${app.name}`} title="Access and tokens">
+                        <Key className="h-4 w-4" />
+                    </Button>
+                )}
+                <Button size="icon" variant="ghost" className="size-11 md:size-8" onClick={onEdit} aria-label={`Edit ${app.name}`}>
                     <Pencil className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-danger-ink hover:text-danger-ink" onClick={onDelete} aria-label={`Remove ${app.name}`}>
+                <Button size="icon" variant="ghost" className="size-11 text-danger-ink hover:text-danger-ink md:size-8" onClick={onDelete} aria-label={`Remove ${app.name}`}>
                     <Trash2 className="h-4 w-4" />
                 </Button>
             </div>
@@ -598,7 +620,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                             {testing ? "Testing…" : "Test"}
                         </Button>
                     )}
-                    <Button onClick={handleSave} disabled={busy}>{busy ? "Saving…" : isEdit ? "Save changes" : "Install app"}</Button>
+                    <Button onClick={handleSave} busy={busy}>{busy ? "Saving…" : isEdit ? "Save changes" : "Install app"}</Button>
                 </SheetFooter>
             </SheetContent>
         </Sheet>

@@ -37,7 +37,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock("react-redux", async (importOriginal) => ({ ...(await importOriginal<object>()), useDispatch: () => vi.fn() }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 
-import TemplatePicker, { categoriesOf, filterTemplates, pickerTemplates } from "./TemplatePicker"
+import TemplatePicker, { pickerTemplates } from "./TemplatePicker"
+import { categoriesOf, filterTemplates } from "@/components/templates/TemplateGallery"
 
 afterEach(() => {
   cleanup()

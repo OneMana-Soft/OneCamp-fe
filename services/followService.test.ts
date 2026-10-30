@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { put: vi.fn(), delete: vi.fn() },
 }))
 vi.mock("@/lib/swrMutate", () => ({ patchCached: vi.fn() }))

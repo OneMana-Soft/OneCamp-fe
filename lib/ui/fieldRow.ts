@@ -30,12 +30,9 @@ export const fieldLabel = "whitespace-nowrap text-xs text-muted-foreground"
  * propertyValue's (lib/ui/propertyRow) always did; a tap opens them.
  */
 
-/** A value that opens a picker or popover: a ghost button (dates, people, repeat). */
-export const inlineValue = "group/value -ml-2 h-8 max-w-full justify-start gap-1.5 px-2 text-sm font-normal hover:bg-highlight"
-
-/** A trailing affordance inside an inlineValue: a chevron or a calendar. */
-export const inlineAffordance =
-  "shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/value:opacity-100 group-focus-visible/value:opacity-100 group-data-[state=open]/value:opacity-100"
+// The two a picker's value needs, kept apart so a field that opens one (the
+// combobox) has them without the rest: lib/ui/inlineValue.
+export { inlineAffordance, inlineValue } from "@/lib/ui/inlineValue"
 
 /** A box typed into (an estimate, a number, a link): plain text until it has focus. */
 export const inlineInput =

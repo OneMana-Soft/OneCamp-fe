@@ -111,8 +111,8 @@ export function useRowThreads(rowId: string, me?: Pick<UserProfileDataInterface,
   const canModerate = t.threads.some((x) => x.can_moderate)
   const { reply, resolve, reopen, reanchor, markRead } = t
   const actions: ThreadActions = useMemo(
-    () => ({ reply, resolve, reopen, reanchor, markRead, edit, remove, react, unreact, canModerate }),
-    [reply, resolve, reopen, reanchor, markRead, edit, remove, react, unreact, canModerate],
+    () => ({ reply, resolve, reopen, reanchor, markRead, edit, remove, react, unreact, canModerate, refresh }),
+    [reply, resolve, reopen, reanchor, markRead, edit, remove, react, unreact, canModerate, refresh],
   )
 
   return { ...t, actions, canModerate }

@@ -51,6 +51,8 @@ interface ArchivePolicy {
 interface ArchiveJob {
   id: string; entity_type: string; status: string; started_at?: string; completed_at?: string
   items_processed: number; items_archived: number; items_failed: number; error_message?: string; created_at: string
+  /** Its undo is at work now, begun here or anywhere (archiveModels beingUndone). */
+  undoing?: boolean
 }
 
 interface ArchiveStats {
@@ -58,8 +60,10 @@ interface ArchiveStats {
   total_archived_recordings: number; total_archived_attachments: number; total_archived_docs: number
 }
 
-// Entity types that do not support job-level undo.
-const UNSUPPORTED_UNDO: string[] = ["docs", "recordings"]
+// Entity types that do not support job-level undo. Recordings live in the
+// graph alone, with no run's list of what it took (business/Archive
+// entitySupportsUndo).
+const UNSUPPORTED_UNDO: string[] = ["recordings"]
 
 const STATUS: Record<string, { label: string; tone: StatusTone }> = {
   pending: { label: "Waiting", tone: "warning" },
@@ -67,11 +71,16 @@ const STATUS: Record<string, { label: string; tone: StatusTone }> = {
   completed: { label: "Done", tone: "success" },
   failed: { label: "Failed", tone: "danger" },
   cancelled: { label: "Cancelled", tone: "neutral" },
+  // Its undo stopped part way: part of the run is back. Restore finishes it.
+  partial: { label: "Partly restored", tone: "warning" },
 }
 
+// A partial run whose undo is at work now, here or in another tab.
+const RESTORING = { label: "Restoring…", tone: "info" } satisfies { label: string; tone: StatusTone }
+
 /** Where a run stands: a dot and a word, as the task panel says a status. It was a tinted pill. */
-function RunStatus({ status }: { status: string }) {
-  const s = STATUS[status] ?? STATUS.pending
+function RunStatus({ job }: { job: ArchiveJob }) {
+  const s = job.undoing ? RESTORING : (STATUS[job.status] ?? STATUS.pending)
   return (
     <StatusWord tone={s.tone} className="text-xs">
       {s.label}
@@ -148,14 +157,16 @@ function RuleRow({ policy, onSaved, menu }: { policy: ArchivePolicy; onSaved: ()
   const { status, run } = useSaveStatus()
   const purge = purgeLine(policy)
   const id = `archive-days-${policy.entity_type}`
-  const change = async (next: number) => {
+  const change = async (next: number): Promise<boolean> => {
     const before = days
     setDays(next)
-    const held = await run(() =>
-      axiosInstance.put(`${PostEndpointUrl.UpdateArchivePolicy}/${policy.entity_type}`, { retention_days: next, auto_archive: policy.auto_archive }, OWN_ERRORS),
+    const held = await run(
+      () => axiosInstance.put(`${PostEndpointUrl.UpdateArchivePolicy}/${policy.entity_type}`, { retention_days: next, auto_archive: policy.auto_archive }, OWN_ERRORS),
+      { what: `Archive ${e.label.toLowerCase()} older than ${daysWord(next)}`, undo: () => change(before) },
     )
     if (held) onSaved()
     else setDays(before)
+    return held
   }
   return (
     <li data-archive-rule={policy.entity_type} className="set-row flex items-center gap-3">
@@ -213,7 +224,8 @@ const ArchiveCard = () => {
   const POLL_INTERVAL_MS = 6000
 
   const jobs = useMemo(() => jobsFetch.data?.jobs ?? [], [jobsFetch.data])
-  const runningJobIds = useMemo(() => jobs.filter((x) => x.status === "running").map((x) => x.id).sort().join(","), [jobs])
+  // A run archiving, or one whose undo is at work, ends on its own: the list reads again until it has.
+  const runningJobIds = useMemo(() => jobs.filter((x) => x.status === "running" || x.undoing).map((x) => x.id).sort().join(","), [jobs])
 
   // Job status updates arrive over MQTT, which busts the SWR cache for the
   // jobs list directly; this is the fallback when MQTT is unavailable.
@@ -242,6 +254,8 @@ const ArchiveCard = () => {
         description: archiveProblem(err, "Try again in a moment."),
         variant: "destructive",
       })
+      // Part of it may be back: the run reads as partly restored.
+      void jobsFetch.mutate()
     } finally {
       setUndoingJobId(null)
     }
@@ -365,14 +379,14 @@ const ArchiveCard = () => {
                 const e = archiveEntity(job.entity_type)
                 const took = duration(job)
                 const meta = [shortDateTime(new Date(job.created_at)), job.items_archived > 0 ? `${n(job.items_archived)} archived` : ""].filter(Boolean)
-                const undoable = job.status === "completed" && !UNSUPPORTED_UNDO.includes(job.entity_type)
+                const undoable = (job.status === "completed" || (job.status === "partial" && !job.undoing)) && !UNSUPPORTED_UNDO.includes(job.entity_type)
                 return (
                   <li key={job.id} data-archive-run="" className="set-row flex items-center gap-3">
                     <KindMark type={job.entity_type} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="text-sm font-medium">{e.label}</span>
-                        <RunStatus status={job.status} />
+                        <RunStatus job={job} />
                       </div>
                       {/* One line of facts, a quiet dot between them. The failures stay in danger ink. */}
                       <p className="mt-0.5 text-xs text-ink-2">

@@ -5,7 +5,7 @@ import { NodeSelection } from "@tiptap/pm/state"
 import { Languages, Type } from "@/lib/icons"
 import { fuzzyMatch } from "@/components/ui/CommandList"
 import { NO_BUS, busFor } from "@/components/docEditor/registry/commandBus"
-import { actionGroupsFor, currentTurnIntoLabel, turnIntoFor, type ShownAction } from "@/components/docEditor/registry/readers"
+import { actionGroupsFor, blockLabelFor, currentTurnIntoLabel, turnIntoFor, type ShownAction } from "@/components/docEditor/registry/readers"
 import { chordGlyphs } from "@/components/docEditor/registry/shortcuts"
 import type { ActionContext } from "@/components/docEditor/registry/types"
 import type { BlockMenuRequest } from "@/components/minimal-tiptap/extensions/block-commands/menuRequest"
@@ -105,10 +105,14 @@ function giveIds(editor: Editor, blocks: BlockRef[]): void {
   editor.view.dispatch(tr.setMeta("addToHistory", false))
 }
 
-/** The name of what is chosen: "Heading 2", or "3 blocks". */
+/** The name of what is chosen: "Heading 2", "Page", or "3 blocks". */
 export function chosenLabel(editor: Editor, blocks: BlockRef[], gate: { ai: boolean }): string {
   if (blocks.length > 1) return `${blocks.length} blocks`
-  return currentTurnIntoLabel(editor, turnIntoFor(gate))
+  // A block with no text (a page, an image) by its own name: the caret's
+  // block was the text it was last in, so a page's sheet said "Text".
+  const node = blocks[0]?.node
+  const own = node?.isAtom ? blockLabelFor(node.type.name, gate) : undefined
+  return own ?? currentTurnIntoLabel(editor, turnIntoFor(gate))
 }
 
 /** Selects the blocks as an action needs them (WAVE_B_CONTRACTS), and gives it its context. */

@@ -33,6 +33,7 @@
 // the sign-in page's placeholder, then the splash. The sign-in page takes it
 // over: the app follows if somebody is signed in, and it fades if not.
 
+import { MEMBER_KEY } from "./memberMark"
 import { WORKSPACE_NAME_MAX, WORKSPACE_NAME_STORE_KEY } from "@/lib/workspaceName"
 import { GROUND, PHONE_MAX_PX } from "@/lib/pwa/grounds"
 
@@ -51,8 +52,6 @@ export const APP_BOOT_NAME_ATTR = "data-app-boot-name"
 /** The static splash's Try again, shown while it is slow; the app answers it. */
 export const APP_BOOT_RETRY_ATTR = "data-app-boot-retry"
 
-/** Set while a member uses the app in this browser; gone when the session ends (every sign-out clears storage). */
-export const MEMBER_KEY = "onecamp:member"
 
 /** How long the splash takes to fade over the app (globals.css: 220 ms), and a frame to spare. */
 export const APP_BOOT_LEAVE_MS = 240
@@ -186,22 +185,4 @@ export function retireStaticScreen(el: Element | null): void {
   el.removeAttribute("role")
   el.removeAttribute("aria-live")
   el.setAttribute("hidden", "")
-}
-
-/** A member uses the app in this browser: its start page opens on the splash from now on. */
-export function rememberMember(): void {
-  try {
-    localStorage.setItem(MEMBER_KEY, "1")
-  } catch {
-    /* private mode: the start page opens as a stranger's */
-  }
-}
-
-/** Nobody is signed in here after all: the start page is the sign-in page again. */
-export function forgetMember(): void {
-  try {
-    localStorage.removeItem(MEMBER_KEY)
-  } catch {
-    /* nothing kept */
-  }
 }

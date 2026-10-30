@@ -114,6 +114,8 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                     {msgInfo.msgChannelUUID && msgInfo.msgUUID ? (
                         <Link
                             href={`${app_channel_path}/${msgInfo.msgChannelUUID}/${msgInfo.msgUUID}`}
+                            // Fetched when pressed: a channel can show many forwards.
+                            prefetch={false}
                             className="rounded-sm font-medium text-brand-text underline-offset-[3px] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
                             View original

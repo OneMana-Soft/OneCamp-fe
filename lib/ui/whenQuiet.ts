@@ -79,3 +79,27 @@ export function runWhenQuiet(tasks: ReadonlyArray<() => unknown>, quietMs = QUIE
     cancelIdle(idleId)
   }
 }
+
+/**
+ * How long after it starts the app leaves its put-off work alone: past the
+ * first screen's settle, so nothing it fetches is counted against, or competes
+ * with, what a person came to see (a phone at 4x is useful at about 3 s).
+ */
+export const SETTLE_MS = 5000
+
+/**
+ * Runs `tasks` as runWhenQuiet does, once SETTLE_MS have passed: work for
+ * after the first screen has settled, such as fetching web push's SDK.
+ * Returns a cancel that stops what hasn't started.
+ */
+export function runWhenSettled(tasks: ReadonlyArray<() => unknown>, afterMs = SETTLE_MS): () => void {
+  if (typeof window === "undefined") return () => {}
+  let cancel = () => {}
+  const timer = window.setTimeout(() => {
+    cancel = runWhenQuiet(tasks)
+  }, afterMs)
+  return () => {
+    window.clearTimeout(timer)
+    cancel()
+  }
+}

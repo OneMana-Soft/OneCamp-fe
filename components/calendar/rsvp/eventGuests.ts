@@ -5,7 +5,7 @@
  * two old stores has no answers (event_guests): its guests show with none.
  * Pure.
  */
-import type { CalendarEventInterface, EventGuest } from "@/types/calendar"
+import type { CalendarEventInterface, EventGuest, EventProposal } from "@/types/calendar"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -20,6 +20,8 @@ export interface EventGuests {
   answered: boolean
   /** The reader's own answer, when they are a guest. */
   mine?: string
+  /** The other time the reader proposed, while it stands. */
+  myProposal?: EventProposal
   /** The reader's face's key, when they are among the faces. */
   self?: string
 }
@@ -40,15 +42,28 @@ export function eventGuests(event: CalendarEventInterface, selfId: string | unde
     const p = g.user_uuid ? people.get(g.user_uuid) : undefined
     if (g.user_uuid && p) {
       faces.push({ key: g.user_uuid, name: displayNameOf(p) || "Someone", seed: avatarSeed(p), response: g.response, note: g.note,
-        src: photo(p.user_profile_object_key), detail: addressOrHandleOf(p) || undefined })
-    } else if (!g.user_uuid && g.email) {
+        src: photo(p.user_profile_object_key), detail: addressOrHandleOf(p) || undefined, proposal: g.proposal })
+    } else if (!g.user_uuid) {
+      // A guest by email. The public demo blanks every address its shared
+      // visitor could read (helpers/demoPrivacy.go): they show without one.
       const name = outsiderName(g)
       // Their hue from the name they were invited by, as anywhere else would draw them.
-      faces.push({ key: `mailto:${g.email}`, name, seed: name, response: g.response, note: g.note, outside: true,
-        email: g.email, invite: g.invite, detail: name === g.email ? undefined : g.email })
+      faces.push({ key: g.email ? `mailto:${g.email}` : `guest:${faces.length}`, name, seed: name, response: g.response, note: g.note, outside: true,
+        email: g.email || undefined, invite: g.invite, detail: !g.email || name === g.email ? undefined : g.email, proposal: g.proposal })
     }
   }
-  return { faces, counts: answerCounts(rows, !!organiser), answered: !!answers, mine: answerOfMe(rows, selfId)?.response, self: selfId }
+  const me = answerOfMe(rows, selfId)
+  return { faces, counts: answerCounts(rows, !!organiser), answered: !!answers, mine: me?.response, myProposal: me?.proposal, self: selfId }
+}
+
+/**
+ * Whether the reader is asked "Going?": a guest, not the organiser, of an
+ * event that keeps answers (the one store; not Google's), while it is to
+ * come or under way. The card and Home's Today ask alike. Pure.
+ */
+export function asksAnswer(event: CalendarEventInterface, guests: EventGuests, selfId: string | undefined, ended: boolean): boolean {
+  const organiser = !event.event_created_by || (!!selfId && event.event_created_by.user_uuid === selfId)
+  return !event.event_uuid.startsWith("gcal-") && !organiser && guests.answered && guests.mine !== undefined && !ended
 }
 
 /** Whether the Guests row folds to faces and the counts: above four guests, the organiser not counted. */

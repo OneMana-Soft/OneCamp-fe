@@ -11,13 +11,10 @@ import {
     AlertDialogHeader,
     AlertDialogTile,
     AlertDialogTitle,
-    dangerSolidClass,
 } from "@/components/ui/alert-dialog"
-import { buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { reasonOf } from "@/components/ui/saveStatus"
-import { AlertCircle, AlertTriangle, Archive, Check, CircleHelp, Loader2, LogOut, Power, RotateCcw, Send, Trash2, UserMinus } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
+import { AlertCircle, AlertTriangle, Archive, Check, CircleHelp, LogOut, Power, RotateCcw, Send, Trash2, UserMinus } from "@/lib/icons"
 
 export type ConfirmIcon = ComponentType<{ className?: string }>
 
@@ -208,11 +205,11 @@ export function ConfirmAlertDialog({
                             e.preventDefault()
                             void run()
                         }}
-                        className={cn(destructive ? dangerSolidClass : buttonVariants(), "relative")}
+                        variant={destructive ? "dangerSolid" : "default"}
                     >
-                        {/* The label holds the width while the spinner shows. */}
-                        <span className={busy ? "opacity-0" : undefined}>{confirmText}</span>
-                        {busy && <Loader2 aria-hidden="true" className="absolute animate-spin" />}
+                        {/* Busy, the Button's own spinner turns before the label
+                            (app/interaction.css): a second one here drew two. */}
+                        {confirmText}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

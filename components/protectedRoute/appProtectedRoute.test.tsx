@@ -12,10 +12,12 @@ vi.mock("axios", () => ({ default: { post: (...args: unknown[]) => logout(...arg
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("@/store/store", () => ({ default: { dispatch: vi.fn() }, persistor: { purge: vi.fn() }, RESET_STORE_ACTION: "reset" }))
+vi.mock("@/lib/afterSignIn", () => ({ takeAfterSignIn: () => null }))
 
 import { AppProtectedRoute, sessionGone } from "@/components/protectedRoute/appProtectedRoute"
 import { SESSION_ENDED_KEY, onSessionEnd } from "@/lib/sessionEnd"
-import { APP_BOOT_LEAVE_MS, APP_BOOT_RETRY_ATTR, APP_BOOT_SCREEN_ATTR, MEMBER_KEY, appBootState, endAppBoot } from "@/lib/appBoot"
+import { APP_BOOT_LEAVE_MS, APP_BOOT_RETRY_ATTR, APP_BOOT_SCREEN_ATTR, appBootState, endAppBoot } from "@/lib/appBoot"
+import { MEMBER_KEY } from "@/lib/memberMark"
 
 const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { response: { status } })
 const page = () => render(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
@@ -279,5 +281,22 @@ describe("the splash while the profile loads", () => {
     page()
     await act(async () => {})
     expect(localStorage.getItem(MEMBER_KEY)).toBe("1")
+  })
+})
+
+describe("the session's refresh clock", () => {
+  afterEach(() => localStorage.clear())
+
+  // A sign-in enters the app without a reload (the sign-in page's
+  // router.push), from a page that knew of no session: the clock starts
+  // here, or nothing would refresh the cookie before it ran out.
+  it("starts when the app sees the member", async () => {
+    // No session known: storage cleared, as a sign-out in another tab leaves it.
+    localStorage.clear()
+    window.dispatchEvent(new StorageEvent("storage", { key: null }))
+    profile = { isLoading: false, isValidating: false, isError: undefined, data: { data: { user_uuid: "u", user_name: "Sam" } } }
+    page()
+    await screen.findByText("the app")
+    expect(Number(localStorage.getItem("onecamp:token-issued-at"))).toBeGreaterThan(Date.now() - 5000)
   })
 })

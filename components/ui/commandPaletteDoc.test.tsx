@@ -15,13 +15,12 @@ const router = { push: () => {} }
 const splitRun = () => {}
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/app/doc/d1" }))
 const answer = { data: { data: { user_is_admin: true } }, isLoading: false, isError: undefined, mutate: () => {} }
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => answer }))
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => answer, useFetchOnlyOnce: () => ({ data: undefined }) }))
 const config = { features: {} }
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
   useClientConfig: () => config,
 }))
-vi.mock("@/hooks/useTrackPageVisit", () => ({ useTrackPageVisit: () => {} }))
 vi.mock("@/hooks/useSplitView", () => ({ useSplitActions: () => splitRun }))
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pause: () => {} }) }))
 vi.mock("@/components/ai/PaletteAsk", () => ({ default: () => null }))

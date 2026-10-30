@@ -4,6 +4,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent, type UniqueIdentifier } from "@dnd-kit/core"
 import { cn } from "@/lib/utils/helpers/cn"
+import { DRAG_OVERLAY } from "@/lib/ui/dnd"
 import { useToast } from "@/hooks/use-toast"
 import { Kanban, MoreHorizontal, Plus } from "@/lib/icons"
 import { MenuCheck } from "@/components/ui/menuCheck"
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { TableField, TableRow, optionsOf, parseRowValues, createRow, patchRow, isHiddenRef, isComputed, computedOf } from "@/services/tableService"
 import { formulaText, cardTitle } from "@/lib/tables/formula"
-import { hiddenText, listText } from "@/lib/tables/cellFormat"
+import { hiddenText, listText, numberFormatOf } from "@/lib/tables/cellFormat"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { moveKeyOf } from "@/lib/board/keyMove"
 import { BOARD_AUTO_SCROLL, boardAnnouncements } from "@/lib/board/drag"
@@ -19,7 +20,10 @@ import { shortDate } from "@/lib/utils/date/shortDate"
 import { campHueOf, hueFor } from "@/lib/campHue"
 import { columnWash } from "@/components/kanbanComponents/columnLook"
 import { OptionChip, tintedFields } from "@/components/table/optionChip"
+import { fieldKind } from "@/lib/fieldTypes/registry"
+import { kindText, statusGroupOf, type StatusGroup } from "@/lib/fieldTypes/kindsMore"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
+import { keepInSight } from "@/lib/tables/viewRules"
 import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET, TOUCH_ROW } from "@/components/table/TableViewFrame"
 
 interface DataTableBoardProps {
@@ -80,14 +84,26 @@ export function formatCardValue(v: unknown, type?: string): string {
 export function rowDetails(fields: TableField[], values: Record<string, unknown>, skip: (string | undefined)[], max: number): { f: TableField; text: string }[] {
   return fields
     .filter((f) => !skip.includes(f.id))
-    .map((f) => ({ f, text: isComputed(f) ? formulaText(values[f.id], computedOf(f).result) : formatCardValue(values[f.id], f.type) }))
+    .map((f) => ({
+      f,
+      text: isComputed(f) ? formulaText(values[f.id], computedOf(f).result, numberFormatOf(f)) : (kindText(f, values[f.id]) ?? formatCardValue(values[f.id], f.type)),
+    }))
     .filter((d) => d.text)
     .slice(0, max)
 }
 
-/** The select field a board groups by: the one asked for, else the first. */
+/**
+ * The fields a board can group by, in the order "Group by" offers them: the
+ * statuses, then the single selects, each in the table's order.
+ */
+function groupFields(fields: TableField[]): TableField[] {
+  const rank = (f: TableField) => (f.type === "status" ? 0 : 1)
+  return fields.filter((f) => f.type === "status" || f.type === "select").sort((a, b) => rank(a) - rank(b) || a.position - b.position)
+}
+
+/** The field a board groups by: the one asked for, else the first status, else the first select. */
 export function boardGroupField(fields: TableField[], groupFieldId?: string): TableField | undefined {
-  const selects = fields.filter((f) => f.type === "select").sort((a, b) => a.position - b.position)
+  const selects = groupFields(fields)
   return selects.find((f) => f.id === groupFieldId) ?? selects[0]
 }
 
@@ -97,7 +113,7 @@ export function boardGroupField(fields: TableField[], groupFieldId?: string): Ta
  * with fewer than two.
  */
 export function BoardGroupBy({ fields, groupFieldId, onPick }: { fields: TableField[]; groupFieldId?: string; onPick: (fieldId: string) => void }) {
-  const selects = fields.filter((f) => f.type === "select").sort((a, b) => a.position - b.position)
+  const selects = groupFields(fields)
   const current = boardGroupField(fields, groupFieldId)
   if (selects.length < 2 || !current) return null
   return (
@@ -121,7 +137,7 @@ export function BoardGroupBy({ fields, groupFieldId, onPick }: { fields: TableFi
 }
 
 /** A board column: an option, known by its id so a rename keeps its cards in it, or "No value". */
-type BoardColumn = { key: string; label: string; color?: string }
+type BoardColumn = { key: string; label: string; color?: string; group?: StatusGroup }
 
 // DataTableBoard is a Kanban view: cards (rows) grouped into lanes by a
 // single-select field. A card opens its record on a click, a tap or Enter
@@ -143,6 +159,8 @@ export function DataTableBoard({
   const [laneShows, setLaneShows] = React.useState<Record<string, number>>({})
   // A card moved here shows in its new lane until the table says so too.
   const [moved, setMoved] = React.useState<Record<string, { lane: string; was: string }>>({})
+  // By lane, the card last moved there: drawn where it was put, last in what the lane draws (F9).
+  const [kept, setKept] = React.useState<Record<string, string>>({})
   const [dragging, setDragging] = React.useState<TableRow | null>(null)
   // A card held from the keyboard, and the lane it would go to.
   const [held, setHeld] = React.useState<{ rowId: string; lane: number } | null>(null)
@@ -163,7 +181,11 @@ export function DataTableBoard({
 
   const columns: BoardColumn[] = React.useMemo(() => {
     if (!groupField) return []
-    return [...optionsOf(groupField).map((o) => ({ key: o.id, label: o.label, color: o.color })), { key: NO_VALUE, label: "No value" }]
+    const status = groupField.type === "status"
+    return [
+      ...optionsOf(groupField).map((o) => ({ key: o.id, label: o.label, color: o.color, group: status ? statusGroupOf(o) : undefined })),
+      { key: NO_VALUE, label: "No value" },
+    ]
   }, [groupField])
 
   // A card's lane: the option its cell names, or "No value" for none, or a
@@ -219,10 +241,9 @@ export function DataTableBoard({
   React.useEffect(() => {
     const id = refocus.current
     if (!id || held) return
-    const card = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-card-id]") ?? []).find((c) => c.dataset.cardId === id)
-    if (!card) return
+    // Once: a card not drawn now mustn't take the focus later, from wherever it went.
     refocus.current = null
-    card.focus()
+    Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-card-id]") ?? []).find((c) => c.dataset.cardId === id)?.focus()
   })
 
   if (!groupField) {
@@ -231,6 +252,7 @@ export function DataTableBoard({
 
   const moveCard = async (row: TableRow, to: BoardColumn) => {
     if (laneOf(row) === to.key) return
+    setKept((k) => ({ ...k, [to.key]: row.id }))
     setMoved((m) => ({ ...m, [row.id]: { lane: to.key, was: row.values } }))
     try {
       await patchRow(tableId, row.id, { [groupField.id]: to.key === NO_VALUE ? "" : to.label })
@@ -347,18 +369,23 @@ export function DataTableBoard({
           {columns.map((col, i) => {
             const cards = rowsByColumn[col.key] || []
             const shows = laneShows[col.key] ?? LANE_FIRST
-            const more = Math.min(cards.length - shows, LANE_STEP)
+            // The card last moved here stays where it was put, as a row added in
+            // the grid does (keepInSight), wherever the view's order places it:
+            // past the lane's window, or elsewhere once the save answers and the
+            // view sorts it again. It isn't counted again in what's left to show.
+            const drawn = keepInSight(cards.slice(0, shows), cards, cards, kept[col.key] ?? null).rows
+            const more = Math.min(cards.length - drawn.length, LANE_STEP)
             return (
               <BoardLane key={col.key} column={col} target={held?.lane === i}>
                 {/* The option in its own colour, as the grid's chip and a guest's
                     view show it; the count beside it is a plain number. */}
                 <div className="flex h-10 items-center gap-2 px-3 text-ui-sm font-medium">
                   {/* A lane is a stage: its option in its own tint, whatever the grid's chips do. */}
-                  {col.key === NO_VALUE ? <span className="truncate text-ink-3">{col.label}</span> : <OptionChip label={col.label} color={col.color} tinted />}
+                  {col.key === NO_VALUE ? <span className="truncate text-ink-3">{col.label}</span> : <OptionChip label={col.label} color={col.color} tinted group={col.group} />}
                   <span className="shrink-0 text-meta font-normal tabular-nums text-ink-3">{cards.length}</span>
                 </div>
                 <div className="flex flex-col gap-2 px-2 pb-2">
-                  {cards.slice(0, shows).map((row) => (
+                  {drawn.map((row) => (
                     <BoardCard
                       key={row.id}
                       row={row}
@@ -405,7 +432,7 @@ export function DataTableBoard({
       </p>
       {typeof document !== "undefined"
         ? createPortal(
-            <DragOverlay>
+            <DragOverlay className={DRAG_OVERLAY}>
               {dragging ? <div className="w-[272px] rounded-xl bg-raised p-3 text-ui font-medium text-ink shadow-e3">{titleOf(dragging)}</div> : null}
             </DragOverlay>,
             document.body,
@@ -521,15 +548,19 @@ function BoardCard({
 
 /** One of a card's fields, as a chip: a choice's options as the grid draws them, the rest as its name and value. */
 function CardField({ field, value, text, tinted }: { field: TableField; value: unknown; text: string; tinted: boolean }) {
-  if ((field.type === "select" || field.type === "multi_select") && !isHiddenRef(value)) {
+  if (fieldKind(field.type).options && !isHiddenRef(value)) {
     const labels = (Array.isArray(value) ? value : [value]).filter((v): v is string => typeof v === "string" && v !== "")
     const options = optionsOf(field)
     const shown = labels.slice(0, 2)
+    const groupOf = (label: string) => {
+      const o = field.type === "status" ? options.find((x) => x.label === label) : undefined
+      return o ? statusGroupOf(o) : undefined
+    }
     return (
       <span title={field.name} data-card-field={field.id} className="inline-flex min-w-0 max-w-full items-center gap-1">
         <span className="sr-only">{field.name}: </span>
         {shown.map((label) => (
-          <OptionChip key={label} label={label} color={options.find((o) => o.label === label)?.color} tinted={tinted} className="h-5 px-1.5 text-2xs" />
+          <OptionChip key={label} label={label} color={options.find((o) => o.label === label)?.color} tinted={tinted} group={groupOf(label)} className="h-5 px-1.5 text-2xs" />
         ))}
         {labels.length > shown.length ? <span className="shrink-0 text-2xs text-ink-3">+{labels.length - shown.length}</span> : null}
       </span>

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { SettingRow, SettingsList, SwitchRow } from "@/components/ui/settingsSection"
-import { RefreshCw } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
@@ -215,8 +214,7 @@ export default function ArchiveEditPolicyDialog({ open, onOpenChange, onSuccess,
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={saving}>
-            {saving && <RefreshCw className="h-4 w-4 animate-spin mr-2" />}
+          <Button onClick={handleSubmit} busy={saving}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

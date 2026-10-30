@@ -10,25 +10,25 @@ import { displayNameOf } from "@/lib/personName"
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { PreJoin } from "@/components/livekit/PreJoin"
-import { VideoConference } from "@/components/livekit/VideoConference"
+import { LazyVideoConference as VideoConference } from "@/components/livekit/LazyCall"
 import { CallRemoved } from "@/components/livekit/CallStage"
 import { CallEndScreen } from "@/components/livekit/CallEndScreen"
 import { useCallLifecycle } from "@/components/livekit/useCallLifecycle"
 import { useTranscriptionConfig } from "@/components/livekit/CallView"
 import { peopleInCall, type CallStateRead } from "@/components/livekit/callState"
 import { dropMeetingHandoff, peekMeetingHandoff, rememberGuestLink, rememberedGuestLink } from "@/components/livekit/instantMeeting"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
-import { Check, Copy, Link as LinkIcon, Loader2 } from "@/lib/icons"
+import { InviteLinkRow, InvitePanel } from "./invite"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useConfirm } from "@/hooks/useConfirm"
-import { CALL_SURFACE, callToast } from "./callSurface"
+import { callToast } from "./callSurface"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
-import { cn } from "@/lib/utils/helpers/cn"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { guestMeetingLink } from "@/services/guestService"
 import { instantMeetingPath, joinInstantMeeting, newInstantMeetingLink } from "@/services/callService"
+import { roomLink } from "@/services/guestDoor"
+import Link from "next/link"
 import { useCallSession } from "@/components/livekit/useCallSession"
 import type { UserProfileInterface } from "@/types/user"
 
@@ -82,6 +82,9 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   const waiting = life.phase === "prejoin" || life.phase === "joining"
   const { data, isError } = useFetch<{ data?: CallStateRead }>(instantMeetingPath(meetingId), undefined, { refreshInterval: waiting ? 10_000 : 0 }, OWN_ERRORS)
   const state = data?.data
+  // A personal room's meeting page: its address, which has no end.
+  const roomAddress = state?.address ? roomLink(state.address) : ""
+  const place = roomAddress ? ROOM_PLACE : PLACE
   const unavailable = !state && isError ? meetingUnavailable(apiErrorStatus(isError), apiErrorCode(isError)) : null
   // The meeting's id in Call State, for what its host does to it in the call.
   const call = useCallSession({ kind: "meeting", id: meetingId }, waiting ? "waiting" : life.phase === "in-call" ? "in-call" : "over")
@@ -124,11 +127,13 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
           // Recording an instant meeting has no home yet (PROGRAM.md A2), so
           // there is no Record, rather than one that spins and does nothing.
           isAdmin
-          place={PLACE}
+          place={place}
           audio={life.choice.audio}
           video={life.choice.video}
+          tracks={life.choice.tracks}
           sessionId={call?.session?.id}
-          extraStatus={<InviteControl link={link} onNewLink={newLink} confirm={confirm} />}
+          lobby={call?.waiting}
+          extraStatus={<InviteControl link={roomAddress || link} room={!!roomAddress} onNewLink={newLink} confirm={confirm} />}
           transcriptionConfig={transcriptionConfig}
         />
       </div>
@@ -140,7 +145,7 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
       username={displayNameOf(self.data?.data) || ""}
       hueId={self.data?.data.user_uuid}
       joinLabel="Join meeting"
-      place={PLACE}
+      place={place}
       joining={life.phase === "joining"}
       joinError={life.joinError}
       live={!!state?.active}
@@ -153,34 +158,28 @@ export function InstantMeetingView({ meetingId }: { meetingId: string }) {
   )
 }
 
-/** Where the call is, after "Call": a meeting has no name yet (D-CL-20). */
+/** Where the call is, after "Call": a meeting has no name yet (D-CL-20); a personal room is its owner's. */
 const PLACE = "in an instant meeting"
+const ROOM_PLACE = "in your room"
 
 /**
  * Invite (CALL-BUG-17): the guest link again, a new one, or the old one turned
- * off, which also takes out everyone still on it. On a phone it is the link
- * glyph alone, beside the call's other pills.
+ * off, which also takes out everyone still on it. A personal room's is its
+ * address, which has no end and is changed in the room's settings, never
+ * here. On a phone it is the link glyph alone, beside the call's other pills.
  */
 function InviteControl({
   link,
+  room,
   onNewLink,
   confirm,
 }: {
   link: string
+  room?: boolean
   onNewLink: (revokePrevious: boolean) => Promise<void>
   confirm: ReturnType<typeof useConfirm>
 }) {
-  const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      callToast({ title: "Couldn't copy the link", description: "Select it and copy it yourself.", variant: "destructive" })
-    }
-  }
   const fresh = async () => {
     setBusy(true)
     try {
@@ -200,48 +199,35 @@ function InviteControl({
       onConfirm: () => onNewLink(true),
     })
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label="Invite a guest"
-          className="pointer-events-auto flex h-7 items-center gap-2 rounded-[14px] bg-[#1F2024] px-2.5 text-meta font-medium text-[#EEEEF0] ring-1 ring-white/[0.09] transition-colors hover:bg-[#2A2B30] focus-visible:outline-2 focus-visible:outline-brand"
-          data-invite=""
-        >
-          <LinkIcon className="size-3.5 shrink-0" aria-hidden />
-          <span className="hidden @3xl:inline">Invite</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent side="bottom" align="center" className={cn(CALL_SURFACE, "w-80 max-w-[calc(100vw-24px)] text-ui-sm")} data-invite-details="">
-        <p className="font-medium text-foreground">Invite a guest</p>
-        <p className="mt-0.5 text-meta text-ink-3">Anyone with the link can join as a guest while the meeting lasts.</p>
-        {link ? (
-          <div className="mt-2.5 flex items-center gap-1.5">
-            <input
-              readOnly
-              aria-label="Guest link"
-              value={link}
-              onFocus={(e) => e.currentTarget.select()}
-              className="h-8 min-w-0 flex-1 truncate rounded-[8px] bg-sunken px-2 text-meta text-ink-2 ring-1 ring-inset ring-line"
-            />
-            <Button size="sm" variant="secondary" onClick={() => void copy()}>
-              {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
+    <InvitePanel
+      label="Invite a guest"
+      title="Invite a guest"
+      description={room ? "Anyone with your room's address can ask to come in." : "Anyone with the link can join as a guest while the meeting lasts."}
+      body={
+        link ? (
+          <InviteLinkRow link={link} label={room ? "Your room's address" : "Guest link"} />
         ) : (
           <p className="mt-2.5 text-ink-2">The link was shown in the tab that started the meeting. Make a new one to share it from here.</p>
-        )}
-        <div className={cn("mt-3 flex flex-wrap justify-end gap-2")}>
-          <Button size="sm" variant={link ? "ghost" : "default"} onClick={() => void fresh()} disabled={busy}>
-            {busy ? <Loader2 className="motion-safe:animate-spin" aria-hidden /> : null}
-            Get a new link
+        )
+      }
+      actions={
+        room ? (
+          <Button size="sm" variant="ghost" asChild>
+            <Link href="/app/meet/room" target="_blank" rel="noopener noreferrer">
+              Room settings
+            </Link>
           </Button>
-          <Button size="sm" variant="ghost" className="text-danger-ink" onClick={turnOffOld}>
-            Turn off the old link
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+        ) : (
+          <>
+            <Button size="sm" variant={link ? "ghost" : "default"} onClick={() => void fresh()} busy={busy}>
+              Get a new link
+            </Button>
+            <Button size="sm" variant="ghost" className="text-danger-ink" onClick={turnOffOld}>
+              Turn off the old link
+            </Button>
+          </>
+        )
+      }
+    />
   )
 }

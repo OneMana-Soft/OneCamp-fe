@@ -4,13 +4,16 @@ import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { DueLabel } from "@/components/task/DueLabel"
+import { DueLabel, dueDateOf } from "@/components/task/DueLabel"
+import { dueByWords } from "@/components/task/dueByWords"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { celebrateTask, warmBurstsWhenIdle } from "@/lib/celebrateSoon"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
-import { AlertCircle, Check, MessageSquare } from "@/lib/icons"
+import { AlertCircle, BadgeCheck, Check, MessageSquare } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { CHIP_TONE } from "@/lib/ui/chipTone"
+import type { GuestAsk } from "@/lib/rules/approvals"
 import type { GuestReview as Review, GuestTaskCard } from "@/services/guestService"
 
 /**
@@ -20,9 +23,39 @@ import type { GuestReview as Review, GuestTaskCard } from "@/services/guestServi
  * Spark from it: an outsider finishing something deserves it, once.
  */
 
-/** Whether a task waits on the client's verdict: in review, with none given yet. */
-export function awaitsReview(t: Pick<GuestTaskCard, "status" | "review">): boolean {
-  return t.status === "inReview" && !t.review
+/**
+ * Whether a task waits on the client's verdict: the team asked this link for
+ * it (package 9 R2b), or it is in review with none given yet.
+ */
+export function awaitsReview(t: Pick<GuestTaskCard, "status" | "review" | "waiting">): boolean {
+  return !!t.waiting || (t.status === "inReview" && !t.review)
+}
+
+/**
+ * What the team asks the client to approve (package 9 R2b): by when (one
+ * phrase), their words or where a held move goes, and who asked. On a card,
+ * two lines of words at most; in the task's panel, whole.
+ */
+export function GuestAskNote({ ask, compact = false }: { ask: GuestAsk; compact?: boolean }) {
+  const words = ask.ask || (ask.to_label ? `Approving moves it to ${ask.to_label}.` : "")
+  const due = dueDateOf(ask.due_at)
+  return (
+    <div data-guest-ask="" className={cn("grid gap-1", !compact && "rounded-md border p-3")}>
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-micro">
+        <span className={cn("inline-flex h-5 items-center gap-1 rounded-sm px-1.5 font-medium", CHIP_TONE.sun)}>
+          <BadgeCheck className="size-3" aria-hidden="true" />
+          Waiting for your approval
+        </span>
+        {due ? (
+          <span data-ask-due="" className={cn("whitespace-nowrap text-2xs tabular-nums", due.getTime() < Date.now() ? "text-danger-ink" : "text-ink-2")}>
+            {dueByWords(due)}
+          </span>
+        ) : null}
+      </p>
+      {words ? <p className={cn("break-words text-ui-sm text-foreground", compact && "line-clamp-2")}>{words}</p> : null}
+      <p className="text-micro text-ink-3">Asked by {ask.asked_by}</p>
+    </div>
+  )
 }
 
 /**
@@ -71,8 +104,9 @@ export function GuestStatusGlyph({ status, size = 16 }: { status: string; size?:
 /**
  * A client's task card: the board card's material (raised, e1, r10, padding
  * 12), the title at 510, then the due label, the comment count and the
- * assignee's avatar; a verdict chip once given, the verdict buttons while
- * one is awaited (and the guest has said who they are).
+ * assignee's avatar; a verdict chip once given, what the team asks while it
+ * waits for them, and the verdict buttons while one is awaited (and the guest
+ * has said who they are).
  */
 export function GuestCard({
   task,
@@ -129,6 +163,11 @@ export function GuestCard({
           {task.assignee && <IdentityMark variant="avatar" id={avatarSeed(task.assignee)} label={task.assignee} size={22} aria-label={task.assignee} />}
         </span>
       </button>
+      {task.waiting ? (
+        <div className="mt-2">
+          <GuestAskNote ask={task.waiting} compact />
+        </div>
+      ) : null}
       {waiting && canReview && (
         <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
           <Button

@@ -14,7 +14,9 @@ const answers = new Map<string, { data?: unknown; isError?: unknown; isLoading?:
 const retried = vi.fn()
 const answerFor = (url: string) => ({ mutate: retried, ...(answers.get(url) ?? { data: undefined }) })
 
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: () => new Promise(() => {}) }, OWN_ERRORS: {} }))
+// How many were unread is known at once: hooks/useUnreadOnOpen has its own test.
+vi.mock("@/hooks/useUnreadOnOpen", () => ({ useUnreadOnOpen: () => 0 }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: () => new Promise(() => {}) } }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }))
 vi.mock("@/hooks/useScheduledMessages", () => ({ useScheduleMessage: () => vi.fn() }))
 let phone = false
@@ -46,7 +48,7 @@ vi.mock("@/components/groupChat/grpChatIdMobile", () => ({ GrpChatIdMobile: Page
 
 const { default: store } = await import("@/store/store")
 const { createGrpChatLocally } = await import("@/store/slice/groupChatSlice")
-const { ChannelView } = await import("./ChannelView")
+const { ChannelConversation: ChannelView } = await import("@/components/conversation/ChannelConversation")
 const { ChatView } = await import("./ChatView")
 const { GroupChatView } = await import("./GroupChatView")
 const { PhoneConversationTitle, PhoneHuddleButton, WhileConversationThere } = await import(

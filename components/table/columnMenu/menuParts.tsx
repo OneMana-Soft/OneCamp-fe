@@ -63,6 +63,25 @@ export function Divider() {
   return <div aria-hidden="true" className="mx-2 my-1 h-px bg-line" />
 }
 
+/**
+ * A settings page of the column menu (a formula, a relation, a rollup): its
+ * header, a body that scrolls within the room the menu has, and its Cancel
+ * and Save pinned at the foot, so a tall page never puts them off screen.
+ */
+export function SettingsPage({ title, onBack, footer, children }: { title: string; onBack: () => void; footer: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex max-h-[calc(var(--radix-popover-content-available-height,100dvh)-0.5rem)] flex-col" data-settings-page="">
+      <div className="shrink-0 p-1">
+        <SubHeader title={title} onBack={onBack} />
+      </div>
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-1 pb-1">{children}</div>
+      <div className="flex shrink-0 justify-end gap-1.5 border-t border-line/60 px-1 pb-1 pt-1.5" data-settings-footer="">
+        {footer}
+      </div>
+    </div>
+  )
+}
+
 export function SubHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <div className="flex h-8 items-center gap-1 px-1">

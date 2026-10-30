@@ -50,6 +50,10 @@
        1.3s). */
     .set-flash::after { animation: none; opacity: 1; }
   }
+  /* A field jumped to (lib/settingsFields): the row's halo, drawn its 4px
+     reach inside the row, since the card clips what reaches past its edge;
+     its corners follow the card's. */
+  .set-row.set-flash::after { inset: 4px; border-radius: calc(var(--radius-lg) - 4px); }
 
   /* Rows: 56px at least, the words and the control on a grid so one card's
      controls line up; hairlines inset 16px from the left. */

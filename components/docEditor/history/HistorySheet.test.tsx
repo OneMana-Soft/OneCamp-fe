@@ -19,7 +19,7 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 const post = vi.fn()
 const get = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a), get: (...a: unknown[]) => get(...a) } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a), get: (...a: unknown[]) => get(...a) } }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 const media = { isMobile: false, isTablet: false, isDesktop: true }
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => media }))
@@ -165,6 +165,16 @@ describe("version history", () => {
     await waitFor(() => expect(closed).toHaveBeenCalled())
   })
 
+  it("asks to restore a named version by its name, in curly quotes like every name the app quotes", async () => {
+    sheet()
+    await screen.findByText("We ship on Friday")
+    fireEvent.keyDown(screen.getAllByRole("option")[0], { key: "ArrowDown" })
+    await waitFor(() => expect(screen.getAllByRole("option")[1].getAttribute("aria-selected")).toBe("true"))
+    fireEvent.click(document.querySelector("[data-restore-version]")!)
+    const ask = await screen.findByRole("alertdialog")
+    expect(within(ask).getByRole("heading", { name: "Restore “Sent to Acme”?" })).toBeTruthy()
+  })
+
   it("says inside the question why a restore failed, and keeps the sheet", async () => {
     sheet()
     await screen.findByText("We ship on Friday")
@@ -193,6 +203,11 @@ describe("version history", () => {
       fireEvent.click(screen.getByRole("button", { name: "Pin" }))
     })
     expect(post).toHaveBeenLastCalledWith("/doc/versions/v2/name", { doc_uuid: DOC, name: "", pinned: true }, { suppressErrorToast: true })
+    // A pin is a state: pressed, it takes the neutral press tint and an ink
+    // glyph, never the accent's mark beside Restore (DESIGN-BUILD-3, 20 Oct).
+    const pin = screen.getByRole("button", { name: "Pin" })
+    expect(pin.className).toContain("[--ix-mark:var(--ink)]")
+    expect(pin.className).toContain("aria-pressed:!bg-press")
   })
 
   it("says why a pin was refused", async () => {
@@ -226,6 +241,8 @@ describe("version history", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save version" }))
     const name = await screen.findByPlaceholderText("Name it, if you like")
     fireEvent.change(name, { target: { value: "Signed off" } })
+    // What a name does, in plain words.
+    expect(screen.getByText("Named versions are kept until you remove the name.")).toBeTruthy()
     post.mockResolvedValue({ data: { data: { ...V2, id: "v3", name: "Signed off" } } })
     await act(async () => {
       fireEvent.submit(name.closest("form")!)

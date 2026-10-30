@@ -8,7 +8,7 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 const report = { from: "", to: "", seconds: 7200, billable_seconds: 7200, entries: 1, running: 0, by_person: [], by_task: [{ id: "t1", name: "Design", seconds: 7200, billable_seconds: 7200 }], truncated: false }
 // The report for a period, by the address asked: every period has time unless a test says otherwise.
 let timeFor: (url: string) => typeof report = () => report
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: vi.fn((url: string) => {
       if (url.includes("/time?")) return Promise.resolve({ data: { data: timeFor(url) } })

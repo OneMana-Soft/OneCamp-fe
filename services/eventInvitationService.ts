@@ -5,6 +5,7 @@
 
 import { publicCall } from "@/services/publicApi"
 import type { Answer } from "@/lib/calendar/eventsApi"
+import type { EventProposal } from "@/types/calendar"
 
 /** A moment of an invitation: an instant in a zone, or a date for an all-day event. */
 export interface InvitationWhen {
@@ -26,15 +27,23 @@ export interface InvitationView {
   organiser: string
   /** Over: it takes no answer. */
   ended: boolean
-  you: { name?: string; email: string; response: string; note?: string }
+  /** The event's own call's address while it answers and the event hasn't ended (meet-02): "Join call" goes there with the guest's key. */
+  call_address?: string
+  /** Another time may be proposed: a single event at a time, still to come (a series' are proposed in the calendar). */
+  proposable: boolean
+  /** The guest, with the other time they proposed while it stands. */
+  you: { name?: string; email: string; response: string; note?: string; proposal?: EventProposal }
   /** The other guests by name, when the organiser lets guests see each other. */
   guests?: { name: string; response: string }[]
 }
 
 export const getInvitation = (token: string) => publicCall<InvitationView>(`/public/rsvp/${encodeURIComponent(token)}`)
 
-/** An answer from the guest's page; a note left out stays as it was. */
-export const answerInvitation = (token: string, body: { answer: Answer; note?: string }) =>
+/**
+ * An answer from the guest's page. A note left out stays as it was, and so
+ * does a proposal of another time; an empty one ({}) takes it back.
+ */
+export const answerInvitation = (token: string, body: { answer: Answer; note?: string; proposal?: EventProposal | Record<string, never> }) =>
   publicCall<InvitationView>(`/public/rsvp/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify(body) })
 
 /** The answer an email's button carries (?answer=yes, maybe or no), as the API takes it. */

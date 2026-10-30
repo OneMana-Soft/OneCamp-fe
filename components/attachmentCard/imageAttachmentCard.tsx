@@ -16,7 +16,8 @@ interface Props {
 export function ImageAttachmentCard({ url, attachment, selfSize, cover = false,  maxHeight, className, priority }: Props) {
 
 
-    if (!url || !attachment.attachment_height || !attachment.attachment_width) { return null }
+    // A file with no stored size draws at the fallback below (E1: it drew nothing, and a lone tile collapsed to 0).
+    if (!url) { return null }
 
 
     const fallbackWidth = 500
@@ -38,7 +39,7 @@ export function ImageAttachmentCard({ url, attachment, selfSize, cover = false, 
                     'max-h-full': !selfSize && !maxHeight,
                     'h-full object-cover': cover,
                     'object-contain': !cover,
-                    'object-top': cover && attachment.attachment_height > attachment.attachment_width
+                    'object-top': cover && (attachment.attachment_height ?? 0) > (attachment.attachment_width ?? 0)
                 })}
                 style={{
                     width: selfSize ? width : '100%',

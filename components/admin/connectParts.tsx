@@ -28,10 +28,41 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Github, Link2, MoreHorizontal, type LucideIcon } from "@/lib/icons"
+import type { CampHue } from "@/lib/campHue"
+import type { ImportProvider } from "@/services/importService"
 
 /** The neutral glyphs we have for a vendor; every other one shows its initial. */
 const VENDOR_GLYPH: Record<string, LucideIcon> = {
   github: Github,
+}
+
+/**
+ * The camp hue each tool you can import from wears (DESIGN-BUILD-11's I1: grey
+ * letter tiles, two of them "A", told no tool from another). Tools whose
+ * initials match wear different hues, so no two marks are alike. A hue serves
+ * two tools, and moss the spreadsheets as well, CSV and Google Sheets, in a
+ * spreadsheet's green. Any other vendor's mark stays ink.
+ */
+const SOURCE_HUE: Record<ImportProvider | "slack", CampHue> = {
+  airtable: "sun",
+  asana: "berry",
+  basecamp: "moss",
+  clickup: "dusk",
+  csv: "moss",
+  gsheets: "moss",
+  jira: "sky",
+  linear: "lake",
+  miro: "sun",
+  monday: "moss",
+  notion: "lake",
+  slack: "dusk",
+  todoist: "berry",
+  trello: "sky",
+}
+
+/** The hue an import source wears, or none for any other vendor. */
+export function sourceHue(vendor?: string): CampHue | undefined {
+  return vendor ? SOURCE_HUE[vendor.toLowerCase() as keyof typeof SOURCE_HUE] : undefined
 }
 
 /** "monday" reads "m", as the vendor writes it; everything else is upper case. */
@@ -46,8 +77,9 @@ export type SourceMarkSize = 20 | 28 | 32
 
 /**
  * A tool's mark at 20, 28 or 32px: its neutral glyph or its initial, ink-2 on
- * the sunken surface with a hairline ring. `vendor` is the key ("github",
- * "asana"); `name` is what it is called, for the initial.
+ * the sunken surface with a hairline ring; an import source's in its hue
+ * (sourceHue). `vendor` is the key ("github", "asana"); `name` is what it is
+ * called, for the initial.
  */
 export function SourceMark({
   vendor,
@@ -69,6 +101,7 @@ export function SourceMark({
       aria-hidden="true"
       data-source-mark={vendor ?? name}
       data-size={size}
+      data-hue={sourceHue(vendor)}
       className={cn("cx-mark", className)}
     >
       {Glyph ? <Glyph /> : sourceInitial(name)}

@@ -9,7 +9,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { format, isSameDay, subDays } from "date-fns"
 import { isComposingKey } from "@/lib/keys/ime"
-import { Loader2, Send } from "@/lib/icons"
+import { Send } from "@/lib/icons"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -236,8 +236,8 @@ export function GuestGateComposer({
               {...ix("field")}
               className="text-body max-h-40 min-h-8 flex-1 resize-none rounded-md bg-transparent px-2 py-1 text-foreground placeholder:text-faint-foreground [field-sizing:content]"
             />
-            <Button size="icon-sm" onClick={send} disabled={busy || !text.trim()} aria-label="Send" className="shrink-0 max-md:size-11">
-              {busy ? <Loader2 className="animate-spin" /> : <Send />}
+            <Button size="icon-sm" onClick={send} disabled={!text.trim()} busy={busy} aria-label="Send" className="shrink-0 max-md:size-11">
+              <Send />
             </Button>
           </div>
         )}

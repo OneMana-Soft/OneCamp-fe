@@ -2,7 +2,7 @@ import { isBuiltInStatus, type TaskStatusFields } from "@/lib/taskStatus";
 import {createSlice} from "@reduxjs/toolkit";
 import {FilePreview} from "@/store/slice/channelSlice";
 import {AttachmentMediaReq} from "@/types/attachment";
-import {TaskInfoInterface} from "@/types/task";
+import type {TaskInfoInterface} from "@/types/task";
 import {UserProfileDataInterface} from "@/types/user";
 
 

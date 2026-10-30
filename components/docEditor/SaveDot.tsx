@@ -14,14 +14,22 @@ import { clockTime } from "@/lib/utils/date/clock"
  *   saved only once the database holds this tab's edits (docSaveState.ts), so
  *   the time is the server's "stored at"; a live board without one says
  *   "Saved to the live doc".
- * - saving: ink-4, breathing. Shown only once a save has been pending for
+ * - saving: ink-3, breathing. Shown only once a save has been pending for
  *   700 ms, so fast saves never flicker it.
  * - connecting: an ink-4 ring. The live copy isn't joined yet and the reader
  *   is on the saved snapshot. Never the word "Saving".
  * - offline: a sun ring and "Offline", with how many changes wait to sync.
+ * - reconnecting: the same while the device is online and only the live
+ *   connection dropped, said as the connection pill says it, "Reconnecting".
  * - failed: a danger disc and "Not saved", a button that retries.
  */
-export type SaveState = "saved" | "saving" | "connecting" | "offline" | "failed"
+export type SaveState = "saved" | "saving" | "connecting" | "offline" | "reconnecting" | "failed"
+
+/** Whether the state is one where changes wait to sync: offline or reconnecting. Pure. */
+export const disconnected = (state: SaveState): boolean => state === "offline" || state === "reconnecting"
+
+/** What a save dot speaks of: a doc, or a board, which keeps the doc's rule and words. */
+export type SavedThing = "doc" | "board"
 
 export interface SaveDotProps {
   state: SaveState
@@ -29,8 +37,8 @@ export interface SaveDotProps {
   savedAt?: Date | null
   /** A live, collaborative copy (the doc's Yjs). */
   live?: boolean
-  /** How many changes wait to be stored (useSaveProgress), said when offline. */
-  waiting?: number
+  /** What is saved, for the words (a doc by default). */
+  thing?: SavedThing
   onRetry?: () => void
   className?: string
 }
@@ -40,24 +48,28 @@ const SAVING_DELAY_MS = 700
 /** The time of day, as the reader writes it (lib/utils/date/clock: their locale and hour cycle). */
 const timeOf = (d: Date): string => clockTime(d)
 
-export function saveDotCopy(state: SaveState, savedAt?: Date | null, live?: boolean, waiting = 0): string {
+/** What becomes of a disconnected doc's work, in the one wording the dot, its phone notice and the connection pill share. */
+export const CHANGES_KEPT = "Changes are kept and will sync"
+
+export function saveDotCopy(state: SaveState, savedAt?: Date | null, live?: boolean, thing: SavedThing = "doc"): string {
   switch (state) {
     case "saved":
       if (savedAt) return `Saved · ${timeOf(savedAt)}`
-      return live ? "Saved to the live doc" : "Saved"
+      return live ? `Saved to the live ${thing}` : "Saved"
     case "saving":
       return "Saving your changes"
     case "connecting":
       return "Connecting… you're reading the saved copy"
     case "offline":
-      if (waiting > 0) return `Offline. ${waiting} ${waiting === 1 ? "change" : "changes"} waiting to sync`
-      return "Offline. Changes are kept and will sync"
+    case "reconnecting":
+      // No count: what waits is a count of keystrokes, which tells a reader nothing (V-21, design review).
+      return `${state === "offline" ? "Offline" : "Reconnecting"}. ${CHANGES_KEPT}`
     case "failed":
       return "Not saved. Select to try again"
   }
 }
 
-function SaveDotView({ state, savedAt, live, waiting, onRetry, className }: SaveDotProps) {
+function SaveDotView({ state, savedAt, live, thing, onRetry, className }: SaveDotProps) {
   // "saving" shows only after it has lasted; until then the dot keeps what it
   // showed before (usually saved).
   const [shown, setShown] = React.useState<SaveState>(state === "saving" ? "saved" : state)
@@ -74,7 +86,7 @@ function SaveDotView({ state, savedAt, live, waiting, onRetry, className }: Save
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
-  const copy = saveDotCopy(shown, savedAt, live, waiting)
+  const copy = saveDotCopy(shown, savedAt, live, thing)
   const dot = (
     <span
       aria-hidden="true"
@@ -83,17 +95,17 @@ function SaveDotView({ state, savedAt, live, waiting, onRetry, className }: Save
         "inline-block size-1.5 shrink-0 rounded-full",
         shown === "saved" && "bg-camp-moss",
         shown === "saved" && landed.current && "content-save-land",
-        shown === "saving" && "content-save-pulse bg-ink-4",
+        shown === "saving" && "content-save-pulse bg-ink-3",
         shown === "connecting" && "ring-[1.5px] ring-inset ring-ink-4",
-        shown === "offline" && "ring-[1.5px] ring-inset ring-camp-sun",
+        disconnected(shown) && "ring-[1.5px] ring-inset ring-camp-sun",
         shown === "failed" && "bg-destructive",
       )}
     />
   )
 
   const label =
-    shown === "offline" ? (
-      <span className="content-slide-in text-meta font-medium text-camp-sun-ink">Offline</span>
+    disconnected(shown) ? (
+      <span className="content-slide-in text-meta font-medium text-camp-sun-ink">{shown === "offline" ? "Offline" : "Reconnecting"}</span>
     ) : shown === "failed" ? (
       <span className="content-slide-in text-meta font-medium text-danger-ink">Not saved</span>
     ) : null

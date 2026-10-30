@@ -9,14 +9,16 @@
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
+import { busyWith } from "@/lib/ui/busyWith"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useCreateDoc } from "@/components/doc/useCreateDoc"
-import { ChevronDown, LayoutTemplate, Loader2, Plus, Upload } from "@/lib/icons"
+import { ChevronDown, LayoutTemplate, Plus, Upload } from "@/lib/icons"
 import { returnFocusOnlyForKeys } from "@/lib/ui/inputModality"
 import type { DocSpace } from "@/types/docGraph"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
-const TemplatePicker = React.lazy(() => import("@/components/docTemplates/TemplatePicker"))
-const ImportDocDialog = React.lazy(() => import("@/components/doc/ImportDocDialog"))
+const TemplatePicker = lazyPiece(() => import("@/components/docTemplates/TemplatePicker"))
+const ImportDocDialog = lazyPiece(() => import("@/components/doc/ImportDocDialog"))
 
 /**
  * `space`: where a blank doc goes, the open tab's (QA DSA-34: New doc on the
@@ -28,10 +30,10 @@ export function NewDocButton({ space }: { space?: DocSpace } = {}) {
 
   return (
     <div className="inline-flex shrink-0 items-stretch" data-new-doc-button="">
-      <Button size="sm" onClick={() => void create({ space })} disabled={!!busy} className="gap-1.5 rounded-r-none" aria-keyshortcuts="N">
-        {busy === "blank" ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Plus className="size-3.5" aria-hidden="true" />}
+      <Button size="sm" onClick={() => void create({ space })} {...busyWith(busy, "blank")} className="gap-1.5 rounded-r-none" aria-keyshortcuts="N">
+        <Plus className="size-3.5" aria-hidden="true" />
         New doc
-        {/* The primary's own kbd look (design v3 §3.10: an 18% white fill). */}
+        {/* The primary draws its kbd outlined on its own fill, so the key reads at AA. */}
         <kbd className="kbd ml-0.5" aria-hidden="true">
           N
         </kbd>

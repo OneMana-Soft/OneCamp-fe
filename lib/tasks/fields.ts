@@ -2,7 +2,7 @@
  * The server keeps the values beside the task (business/TaskField) and lays
  * them over every task it lists, as task_fields, by field id. Pure. */
 
-import { shortDate } from "@/lib/utils/date/shortDate"
+import { shortDate } from "@/lib/utils/date/dateWords"
 
 export type FieldType = "text" | "number" | "money" | "date" | "select" | "multi_select" | "person" | "checkbox" | "url"
 

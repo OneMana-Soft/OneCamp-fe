@@ -69,6 +69,22 @@
       },
       "enforce": true
     },
+    "queryWriteRenders": {
+      "scenario": "shell",
+      "owner": "PL2",
+      "source": "Renders after a query-only address write on Home (history.replaceState to ?probe=1, as a tab, a list's filter or the calendar's date writes one), over 800 ms. Nothing on Home reads the query. Live beta 6091d3427 (batch 3; measured on 09eac391c, which differs by e0857b6d5's build settings only) on fixtures, 21 Oct 2026, P-cores, one run (renders don't move with load): 368 at 1x on a computer, 149 at 4x on a phone; beta 354028322 read 489 and 148; live batch 4 (4b30ac377) reads 368 and 149 in 12 runs. PLATFORM-LEAD-2's navigation hook (bea57025f) reads 73 and 70, and 35e9702c1 51 and 48. Target: Next's own floor, 45 on Home's tree on both devices. A query-only write re-renders the App Router's boundaries for each of Home's segments, which app code can't skip: ErrorBoundary, RedirectBoundary and RedirectErrorBoundary x4 each (12), the layout routers with their template, scroll, loading and not-found boundaries x3 each (21), and twelve of the router's own (named on a profiling build of 35e9702c1 with --names queryWrite, 21 Oct 2026: FLUIDITY-LEAD-4 at 1x, FLUIDITY-LEAD-5 on the phone, the same 45). Everything above 45 is ours: 6 at 1x on 35e9702c1 (OpenFromUrl, DocsTreeGroups, MembersEditNotice, DocumentTitle and two leaves), 3 on the phone. The max comes down once live beta carries the navigation hook (FLUIDITY-LEAD-4's ruling, agreed with PLATFORM-LEAD-2)",
+      "cpu1": {
+        "max": 390,
+        "target": 45,
+        "measured": 368
+      },
+      "cpu4": {
+        "max": 160,
+        "target": 45,
+        "measured": 149
+      },
+      "enforce": true
+    },
     "inboxOpenMs": {
       "scenario": "shell",
       "owner": "PL2",
@@ -147,16 +163,16 @@
     "overlayOpenMs": {
       "scenario": "shell",
       "owner": "D3",
-      "source": "An overlay: the shortcuts dialog on a computer, the account sheet on a phone, from the press until it shows. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 62 at 1x on a computer (load 10 to 19), 682 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)",
+      "source": "An overlay: the shortcuts dialog on a computer, the account sheet on a phone, from the press until it shows. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 62 at 1x on a computer (load 10 to 19), 682 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Live batch 4 (4b30ac377, with STAGE2-FIX's 999c12e79: the account sheet imported statically and opened from a deferred value) on fixtures, 21 Oct 2026, P-cores: the phone's sheet in 137 and 176 ms (2 quiet runs) and 166 to 287 ms (5 runs at load 14 to 38), median 176, INP 32, frames p95 16.7 to 16.8 ms with 0% dropped; the computer's dialog 57 to 104 ms, median 70. Met in every run, so the phone's max is its target (FLUIDITY-LEAD-5; fluid-16 WIN). Target: Instant: an open or switch from cache within 100 ms on a computer (the brief's bar; Nielsen's 0.1 s limit for 'instantaneous'; RAIL's 100 ms response), and 300 ms on the 4x phone profile (the chat programme's later 4x target, perf-mobile.md)",
       "cpu1": {
         "max": 100,
         "target": 100,
-        "measured": 62
+        "measured": 70
       },
       "cpu4": {
-        "max": 890,
+        "max": 300,
         "target": 300,
-        "measured": 682
+        "measured": 176
       },
       "enforce": false
     },
@@ -179,7 +195,7 @@
     "overlayFrameP95Ms": {
       "scenario": "shell",
       "owner": "D3",
-      "source": "Frame time p95 while the overlay comes in. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 16.65 at 1x on a computer (load 10 to 19), 16.8 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Frame time p95 while it scrolls or drags: one 60 Hz refresh (16.7 ms) on a computer, two (33.4 ms) on the 4x phone (the brief; 60 fps, never under 30)",
+      "source": "Frame time p95 while the overlay comes in: since 21 Oct 2026 (FLUIDITY-LEAD-6), 500 ms from its first paint; before, from the press until it showed, which counted the open's own task (already timed by overlayOpenMs and its INP) only when it fell after the first two frames. Beta 482460c3d on fixtures, 20 Oct 2026, P-cores, median of 5: 16.65 at 1x on a computer (load 10 to 19), 16.8 at 4x on a phone (load 19 to 38). Times above load 16 are inflated: provisional until a quiet rerun. Target: Frame time p95 while it scrolls or drags: one 60 Hz refresh (16.7 ms) on a computer, two (33.4 ms) on the 4x phone (the brief; 60 fps, never under 30)",
       "cpu1": {
         "max": 16.7,
         "target": 16.7,

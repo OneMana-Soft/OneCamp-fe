@@ -30,7 +30,6 @@ vi.mock("@/lib/utils/useInternalLinkRouter", () => ({ useInternalLinkRouter: () 
 vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel", () => ({
   MessageDesktopHoverOptionsForMainChatAndChannel: () => null,
 }))
-vi.mock("@/components/ai/SaveToMemoryButton", () => ({ SaveToMemoryButton: () => null }))
 // A phone row opens its thread by navigating: a press on a guest's card must not.
 const push = vi.hoisted(() => vi.fn())
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/app/channel/c1" }))

@@ -1,5 +1,5 @@
 import { backendFetch } from "@/lib/http/backendFetch";
-import { refreshSession } from "@/lib/auth/sessionRefresh";
+import { checkSession } from "@/lib/auth/sessionMember";
 import { within } from "@/lib/auth/probe";
 import { signInAnswer } from "@/lib/auth/signInAnswer";
 
@@ -99,7 +99,12 @@ class AuthService {
         window.location.href = oauthEndpoint;
     }
 
-    static async loginAsDemo(): Promise<{ ok: boolean; msg?: string }> {
+    /**
+     * Signs in to the shared demo account. A failure carries its status, 0 when
+     * nothing answered, so the page can wait out the ones that pass (a deploy's
+     * restart, lib/http/keepTrying) and give the reason only once it gives up.
+     */
+    static async loginAsDemo(): Promise<{ ok: true } | { ok: false; status: number; msg: string }> {
         try {
             const res = await backendFetch(
                 `demo-login`,
@@ -128,10 +133,12 @@ class AuthService {
             } else if (res.status >= 500) {
                 msg = msg || "The demo isn't available right now. Try again in a few minutes.";
             }
-            return { ok: false, msg };
+            return { ok: false, status: res.status, msg };
         } catch (error) {
             console.error('Demo login failed:', error);
-            return { ok: false, msg: "Couldn't reach the demo. Check your connection and try again." };
+            // Read once the page has stopped waiting, so it doesn't blame the
+            // visitor's connection: a restarting server fails the same way.
+            return { ok: false, status: 0, msg: "Couldn't reach the demo. Try again in a minute." };
         }
     }
 
@@ -418,58 +425,14 @@ class AuthService {
     }
 
     /**
-     * Probe whether the caller has a live BE session.
-     *
-     * The auth cookies (Authorization / RefreshToken) are HttpOnly, so the
-     * FE cannot detect login state by reading document.cookie — the BE is
-     * the only authoritative source. This hits a cheap authenticated
-     * endpoint with credentials. If the short-lived access token has
-     * expired (401) we attempt a single refresh and re-probe, mirroring the
-     * access→refresh handshake the app uses elsewhere.
-     *
-     * Deliberately uses raw fetch (not the app axiosInstance) so the
-     * logged-out path stays inert: axiosInstance's 401 interceptor would
-     * fire a refresh→logout cascade (logout POST + localStorage/sessionStorage
-     * clear + redirect) which is wasteful and destructive for an anonymous
-     * visitor landing on the login page. Returns a plain boolean and never
-     * throws.
+     * Whether somebody is signed in here: the session check (lib/auth/
+     * sessionMember), which reads the profile with credentials, takes the
+     * session's one refresh on a 401 and asks again, all within
+     * PROBE_TIMEOUT_MS. Never through the app's axiosInstance, whose 401
+     * interceptor would sign out every visitor without a session. Never throws.
      */
     static async hasActiveSession(): Promise<boolean> {
-        // The whole check, refresh included, within PROBE_TIMEOUT_MS: a probe that
-        // never answers is "not signed in", so the sign-in page can draw.
-        const check = async (signal: AbortSignal): Promise<boolean> => {
-            const probe = async (): Promise<number> => {
-                try {
-                    const res = await backendFetch(`user/profile`, {
-                        method: 'GET',
-                        cache: 'no-store',
-                        signal,
-                    });
-                    return res.status;
-                } catch {
-                    return 0; // network error → treat as not logged in
-                }
-            };
-
-            let status = await probe();
-            if (status === 401) {
-                // Access token likely expired: the session's one refresh,
-                // shared with the app and every tab (lib/auth/sessionRefresh;
-                // a refresh token used twice signs the device out), then re-probe.
-                try {
-                    await refreshSession();
-                    status = await probe();
-                } catch {
-                    /* refresh refused or unreachable → fall through as not logged in */
-                }
-            }
-            return status >= 200 && status < 300;
-        };
-        try {
-            return await within(check);
-        } catch {
-            return false; // no answer in time → treat as not logged in
-        }
+        return (await checkSession()).signedIn;
     }
 
     static async loginWithOIDC() {

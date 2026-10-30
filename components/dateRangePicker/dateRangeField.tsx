@@ -1,7 +1,7 @@
 import { Calendar as CalendarIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -9,16 +9,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTrigger,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { lazyView } from "@/lib/lazy/lazyView";
 import { DateRange } from "react-day-picker";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useSheetMode } from "@/components/ui/overlayMode";
 import { shortDate } from "@/lib/utils/date/shortDate";
+
+// On a phone, the sheet: a chunk of its own, so the shared drawer isn't on the
+// first load of every page showing the field (the recordings lists). A press
+// on the button fetches it; a fetch that failed is asked for again.
+const sheetChunk = lazyView(() => import("@/components/dateRangePicker/dateRangeSheet"));
 
 /**
  * A range as the app writes days: "10 Sep to 10 Oct", with the year only when
@@ -45,8 +45,22 @@ export const DateRangeField: React.FC<
   // layout's width sizes the button.
   const sheet = useSheetMode();
   const [open, setOpen] = useState(false);
+  // Drawn from its first opening, and kept, so it slides away as it closes.
+  const [drawn, setDrawn] = useState(false);
+  if (open && !drawn) setDrawn(true);
+  const opener = useRef<HTMLButtonElement>(null);
+  // On a phone the button opens the sheet itself, so it says what it opens as a trigger would.
+  const opens = sheet && {
+    "aria-haspopup": "dialog" as const,
+    "aria-expanded": open,
+    "data-state": open ? "open" : "closed",
+    onPointerDown: sheetChunk.prefetch,
+    onFocus: sheetChunk.prefetch,
+    onClick: () => setOpen(true),
+  };
   const trigger = (
     <Button
+      ref={opener}
       variant={"outline"}
       className={cn(
         // A finger's 44px across a phone; a header control's height (h-9),
@@ -55,6 +69,7 @@ export const DateRangeField: React.FC<
         isMobile ? "w-full h-11" : "w-auto h-9",
         !dateRange && "text-muted-foreground"
       )}
+      {...opens}
     >
       <CalendarIcon className="h-4 w-4 text-muted-foreground" />
       {dateRangeLabel(dateRange)}
@@ -66,40 +81,17 @@ export const DateRangeField: React.FC<
 
       {setDateRange &&
         (sheet ? (
-          <Drawer detent="medium" open={open} onOpenChange={setOpen}>
-            <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-            <DrawerContent>
-              <DrawerTitle className="sr-only">Pick dates</DrawerTitle>
-              <div className="mt-4 border-t pt-4 pb-4">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={setDateRange}
-                  numberOfMonths={1}
-                  captionLayout="dropdown-buttons"
-                  fromYear={1960}
-                  toYear={2030}
-                  className="w-full flex justify-center"
-                  classNames={{
-                    months:
-                      "w-full flex flex-col space-y-4 sm:space-x-4 sm:space-y-0",
-                    month: "space-y-4 w-full",
-                    table: "w-full border-collapse space-y-1",
-                    head_row: "flex w-full justify-between",
-                    row: "flex w-full mt-2 justify-between",
-                    cell: "text-center flex-1 p-0 relative focus-within:relative [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected].day-range-end)]:rounded-r-md first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-                    day: "h-9 w-full p-0 font-normal aria-selected:opacity-100",
-                    head_cell:
-                      "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem]",
-                    caption_label: "hidden", // Hide default caption label when using dropdowns if generic shading doesn't handle it
-                    caption_dropdowns: "flex justify-center gap-1",
-                  }}
-                />
-              </div>
-            </DrawerContent>
-          </Drawer>
+          <>
+            {trigger}
+            {drawn ? (
+              <sheetChunk.View
+                fallback={null}
+                render={({ DateRangeSheet }) => (
+                  <DateRangeSheet open={open} onOpenChange={setOpen} opener={opener} dateRange={dateRange} setDateRange={setDateRange} />
+                )}
+              />
+            ) : null}
+          </>
         ) : (
           <Popover>
             <PopoverTrigger asChild>{trigger}</PopoverTrigger>

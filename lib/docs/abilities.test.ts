@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { docAbilities, docLevelOf, levelLabel, levelSentence, type DocLevel } from "./abilities"
+import { docAbilities, docLevelOf, levelLabel, levelSentence, maySuggestDecide, offersModes, type DocLevel } from "./abilities"
 
 // Docs incident, 14 Oct 2026: one function says what a level allows, and
 // every surface asks it. The server writes the level into a doc answer's
@@ -50,4 +50,24 @@ describe("what a level allows", () => {
         expect(levelLabel("edit")).toBe("")
         expect(levelLabel(undefined)).toBe("")
     })
+})
+
+describe("who decides suggestions", () => {
+  it("lets editors decide, and under a hard lock only full access", () => {
+    expect(maySuggestDecide("edit", "")).toBe(true)
+    expect(maySuggestDecide("edit", "hard")).toBe(false)
+    expect(maySuggestDecide("full", "hard")).toBe(true)
+    expect(maySuggestDecide("comment", "")).toBe(false)
+  })
+})
+
+// A reader who may comment suggests from the selection bar instead.
+describe("Editing or Suggesting", () => {
+  it("is offered to whoever may edit, and not under a hard lock", () => {
+    expect(offersModes("edit", "")).toBe(true)
+    expect(offersModes("full", "soft")).toBe(true)
+    expect(offersModes("edit", "hard")).toBe(false)
+    expect(offersModes("comment", "")).toBe(false)
+    expect(offersModes("view", undefined)).toBe(false)
+  })
 })

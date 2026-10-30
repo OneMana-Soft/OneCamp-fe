@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { SWRConfig } from "swr"
+import { AtAddress } from "@/lib/testing/nextAddress"
 import type { ReactNode } from "react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -25,7 +26,9 @@ import MarketplaceCard from "@/components/admin/MarketplaceCard"
 import { installTemplate, listMarketplace } from "@/services/appService"
 
 const fresh = ({ children }: { children: ReactNode }) => (
-  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
+  <AtAddress url="/app/admin?tab=apps">
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
+  </AtAddress>
 )
 
 const zoom = {

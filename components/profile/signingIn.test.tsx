@@ -14,7 +14,7 @@ const { get, getStatus, beginSetup, confirmSetup, disable, listPasskeys } = vi.h
   disable: vi.fn(),
   listPasskeys: vi.fn(),
 }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get } }))
 vi.mock("@/services/twoFactorService", () => ({ default: { getStatus, beginSetup, confirmSetup, disable } }))
 vi.mock("@/services/passkeyService", () => ({ listPasskeys, addPasskey: vi.fn(), removePasskey: vi.fn(), renamePasskey: vi.fn() }))
 vi.mock("@/lib/auth/webauthn", () => ({ passkeysSupported: () => true, passkeyErrorMessage: () => null }))
@@ -84,15 +84,20 @@ describe("the two-step verification row", () => {
 })
 
 describe("the passkeys row", () => {
-  it("offers to try again when the list couldn't load", async () => {
+  // One look per row (DESIGN-BUILD-6): a list that couldn't load is said as the
+  // password and two-step rows say a failed check, by the row itself
+  // (SettingsCardError), with Try again its one control. It was red text under
+  // the row, and a second button under Add a passkey.
+  it("says the list couldn't load as the row itself, with Try again its one control, and tries again", async () => {
     listPasskeys.mockRejectedValueOnce(new Error("Network Error")).mockResolvedValueOnce([
       { id: "k1", name: "Passkey on Mac", created_at: "2026-10-01T10:00:00Z", last_used_at: null },
     ])
     render(<PasskeySection />)
-    expect(await screen.findByText(/Couldn't load your passkeys/)).toBeInTheDocument()
-    await act(async () => void fireEvent.click(screen.getByRole("button", { name: /try again/i })))
+    expect(await screen.findByText("Couldn't load your passkeys.")).toBeInTheDocument()
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Try again"])
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Try again" })))
     expect(await screen.findByText("Passkey on Mac")).toBeInTheDocument()
-    expect(screen.queryByText(/Couldn't load your passkeys/)).toBeNull()
+    expect(screen.queryByText("Couldn't load your passkeys.")).toBeNull()
   })
 })
 

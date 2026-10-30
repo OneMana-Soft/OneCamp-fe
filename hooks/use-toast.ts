@@ -27,7 +27,7 @@ const TOAST_REMOVE_DELAY = 400
  * avatar), and "loading" a spinner with no timer, until an update morphs it
  * into success or error in place.
  */
-export type ToastTone = "success" | "error" | "info" | "agent" | "person" | "loading"
+export type ToastTone = "success" | "error" | "warning" | "info" | "agent" | "person" | "loading"
 
 type ToasterToast = Omit<ToastProps, "title"> & {
   id: string
@@ -44,12 +44,13 @@ type ToasterToast = Omit<ToastProps, "title"> & {
  * How long a toast stays when nobody said (shell T1): 4s, 6s with an action
  * to press, 8s for an error with an action (Retry), and no end while loading.
  * An error without an action stays 6s, not 4s: it has to be read, and it is
- * the toast people most often miss (coordinator's decision, 11 Oct).
+ * the toast people most often miss (coordinator's decision, 11 Oct). A
+ * warning (work at risk) has to be read as well, so it stays as long.
  */
 export function toastDuration(t: Pick<ToasterToast, "duration" | "action" | "variant" | "tone">): number {
   if (t.duration !== undefined) return t.duration
   if (t.tone === "loading") return Infinity
-  const error = t.variant === "destructive" || t.tone === "error"
+  const error = t.variant === "destructive" || t.tone === "error" || t.tone === "warning"
   if (t.action) return error ? 8000 : 6000
   return error ? 6000 : 4000
 }

@@ -58,6 +58,10 @@ describe("custom fields", () => {
     expect(parseFieldInput(field("url"), "http://intranet.example/x")).toEqual({ value: "http://intranet.example/x" })
     expect(parseFieldInput(field("url"), "not a link")).toHaveProperty("error")
     expect(parseFieldInput(field("url"), "javascript:alert(1)")).toHaveProperty("error")
+    // Another kind of address isn't a web one with https:// put before it ("https://mailto:team@…").
+    expect(parseFieldInput(field("url"), "mailto:team@example.com")).toHaveProperty("error")
+    expect(parseFieldInput(field("url"), "ftp://files.example.com")).toHaveProperty("error")
+    expect(parseFieldInput(field("url"), "example.com:8080/board")).toEqual({ value: "https://example.com:8080/board" })
     expect(parseFieldInput(field("number"), "1,250.5")).toEqual({ value: 1250.5 })
     expect(parseFieldInput(field("number"), "twelve")).toHaveProperty("error")
     expect(parseFieldInput(field("money"), "₹ 12,500.50")).toEqual({ value: 1250050 })

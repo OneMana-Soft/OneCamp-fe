@@ -67,8 +67,10 @@ export function retitle<T>(data: T, docId: string, title: string): T {
 export function applyDocMeta(event: msgDocMetaInterface): void {
   // A thread's events (thread.created, .replied, .resolved, .reopened,
   // .reanchored) change no doc details: the threads client re-reads the
-  // thread, listening through lib/docMeta's onDocMeta.
-  if (event.kind.startsWith("thread.")) return
+  // thread, listening through lib/docMeta's onDocMeta. Nor does a
+  // suggestion's (doc.proposal.*): the doc's suggestions read their list
+  // again (suggest-mode, docs C5).
+  if (event.kind.startsWith("thread.") || event.kind.startsWith("doc.proposal.")) return
   const docId = event.doc_uuid
   const title = event.data?.title
   if (event.kind === "doc.renamed" && typeof title === "string") {

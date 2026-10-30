@@ -5,7 +5,7 @@ import {
   EyeNoneIcon,
 } from "@radix-ui/react-icons"
 import { Column } from "@tanstack/react-table"
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"

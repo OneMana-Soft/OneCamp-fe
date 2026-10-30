@@ -14,7 +14,7 @@ import { uploadLimitNow } from "../file-block/uploadLimit"
 import { fillPreview } from "../smart-paste/linkActions"
 import { trackPos } from "../smart-paste/smartPaste"
 import { blocksWithIds, type BlockAt } from "../block-commands/blockIds"
-import { blockAt } from "./contrib"
+import { actionBlock } from "../../utils/actionBlock"
 
 export type BlockActionId = "replace" | "crop" | "alt" | "link" | "refresh" | "toBookmark" | "toEmbed" | "toLink" | "open" | "download"
 
@@ -156,7 +156,7 @@ export async function downloadFile(src: string, name: string, guest = false) {
 
 /** Runs a block action from the block menu (contrib.ts). */
 export function runBlockAction(id: BlockActionId, ctx: ActionContext) {
-  const b = blockAt(ctx)
+  const b = actionBlock(ctx)
   if (!b) return
   const { editor, pos, node } = b
   const href = String(node.attrs.href || node.attrs.src || "")

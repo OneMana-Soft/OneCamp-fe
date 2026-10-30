@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render } from "@testing-library/react"
 
-import { useJumpFlash } from "./useJumpFlash"
+import { SettingRow, SwitchRow } from "@/components/ui/settingsSection"
+import { settingIdOf } from "@/lib/settingsIds"
+import { flashCard, useJumpFlash } from "./useJumpFlash"
 
-// A link to a card (a settings search hit, a deep link with a #fragment, the
-// admins' notice): the card may draw after the page does, since its code and
-// its read load on their own. It is landed once, whenever it draws, unless the
-// person has taken the page over first.
+// A jump from Search settings lands on the field itself (design-14): the row
+// comes into view, its control takes the focus, and the row flashes. A jump to
+// a card still flashes the card.
 
 let scrolled: Element[] = []
 beforeEach(() => {
@@ -17,6 +18,123 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
+function Card() {
+  return (
+    <div id="ai-models-web-search" data-settings-card="" className="set-card">
+      <SwitchRow label="Use web search" checked={false} onChange={() => {}} />
+      <SettingRow label="Context window" controlId="ai-ctx">
+        <input id="ai-ctx" defaultValue="8000" />
+      </SettingRow>
+    </div>
+  )
+}
+
+describe("a jump to a field", () => {
+  it("brings its row into view, focuses its switch, and flashes the row", () => {
+    render(<Card />)
+    act(() => void flashCard(settingIdOf("Use web search")))
+    const row = document.querySelector('[data-setting-row="switch"]')!
+    expect(document.activeElement).toBe(document.getElementById(settingIdOf("Use web search")))
+    expect(scrolled).toEqual([row])
+    expect(row.classList.contains("set-flash")).toBe(true)
+    expect(document.querySelector("[data-settings-card]")!.classList.contains("set-flash"), "the card itself doesn't flash").toBe(false)
+  })
+
+  it("focuses a field's input the same way", () => {
+    render(<Card />)
+    act(() => void flashCard("ai-ctx"))
+    expect(document.activeElement).toBe(document.getElementById("ai-ctx"))
+    expect(document.getElementById("ai-ctx")!.closest("[data-setting-row]")!.classList.contains("set-flash")).toBe(true)
+  })
+})
+
+describe("a jump to a card", () => {
+  it("flashes the card and moves no focus", () => {
+    render(<Card />)
+    const before = document.activeElement
+    act(() => void flashCard("ai-models-web-search"))
+    expect(document.querySelector("[data-settings-card]")!.classList.contains("set-flash")).toBe(true)
+    expect(document.activeElement).toBe(before)
+  })
+})
+
+// DESIGN-BUILD-6's re-shoot (22 Oct): a field near the end of a page that was
+// still filling in could only scroll as far as the page then went, and was
+// left at the foot of the screen, out of sight, while the cards below it came.
+describe("a jump while the page is still filling in", () => {
+  let height = 600
+  let grow = () => {}
+  beforeEach(() => {
+    vi.useFakeTimers()
+    height = 600
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly changed: () => void) {}
+        observe() {
+          grow = () => this.changed()
+        }
+        disconnect() {
+          grow = () => {}
+        }
+      },
+    )
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  function page() {
+    render(
+      <div data-page-frame="narrow">
+        <Card />
+      </div>,
+    )
+    Object.defineProperty(document.querySelector("[data-page-frame]")!, "clientHeight", { get: () => height })
+    return document.querySelector('[data-setting-row="switch"]')!
+  }
+
+  it("brings the row back to its place as the page grows, while it flashes", async () => {
+    const row = page()
+    act(() => void flashCard(settingIdOf("Use web search")))
+    await act(() => vi.dynamicImportSettled())
+    height = 1400
+    grow()
+    expect(scrolled).toEqual([row, row])
+    act(() => void vi.advanceTimersByTime(1300))
+    height = 1800
+    grow()
+    expect(scrolled).toEqual([row, row])
+  })
+
+  it("lets go once the person scrolls", async () => {
+    const row = page()
+    act(() => void flashCard(settingIdOf("Use web search")))
+    await act(() => vi.dynamicImportSettled())
+    window.dispatchEvent(new WheelEvent("wheel"))
+    height = 1400
+    grow()
+    expect(scrolled).toEqual([row])
+  })
+
+  // Dragging the scrollbar fires no wheel, touch or key event, so the hold
+  // pulled the page back under the person's pointer mid-drag.
+  it("lets go once the person takes the scrollbar", async () => {
+    const row = page()
+    act(() => void flashCard(settingIdOf("Use web search")))
+    await act(() => vi.dynamicImportSettled())
+    window.dispatchEvent(new Event("pointerdown"))
+    height = 1400
+    grow()
+    expect(scrolled).toEqual([row])
+  })
+})
+
+// A link to a card that draws late: the admins' notice links to the earlier
+// imports' section, which draws only once its own read answers, sometimes
+// after the page's first looks (CR-52, 26 Oct). The page's jump lands it once,
+// whenever it draws, unless the person has taken the page over by then.
 describe("a jump to a card that draws late", () => {
   function Page({ drawn, card = "late-card" }: { drawn: boolean; card?: string }) {
     useJumpFlash("import")

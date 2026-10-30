@@ -1,14 +1,11 @@
-import { addDays, endOfDay, endOfMonth, endOfWeek, parseISO, startOfDay, startOfMonth, startOfWeek } from "date-fns"
+import { addDays, endOfDay, endOfMonth, endOfWeek, parseISO, startOfDay, startOfMonth, startOfWeek, type Day } from "date-fns"
 import { allDayLastDay, placedByDates } from "@/lib/calendar/allDay"
 import { clockRange, clockTime } from "@/lib/utils/date/clock"
 import { dayKey, WEEK_STARTS_ON } from "@/lib/utils/date/days"
 
 /**
- * Laying calendar items out on days and weeks, once per change of data,
- * rather than in every render. The month grid used to work out every day's
- * items by walking (and re-parsing) every event and task for each of its 42
- * days, again for each of the 30 mini-calendar days, and again for each week,
- * on every render, hovering an event included. Pure.
+ * Laying calendar items out on days and weeks once per change of data, not
+ * in every render (each of the grid's days once walked every item). Pure.
  */
 
 export interface DatedItem {
@@ -149,8 +146,8 @@ export function layoutWeek<T extends DatedItem>(weekStart: Date, placed: readonl
  * date. A week (or a day) inside that month is part of the same answer, so
  * switching between month, week and day views asks for nothing new.
  */
-export function monthGridRange(anchor: Date): { start: Date; end: Date } {
-  return { start: startOfWeek(startOfMonth(anchor), { weekStartsOn: WEEK_STARTS_ON }), end: endOfWeek(endOfMonth(anchor), { weekStartsOn: WEEK_STARTS_ON }) }
+export function monthGridRange(anchor: Date, weekStartsOn: Day = WEEK_STARTS_ON): { start: Date; end: Date } {
+  return { start: startOfWeek(startOfMonth(anchor), { weekStartsOn }), end: endOfWeek(endOfMonth(anchor), { weekStartsOn }) }
 }
 
 /**

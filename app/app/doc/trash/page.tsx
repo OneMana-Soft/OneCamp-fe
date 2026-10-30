@@ -7,11 +7,11 @@
 // confirmation. Each says when it goes for good on its own.
 
 import * as React from "react"
-import Link from "next/link"
+import { NodeLink } from "@/components/docFiles/NodeLink"
 import { Virtuoso } from "react-virtuoso"
 
 import { RestoreRow } from "@/components/doc/RestoreRow"
-import { DocRowsSkeleton } from "@/components/doc/docListResult"
+import { DocRowsSkeleton } from "@/components/doc/docSkeletons"
 import { PagedListFooter, usePagedList, type ListPage } from "@/components/doc/usePagedList"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
@@ -89,10 +89,10 @@ export default function DocTrashPage() {
     <div className="flex h-full min-h-0 flex-col" data-doc-trash-page="">
       {list.loaders}
       <div className="mx-auto w-full max-w-[1040px] shrink-0 px-4 pt-4 sm:px-8 sm:pt-8">
-        <Link href={app_doc_path} className="inline-flex h-7 items-center gap-1 rounded-lg pr-2 text-ui-sm text-ink-2 outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand max-sm:hidden">
+        <NodeLink href={app_doc_path} className="inline-flex h-7 items-center gap-1 rounded-lg pr-2 text-ui-sm text-ink-2 outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand max-sm:hidden">
           <ChevronLeft className="size-3.5" aria-hidden="true" />
           Docs
-        </Link>
+        </NodeLink>
         <h1 className="mt-1 text-title-1 text-ink max-sm:hidden">Trash</h1>
         <p className="mt-0.5 text-ui text-ink-2" aria-live="polite">
           {trashSummary(list.count)}

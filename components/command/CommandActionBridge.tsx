@@ -13,7 +13,7 @@
 // GlobalCommandHost handles async reminders.
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useDispatch, useSelector } from "react-redux"
 import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -69,7 +69,7 @@ export default function CommandActionBridge() {
     // Mounted once for the whole app, so this device's copy of the pause
     // follows the server even before any menu is opened.
     usePauseNotifications()
-    const router = useRouter()
+    const router = useAppRouter()
     const dispatch = useDispatch()
     const { toast } = useToast()
     const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -167,7 +167,15 @@ export default function CommandActionBridge() {
                 new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
             )
         }
-        const onOpenApps = () => router.push("/app/admin?tab=apps")
+        // "/apps <name>" searches the directory; the "/" menu's "Set up <app>"
+        // opens that app (MarketplaceCard reads both).
+        const onOpenApps = (e: Event) => {
+            const { slug, query } = (e as CustomEvent<{ slug?: string; query?: string }>).detail ?? {}
+            const params = new URLSearchParams({ tab: "apps" })
+            if (slug) params.set("app", slug)
+            else if (query) params.set("q", query)
+            router.push(`/app/admin?${params}`)
+        }
 
         // --- display: /collapse, /expand ---
         const onToggleMedia = (e: Event) => {

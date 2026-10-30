@@ -6,9 +6,10 @@
 // what the billable time comes to.
 
 import * as React from "react"
-import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, focusDialogItself } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { focusDialogItself } from "@/components/ui/overlayFocus"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
@@ -20,6 +21,8 @@ import { formatCents } from "@/lib/rates"
 import { REPORT_PRESETS, formatDuration, formatHours, presetRange, type ReportPreset, type TimeLine, type TimeReport } from "@/lib/tasks/time"
 import { ProjectsGet } from "@/services/endpoints/projects"
 import { browserTZ } from "@/lib/utils/timeZone"
+import { downloadFrom } from "@/lib/utils/download"
+import { withItsWords } from "@/lib/utils/downloadRefusal"
 
 export function ProjectTimeDialog({
   projectId,
@@ -52,15 +55,9 @@ export function ProjectTimeDialog({
   const download = async () => {
     setDownloading(true)
     try {
-      const tz = browserTZ()
-      const res = await axiosInstance.get(`${base}?${query}&format=csv&tz=${encodeURIComponent(tz)}`, { responseType: "blob" })
-      const name = /filename="([^"]+)"/.exec(String(res.headers["content-disposition"] ?? ""))?.[1] ?? "time.csv"
-      const url = URL.createObjectURL(res.data as Blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = name
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      // Asked for as a file, a refusal comes back as one too: its words are
+      // read back from it, so the toast below says them.
+      await downloadFrom(`${base}?${query}&format=csv&tz=${encodeURIComponent(browserTZ())}`, "time.csv").catch(withItsWords)
     } catch (e) {
       toast({ title: "Couldn't download the report", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {

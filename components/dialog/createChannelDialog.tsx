@@ -196,8 +196,7 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
                         </Button>
                         <Button
                             type="submit"
-                            disabled={!isValid || isSubmitting || !nameAvailable}
-                            aria-busy={isSubmitting || undefined}
+                            disabled={!isValid || !nameAvailable} busy={isSubmitting}
                         >
                             {isSubmitting ? "Creating…" : "Create channel"}
                         </Button>

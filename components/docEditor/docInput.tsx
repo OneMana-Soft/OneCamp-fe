@@ -12,15 +12,15 @@ import { useClientConfig } from '@/hooks/useClientConfig'
 import { exceedsUploadLimit, uploadLimitMessage } from '@/lib/utils/uploadLimit'
 import { LinkBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/link-bubble-menu'
 import { SelectionBar } from '@/components/docEditor/SelectionBar'
-import { DocAccessoryBar } from '@/components/docEditor/DocAccessoryBar'
 import { celebrate } from '@/lib/celebrateSoon'
 import { DOC_EDITOR_CLASS, useDocEditor } from '@/components/docEditor/useDocEditor'
 import { ImageNotUploadable, type ImageUploadOptions } from '@/components/minimal-tiptap/extensions/image/uploads'
-import { TableEmbedPickerDialog } from '@/components/docEditor/TableEmbedPickerDialog'
+import { lazyDialog } from '@/lib/lazy/lazyDialog'
+import { lazyPart } from '@/lib/lazy/lazyPart'
 import { tableForDoc } from '@/components/docEditor/tableForDoc'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
 import { useDispatch, useSelector } from "react-redux"
-import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { openRightPanel, selectDocAiOpen } from "@/store/slice/desktopRightPanelSlice"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useSheetMode } from '@/components/ui/overlayMode'
 import { DocsGet } from "@/services/endpoints/docs"
@@ -38,8 +38,18 @@ import { useEditionGate } from '@/components/docEditor/registry/gate'
 import { NO_BUS, bindEditorCommands, useDocBus, useDocCommand } from '@/components/docEditor/registry/commandBus'
 import { SlotOutlet } from '@/components/docEditor/registry/slots'
 import type { ActionContext } from '@/components/docEditor/registry/types'
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 /** The phone's AI sheet: its code (and its animation library) loads when it first opens. */
+/** The "/table" picker: its code (the table list, its search) loads when it first opens. */
+const TableEmbedPickerDialog = lazyDialog(() => import('@/components/docEditor/TableEmbedPickerDialog').then((m) => m.TableEmbedPickerDialog), 'the table picker')
+
+/**
+ * The phone's Formatting bar: drawn only on a phone, so a computer never
+ * fetches its code, and a phone fetches it as the doc opens, before a finger
+ * is in the text.
+ */
+const AccessoryBar = lazyPart(() => import('@/components/docEditor/DocAccessoryBar').then((m) => m.DocAccessoryBar))
 
 /** The live editor while the saved copy stands in for it: mounted, out of the layout. */
 const HIDDEN: React.CSSProperties = { display: 'none' }
@@ -188,7 +198,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         const { isMobile } = useMedia()
         // Doc AI's panel: beside the doc, or a sheet on a phone held either way (components/ui/overlayMode).
         const sheet = useSheetMode()
-        const docAiOpen = useSelector((state: any) => state.rightPanel.rightPanelState.data.docAiOpen)
+        const docAiOpen = useSelector(selectDocAiOpen)
         const suppressOverlays = docAiOpen
         const isFullWidth = fullWidth
         // The saved text stands in until the editor exists (its blocks load
@@ -388,6 +398,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                                 style={snapshot ? HIDDEN : undefined}
                             />
                         )}
+                        {editor && !snapshot && !hosted && (providerSynced || !collaboration) && <SlotOutlet slot="foot" gate={gate} docId={docId ?? ''} editor={editor} />}
                     </div>
                 </div>
 
@@ -396,7 +407,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     <SelectionBar editor={editor} context={actionContext} onAIClick={handleAIClick} onComment={bus === NO_BUS ? onComment : undefined} hide={suppressOverlays} />
                 )}
                 {editor && canEdit && isMobile && !focusMode && (
-                    <DocAccessoryBar editor={editor} context={actionContext} onAIClick={handleAIClick} onComment={bus === NO_BUS ? onComment : undefined} />
+                    <AccessoryBar.Part editor={editor} context={actionContext} onAIClick={handleAIClick} onComment={bus === NO_BUS ? onComment : undefined} />
                 )}
                 {/* Over the editor, once per editor: a package's view of it
                     (A9's review bar, A8's threads). Each sees what it may do. */}

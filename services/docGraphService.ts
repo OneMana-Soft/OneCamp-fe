@@ -68,12 +68,13 @@ const configOf = (opts?: WriteOptions) => (opts?.ownErrors ? OWN_ERRORS : undefi
 
 // Cache keys
 
-/** One level of the tree: a page's children, or the top of a space. */
-export function childrenKey(parent: string | null, opts: { space?: DocSpace; limit?: number } = {}): string {
+/** One level of the tree: a page's children, or the top of a space; from cursor, a later page of it. */
+export function childrenKey(parent: string | null, opts: { space?: DocSpace; limit?: number; cursor?: string } = {}): string {
   const q = new URLSearchParams()
   if (parent) q.set("parent", parent)
   else q.set("space", opts.space ?? "workspace")
   if (opts.limit) q.set("limit", String(opts.limit))
+  if (opts.cursor) q.set("cursor", opts.cursor)
   return `${DocGraphEndpoint.Children}?${q.toString()}`
 }
 
@@ -128,16 +129,25 @@ export async function createDoc(req: DocCreateRequest): Promise<DocInfoInterface
   return doc
 }
 
-/** Moves a page and everything under it to the trash; restoring it undoes that. */
-export async function deleteDoc(docId: string, opts?: WriteOptions): Promise<DocDeleteResult> {
-  const out = unwrap<DocDeleteResult>(await axiosInstance.post(DocGraphEndpoint.Delete, { doc_uuid: docId }, configOf(opts)))
+/**
+ * Moves a page and everything under it to the trash; restoring it undoes that.
+ * With under, only while it is that page's child (its sub-page block deleted
+ * from that page's body, docs C7a): otherwise a 409 with code "not_under".
+ */
+export async function deleteDoc(docId: string, opts?: WriteOptions & { under?: string }): Promise<DocDeleteResult> {
+  const req = opts?.under ? { doc_uuid: docId, parent_uuid: opts.under } : { doc_uuid: docId }
+  const out = unwrap<DocDeleteResult>(await axiosInstance.post(DocGraphEndpoint.Delete, req, configOf(opts)))
   refreshDocGraph()
   return out
 }
 
-/** Brings back a page with what was deleted (or archived) with it. */
-export async function restoreDoc(docId: string, opts?: WriteOptions): Promise<DocRestoreResult> {
-  const out = unwrap<DocRestoreResult>(await axiosInstance.post(DocGraphEndpoint.Restore, { doc_uuid: docId }, configOf(opts)))
+/**
+ * Brings back a page with what was deleted (or archived) with it. Its parent's
+ * body shows it again; placed says the editor has put its block back already.
+ */
+export async function restoreDoc(docId: string, opts?: WriteOptions & { placed?: boolean }): Promise<DocRestoreResult> {
+  const req = opts?.placed ? { doc_uuid: docId, placed: true } : { doc_uuid: docId }
+  const out = unwrap<DocRestoreResult>(await axiosInstance.post(DocGraphEndpoint.Restore, req, configOf(opts)))
   refreshDocGraph()
   return out
 }
@@ -203,7 +213,8 @@ export interface DocTreeRow extends TreeNode {
   node: TreeNodeJSON
 }
 
-const toRow = (node: TreeNodeJSON): DocTreeRow => ({ id: node.uuid ?? "", title: node.title ?? "", hasChildren: node.has_children, canEdit: node.can_edit, node })
+/** A node as the tree draws it: a file or a link holds nothing (docs F1, D-30). */
+const toRow = (node: TreeNodeJSON): DocTreeRow => ({ id: node.uuid ?? "", title: node.title ?? "", hasChildren: node.has_children, canEdit: node.can_edit, leaf: node.node_kind === "file" || node.node_kind === "link", node })
 
 /** What a children key names: a parent, or the top of a space. */
 function childrenOf(key: string): { parent: string | null; space: string } | null {

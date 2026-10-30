@@ -11,8 +11,11 @@ vi.mock("@/lib/tables/ledger", async (orig) => ({ ...(await orig<typeof import("
 const service = vi.hoisted(() => ({ deleteField: vi.fn(), createRow: vi.fn() }))
 vi.mock("@/services/tableService", async (orig) => ({
   ...(await orig<typeof import("@/services/tableService")>()),
-  deleteField: (...a: unknown[]) => service.deleteField(...a),
   createRow: (...a: unknown[]) => service.createRow(...a),
+}))
+vi.mock("@/services/tableCalls", async (orig) => ({
+  ...(await orig<typeof import("@/services/tableCalls")>()),
+  deleteField: (...a: unknown[]) => service.deleteField(...a),
 }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (opts: { onConfirm: () => unknown }) => void opts.onConfirm() }))
 const toasts = vi.hoisted(() => [] as Array<{ title?: string; description?: string; action?: React.ReactElement<{ onClick: () => Promise<void> }> }>)
@@ -34,15 +37,19 @@ vi.mock("@/components/table/rowPage/RowPage", () => ({
   },
 }))
 
-import { DataTableGrid } from "@/components/table/DataTableGrid"
+import { DataTableGrid, LiveCells, SelectionPart } from "@/components/table/DataTableGrid"
 import { RecordPanel } from "@/components/table/RecordPanel"
 import type { TableField, TableRow } from "@/services/tableService"
 import { loadColumnMenus } from "@/components/table/ColumnMenu"
 import { cellPickers } from "@/components/table/cellPickerPart"
 
 // The column menus, the cell pickers are chunks of their own
-// (lazyView): loaded once, before these tests, they draw at once.
-beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm()]))
+// (lazyView): loaded once, before these tests, they draw at once. So is a
+// column's change (columnOps, imported as it's asked for). Left to load on
+// the click, it came after act's flush on a busy machine (V-58): the delete
+// hadn't asked by the time it was checked, and its toast came in the next
+// test, whose Undo then pressed it.
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), LiveCells.warm(), SelectionPart.warm(), import("@/components/table/columnOps")]))
 
 const fields: TableField[] = [
   { id: "item", table_id: "t", name: "Item", type: "text", config: "{}", position: 0, primary: true },
@@ -51,8 +58,9 @@ const fields: TableField[] = [
 const rowsOf = (n: number): TableRow[] =>
   Array.from({ length: n }, (_, i) => ({ id: `r${i}`, table_id: "t", position: i, created_at: "", updated_at: "", values: JSON.stringify({ item: `Line ${i}`, cost: i }) }))
 
-/** The last toast's Undo, pressed. */
-async function undoLast() {
+/** The last toast's Undo, pressed: the toast of this test's own change, by its title. */
+async function undoLast(title: string) {
+  expect(toasts.at(-1)?.title, "the last toast is this change's").toBe(title)
   const action = toasts.at(-1)?.action
   expect(action, "the toast offers Undo").toBeTruthy()
   await act(async () => action!.props.onClick())
@@ -77,7 +85,7 @@ describe("a change made from the grid", () => {
     expect(ledger.batchRows).toHaveBeenCalledWith("t", { delete: ["r0", "r2"] })
     expect(toasts.at(-1)?.title).toBe("2 rows deleted")
     changed.mockClear()
-    await undoLast()
+    await undoLast("2 rows deleted")
     expect(ledger.undoChange).toHaveBeenCalledWith("t", "cs-delete")
     expect(toasts.at(-1)?.title).toBe("Undone")
     expect(changed).toHaveBeenCalled()
@@ -96,7 +104,7 @@ describe("a change made from the grid", () => {
     expect(ledger.batchRows).toHaveBeenCalledWith("t", { create: [{ values: { item: "Line 0", cost: 0 } }, { values: { item: "Line 1", cost: 1 } }] })
     expect(created).toHaveBeenCalledWith(copies)
     expect(toasts.at(-1)?.title).toBe("2 rows duplicated")
-    await undoLast()
+    await undoLast("2 rows duplicated")
     expect(ledger.undoChange).toHaveBeenCalledWith("t", "cs-dup")
     // A copy changed since stays, and the toast says so.
     expect(toasts.at(-1)).toEqual({ title: "Undone", description: "1 change was left as it is: it changed again since." })
@@ -108,9 +116,10 @@ describe("a change made from the grid", () => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(1)} canManage onChange={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: /^Cost, Number column/ }))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete field" })))
+    // The change's own steps (a request, then its toast) are promises: waited for, not assumed done by act.
+    await vi.waitFor(() => expect(toasts.at(-1)?.title).toBe("Column deleted"))
     expect(service.deleteField).toHaveBeenCalledWith("t", "cost")
-    expect(toasts.at(-1)?.title).toBe("Column deleted")
-    await undoLast()
+    await undoLast("Column deleted")
     expect(ledger.restoreFromTrash).toHaveBeenCalledWith("t", { fields: ["cost"] })
   })
 
@@ -122,7 +131,7 @@ describe("a change made from the grid", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Select row 1" }))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete" })))
     changed.mockClear()
-    await undoLast()
+    await undoLast("Row deleted")
     expect(toasts.at(-1)).toEqual(expect.objectContaining({ title: "Couldn't undo that", description: "That change was undone already" }))
     expect(changed).toHaveBeenCalled()
   })
@@ -133,11 +142,11 @@ describe("a record's delete", () => {
     ledger.batchRows.mockResolvedValue({ change_set: "cs-row", created: [], updated: [], deleted: ["r0"] })
     ledger.undoChange.mockResolvedValue({ change_set: "u", reversed: "cs-row", kind: "delete", changes: 1, skipped: 0 })
     const close = vi.fn()
-    render(<RecordPanel tableId="t" tableName="Budget" fields={fields} rows={rowsOf(1)} rowId="r0" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn() }} onStep={vi.fn()} onClose={close} onChange={vi.fn()} />)
+    render(<RecordPanel tableId="t" tableName="Budget" fields={fields} rows={rowsOf(1)} rowId="r0" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={close} onChange={vi.fn()} />)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete this row" })))
     expect(ledger.batchRows).toHaveBeenCalledWith("t", { delete: ["r0"] })
     expect(close).toHaveBeenCalled()
-    await undoLast()
+    await undoLast("Row deleted")
     expect(ledger.undoChange).toHaveBeenCalledWith("t", "cs-row")
   })
 })

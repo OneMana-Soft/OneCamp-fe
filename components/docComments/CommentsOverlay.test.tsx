@@ -15,10 +15,7 @@ import type { ThreadView } from "@/components/threads/types"
 const open = vi.fn()
 let doc = { threads: [] as ThreadView[], canComment: true }
 vi.mock("./useDocThreads", () => ({ useDocThreads: () => doc }))
-vi.mock("./commentsUi", async (original) => ({
-    ...(await original<typeof import("./commentsUi")>()),
-    useOpenComments: () => open,
-}))
+vi.mock("./useOpenComments", () => ({ useOpenComments: () => open }))
 vi.mock("@/lib/collabSession", () => ({
     collabSession: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ synced: true }) }),
 }))

@@ -29,7 +29,7 @@ describe("a channel's check-ins", () => {
   it("says what is asked and when", () => {
     render(<ChannelCheckIns channelId="ch1" />)
     expect(screen.getByText("What did you work on today?")).toBeTruthy()
-    expect(screen.getByText(/Weekdays at 5:00 PM \(Asia\/Kolkata\) · next/)).toBeTruthy()
+    expect(screen.getByText(/Weekdays at 5:00 PM \(India Standard Time \(GMT\+5:30\)\) · next/)).toBeTruthy()
   })
 
   it("sets one up from a suggestion, in the reader's zone", async () => {

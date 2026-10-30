@@ -20,8 +20,7 @@
 
 import { Extension, type Editor } from "@tiptap/core"
 import type { BlockContext } from "@/components/docEditor/registry/types"
-import { newSeen, presenceOf } from "./people"
-import { setPresence } from "./store"
+import { readPresence } from "./read"
 import type { AwarenessLike } from "./live"
 
 /** At most this often an edit is said: the line rounds to "just now" anyway. */
@@ -42,48 +41,6 @@ function sayEdits(editor: Pick<Editor, "on" | "off">, awareness: AwarenessLike):
   editor.on("update", onUpdate)
   return () => {
     editor.off("update", onUpdate)
-  }
-}
-
-/** How many editors of a doc read its presence (split view): the store is cleared when the last goes. */
-const readers = new Map<string, number>()
-
-/**
- * Reads everyone's awareness into the presence store, at most once a frame.
- * Another person's edit is news when this reader saw them before it: so it
- * starts as the editor does. Returns a way to stop.
- */
-function readPresence(docId: string, awareness: AwarenessLike): () => void {
-  readers.set(docId, (readers.get(docId) ?? 0) + 1)
-  const seen = newSeen()
-  let edit: ReturnType<typeof presenceOf>["edit"] = null
-  let said = ""
-  let frame = 0
-  const read = () => {
-    frame = 0
-    const p = presenceOf(awareness.getStates(), awareness.clientID, seen, edit, Date.now())
-    edit = p.edit
-    // Carets move on every key; the stack and the meta line render only
-    // when who is here, or how, changed.
-    const now = JSON.stringify(p)
-    if (now === said) return
-    said = now
-    setPresence(docId, p)
-  }
-  const onChange = () => {
-    if (!frame) frame = window.requestAnimationFrame(read)
-  }
-  awareness.on("change", onChange)
-  read()
-  return () => {
-    awareness.off("change", onChange)
-    window.cancelAnimationFrame(frame)
-    const left = (readers.get(docId) ?? 1) - 1
-    if (left > 0) readers.set(docId, left)
-    else {
-      readers.delete(docId)
-      setPresence(docId, null)
-    }
   }
 }
 

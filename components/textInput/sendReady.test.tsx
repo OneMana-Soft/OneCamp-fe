@@ -84,9 +84,12 @@ describe("every composer with a Send button and a paperclip", () => {
   // its own files (its tests hold Send ready with only a file). 11 since chat
   // P5: a channel's, a DM's and a group's thread panel write in one reply box
   // (conversation/ThreadReplyBox), which passes hasAttachments as each did.
+  // 6 since chat A1 step 2c: a channel's, a DM's and a group's message box, on
+  // a computer and a phone, is one (conversation/Composer), where it was six.
   it("were found", () => {
-    expect(composers.length).toBeGreaterThanOrEqual(11)
+    expect(composers.length).toBeGreaterThanOrEqual(6)
     expect(composers.some((f) => f.endsWith("conversation/ThreadReplyBox.tsx"))).toBe(true)
+    expect(composers.some((f) => f.endsWith("conversation/Composer.tsx"))).toBe(true)
   })
 
   it.each(composers.map((f) => [f.slice(ROOT.length + 1)]))("%s passes hasAttachments", (f) => {

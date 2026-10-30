@@ -6,8 +6,6 @@ import {CommentInfoInterface} from "@/types/comment";
 import type {FieldValues} from "@/lib/tasks/fields";
 import type {TaskAccess} from "@/lib/work/types";
 import type {DependencyFacets} from "@/lib/tasks/dependency";
-import {z} from "zod";
-import { nameSchema } from "@/lib/validation/names";
 
 /** A task on the other end of a dependency, as a task's panel reads it, with how the dependency works. */
 export interface DependencyTask extends DependencyFacets {
@@ -16,6 +14,8 @@ export interface DependencyTask extends DependencyFacets {
     task_status: string;
     task_custom_status?: string;
     task_custom_status_name?: string;
+    task_hidden?: boolean;
+    task_restricted?: boolean;
 }
 
 export interface TaskInfoInterface {
@@ -44,6 +44,8 @@ export interface TaskInfoInterface {
     task_assignee?: UserProfileDataInterface;
     task_collaborators: UserProfileDataInterface[];
     task_due_date: string;
+    /** A date a task that repeats on a schedule comes due next, drawn on the calendar before it exists (calendar head 9). */
+    task_ahead?: boolean;
     task_created_at: string
     /** When it entered its status, for "time in status" on a board. */
     task_status_since?: string
@@ -68,8 +70,32 @@ export interface TaskInfoInterface {
     task_blocked_open?: number;
     /** How long the task should take, in minutes; none or 0 is no estimate. */
     task_estimate_minutes?: number;
+    /** Its points on its project's estimate scale (linear-05); none when unset. */
+    task_estimate_points?: number;
     /** Its values of the project's custom fields, by field id; see lib/tasks/fields. */
     task_fields?: FieldValues;
+    /** "Q4-12" */
+    task_key?: string;
+    /** None for a plain Task. */
+    task_work_type?: TaskWorkType;
+    task_restricted?: boolean;
+    /** Its open request for approval, on a board's read (a held move's target, or "" for an ask). */
+    task_waiting?: TaskWaiting;
+    task_hidden?: boolean;
+}
+
+/** A task's open request for approval, as a board reads it (business/Approvals MarkWaiting). */
+export interface TaskWaiting {
+    approval_id: string;
+    to_status: string;
+}
+
+/** Built in (builtin) or the project's own. */
+export interface TaskWorkType {
+    id: string;
+    builtin?: string;
+    name: string;
+    icon: string;
 }
 export interface TaskInfoRawInterface {
     data: TaskInfoInterface;
@@ -121,62 +147,4 @@ export interface RemoveTaskAttachmentInterface {
     task_uuid: string
 }
 
-export const taskPriorityOptions = [
-    { id: "high", label: "High" },
-    { id: "medium", label: "Medium" },
-    { id: "low", label: "Low" },
-]
-
-// The one place a built-in status gets its name. Sentence case, as the
-// client's project page and the docs write them; types/table.ts reads these.
-export const taskStatusOptions = [
-    { id: "backlog", label: "Backlog" },
-    { id: "todo", label: "To do" },
-    { id: "inProgress", label: "In progress" },
-    { id: "inReview", label: "In review"},
-    { id: "done", label: "Done" },
-    { id: "canceled", label: "Cancelled" },
-]
-
-/** A built-in status's name, or the raw value for one this build doesn't know. */
-export const taskStatusLabel = (id: string) => taskStatusOptions.find((o) => o.id === id)?.label ?? id
-
-export const createTaskFormSchema = z.object({
-    // A title, as a doc's is (lib/validation/names): "Bug" and "SEO" were
-    // refused here at under four characters while quick add took them (PTC-11).
-    task_name: nameSchema("title", "Task name"),
-    task_assignee_uuid: z
-        .string()
-        .optional(),
-    task_description: z
-        .string()
-        .optional(),
-    task_project_uuid: z
-        .string()
-        .min(1, "Pick a project for the task."),
-    task_attachments: z
-        .array(z.custom<AttachmentMediaReq>())
-        .optional(),
-    task_due_date: z
-        .date({ message: "Please select a valid due date" })
-        .optional(),
-    task_start_date: z
-        .date({ message: "Please select a valid start date" })
-        .optional(),
-    task_label: z
-        .string()
-        .trim()
-        .optional(),
-    task_priority: z
-        .string()
-        .min(1, "Please select a priority")
-        .optional(),
-    task_github_issue_url: z
-        .string()
-        .url("Must be a valid GitHub URL")
-        .regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(issues|pull)\/\d+$/, "Must be a GitHub issue or PR URL")
-        .optional()
-        .or(z.literal("")),
-});
-
-export type CreateTaskFormData = z.infer<typeof createTaskFormSchema>;
+export { NO_PRIORITY, TASK_PRIORITIES, taskPriorityOptions, taskStatusLabel, taskStatusOptions } from "@/types/taskScale"

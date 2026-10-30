@@ -80,9 +80,9 @@ describe("unsaved changes", () => {
     expect(state.confirms).toHaveLength(0)
   })
 
-  it("are guarded on every page, from the root", () => {
-    const root = readFileSync(join(__dirname, "..", "providers", "ClientProviders.tsx"), "utf8")
-    expect(root).toMatch(/<UnsavedChangesGuard\s*\/>/)
+  it("are guarded on every page of the app, where the SaveBars and the dialog it asks with are", () => {
+    const app = readFileSync(join(__dirname, "..", "..", "app", "app", "ClientProviders.tsx"), "utf8")
+    expect(app).toMatch(/<UnsavedChangesGuard\s*\/>/)
   })
 
   it("are asked about before the settings nav moves to another admin section", () => {

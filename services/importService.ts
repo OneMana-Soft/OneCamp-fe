@@ -1,23 +1,25 @@
 /**
- * Generic Import service — wraps /admin/import/{provider}/* endpoints
- * for the Asana / Jira / Trello / Notion / Todoist pipeline.
- *
- * The legacy slackImportService remains for the Slack-specific FE
- * because its plan/upload UX is custom to channels-and-messages.
+ * The import service: /admin/import/{provider}/* for every tool but Slack,
+ * whose plan and upload screens are its own (slackImportService).
  */
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorCode } from "@/lib/utils/apiError"
 import { PostEndpointUrl } from "@/services/endPoints"
+import type { FieldType } from "@/lib/tasks/fields"
 
 // Provider names mirror models/postgres/Import.ProviderXxx on the BE.
-export type ImportProvider = "trello" | "asana" | "jira" | "notion" | "todoist" | "linear" | "clickup" | "monday"
+export type ImportProvider = "trello" | "asana" | "jira" | "notion" | "todoist" | "linear" | "clickup" | "monday" | "basecamp" | "miro" | "airtable" | "gsheets" | "csv"
+/** A tool connected with an account, by its token or by signing in at it (Basecamp): all but a CSV file, which is uploaded. */
+export type TokenProvider = Exclude<ImportProvider, "csv">
 
 // Display names for providers whose brand isn't the capitalised id. ClickUp
 // read "Clickup" in the import picker, beside a description that spelt it right.
 const PROVIDER_LABELS: Partial<Record<ImportProvider, string>> = {
   monday: "monday.com",
   clickup: "ClickUp",
+  gsheets: "Google Sheets",
+  csv: "CSV file",
 }
 
 export function importProviderLabel(provider: string): string {
@@ -30,6 +32,8 @@ export interface ProviderInfo {
   capabilities: string[]
   default_status_map: Record<string, string>
   default_priority_map: Record<string, string>
+  /** Set for a provider connected by signing in at it (Basecamp), not with a token. */
+  sign_in?: { configured: boolean; setup?: string }
 }
 
 export interface ConnectionView {
@@ -52,18 +56,47 @@ export interface ImportPlan {
   task_count: number
   /** Pages that come across as docs (a provider's "pages" capability). */
   page_count?: number
+  /** Boards that come across drawn ("boards"), and the items on them. */
+  board_count?: number
+  item_count?: number
+  /** Tables of the bases an import brings (its "tables" capability). */
+  table_count?: number
   subtask_count: number
   comment_count: number
   file_count: number
   file_bytes: number
   warnings?: string[]
   status_values?: string[]
+  status_proposals?: Record<string, string> // by name, then by its class (I1b)
   priority_values?: string[]
-  // Slack-shaped fields kept for backward-compat with the existing FE.
+  columns?: PlanColumn[] // an uploaded table's (a CSV's)
+  people?: PlanPerson[]
+  // Slack's fields.
   channel_count?: number
   channel_conflict?: number
   message_count?: number
   thread_count?: number
+}
+
+/** A column of an uploaded table: a task's property, or a field ("skip": left out). */
+export interface PlanColumn {
+  name: string
+  property?: string
+  kind?: FieldType | "skip"
+  guess?: FieldType
+  currency?: string
+  values: number
+}
+
+/** Someone a file names, and who they will be here: no matched_by is a placeholder. */
+export interface PlanPerson {
+  source_id: string
+  name: string
+  email?: string
+  rows: number
+  matched_by?: "import" | "workspace_map" | "email" | "name"
+  member?: string
+  same_name?: number
 }
 
 export interface ImportJob {
@@ -138,6 +171,12 @@ export async function connectImport(provider: ImportProvider, input: ConnectInpu
   await axiosInstance.post(`/admin/import/${encodeURIComponent(provider)}/connect`, input, OWN_ERRORS)
 }
 
+/** The provider's sign-in page, for one with no tokens to paste (Basecamp). It comes back to the import page. */
+export async function importSignInURL(provider: ImportProvider): Promise<string> {
+  const res = await axiosInstance.get(`/admin/import/${encodeURIComponent(provider)}/oauth-url`, OWN_ERRORS)
+  return res.data?.url ?? ""
+}
+
 export async function disconnectImport(provider: ImportProvider): Promise<void> {
   await axiosInstance.post(`/admin/import/${encodeURIComponent(provider)}/disconnect`)
 }
@@ -151,39 +190,6 @@ interface CreateJobInput {
 export async function createImportJob(provider: ImportProvider, input: CreateJobInput): Promise<{ job_id: string }> {
   const res = await axiosInstance.post(`/admin/import/${encodeURIComponent(provider)}/jobs`, input)
   return res.data
-}
-
-// ─── Presign + finalize (for ZIP-shaped sources) ────────────────────
-
-interface PresignResponse {
-  job_id: string
-  provider: string
-  source_workspace_name: string
-  raw_object_key: string
-  upload_url: string
-  expires_in: number
-  method: "PUT"
-  headers: Record<string, string>
-}
-
-export async function presignImportUpload(
-  provider: ImportProvider,
-  workspaceName: string,
-  fileSize: number,
-  source: string = "export_zip",
-): Promise<PresignResponse> {
-  const res = await axiosInstance.post(`/admin/import/${encodeURIComponent(provider)}/presign`, {
-    source_workspace_name: workspaceName,
-    file_size: fileSize,
-    source,
-  })
-  return res.data
-}
-
-export async function finalizeImportUpload(provider: ImportProvider, jobId: string): Promise<void> {
-  await axiosInstance.post(
-    `/admin/import/${encodeURIComponent(provider)}/finalize/${encodeURIComponent(jobId)}`,
-  )
 }
 
 // ─── Plan / Run / Cancel / Rollback / Errors ────────────────────────
@@ -273,15 +279,9 @@ export interface DiscoverItem {
 }
 
 /**
- * List the resources the admin's connected token can see (Trello
- * boards, Asana workspaces, Jira projects, Notion task databases,
- * Todoist projects). The FE uses this to populate the "pick a
- * workspace/board" dropdown when creating a new job, so the operator
- * doesn't have to copy-paste IDs.
- *
- * Returns an empty array if the provider doesn't expose discovery
- * (the BE responds 404 with code:"no_discover" — caller treats that
- * as "no list, fall back to manual id entry").
+ * What the connected token can see (Trello boards, Asana workspaces, Jira
+ * projects, Notion databases, Todoist projects, Miro boards), for the pick
+ * when a job is made. Empty when the tool has no list (404 no_discover).
  */
 export async function discoverImportResources(provider: ImportProvider): Promise<DiscoverItem[]> {
   try {

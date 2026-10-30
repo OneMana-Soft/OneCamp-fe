@@ -5,15 +5,16 @@ vi.mock("@/services/publicApi", () => ({ publicCall: call }))
 
 const { sendForm } = await import("./formService")
 const { numberSigns } = await import("@/lib/format/number")
+const { browserTZ } = await import("@/lib/utils/timeZone")
 
 afterEach(() => call.mockClear())
 
 // The server reads a number answer in the signs its sender writes numbers
 // with, which the form sends with the answers, as the tables' requests do.
 describe("sending a form", () => {
-  it("sends the answers as typed, with the sender's number signs", async () => {
-    await sendForm("tok", { seats: "1,5" }, "")
+  it("sends the answers as typed, with the sender's number signs, their zone and the claim their files went under", async () => {
+    await sendForm("tok", { seats: "1,5" }, "", "c".repeat(64))
     const [, init] = call.mock.calls[0] as unknown as [string, { body: string }]
-    expect(JSON.parse(init.body)).toEqual({ answers: { seats: "1,5" }, website: "", ...numberSigns() })
+    expect(JSON.parse(init.body)).toEqual({ answers: { seats: "1,5" }, website: "", ...numberSigns(), tz: browserTZ(), claim: "c".repeat(64) })
   })
 })

@@ -9,7 +9,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { useTheme } from "next-themes"
-import { Check, LoaderCircle, X } from "@/lib/icons"
+import { Check, X } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { useThemeConfig } from "@/components/activeTheme/activeTheme"
@@ -259,8 +259,7 @@ export function TeamStep({ onPeople, onFinish }: { onPeople: (emails: string[]) 
         </ul>
       )}
       <div className="mt-8 space-y-2">
-        <Button size="lg" className={authControlXl} onClick={() => (failures.length ? onFinish() : void send())} aria-busy={sending || undefined}>
-          {sending && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+        <Button size="lg" className={authControlXl} onClick={() => (failures.length ? onFinish() : void send())} busy={sending}>
           {failures.length ? "Open OneCamp" : label}
         </Button>
         {!failures.length && (

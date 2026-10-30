@@ -153,6 +153,9 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
   return <kbd className={cn("kbd", className)}>{children}</kbd>
 }
 
+/** How far a scrolled list fades at an edge with more past it (app/interaction.css, data-edge-fade-block). */
+const EDGE_FADE = 24
+
 export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>(function CommandList(
   {
     items,
@@ -188,11 +191,19 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
   const rowRefs = React.useRef<Array<HTMLDivElement | null>>([])
   const [cursor, setCursor] = React.useState<{ y: number; h: number } | null>(null)
 
-  // A new item set starts at the top.
+  // A new item set starts at the top. Under the same query, though (the "/"
+  // menu's commands arriving while it's open), the highlighted row keeps its
+  // place by id, so Enter takes the row the person sees.
   const signature = items.map((i) => i.id).join("|")
-  React.useEffect(() => {
-    if (activeIndex === undefined) setOwnIndex(0)
-  }, [signature, activeIndex])
+  const [shown, setShown] = React.useState({ signature, query, items })
+  if (shown.signature !== signature || shown.query !== query) {
+    setShown({ signature, query, items })
+    if (activeIndex === undefined && shown.signature !== signature) {
+      const held = query !== undefined && shown.query === query ? shown.items[ownIndex]?.id : undefined
+      const at = held === undefined ? -1 : items.findIndex((i) => i.id === held)
+      setOwnIndex(Math.max(at, 0))
+    }
+  }
 
   const enabled = React.useCallback((i: number) => !!items[i] && !items[i].disabled, [items])
 
@@ -261,9 +272,10 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
     setCursor({ y: row.offsetTop, h: row.offsetHeight })
     const box = scrollRef.current
     if (box) {
-      if (row.offsetTop < box.scrollTop) box.scrollTop = row.offsetTop - 28
-      else if (row.offsetTop + row.offsetHeight > box.scrollTop + box.clientHeight)
-        box.scrollTop = row.offsetTop + row.offsetHeight - box.clientHeight + 4
+      // The highlight stays clear of the fade; 28 above keeps its group's label in view.
+      if (row.offsetTop < box.scrollTop + EDGE_FADE) box.scrollTop = row.offsetTop - 28
+      else if (row.offsetTop + row.offsetHeight > box.scrollTop + box.clientHeight - EDGE_FADE)
+        box.scrollTop = row.offsetTop + row.offsetHeight - box.clientHeight + EDGE_FADE
     }
   }, [index, signature, laidOut])
 
@@ -299,6 +311,7 @@ export const CommandList = React.forwardRef<CommandListHandle, CommandListProps>
             : undefined
         }
         data-command-listbox=""
+        data-edge-fade-block=""
         className={cn("relative overflow-y-auto overscroll-contain p-1", focusable && "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand rounded-xl")}
         style={{ maxHeight }}
       >

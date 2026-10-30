@@ -37,7 +37,7 @@ import { LucideIcon } from "lucide-react";
 import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEditorState } from "@tiptap/react";
-import { CHAT_COMMANDS, maybeDispatchSlashCommand, extractSlashCommandFromEditor, commandSurfaceOf } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
+import { CHAT_COMMANDS, maybeDispatchSlashCommand, extractSlashCommandFromEditor, commandSurfaceOf, COMMAND_POST, type CommandPost } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
 import { useStableCallback } from "@/hooks/useStableCallback";
 
 interface MinimalTiptapProps
@@ -463,6 +463,22 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
       });
       const attachNow = useStableCallback(() => attachmentOnclick?.());
       const filesNow = useStableCallback((files: File[]) => onActionFiles?.(files));
+      // A command's answer that is a message (Giphy's Send, /shrug, /me), for
+      // this box's surface: with nothing in the box it goes out through the
+      // box's own send path; with words or files there it joins them, so
+      // nothing written is lost and nothing is sent unseen.
+      const takeCommandPost = useStableCallback((e: Event) => {
+          const post = (e as CustomEvent<CommandPost>).detail;
+          const ed = editorRef.current;
+          if (post.taken || !buttonOnclick || !ed || ed.isDestroyed || commandSurfaceOf(ed) !== post.surface) return;
+          post.taken = true;
+          if (ed.isEmpty && !hasAttachments) void buttonOnclick(post.html);
+          else ed.chain().focus("end").insertContent(post.html).run();
+      });
+      React.useEffect(() => {
+          window.addEventListener(COMMAND_POST, takeCommandPost);
+          return () => window.removeEventListener(COMMAND_POST, takeCommandPost);
+      }, [takeCommandPost]);
       const wrappedButtonOnclick = buttonOnclick ? sendNow : undefined;
       const wrappedOnSchedule = onSchedule ? scheduleNow : undefined;
       const wrappedSecondaryButtonOnclick = secondaryButtonOnclick ? secondaryNow : undefined;

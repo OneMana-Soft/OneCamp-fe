@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { usePhone } from "@/hooks/usePhone"
@@ -26,7 +26,7 @@ import {
 } from "@/lib/ui/palette"
 import { openUI } from "@/store/slice/uiSlice"
 import { addRecentItem, type RecentItem } from "@/store/slice/recentItemsSlice"
-import { useFetch } from "@/hooks/useFetch"
+import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { matchScore, NAMED_MATCH, paletteTargets, rankTargets, type PaletteTarget } from "@/lib/search/paletteMatch"
@@ -39,7 +39,6 @@ import { CATEGORY_KIND, isBuiltInStatus } from "@/lib/taskStatus"
 import type { PlaceHue } from "@/lib/placeHue"
 import { areaHue, type Area } from "@/lib/areas"
 import { resultHue } from "@/lib/search/resultHue"
-import { useTrackPageVisit } from "@/hooks/useTrackPageVisit"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -64,7 +63,7 @@ import { SearchResult } from "@/services/searchService"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
 import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
-import { ArrowLeft, ArrowRight, BellOff, ChevronRight, Columns2, Columns3, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun } from "@/lib/icons"
+import { ArrowLeft, ArrowRight, BellOff, ChevronRight, Columns2, Columns3, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun, Video } from "@/lib/icons"
 import { FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
 import { projectAt } from "@/lib/task/startingProject"
 import { clockTime } from "@/lib/utils/date/clock"
@@ -183,22 +182,21 @@ export function CommandPalette() {
   const navigatedByArrows = React.useRef(false)
   const isPhone = usePhone()
   const modKey = useModKey()
-  const router = useRouter()
+  const router = useAppRouter()
   const pathname = usePathname()
   const dispatch = useDispatch()
   const recentItems = useSelector((state: RootState) => state.recentItems?.items || NO_RECENT)
   const splitOn = useSelector(selectSplitOn)
   const sideBySide = useSelector((state: RootState) => (state.split?.panes?.length ?? 0) > 0)
 
-  const { data: selfProfile } = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  // As the profile's other readers do: the palette mounts on its first use,
+  // and asking the server again then was a request nobody needed.
+  const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const isAdmin = selfProfile?.data?.user_is_admin || false
   const { can } = useCapabilities()
   // Which optional subsystems this server actually has, so commands that need one
   // are not offered when it is absent.
   const { features } = useClientConfig()
-
-  // Track page visits with real names from Redux
-  useTrackPageVisit()
 
   // Global search. The palette's query is the search hook's own: a second
   // copy kept in step by an effect rendered the whole palette twice a key.
@@ -546,6 +544,15 @@ export function CommandPalette() {
         group: "Create",
         action: () => router.push("/app/meet/instant"),
       },
+      {
+        id: "open-your-room",
+        featureKey: FEATURE_CALLS,
+        label: "Open your room",
+        keywords: ["room", "personal room", "my room", "meeting", "meet", "call", "video", "guest", "address", "passcode"],
+        icon: <Video className="h-4 w-4" />,
+        group: "Create",
+        action: () => router.push("/app/meet/room"),
+      },
 
       // GitHub
       {
@@ -572,7 +579,9 @@ export function CommandPalette() {
         keywords: ["settings", "preferences", "config", "theme", "appearance"],
         icon: <Settings className="h-4 w-4" />,
         group: "Settings",
-        action: () => router.push("/app/settings"),
+        // A phone's settings home is its list; a computer's is the profile,
+        // and /app/settings there only moves on to it: a second move (fluid-14).
+        action: () => router.push(isPhone ? "/app/settings" : "/app/settings/profile"),
       },
       {
         id: "notification-settings",
@@ -775,7 +784,7 @@ export function CommandPalette() {
       if (cmd.featureKey && features?.[cmd.featureKey] !== true) return false
       return true
     })
-  }, [router, dispatch, isAdmin, can, features, pathname, splitRun, splitOn, sideBySide])
+  }, [router, dispatch, isAdmin, can, features, pathname, splitRun, splitOn, sideBySide, isPhone])
 
   // The open doc's own actions (its page lists them: Version history, Full
   // width, Export…), asked for as the palette opens, found by typing.
@@ -1140,7 +1149,7 @@ const RECENT_KIND_LABEL: Record<RecentItem["type"], string> = {
 }
 
 function hitKindLabel(type: SearchResult["type"]): string {
-  const known: Record<string, string> = { post: "Message", chat: "Direct message", task: "Task", doc: "Doc", project: "Project", channel: "Channel", team: "Team", board: "Board", user: "Person" }
+  const known: Record<string, string> = { post: "Message", chat: "Direct message", task: "Task", doc: "Doc", project: "Project", channel: "Channel", team: "Team", board: "Board", user: "Person", event: "Event" }
   return known[type] ?? "Result"
 }
 
@@ -1181,6 +1190,7 @@ function hitPlace(result: SearchResult): MarkedPlace {
       return { kind: "file" }
     case "board":
     case "team":
+    case "event":
       return { kind: result.type }
     default:
       return { kind: null }

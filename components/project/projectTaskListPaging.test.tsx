@@ -4,6 +4,7 @@ import { act, cleanup, render } from "@testing-library/react"
 import { Provider } from "react-redux"
 
 import { pinTestClock } from "@/lib/testing/testClock"
+import type { sortInterface } from "@/store/slice/taskFilterSlice"
 
 // A project's list on a phone reads its tasks a page at a time, and a group
 // says "N+" while pages are still to come and its count once they are all in
@@ -13,8 +14,9 @@ import { pinTestClock } from "@/lib/testing/testClock"
 // effect after it): "To do 47" while 70 more were coming. Once the last page
 // was in, it asked for the one past it.
 
+const nav = vi.hoisted(() => ({ replace: vi.fn() }))
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: nav.replace, push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => "/app/project/p",
 }))
@@ -50,6 +52,7 @@ vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async (
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 
 const { default: store } = await import("@/store/store")
+const { updateProjectSortingAndFiltering } = await import("@/store/slice/taskFilterSlice")
 const { ProjectTaskList } = await import("@/components/project/projectTaskList")
 const { PHONE_PAGE_SIZE } = await import("@/lib/tasks/grouping")
 
@@ -61,6 +64,8 @@ afterEach(() => {
   shown.length = 0
   asked.length = 0
   answers.clear()
+  nav.replace.mockClear()
+  window.history.replaceState(null, "", "/")
 })
 
 const task = (project: string, i: number, status: string) => ({
@@ -126,6 +131,17 @@ describe("a project's list on a phone, a page at a time", () => {
     expect(shown.at(-1)!.hasMore).toBe(false)
   })
 
+  // fluid-17: the page went into the address through the router, which
+  // fetched the route again for every page a scroll loaded.
+  it("keeps the page it has read to in the address, without a navigation", () => {
+    window.history.replaceState(null, "", "/app/project/p4?tab=list")
+    serve("p4", Array.from({ length: PHONE_PAGE_SIZE + 20 }, (_, i) => task("p4", i, "todo")))
+    readToTheEnd("p4")
+    expect(nav.replace).not.toHaveBeenCalled()
+    const at = new URL(window.location.href)
+    expect([at.pathname, at.searchParams.get("tab"), at.searchParams.get("page")]).toEqual(["/app/project/p4", "list", "1"])
+  })
+
   it("asks for nothing more when the first page is the whole list", () => {
     const tasks = Array.from({ length: 7 }, (_, i) => task("p3", i, i < 2 ? "inProgress" : "todo"))
     serve("p3", tasks)
@@ -133,5 +149,39 @@ describe("a project's list on a phone, a page at a time", () => {
     expect(asked.map((u) => new URL(u, "http://app").searchParams.get("pageIndex"))).toEqual(["0"])
     expect(heads(shown.at(-1)!.rows).sort()).toEqual(["In progress 2", "To do 5"])
     expect(shown.at(-1)!.hasMore).toBe(false)
+  })
+})
+
+// A search's read left the list's sort and filters out: a list sorted and
+// filtered in the phone's sheet, then searched, came back in the server's
+// order with every task. Its first read did too, the search's effect running
+// last.
+describe("a project's list on a phone, sorted and filtered", () => {
+  const sort: sortInterface[] = [{ id: "task_due_date", desc: true }]
+  const filters = [{ id: "task_status", value: ["todo", "inProgress"] }]
+  const asks = () =>
+    asked.map((u) => {
+      const q = new URL(u, "http://app").searchParams
+      return { sorting: q.get("sorting"), filters: q.get("filters"), search: q.get("taskSearchString"), page: q.get("pageIndex") }
+    })
+  const list = (project: string, searchQuery: string) => (
+    <Provider store={store}>
+      <ProjectTaskList projectId={project} searchQuery={searchQuery} search={null} />
+    </Provider>
+  )
+
+  it("asks for its first page sorted and filtered", () => {
+    serve("p4", Array.from({ length: 7 }, (_, i) => task("p4", i, "todo")))
+    store.dispatch(updateProjectSortingAndFiltering({ projectId: "p4", sort, filters }))
+    render(list("p4", ""))
+    expect(asks()).toEqual([{ sorting: JSON.stringify(sort), filters: JSON.stringify(filters), search: null, page: "0" }])
+  })
+
+  it("asks for a search's tasks sorted and filtered", () => {
+    serve("p5", Array.from({ length: 7 }, (_, i) => task("p5", i, "todo")))
+    store.dispatch(updateProjectSortingAndFiltering({ projectId: "p5", sort, filters }))
+    const view = render(list("p5", ""))
+    view.rerender(list("p5", "venue"))
+    expect(asks().at(-1)).toEqual({ sorting: JSON.stringify(sort), filters: JSON.stringify(filters), search: "venue", page: "0" })
   })
 })

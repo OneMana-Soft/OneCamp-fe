@@ -1,6 +1,6 @@
 "use client"
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MouseEvent } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react"
 
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { statusKindOf, useStatusLabel, type StatusLike } from "@/components/task/taskStatusCell"
@@ -8,9 +8,15 @@ import { celebrateTask, warmBurstsWhenIdle } from "@/lib/celebrateSoon"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { feedback } from "@/lib/ui/feedback"
 import { cn } from "@/lib/utils/helpers/cn"
+import { DisabledTipPiece as Tip } from "@/components/ui/disabledTipPiece"
 
-// Why it is disabled, in the portalled tooltip, fetched when first needed.
-const Tip = lazy(() => import("@/components/ui/disabledTip"))
+// The completion preview shows only on hover, so a screen without hover (a
+// phone) never draws it: three elements fewer in each of a list's rows
+// (fluid-17). The server draws it, and the page follows the screen once
+// hydrated.
+const noHover = () => typeof window.matchMedia === "function" && !window.matchMedia("(hover: hover)").matches
+const still = () => () => {}
+const onServer = () => false
 
 /**
  * The completable check (design v3, work.md W03): the task's status glyph,
@@ -58,6 +64,7 @@ export function TaskCheck({
   // "fill" while this click's completion plays; "swap" while a reopen does.
   const [anim, setAnim] = useState<"fill" | "swap" | null>(null)
   const statusName = useStatusLabel(status)
+  const hoverless = useSyncExternalStore(still, noHover, onServer)
   useEffect(() => {
     if (!anim) return
     const t = window.setTimeout(() => setAnim(null), 400)
@@ -138,7 +145,7 @@ export function TaskCheck({
               <StatusGlyph status={statusKindOf(status)} hue={status.hue} size={size} />
             </span>
             {/* The preview of completion: moss ring and a ghost tick. */}
-            {!disabled && (
+            {!disabled && !hoverless && (
               <svg
                 width={size}
                 height={size}
@@ -155,7 +162,7 @@ export function TaskCheck({
       </span>
     </button>
   )
-  return disabled && disabledReason ? <Suspense fallback={check}><Tip reason={disabledReason}>{check}</Tip></Suspense> : check
+  return <>{check}{disabled && disabledReason && <Suspense><Tip control={ref} reason={disabledReason} /></Suspense>}</>
 }
 
 /**

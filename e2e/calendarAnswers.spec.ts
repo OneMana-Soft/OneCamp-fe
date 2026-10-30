@@ -8,7 +8,9 @@ import { SAM, stubBackend } from "./stubbedApp"
 // On a phone the card is the half sheet. The panel lists every answer and
 // note, and someone invited by email answers on their own page. Calendar A5:
 // the card and the panel say the reader's reminder, which a menu changes at
-// once. With
+// once. Calendar head 4: a guest proposes another time, from the panel or
+// their own page, and takes it back; the organiser uses it or dismisses it.
+// With
 // SHOTS_DIR set, each state is also saved for review, at the viewport and
 // theme it ran in.
 
@@ -29,14 +31,18 @@ const CRIT = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c02"
 const HANDS = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c03"
 const SYNC = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c04"
 
-type Guest = { user_uuid?: string; email?: string; name?: string; role: string; response: string; note?: string; invite?: string }
+type Proposal = { start: string; end: string }
+type Guest = { user_uuid?: string; email?: string; name?: string; role: string; response: string; note?: string; invite?: string; proposal?: Proposal }
+/** Maya's proposal for Sam's launch review: Wednesday 4 PM instead of 2. */
+const MAYAS = { start: at(21, 16), end: at(21, 17) }
 
 /**
  * The calendar as Sam reads it: mine is his answer to Maya's crit, and
  * chosen his own reminder for the launch review (null: the default's). The
  * default reminds him of what he organises or said yes or maybe to (D-CAL-4).
+ * proposed: the times standing, his for the crit and Maya's for his review.
  */
-function events(mine: string, chosen: number[] | null = null) {
+function events(mine: string, chosen: number[] | null = null, proposed: { mine?: Proposal | null; maya?: Proposal | null } = {}) {
   const guest = (p: { user_uuid: string }, response: string, note?: string): Guest => ({ user_uuid: p.user_uuid, role: "required", response, ...(note ? { note } : {}) })
   const byDefault = (on: boolean) => ({ event_reminders: on ? [10] : [], event_reminders_default: true })
   return [
@@ -45,7 +51,7 @@ function events(mine: string, chosen: number[] | null = null) {
       event_uuid: LAUNCH, event_title: "Launch review", event_start_time: at(21, 14), event_end_time: at(21, 15),
       event_description: "<p>Join https://meet.example.com/launch</p><p>Walk the checklist, then decide go or no-go.</p>",
       event_created_by: ME, event_participants: [MAYA, JONAS, LEE],
-      event_guests: [guest(MAYA, "accepted", "Ten minutes late"), guest(JONAS, "tentative"), guest(LEE, "needs_action"),
+      event_guests: [{ ...guest(MAYA, "accepted", "Ten minutes late"), ...(proposed.maya ? { proposal: proposed.maya } : {}) }, guest(JONAS, "tentative"), guest(LEE, "needs_action"),
         { email: "alex@example.com", name: "Alex Kim", role: "required", response: "declined", invite: "not_sent" }],
       ...(chosen ? { event_reminders: chosen, event_reminders_default: false } : byDefault(true)),
     },
@@ -54,7 +60,7 @@ function events(mine: string, chosen: number[] | null = null) {
       event_uuid: CRIT, event_title: "Design crit", event_start_time: at(22, 11), event_end_time: at(22, 11, 45),
       event_description: "<p>Studio, second floor. Bring the pricing page.</p>",
       event_created_by: MAYA, event_participants: [ME, JONAS],
-      event_guests: [guest(SAM, mine), guest(JONAS, "accepted")],
+      event_guests: [{ ...guest(SAM, mine), ...(proposed.mine ? { proposal: proposed.mine } : {}) }, guest(JONAS, "accepted")],
       ...byDefault(mine === "accepted" || mine === "tentative"),
     },
     {
@@ -79,8 +85,9 @@ function events(mine: string, chosen: number[] | null = null) {
 async function openCalendar(page: Page, testInfo: TestInfo, place = "date=2026-10-21&view=week", first = LAUNCH) {
   let mine = "needs_action"
   let chosen: number[] | null = null
-  const list = () => ({ msg: "ok", data: events(mine, chosen) })
-  const one = (id: string) => ({ msg: "ok", data: events(mine, chosen).find((e) => e.event_uuid === id) })
+  const proposed: { mine: Proposal | null; maya: Proposal | null } = { mine: null, maya: MAYAS }
+  const list = () => ({ msg: "ok", data: events(mine, chosen, proposed) })
+  const one = (id: string) => ({ msg: "ok", data: events(mine, chosen, proposed).find((e) => e.event_uuid === id) })
   await page.clock.setFixedTime(NOW)
   // The first-run keys tip has been seen: it isn't this test's screen.
   await page.addInitScript(() => {
@@ -94,8 +101,17 @@ async function openCalendar(page: Page, testInfo: TestInfo, place = "date=2026-1
     "/event/getEvents": list,
     "/event/getEvent/": (url: URL) => one(url.pathname.split("/").pop() ?? ""),
     "/calendar/events/": (url: URL, request: Request) => {
-      // The answer is kept, so the calendar read after it shows it.
-      if (url.pathname.endsWith("/answer")) mine = "accepted"
+      // The answer is kept, so the calendar read after it shows it, and so is
+      // a proposal ({} takes it back); a dismissed one is gone.
+      if (url.pathname.endsWith("/answer")) {
+        const body = request.postDataJSON() as { answer?: string; proposal?: Partial<Proposal> }
+        mine = body.answer ?? "accepted"
+        if (body.proposal) proposed.mine = body.proposal.start && body.proposal.end ? { start: body.proposal.start, end: body.proposal.end } : null
+      }
+      if (url.pathname.endsWith("/proposal/dismiss")) {
+        proposed.maya = null
+        return { msg: "ok", data: null }
+      }
       // And so is a reminder (only the launch review's changes here).
       if (url.pathname.endsWith("/reminders")) {
         const minutes = (request.postDataJSON() as { minutes: number[] | null }).minutes
@@ -229,6 +245,52 @@ for (const theme of ["light", "dark"] as const) {
       await expect(answer.getByRole("textbox", { name: "Your note with your answer" })).toBeVisible({ timeout: 20_000 })
       await shot(page, "panel-guest", theme)
     })
+
+    test("a guest proposes another time with their answer, sees it, and takes it back", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openCalendar(page, testInfo)
+      await page.locator(`[data-event-uuid="${CRIT}"]`).first().click()
+      await card(page).getByRole("button", { name: "More" }).click()
+      await page.getByRole("menuitem", { name: "Open" }).click()
+      const answer = page.locator("[data-event-answer]")
+      await answer.getByRole("radio", { name: "Maybe" }).click()
+      await answer.getByRole("button", { name: "Propose a new time" }).click({ timeout: 20_000 })
+      const form = answer.getByRole("group", { name: "Propose a new time" })
+      await expect(form).toBeVisible({ timeout: 20_000 })
+      // The crit's own day, an hour earlier: its 45 minutes move with From.
+      await form.getByRole("button", { name: /^From/ }).click()
+      await page.getByRole("listbox", { name: "Time" }).getByRole("option", { name: /^10:00\sAM/ }).click()
+      await shot(page, "panel-guest-proposing", theme)
+      const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith(`/calendar/events/${CRIT}/answer`) && !!r.postDataJSON()?.proposal)
+      await form.getByRole("button", { name: "Propose" }).click()
+      expect((await sent).postDataJSON()).toEqual({ answer: "tentative", scope: "all", proposal: { start: at(22, 10), end: at(22, 10, 45) } })
+      const mine = answer.locator("[data-your-proposal]")
+      await expect(mine).toContainText(/You proposed Thu 22 Oct, 10:00\sAM – 10:45\sAM/, { timeout: 20_000 })
+      await shot(page, "panel-guest-proposed", theme)
+      const back = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith(`/calendar/events/${CRIT}/answer`) && !!r.postDataJSON()?.proposal)
+      await mine.getByRole("button", { name: "Take it back" }).click()
+      expect((await back).postDataJSON().proposal).toEqual({})
+      await expect(answer.getByRole("button", { name: "Propose a new time" })).toBeVisible({ timeout: 20_000 })
+    })
+
+    test("the organiser sees a guest's proposed time on their row, and uses it or dismisses it", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openCalendar(page, testInfo)
+      await page.locator(`[data-event-uuid="${LAUNCH}"]`).first().click()
+      await card(page).getByRole("button", { name: "Open details" }).click()
+      const row = page.locator("[data-event-guests] [data-guest-proposal]")
+      await expect(row).toContainText(/Proposes Wed 21 Oct, 4:00\sPM – 5:00\sPM/, { timeout: 20_000 })
+      await shot(page, "panel-organiser-proposal", theme)
+      // Used as any change is: the event moves to it.
+      const moved = page.waitForRequest((r) => r.method() === "PATCH" && new URL(r.url()).pathname.endsWith(`/calendar/events/${LAUNCH}`))
+      await row.getByRole("button", { name: "Use this time" }).click()
+      const patch = (await moved).postDataJSON() as { start: { at: string }; end: { at: string } }
+      expect([patch.start.at, patch.end.at]).toEqual([MAYAS.start, MAYAS.end])
+      const dismissed = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith(`/calendar/events/${LAUNCH}/proposal/dismiss`))
+      await row.getByRole("button", { name: "Dismiss Maya Chen's proposal" }).click()
+      expect((await dismissed).postDataJSON()).toEqual({ user_uuid: MAYA.user_uuid })
+      await expect(row).toHaveCount(0, { timeout: 20_000 })
+    })
   })
 
   test.describe(`the event card on a phone, ${theme}`, () => {
@@ -273,25 +335,64 @@ for (const theme of ["light", "dark"] as const) {
       await expect(choices).toHaveCount(0)
       await expect(sheet.getByRole("button", { name: "Reminders: 30 minutes before" })).toBeVisible()
     })
+
+    test("proposes another time from the event's own page, in its pinned foot", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openCalendar(page, testInfo, "date=2026-10-22&view=day", CRIT)
+      await page.goto(`/app/calendar/event/${CRIT}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      const foot = page.locator("[data-event-panel-foot]")
+      await foot.getByRole("radio", { name: "Maybe" }).tap({ timeout: 30_000 })
+      await foot.getByRole("button", { name: "Propose a new time" }).tap({ timeout: 20_000 })
+      // The whole form, its caption with it, above the phone's bottom edge.
+      const form = foot.getByRole("group", { name: "Propose a new time" })
+      await expect(form).toBeInViewport({ ratio: 1, timeout: 20_000 })
+      await expect(form.getByText("Propose a new time")).toBeVisible()
+      await form.getByRole("button", { name: /^From/ }).tap()
+      await page.getByRole("listbox", { name: "Time" }).getByRole("option", { name: /^10:00\sAM/ }).tap()
+      await shot(page, "page-guest-proposing", theme)
+      const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith(`/calendar/events/${CRIT}/answer`) && !!r.postDataJSON()?.proposal)
+      await form.getByRole("button", { name: "Propose" }).tap()
+      expect((await sent).postDataJSON().proposal).toEqual({ start: at(22, 10), end: at(22, 10, 45) })
+      await expect(foot.locator("[data-your-proposal]")).toContainText(/You proposed Thu 22 Oct, 10:00\sAM – 10:45\sAM/, { timeout: 20_000 })
+      await shot(page, "page-guest-proposed", theme)
+    })
+
+    test("shows the organiser a guest's proposed time on its row, on the event's own page", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openCalendar(page, testInfo, "date=2026-10-21&view=day", LAUNCH)
+      await page.goto(`/app/calendar/event/${LAUNCH}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      const row = page.locator("[data-event-guests] [data-guest-proposal]")
+      await expect(row).toContainText(/Proposes Wed 21 Oct, 4:00\sPM – 5:00\sPM/, { timeout: 30_000 })
+      await row.scrollIntoViewIfNeeded()
+      await expect(row.getByRole("button", { name: "Use this time" })).toBeInViewport()
+      await shot(page, "page-organiser-proposal", theme)
+    })
   })
 
   for (const width of [1280, 390]) {
     test.describe(`an invitation's own page at ${width}, ${theme}`, () => {
       test.use({ viewport: { width, height: width > 600 ? 860 : 844 }, isMobile: width < 600, hasTouch: width < 600, colorScheme: theme })
 
-      test("says who invited them to what and when, and takes their answer", async ({ page }, testInfo) => {
+      test("says who invited them to what and when, takes their answer, and another time they propose", async ({ page }, testInfo) => {
         test.setTimeout(180_000)
         let response = "needs_action"
+        let proposal: Proposal | undefined
         await page.clock.setFixedTime(NOW)
         await stubBackend(page, testInfo, {
-          "/public/rsvp/": (url: URL) => {
+          "/public/rsvp/": (url: URL, request: Request) => {
             void url
+            // The page's answer is kept, and so is a proposal ({} takes it back).
+            if (request.method() === "POST") {
+              const body = request.postDataJSON() as { answer?: string; proposal?: Partial<Proposal> }
+              if (body.answer) response = body.answer
+              if (body.proposal) proposal = body.proposal.start && body.proposal.end ? { start: body.proposal.start, end: body.proposal.end } : undefined
+            }
             return {
               msg: "ok",
               data: {
                 title: "Pricing page walkthrough", start: { at: at(23, 15), zone: "Europe/London" }, end: { at: at(23, 15, 45) }, all_day: false,
-                organiser: "Sam Rivera", ended: false, notes: "We'll walk the new tiers and the FAQ.",
-                you: { name: "Alex Kim", email: "alex@example.com", response },
+                organiser: "Sam Rivera", ended: false, proposable: true, notes: "We'll walk the new tiers and the FAQ.",
+                you: { name: "Alex Kim", email: "alex@example.com", response, ...(proposal ? { proposal } : {}) },
                 guests: [{ name: "Maya Chen", response: "accepted" }, { name: "Jonas Weber", response: "tentative" }],
               },
             }
@@ -300,10 +401,21 @@ for (const theme of ["light", "dark"] as const) {
         await page.goto("/rsvp/invitation-token", { waitUntil: "domcontentloaded", timeout: 120_000 })
         await expect(page.getByRole("heading", { name: "Pricing page walkthrough" })).toBeVisible({ timeout: 60_000 })
         await shot(page, "rsvp-unanswered", theme)
-        response = "accepted"
         await page.getByRole("radio", { name: "Yes" }).click()
         await expect(page.getByRole("textbox", { name: "Your note with your answer" })).toBeVisible({ timeout: 20_000 })
         await shot(page, "rsvp-answered", theme)
+        // An hour earlier, from the same page: its fields open by them, or in a sheet of their own on a phone.
+        await page.getByRole("button", { name: "Propose a new time" }).click()
+        const form = page.getByRole("group", { name: "Propose a new time" })
+        await expect(form).toBeVisible({ timeout: 20_000 })
+        await form.getByRole("button", { name: /^From/ }).click()
+        await page.getByRole("listbox", { name: "Time" }).getByRole("option", { name: /^2:00\sPM/ }).click()
+        await shot(page, "rsvp-proposing", theme)
+        const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().includes("/public/rsvp/") && !!r.postDataJSON()?.proposal)
+        await form.getByRole("button", { name: "Propose" }).click()
+        expect((await sent).postDataJSON()).toEqual({ answer: "accepted", proposal: { start: at(23, 14), end: at(23, 14, 45) } })
+        await expect(page.locator("[data-your-proposal]")).toContainText(/You proposed Fri 23 Oct, 2:00\sPM – 2:45\sPM/, { timeout: 20_000 })
+        await shot(page, "rsvp-proposed", theme)
       })
     })
   }

@@ -37,6 +37,7 @@ export function GoingControl({
   answer,
   onAnswer,
   touch = false,
+  fill = false,
   className,
 }: {
   /** The answer as the server has it. */
@@ -45,6 +46,8 @@ export function GoingControl({
   onAnswer: (a: Answer) => Promise<boolean | null>
   /** 44 px segments whatever the pointer: the phone's sheet. */
   touch?: boolean
+  /** The question over the answers, which share the width: a narrow card (Home's strip). */
+  fill?: boolean
   className?: string
 }) {
   const labelId = useId()
@@ -90,11 +93,11 @@ export function GoingControl({
   // The answer given takes the tab stop; with none yet, Yes does.
   const tabStop = Math.max(0, CHOICES.findIndex((c) => c.value === shown))
   return (
-    <div className={cn("flex items-center justify-between gap-3", className)} data-going={shown}>
+    <div className={cn("flex items-center justify-between gap-3", fill && "flex-col items-stretch gap-1", className)} data-going={shown}>
       <span id={labelId} className="text-ui-sm text-ink-2">
         Going?
       </span>
-      <div role="radiogroup" aria-labelledby={labelId} className="flex gap-0.5 rounded-md bg-hover p-0.5" data-touch-group="">
+      <div role="radiogroup" aria-labelledby={labelId} className={cn("flex gap-0.5 rounded-md bg-hover p-0.5", fill && "w-full")} data-touch-group="">
         {CHOICES.map((c, i) => {
           const on = shown === c.value
           return (
@@ -116,6 +119,7 @@ export function GoingControl({
                 "inline-flex h-7 min-w-14 items-center justify-center gap-1 rounded-sm px-2.5 text-ui-sm font-[510] text-ink-2 outline-none",
                 "transition-colors duration-[120ms] hover:text-ink focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11 pointer-coarse:min-w-16",
                 touch && "h-11 min-w-16",
+                fill && "min-w-0 flex-1",
                 on && CHOSEN[c.value],
               )}
             >

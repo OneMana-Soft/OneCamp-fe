@@ -4,6 +4,7 @@ import { useCallback, useRef } from "react"
 
 import { ProjectGlanceLine, type GlanceKind } from "@/components/project/ProjectGlanceLine"
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip"
+import { LazyForecastChip } from "@/components/project/LazyForecastChip"
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip"
 import { useToast } from "@/hooks/use-toast"
 import { celebrateCamp, sparkedRecently } from "@/lib/celebrateSoon"
@@ -11,10 +12,11 @@ import type { ProjectGlance } from "@/lib/utils/projectGlance"
 
 /**
  * The line under a project's name (design v3, work.md W16): the meta counts,
- * then its health chip and the goal it serves. The three load on their own,
- * so the line holds its height from the first paint and never wraps. Short
- * of room, the goal's name gives way first, then the counts; the health stays
- * whole. (The phone has its own row, in projectListTabs.)
+ * then its health chip, when its work lands (linear-20) and the goal it
+ * serves. Each loads on its own, so the line holds its height from the first
+ * paint and never wraps. Short of room, the goal's name gives way first, then
+ * the counts; the health and the forecast stay whole. (The phone has its own
+ * row, in projectListTabs.)
  *
  * When this person's finish takes the project to 100 % done, the Camp tier
  * fires once from the header (work.md W04), with its one-line toast.
@@ -40,6 +42,7 @@ export function ProjectHeaderLine({ projectId, projectName, onOpenUpdates, onPic
     <div ref={line} data-project-line className="flex h-6 min-w-0 items-center gap-x-3">
       <ProjectGlanceLine projectId={projectId} className="shrink-0" onGlance={onGlance} onPick={onPickCount} />
       <ProjectHealthChip projectId={projectId} onOpen={onOpenUpdates} className="shrink-0" />
+      <LazyForecastChip projectId={projectId} className="shrink-0" />
       <ProjectGoalChip projectId={projectId} className="min-w-0 shrink-[4] overflow-hidden" />
     </div>
   )

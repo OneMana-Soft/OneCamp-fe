@@ -7,7 +7,7 @@
  * sends the note written there.
  */
 import type { KeyedMutator } from "swr"
-import type { CalendarEventInterface, GetEventsResponse } from "@/types/calendar"
+import type { CalendarEventInterface, EventProposal, GetEventsResponse } from "@/types/calendar"
 import { answerEventRequest, type Answer } from "@/lib/calendar/eventsApi"
 import { isInstanceId, seriesIdOf } from "@/lib/calendar/instanceId"
 import type { RepeatScope } from "@/lib/calendar/repeat"
@@ -40,22 +40,30 @@ export function withAnswer(cur: GetEventsResponse | undefined, ev: CalendarEvent
   }
 }
 
-/** Sends the answer: true when it went, false when it couldn't, null when it wasn't sent (the question closed). */
+/**
+ * Sends the answer: true when it went, false when it couldn't, null when it
+ * wasn't sent (the question closed). A proposal of another time (null takes
+ * it back) is for the one event answered: an instance's goes with it alone,
+ * unasked.
+ */
 export async function sendAnswer(
   { post, askScope, mutateEvents, selfId }: AnswerSender,
   ev: CalendarEventInterface,
   answer: Answer,
   note?: string,
+  proposal?: EventProposal | null,
 ): Promise<boolean | null> {
   let scope: "this" | "all" = "all"
-  if (isInstanceId(ev.event_uuid)) {
+  if (isInstanceId(ev.event_uuid) && proposal !== undefined) {
+    scope = "this"
+  } else if (isInstanceId(ev.event_uuid)) {
     const picked = askScope ? await askScope("answer") : "this"
     if (!picked) return null
     scope = picked === "all" ? "all" : "this"
   }
   if (selfId) void mutateEvents?.((cur) => withAnswer(cur, ev, selfId, answer, scope), { revalidate: false })
   try {
-    await post.makeRequest(answerEventRequest(ev.event_uuid, answer, { scope, note }))
+    await post.makeRequest(answerEventRequest(ev.event_uuid, answer, { scope, note, proposal }))
     return true
   } catch {
     return false

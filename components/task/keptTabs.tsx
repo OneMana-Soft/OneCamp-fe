@@ -11,7 +11,7 @@
 // switch, which forced a style recalculation of the whole page just after the
 // new tab's rows had been added (28 to 85 ms at 4x CPU).
 
-import { Activity, useCallback, useState, type ReactNode } from "react"
+import { Activity, useState, type ReactNode } from "react"
 import { TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -49,18 +49,4 @@ export function KeptTab({
   )
 }
 
-/**
- * The tab in the address, without a navigation: the Next router's replace
- * fetched the page again and rendered every component reading the address
- * (the sidebar, the header's menus) on each switch. history.replaceState is
- * synced into useSearchParams by Next itself.
- */
-export function useTabInAddress() {
-  return useCallback((key: string, value: string) => {
-    if (typeof window === "undefined") return
-    const url = new URL(window.location.href)
-    if (url.searchParams.get(key) === value) return
-    url.searchParams.set(key, value)
-    window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}${url.hash}`)
-  }, [])
-}
+export { useTabInAddress } from "@/components/task/tabInAddress"

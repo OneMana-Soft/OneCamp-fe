@@ -58,5 +58,6 @@ next-env.d.ts
 /AGENTS.md
 /CLAUDE.md
 
-# Call effects: copied out of node_modules before each build (scripts/calls-assets.mjs)
+# Call effects and board faces: copied out of node_modules before each build (scripts/vendor-assets.mjs)
 /public/calls/vendor/
+/public/board/vendor/

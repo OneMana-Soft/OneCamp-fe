@@ -56,7 +56,7 @@ describe("CALL-BUG-19: Share is offered only where a screen can be captured", ()
 
 describe("CALL-BUG-13: one key table drives the handlers and the tooltips", () => {
   it("teaches exactly the keys it answers", () => {
-    expect(CONTROL_KEYS).toEqual({ mic: "M", camera: "V", share: "⇧S", captions: "C", ai: "J", layout: "L" })
+    expect(CONTROL_KEYS).toEqual({ mic: "M", camera: "V", share: "⇧S", captions: "C", ai: "J", layout: "L", hand: "H" })
     for (const row of CALL_KEYS) {
       expect(callKeyAction({ key: row.shift ? row.key.toUpperCase() : row.key, shiftKey: !!row.shift, metaKey: false, ctrlKey: false, altKey: false, repeat: false })).toBe(row.action)
     }

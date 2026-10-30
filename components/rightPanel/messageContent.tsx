@@ -60,6 +60,8 @@ interface MessageContentProps {
     removeReaction: (reactionId: string) => void
     attachments?: AttachmentMediaReq[]
     addReaction: (emojiId:string, reactionId: string) => void
+    /** Whether the reader may react here, as the server says (a task's comment for a project viewer: no). */
+    canReact?: boolean
     isAdmin?: boolean;
     /** Saves a correction; answers whether it saved (hooks/useSaveEdit). */
     updateMessage: (id: string, body: string) => Promise<boolean> | boolean | void;
@@ -89,6 +91,7 @@ export const MessageContent = ({
     removeReaction,
     addReaction,
     rawReactions,
+    canReact = true,
     channelUUID,
     postUUID,
     chatUUID,
@@ -325,7 +328,7 @@ export const MessageContent = ({
 
                 {isAgent && !isMessageEditEnabled && <AgentProvenance asker={asker} />}
 
-                {!isMessageEditEnabled && !isGuest && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reacted.byEmoji} selectedEmojiIds={reacted.selected} selfName={displayNameOf(selfProfile.data?.data)} burstEmojiId={reacted.burstEmojiId}/>}
+                {!isMessageEditEnabled && !isGuest && <BottomMenu canReact={canReact} handleEmojiClick={handleEmojiClick} reactions={reacted.byEmoji} selectedEmojiIds={reacted.selected} selfName={displayNameOf(selfProfile.data?.data)} burstEmojiId={reacted.burstEmojiId}/>}
 
             </div>
             {/* After the reply in the DOM, so Tab reaches the actions after
@@ -343,6 +346,7 @@ export const MessageContent = ({
                         authorName={authorName}
                         setEmojiPopupState={setIsEmojiPickerOpen}
                         onReactionSelect={handleEmojiClick}
+                        canReact={canReact}
                         editMessage={edit.open}
                         isOwner={selfProfile.data?.data.user_uuid == userInfo?.user_uuid}
                         isAdmin={isAdmin}

@@ -9,7 +9,7 @@ const toast = vi.fn()
 let fields: TaskField[] = []
 let canManage = true
 
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a) }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a) } }))
 vi.mock("@/hooks/useTaskUpdate", () => ({ useTaskUpdate: () => ({ optimisticSetTaskField: (...a: unknown[]) => setField(...a) }) }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: () => Promise.resolve() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
@@ -64,7 +64,8 @@ describe("TaskFieldsSection", () => {
     await act(async () => {
       fireEvent.blur(box)
     })
-    expect(setField).toHaveBeenCalledWith("t", "p", "f-budget", 990050)
+    // The reader of what's typed is its own chunk (lib/loadChunk): the save follows once it's in.
+    await vi.waitFor(() => expect(setField).toHaveBeenCalledWith("t", "p", "f-budget", 990050))
     expect(post).toHaveBeenCalledWith("/task/field", { task_uuid: "t", field_id: "f-budget", value: 990050 }, expect.anything())
   })
 
@@ -91,18 +92,18 @@ describe("TaskFieldsSection", () => {
     await act(async () => {
       fireEvent.blur(box)
     })
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Budget wasn't changed" })))
     expect(post).not.toHaveBeenCalled()
     expect(screen.getByLabelText("Budget").textContent).toBe("1")
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Budget wasn't changed" }))
   })
 
-  it("offers an admin a first field, and nobody else an empty section", () => {
+  it("offers an admin a first field, and nobody else an empty section", async () => {
     const { unmount } = render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{}} canEdit={false} members={[]} />)
     expect(screen.queryByText("Fields")).toBeNull()
     unmount()
     render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{}} canEdit members={[]} />)
     fireEvent.click(screen.getByRole("button", { name: /Add a field/ }))
-    expect(screen.getByText("Fields dialog")).toBeTruthy()
+    expect(await screen.findByText("Fields dialog")).toBeTruthy()
   })
 })
 

@@ -153,3 +153,22 @@ test("find counts the matches, and Replace all changes them for everyone in one 
   await sam.close()
   await priya.close()
 })
+
+// The "/table" picker loads the first time it opens (lib/lazy/lazyDialog): a
+// doc's page no longer carries it, and it still opens on the first ask.
+test("the table picker comes the first time a table is asked for", async ({ browser }, testInfo) => {
+  const relay = new CollabRelay()
+  const sam = await openDocAs(browser, testInfo, relay, SAM, { id: id(5) })
+
+  await sam.body.click()
+  await sam.page.keyboard.type("/database")
+  await expect(sam.page.locator("[data-slash-menu]")).toBeVisible()
+  await sam.page.keyboard.press("Enter")
+  const picker = sam.page.getByRole("dialog", { name: "Insert a table" })
+  await expect(picker).toBeVisible({ timeout: 30_000 })
+  await expect(picker.getByRole("searchbox", { name: "Search your tables" })).toBeVisible()
+  await sam.page.keyboard.press("Escape")
+  await expect(picker).toBeHidden()
+
+  await sam.close()
+})

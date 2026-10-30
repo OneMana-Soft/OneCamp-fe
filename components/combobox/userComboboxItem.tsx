@@ -1,19 +1,15 @@
 "use client"
 
-import { CommandItem } from "@/components/ui/command"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ComboboxItem } from "@/components/ui/combobox"
 import { BotTag } from "@/components/ui/botTag"
-import { getNameInitials } from "@/lib/utils/format/getNameIntials"
-import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { ChatFace } from "@/components/message/chatFace"
 import { useBotKind } from "@/hooks/useBotKinds"
 import { botSubtitle } from "@/lib/botCopy"
 import { addressOrHandleOf, personSearchValue } from "@/lib/personName"
-import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 
 interface UserComboboxItemProps {
     userUuid: string
     userName: string
-    /** Matched by the list's search, as is the handle. */
     userFullName?: string
     userHandle?: string
     userEmail?: string
@@ -23,6 +19,7 @@ interface UserComboboxItemProps {
     onSelect: (value: string) => void
 }
 
+/** A person in a picker: their face (ChatFace), name and address or handle, searched by all; the check ends the row. */
 export function UserComboboxItem({
     userUuid,
     userName,
@@ -34,37 +31,28 @@ export function UserComboboxItem({
     isBot,
     onSelect,
 }: UserComboboxItemProps) {
-    const {src: imageSrc} = useUserAvatar(userProfileObjectKey)
     const botKind = useBotKind(userUuid, isBot)
     const secondLine = isBot ? botSubtitle(botKind) : addressOrHandleOf({ user_email_id: userEmail, user_handle: userHandle })
 
     return (
-        <CommandItem
-            value={personSearchValue(userName, { fullName: userFullName, handle: userHandle, email: userEmail, id: userUuid })}
+        <ComboboxItem
+            value={userUuid}
+            keywords={[personSearchValue(userName, { fullName: userFullName, handle: userHandle, email: userEmail })]}
+            checked={isSelected}
+            checkAt="end"
             onSelect={() => onSelect(userUuid)}
-            className="cursor-pointer p-2 rounded-lg m-1 gap-3 transition-colors duration-200"
-            {...menuCheckState(isSelected)}
+            className="gap-3 py-1.5"
         >
-            <Avatar className="h-8 w-8 border border-border/50 flex-shrink-0">
-                <AvatarImage
-                    src={imageSrc}
-                    alt={userName}
-                />
-                <AvatarFallback className="text-3xs font-medium">
-                    {getNameInitials(userName)}
-                </AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col min-w-0 flex-1">
-                <span className="font-medium text-sm truncate flex items-center gap-1.5">
+            <ChatFace name={userName} profileKey={userProfileObjectKey} userUUID={userUuid} isBot={isBot} size={28} />
+            <div className="flex min-w-0 flex-1 flex-col">
+                <span className="flex items-center gap-1.5 truncate font-medium">
                     {userName}
                     {isBot && (
                         <BotTag userUUID={userUuid} />
                     )}
                 </span>
-                {secondLine && <span className="text-2xs text-muted-foreground truncate font-medium">{secondLine}</span>}
+                {secondLine && <span className="truncate text-2xs text-ink-3">{secondLine}</span>}
             </div>
-            {/* The row leads with the person, so the shared check ends it. */}
-            <MenuCheck checked={isSelected} className="ml-auto" />
-        </CommandItem>
+        </ComboboxItem>
     )
 }

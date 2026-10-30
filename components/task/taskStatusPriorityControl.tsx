@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { prioritiesInterface } from "@/types/table"

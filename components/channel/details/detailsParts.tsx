@@ -72,7 +72,7 @@ export function InlineConfirm({ label, question, warning, confirmLabel, onConfir
             {warning && <p className="text-meta text-warning-ink">{warning}</p>}
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setAsking(false)} autoFocus>Cancel</Button>
-                <Button variant="destructive" size="sm" aria-busy={busy || undefined} onClick={onConfirm}>{confirmLabel}</Button>
+                <Button variant="destructive" size="sm" busy={busy} onClick={onConfirm}>{confirmLabel}</Button>
             </div>
         </div>
     )

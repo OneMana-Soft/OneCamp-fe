@@ -1,7 +1,8 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { ArrowLeft } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { inAppDepth } from "@/lib/navigation/back"
@@ -28,7 +29,7 @@ export function AdminPhoneTitle() {
 export function AdminPhoneLeading({ mark }: { mark: ReactNode }) {
   const pathname = usePathname() || ""
   const tab = useSearchParams()?.get("tab")
-  const router = useRouter()
+  const router = useAppRouter()
   if (pathname === "/app/admin" && !tab) return <>{mark}</>
   return (
     <Button

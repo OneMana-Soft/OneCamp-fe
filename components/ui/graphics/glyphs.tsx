@@ -22,6 +22,7 @@ export function StatusGlyph({
   size = 16,
   label,
   hue,
+  onTint = false,
   className,
 }: {
   status: StatusKind
@@ -32,29 +33,38 @@ export function StatusGlyph({
    * (work.md §1.4); "neutral" or none keeps the category's colour.
    */
   hue?: CampHue | "neutral"
+  /**
+   * Drawn on a tint (a calendar block, a tinted chip, a chip toned for its
+   * day): its hues take their ink step. A hue's strong cut is a mark at 3:1
+   * on the page, a card and its own tint, not on another's: a task's sun read
+   * 2.44:1 on a lake calendar block. The ink holds 3:1 on every tint
+   * (app/paletteContrast.test.ts).
+   */
+  onTint?: boolean
   className?: string
 }) {
   const a11y = label ? { role: "img", "aria-label": label } : { "aria-hidden": true as const }
-  const own = hue && hue !== "neutral" ? `var(--camp-${hue})` : null
+  const paint = (h: CampHue) => `var(--camp-${h}${onTint ? "-ink" : ""})`
+  const own = hue && hue !== "neutral" ? paint(hue) : null
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" data-status-glyph={status} data-hue={own ? hue : undefined} className={cn("shrink-0", className)} {...a11y}>
       {status === "backlog" && <circle cx="8" cy="8" r="6" fill="none" stroke={own ?? "var(--ink-3)"} strokeWidth="1.5" strokeDasharray="2.2 2.1" />}
       {status === "todo" && <circle cx="8" cy="8" r="6" fill="none" stroke={own ?? "var(--ink-2)"} strokeWidth="1.5" />}
       {status === "progress" && (
         <>
-          <circle cx="8" cy="8" r="6" fill="none" stroke={own ?? "var(--camp-sun)"} strokeWidth="1.5" />
-          <path d="M8 4.5a3.5 3.5 0 0 1 0 7z" fill={own ?? "var(--camp-sun)"} />
+          <circle cx="8" cy="8" r="6" fill="none" stroke={own ?? paint("sun")} strokeWidth="1.5" />
+          <path d="M8 4.5a3.5 3.5 0 0 1 0 7z" fill={own ?? paint("sun")} />
         </>
       )}
       {status === "review" && (
         <>
-          <circle cx="8" cy="8" r="6" fill="none" stroke={own ?? "var(--camp-dusk)"} strokeWidth="1.5" />
-          <path d="M8 4.5a3.5 3.5 0 1 1-3.5 3.5H8z" fill={own ?? "var(--camp-dusk)"} />
+          <circle cx="8" cy="8" r="6" fill="none" stroke={own ?? paint("dusk")} strokeWidth="1.5" />
+          <path d="M8 4.5a3.5 3.5 0 1 1-3.5 3.5H8z" fill={own ?? paint("dusk")} />
         </>
       )}
       {status === "done" && (
         <>
-          <circle cx="8" cy="8" r="7" fill={own ?? "var(--camp-moss)"} />
+          <circle cx="8" cy="8" r="7" fill={own ?? paint("moss")} />
           <path d="m5.2 8.2 1.9 1.9 3.8-4" fill="none" stroke="var(--sheet)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </>
       )}

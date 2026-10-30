@@ -5,7 +5,7 @@
 // beside it. Opened from the account menu (desktop) and the drawer (mobile).
 //
 // DESIGN V3 (hub.md P5): a popover in the status menu's family, beside what
-// opened it, with 34px rows that each say when the pause would end; a bottom
+// opened it, with 34px rows, each "For …" row saying when it would end; a bottom
 // sheet of 48px rows on a phone held either way (components/ui/overlayMode),
 // Custom's Pause pinned in its footer. The note "Mentions from agents wait
 // too" waits for the backend to confirm the notification rules
@@ -17,10 +17,11 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { OverlayBody } from "@/components/ui/overlay"
 import { useSheetMode } from "@/components/ui/overlayMode"
+import { DateTimeField } from "@/components/ui/date-time-field"
 import { useToast } from "@/hooks/use-toast"
 import { usePauseNotifications } from "@/hooks/usePauseNotifications"
-import { formatSendAt, toLocalInputValue } from "@/lib/messages/schedulePresets"
-import { MAX_PAUSE_MS, pausePresets } from "@/lib/notifications/pause"
+import { formatSendAt, quarterUp, toLocalInputValue } from "@/lib/messages/schedulePresets"
+import { MAX_PAUSE_MS, pausePresets, saysHowLong } from "@/lib/notifications/pause"
 import { lastAnchorRect, SIDEBAR_FOOT } from "@/lib/hub/lastAnchor"
 import { clockTime } from "@/lib/utils/date/clock"
 
@@ -29,6 +30,17 @@ import { clockTime } from "@/lib/utils/date/clock"
  * the backend confirms agents' mentions are held by a pause like anyone's.
  */
 export const AGENT_MENTIONS_WAIT = false
+
+/**
+ * Why a custom end can't be used, or undefined when it can: a minute ahead at
+ * least, a week at most (the server's week, CheckPauseEnd). Pure.
+ */
+export function pauseUntilProblem(at: Date | null, now: number): string | undefined {
+  if (!at || Number.isNaN(at.getTime())) return "Pick a date and time."
+  if (at.getTime() <= now + 60_000) return "Pick a time at least a minute from now."
+  if (at.getTime() > now + MAX_PAUSE_MS) return "Pick a time within the next 7 days."
+  return undefined
+}
 
 /** When a pause picked now would end, as the row's right side says it: "3:30 PM", or "Tue 9:00 AM" on another day. */
 export function pauseEndLabel(at: Date, now: Date = new Date()): string {
@@ -51,10 +63,11 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
     if (customOpen) customRef.current?.scrollIntoView?.({ block: "nearest" })
   }, [customOpen])
   const now = new Date()
-  const [custom, setCustom] = React.useState(() => toLocalInputValue(new Date(now.getTime() + 60 * 60 * 1000)))
+  const [custom, setCustom] = React.useState(() => toLocalInputValue(quarterUp(new Date(now.getTime() + 60 * 60 * 1000))))
   const customAt = custom ? new Date(custom) : null
-  const customOk =
-    !!customAt && !Number.isNaN(customAt.getTime()) && customAt.getTime() > Date.now() + 60_000 && customAt.getTime() <= Date.now() + MAX_PAUSE_MS
+  // Why Pause waits, said under the field: it greyed out with no reason.
+  const problem = pauseUntilProblem(customAt, Date.now())
+  const problemId = React.useId()
 
   const onPick = async (at: Date) => {
     if (await pause(at)) {
@@ -71,7 +84,7 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
 
   const row = `flex ${sheet ? "h-12" : "h-[34px]"} w-full items-center gap-2.5 rounded-md px-2 text-left text-ui transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50`
   const pauseCustom = (
-    <Button size={sheet ? "lg" : "sm"} className={sheet ? "h-11 w-full" : "self-end"} disabled={!customOk || busy} onClick={() => customAt && void onPick(customAt)}>
+    <Button size={sheet ? "lg" : "sm"} className={sheet ? "h-11 w-full" : "self-end"} disabled={!!problem} busy={busy} aria-describedby={problem ? problemId : undefined} onClick={() => customAt && void onPick(customAt)}>
       Pause
     </Button>
   )
@@ -93,7 +106,8 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
         {pausePresets(now).map((p) => (
           <button key={p.label} type="button" data-pause-row="" className={row} disabled={busy} onClick={() => void onPick(p.at)}>
             <span className="min-w-0 flex-1 truncate">{p.label}</span>
-            <span className="shrink-0 text-meta tabular-nums text-ink-3">{pauseEndLabel(p.at, now)}</span>
+            {/* Its end beside a "For …" row only: an "Until …" row names its own, and was cut for the repeat. */}
+            {saysHowLong(p) ? <span className="shrink-0 text-meta tabular-nums text-ink-3">{pauseEndLabel(p.at, now)}</span> : null}
           </button>
         ))}
         <button type="button" data-pause-row="custom" className={row} aria-expanded={customOpen} onClick={() => setCustomOpen((o) => !o)}>
@@ -102,20 +116,23 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
       </div>
       {customOpen ? (
         <div ref={customRef} data-schedule-custom="" className="flex flex-col gap-1.5 px-2 pb-1">
-          <input
-            type="datetime-local"
+          {/* The app's date and time fields (D14), not the browser's box: on a
+              phone each opens as a panel of this sheet, Pause in its footer. */}
+          <DateTimeField
             aria-label="Pause until"
+            aria-describedby={problem ? problemId : undefined}
             value={custom}
             min={toLocalInputValue(now)}
             max={toLocalInputValue(new Date(now.getTime() + MAX_PAUSE_MS))}
-            onChange={(e) => setCustom(e.target.value)}
-            className="hub-field h-8 w-full min-w-0 rounded-md px-2 text-ui-sm"
+            onChange={setCustom}
           />
-          {sheet ? null : pauseCustom}
+          {problem ? <p id={problemId} className="px-0.5 text-meta text-ink-2">{problem}</p> : null}
         </div>
       ) : null}
       <p className="px-2 pt-1 text-meta text-ink-3">Messages still arrive in OneCamp.</p>
       {AGENT_MENTIONS_WAIT ? <p className="px-2 text-meta text-ink-3">Mentions from agents wait too.</p> : null}
+      {/* The popover's Pause comes last, under the note, as the sheet's footer does. */}
+      {customOpen && !sheet ? <div className="flex justify-end px-2 pt-1">{pauseCustom}</div> : null}
     </div>
   )
 

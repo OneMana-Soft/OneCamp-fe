@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 
-import { APP_BOOT_SCREEN_ATTR, MEMBER_KEY, appBootState, endAppBoot } from "@/lib/appBoot"
+import { APP_BOOT_SCREEN_ATTR, appBootState, endAppBoot } from "@/lib/appBoot"
+import { MEMBER_KEY } from "@/lib/memberMark"
 
 // The splash, 17 Oct 2026. The installed app and the desktop app open the
 // start page, and in a browser a member has used, its first paint is the

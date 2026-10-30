@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { fieldKeyDown } from "@/lib/keys/ime"
 import type { Table } from "@tanstack/react-table"
 import { useDispatch } from "react-redux"
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 
 import { Button } from "@/components/ui/button"
 import { Chip } from "@/components/ui/chip"
@@ -42,7 +41,9 @@ import type { ProjectInfoRawInterface } from "@/types/project"
 import type { UserProfileInterface } from "@/types/user"
 import type { RowProp } from "@/components/task/GroupedTaskList"
 import { WorkSegmented } from "@/components/task/WorkTabs"
-import { lazyView } from "@/components/task/LazyView"
+import { lazyView } from "@/lib/lazy/lazyView"
+import { LazySearchInput, warmSearchInput } from "@/components/ui/lazy-search-input"
+import { TASK_PRIORITIES } from "@/types/taskScale"
 
 /** The toolbar's height (work.md W10, §1.6.6). */
 export const TOOLBAR_H = "h-11"
@@ -50,11 +51,7 @@ export const TOOLBAR_H = "h-11"
 export type ShowCompleted = "all" | "week" | "none"
 export type Layout = "list" | "kanban" | "timeline"
 
-const PRIORITY_VALUES = [
-  { value: "high", label: "High", level: 3 as const },
-  { value: "medium", label: "Medium", level: 2 as const },
-  { value: "low", label: "Low", level: 1 as const },
-]
+const PRIORITY_VALUES = TASK_PRIORITIES
 
 /** What a list's Display offers (DisplayMenu). */
 export interface ListDisplay {
@@ -68,6 +65,7 @@ export interface ListDisplay {
   layout?: Layout
   onLayout?: (l: Layout) => void
   onReset: () => void
+  onExport?: () => Promise<void>
 }
 
 type WorkToolbarProps<TData> = {
@@ -276,28 +274,22 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
 
       <div className="flex shrink-0 items-center gap-1">
         {searching ? (
-          <span className="relative flex items-center [animation:work-pop-in_180ms_var(--ease-out)_both] [transform-origin:right_center]">
-            <Search className="pointer-events-none absolute left-2.5 size-3.5 text-ink-3" aria-hidden="true" />
-            <input
+          <span className="flex items-center [animation:work-pop-in_180ms_var(--ease-out)_both] [transform-origin:right_center]">
+            <LazySearchInput
               ref={searchRef}
               autoFocus
+              size="sm"
+              className="h-7 w-[220px]"
               value={(state.globalFilter as string) || ""}
-              onChange={(e) => table.setGlobalFilter(e.target.value)}
+              onValueChange={(v) => table.setGlobalFilter(v)}
               onBlur={(e) => !e.target.value && setSearching(false)}
-              data-escape-own=""
-              onKeyDown={fieldKeyDown((e) => {
-                if (e.key === "Escape") {
-                  table.setGlobalFilter("")
-                  setSearching(false)
-                }
-              })}
+              onEscape={() => setSearching(false)}
               placeholder={t("filterTasksPlaceholder", { defaultValue: "Search tasks…" })}
               aria-label="Search tasks"
-              className="h-7 w-[220px] rounded-md bg-raised pl-8 pr-2 text-ui-sm shadow-e1 outline-none placeholder:text-ink-3 focus-halo"
             />
           </span>
         ) : (
-          <Button variant="ghost" size="icon-sm" aria-label="Search tasks" title="Search (/)" onClick={() => setSearching(true)}>
+          <Button variant="ghost" size="icon-sm" aria-label="Search tasks" title="Search (/)" onClick={() => setSearching(true)} onPointerEnter={() => void warmSearchInput()} onFocus={() => void warmSearchInput()}>
             <Search className="size-3.5" />
           </Button>
         )}

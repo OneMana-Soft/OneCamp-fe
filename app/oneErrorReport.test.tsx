@@ -1,9 +1,9 @@
-import { readFileSync, readdirSync, statSync } from "node:fs"
-import { join } from "node:path"
+import { readFileSync } from "node:fs"
 import { act, cleanup, render } from "@testing-library/react"
 import { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig } from "axios"
 import { SWRConfig } from "swr"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * One report per failure (owner's policy, 12 Oct 2026):
@@ -133,15 +133,7 @@ describe("one report per failure", () => {
 
 // --- The source: every error state says it is there, and nothing says a failure twice.
 
-function files(path: string): string[] {
-  const s = statSync(path)
-  if (s.isFile()) return [path]
-  if (/node_modules|\.next|test-results/.test(path)) return []
-  return readdirSync(path).flatMap((name) => files(join(path, name)))
-}
-const sources = ["app", "components", "hooks", "lib", "services"]
-  .flatMap(files)
-  .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
+const sources = sourceFiles(["app", "components", "hooks", "lib", "services"], /\.tsx?$/)
 const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
 const read = (f: string) => code(readFileSync(f, "utf8"))
 
@@ -152,6 +144,8 @@ const ERROR_STATES: Record<string, string> = {
   "components/ui/settingsSection.tsx": "SettingsCardError",
   "components/activity/hubEmpty.tsx": "HubError",
   "components/ui/load-failure-state.tsx": "LoadFailureState",
+  // A part that failed beside what loaded (calendar F2): one row, in the page's flow.
+  "components/ui/load-failed-row.tsx": "LoadFailedRow",
 }
 
 // A load's failure in a screen's own words.
@@ -161,6 +155,11 @@ const SAYS_A_LOAD_FAILED = /Couldn(?:'|&apos;|’)t load|Could not load|Failed t
 const NOT_A_READ = new Map<string, string>([
   // An <img> that failed in the browser: no request of the app's raised a toast.
   ["components/minimal-tiptap/extensions/image/components/image-view-block.tsx", "an image element's own failure"],
+  // Find a time: the server's answer names the Google calendars it couldn't read; the app's own read succeeded.
+  ["components/calendar/findTimeSuggestions.tsx", "the server's own read of a Google calendar"],
+  // A part whose code couldn't come (lib/lazy/lazyPart): a chunk the browser fetched, which raises no toast. Marked
+  // as saying a read, it would take back a toast for a read that failed beside it, so that read went unsaid.
+  ["components/ui/part-retry.tsx", "a part's code that couldn't come, not a read"],
 ])
 
 // Files whose reads go through a service that makes them with OWN_ERRORS.
@@ -184,8 +183,8 @@ describe("every error state says it is there", () => {
     for (const f of sources.filter((f) => f.endsWith(".tsx"))) {
       if (f in ERROR_STATES || NOT_A_READ.has(f)) continue
       const src = read(f)
-      // The words a shared error state draws: ErrorState's subject, SettingsCardError's what, HubError's text.
-      const own = src.replace(/<(ErrorState|SettingsCardError|HubError|ConversationLoadError)\b[\s\S]*?\/>/g, "")
+      // The words a shared error state draws: ErrorState's subject, SettingsCardError's what, HubError's text, LoadFailedRow's words.
+      const own = src.replace(/<(ErrorState|SettingsCardError|HubError|ConversationLoadError)\b[\s\S]*?\/>/g, "").replace(/<LoadFailedRow\b[\s\S]*?<\/LoadFailedRow>/g, "")
       if (!SAYS_A_LOAD_FAILED.test(own)) continue
       if (/useSaysLoadFailure\(|<SaysLoadFailure\b|OWN_ERRORS|suppressErrorToast/.test(src)) continue
       offenders.push(`${f}: says a load failed in its own words; draw ErrorState, or put <SaysLoadFailure /> beside the words, or make the read with OWN_ERRORS`)

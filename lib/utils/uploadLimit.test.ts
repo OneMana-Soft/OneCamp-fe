@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   exceedsUploadLimit,
   approxDataUrlBytes,
-  formatUploadBytes,
   uploadLimitMessage,
   isDataURL,
   parseDataURL,
@@ -69,20 +68,6 @@ describe('approxDataUrlBytes', () => {
     const approx = approxDataUrlBytes(dataUrl)
     expect(approx).toBeGreaterThan(3.9 * 1024 * 1024)
     expect(approx).toBeLessThan(4.2 * 1024 * 1024)
-  })
-})
-
-describe('formatUploadBytes', () => {
-  it('renders readable sizes across units', () => {
-    expect(formatUploadBytes(512)).toBe('512 B')
-    expect(formatUploadBytes(2048)).toBe('2.0 KB')
-    expect(formatUploadBytes(5 * 1024 * 1024)).toBe('5.0 MB')
-  })
-
-  it('degrades safely on unusable input', () => {
-    expect(formatUploadBytes(0)).toBe('0 B')
-    expect(formatUploadBytes(-1)).toBe('0 B')
-    expect(formatUploadBytes(NaN)).toBe('0 B')
   })
 })
 

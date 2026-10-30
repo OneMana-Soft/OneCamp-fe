@@ -41,7 +41,7 @@ describe("the project header's actions", () => {
     // A member's menu holds the project's rules, which they read (package 9).
     openMenu()
     expect(screen.getByRole("menuitem", { name: "Rules that run work" })).toBeTruthy()
-    expect(screen.queryByRole("menuitem", { name: "Forms that make tasks" })).toBeNull()
+    expect(screen.queryByRole("menuitem", { name: "Intake forms" })).toBeNull()
   })
 
   it("lists every admin action by name, and each one does what it says", async () => {
@@ -49,7 +49,7 @@ describe("the project header's actions", () => {
     const onMembers = vi.fn()
     render(<ProjectActionsMenu projectId="q4-1" isAdmin isMember onRename={onRename} onMembers={onMembers} />)
     openMenu()
-    for (const name of ["Forms that make tasks", "Save as a template", "Who can change tasks", "Edit project name", "Manage project members"]) {
+    for (const name of ["Intake forms", "Save as a template", "Who can change tasks", "Edit project name", "Manage project members"]) {
       expect(screen.getByRole("menuitem", { name })).toBeTruthy()
     }
     // Sharing with a client is a word in the header bar (work.md W16), not a menu item.
@@ -130,7 +130,7 @@ describe("the project header's actions", () => {
     openMenu()
     expect(screen.getByRole("menuitem", { name: "Manage project members" })).toBeTruthy()
     expect(screen.getByRole("menuitem", { name: "Archive project…" })).toBeTruthy()
-    for (const name of ["Edit project name", "Who can change tasks", "Forms that make tasks"]) {
+    for (const name of ["Edit project name", "Who can change tasks", "Intake forms"]) {
       expect(screen.queryByRole("menuitem", { name })).toBeNull()
     }
   })

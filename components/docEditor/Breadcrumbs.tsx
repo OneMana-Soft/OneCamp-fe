@@ -233,7 +233,8 @@ function DocCrumb({ docId, title, icon, canEdit }: { docId: string; title: strin
       aria-current="page"
       {...drop.props}
       className={cn(
-        "inline-flex min-w-0 max-w-[300px] items-center gap-1.5 rounded-md px-1 py-0.5 text-left font-medium text-ink outline-none disabled:cursor-default",
+        // Never under "Launch…": a narrow header (a panel open beside it) gave it nothing, and the chips after it covered its glyph.
+        "inline-flex min-w-[5.5rem] max-w-[300px] items-center gap-1.5 rounded-md px-1 py-0.5 text-left font-medium text-ink outline-none disabled:cursor-default",
         canEdit && "cursor-text hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand",
         drop.over && "bg-press ring-2 ring-brand/50",
       )}
@@ -264,6 +265,26 @@ export default function Breadcrumbs({ docId }: SlotProps) {
   )
 }
 
+/**
+ * A row that scrolls sideways, kept at its end as it or what it holds changes
+ * size, and when what it holds changes (`holds`): the doc's own crumb is last.
+ */
+function useRestAtEnd(holds: string) {
+  const [el, ref] = React.useState<HTMLElement | null>(null)
+  React.useLayoutEffect(() => {
+    if (!el) return
+    const rest = () => {
+      el.scrollLeft = el.scrollWidth
+    }
+    rest()
+    const seen = new ResizeObserver(rest)
+    seen.observe(el)
+    for (const child of el.children) seen.observe(child)
+    return () => seen.disconnect()
+  }, [el, holds])
+  return ref
+}
+
 function Trail({ docId }: { docId: string }) {
   const doc = useDoc(docId)
   const path = useFetch<Envelope<DocAncestors>>(docId ? ancestorsKey(docId) : "", undefined, undefined, OWN_ERRORS).data?.data
@@ -274,8 +295,13 @@ function Trail({ docId }: { docId: string }) {
   const steps = crumbsOf(path?.ancestors ?? [])
   // Beside the page, the view's bar already names the doc: the path ends above it.
   const inPane = useInSplitPane()
+  const nav = useRestAtEnd(`${steps.length}:${doc?.doc_title ?? ""}`)
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-ui" data-doc-breadcrumbs="" data-titled={inPane ? undefined : ""}>
+    // As narrow as the title's floor and no narrower: the pages above it give
+    // way first, then the trail scrolls, resting at its end so the title shows,
+    // its start fading where more is past it (data-edge-fade). A crumb Tab
+    // reaches scrolls into view.
+    <nav ref={nav} aria-label="Breadcrumb" data-edge-fade="" className="no-scrollbar flex min-w-[5.5rem] items-center gap-1 overflow-x-auto px-0.5 py-1 text-ui" data-doc-breadcrumbs="" data-titled={inPane ? undefined : ""}>
       <IntentLink href="/app/doc" data-crumb-root="" className={cn(crumbClass, "shrink-0", top.over && "bg-press text-ink ring-2 ring-brand/50")} {...top.props}>
         Docs
       </IntentLink>

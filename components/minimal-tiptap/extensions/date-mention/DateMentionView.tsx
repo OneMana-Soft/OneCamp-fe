@@ -3,7 +3,7 @@
 import * as React from "react"
 import { parseISO } from "date-fns"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { CHIP_TONE } from "@/components/ui/chip"
+import { CHIP_TONE } from "@/lib/ui/chipTone"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
 import { Bell } from "@/lib/icons"
 import { isoDate } from "@/lib/codec/connectedValues"
@@ -11,8 +11,14 @@ import { useToday } from "@/lib/liveEntity/today"
 import { dateLabel, dayTone } from "@/lib/liveEntity/dates"
 import { fullDate } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
+import { OverlayUnavailable } from "@/lib/lazy/overlayUnavailable"
 
-const DatePopover = React.lazy(() => import("./DatePopover"))
+// The picker's code can't come (no network): it says so, as every lazy overlay does, and closes; the next open asks again.
+function PickerUnavailable({ onClose }: { onClose: () => void }) {
+  return <OverlayUnavailable title="Couldn't open the date picker" onClose={onClose} />
+}
+const DatePopover = lazyPiece(() => import("./DatePopover"), { failed: PickerUnavailable })
 
 /**
  * A date in a line, as it reads today (D5): "Today", "Tomorrow", "Yesterday",

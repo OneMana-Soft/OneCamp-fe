@@ -10,6 +10,8 @@ export interface TaskSource {
   postUUID?: string
   /** Direct or group chat message the message is, when it is one. */
   chatMessageID?: string
+  /** A doc comment thread it is (docs C5-2): the task is tied to the thread, and resolving either resolves both. */
+  threadID?: string
   /** Absolute link that opens the message in its thread. */
   link: string
   /** Who wrote it, for the "From" line. */
@@ -65,7 +67,8 @@ export function taskDraftFromMessage(messageHTML: string | undefined, source: Ta
   const text = htmlToPreviewText(messageHTML, 4000)
   const ask = htmlToPreviewText((messageHTML ?? "").replace(LEADING_MENTIONS, "$1"), 4000)
   const name = taskNameFromText(ask)
-  const from = source.authorName ? `${escapeHTML(source.authorName)}'s message` : "the message"
+  const what = source.threadID ? "comment" : "message"
+  const from = source.authorName ? `${escapeHTML(source.authorName)}'s ${what}` : `the ${what}`
   const quote = text ? `<blockquote><p>${escapeHTML(text)}</p></blockquote>` : ""
   return {
     text,

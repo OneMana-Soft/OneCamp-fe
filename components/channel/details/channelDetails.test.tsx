@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { Provider } from "react-redux"
 
 // A channel's details are one sheet on a computer (design v3 chat, C49): About,
@@ -8,8 +9,12 @@ import { Provider } from "react-redux"
 // and Leave existed only on a phone. Destructive actions ask in place (C54).
 
 let admin = false
-// The members list still on its way.
+// The members list still on its way, or its read failed.
 let membersLoading = false
+let membersFailed = false
+// How the members are read: a failure is said in place, without the app's toast.
+let membersRead: unknown
+const { membersAgain } = vi.hoisted(() => ({ membersAgain: vi.fn() }))
 // Who made the channel, and whether Maya is one of its admins.
 let creator = "maya"
 let mayaAdmin = true
@@ -22,18 +27,25 @@ const INFO = () => ({
   mutate: () => {},
 })
 const MEMBERS = () => ({
-  data: membersLoading ? undefined : { channel_info: { ch_is_admin: admin, ch_is_member: true, ch_private: true, ch_created_by: { user_uuid: creator }, ch_members: [
+  data: membersLoading || membersFailed ? undefined : { channel_info: { ch_is_admin: admin, ch_is_member: true, ch_private: true, ch_created_by: { user_uuid: creator }, ch_members: [
     { user_uuid: "maya", user_name: "Maya Chen", user_is_admin: mayaAdmin },
     { user_uuid: "me", user_name: "Sam Rivera", user_is_admin: admin },
     { user_uuid: "jonas", user_name: "Jonas Weber", user_is_admin: false },
   ] } },
   isLoading: membersLoading,
-  mutate: () => {},
+  isError: membersFailed ? new Error("Network Error") : undefined,
+  mutate: membersAgain,
 })
 const { toasted } = vi.hoisted(() => ({ toasted: vi.fn() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toasted }), toast: toasted }))
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (url: string) => (url.includes("channelInfoWithMemberAdminFlag") ? MEMBERS() : url.includes("channelBasicInfo") ? INFO() : { data: undefined, isLoading: false, mutate: () => {} }),
+  useFetch: (url: string, _schema?: unknown, _config?: unknown, request?: unknown) => {
+    if (url.includes("channelInfoWithMemberAdminFlag")) {
+      membersRead = request
+      return MEMBERS()
+    }
+    return url.includes("channelBasicInfo") ? INFO() : { data: undefined, isLoading: false, mutate: () => {} }
+  },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me", user_name: "Sam Rivera", user_is_admin: workspaceAdmin } } }),
 }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
@@ -43,7 +55,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePat
 vi.mock("@/components/member/channelAITeammates", () => ({ default: () => null }))
 vi.mock("@/components/member/channelAIBudget", () => ({ default: () => null }))
 vi.mock("@/components/guest/GuestLinkSection", () => ({ GuestLinkSection: () => <p>Guest link</p> }))
-vi.mock("@/components/combobox/addChannelMemberCombobox", () => ({ default: () => <p>Add member picker</p> }))
+vi.mock("@/components/combobox/addMemberCombobox", () => ({ AddMemberCombobox: () => <p>Add member picker</p> }))
 
 const { default: store } = await import("@/store/store")
 const { TooltipProvider } = await import("@/components/ui/tooltip")
@@ -66,6 +78,7 @@ afterEach(() => {
   admin = false
   workspaceAdmin = false
   membersLoading = false
+  membersFailed = false
   creator = "maya"
   mayaAdmin = true
   makeRequest.mockReset()
@@ -160,6 +173,29 @@ describe("the channel's Details sheet", () => {
     sheet()
     expect(section("Members · 3")).toBeTruthy()
     expect(screen.queryByRole("region", { name: "Members · 0" })).toBeNull()
+  })
+
+  // A failed read said "No members yet" under "Members · 0" (audit Q5).
+  it("says the members couldn't load, with the channel's own count, and tries again", () => {
+    membersFailed = true
+    sheet()
+    const members = section("Members · 3")
+    expect(within(members).queryByText("No members yet")).toBeNull()
+    expect(within(members).getByText("Couldn't load the members")).toBeTruthy()
+    expect(membersRead).toBe(OWN_ERRORS)
+    fireEvent.click(within(members).getByRole("button", { name: "Try again" }))
+    expect(membersAgain).toHaveBeenCalledTimes(1)
+  })
+
+  // SWR retries a failed read on its own every few seconds, with nothing held:
+  // each retry swapped the failure for loading rows and back.
+  it("keeps saying the members couldn't load while a retry runs, its button waiting", () => {
+    membersFailed = true
+    membersLoading = true
+    sheet()
+    const members = section("Members · 3")
+    expect(within(members).getByText("Couldn't load the members")).toBeTruthy()
+    expect((within(members).getByRole("button", { name: "Retrying…" }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   // A refusal closed the editor and lost what was typed (QA F-20).

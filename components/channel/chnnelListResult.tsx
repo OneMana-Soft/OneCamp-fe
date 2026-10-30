@@ -91,7 +91,7 @@ export const ChannelListResult = ({
     };
 
     return (
-        <PageContainer className="overflow-y-auto py-2">
+        <PageContainer data-list-frame="" className="overflow-y-auto py-2">
             <VirtualInfiniteScroll
                 items={channelList}
                 renderItem={renderItem}

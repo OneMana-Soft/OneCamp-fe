@@ -1,22 +1,21 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { GuestGrant } from "@/services/guestService"
 
 const setGuestAccess = vi.fn()
 const setGuestPublish = vi.fn()
+const setGuestRooms = vi.fn()
 const listGuestGrants = vi.fn()
 vi.mock("@/services/guestService", () => ({
-  setGuestAccess: (on: boolean) => setGuestAccess(on),
-  setGuestPublish: (on: boolean) => setGuestPublish(on),
+  setGuestOption: (option: "enabled" | "publish" | "rooms", on: boolean) => ({ enabled: setGuestAccess, publish: setGuestPublish, rooms: setGuestRooms })[option](on),
   listGuestGrants: () => listGuestGrants(),
   revokeGuestGrant: vi.fn(),
 }))
 const getWorkspaceSettings = vi.hoisted(() => vi.fn(() => Promise.resolve({ guest_access_enabled: false } as unknown)))
 // The setting is read through the one shared SWR key (useWorkspaceSettings);
 // the request it makes answers from getWorkspaceSettings.
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: async () => ({ data: { data: await getWorkspaceSettings() } }), post: vi.fn() },
-  OWN_ERRORS: {},
 }))
 const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
@@ -184,5 +183,95 @@ describe("publishing pages, under guest access", () => {
     await act(async () => fireEvent.click(sub))
     expect(setGuestPublish).toHaveBeenCalledWith(false)
     expect(setGuestAccess).not.toHaveBeenCalled()
+  })
+})
+
+// Personal meeting rooms (calls CALLS-2) are guest access's other sub-option:
+// on unless turned off, off with guest access, and saved on their own; a room's
+// link is listed as a room, at its address, with no end.
+describe("personal meeting rooms, under guest access", () => {
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+
+  it("are on until turned off, and off with guest access", async () => {
+    listGuestGrants.mockResolvedValue([])
+    getWorkspaceSettings.mockResolvedValue({ guest_access_enabled: true })
+    await open()
+    expect((await screen.findByRole("switch", { name: "Personal meeting rooms" })).getAttribute("aria-checked")).toBe("true")
+    cleanup()
+    getWorkspaceSettings.mockResolvedValue({ guest_access_enabled: false, guest_rooms_enabled: true })
+    await open()
+    const off = await screen.findByRole("switch", { name: "Personal meeting rooms" })
+    expect(off.getAttribute("aria-checked")).toBe("false")
+    expect(off.hasAttribute("disabled") || off.getAttribute("data-disabled") !== null).toBe(true)
+  })
+
+  it("are saved on their own while guest access is on", async () => {
+    listGuestGrants.mockResolvedValue([])
+    getWorkspaceSettings.mockResolvedValue({ guest_access_enabled: true, guest_rooms_enabled: true })
+    setGuestRooms.mockResolvedValue(false)
+    await open()
+    const sub = await screen.findByRole("switch", { name: "Personal meeting rooms" })
+    await act(async () => fireEvent.click(sub))
+    expect(setGuestRooms).toHaveBeenCalledWith(false)
+    expect(setGuestAccess).not.toHaveBeenCalled()
+    expect(setGuestPublish).not.toHaveBeenCalled()
+  })
+
+  // Like its two siblings (settings: every change that ticks offers itself
+  // back), the saved change is offered back, and Undo saves the old value.
+  it("offer a saved change back, and Undo turns them on again", async () => {
+    listGuestGrants.mockResolvedValue([])
+    getWorkspaceSettings.mockResolvedValue({ guest_access_enabled: true, guest_rooms_enabled: true })
+    setGuestRooms.mockImplementation(async (on: boolean) => on)
+    await open()
+    await act(async () => fireEvent.click(await screen.findByRole("switch", { name: "Personal meeting rooms" })))
+    const offer = await waitFor(() => {
+      const offered = toast.mock.calls.map(([t]) => t).find((t) => t.action)
+      expect(offered?.title).toBe("Personal meeting rooms: Off")
+      return offered
+    })
+    await act(async () => offer.action.props.onClick())
+    expect(setGuestRooms.mock.calls.map(([on]) => on)).toEqual([false, true])
+  })
+
+  // HU13: a call's invite is named as one, with its maker, never as its raw type.
+  it("lists a call's invite as a call invite, with whose it is", async () => {
+    getWorkspaceSettings.mockResolvedValue({ guest_access_enabled: true })
+    listGuestGrants.mockResolvedValue([{ ...grant("g9", "call"), capability: "join", created_by_name: "Maya Chen", expires_at: new Date(Date.now() + 3600_000).toISOString() }])
+    await open()
+    expect(await screen.findByText("Maya Chen's call invite")).toBeInTheDocument()
+    expect(screen.queryByText("call")).toBeNull()
+  })
+
+  it("lists a room's link as its owner's room, at its address, with no end", async () => {
+    getWorkspaceSettings.mockResolvedValue({ guest_access_enabled: true })
+    listGuestGrants.mockResolvedValue([
+      { ...grant("g1", "meeting"), capability: "join", slug: "maya-chen", created_by_name: "Maya Chen" },
+      { ...grant("g3", "meeting"), capability: "join", slug: "gone" },
+      { ...grant("g4", "meeting"), capability: "join", slug: "alexandria-montgomery-fitzgerald", created_by_name: "Alexandria Montgomery-Fitzgerald" },
+      grant("g2", "meeting"),
+    ])
+    await open()
+    // The words its guests see, so a column of rooms says whose each is.
+    expect(await screen.findByText("Maya Chen's room")).toBeInTheDocument()
+    // Its address under it; a room never expires, so the row doesn't say so
+    // and the address keeps its room on a phone.
+    expect(screen.getByText("/r/maya-chen")).toBeInTheDocument()
+    // A room whose owner has gone is still a room.
+    expect(screen.getByText("Personal room")).toBeInTheDocument()
+    expect(screen.getByText("/r/gone")).toBeInTheDocument()
+    expect(screen.getAllByText("Doesn't expire")).toHaveLength(1)
+    // On a phone a long name wraps to two lines before it's cut, and a long
+    // address is cut in its middle, so its start and its end both show.
+    expect(screen.getByText("Alexandria Montgomery-Fitzgerald's room").className).toContain("line-clamp-2")
+    const address = [...document.querySelectorAll("[data-room-address]")].find((el) => el.textContent === "/r/alexandria-montgomery-fitzgerald")
+    const cut = address?.querySelector("[data-middle-name]")
+    expect(cut?.lastElementChild?.textContent).toBe("gerald")
+    expect(cut?.lastElementChild?.className).toContain("shrink-0")
+    // A one-call link to a meeting stays a meeting.
+    expect(screen.getByText("Meeting")).toBeInTheDocument()
   })
 })

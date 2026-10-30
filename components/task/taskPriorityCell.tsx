@@ -1,9 +1,9 @@
-import { useTranslation } from "react-i18next"
+import { useWord } from "@/lib/utils/i18n"
 
 import { PriorityGlyph } from "@/components/ui/graphics/glyphs"
 import { cn } from "@/lib/utils/helpers/cn"
 
-/** The level a priority's glyph shows: none 0, low 1, medium 2, high 3, urgent 4. */
+/** A priority's level, as its glyph shows it: none 0 to urgent 4. */
 const LEVELS: Record<string, 1 | 2 | 3 | 4> = { low: 1, medium: 2, high: 3, urgent: 4 }
 
 export function priorityLevel(value: string | undefined | null): 0 | 1 | 2 | 3 | 4 {
@@ -13,11 +13,10 @@ export function priorityLevel(value: string | undefined | null): 0 | 1 | 2 | 3 |
 const NAMES = ["No priority", "Low", "Medium", "High", "Urgent"] as const
 
 /**
- * A priority as design v3 draws it (work.md W02): three bars in ink, filled
- * to the level, and urgent as the danger square. Priority never takes a hue.
- * In rows and cards it is the glyph alone, named on hover ("tip"), and no
- * priority shows only while the row is hovered; in the panel and pickers the
- * word follows ("word").
+ * A priority (design v3, work.md W02): three ink bars filled to the level,
+ * urgent the danger square, never a hue. Alone in rows and cards, named on
+ * hover, none only on a hovered row ("tip"); its word follows in the panel
+ * and pickers ("word").
  */
 export function TaskPriorityCell({
   priority,
@@ -31,10 +30,9 @@ export function TaskPriorityCell({
   size?: number
   className?: string
 }) {
-  const { t } = useTranslation()
   const value = typeof priority === "string" ? priority : priority?.value ?? ""
   const level = priorityLevel(value)
-  const name = level === 0 ? NAMES[0] : t(value, { defaultValue: NAMES[level] })
+  const name = useWord(level ? value : "", NAMES[level])
   if (label === "tip") {
     return (
       <span

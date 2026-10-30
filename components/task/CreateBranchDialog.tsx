@@ -2,10 +2,10 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { RefreshCw, GitBranch } from "@/lib/icons";
+import { GitBranch } from "@/lib/icons";
 import { useToast } from "@/hooks/use-toast"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
@@ -81,9 +81,11 @@ export default function CreateBranchDialog({ open, onOpenChange, onSuccess, task
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="branch-name" className={error ? "text-danger-ink" : ""}>Branch Name</Label>
-            <div className="relative">
-              <GitBranch className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
+            <InputGroup>
+              <InputGroupAddon>
+                <GitBranch aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput
                 id="branch-name"
                 placeholder="feature/task-123-description"
                 value={branchName}
@@ -91,12 +93,13 @@ export default function CreateBranchDialog({ open, onOpenChange, onSuccess, task
                   setBranchName(e.target.value)
                   if (error) setError(null)
                 }}
-                className={`pl-9 ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "branch-name-error" : undefined}
                 autoComplete="off"
               />
-            </div>
+            </InputGroup>
             {error ? (
-              <p className="text-xs font-medium text-danger-ink">{error}</p>
+              <p id="branch-name-error" className="text-xs font-medium text-danger-ink">{error}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
                 We've auto-generated a name based on the task, but you can edit it.
@@ -106,8 +109,7 @@ export default function CreateBranchDialog({ open, onOpenChange, onSuccess, task
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={creating}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={creating || !branchName.trim()}>
-            {creating ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+          <Button onClick={handleCreate} disabled={!branchName.trim()} busy={creating}>
             Create Branch
           </Button>
         </DialogFooter>

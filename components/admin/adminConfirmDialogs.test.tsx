@@ -27,7 +27,8 @@ describe("admin confirm dialogs", () => {
     expect(screen.queryByText(/Are you sure/)).toBeNull()
     expectNoBlocksInParagraphs()
     expect(err.mock.calls.some((c) => String(c[0]).includes("descendant"))).toBe(false)
-    expect(screen.getByRole("button", { name: "Delete webhook" }).className).toContain("text-danger-ink")
+    // A confirm that destroys is danger-solid (design v3, admin §8 H3; SA-5).
+    expect(screen.getByRole("button", { name: "Delete webhook" }).className).toMatch(/\bbtn-danger-solid\b.*\bbg-destructive\b/)
   })
 
   it("disconnecting GitHub asks a plain question, in valid HTML", () => {
@@ -36,14 +37,16 @@ describe("admin confirm dialogs", () => {
     expect(screen.queryByText(/Are you sure/)).toBeNull()
     expect(document.body.textContent).toMatch(/3 linked repositories/)
     expectNoBlocksInParagraphs()
-    expect(screen.getByRole("button", { name: "Disconnect GitHub" }).className).toContain("text-danger-ink")
+    // A confirm that destroys is danger-solid (design v3, admin §8 H3; SA-5).
+    expect(screen.getByRole("button", { name: "Disconnect GitHub" }).className).toMatch(/\bbtn-danger-solid\b.*\bbg-destructive\b/)
   })
 
   it("unlinking a repository names it in the question, in valid HTML", () => {
     render(<GitHubUnlinkDialog open onOpenChange={() => {}} onConfirm={() => {}} link={{ id: "l1", repo_owner: "kestrel", repo_name: "site" }} isSubmitting={false} />)
     expect(screen.getByRole("heading", { name: "Unlink kestrel/site?" })).toBeTruthy()
     expectNoBlocksInParagraphs()
-    expect(screen.getByRole("button", { name: "Unlink repository" }).className).toContain("text-danger-ink")
+    // A confirm that destroys is danger-solid (design v3, admin §8 H3; SA-5).
+    expect(screen.getByRole("button", { name: "Unlink repository" }).className).toMatch(/\bbtn-danger-solid\b.*\bbg-destructive\b/)
   })
 
   it("says one repository, not 1 repositories", () => {

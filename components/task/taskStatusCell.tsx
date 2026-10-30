@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next"
+import { useWord } from "@/lib/utils/i18n"
 
 import { StatusGlyph, type StatusKind } from "@/components/ui/graphics/glyphs"
 import { CATEGORY_KIND, isBuiltInStatus, type StatusCategory, type StatusHue } from "@/lib/taskStatus"
@@ -23,16 +23,13 @@ export function statusKindOf(status: StatusLike): StatusKind {
 
 /** A status's name in the reader's language; a project's own status as its admins named it. */
 export function useStatusLabel(status: StatusLike | undefined): string {
-  const { t } = useTranslation()
-  if (!status) return ""
-  return isBuiltInStatus(status.value) ? t(status.value, { defaultValue: status.label }) : status.label
+  return useWord(status && isBuiltInStatus(status.value) ? status.value : "", status?.label ?? "")
 }
 
 /**
- * A status as design v3 draws it (work.md W01): its category's glyph, in its
- * own hue when it is a project's status. In rows, cards and bars it is the
- * glyph alone, named by its tooltip and aria-label ("tip"); in the panel and
- * pickers the word follows it ("word").
+ * A status (design v3, work.md W01): its category's glyph, in a project
+ * status's own hue; alone in rows, cards and bars, named by its tip and
+ * aria-label ("tip"), with its word in the panel and pickers ("word").
  */
 export function TaskStatusCell({
   status,
@@ -41,7 +38,6 @@ export function TaskStatusCell({
   className,
 }: {
   status: StatusLike
-  /** "word": glyph and name; "tip": the glyph alone, named on hover. */
   label?: "word" | "tip"
   size?: number
   className?: string

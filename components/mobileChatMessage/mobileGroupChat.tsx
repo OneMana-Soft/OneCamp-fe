@@ -232,7 +232,9 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
 
     return (
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            // The room under the last reply for the box's sheet, which floats
+            // over the page (phone.css): the last reply sat under the box.
+            <div className="flex-1 min-h-0 overflow-y-auto pb-[var(--phone-composer-room)]">
                 <div className='pb-4'>
 
                 <MobileMessage

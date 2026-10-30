@@ -86,6 +86,12 @@ describe("a doc's meta events", () => {
     expect(mutate).not.toHaveBeenCalled()
   })
 
+  it("leaves a suggestion's events to the doc's suggestions, which read their own list", () => {
+    const { mutate } = cacheWith({})
+    applyDocMeta({ kind: "doc.proposal.created", doc_uuid: DOC, at: "", data: { proposal_id: "p1", status: "open", author_kind: "person" } })
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
   it("stops when the doc closes, and tells a host what happened", () => {
     cacheWith({})
     const heard = vi.fn()

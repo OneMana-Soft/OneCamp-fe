@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { SearchInput } from "@/components/ui/search-input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { RefreshCw, Search } from "@/lib/icons"
+import { RefreshCw } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { PostEndpointUrl } from "@/services/endPoints"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -170,17 +170,13 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
 
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  aria-label="Search archived items"
-                  placeholder="Search by name…"
-                  className="h-8 pl-8 md:text-sm"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
+              <SearchInput
+                aria-label="Search archived items"
+                placeholder="Search by name…"
+                className="flex-1"
+                value={searchQuery}
+                onValueChange={setSearchQuery}
+              />
               {/* The search field's height beside it: 44px on a phone, 32px from md up. */}
               <Button variant="ghost" size="sm" className="h-11 gap-1.5 px-2 md:h-8" onClick={() => fetchItems(0, false)} disabled={loading}>
                 <RefreshCw className={cn(loading && "animate-spin")} />
@@ -271,8 +267,7 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={restoring}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={restoring || selected.size === 0}>
-            {restoring && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+          <Button onClick={handleSubmit} disabled={selected.size === 0} busy={restoring}>
             {restoring ? "Restoring…" : selected.size === 0 ? "Restore" : `Restore ${itemCount(selected.size)}`}
           </Button>
         </DialogFooter>

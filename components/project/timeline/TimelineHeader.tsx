@@ -47,6 +47,7 @@ export const TimelineHeader = memo(function TimelineHeader({
     >
       <div
         data-name-column=""
+        data-sticky-lead=""
         className="sticky left-0 z-30 flex shrink-0 items-end bg-sheet px-5 pb-2 text-xs font-[510] border-r border-line text-ink-3"
         style={{ width: nameWidth }}
       >

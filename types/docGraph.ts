@@ -4,6 +4,63 @@
 // arrives: such a page comes as a count (hidden) or a redacted crumb, never by
 // name.
 
+import type { CampHue } from "@/lib/campHue"
+
+/**
+ * What a node of the tree is besides a page (docs F1, Docs & Files): a folder
+ * holds pages, folders, files and links; a file and a link hold nothing
+ * (D-30). No kind is a page: the server never writes "" or "page".
+ */
+export type DocNodeKind = "folder" | "file" | "link"
+
+/** A colour a node wears: a camp hue, or null to take one away (D-31; the server writes no ""). */
+export type DocColor = CampHue | null
+
+/** A file node's current version, from doc_file_versions (its highest n). */
+export interface DocFileFacts {
+  name: string
+  size_bytes: number
+  mime: string
+  /** How many versions it has. */
+  versions: number
+  /** The current version's attachment: GET /doc/getFile/{file's uuid}/{attachment_id} serves it. */
+  attachment_id: string
+}
+
+/** One version of a file (GET /doc/files/{uuid}/versions), newest first. */
+export interface DocFileVersion {
+  /** 1 for the first upload, counting up. */
+  n: number
+  attachment_id: string
+  name: string
+  size_bytes: number
+  mime: string
+  /** What changed, as its uploader said it. */
+  note?: string
+  created_by?: DocGraphPerson
+  created_at: string
+}
+
+export interface DocFileVersions {
+  versions: DocFileVersion[]
+}
+
+/**
+ * What GET /doc/getDocInfo says of a node that isn't a page (docs F1): the
+ * doc's route draws it as itself and never opens the editor for it.
+ */
+export interface DocNodeFields {
+  doc_node_kind?: DocNodeKind
+  doc_color?: CampHue
+  doc_link_url?: string
+}
+
+/** POST /doc/color: up to 200 nodes in one write, with edit on each. */
+export interface DocColorRequest {
+  doc_uuids: string[]
+  color: DocColor
+}
+
 /** Who a row names: a doc's owner, who deleted it. */
 export interface DocGraphPerson {
   user_uuid: string
@@ -30,6 +87,19 @@ export interface TreeNodeJSON {
   /** A doc's own: its privacy and when it last changed. */
   private?: boolean
   updated_at?: string
+  /**
+   * Who made that change (doc_updated_by): absent before anyone has, and from
+   * a server that doesn't send it yet, where a row says the time alone.
+   */
+  updated_by?: DocGraphPerson
+  /** A folder, a file or a link; absent on a page. */
+  node_kind?: DocNodeKind
+  /** The colour it was given, if any. */
+  color?: CampHue
+  /** A link's address: https, checked by the server. */
+  link_url?: string
+  /** A file's current version. */
+  file?: DocFileFacts
 }
 
 /** Where a tree's top level comes from when no parent is named. */
@@ -131,6 +201,8 @@ export interface DocListItem {
   doc_private?: boolean
   doc_created_at?: string
   doc_updated_at?: string
+  /** Who made the last change, as a tree row's updated_by. */
+  updated_by?: DocGraphPerson
   doc_archived_at?: string
   owner?: DocGraphPerson
   /** Up to three pages above it, the top first. */
@@ -139,6 +211,11 @@ export interface DocListItem {
   viewed_at?: string
   /** What the viewer may do with it, by the Access Resolver: "view", "comment", "edit", "full". */
   level?: string
+  /** A folder, a file or a link, as a tree row says it (node_kind and the rest). */
+  doc_node_kind?: DocNodeKind
+  doc_color?: CampHue
+  doc_link_url?: string
+  doc_file?: DocFileFacts
 }
 
 /** GET /doc/list: one page of a list, and how many the whole list holds. */
@@ -166,6 +243,16 @@ export interface DocCreateRequest {
   template_id?: string
   after_uuid?: string
   place?: "first" | "last"
+  /** A folder or a link; left out for a page. A file is made by uploading it (POST /doc/files). */
+  node_kind?: Exclude<DocNodeKind, "file">
+  /** A link's address, https only. */
+  link_url?: string
+  /**
+   * The maker puts the page in its parent's body itself ("/page", "[["'s New
+   * page), so the server adds no block for it. A page made from the sidebar or
+   * Docs & Files leaves this out and takes a block at its parent's end (docs C7a).
+   */
+  placed?: boolean
 }
 
 /** One entry of the trash: a page deleted on its own, or the top of a subtree deleted with it. */

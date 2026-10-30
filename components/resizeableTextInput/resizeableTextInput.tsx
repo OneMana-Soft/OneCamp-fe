@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { useThrottle } from "@/components/minimal-tiptap/hooks/use-throttle"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -26,7 +26,6 @@ export default function ResizeableTextInput({
                                                 textUpdateOnEnter,
                                             }: ResizableTextInputProps) {
     const [localText, setLocalText] = useState(content)
-    const textareaRef = useRef<HTMLTextAreaElement>(null)
 
     // Throttled text update function (preserve exact user input; avoid trimming)
     const throttledSetText = useThrottle(
@@ -41,44 +40,9 @@ export default function ResizeableTextInput({
         delay,
     )
 
-    // Optimized height adjustment function
-    const adjustTextareaHeight = useCallback(() => {
-        const textarea = textareaRef.current
-        if (!textarea) return
-        // Use rAF to prevent layout thrashing
-        requestAnimationFrame(() => {
-            textarea.style.height = "auto"
-            textarea.style.height = `${textarea.scrollHeight}px`
-        })
-    }, [])
-
-    // Ref callback for initial setup
-    const textareaRefCallback = useCallback((node: HTMLTextAreaElement | null) => {
-        if (!node) return
-        textareaRef.current = node
-        // Delay initial height calculation to ensure panel is fully rendered
-        setTimeout(() => {
-            node.style.height = "auto"
-            node.style.height = `${node.scrollHeight}px`
-        }, 0)
-    }, [])
-
     useEffect(() => {
         setLocalText(content)
     }, [content])
-
-    // Adjust height when text changes
-    useEffect(() => {
-        adjustTextareaHeight()
-    }, [localText, adjustTextareaHeight])
-
-    // Additional effect to handle panel animation/rendering delays
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            adjustTextareaHeight()
-        }, 300)
-        return () => clearTimeout(timer)
-    }, [content, adjustTextareaHeight])
 
     // Handle text input changes
     const handleTextChange = useCallback(
@@ -107,7 +71,6 @@ export default function ResizeableTextInput({
 
     return (
         <Textarea
-            ref={textareaRefCallback}
             value={localText}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}

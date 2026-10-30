@@ -35,12 +35,13 @@ export function linkify(n: CNode) {
   if (changed) n.content = out
 }
 
-interface Part {
+export interface Part {
   text: string
   href?: string
 }
 
-function autolinks(s: string): Part[] {
+/** Plain text in parts, its web addresses with their links, by the same rule. Pure. */
+export function autolinks(s: string): Part[] {
   const parts: Part[] = []
   let last = 0
   for (let i = 0; i < s.length; i++) {

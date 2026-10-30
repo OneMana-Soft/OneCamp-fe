@@ -1,23 +1,30 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useStableCallback } from "@/hooks/useStableCallback"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { PhoneListSkeleton } from "@/components/task/phoneListSkeleton"
-import { PHONE_PAGE_SIZE, headedRows, type GroupHeaderRow } from "@/lib/tasks/grouping"
+import { PHONE_PAGE_SIZE, groupTasks, headedRows, type GroupHeaderRow } from "@/lib/tasks/grouping"
+import { projectTaskListQuery } from "@/lib/tasks/listQuery"
+import { isManualSort } from "@/lib/tasks/manualSort"
+// The phone's list is a chunk of its own (the project's first screen is the
+// desktop list): the drag comes with it, so nothing loads in under a finger.
+import { ReorderLayer } from "@/components/task/listReorder"
+import { ReorderHost } from "@/components/task/reorderSlot"
 import { hasPageAfter, pagesToCome } from "@/lib/http/pageCount"
 import type { StatusOption } from "@/lib/taskStatus"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { statusKindOf } from "@/components/task/taskStatusCell"
 import { useLayoutOnce } from "@/components/task/useLayoutOnce"
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import { useTabInAddress } from "@/components/task/keptTabs"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { openUI } from "@/store/slice/uiSlice"
 import {
     clearProjectTask,
-    type filterInterface,
     type sortingAndFilterOptionInterface,
-    type sortInterface,
+    updateProjectSortingAndFiltering,
     updateProjectTaskList,
     updateProjectTaskListTaskStatus,
 } from "@/store/slice/taskFilterSlice"
@@ -28,7 +35,7 @@ import type { CreateTaskInterface, TaskInfoInterface } from "@/types/task"
 import { accessOf, canEditTask } from "@/lib/work/access"
 import { useMyId } from "@/hooks/useMyId"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
-import { TaskListTask } from "@/components/task/taskListTask"
+import { PHONE_ROW_PX, TaskListTask } from "@/components/task/taskListTask"
 import { usePost } from "@/hooks/usePost"
 import { useAnimationState } from "@/hooks/useAnimationState"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
@@ -45,34 +52,6 @@ import { SpotSearch, SpotTasks } from "@/components/ui/graphics/spots"
 import { useProjectHue } from "@/lib/projectHue"
 
 
-interface getURLPramInput {
-    sortQuery?: sortInterface[]
-    filterQuery?: filterInterface[]
-    pageSize: number
-    pageIndex: number
-    searchText?: string
-}
-const getURLPram = ({ sortQuery, searchText, filterQuery, pageSize, pageIndex }: getURLPramInput) => {
-    const params = new URLSearchParams()
-
-    if (sortQuery && sortQuery.length > 0) {
-        params.set("sorting", JSON.stringify(sortQuery))
-    }
-
-    if (filterQuery && filterQuery.length > 0) {
-        params.set("filters", JSON.stringify(filterQuery))
-    }
-
-    params.set("pageSize", pageSize.toString())
-    params.set("pageIndex", pageIndex.toString())
-
-    if (searchText) {
-        params.set("taskSearchString", searchText)
-    }
-
-    return params.toString()
-}
-
 const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: [] }
 
 // No list in the store yet: one empty list, made once (a new [] each render
@@ -80,9 +59,7 @@ const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: 
 const NO_TASKS: TaskInfoInterface[] = []
 
 export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuery: string; projectId: string; search?: ReactNode }) => {
-    const router = useRouter()
     const projectHue = useProjectHue(projectId)
-    const pathname = usePathname()
     const searchParams = useSearchParams()
 
     const [urlParams, setUrlParams] = useState<string>("")
@@ -112,11 +89,10 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
         projectId && urlParams ? GetEndpointUrl.GetProjectTaskList + "/" + projectId + "?" + urlParams : "",
     )
 
-    useEffect(() => {
-        const params = new URLSearchParams(searchParams.toString())
-        params.set("page", pageIndex.toString())
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-    }, [pageIndex, pathname, router])
+    // The page in the address, without a navigation: router.replace fetched
+    // the route again on every page a scroll loaded (fluid-17).
+    const pageInAddress = useTabInAddress()
+    useEffect(() => pageInAddress("page", String(pageIndex)), [pageIndex, pageInAddress])
 
     // Reset this project's task list slot once per project, so a previous
     // project's tasks never bleed in while we wait for the new fetch. Same
@@ -128,45 +104,33 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
     })
 
     useEffect(() => {
-        const u = getURLPram({
+        const u = projectTaskListQuery({
             pageIndex,
             pageSize,
-            searchText: searchQuery,
-            sortQuery: taskFiltersAndSorts.sort,
-            filterQuery: taskFiltersAndSorts.filters,
-        })
+            search: searchQuery,
+            sort: taskFiltersAndSorts.sort,
+            filters: taskFiltersAndSorts.filters,
+        }).toString()
 
         setUrlParams(u)
     }, [pageIndex])
 
-    useEffect(() => {
-        if (taskFiltersAndSorts.filters || taskFiltersAndSorts.sort) {
-            dispatch(clearProjectTask({ projectId }))
-        }
-        setPageIndex(0)
-
-        const u = getURLPram({
-            pageIndex: 0,
-            pageSize,
-            searchText: searchQuery,
-            sortQuery: taskFiltersAndSorts.sort,
-            filterQuery: taskFiltersAndSorts.filters,
-        })
-
-        setUrlParams(u)
-    }, [taskFiltersAndSorts])
-
+    // A new sort, filter or search reads the list again from its first page,
+    // with all three: a search's own read used to leave the sort and filters out.
     useEffect(() => {
         dispatch(clearProjectTask({ projectId }))
         setPageIndex(0)
-        const u = getURLPram({
+
+        const u = projectTaskListQuery({
             pageIndex: 0,
             pageSize,
-            searchText: searchQuery,
-        })
+            search: searchQuery,
+            sort: taskFiltersAndSorts.sort,
+            filters: taskFiltersAndSorts.filters,
+        }).toString()
 
         setUrlParams(u)
-    }, [searchQuery])
+    }, [taskFiltersAndSorts, searchQuery])
 
     useEffect(() => {
         if (
@@ -179,7 +143,9 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
         }
     }, [projectInfo.data?.data])
 
-    const updateTaskStatus = useCallback(
+    // The rows' handlers never change (fluid-17): a page arriving gave
+    // projectInfo a new answer and drew every row again through them.
+    const updateTaskStatus = useStableCallback(
         (id: string, status: string) => {
             if (!status || !id || !projectInfo.data?.data || post.isSubmitting) return
 
@@ -204,14 +170,13 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                     revalidateTaskKeys(projectInfo.data?.data.project_uuid || "");
                 })
         },
-        [post, projectInfo],
     )
 
     const handleLoadMore = () => {
         setPageIndex(pageIndex + 1)
     }
 
-    const handleToggleStatusWithAnimation = useCallback(
+    const handleToggleStatusWithAnimation = useStableCallback(
         (task_uuid: string, projectId: string, newStatus: "done" | "todo") => {
             try {
                 if (newStatus === "done") {
@@ -224,7 +189,6 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                 updateTaskStatus(task_uuid, newStatus)
             }
         },
-        [updateTaskStatus, triggerAnimation],
     )
 
     const handleToggleSelect = useCallback((taskUUID: string) => {
@@ -355,6 +319,23 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
 
     const handleItemKey = useCallback((item: PhoneRow) => ("kind" in item ? item.key : item.task_uuid), [])
 
+    // Rows a hold lifts into the project's one manual order (L-1), as on a
+    // computer; sorted another way, a move asks to switch back.
+    const listBox = useRef<HTMLDivElement>(null)
+    const groups = useMemo(() => groupTasks(taskListState, "status", statusOpts), [taskListState, statusOpts])
+    const canEdit = useCallback((t: TaskInfoInterface) => canEditTask(t, me, project), [me, project])
+    const phoneSort = taskFiltersAndSorts.sort
+    const phoneFilters = taskFiltersAndSorts.filters
+    const reorder = useMemo(
+        () => ({
+            projectId,
+            manual: isManualSort(phoneSort ?? []),
+            sortedBy: PHONE_SORT_WORDS[phoneSort?.[0]?.id ?? ""],
+            onManual: () => dispatch(updateProjectSortingAndFiltering({ projectId, filters: phoneFilters ?? [], sort: [] })),
+        }),
+        [projectId, phoneSort, phoneFilters, dispatch],
+    )
+
     return (
         <div className="relative flex-1 min-h-0 flex flex-col">
             {/* Search, and Select beside it: they took two rows, about 170 px
@@ -417,16 +398,22 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                     />
                 )
             ) : (
-            <VirtualInfiniteScroll
-                onLoadMore={handleLoadMore}
-                hasMore={hasPageAfter(pageIndex, projectInfo.data?.pageCount)}
-                items={rows}
-                renderItem={handleRenderIndex}
-                isLoading={projectInfo.isLoading}
-                // The first load is the list's shape, not "Loading more…".
-                loadingComponent={(taskListState?.length ?? 0) === 0 ? <PhoneListSkeleton /> : undefined}
-                keyExtractor={handleItemKey}
-            />
+            <ReorderHost>
+                <div ref={listBox} className="flex min-h-0 flex-1 flex-col">
+                    <VirtualInfiniteScroll
+                        onLoadMore={handleLoadMore}
+                        hasMore={hasPageAfter(pageIndex, projectInfo.data?.pageCount)}
+                        items={rows}
+                        renderItem={handleRenderIndex}
+                        isLoading={projectInfo.isLoading}
+                        // The first load is the list's shape, not "Loading more…".
+                        loadingComponent={(taskListState?.length ?? 0) === 0 ? <PhoneListSkeleton /> : undefined}
+                        keyExtractor={handleItemKey}
+                        itemSize={PHONE_ROW_PX}
+                    />
+                </div>
+                <ReorderLayer {...reorder} tasks={taskListState} groups={groups} grouping="status" options={statusOpts} canEdit={canEdit} box={listBox} />
+            </ReorderHost>
             )}
 
             {/* Floating action bar */}
@@ -442,7 +429,7 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
                             onClick={() => dispatch(openUI({ key: 'githubBulkLinkTask', data: { taskIds: Array.from(selectedTaskUUIDs) } }))}
                         >
                             <Github className="h-3.5 w-3.5" />
-                            Link to GitHub
+                            Link to GitHub…
                         </Button>
                         <Button
                             data-tone="danger"
@@ -472,6 +459,8 @@ export const ProjectTaskList = ({ searchQuery, projectId, search }: { searchQuer
 }
 
 type PhoneRow = TaskInfoInterface | GroupHeaderRow
+
+const PHONE_SORT_WORDS: Record<string, string> = { task_due_date: "due date", task_start_date: "start date", task_created_date: "date created" }
 
 /** A status group's header on a phone: its glyph, its name and its count, on the sunken surface. */
 function PhoneGroupHeader({ label, count, status }: { label: string; count: string; status?: StatusOption }) {

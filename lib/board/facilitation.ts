@@ -59,11 +59,16 @@ export function votableNotes(elements: readonly Placed[]): Votable[] {
 /** The votes key for a person in a round: rounds never mix. */
 export const voteKey = (votingId: string, userId: string) => `${votingId}:${userId}`
 
-/** Adds or removes one vote: one per note, perPerson in all. Null when full. */
-export function toggleVote(mine: readonly string[], noteId: string, perPerson: number): string[] | null {
-  if (mine.includes(noteId)) return mine.filter((id) => id !== noteId)
-  if (mine.length >= perPerson) return null
-  return [...mine, noteId]
+/**
+ * A vote for each of some notes at once (the notes bar's Vote, miro-07 6): when
+ * every one already has the person's vote it takes them all back, otherwise it
+ * adds the ones missing. Null when that would pass perPerson; nothing changes.
+ */
+export function toggleVotes(mine: readonly string[], noteIds: readonly string[], perPerson: number): string[] | null {
+  const ids = [...new Set(noteIds)]
+  if (ids.length > 0 && ids.every((id) => mine.includes(id))) return mine.filter((id) => !ids.includes(id))
+  const next = [...mine, ...ids.filter((id) => !mine.includes(id))]
+  return next.length > perPerson ? null : next
 }
 
 /** Votes per note for one round, most first; notes since deleted drop out. */
@@ -95,4 +100,57 @@ export function formatClock(ms: number): string {
   const m = Math.floor((s % 3600) / 60)
   const sec = String(s % 60).padStart(2, "0")
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`
+}
+
+/**
+ * The compact facilitation bar's one priority (design review, 29 Oct): the steps by which its segments
+ * give way when its row is short of room, first to last, each one segment's next shorter form. A name
+ * gives way before any step, by itself, down to its first letter and "…"; a step comes only when that
+ * isn't enough (components/board/useGiveWay measures it):
+ *   followIcon     following someone, the segment is its icon: the frame's label names them;
+ *   votingWord     a round someone else started says "Voting", without their name;
+ *   presenterName  someone presenting is their name beside the icon, without "is presenting";
+ *   votingIcon     that round is its icon;
+ *   presenterIcon  someone presenting is the icon.
+ * Your own state ("Presenting") and an editor's votes left never give way.
+ */
+export const GIVE_WAY = ["followIcon", "votingWord", "presenterName", "votingIcon", "presenterIcon"] as const
+export type GiveWayStep = (typeof GIVE_WAY)[number]
+
+/** What a compact bar says: who its presenting segment is about, and how its open round reads. */
+export interface CompactBar {
+  /** You present; you follow someone; someone presents and you don't follow; nobody presents. */
+  presenter: "you" | "following" | "someone" | null
+  /** An editor's votes left; a round someone else started, as a viewer is told it; no open round. */
+  voting: "count" | "named" | null
+}
+
+const TAKES: Record<GiveWayStep, (bar: CompactBar) => boolean> = {
+  followIcon: (bar) => bar.presenter === "following",
+  votingWord: (bar) => bar.voting === "named",
+  presenterName: (bar) => bar.presenter === "someone",
+  votingIcon: (bar) => bar.voting === "named",
+  presenterIcon: (bar) => bar.presenter === "someone",
+}
+
+/** The steps that change something on this bar, in GIVE_WAY's order. */
+export function giveWaySteps(bar: CompactBar): GiveWayStep[] {
+  return GIVE_WAY.filter((step) => TAKES[step](bar))
+}
+
+/** Each segment's form: whole, shortened, or its icon alone. */
+export interface BarForms {
+  /** "Following ann" or "ann is presenting"; "ann" beside the icon; the icon. */
+  presenter: "full" | "name" | "icon"
+  /** "Lee started voting"; "Voting"; the icon. */
+  voting: "full" | "word" | "icon"
+}
+
+/** The forms of this bar's segments once its first `given` steps are taken. */
+export function barForms(bar: CompactBar, given: number): BarForms {
+  const taken = new Set(giveWaySteps(bar).slice(0, Math.max(0, given)))
+  return {
+    presenter: taken.has("followIcon") || taken.has("presenterIcon") ? "icon" : taken.has("presenterName") ? "name" : "full",
+    voting: taken.has("votingIcon") ? "icon" : taken.has("votingWord") ? "word" : "full",
+  }
 }

@@ -9,8 +9,7 @@ const sent: Record<string, unknown>[] = []
 const dispatched: { type: string; payload: Record<string, unknown> }[] = []
 const toasts: { title?: string; description?: string }[] = []
 let answer: () => Promise<unknown> = async () => ({ data: { object_uuid: "file-1" } })
-vi.mock("@/lib/axiosInstance", () => ({
-  OWN_ERRORS: { suppressErrorToast: true },
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     post: vi.fn(async (_url: string, form: FormData, config?: { onUploadProgress?: (e: { loaded: number; total?: number }) => void }) => {
       sent.push(JSON.parse(String(form.get("jsonData"))))
@@ -74,14 +73,14 @@ afterEach(() => {
 describe("a file for a group", () => {
   it("names the people of a group not on the server yet", async () => {
     const { result } = renderHook(() => useUploadFile())
-    await result.current.makeRequestToUploadToGroupChat(files(), "new-group")
+    await result.current.makeRequestToUploadToConversation(files(), { kind: "group", id: "new-group" })
     expect(sent).toEqual([{ src_key: "grpChat", src_value: "new-group", participants: ["maya", "sam", "me"] }])
   })
 
   it("names nobody for a group the server has", async () => {
     const { result } = renderHook(() => useUploadFile())
-    await result.current.makeRequestToUploadToGroupChat(files(), "old-group")
-    await result.current.makeRequestToUploadToGroupChat(files(), "someone-elses-group")
+    await result.current.makeRequestToUploadToConversation(files(), { kind: "group", id: "old-group" })
+    await result.current.makeRequestToUploadToConversation(files(), { kind: "group", id: "someone-elses-group" })
     expect(sent).toEqual([
       { src_key: "grpChat", src_value: "old-group" },
       { src_key: "grpChat", src_value: "someone-elses-group" },
@@ -101,11 +100,11 @@ describe("each kind of upload", () => {
     ["a new task's", (h) => h.makeRequestToUploadToCreateTask(files(), "p1"), { src_key: "project", src_value: "p1" }, { projectUUID: "p1" }, createTask.createTaskDialogSlice.reducer],
     ["a task's", (h) => h.makeRequestToUploadToTask(files(), "t1", "p1"), { src_key: "project", src_value: "p1" }, { taskUUID: "t1" }, task.taskInfoSlice.reducer],
     ["a task comment's", (h) => h.makeRequestToUploadToTaskComment(files(), "p1", "t1"), { src_key: "project", src_value: "p1" }, { taskUUID: "t1" }, taskComment.createTaskCommentSlice.reducer],
-    ["a channel message's", (h) => h.makeRequestToUploadToChannel(files(), "c1"), { src_key: "channel", src_value: "c1" }, { channelId: "c1" }, channel.default.reducer],
+    ["a channel message's", (h) => h.makeRequestToUploadToConversation(files(), { kind: "channel", id: "c1" }), { src_key: "channel", src_value: "c1" }, { channelId: "c1" }, channel.default.reducer],
     ["a channel reply's", (h) => h.makeRequestToUploadToChannelComment(files(), "c1", "post1"), { src_key: "channel", src_value: "c1" }, { threadId: "post1" }, channelComment.default.reducer],
-    ["a group message's", (h) => h.makeRequestToUploadToGroupChat(files(), "old-group"), { src_key: "grpChat", src_value: "old-group" }, { grpId: "old-group" }, groupChat.default.reducer],
+    ["a group message's", (h) => h.makeRequestToUploadToConversation(files(), { kind: "group", id: "old-group" }), { src_key: "grpChat", src_value: "old-group" }, { grpId: "old-group" }, groupChat.default.reducer],
     ["a group reply's", (h) => h.makeRequestToUploadToGroupChatComment(files(), "old-group", "chat1"), { src_key: "grpChat", src_value: "old-group" }, { threadId: "chat1" }, chatComment.chatCommentSlice.reducer],
-    ["a DM's", (h) => h.makeRequestToUploadToChat(files(), "maya", "dm1"), { src_key: "chat", src_value: "dm1" }, { chatUUID: "maya" }, chat.default.reducer],
+    ["a DM's", (h) => h.makeRequestToUploadToConversation(files(), { kind: "dm", id: "dm1", other: "maya" }), { src_key: "chat", src_value: "dm1" }, { chatUUID: "maya" }, chat.default.reducer],
     ["a DM reply's", (h) => h.makeRequestToUploadToChatComment(files(), "chat2", "dm1"), { src_key: "chat", src_value: "dm1" }, { threadId: "chat2" }, chatComment.chatCommentSlice.reducer],
   ]
 
@@ -137,7 +136,7 @@ describe("a file that doesn't go up", () => {
   it("is named in a toast with the server's reason, and its card goes", async () => {
     answer = () => Promise.reject({ response: { status: 400, data: { msg: "That kind of file isn't allowed here." } } })
     const { result } = renderHook(() => useUploadFile())
-    await result.current.makeRequestToUploadToChannel(files(), "c1")
+    await result.current.makeRequestToUploadToConversation(files(), { kind: "channel", id: "c1" })
     expect(dispatched.filter((d) => d.type === channel.deleteChannelPreviewFiles.type)).toHaveLength(1)
     expect(toasts).toEqual([{ title: "Couldn't upload plan.txt", description: "That kind of file isn't allowed here.", variant: "destructive" }])
   })
@@ -156,7 +155,7 @@ describe("a file that doesn't go up", () => {
   it("goes without a word when its upload was cancelled", async () => {
     answer = () => Promise.reject(new CanceledError("canceled"))
     const { result } = renderHook(() => useUploadFile())
-    await result.current.makeRequestToUploadToChannel(files(), "c1")
+    await result.current.makeRequestToUploadToConversation(files(), { kind: "channel", id: "c1" })
     await result.current.makeRequestToUploadToProject(files(), "p1")
     expect(dispatched.filter((d) => d.type === channel.deleteChannelPreviewFiles.type)).toHaveLength(1)
     expect(dispatched.filter((d) => d.type === project.deleteProjectAttachmentPreviewFiles.type)).toHaveLength(1)

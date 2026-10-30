@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 import { expectReachable } from "./menuReach"
-import { SAM, stubBackend } from "./stubbedApp"
+import { SAM, stubBackend, tidy } from "./stubbedApp"
 
 // Mentions that reach (chat P3), in a real browser with no backend: the "@"
 // list in #launch in D-M9's order (this channel's people, recent first; your
@@ -9,14 +9,6 @@ import { SAM, stubBackend } from "./stubbedApp"
 // and a team's chips, the question a broadcast asks first, and the channel's
 // "Allow @here and @channel". With SHOTS=<dir> each is saved at 1280 and 390,
 // light and dark.
-
-async function tidy(tab: Page) {
-  for (let i = 0; i < 2; i++) {
-    const gotIt = tab.getByRole("button", { name: "Got it" }).first()
-    if (!(await gotIt.isVisible().catch(() => false))) break
-    await gotIt.click().catch(() => {})
-  }
-}
 
 const person = (n: string, user_name: string, extra: object = {}) => ({ user_uuid: `5b1d7c2e-8f3a-4d6b-9e0c-1a2b3c4d5e${n}`, user_name, user_full_name: user_name, uid: `0x${n}`, user_profile_object_key: "", ...extra })
 const MAYA = person("6f", "Maya Chen")
@@ -105,8 +97,35 @@ for (const view of views) {
       await tab.waitForTimeout(500)
       // It opens on its first row, lit, so Enter picks it.
       await expect(list.getByRole("option").first()).toHaveAttribute("aria-selected", "true")
-      console.log(`CURSOR ${await list.locator("[data-menu-cursor]").count()} ${await list.locator("[data-menu-cursor]").first().getAttribute("style").catch(() => "none")}`)
       if (process.env.SHOTS) await tab.screenshot({ path: `${process.env.SHOTS}/reach-list-${view.name}-${scheme}.png` })
+
+      // Longer than its box, the list fades at the edge with more past it, so
+      // "@here" cut at the bottom reads as more below, not the list's end
+      // (DESIGN-BUILD-8, 23 Oct; data-edge-fade-block). The keys keep the lit
+      // row clear of the fade, and at the end the fade moves to the top. This
+      // reads the list as it opens, at its top, before the rows are scrolled to.
+      const rows = list.locator("[data-command-listbox]")
+      // The fades as drawn, from their scroll-driven animations' progress (the
+      // start fade grows from 0 to 24px, the end fade shrinks from 24px to 0).
+      // The custom properties' computed values read 24px at the top on the
+      // merged stack, at scrollTop 0, where its shots show no fade.
+      const fades = () =>
+        rows.evaluate((el) => {
+          const progress = (name: string) => el.getAnimations().find((a) => a instanceof CSSAnimation && a.animationName === name)?.effect?.getComputedTiming().progress
+          const [s, e] = [progress("ix-fade-s"), progress("ix-fade-e")]
+          return s == null || e == null ? "none" : `${Math.round(s * 24)}px ${Math.round((1 - e) * 24)}px`
+        })
+      expect(await rows.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
+      await expect.poll(async () => ({ fades: await fades(), top: await rows.evaluate((el) => el.scrollTop) })).toEqual({ fades: "0px 24px", top: 0 })
+      for (let i = (await list.getByRole("option").count()) - 2; i > 0; i--) await box.press("ArrowDown")
+      expect(await rows.evaluate((el) => {
+        const lit = el.querySelector('[aria-selected="true"]')!.getBoundingClientRect()
+        const edge = el.getBoundingClientRect()
+        return lit.top >= edge.top + 23 && (lit.bottom <= edge.bottom - 23 || el.scrollTop + el.clientHeight >= el.scrollHeight - 1)
+      })).toBe(true)
+      await rows.evaluate((el) => void (el.scrollTop = el.scrollHeight))
+      await expect.poll(fades).toBe("24px 0px")
+      if (process.env.SHOTS) await tab.screenshot({ path: `${process.env.SHOTS}/reach-list-end-${view.name}-${scheme}.png` })
       // Every group's rows can be seen and pressed, each scrolled to in the list.
       for (const row of await list.getByRole("option").all()) {
         await row.scrollIntoViewIfNeeded()

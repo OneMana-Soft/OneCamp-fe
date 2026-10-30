@@ -24,10 +24,11 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { AlertCircle, Loader2, Lock, RefreshCw } from "@/lib/icons"
+import { AlertCircle, Lock, RefreshCw } from "@/lib/icons"
 import { clearUnsaved, markUnsaved, SAVE_NUDGE_EVENT } from "@/lib/unsavedChanges"
 import { SavedTick, type SaveStatus } from "@/components/ui/saveStatus"
 import { useSaysLoadFailure } from "@/lib/http/loadFailure"
+import { settingIdOf } from "@/lib/settingsIds"
 
 /** The gap between sections on a page: 32px (the old ADMIN_SECTION_STACK). */
 export const SETTINGS_STACK = "space-y-8"
@@ -175,8 +176,7 @@ export function SettingsCardFooter({
           Reset
         </Button>
       )}
-      <Button type="button" size="sm" onClick={onSave} disabled={!dirty || saving || saveDisabled} aria-busy={saving || undefined}>
-        {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
+      <Button type="button" size="sm" onClick={onSave} disabled={!dirty || saveDisabled} busy={saving}>
         {saving ? "Saving…" : saveLabel}
       </Button>
     </div>
@@ -277,7 +277,8 @@ export function SwitchRow(props: {
   id?: string
 }) {
   const generated = useId()
-  const id = props.id ?? generated
+  // A worded switch's id comes from its words, for Search settings to land on.
+  const id = props.id ?? (typeof props.label === "string" ? settingIdOf(props.label) : generated)
   const off = props.disabled || !!props.locked
   const { shake, onAnimationEnd } = useShake(props.status)
   return (
@@ -401,17 +402,27 @@ export function SettingRow({
 }
 
 /**
- * A card whose read failed: its body becomes one compact row with the danger
- * glyph, what couldn't be loaded, the server's reason, and Try again.
+ * A card or a row whose read failed: one compact row with the danger glyph,
+ * what couldn't be read, the server's reason, and Try again.
  */
 export function SettingsCardError({
   what,
+  title,
   reason,
   onRetry,
   retrying,
-}: {
-  /** "workspace settings" reads "Couldn't load workspace settings." */
-  what: string
+}: (
+  | {
+      /** "workspace settings" reads "Couldn't load workspace settings." */
+      what: string
+      title?: never
+    }
+  | {
+      /** Said whole, for a read that checks: "Couldn't check your password". */
+      title: string
+      what?: never
+    }
+) & {
   reason?: React.ReactNode
   onRetry?: () => void
   retrying?: boolean
@@ -424,7 +435,7 @@ export function SettingsCardError({
     <div role="alert" data-card-error="" className="set-row flex flex-wrap items-center gap-x-3 gap-y-2">
       <AlertCircle className="size-4 shrink-0 text-danger-ink" aria-hidden="true" />
       <div className="min-w-0 flex-1 basis-56">
-        <p className="text-sm font-medium text-foreground">Couldn&apos;t load {what}.</p>
+        <p className="text-sm font-medium text-foreground">{title ?? <>Couldn&apos;t load {what}.</>}</p>
         <p className="text-xs text-muted-foreground text-pretty">
           {reason ?? "Nothing has been lost. This is usually a connection problem."}
         </p>
@@ -549,8 +560,7 @@ export function SaveBar({
         <Button type="button" variant="ghost" size="sm" onClick={onDiscard} disabled={saving}>
           Discard
         </Button>
-        <Button type="button" size="sm" onClick={onSave} disabled={saving}>
-          {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
+        <Button type="button" size="sm" onClick={onSave} busy={saving}>
           Save
         </Button>
       </div>

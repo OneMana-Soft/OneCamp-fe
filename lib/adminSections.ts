@@ -19,6 +19,7 @@ import {
   Bell,
   Database,
   FileCheck2,
+  FileText,
   GitBranch,
   Key,
   KeyRound,
@@ -119,6 +120,10 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
       { title: "Appearance", id: "profile-appearance" },
       { title: "Theme", id: "profile-appearance" },
       { title: "Calendar", id: "profile-calendar" },
+      { title: "Time and date", id: "profile-time" },
+      { title: "Time zone", id: "profile-time" },
+      { title: "Clock", id: "profile-time" },
+      { title: "Working hours", id: "profile-hours" },
       { title: "Password", id: "profile-security" },
       { title: "Two-step sign-in", id: "profile-security" },
       { title: "Passkeys", id: "profile-security" },
@@ -133,8 +138,9 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
       { title: "Quiet hours", id: "notifications-quiet" },
       { title: "Keywords and VIPs", id: "notifications-keywords" },
       { title: "Read receipts", id: "notifications-read-receipts" },
+      { title: "Doc views", id: "notifications-doc-views" },
     ],
-    keywords: ["push", "mute", "pause", "do not disturb", "keyword", "vip"],
+    keywords: ["push", "mute", "pause", "do not disturb", "keyword", "vip", "viewed by"],
   }),
   fromSettings("/app/settings/connectors", { keywords: ["gmail", "google calendar", "github"] }),
   fromSettings("/app/settings/api-tokens", { icon: Key, keywords: ["token", "api key", "script"] }),
@@ -226,6 +232,22 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
       { title: "SCIM provisioning", id: "security-scim" },
     ],
     keywords: ["scim", "provisioning", "guests"],
+  },
+  {
+    key: "docs",
+    label: "Docs",
+    description: "Exporting, link lifetimes, embed sites, and people who left.",
+    href: admin("docs"),
+    icon: FileText,
+    hue: SETTINGS_GROUP_HUE.workspace,
+    group: "workspace",
+    cards: [
+      { title: "Members can export docs", id: "docs-policies" },
+      { title: "Longest a link lasts", id: "docs-policies" },
+      { title: "Sites docs can embed", id: "docs-policies" },
+      { title: "People who left", id: "docs-departed" },
+    ],
+    keywords: ["export", "embeds", "guest links", "offboarding"],
   },
   {
     key: "permissions",
@@ -360,7 +382,7 @@ export const SETTINGS_PLACES: SettingsPlace[] = [
     group: "records",
     // Four source cards across need more than the 720px column.
     wide: true,
-    keywords: ["slack", "asana", "jira", "trello", "clickup", "monday", "todoist", "linear", "notion", "migrate", "export", "backup", "zip"],
+    keywords: ["slack", "asana", "basecamp", "jira", "trello", "clickup", "monday", "todoist", "linear", "notion", "migrate", "export", "backup", "zip"],
   },
 
   // ── System ──
@@ -430,6 +452,8 @@ export interface SettingsHit {
   place: SettingsPlace
   /** The card a hit landed on, when the words matched a card's title. */
   card?: { title: string; id: string }
+  /** The field a hit lands on (lib/settingsFields): its words, its control's id and where it opens. */
+  field?: { label: string; id: string; href: string }
 }
 
 /**

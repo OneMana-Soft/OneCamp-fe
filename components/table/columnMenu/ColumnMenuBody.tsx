@@ -20,34 +20,41 @@ import { AlertTriangle, ArrowDown, ArrowUp, Copy, EyeOff, Filter, Loader2, Trash
 import { Spark } from "@/components/ui/graphics"
 import {
   aggregateTable,
+  computedOf,
   fieldProblem,
   fillTableAIColumn,
   formulaOf,
-  newOptionId,
+  isComputed,
   optionsOf,
   parseFieldConfig,
-  previewConversion,
   relationOf,
-  rollupOf,
+  type AIFillResult,
   type FieldOption,
   type FieldType,
   type TableField,
 } from "@/services/tableService"
+import { newOptionId, previewConversion } from "@/services/tableCalls"
 import { FormulaEditor } from "@/components/table/FormulaEditor"
 import { FieldSettings } from "@/components/table/fields/FieldSettings"
 import { OptionsEditor } from "@/components/fields/OptionsEditor"
 import { tintedFields } from "@/components/table/optionChip"
-import { RelationSettings, RollupSettings, relationDraftOf, rollupReady, relationReady, type RelationDraft, type RollupDraft } from "@/components/table/LinkSettings"
+import { RelationSettings, RollupSettings, relationDraftOf, rollupConfigOf, rollupDraftOf, rollupReady, relationReady, type RelationDraft, type RollupDraft } from "@/components/table/LinkSettings"
 import { FIELD_KINDS, fieldKind } from "@/lib/fieldTypes/registry"
+import { ownConfig } from "@/lib/tables/ownConfig"
+import { KindSettingRows, StatusGroupSelect } from "@/components/table/fields/KindSettings"
+import { statusGroupOf, type StatusGroup } from "@/lib/fieldTypes/kindsMore"
 import { CommandList, CommandTile, type CommandListItem } from "@/components/ui/CommandList"
 import { useToast } from "@/hooks/use-toast"
-import type { NumberFormat } from "@/lib/tables/cellFormat"
+import { useUndoToast } from "@/components/table/ledger/useUndoToast"
+import { undoChange } from "@/lib/tables/ledger"
+import { isTouchScreen } from "@/lib/ui/touchScreen"
+import type { NumberFormat as ResultFormat } from "@/lib/tables/cellFormat"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { fieldKeyDown } from "@/lib/keys/ime"
-import { aiPromptOf, type ColumnHeaderProps, type ColumnPage } from "@/components/table/ColumnMenu"
-import { Divider, MenuRow, SubHeader, TypeHint } from "./menuParts"
+import { aiPromptOf, settingsPageOf, type ColumnHeaderProps, type ColumnPage } from "@/components/table/ColumnMenu"
+import { Divider, MenuRow, SettingsPage, SubHeader, TypeHint } from "./menuParts"
 
 /** The glyphs of the kinds whose settings have a page of their own. */
 const FormulaGlyph = fieldKind("formula").glyph
@@ -74,18 +81,6 @@ function clearedNote(from: FieldType, to: FieldType, cleared: number | null): st
   return `${n} ${cleared === 1 ? "doesn't" : "don't"} fit ${column} and will be cleared.`
 }
 
-/** The config a field keeps when only its options, format or the like change. */
-function baseConfig(field: TableField): Record<string, unknown> {
-  const cfg = parseFieldConfig(field) as Record<string, unknown>
-  // The server writes these on read, and a removal is named once; they
-  // aren't the owner's to send back.
-  const { result: _r, error: _e, table_name: _t, removed_options: _x, ...rest } = cfg
-  void _r
-  void _e
-  void _t
-  void _x
-  return rest
-}
 
 /**
  * How many rows hold each of a select column's options, as the server counts
@@ -155,9 +150,11 @@ function SelectOptions({
   }, [field.config])
   const counts = useOptionCounts(tableId, field)
   const then = field.type === "multi_select" ? "lose it" : "be left empty"
+  // A status's options sit in groups: a new one is to do, and each says its own.
+  const status = field.type === "status"
   const save = (next: FieldOption[], nextTinted: boolean, removed: string[] = []) =>
     // Said both ways: left out, a table's first select reads as tinted (optionChip tintedFields).
-    onSave({ ...baseConfig(field), options: next, tinted: nextTinted, ...(removed.length ? { removed_options: removed } : {}) })
+    onSave({ ...ownConfig(field), options: next, tinted: nextTinted, ...(removed.length ? { removed_options: removed } : {}) })
   return (
     <div className="space-y-1">
       <label className="flex h-9 items-center gap-2.5 rounded-lg px-2 hover:bg-hover">
@@ -181,7 +178,12 @@ function SelectOptions({
       <OptionsEditor
         options={options}
         reorder
-        make={(label) => ({ id: newOptionId(), label })}
+        make={(label) => ({ id: newOptionId(), label, ...(status ? { group: "todo" } : {}) })}
+        aside={
+          status
+            ? (o, change) => <StatusGroupSelect value={statusGroupOf(o)} label={`${o.label}'s group`} onChange={(g: StatusGroup) => change({ ...o, group: g })} />
+            : undefined
+        }
         onChange={(next, removed) => {
           setOptions(next)
           save(next, tinted, removed)
@@ -202,17 +204,60 @@ function SelectOptions({
   )
 }
 
-/** A number column's format (T08): currency, decimals, percent and its bar. Saves as it changes. */
+/**
+ * A number column's format (T08): currency, decimals, percent and its bar;
+ * and a formula's or a rollup's (B2): that, or a duration, for a number it
+ * gives, and a style for a date. Saves as it changes.
+ */
 function NumberFormatEditor({ field, onSave }: { field: TableField; onSave: (config: Record<string, unknown>) => void }) {
-  const [fmt, setFmt] = React.useState<NumberFormat>(() => (parseFieldConfig(field).format as NumberFormat) || {})
-  const set = (next: NumberFormat) => {
-    setFmt(next)
-    onSave({ ...baseConfig(field), format: next })
+  const [fmt, setFmt] = React.useState<ResultFormat>(() => (parseFieldConfig(field).format as ResultFormat) || {})
+  const set = (next: ResultFormat) => {
+    // Unset choices aren't sent, so the server keeps only what's chosen.
+    const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as ResultFormat
+    setFmt(clean)
+    onSave({ ...ownConfig(field), format: clean })
   }
+  const computed = isComputed(field)
+  const gives = computed ? computedOf(field).result : "number"
   const seg = (active: boolean) =>
     cn("h-6 flex-1 rounded-md text-ui-sm font-medium transition-colors", active ? "bg-raised text-ink shadow-sel" : "text-ink-2 hover:text-ink")
+  if (gives === "date") {
+    return (
+      <div className="space-y-2 px-1 pb-1">
+        <p className="px-1 pb-1 text-meta font-medium text-ink-3">Show the date</p>
+        <div className="flex gap-0.5 rounded-lg bg-hover p-0.5" role="group" aria-label="Date style">
+          {([undefined, "long", "relative", "iso"] as const).map((d) => (
+            <button key={d ?? "short"} type="button" aria-pressed={fmt.date === d} data-touch-target="" className={seg(fmt.date === d)} onClick={() => set({ ...fmt, date: d })}>
+              {d === "long" ? "Long" : d === "relative" ? "Ago" : d === "iso" ? "ISO" : "Short"}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="space-y-2 px-1 pb-1">
+      {computed ? (
+        <div>
+          <p className="px-1 pb-1 text-meta font-medium text-ink-3">Show it as</p>
+          <div className="flex gap-0.5 rounded-lg bg-hover p-0.5" role="group" aria-label="Show it as">
+            {([undefined, "h:mm", "h:mm:ss"] as const).map((d) => (
+              <button
+                key={d ?? "number"}
+                type="button"
+                aria-pressed={fmt.duration === d}
+                data-touch-target=""
+                className={seg(fmt.duration === d)}
+                onClick={() => set(d ? { duration: d } : { ...fmt, duration: undefined })}
+              >
+                {d === "h:mm" ? "Duration" : d === "h:mm:ss" ? "With seconds" : "Number"}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {fmt.duration ? null : (
+        <>
       <div>
         <p className="px-1 pb-1 text-meta font-medium text-ink-3">Currency</p>
         <div className="flex gap-0.5 rounded-lg bg-hover p-0.5" role="group" aria-label="Currency">
@@ -237,18 +282,47 @@ function NumberFormatEditor({ field, onSave }: { field: TableField; onSave: (con
         Percent
         <Switch checked={!!fmt.percent} aria-label="Percent" onCheckedChange={(on) => set({ ...fmt, percent: on || undefined, bar: on ? fmt.bar : undefined })} />
       </label>
-      {fmt.percent ? (
+      {fmt.percent && !computed ? (
         <label className="flex h-8 items-center justify-between rounded-lg px-1 text-ui text-ink">
           Show a bar
           <Switch checked={!!fmt.bar} aria-label="Show a bar" onCheckedChange={(on) => set({ ...fmt, bar: on || undefined })} />
         </label>
       ) : null}
+        </>
+      )}
     </div>
   )
 }
 
+/** The toast a column's fill answers with (audit 31): what it filled now and,
+ * when the AI's rate stopped it there, that the rest continue in the
+ * background (the header shows how far, with Stop); then how many more cells
+ * are empty past what one fill takes. */
+function fillToast({ filled, skipped, left, total, more }: AIFillResult) {
+  const n = (v: number) => formatLocale(v, {})
+  const skips = skipped ? `, skipped ${n(skipped)}` : ""
+  const next = more > 0 ? ` ${n(more)} more ${more === 1 ? "is" : "are"} empty: fill the column again for ${more === 1 ? "it" : "them"}.` : ""
+  return left > 0
+    ? { title: "Filling in the background", description: `Filled ${n(filled)} of ${n(total)}${skips}; the rest continue in the background. Its column shows how far, with Stop.${next}` }
+    : { title: "AI fill complete", description: `Filled ${n(filled)} ${filled === 1 ? "row" : "rows"}${skips}.${next}` }
+}
+
 /** The menu's props: the header's, and the page it is on. */
 export type ColumnMenuBodyProps = ColumnHeaderProps & { page: ColumnPage }
+
+/**
+ * What is wrong with a field's formula or rollup, said on the menu and on the
+ * page that puts it right. Its margin is the page's: the menu insets it as it
+ * does its rows, and the settings page sets it flush with its fields.
+ */
+function ProblemRow({ problem, className }: { problem: string; className?: string }) {
+  return (
+    <p className={cn("flex items-start gap-1.5 rounded-lg bg-sunken px-2 py-1.5 text-meta text-danger-ink", className)}>
+      <AlertTriangle className="mt-px size-3.5 shrink-0" />
+      {problem}
+    </p>
+  )
+}
 
 export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSave, onDelete, onInsert, onDuplicate, onSort, onFilter, onHide, onFilled }: ColumnMenuBodyProps) {
   const { toast } = useToast()
@@ -257,8 +331,9 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
   const config = parseFieldConfig(field)
   const savedAiPrompt = aiPromptOf(config)
   const problem = fieldProblem(field)
-  // A link or a rollup can't name the table's rows (the server refuses it).
-  const mayBePrimary = !field.primary && field.type !== "relation" && field.type !== "rollup"
+  // A link, a rollup, people or what a row says of itself can't name the
+  // table's rows (the server refuses it).
+  const mayBePrimary = !field.primary && !["relation", "rollup", "people"].includes(field.type) && !fieldKind(field.type).fromRow
 
   const [name, setName] = React.useState(field.name)
   React.useEffect(() => {
@@ -284,7 +359,7 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
   const [changing, setChanging] = React.useState<FieldType | null>(null)
   const saveType = async (type: FieldType) => {
     setPendingType(null)
-    const options = type === "select" || type === "multi_select"
+    const options = fieldKind(type).options
     if (!options) onOpenPage("main")
     else setChanging(type)
     const saved = await onSave({ type, config: options ? { options: optionsOf(field) } : {} })
@@ -303,9 +378,8 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
       setPage("main")
       return
     }
-    if (type === "formula") return setPage("formula")
-    if (type === "relation") return setPage("relation")
-    if (type === "rollup") return setPage("rollup")
+    const settings = settingsPageOf(type)
+    if (settings) return setPage(settings)
     setPendingType(null)
     setCounting(type)
     asked.current = type
@@ -325,18 +399,14 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
   // Formula, relation, rollup and AI settings are drafts until saved.
   const [formula, setFormula] = React.useState(() => formulaOf(field).formula)
   const [relation, setRelation] = React.useState<RelationDraft>(() => relationDraftOf(field))
-  const [rollup, setRollup] = React.useState<RollupDraft>(() => {
-    const r = rollupOf(field)
-    return { relation: r.relation, field: r.field, aggregate: r.aggregate }
-  })
+  const [rollup, setRollup] = React.useState<RollupDraft>(() => rollupDraftOf(field))
   const [aiPrompt, setAiPrompt] = React.useState(() => aiPromptOf(config))
   const [aiAuto, setAiAuto] = React.useState(() => aiAutoOf(config))
   const [filling, setFilling] = React.useState(false)
   React.useEffect(() => {
     setFormula(formulaOf(field).formula)
     setRelation(relationDraftOf(field))
-    const r = rollupOf(field)
-    setRollup({ relation: r.relation, field: r.field, aggregate: r.aggregate })
+    setRollup(rollupDraftOf(field))
     setAiPrompt(aiPromptOf(parseFieldConfig(field)))
     setAiAuto(aiAutoOf(parseFieldConfig(field)))
     setPendingType(null)
@@ -345,20 +415,36 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
   // AI fills a column only where AI is on: with it off (or on the edition
   // without it) "Fill with AI…" could only fail.
   const ai = useAIAvailable()
-  const aiEligible = ai && ["text", "number", "url", "email"].includes(field.type)
+  const aiEligible = ai && ["text", "long_text", "number", "url", "email"].includes(field.type)
   // A link keeps its type: the server refuses changing one, to a table's rows
   // or to items (docs, tasks, boards, projects, people), which it would
   // otherwise write out as text.
   const linkKind = field.type === "relation" ? (relationOf(field).target === "table" ? "A link to another table" : "A link to docs, tasks, boards, projects or people") : null
-  const isSelect = field.type === "select" || field.type === "multi_select"
+  const isSelect = fieldKind(field.type).options
   const tintedIds = tintedFields(fields)
   const otherTinted = fields.some((f) => f.id !== field.id && tintedIds.has(f.id))
 
-  const fill = async () => {
+  // A fill past 500 cells asks first: each cell is one call to the
+  // workspace's model. confirming holds how many cells it would take.
+  const [confirming, setConfirming] = React.useState<number | null>(null)
+  const offerUndo = useUndoToast(onFilled)
+  const fill = async (confirm = false) => {
     setFilling(true)
     try {
-      const res = await fillTableAIColumn(tableId, field.id)
-      toast({ title: "AI fill complete", description: `Filled ${res.filled} ${res.filled === 1 ? "row" : "rows"}${res.skipped ? `, skipped ${res.skipped}` : ""}.` })
+      const res = await fillTableAIColumn(tableId, field.id, undefined, confirm)
+      if (res.needs_confirm) {
+        setConfirming(res.total)
+        return
+      }
+      setConfirming(null)
+      const note = fillToast(res)
+      // Done in the request: its Undo is offered now; one going on in the
+      // background is offered when it ends.
+      if (res.left === 0 && res.change_set && res.filled > 0) offerUndo(note.title, () => undoChange(tableId, res.change_set), note.description, "Undo fill")
+      else toast(note)
+      // The rest goes on in the background, and its header shows it: the menu
+      // (a sheet on a phone, under the toast) closes.
+      if (res.fill && res.left > 0) onOpenPage(null)
       onFilled()
     } catch {
       // surfaced by interceptor
@@ -367,12 +453,14 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
     }
   }
 
-  const typeItems: CommandListItem[] = FIELD_KINDS.map((t) => {
+  // The kinds a column may become: those the menu offers, and its own.
+  const typeItems: CommandListItem[] = FIELD_KINDS.filter((t) => t.offered || t.id === field.type).map((t) => {
     const G = t.glyph
     return {
       id: t.id,
       label: t.label,
       text: t.label,
+      group: t.group,
       tile: (
         <CommandTile>
           <G />
@@ -388,7 +476,9 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
         <div>
           <div className="p-1 pb-1.5">
             <input
-              autoFocus
+              // On a touch screen a focused name raises the keyboard over the
+              // menu as it opens (DESIGN-BUILD-15): focus it on a pointer only.
+              autoFocus={!isTouchScreen()}
               value={name}
               onChange={(e) => setName(e.target.value)}
               onBlur={commitName}
@@ -406,14 +496,17 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
           </div>
           <MenuRow icon={<Glyph />} label="Type" hint={fieldKind(field.type).label} sub onClick={() => setPage("type")} />
           {isSelect && <MenuRow icon={<SlidersHorizontal />} label="Options" hint={String((config.options || []).length)} sub onClick={() => setPage("options")} />}
-          {field.type === "number" && <MenuRow icon={<SlidersHorizontal />} label="Format" sub onClick={() => setPage("format")} />}
+          {(field.type === "number" || (isComputed(field) && ["number", "date"].includes(computedOf(field).result))) && (
+            <MenuRow icon={<SlidersHorizontal />} label="Format" sub onClick={() => setPage("format")} />
+          )}
+          <KindSettingRows field={field} onSave={(cfg) => void onSave({ config: cfg })} />
           {field.type === "date" && (
             <label className="flex h-8 items-center gap-2.5 rounded-lg px-2 text-ui text-ink hover:bg-hover">
               <span className="flex-1">Due date (overdue in red)</span>
               <Switch
                 checked={config.due === true}
                 aria-label="Due date"
-                onCheckedChange={(on) => void onSave({ config: { ...baseConfig(field), due: on || undefined } })}
+                onCheckedChange={(on) => void onSave({ config: { ...ownConfig(field), due: on || undefined } })}
               />
             </label>
           )}
@@ -422,12 +515,7 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
           {field.type === "rollup" && <MenuRow icon={<RollupGlyph />} label="Rollup" sub onClick={() => setPage("rollup")} />}
           <MenuRow icon={<Settings2 />} label="Field settings" hint={field.required ? "Required" : undefined} sub onClick={() => setPage("settings")} />
           {mayBePrimary && <MenuRow icon={<Pin />} label="Set as primary field" onClick={() => (void onSave({ primary: true }), onOpenPage(null))} />}
-          {problem && (
-            <p className="mx-1 my-1 flex items-start gap-1.5 rounded-lg bg-sunken px-2 py-1.5 text-meta text-danger-ink">
-              <AlertTriangle className="mt-px size-3.5 shrink-0" />
-              {problem}
-            </p>
-          )}
+          {problem && <ProblemRow problem={problem} className="mx-1 my-1" />}
           <Divider />
           {onSort && <MenuRow icon={<ArrowUp />} label="Sort ascending" onClick={() => (onSort("asc"), onOpenPage(null))} />}
           {onSort && <MenuRow icon={<ArrowDown />} label="Sort descending" onClick={() => (onSort("desc"), onOpenPage(null))} />}
@@ -507,10 +595,11 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
       )}
 
       {page === "formula" && (
-        <div className="space-y-2 p-1">
-          <SubHeader title="Formula" onBack={() => setPage("main")} />
-          <FormulaEditor tableId={tableId} fields={fields} fieldId={field.id} value={formula} onChange={setFormula} />
-          <div className="flex justify-end gap-1.5 pt-1">
+        <SettingsPage
+          title="Formula"
+          onBack={() => setPage("main")}
+          footer={
+            <>
             <Button size="sm" variant="ghost" onClick={() => onOpenPage(null)}>
               Cancel
             </Button>
@@ -518,21 +607,25 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
               size="sm"
               disabled={!formula.trim()}
               onClick={() => {
-                void onSave({ ...(field.type === "formula" ? {} : { type: "formula" as const }), config: { ...(field.type === "formula" ? baseConfig(field) : {}), formula } })
+                void onSave({ ...(field.type === "formula" ? {} : { type: "formula" as const }), config: { ...(field.type === "formula" ? ownConfig(field) : {}), formula } })
                 onOpenPage(null)
               }}
             >
               Save formula
             </Button>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <FormulaEditor tableId={tableId} fields={fields} fieldId={field.id} value={formula} onChange={setFormula} />
+        </SettingsPage>
       )}
 
       {page === "relation" && (
-        <div className="space-y-2 p-1">
-          <SubHeader title="Linked table" onBack={() => setPage("main")} />
-          <RelationSettings tableId={tableId} field={field.type === "relation" ? field : undefined} draft={relation} onChange={setRelation} />
-          <div className="flex justify-end gap-1.5 pt-1">
+        <SettingsPage
+          title="Linked table"
+          onBack={() => setPage("main")}
+          footer={
+            <>
             <Button size="sm" variant="ghost" onClick={() => onOpenPage(null)}>
               Cancel
             </Button>
@@ -546,15 +639,19 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
             >
               Save link
             </Button>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <RelationSettings tableId={tableId} field={field.type === "relation" ? field : undefined} draft={relation} onChange={setRelation} />
+        </SettingsPage>
       )}
 
       {page === "rollup" && (
-        <div className="space-y-2 p-1">
-          <SubHeader title="Rollup" onBack={() => setPage("main")} />
-          <RollupSettings fields={fields.filter((f) => f.id !== field.id)} draft={rollup} onChange={setRollup} />
-          <div className="flex justify-end gap-1.5 pt-1">
+        <SettingsPage
+          title="Rollup"
+          onBack={() => setPage("main")}
+          footer={
+            <>
             <Button size="sm" variant="ghost" onClick={() => onOpenPage(null)}>
               Cancel
             </Button>
@@ -562,14 +659,19 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
               size="sm"
               disabled={!rollupReady(rollup)}
               onClick={() => {
-                void onSave({ ...(field.type === "rollup" ? {} : { type: "rollup" as const }), config: { ...rollup } })
+                void onSave({ ...(field.type === "rollup" ? {} : { type: "rollup" as const }), config: rollupConfigOf(rollup, field) })
                 onOpenPage(null)
               }}
             >
               Save rollup
             </Button>
-          </div>
-        </div>
+            </>
+          }
+        >
+          {/* What is wrong stays in view while it is put right (a formula's editor checks its own). */}
+          {problem && <ProblemRow problem={problem} className="my-1" />}
+          <RollupSettings fields={fields.filter((f) => f.id !== field.id)} draft={rollup} onChange={setRollup} />
+        </SettingsPage>
       )}
 
       {page === "ai" && ai && (
@@ -590,26 +692,45 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
             Fill again when a row changes
             <Switch checked={aiAuto} aria-label="Autofill on change" onCheckedChange={setAiAuto} />
           </label>
-          <div className="flex justify-end gap-1.5">
-            {savedAiPrompt ? (
-              <Button size="sm" variant="secondary" disabled={filling} onClick={fill} className="gap-1.5">
-                {filling ? <Loader2 className="size-3.5 animate-spin" /> : <Spark size={14} className="text-agent" />}
-                {filling ? "Filling…" : "Fill column"}
+          {confirming !== null ? (
+            <div role="group" aria-label="Confirm the fill" className="space-y-2 rounded-xl bg-agent-muted/60 p-2.5">
+              <p className="text-ui text-ink">
+                Fill {formatLocale(confirming, {})} cells with your workspace&apos;s model? That&apos;s {formatLocale(confirming, {})} calls to it, made in the background.
+              </p>
+              <div className="flex justify-end gap-1.5">
+                <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
+                  Cancel
+                </Button>
+                <Button size="sm" disabled={filling} onClick={() => void fill(true)} className="gap-1.5">
+                  {filling ? <Loader2 className="size-3.5 animate-spin" /> : <Spark size={14} />}
+                  Fill {formatLocale(confirming, {})} cells
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {/* While the fill asks first, its button is the only primary. */}
+          {confirming === null ? (
+            <div className="flex justify-end gap-1.5">
+              {savedAiPrompt ? (
+                <Button size="sm" variant="secondary" disabled={filling} onClick={() => void fill()} className="gap-1.5">
+                  {filling ? <Loader2 className="size-3.5 animate-spin" /> : <Spark size={14} className="text-agent" />}
+                  {filling ? "Filling…" : "Fill column"}
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                disabled={!aiPrompt.trim() && !savedAiPrompt}
+                onClick={() => {
+                  const cfg = ownConfig(field)
+                  if (aiPrompt.trim()) cfg.ai = { prompt: aiPrompt.trim(), auto: aiAuto }
+                  else delete cfg.ai
+                  void onSave({ config: cfg })
+                }}
+              >
+                Save prompt
               </Button>
-            ) : null}
-            <Button
-              size="sm"
-              disabled={!aiPrompt.trim() && !savedAiPrompt}
-              onClick={() => {
-                const cfg = baseConfig(field)
-                if (aiPrompt.trim()) cfg.ai = { prompt: aiPrompt.trim(), auto: aiAuto }
-                else delete cfg.ai
-                void onSave({ config: cfg })
-              }}
-            >
-              Save prompt
-            </Button>
-          </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

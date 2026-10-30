@@ -20,6 +20,7 @@ import { identityPerson } from "@/lib/identityHue"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { useDocBus } from "@/components/docEditor/registry/commandBus"
 import { stateOf, usePresence } from "@/components/docEditor/presence/store"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 export interface ActiveUser {
     id: string
@@ -42,7 +43,7 @@ interface ActiveUsersBarProps {
 
 const FACE = 24
 const loadList = () => import("@/components/docEditor/presence/PresenceList")
-const PresenceList = React.lazy(loadList)
+const PresenceList = lazyPiece(loadList)
 
 function Face({ user, state }: { user: ActiveUser; state?: string }) {
     const { src } = useUserAvatar(user.profileKey)

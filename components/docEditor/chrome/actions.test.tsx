@@ -15,7 +15,13 @@ const hoisted = vi.hoisted(() => ({
   dispatch: vi.fn(),
 }))
 
-vi.mock("@/hooks/use-toast", () => ({ toast: (t: (typeof hoisted.toasts)[number]) => hoisted.toasts.push(t) }))
+// As the app's, a toast answers with what takes it away: trash's Undo dismisses it.
+vi.mock("@/hooks/use-toast", () => ({
+  toast: (t: (typeof hoisted.toasts)[number]) => {
+    hoisted.toasts.push(t)
+    return { id: String(hoisted.toasts.length), dismiss: vi.fn(), update: vi.fn() }
+  },
+}))
 vi.mock("@/services/docGraphService", () => ({
   deleteDoc: hoisted.deleteDoc,
   restoreDoc: hoisted.restoreDoc,

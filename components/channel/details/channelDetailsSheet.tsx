@@ -7,16 +7,18 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useDispatch } from "react-redux"
 import { useRouter } from "next/navigation"
 import { SheetOverlay, SheetPortal } from "@/components/ui/sheet"
+import { SearchInput } from "@/components/ui/search-input"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { SpotSearch } from "@/components/ui/graphics/spots"
 import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
-import AddChannelMemberCombobox from "@/components/combobox/addChannelMemberCombobox"
+import { AddMemberCombobox } from "@/components/combobox/addMemberCombobox"
 import { useChannelMembers } from "@/components/member/channelMemberContent"
 import { BroadcastSetting } from "@/components/channel/details/broadcastSetting"
 import { MemberRow } from "@/components/channel/details/memberRow"
@@ -37,8 +39,9 @@ import { displayNameOf } from "@/lib/personName"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { app_channel_path } from "@/types/paths"
-import { Lock, Megaphone, Search, X, Pencil } from "@/lib/icons"
+import { Lock, Megaphone, X, Pencil } from "@/lib/icons"
 import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
+import { focusDialogItself } from "@/components/ui/overlayFocus"
 import { NotificationType, type ChannelInfoInterfaceResp, type ChannelMemberUpdateInterface } from "@/types/channel"
 import type { UserProfileInterface } from "@/types/user"
 
@@ -84,7 +87,7 @@ function PrivacyRow({ name, isPrivate, workspaceAdmin, disabled, busy, onChange 
                 <p className="text-meta text-warning-ink">Everyone in the workspace will be able to find it and read its whole history, files included. A line in the channel will say you did.</p>
                 <div className="flex justify-end gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setAsking(false)} autoFocus>Cancel</Button>
-                    <Button variant="destructive" size="sm" aria-busy={busy || undefined} onClick={async () => { await onChange(false); setAsking(false) }}>Make public</Button>
+                    <Button variant="destructive" size="sm" busy={busy} onClick={async () => { await onChange(false); setAsking(false) }}>Make public</Button>
                 </div>
             </div>
         )
@@ -137,7 +140,9 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
     const shown = useMemo(() => (q ? members.filter((m) => displayNameOf(m).toLowerCase().replace(/\s+/g, "").includes(q)) : members), [members, q])
     // The list's count once it's there, the channel's own while it loads:
     // "Members · 0" sat over the loading rows for a second (QA F-19).
-    const memberCount = membersInfo.isLoading ? info?.ch_member_count : members.length
+    // A read that failed with nothing held is said as failed, never as "No members yet" under "· 0".
+    const membersFailed = !!membersInfo.isError && !membersInfo.data
+    const memberCount = membersInfo.isLoading || membersFailed ? info?.ch_member_count : members.length
     const [adding, setAdding] = useState(false)
 
     const [editingTopic, setEditingTopic] = useState(false)
@@ -238,7 +243,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                     aria-describedby={undefined}
                     // The sheet itself takes focus, not its close button: a ring on
                     // × the moment it opens read as the thing to press.
-                    onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).focus() }}
+                    onOpenAutoFocus={focusDialogItself}
                     tabIndex={-1}
                     className="fixed inset-y-0 right-0 z-[var(--z-modal)] flex w-full flex-col bg-sheet shadow-e4 outline-none animate-panel-in sm:w-[440px]"
                 >
@@ -266,7 +271,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                                         : "Its admins and workspace admins can restore it."}
                                 >
                                     {canRestore && (
-                                        <Button variant="secondary" size="sm" onClick={() => void restore()} disabled={restoring} aria-busy={restoring || undefined}>
+                                        <Button variant="secondary" size="sm" onClick={() => void restore()} busy={restoring}>
                                             {restoring ? "Restoring…" : "Restore"}
                                         </Button>
                                     )}
@@ -296,7 +301,7 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                                     />
                                     <div className="flex justify-end gap-2">
                                         <Button variant="ghost" size="sm" onClick={() => setEditingTopic(false)}>Cancel</Button>
-                                        <Button size="sm" onClick={saveTopic} disabled={update.isSubmitting} aria-busy={update.isSubmitting || undefined}>
+                                        <Button size="sm" onClick={saveTopic} busy={update.isSubmitting}>
                                             {update.isSubmitting ? "Saving…" : "Save"}
                                         </Button>
                                     </div>
@@ -336,24 +341,19 @@ export default function ChannelDetailsSheet({ channelId, open, onOpenChange }: C
                         >
                             {adding && (
                                 <div className="px-3 py-3">
-                                    <AddChannelMemberCombobox handleAddMember={handleAddMember} channelId={channelId} />
+                                    <AddMemberCombobox url={channelId ? `${GetEndpointUrl.UserListNotBelongToChannel}/${channelId}` : ""} onAdd={handleAddMember} portalled={false} />
                                 </div>
                             )}
                             <div className="space-y-1 p-2">
                                 {members.length > 6 && (
-                                    <div className="relative px-1 pb-1">
-                                        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-[calc(50%+2px)] text-ink-3" aria-hidden="true" />
-                                        <Input
-                                            type="search"
-                                            aria-label="Search members"
-                                            placeholder="Search members"
-                                            value={query}
-                                            onChange={(e) => setQuery(e.target.value)}
-                                            className="pl-8 focus-visible:focus-halo"
-                                        />
+                                    <div className="px-1 pb-1">
+                                        <SearchInput aria-label="Search members" placeholder="Search members" value={query} onValueChange={setQuery} />
                                     </div>
                                 )}
-                                {membersInfo.isLoading ? (
+                                {/* The failure first: SWR's own retries load again with nothing held. */}
+                                {membersFailed ? (
+                                    <ErrorState subject="the members" onRetry={() => void membersInfo.mutate()} retrying={membersInfo.isLoading} compact />
+                                ) : membersInfo.isLoading ? (
                                     <ListSkeleton className="px-0 py-2" />
                                 ) : shown.length === 0 ? (
                                     <EmptyState illustration={<SpotSearch />} title={q ? `No one called "${query}"` : "No members yet"} description={q ? "Try a first name, or add them." : undefined} className="py-8" />

@@ -19,9 +19,8 @@ vi.mock("@/hooks/useFetch", () => ({
     useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me", user_name: "Sam Rivera" } } }),
 }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ isSubmitting: false, makeRequest: () => new Promise(() => {}) }) }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
     default: { post: () => new Promise(() => {}), get: () => new Promise(() => {}) },
-    OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({}) }))
 vi.mock("@/components/textInput/textInput", () => ({

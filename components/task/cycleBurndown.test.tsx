@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import type { BurndownView } from "@/lib/tasks/cycles"
+import type { BurndownView } from "@/lib/tasks/cycleBurndown"
 
 const view: BurndownView = {
   cycle: { id: "c4", project_uuid: "p", number: 4, name: "", starts_at: "2026-10-05T00:00:00+05:30", ends_at: "2026-10-19T00:00:00+05:30", state: "current" },

@@ -54,5 +54,7 @@ export function useProjectCycles(projectId: string | undefined) {
     [projectId, mutate, refreshTasks],
   )
 
-  return { cycles: data?.data?.cycles ?? [], canEdit: !!data?.data?.can_edit, isLoading, create, complete, rename, remove, refresh: mutate }
+  return { cycles: data?.data?.cycles ?? [], canEdit: !!data?.data?.can_edit, isLoading, create, complete, rename, remove, refresh: mutate, refreshTasks,
+    // The client, for restoreService's restore: the lazy switcher may not import it itself (V-49).
+    http: axiosInstance }
 }

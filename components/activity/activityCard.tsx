@@ -221,7 +221,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
             // Opens through the control stretched over it: a row of the interaction layer (SH-31).
             opens={!!href || !!shares}
             className={cn(
-                separated && !compact && "before:pointer-events-none before:absolute before:left-14 before:right-4 before:top-0 before:h-px before:bg-line hover:before:opacity-0",
+                separated && !compact && "after:pointer-events-none after:absolute after:left-14 after:right-4 after:top-0 after:h-px after:bg-line hover:after:opacity-0",
             )}
             tools={
                 onToggleRead || href ? (

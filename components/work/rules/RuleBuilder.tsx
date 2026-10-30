@@ -4,22 +4,32 @@ import { useId, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Pick } from "@/components/ui/pick"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { TimeField } from "@/components/ui/date-field"
 import { ToggleChip } from "@/components/ui/toggleChip"
 import { WorkflowSentence } from "@/components/admin/workflowsParts"
 import { Plus, GitBranch, Trash2, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
-import { FIELD_LABEL, FIELD_OPS, VARIABLES, needsValue, newAction, newCondition } from "@/lib/rules/draft"
-import { ruleSentence, type RuleNames } from "@/lib/rules/sentence"
+import { browserTZ } from "@/lib/utils/timeZone"
+import { zoneLabel } from "@/lib/utils/zones"
+import { WEEK } from "@/lib/calendar/repeat"
+import { WEEKDAYS } from "@/lib/tasks/recurrence"
+import { FIELD_LABEL, FIELD_OPS, needsValue, newAction, newCondition, variablesFor, withTrigger } from "@/lib/rules/draft"
+import type { ProjectForm } from "@/lib/forms/forms"
+import { ordinal, repeatOf, ruleOf, type RepeatKind } from "@/lib/rules/schedule"
+import { forEachTask, ruleSentence, suggestedName, type RuleNames } from "@/lib/rules/sentence"
 import type { StatusOption } from "@/lib/taskStatus"
 import {
-  MAX_ACTIONS, MAX_CONDITIONS, type ConditionField, type RuleAction, type RuleActionType, type RuleCondition, type RuleDraft, type RuleTrigger, type WatchedField,
+  MAX_ACTIONS, MAX_CONDITIONS, type ApprovalOutcome, type ConditionField, type RuleAction, type RuleActionType, type RuleCondition, type RuleDraft, type RuleTrigger,
+  type RuleTriggerConfig, type WatchedField,
 } from "@/lib/rules/types"
 
 export interface Person {
   id: string
   name: string
+  /** An AI teammate in the project: a rule may give it work, which starts it. */
+  agent?: boolean
 }
 
 const TRIGGERS: { value: RuleTrigger; label: string }[] = [
@@ -27,6 +37,23 @@ const TRIGGERS: { value: RuleTrigger; label: string }[] = [
   { value: "task_status_changed", label: "A task moves to a status" },
   { value: "task_assigned", label: "A task is assigned" },
   { value: "task_field_changed", label: "A task's details change" },
+  { value: "form_submitted", label: "A form is sent" },
+  { value: "approval_decided", label: "An approval is answered" },
+  { value: "schedule", label: "On a schedule" },
+  { value: "task_due_soon", label: "A task is due soon" },
+  { value: "task_overdue", label: "A task becomes overdue" },
+]
+
+const REPEATS: { value: RepeatKind; label: string }[] = [
+  { value: "daily", label: "Every day" },
+  { value: "weekdays", label: "Every weekday" },
+  { value: "weekly", label: "On days I pick" },
+  { value: "monthly", label: "Every month" },
+]
+
+const MONTH_DAYS = [
+  ...Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: `On the ${ordinal(i + 1)}` })),
+  { value: "-1", label: "On the last day" },
 ]
 
 const WATCHED: { value: WatchedField; label: string }[] = [
@@ -42,9 +69,10 @@ const ACTIONS: { value: RuleActionType; label: string }[] = [
   { value: "set_priority", label: "Set its priority" },
   { value: "set_due", label: "Set its due date" },
   { value: "add_comment", label: "Comment on it" },
-  { value: "add_subtask", label: "Add a sub-task" },
+  { value: "add_subtask", label: "Add a subtask" },
   { value: "notify", label: "Tell someone" },
 ]
+
 
 const PRIORITIES = [
   { value: "high", label: "High" },
@@ -53,32 +81,12 @@ const PRIORITIES = [
 ]
 
 const ANY_STATUS = "__any"
-
-/** A select on the builder's 32px row, its own label for a screen reader. */
-function Pick({
-  label, value, onChange, options, className,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  options: { value: string; label: ReactNode }[]
-  className?: string
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger dense aria-label={label} className={cn("h-11 min-w-0 text-sm md:h-8 md:text-xs", className)}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((o) => (
-          <SelectItem key={o.value} value={o.value} className="text-sm md:text-xs">
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
+const OUTCOMES: { value: ApprovalOutcome | typeof ANY_STATUS; label: string }[] = [
+  { value: ANY_STATUS, label: "Any answer" },
+  { value: "approved", label: "Approved" },
+  { value: "changes", label: "Changes asked for" },
+  { value: "rejected", label: "Rejected" },
+]
 
 /**
  * One step of the rule: a numbered mark, its word (When, If, Then,
@@ -115,6 +123,49 @@ function Remove({ label, onClick }: { label: string; onClick: () => void }) {
     <Button type="button" variant="ghost" size="icon" aria-label={label} title={label} className="absolute right-1 top-1 size-11 shrink-0 text-ink-3 md:static md:ml-auto md:size-8" onClick={onClick}>
       <X className="size-4" />
     </Button>
+  )
+}
+
+/** When a schedule runs: how often, on which days, and at what time, in the reader's zone. */
+function ScheduleFields({ config, onChange }: { config: RuleTriggerConfig; onChange: (c: RuleTriggerConfig) => void }) {
+  const r = repeatOf(config.repeat)
+  const repeat = (next: typeof r) => onChange({ ...config, repeat: ruleOf(next) })
+  return (
+    <div className="space-y-2" data-rule-schedule="">
+      <div className="flex flex-wrap items-center gap-2">
+        <Pick label="How often" value={r.kind} onChange={(k) => repeat({ ...r, kind: k as RepeatKind, days: r.days.length ? r.days : ["MO"] })} options={REPEATS} className="w-full md:w-44" />
+        {r.kind === "monthly" && (
+          <Pick label="Day of the month" value={String(r.monthDay)} onChange={(v) => repeat({ ...r, monthDay: Number(v) })} options={MONTH_DAYS} className="w-full md:w-40" />
+        )}
+        <TimeField aria-label="At" value={config.at ?? "09:00"} onChange={(at) => onChange({ ...config, at })} className="h-11 w-full md:h-8 md:w-36" />
+      </div>
+      {r.kind === "weekly" && (
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Days">
+          {WEEK.map((d, i) => (
+            <ToggleChip tone="neutral" offMark="plus" key={d} pressed={r.days.includes(d)} onPressedChange={(on) => repeat({ ...r, days: on ? [...r.days, d] : r.days.filter((x) => x !== d) })}>
+              {WEEKDAYS[i].long}
+            </ToggleChip>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** When a due date fires a rule: how many days before it (due soon), and at what time. */
+function DueFields({ trigger, config, onChange }: { trigger: RuleTrigger; config: RuleTriggerConfig; onChange: (c: RuleTriggerConfig) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2" data-rule-due="">
+      {trigger === "task_due_soon" && (
+        <span className="flex items-center gap-1.5">
+          <Input aria-label="Days before" inputMode="numeric" value={String(config.days ?? 1)}
+            onChange={(e) => onChange({ ...config, days: Math.min(30, Number(e.target.value.replace(/\D/g, "") || 0)) })} className="h-11 w-16 text-center tabular-nums md:h-8" />
+          <span className="text-xs text-ink-3">{config.days === 1 ? "day before it's due" : "days before it's due"}</span>
+        </span>
+      )}
+      {trigger === "task_overdue" && <span className="text-xs text-ink-3">The day after it was due</span>}
+      <TimeField aria-label="At" value={config.at ?? "09:00"} onChange={(at) => onChange({ ...config, at })} className="h-11 w-full md:h-8 md:w-36" />
+    </div>
   )
 }
 
@@ -164,15 +215,24 @@ function ConditionRow({
   )
 }
 
+/** The pick for OneCamp AI among a rule's AI teammates (a select's value can't be empty). */
+
 function ActionRow({
-  a, onChange, onRemove, statuses, people,
+  a, onChange, onRemove, statuses, people, kinds, fixed, agents = [],
 }: {
   a: RuleAction
   onChange: (a: RuleAction) => void
-  onRemove: () => void
+  onRemove?: () => void
   statuses: StatusOption[]
+  /** The project's people and, last, its AI teammates (only assignments name one). */
   people: Person[]
+  kinds: { value: RuleActionType; label: string }[]
+  /** The schedule's own first step: it makes the task, and stays. */
+  fixed?: boolean
+  /** The workspace's AI teammates a rule may ask, besides OneCamp AI. */
+  agents?: Person[]
 }) {
+  const humans = people.filter((p) => !p.agent)
   const fields = (() => {
     switch (a.type) {
       case "set_status":
@@ -200,7 +260,7 @@ function ActionRow({
                 {people.map((p) => {
                   const on = (a.user_ids ?? []).includes(p.id)
                   return (
-                    <ToggleChip key={p.id} pressed={on} onPressedChange={(next) => onChange({ ...a, user_ids: next ? [...(a.user_ids ?? []), p.id] : (a.user_ids ?? []).filter((x) => x !== p.id) })}>
+                    <ToggleChip tone="neutral" offMark="plus" key={p.id} pressed={on} onPressedChange={(next) => onChange({ ...a, user_ids: next ? [...(a.user_ids ?? []), p.id] : (a.user_ids ?? []).filter((x) => x !== p.id) })}>
                       {p.name}
                     </ToggleChip>
                   )
@@ -224,13 +284,13 @@ function ActionRow({
           </span>
         )
       case "add_subtask":
-        return <Input aria-label="Sub-task" placeholder="What the sub-task is called" maxLength={200} value={a.task_name ?? ""} onChange={(e) => onChange({ ...a, task_name: e.target.value })} className="h-11 min-w-0 flex-1 md:h-8" />
+        return <Input aria-label="Subtask" placeholder="What the subtask is called" maxLength={200} value={a.task_name ?? ""} onChange={(e) => onChange({ ...a, task_name: e.target.value })} className="h-11 min-w-0 flex-1 md:h-8" />
       case "add_comment":
         return <Textarea aria-label="Comment" rows={2} maxLength={4000} value={a.text ?? ""} onChange={(e) => onChange({ ...a, text: e.target.value })} className="min-h-16 w-full text-sm" />
       case "notify":
         return (
           <>
-            <Pick label="Who" value={a.notify ?? "assignee"} onChange={(v) => onChange({ ...a, notify: v as RuleAction["notify"], user_ids: v === "people" ? [people[0]?.id ?? ""] : undefined })}
+            <Pick label="Who" value={a.notify ?? "assignee"} onChange={(v) => onChange({ ...a, notify: v as RuleAction["notify"], user_ids: v === "people" ? [humans[0]?.id ?? ""] : undefined })}
               options={[
                 { value: "assignee", label: "Whoever has it" },
                 { value: "creator", label: "Its creator" },
@@ -239,10 +299,10 @@ function ActionRow({
               ]} className="w-full md:w-44" />
             {a.notify === "people" && (
               <div className="flex w-full flex-wrap gap-1.5" role="group" aria-label="People">
-                {people.map((p) => {
+                {humans.map((p) => {
                   const on = (a.user_ids ?? []).includes(p.id)
                   return (
-                    <ToggleChip key={p.id} pressed={on} onPressedChange={(next) => onChange({ ...a, user_ids: next ? [...(a.user_ids ?? []), p.id] : (a.user_ids ?? []).filter((x) => x !== p.id) })}>
+                    <ToggleChip tone="neutral" offMark="plus" key={p.id} pressed={on} onPressedChange={(next) => onChange({ ...a, user_ids: next ? [...(a.user_ids ?? []), p.id] : (a.user_ids ?? []).filter((x) => x !== p.id) })}>
                       {p.name}
                     </ToggleChip>
                   )
@@ -252,33 +312,48 @@ function ActionRow({
             <Input aria-label="Notice" maxLength={300} value={a.text ?? ""} onChange={(e) => onChange({ ...a, text: e.target.value })} className="h-11 w-full md:h-8" />
           </>
         )
+      case "create_task":
+        return (
+          <>
+            <Input aria-label="Task" placeholder="What the task is called" maxLength={200} value={a.task_name ?? ""} onChange={(e) => onChange({ ...a, task_name: e.target.value })} className="h-11 min-w-0 flex-1 md:h-8" />
+            <Pick label="Priority" value={a.priority || "medium"} onChange={(v) => onChange({ ...a, priority: v as RuleAction["priority"] })} options={PRIORITIES} className="w-full md:w-32" />
+          </>
+        )
     }
     return null
   })()
   return (
-    <div data-rule-action={a.type} className="relative flex flex-wrap items-center gap-2 rounded-lg bg-sunken p-2 pr-14 md:pr-2">
-      <Pick label="Action" value={a.type} onChange={(t) => onChange(newAction(t as RuleActionType))} options={ACTIONS} className="w-full md:w-44" />
+    <div data-rule-action={a.type} className={cn("relative flex flex-wrap items-center gap-2 rounded-lg bg-sunken p-2 md:pr-2", onRemove && "pr-14")}>
+      {fixed ? (
+        <span className="w-full text-xs font-medium text-ink-2 md:w-44">Make a task</span>
+      ) : (
+        <Pick label="Action" value={a.type} onChange={(t) => onChange(newAction(t as RuleActionType))} options={kinds} className="w-full md:w-44" />
+      )}
       {fields}
-      <Remove label="Remove this action" onClick={onRemove} />
+      {onRemove && <Remove label="Remove this action" onClick={onRemove} />}
     </div>
   )
 }
 
 function Actions({
-  list, onChange, statuses, people, addLabel,
+  list, onChange, statuses, people, addLabel, kinds, makesTask, agents,
 }: {
   list: RuleAction[]
   onChange: (list: RuleAction[]) => void
   statuses: StatusOption[]
   people: Person[]
   addLabel: string
+  kinds: { value: RuleActionType; label: string }[]
+  /** A schedule's steps: the first makes the task the rest act on. */
+  makesTask?: boolean
+  agents?: Person[]
 }) {
   return (
     <>
       {list.map((a, i) => (
-        <ActionRow key={i} a={a} statuses={statuses} people={people}
+        <ActionRow key={i} a={a} statuses={statuses} people={people} kinds={kinds} fixed={makesTask && i === 0} agents={agents}
           onChange={(next) => onChange(list.map((x, j) => (j === i ? next : x)))}
-          onRemove={() => onChange(list.filter((_, j) => j !== i))} />
+          onRemove={makesTask && i === 0 ? undefined : () => onChange(list.filter((_, j) => j !== i))} />
       ))}
       {list.length < MAX_ACTIONS && (
         <Button type="button" variant="ghost" className="h-11 gap-1.5 text-brand-text md:h-8" onClick={() => onChange([...list, newAction("add_comment")])}>
@@ -296,33 +371,70 @@ function Actions({
  * people), so a saved rule never names something the project lacks.
  */
 export function RuleBuilder({
-  draft, onChange, statuses, people, names,
+  draft, onChange, statuses, people, names, agents = false, agentChoices = [], autoName = false, onNamed, forms = [],
 }: {
   draft: RuleDraft
   onChange: (d: RuleDraft) => void
   statuses: StatusOption[]
+  /** The project's people, and its AI teammates marked as such. */
   people: Person[]
   names: RuleNames
+  /** Whether this build can ask an agent (the AI edition). */
+  agents?: boolean
+  /** The workspace's AI teammates a rule may ask, besides OneCamp AI. */
+  agentChoices?: Person[]
+  /** The name follows the rule until someone types one (onNamed), and again once it's cleared. */
+  autoName?: boolean
+  onNamed?: (named: boolean) => void
+  /** The project's forms, which a rule can run on. */
+  forms?: Pick<ProjectForm, "id" | "title" | "fields">[]
 }) {
   const nameId = useId()
-  const set = (patch: Partial<RuleDraft>) => onChange({ ...draft, ...patch })
+  const emit = (next: RuleDraft) => onChange(autoName ? { ...next, name: suggestedName(next, names) } : next)
+  const set = (patch: Partial<RuleDraft>) => emit({ ...draft, ...patch })
   const conds = draft.conditions.items ?? []
   const setConds = (items: RuleCondition[]) => set({ conditions: { ...draft.conditions, items } })
+  const schedule = draft.trigger_type === "schedule"
+  const each = forEachTask(draft)
+  const makesTask = schedule && !each
+  const humans = people.filter((p) => !p.agent)
+  const kinds = ACTIONS
+  const setConfig = (trigger_config: RuleTriggerConfig) => set({ trigger_config })
+  // A form's rule starts on the project's first form; its messages can say each of its answers.
+  const pickTrigger = (t: RuleTrigger) => {
+    const next = withTrigger(draft, t)
+    emit(t === "form_submitted" && forms[0]?.id ? { ...next, trigger_config: { ...next.trigger_config, form_id: forms[0].id } } : next)
+  }
+  const form = draft.trigger_type === "form_submitted" ? forms.find((f) => f.id === draft.trigger_config.form_id) : undefined
+  const answers = (form?.fields ?? []).filter((f) => f.type !== "section")
   return (
     <div className="space-y-3" data-rule-builder="">
       <div aria-live="polite" className="rounded-xl bg-sunken px-3 py-2.5">
-        <p className="mb-1 text-2xs font-semibold uppercase tracking-wide text-ink-3">Reads as</p>
+        <p className="mb-1 text-2xs font-semibold text-ink-3">Reads as</p>
         <WorkflowSentence parts={ruleSentence(draft, names, 4)} className="text-sm" />
       </div>
 
       <div>
         <label htmlFor={nameId} className="mb-1 block text-xs font-medium text-ink-2">Name</label>
-        <Input id={nameId} value={draft.name} maxLength={120} placeholder="Share new work out by turns" onChange={(e) => set({ name: e.target.value })} className="h-11 md:h-9" />
+        <Input id={nameId} value={draft.name} maxLength={120} placeholder={suggestedName(draft, names)}
+          onChange={(e) => {
+            onNamed?.(!!e.target.value.trim())
+            onChange({ ...draft, name: e.target.value })
+          }} className="h-11 md:h-9" />
       </div>
 
-      <Step n="1" title="When" hint="What starts the rule">
+      <Step n="1" title="When" hint={schedule ? `On a schedule, in your time zone: ${zoneLabel(browserTZ())}` : draft.trigger_type === "form_submitted" ? "Each time it's sent, about the task it makes" : draft.trigger_type === "approval_decided" ? "When a task's request is answered for good" : "What starts the rule"}>
         <div className="flex flex-wrap items-center gap-2">
-          <Pick label="Trigger" value={draft.trigger_type} onChange={(v) => set({ trigger_type: v as RuleTrigger, trigger_config: {} })} options={TRIGGERS} className="w-full md:w-60" />
+          <Pick label="Trigger" value={draft.trigger_type} onChange={(v) => pickTrigger(v as RuleTrigger)} options={TRIGGERS} className="w-full md:w-60" />
+          {draft.trigger_type === "form_submitted" && forms.length > 0 && (
+            <Pick label="Form" value={draft.trigger_config.form_id ?? ""} onChange={(form_id) => set({ trigger_config: { ...draft.trigger_config, form_id } })}
+              options={forms.filter((f) => f.id).map((f) => ({ value: f.id!, label: f.title }))} className="w-full md:w-56" />
+          )}
+          {draft.trigger_type === "approval_decided" && (
+            <Pick label="How it ends" value={draft.trigger_config.outcome || ANY_STATUS}
+              onChange={(v) => set({ trigger_config: v === ANY_STATUS ? {} : { outcome: v as ApprovalOutcome } })}
+              options={OUTCOMES} className="w-full md:w-48" />
+          )}
           {draft.trigger_type === "task_status_changed" && (
             <Pick label="Status it moves to" value={draft.trigger_config.to_status || ANY_STATUS}
               onChange={(v) => set({ trigger_config: v === ANY_STATUS ? {} : { to_status: v } })}
@@ -334,7 +446,7 @@ export function RuleBuilder({
             {WATCHED.map((f) => {
               const on = (draft.trigger_config.fields ?? []).includes(f.value)
               return (
-                <ToggleChip key={f.value} pressed={on}
+                <ToggleChip tone="neutral" offMark="plus" key={f.value} pressed={on}
                   onPressedChange={(next) => set({ trigger_config: { fields: next ? [...(draft.trigger_config.fields ?? []), f.value] : (draft.trigger_config.fields ?? []).filter((x) => x !== f.value) } })}>
                   {f.label}
                 </ToggleChip>
@@ -343,15 +455,29 @@ export function RuleBuilder({
             {!(draft.trigger_config.fields ?? []).length && <span className="self-center text-meta text-ink-3">any of them</span>}
           </div>
         )}
+        {schedule && (
+          <>
+            <ScheduleFields config={draft.trigger_config} onChange={setConfig} />
+            <SegmentedControl aria-label="What it does" value={each ? "each" : "make"} onValueChange={(v) => emit(withTrigger(draft, "schedule", v === "each"))}
+              options={[{ value: "make", label: "Makes a task" }, { value: "each", label: "Acts on each task" }]} />
+          </>
+        )}
+        {(draft.trigger_type === "task_due_soon" || draft.trigger_type === "task_overdue") && (
+          <DueFields trigger={draft.trigger_type} config={draft.trigger_config} onChange={setConfig} />
+        )}
+        {draft.trigger_type === "form_submitted" && !forms.length && (
+          <p className="text-meta text-ink-3">This project has no forms yet. Make one under Forms, in the project&apos;s menu.</p>
+        )}
       </Step>
 
-      <Step n="2" title="If" hint={conds.length ? "Read from the task when the rule runs" : "Optional: only for some tasks"}>
+      {!makesTask && (
+      <Step n="2" title={each ? "Which tasks" : "If"} hint={each ? "Open tasks in the project that match, read when it runs" : conds.length ? "Read from the task when the rule runs" : "Optional: only for some tasks"}>
         {conds.length > 1 && (
           <SegmentedControl aria-label="Match" value={draft.conditions.match ?? "all"} onValueChange={(m) => set({ conditions: { ...draft.conditions, match: m } })}
             options={[{ value: "all", label: "All of these" }, { value: "any", label: "Any of these" }]} />
         )}
         {conds.map((c, i) => (
-          <ConditionRow key={i} c={c} statuses={statuses} people={people}
+          <ConditionRow key={i} c={c} statuses={statuses} people={humans}
             onChange={(next) => setConds(conds.map((x, j) => (j === i ? next : x)))}
             onRemove={() => setConds(conds.filter((_, j) => j !== i))} />
         ))}
@@ -361,16 +487,29 @@ export function RuleBuilder({
           </Button>
         )}
       </Step>
+      )}
 
-      <Step n="3" title="Then" hint="What it does, in order, as you">
-        <Actions list={draft.actions} onChange={(actions) => set({ actions })} statuses={statuses} people={people} addLabel="Add an action" />
-        <p className="text-meta text-ink-3">Messages can say {VARIABLES.join(", ")}.</p>
+      <Step n={makesTask ? "2" : "3"} title="Then" hint={makesTask ? "It makes the task, then does the rest to it, as you" : each ? "What it does to each task, as you" : "What it does, in order, as you"}>
+        <Actions list={draft.actions} onChange={(actions) => set({ actions })} statuses={statuses} people={people} addLabel="Add an action" kinds={kinds} makesTask={makesTask} agents={agentChoices} />
+        <div data-rule-variables="" className="text-meta text-ink-3">
+          Messages can say {variablesFor(draft.trigger_type).join(", ")}{answers.length ? ", and each answer:" : "."}
+          {answers.length > 0 && (
+            <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+              {answers.map((a) => (
+                <span key={a.id} className="inline-flex min-w-0 items-baseline gap-1">
+                  <code className="rounded-sm bg-sunken px-1 font-mono text-2xs text-ink-2">{`{answer:${a.id}}`}</code>
+                  <span className="truncate">{a.label}</span>
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
       </Step>
 
-      {conds.length > 0 && (
+      {conds.length > 0 && !schedule && (
         draft.else_actions.length > 0 ? (
           <Step n="4" title="Otherwise" hint="When the conditions don't hold">
-            <Actions list={draft.else_actions} onChange={(else_actions) => set({ else_actions })} statuses={statuses} people={people} addLabel="Add an action" />
+            <Actions list={draft.else_actions} onChange={(else_actions) => set({ else_actions })} statuses={statuses} people={people} addLabel="Add an action" kinds={kinds} agents={agentChoices} />
           </Step>
         ) : (
           <Button type="button" variant="ghost" className="h-11 w-full justify-start gap-2 rounded-xl text-ink-2 md:h-9" onClick={() => set({ else_actions: [newAction("notify")] })}>

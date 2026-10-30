@@ -1,9 +1,10 @@
-import { taskStatusLabel } from "@/types/task"
+import { TASK_PRIORITIES, taskStatusLabel } from "@/types/taskScale"
 import {
     ArrowDownIcon,
     ArrowRightIcon,
     ArrowUpIcon,
     CheckCircledIcon,
+    DoubleArrowUpIcon,
     CircleIcon,
     CrossCircledIcon,
     QuestionMarkCircledIcon,
@@ -71,17 +72,13 @@ export const taskStatuses = [
     },
 ];
 
-export const priorities = [
-    {
-        label: "Low",
-        value: "low",
+const PRIORITY_LOOK = {
+    low: {
         icon: ArrowDownIcon,
         color: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
         dot: "bg-faint-foreground",
     },
-    {
-        label: "Medium",
-        value: "medium",
+    medium: {
         icon: ArrowRightIcon,
         color: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
         // Neutral: a row keeps one colour for what needs looking at, and only
@@ -89,11 +86,16 @@ export const priorities = [
         // red due date made every row a traffic light.
         dot: "bg-muted-foreground",
     },
-    {
-        label: "High",
-        value: "high",
+    high: {
         icon: ArrowUpIcon,
         color: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
         dot: "bg-destructive",
     },
-];
+    urgent: {
+        icon: DoubleArrowUpIcon,
+        color: "bg-rose-500/15 text-rose-800 dark:text-rose-200",
+        dot: "bg-destructive",
+    },
+}
+
+export const priorities = [...TASK_PRIORITIES].reverse().map((p) => ({ ...p, ...PRIORITY_LOOK[p.value] }))

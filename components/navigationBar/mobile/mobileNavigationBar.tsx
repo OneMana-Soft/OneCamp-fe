@@ -4,7 +4,8 @@ import {MobileTopNavigationBar} from "@/components/navigationBar/mobile/mobileTo
 import {MobileBottomNavigationBar} from "@/components/navigationBar/mobile/mobileBottomNavigationBar";
 import { cn } from "@/lib/utils/helpers/cn";
 import { useHydrateUserSidebar } from "@/hooks/useHydrateUserSidebar";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
 import { pageOwnsBottomEdge } from "@/lib/utils/mobileBottomNav";
 import { SheetProgressBar } from "@/context/LoadingContext";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -52,7 +53,7 @@ export function MobileNavigationBar({
     useHydrateUserSidebar();
     // No room kept for a bottom bar that this page hides.
     const pathname = usePathname() ?? "";
-    const router = useRouter();
+    const router = useAppRouter();
     const noBottomBar = disableBottomPadding || pageOwnsBottomEdge(pathname);
     // A tab's root: the theme's glow under the top bar, pull to refresh, and
     // nowhere for an edge swipe to go back to.
@@ -147,7 +148,7 @@ export function MobileNavigationBar({
                     under the bar (app/phone.css). */}
                 <div ref={scrollerRef} data-app-scroller="" data-glow={tabRoot || undefined} data-large-passed={largeTitle ? (largePassed ? "true" : "false") : undefined} className={cn(
                     "flex-1 min-h-0 overflow-y-auto overflow-x-hidden",
-                    !noBottomBar && "pb-[calc(4rem+env(safe-area-inset-bottom))]"
+                    !noBottomBar && "pb-[var(--phone-scroll-end)]"
                 )}>
                     <div ref={sentinelRef} aria-hidden="true" data-scroll-sentinel="" className="h-px -mb-px" />
                     {/* Spoken once, by the bar: this is the same words, drawn large. */}

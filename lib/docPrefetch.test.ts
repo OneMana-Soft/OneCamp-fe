@@ -15,11 +15,12 @@ vi.mock("@/lib/collabSession", () => {
     },
   }
 })
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: async (url: string) => (fetched.push(url), { data: { data: { doc_uuid: url.split("/").pop() } } }) },
 }))
 vi.mock("@/lib/swrMutate", () => ({
   appMutate: async (key: string, fn: (current: unknown) => unknown) => mutations.push({ key, next: fn(cached) }),
+  cachedData: () => cached,
 }))
 
 import { prefetchDoc } from "@/lib/docPrefetch"
@@ -46,6 +47,13 @@ describe("prefetching a doc", () => {
     prefetchDoc("doc-b")
     await vi.waitFor(() => expect(mutations).toHaveLength(1))
     expect(mutations[0].next).toBe(cached)
+  })
+
+  it("starts no live session for a folder, a file or a link the app knows is one: it has none (docs F1b)", () => {
+    cached = { data: { doc_uuid: "folder-1", doc_node_kind: "folder" } }
+    expect(prefetchDoc("folder-1")).toBe(false)
+    expect(warmed).not.toContain("folder-1")
+    expect(fetched).toEqual([])
   })
 
   it("does nothing without a doc", () => {

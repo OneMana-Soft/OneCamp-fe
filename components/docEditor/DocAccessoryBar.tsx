@@ -6,6 +6,7 @@ import { useEditorState, type Editor } from "@tiptap/react"
 import { ChevronDown, Type } from "@/lib/icons"
 import { Spark } from "@/components/ui/graphics"
 import { cn } from "@/lib/utils/helpers/cn"
+import { frameFitted, keyboardDock, onFrameFit, type KeyboardDock } from "@/lib/ui/visualViewport"
 
 import { BLOCK_TYPES } from "./blockTypes"
 import { setPhoneScrollMargin } from "./phoneScrollMargin"
@@ -45,8 +46,9 @@ export function DocAccessoryBar({
   /** Comment, when the host handles it itself. */
   onComment?: () => void
 }) {
-  const [focused, setFocused] = React.useState(false)
-  const [bottom, setBottom] = React.useState(0)
+  // The bar is its own chunk: the text may have taken focus before it came.
+  const [focused, setFocused] = React.useState(() => editor.isFocused)
+  const [dock, setDock] = React.useState<KeyboardDock>({ keyboard: 0, raise: 0 })
   const [turnOpen, setTurnOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -54,23 +56,32 @@ export function DocAccessoryBar({
     const onBlur = () => setFocused(false)
     editor.on("focus", onFocus)
     editor.on("blur", onBlur)
+    setFocused(editor.isFocused)
     return () => {
       editor.off("focus", onFocus)
       editor.off("blur", onBlur)
     }
   }, [editor])
 
-  // Above the keyboard: the layout viewport's bottom less the visual one's.
+  // On the keyboard (lib/ui/visualViewport's keyboardDock, V-72). While it is
+  // up the app's frame is fitted to what it leaves of the screen, and the
+  // bar, fixed inside that frame, sits on the frame's bottom; the fit comes a
+  // frame after the viewport's events, so the bar follows it as well.
   React.useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null
     if (!vv) return
-    const place = () => setBottom(Math.max(0, window.innerHeight - (vv.height + vv.offsetTop)))
+    const place = () => {
+      const next = keyboardDock(window.innerHeight, vv, frameFitted())
+      setDock((was) => (was.keyboard === next.keyboard && was.raise === next.raise ? was : next))
+    }
     place()
     vv.addEventListener("resize", place)
     vv.addEventListener("scroll", place)
+    const stop = onFrameFit(place)
     return () => {
       vv.removeEventListener("resize", place)
       vv.removeEventListener("scroll", place)
+      stop()
     }
   }, [])
 
@@ -78,18 +89,20 @@ export function DocAccessoryBar({
   // phone.css: --phone-floor, which a page that owns its bottom edge reads
   // from --mobile-drawer-h, as a chat's composer publishes it). While the bar
   // shows, it owns that edge: it publishes its top, so a toast clears it.
-  // A toast used to land on the bar.
+  // A toast used to land on the bar. The toasts and the corner cards are
+  // placed against the screen, outside the app's frame, so the foot is the
+  // keyboard and the bar; the caret's room (M8) is the bar's, over the bottom
+  // of the frame the text scrolls in.
   React.useLayoutEffect(() => {
     if (!focused) return
     const root = document.documentElement
-    root.style.setProperty("--mobile-drawer-h", `${bottom + ACCESSORY_BAR_HEIGHT}px`)
-    // And the caret stays above it (M8).
-    setPhoneScrollMargin(editor, bottom + ACCESSORY_BAR_HEIGHT)
+    root.style.setProperty("--mobile-drawer-h", `${dock.keyboard + ACCESSORY_BAR_HEIGHT}px`)
+    setPhoneScrollMargin(editor, dock.raise + ACCESSORY_BAR_HEIGHT)
     return () => {
       root.style.removeProperty("--mobile-drawer-h")
       setPhoneScrollMargin(editor, null)
     }
-  }, [focused, bottom, editor])
+  }, [focused, dock, editor])
 
   // The actions' context, read as the editor changes (the bar's state is
   // which are enabled and which are pressed).
@@ -119,7 +132,7 @@ export function DocAccessoryBar({
       role="toolbar"
       aria-label="Formatting"
       data-doc-accessory-bar=""
-      style={{ bottom }}
+      style={{ bottom: dock.raise }}
       className="fixed inset-x-0 z-[var(--z-sticky)] border-t border-line bg-raised"
     >
       {turnOpen ? (

@@ -25,7 +25,11 @@ import { cn } from "@/lib/utils/helpers/cn"
  * Both stacks sit a composer's height up from the bottom (--corner-lift): at
  * the bottom edge, where every message box in the product ends, the demo
  * prompt once covered the composer's send button. On a phone they sit above
- * the tab bar the same way, between 16px gutters.
+ * the tab bar the same way, between 16px gutters, or 8px over the foot a page
+ * publishes (--mobile-drawer-h: a page's own bars, such as the board's, a
+ * conversation's or a task's comment box, or the doc's Formatting bar) when
+ * it reaches higher, and they go under the keyboard while it is up (V-68,
+ * app/globals.css).
  *
  * The right host's top is published as --corner-right-h, so the toasts'
  * viewport stacks above whatever this corner holds.

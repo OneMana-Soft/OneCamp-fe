@@ -55,8 +55,9 @@ describe("a day the clocks change on", () => {
       // It is a changeover day: 23 or 25 hours long.
       expect(Math.abs(new Date(2026, month, date + 1).getTime() - day.getTime() - 86_400_000)).toBe(3_600_000)
       const { block } = dayView(day, at(day, 10), at(day, 11))
-      expect(block.style.top).toBe(`${y(10)}px`)
-      expect(block.style.height).toBe(`${HOUR_HEIGHT - 2}px`)
+      // Ten hours down and one tall, at the hour the density draws (--cal-hour).
+      expect(block.style.top).toBe("calc(var(--cal-hour)*10)")
+      expect(block.style.height).toBe("max(calc(var(--cal-hour)*1) - 2px, 14px)")
     })
 
     it(`saves nothing for a drag by nothing, and 10:15 for a quarter hour, on ${label} in ${zone}`, () => {

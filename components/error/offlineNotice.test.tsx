@@ -12,6 +12,7 @@ import { FootPill, OfflineNotice } from "@/components/error/OfflineNotice"
 import { MqttContext, type MqttContextValue } from "@/components/mqtt/mqttContext"
 import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity"
 import { markSchemaOutdated, resetSchemaOutdated } from "@/lib/schemaOutdated"
+import { getOfflineStatus, resetOfflineStatus, setOfflineStatus, setSendNow } from "@/lib/offline/status"
 
 // The live connection as the signed-in app hands it down: its provider
 // (components/mqtt/mqttProvider) gives this context, which the pill reads
@@ -157,5 +158,69 @@ describe("the connection pill", () => {
     expect(pill()?.getAttribute("data-connection-pill")).toBe("update")
     screen.getByRole("button", { name: "Reload" }).click()
     expect(reload).toHaveBeenCalled()
+  })
+})
+
+// The Offline Store (lib/offline, P7-1): the same pill says what waits.
+describe("the connection pill with changes kept offline", () => {
+  afterEach(() => resetOfflineStatus())
+  const op = (seq: number, state: "conflict" | "held") =>
+    ({ seq, opKey: `k${seq}`, kind: "task", id: `t${seq}`, action: "update", method: "POST", url: "/x", payload: {}, hasBase: true, queuedAt: 0, bytes: 1, state }) as const
+
+  it("offline, says how many changes are kept on this device", () => {
+    setOnline(false)
+    act(() => setOfflineStatus({ waiting: 3 }))
+    render(<OfflineNotice />)
+    expect(pill()?.textContent).toContain("You're offline · 3 changes waiting")
+    expect(pill()?.getAttribute("title")).toContain("Kept on this device")
+  })
+
+  it("offline at the cap, says new changes can't be kept: never a silent drop", () => {
+    setOnline(false)
+    act(() => setOfflineStatus({ waiting: 200, full: true }))
+    render(<OfflineNotice />)
+    expect(pill()?.textContent).toContain("200 changes waiting")
+    expect(pill()?.getAttribute("title")).toContain("New changes can't be kept until these are sent")
+  })
+
+  // DESIGN-BUILD-21 M2: one failed send leaves the server short of
+  // unreachable (two misses), and an idle page asks nothing more: the kept
+  // change waited with no sign at all.
+  it("online, with a change kept after a failed send, says it is waiting, and Retry sends it now", () => {
+    setOnline(true)
+    const send = vi.fn()
+    setSendNow(send)
+    act(() => setOfflineStatus({ waiting: 1 }))
+    render(<OfflineNotice />)
+    expect(pill()?.textContent).toContain("1 change waiting")
+    expect(pill()?.getAttribute("title")).toContain("Kept on this device")
+    act(() => screen.getByRole("button", { name: "Retry" }).click())
+    expect(send).toHaveBeenCalledTimes(1)
+    setSendNow(null)
+  })
+
+  // DESIGN-BUILD-21 M1: on a phone it sat over a task's composer, placed for a
+  // tab bar the page doesn't have. It sits above whatever owns the foot, as a
+  // toast does (app/phone.css --phone-floor; a call's --call-dock-floor).
+  it("on a phone, sits 8px above what owns the screen's foot", () => {
+    render(<OfflineNotice />)
+    act(() => setOnline(false))
+    expect(pill()?.className).toContain("bottom-[max(calc(var(--phone-floor)+8px),var(--call-dock-floor,0px))]")
+  })
+
+  it("back online, says it is sending them", () => {
+    setOnline(true)
+    act(() => setOfflineStatus({ waiting: 1, sending: true }))
+    render(<OfflineNotice />)
+    expect(pill()?.textContent).toContain("Sending 1 change…")
+  })
+
+  it("offers Review for changes that need the member", () => {
+    setOnline(true)
+    act(() => setOfflineStatus({ waiting: 2, conflicts: [op(1, "conflict")], held: [op(2, "held")] }))
+    render(<OfflineNotice />)
+    expect(pill()?.textContent).toContain("2 changes need you")
+    act(() => screen.getByRole("button", { name: "Review" }).click())
+    expect(getOfflineStatus().reviewing).toBe(true)
   })
 })

@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { Profiler, type ReactNode } from "react"
 import { Provider } from "react-redux"
 import { act, cleanup, render } from "@testing-library/react"
@@ -17,7 +19,7 @@ import type { ChannelInfoInterface } from "@/types/channel"
 let path = "/app/channel/c1"
 vi.mock("next/navigation", () => ({ usePathname: () => path }))
 
-import { useTrackPageVisit } from "./useTrackPageVisit"
+import { PageVisits, useTrackPageVisit } from "./useTrackPageVisit"
 
 afterEach(cleanup)
 
@@ -68,5 +70,37 @@ describe("tracking a page visit", () => {
     for (let n = 1; n <= 5; n++) act(() => void store.dispatch(createUserChannelList({ channelsUser: [channel(n)], favChannelsUser: [] })))
     expect(renders()).toBe(before)
     expect(store.getState().recentItems.items).toHaveLength(1)
+  })
+})
+
+// 21 Oct 2026: the palette mounts on its first use now (CommandPaletteLoader),
+// and the visits it tracked before that use went unrecorded: Recent in the
+// palette, a split view's titles (SplitPane) and the AI's "recent channel"
+// knew only the pages after it. The tracking is the shell's, on every page.
+describe("where the visits are tracked", () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+
+  it("on every signed-in page, whether or not the palette has opened", () => {
+    expect(read("app/app/layout.tsx")).toMatch(/<PageVisits \/>/)
+    expect(read("components/ui/CommandPalette.tsx")).not.toMatch(/useTrackPageVisit/)
+  })
+
+  it("records a visit with nothing but the tracker drawn", () => {
+    path = "/app/channel/c1"
+    const store = configureStore({
+      reducer: {
+        [userSlice.name]: userSlice.reducer,
+        [recentItemsSlice.name]: recentItemsSlice.reducer,
+        [taskInfoSlice.name]: taskInfoSlice.reducer,
+      },
+      middleware: (d) => d({ serializableCheck: false }),
+    })
+    store.dispatch(createUserChannelList({ channelsUser: [channel(0)], favChannelsUser: [] }))
+    render(
+      <Provider store={store}>
+        <PageVisits />
+      </Provider>,
+    )
+    expect(store.getState().recentItems.items[0]).toMatchObject({ id: "c1", type: "channel", title: "engineering" })
   })
 })

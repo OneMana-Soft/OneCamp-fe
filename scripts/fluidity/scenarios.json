@@ -13,8 +13,11 @@
     "work": { "script": "surfaces.mjs", "args": ["--only", "work"], "budgets": "work-budgets.json", "covers": ["work"], "needs": "fixtures", "cpu": [1, 4] },
     "tables": { "script": "surfaces.mjs", "args": ["--only", "tables"], "budgets": "tables-budgets.json", "covers": ["tables"], "needs": "fixtures", "cpu": [1, 4] },
     "calendar-fixtures": { "script": "surfaces.mjs", "args": ["--only", "calendar"], "budgets": "calendar-budgets.json", "covers": ["calendar-fixtures"], "needs": "fixtures", "cpu": [1, 4] },
+    "calls-fixtures": { "script": "surfaces.mjs", "args": ["--only", "calls"], "budgets": "calls-budgets.json", "covers": ["calls-fixtures"], "needs": "fixtures", "cpu": [1, 4] },
     "shell": { "script": "surfaces.mjs", "args": ["--only", "shell"], "budgets": "shell-budgets.json", "covers": ["shell"], "needs": "fixtures", "cpu": [1, 4] },
     "split": { "script": "surfaces.mjs", "args": ["--only", "split", "--device", "desktop"], "budgets": "split-budgets.json", "covers": ["split"], "needs": "fixtures", "cpu": [1, 4] },
-    "pages": { "script": "surfaces.mjs", "args": ["--only", "pages"], "budgets": "pages-budgets.json", "covers": ["pages"], "needs": "fixtures", "cpu": [1, 4] }
+    "pages": { "script": "surfaces.mjs", "args": ["--only", "pages"], "budgets": "pages-budgets.json", "covers": ["pages"], "needs": "fixtures", "cpu": [1, 4] },
+    "whiteboard": { "script": "surfaces.mjs", "args": ["--only", "whiteboard"], "budgets": "whiteboard-budgets.json", "covers": ["whiteboard"], "needs": "fixtures", "cpu": [1, 4] },
+    "realtime": { "script": "surfaces.mjs", "args": ["--only", "realtime"], "budgets": "realtime-budgets.json", "covers": ["realtime"], "needs": "fixtures", "cpu": [1, 4] }
   }
 }

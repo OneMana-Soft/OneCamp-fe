@@ -1,4 +1,4 @@
-import { Children, createElement, type ReactNode } from "react"
+import { Children, createElement, type ReactNode, type SyntheticEvent } from "react"
 
 import type { MarkHue } from "@/components/ui/graphics/hues"
 
@@ -13,7 +13,7 @@ interface IxOptions {
   selected?: boolean
   /** Focusable still (aria-disabled), with the reason in a tip. */
   disabledReason?: string
-  tone?: "danger" | "success" | "light" | "primary"
+  tone?: "danger" | "success" | "light" | "primary" | "neutral"
 }
 
 type IxAttrs = { "data-interactive": IxKind; "data-hue"?: string; "data-tone"?: string; "data-selected"?: "true"; "aria-disabled"?: true; "data-disabled-reason"?: string }
@@ -26,6 +26,12 @@ export function ix(kind: IxKind, { hue, selected, disabledReason, tone }: IxOpti
   if (selected) a["data-selected"] = "true"
   if (disabledReason) Object.assign(a, { "aria-disabled": true, "data-disabled-reason": disabledReason })
   return a
+}
+
+/** The press on a control that waits (aria-disabled, busy): it runs neither its own action nor a parent's, as a disabled control gets no click. */
+export function pressNothing(e: SyntheticEvent) {
+  e.preventDefault()
+  e.stopPropagation()
 }
 
 /** Wraps a control's text in [data-label], which reserves its selected weight (D8). */

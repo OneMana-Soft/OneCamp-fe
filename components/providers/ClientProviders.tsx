@@ -1,10 +1,7 @@
 "use client"
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { ThemeProvider } from "@/components/themeProvider/theme-provider";
-import store, { persistor } from "@/store/store";
-import { PersistGate } from "redux-persist/integration/react";
-import { Provider } from "react-redux";
 import { MediaQueryProvider } from "@/context/MediaQueryContext";
 import { ActiveThemeProvider } from "@/components/activeTheme/activeTheme";
 // A signed-in member's saved theme is the app's (app/app/ClientProviders),
@@ -13,8 +10,10 @@ import { ThemeColorMeta } from "@/components/activeTheme/ThemeColorMeta";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { Toaster } from "@/components/ui/toaster";
 import { OfflineNotice } from "@/components/error/OfflineNotice";
-import { UnsavedChangesGuard } from "@/components/ui/UnsavedChangesGuard";
 import { listenForEscape } from "@/lib/keys/escape";
+import { AppRouterProvider } from "@/lib/navigation/appRouter";
+
+const unchanging = () => () => {};
 
 export function ClientProviders({
   children,
@@ -23,11 +22,18 @@ export function ClientProviders({
 }) {
   // The one Escape, for every page: what answers it registers with onEscape.
   useEffect(() => listenForEscape(), []);
+  // Pages draw in the browser, after hydration: the server sends the layout's
+  // boot screens, and pages read the browser (storage, the window) as they
+  // draw. The Redux store isn't here: /app's layout provides it, and a part
+  // outside /app that reads it brings it (components/providers/StoreProvider).
+  const inBrowser = useSyncExternalStore(unchanging, () => true, () => false);
   return (
-    <ThemeProvider defaultTheme="system" storageKey="ui-theme">
-      <ActiveThemeProvider>
-        <PersistGate loading={null} persistor={persistor}>
-          <Provider store={store}>
+    // The router's moves for every page, without the address: what only
+    // navigates doesn't draw again when the address moves (lib/navigation/appRouter).
+    <AppRouterProvider>
+      <ThemeProvider defaultTheme="system" storageKey="ui-theme">
+        <ActiveThemeProvider>
+          {inBrowser && (
             <MediaQueryProvider>
               {/* Browser/OS chrome follows the shell the user actually chose. */}
               <ThemeColorMeta />
@@ -41,12 +47,10 @@ export function ClientProviders({
               <Toaster />
               {/* Says when the network or the server is gone, on every page. */}
               <OfflineNotice />
-              {/* Asks before an in-app link leaves a SaveBar's changes unsaved. */}
-              <UnsavedChangesGuard />
             </MediaQueryProvider>
-          </Provider>
-        </PersistGate>
-      </ActiveThemeProvider>
-    </ThemeProvider>
+          )}
+        </ActiveThemeProvider>
+      </ThemeProvider>
+    </AppRouterProvider>
   );
 }

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
-import { addModifier, fieldAt, format, modifierText, parse, removeSpan, setModifier, type Syntax, type SyntaxNode } from "./query"
+import { addModifier, fieldAt, format, freeWords, modifierText, parse, removeSpan, replaceModifiers, setModifier, topModifierList, type Syntax, type SyntaxNode } from "./query"
 
 // The golden cases the server's parser is held to (business/SearchQuery,
 // parse_test.go), copied byte for byte into testdata/searchquery: every text
@@ -72,3 +72,31 @@ describe("chips write their tokens into the text", () => {
     expect(fieldAt("launch plan", 3)).toBeNull()
   })
 })
+
+describe("the filters at the top of a text", () => {
+  it("lists every modifier joined by AND, negated ones too, with the stretch each takes", () => {
+    const text = `launch from:@sam -in:#secret "pricing page" during:past_7_days`
+    const mods = topModifierList(text)
+    expect(mods.map((m) => [m.field, m.values, m.negated])).toEqual([
+      ["from", ["@sam"], false],
+      ["in", ["#secret"], true],
+      ["during", ["past_7_days"], false],
+    ])
+    expect(text.slice(...mods[1].span)).toBe("-in:#secret")
+    // Inside OR or brackets a modifier isn't a filter of the whole search.
+    expect(topModifierList("from:@sam OR from:@ana")).toEqual([])
+  })
+
+  it("leaves the free words when every top modifier is taken out", () => {
+    expect(freeWords(`launch from:@sam -in:#secret "pricing page" during:past_7_days`)).toBe(`launch "pricing page"`)
+    expect(freeWords("from:@sam")).toBe("")
+    expect(freeWords("from:@sam OR from:@ana")).toBe("from:@sam OR from:@ana")
+  })
+
+  it("replaces every modifier on any of the fields, or takes them all out", () => {
+    expect(replaceModifiers("launch on:today -before:friday", ["on", "before", "during"], "during", "past_7_days")).toBe("launch during:past_7_days")
+    expect(replaceModifiers("launch on:today", ["on", "during"], "on", "")).toBe("launch")
+    expect(replaceModifiers("launch", ["on"], "on", "today")).toBe("launch on:today")
+  })
+})
+

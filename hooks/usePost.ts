@@ -7,7 +7,6 @@ import { PostEndpointUrl } from "@/services/endPoints"
 import type { GenericResponse } from "@/types/genericRes"
 
 import type { AxiosError } from "axios"
-import { offlineQueue } from "@/lib/offlineQueue"
 import { errorToastCopy, isDemoRefusal } from "@/lib/utils/errorToast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 
@@ -31,8 +30,6 @@ interface UsePostOptions<T> {
      * The server's reason still goes under it.
      */
     failureTitle?: string
-    useQueueIfOffline?: boolean
-    description?: string // Description for the offline queue toast
     method?: HttpMethod
 }
 
@@ -284,8 +281,8 @@ const endpointMessages: Partial<Record<string, { success: string; error: string 
         error: "Failed to restore task.",
     },
     [PostEndpointUrl.CreateSubTask]: {
-        success: "Sub-task created.",
-        error: "Failed to create sub-task.",
+        success: "Subtask added.",
+        error: "Couldn't add the subtask.",
     },
     [PostEndpointUrl.AddAttachmentToTask]: {
         success: "Attachment added.",
@@ -676,7 +673,11 @@ export const usePost = () => {
                 response = await axiosInstance.post(url, payload, config)
             }
 
-            if (showToast && !options.quiet) {
+            // Held by the project's rules: their words (lib/rules/held) stand for the success toast.
+            const said = response.data as ErrorResponse | undefined
+            if (said?.code === "approval" || said?.code === "status_rule") {
+                if (!options.quiet) void import("@/lib/rules/held").then((m) => m.sayHeld(toast, said))
+            } else if (showToast && !options.quiet) {
                 toast({ title: successTitle(successMessage) })
             }
             if (onSuccess) {
@@ -692,7 +693,9 @@ export const usePost = () => {
             // (code "demo") keeps its own title and words.
             if (ownsErrorToast) {
                 const data = error.response?.data
-                if (isDemoRefusal(data)) {
+                if (data?.code === "approval") {
+                    void import("@/lib/rules/held").then((m) => m.sayHeld(toast, data))
+                } else if (isDemoRefusal(data)) {
                     toast({ variant: "destructive", ...errorToastCopy(error.response?.status, data?.msg, data?.code) })
                 } else {
                     const description = error.response
@@ -702,38 +705,16 @@ export const usePost = () => {
                 }
             }
             
-            // Handle Offline Queueing if enabled
-            if (options.useQueueIfOffline && (!error.response || error.code === 'ERR_NETWORK')) {
-                 // Capture the request to retry later
-                 const retryAction = () => makeRequest({ ...options, useQueueIfOffline: false });
-                 offlineQueue.add({
-                    action: retryAction,
-                    description: options.description || "Retrying action"
-                 });
-            }
-
             throw e; // Re-throw to allow component-level catch (e.g. for optimistic rollbacks)
         } finally {
             setIsSubmitting(false)
         }
     }, [toast]);
 
-    // MEMOISED, because callers put this object in dependency arrays.
-    //
-    // A fresh object literal here gets a new identity on every render, so any
-    // useCallback or useEffect listing `post` re-runs every render. Nine call
-    // sites do exactly that, and for a useEffect that also sets state the result
-    // is an infinite loop: render, new identity, effect fires, setState, render.
-    //
-    // GitHubIssueSearchDialog hit it. Its search effect depends on performSearch,
-    // which depends on `post`, and its guard clause calls setResults([]) with a
-    // fresh array for a query too short to search. Opening the dialog spun until
-    // React gave up with "Maximum update depth exceeded", which the global error
-    // boundary shows as "Something went wrong" over the whole app.
-    //
-    // makeRequest is already stable via useCallback, so the only moving part is
-    // isSubmitting, and a caller that re-runs when a request starts or finishes
-    // is asking for exactly that.
+    // MEMOISED: callers list `post` in their hooks' dependencies, so a new
+    // object each render re-ran them, and an effect that sets state looped
+    // (GitHubIssueSearchDialog: "Maximum update depth exceeded", the whole
+    // app's error screen). makeRequest is stable; only isSubmitting moves.
     return React.useMemo(
         () => ({ makeRequest, isSubmitting }),
         [makeRequest, isSubmitting],

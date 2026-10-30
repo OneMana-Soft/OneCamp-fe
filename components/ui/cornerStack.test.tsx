@@ -92,8 +92,8 @@ describe("the corner stack", () => {
     expect(block).toMatch(/gap:\s*8px/)
     expect(block).toMatch(/left:\s*calc\(var\(--shell-left-inset, 0px\) \+ 16px\)/)
     expect(block).toMatch(/right:\s*calc\(var\(--shell-right-inset, 8px\) \+ 16px\)/)
-    // Above the phone's tab bar and its home indicator.
-    expect(block).toMatch(/bottom:\s*calc\(4rem \+ env\(safe-area-inset-bottom\)/)
+    // Above the phone's tab bar and its home indicator, or 8px over the foot a page publishes (V-68).
+    expect(block).toMatch(/bottom:\s*max\(calc\(4rem \+ env\(safe-area-inset-bottom\) \+ 8\.5rem\),\s*calc\(var\(--mobile-drawer-h, 0px\) \+ 8px\)\)/)
   })
 
   it("puts the corner cards over the page and under anything opened on it", () => {
@@ -104,7 +104,7 @@ describe("the corner stack", () => {
     // Over the tab bar, the composer and the right panel over the page (fixed + 1).
     expect(z("corner")).toBeGreaterThan(z("fixed") + 1)
     // Under a dialog's scrim, so a modal covers the cards it would otherwise leave clickable.
-    for (const above of ["modal-backdrop", "modal", "popover", "dropdown", "tooltip", "toast"]) {
+    for (const above of ["modal", "popover", "dropdown", "tooltip", "toast"]) {
       expect(z("corner"), above).toBeLessThan(z(above))
     }
   })
@@ -113,5 +113,18 @@ describe("the corner stack", () => {
     // Above the corner, or above a call's dock while one is on screen (max() with --call-dock-floor).
     expect(read("components/ui/toast.tsx")).toContain("sm:bottom-[max(calc(1.5rem+var(--corner-right-h,0px)),var(--call-dock-floor,0px))]")
     expect(read("components/ui/CornerStack.tsx")).toContain("--corner-right-h")
+  })
+
+  it("goes under the keyboard while it is up, as the tab bar does, whatever the page (V-68)", () => {
+    // Over a foot that sits on the keyboard (a doc's Formatting bar, a task's comment box) a risen
+    // card covered the line being typed. One rule on the shell's keyboard signal (lib/ui/visualViewport)
+    // hides the stack for every card on every page, so no page needs a rule of its own, and the
+    // cards come back when the signal goes.
+    const css = code(read("app/globals.css"))
+    const hidden = /\{\s*visibility:\s*hidden;?\s*\}/.source
+    expect(css).toMatch(new RegExp(`html\\[data-keyboard="open"\\] \\[data-app-viewport\\] nav\\[aria-label="Primary"\\]\\s*${hidden}`))
+    const onKeyboard = (css.match(/[^{};]*\.corner-stack[^{]*\{[^}]*\}/g) ?? []).filter((rule) => rule.includes("data-keyboard"))
+    expect(onKeyboard).toHaveLength(1)
+    expect(onKeyboard[0].trim()).toMatch(new RegExp(`^html\\[data-keyboard="open"\\] \\.corner-stack\\s*${hidden}$`))
   })
 })

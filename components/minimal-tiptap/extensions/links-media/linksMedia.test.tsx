@@ -224,8 +224,9 @@ describe("a file", () => {
       { type: "paragraph", content: [{ type: "text", text: "after" }] },
     ])
     // jsdom lays nothing out: the drop is at the fourth character of the first line.
+    // A file dropped alone carries no HTML: getData answers "", as a browser's does.
     editor.view.posAtCoords = () => ({ pos: 4, inside: -1 })
-    const event = { preventDefault() {}, stopPropagation() {}, clientX: 0, clientY: 0, dataTransfer: { files: [file("plan.pdf", "application/pdf", 2048)] } } as unknown as DragEvent
+    const event = { preventDefault() {}, stopPropagation() {}, clientX: 0, clientY: 0, dataTransfer: { files: [file("plan.pdf", "application/pdf", 2048)], getData: () => "" } } as unknown as DragEvent
     act(() => void editor.view.someProp("handleDrop", (f) => f(editor.view, event, Slice.empty, false)))
     expect(editor.getJSON().content?.map((n) => n.type)).toEqual(["paragraph", "fileBlock", "paragraph"])
     expect(editor.getJSON().content?.[0].content?.[0].text).toBe("Paste a link here:")
@@ -239,7 +240,7 @@ describe("a file", () => {
     expect(uploadFn).not.toHaveBeenCalled()
     expect(editor.getJSON().content?.some((n) => n.type === "fileBlock")).toBe(false)
     expect(toasts.at(-1)).toMatchObject({ title: "File too large" })
-    expect(toasts.at(-1)?.description).toMatch(/big\.mov is 500 B, over the/)
+    expect(toasts.at(-1)?.description).toMatch(/big\.mov is 500 bytes, over the/)
   })
 
   it("treats an address that isn't safe to follow as no file", async () => {
@@ -258,7 +259,8 @@ describe("a file", () => {
     await vi.waitFor(() => expect(document.querySelector("video")).not.toBeNull())
     expect(document.querySelector("video")).toHaveAttribute("src", "https://api.example.test/doc/getDocAttachment/d/v")
     expect(await screen.findByText("rows.csv")).toBeInTheDocument()
-    expect(screen.getByText("2.0 KB")).toBeInTheDocument()
+    // A file's size as every file's row says it (formatFileSizeForAttachment).
+    expect(screen.getByText("2 KB")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Download rows.csv" })).toBeInTheDocument()
   })
 })

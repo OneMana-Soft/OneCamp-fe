@@ -104,7 +104,7 @@ describe("a custom end for a status, on a computer", () => {
     const list = await screen.findByRole("listbox", { name: "Time" }, LOAD)
     const first = list.querySelector<HTMLElement>("[role='option']")!
     // The first time offered is the first quarter hour after now, with no "how long" beside it.
-    expect(first.querySelectorAll("span")).toHaveLength(1)
+    expect(first.querySelector(".text-meta")).toBeNull()
     // A time typed that has gone: said so, and Set status waits.
     const box = screen.getByLabelText("Type a time")
     fireEvent.change(box, { target: { value: "00:15" } })
@@ -201,7 +201,9 @@ describe("a custom end for a status, on a tablet", () => {
     const set = screen.getByRole("button", { name: "Set status" })
     expect(set.closest("[data-overlay-footer]")).toBeTruthy()
     expect(set.closest("[data-overlay-body]")).toBeNull()
-    expect(menu.className).not.toMatch(/overflow-y-auto|max-h-/)
+    // The root never scrolls: it holds the overlay's body, so app/overlay.css 1 makes it a column with overflow
+    // hidden, whatever height and overflow the shared PopoverContent gives a root of its own.
+    expect(menu.hasAttribute("data-overlay-holds-body")).toBe(true)
     fireEvent.click(screen.getByRole("radio", { name: "Custom" }))
     await aQuarterLater((list) => {
       expect(list.closest("[data-radix-popper-content-wrapper]")).toBeTruthy()

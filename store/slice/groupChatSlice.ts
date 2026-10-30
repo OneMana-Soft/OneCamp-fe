@@ -1,4 +1,4 @@
-import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
+import { holdLoaded, keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import {createSlice} from "@reduxjs/toolkit";
 import {ExtendedScrollToBottom, FilePreview, ScrollToBottom} from "@/store/slice/channelSlice";
 import {AttachmentMediaReq} from "@/types/attachment";
@@ -471,18 +471,10 @@ const groupChatSlice = createSlice({
 
         updateGroupChats: (state, action: {payload: UpdateChats}) => {
             const { grpId, chats } = action.payload;
-
-            state.chatMessages[grpId] = [...chats];
-            keepRecentlyLoaded(state.chatMessages, state.loadedOrder, grpId);
-
+            holdLoaded(state.chatMessages, state.loadedOrder, grpId, chats);
         },
 
-        // SYNC (window-reconcile): reconcile this group chat against a
-        // freshly-fetched "latest" window after an idle gap. Within the time-
-        // range the window covers the server is authoritative, so this applies
-        // adds, edits, AND deletes. Messages newer than the window (optimistic
-        // sends) and older paginated history are preserved. Reference-stable
-        // when nothing changed. (Mirrors chatSlice.mergeChats.)
+        // A fresh latest window, as channelSlice's mergeChannelPosts.
         mergeGroupChats: (state, action: {payload: UpdateChats}) => {
             const { grpId, chats, authoritativeThrough } = action.payload;
             if (!chats) return;

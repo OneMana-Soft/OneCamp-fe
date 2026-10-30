@@ -32,6 +32,7 @@ import {
   type YMapping,
 } from './core'
 import type { EditProposal, EphemeralProposal, ProposalHunk } from './types'
+import { KEEP_PAGES } from '@/components/minimal-tiptap/extensions/subpage/keepPages'
 
 /** A shared doc's Yjs side, as the editor's sync plugin holds it. */
 interface YBinding {
@@ -62,6 +63,14 @@ export function yBindingOf(state: EditorState): YBinding | null {
  * its own with isChangeOrigin under its plugin key ('y-sync$', numbered when
  * there are several), which ProseMirror keeps in the transaction's meta.
  */
+/**
+ * Marks the write of an accepted (or inserted-below) proposal: the one write
+ * an editor that is suggesting makes (suggest-mode), carried by that
+ * transaction alone, so nothing else passes while an accept waits.
+ */
+export const DECISION_WRITE = 'proposalDecisionWrite'
+export const isDecisionWrite = (tr: Transaction) => tr.getMeta(DECISION_WRITE) === true
+
 export function isRemote(tr: Transaction): boolean {
   const meta = (tr as unknown as { meta?: Record<string, unknown> }).meta ?? {}
   for (const key of Object.keys(meta)) {
@@ -239,7 +248,8 @@ export function acceptIn(
     return { applied: [], conflicts: placed.map((p) => p.hunk.id) }
   }
   separateUndo(state)
-  dispatch(closeHistory(tr).setMeta('addToHistory', true).scrollIntoView())
+  // The agent rewrote the text: a page whose block a hunk drops stays a child (docs C7a).
+  dispatch(closeHistory(tr).setMeta('addToHistory', true).setMeta(KEEP_PAGES, true).scrollIntoView())
   separateUndo(state)
   return { applied: placed.map((p) => p.hunk.id), conflicts: [] }
 }

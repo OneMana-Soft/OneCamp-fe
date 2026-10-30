@@ -11,7 +11,7 @@ import type { UploadFileInterfaceRes } from "@/types/file"
 
 /** What a file is for, as the API takes it: where it goes (src_key) and which one (src_value). */
 export interface UploadTarget {
-    src_key: "project" | "channel" | "public" | "chat" | "grpChat" | "doc"
+    src_key: "project" | "channel" | "public" | "chat" | "grpChat" | "doc" | "table" | "form"
     src_value?: string
     /** A group not on the server yet: its people's ids, which make its id (generateGroupChatId). */
     participants?: string[]

@@ -11,9 +11,10 @@ import * as React from "react"
 
 import { usePathname } from "next/navigation"
 
-import { useTreeLevel } from "@/components/tree/useTree"
+import { readLimit, useTreeLevel } from "@/components/tree/useTree"
 import { useCreateDoc } from "@/components/doc/useCreateDoc"
 import { DocTree, TREE_CAP, adapterFor, docIdOfPath } from "@/components/docTree/DocTree"
+import { DocTreeSkeleton } from "@/components/docTree/DocsSection"
 import { useFetch } from "@/hooks/useFetch"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -52,7 +53,8 @@ export const SIDEBAR_TREE_CAP = 5
 
 /** Whether a group's top level holds anything, as far as it's known. */
 function useGroupState(space: DocSpace, cap: number) {
-  const { level, loading, failed } = useTreeLevel(adapterFor(space), null, cap)
+  // What the tree asks for, so the two share one answer (fluid-06, Fix 2).
+  const { level, loading, failed } = useTreeLevel(adapterFor(space), null, readLimit(cap))
   const empty = !!level && level.nodes.length === 0 && level.hidden === 0
   return { loading, failed, empty }
 }
@@ -98,7 +100,7 @@ function useOpenDocGroup(on: boolean): { docId: string | null; group: DocSpace |
   return { docId, group: docId ? groupOfDoc(info.data?.data, selfId) : null }
 }
 
-export default function DocsTreeGroups({ onOpened, sidebar = false }: { onOpened?: () => void; sidebar?: boolean }) {
+export default function DocsTreeGroups({ onOpened, sidebar = false, groups = GROUPS.length }: { onOpened?: () => void; sidebar?: boolean; groups?: number }) {
   const cap = sidebar ? SIDEBAR_TREE_CAP : TREE_CAP
   const states = [useGroupState("workspace", cap), useGroupState("shared", cap), useGroupState("private", cap)]
   const opens = [useGroupOpen("workspace", sidebar), useGroupOpen("shared", sidebar), useGroupOpen("private", sidebar)]
@@ -164,7 +166,8 @@ export default function DocsTreeGroups({ onOpened, sidebar = false }: { onOpened
                 </button>
               )}
             </div>
-            {open ? <DocTree space={g.space} label={g.name} onOpened={onOpened} cap={cap} /> : null}
+            {/* A group's rows come in their turn (the Pages sheet mounts a group a frame, fluid-06 Fix 3). */}
+            {open && i < groups ? <DocTree space={g.space} label={g.name} onOpened={onOpened} cap={cap} /> : open ? <DocTreeSkeleton rows={2} /> : null}
           </div>
         )
       })}

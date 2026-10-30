@@ -1,7 +1,7 @@
 // Where this server serves the files the call effects load, so nothing is
 // fetched from anyone else's servers while someone is on camera: MediaPipe's
 // own defaults are a CDN (cdn.jsdelivr.net) for its WebAssembly and Google's
-// storage for the model. scripts/calls-assets.mjs copies the packages' files
+// storage for the model. scripts/vendor-assets.mjs copies the packages' files
 // (vendored.json) out of node_modules into public/ before every build; the
 // segmenter's model is kept in the repo (public/calls/models). Every path
 // names its version or its hash, so it can be cached for good.

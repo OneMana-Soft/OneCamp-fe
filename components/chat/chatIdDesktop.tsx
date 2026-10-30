@@ -5,53 +5,41 @@ import { dmWith } from "@/lib/conversation/route";
 import { PRESENCE_WORDS, presenceOf } from "@/lib/presence";
 import { searchWithinHref } from "@/lib/search/within";
 import { displayNameOf } from "@/lib/personName";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import { useScheduleSend } from "@/context/ScheduleSendContext";
-import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
-import { HeldNotificationsBar } from "@/components/messages/heldNotificationsBar";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { HEADER_ICON, HuddleBanner, HuddleButton, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
 import { ChatFace } from "@/components/message/chatFace";
 import { WithTooltip } from "@/components/common/withTooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Search, ShieldCheck, UserPlus, Users } from "@/lib/icons";
-import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
-import { SendHorizontal, Clapperboard } from "@/lib/icons";
+import { Clapperboard } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import { useChatNotification } from "@/hooks/useConversationNotification";
-import {memo, useCallback, useEffect, useRef, useState} from "react";
-import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
-import type { Content } from "@tiptap/react";
-import { useStableCallback } from "@/hooks/useStableCallback";
-import { ComposerReplyPill } from "@/components/message/composerReplyPill";
-
+import { useCallback, useEffect } from "react";
 import {openUI} from "@/store/slice/uiSlice";
 
-
-import {ChatMessageList} from "@/components/chat/chatMessageList";
+import { ConversationMessages } from "@/components/conversation/ConversationMessages";
+import { Composer } from "@/components/conversation/Composer";
+import { DmComposerExtras } from "@/components/chat/DmComposerExtras";
+import type { ConversationRef } from "@/lib/conversation/types";
+import { useDmList } from "@/components/conversation/DmRows";
 import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
-import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
-import {createOrUpdateChatBody, clearChatReplyTarget} from "@/store/slice/chatSlice";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
 import {ChatUserEmojiStatus} from "@/components/chat/chatUserEmojiStatus";
 import {Button} from "@/components/ui/button";
 import {app_chat_call} from "@/types/paths";
 import Link from "next/link";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
-import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
-import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
-import CommandSurface from "@/components/command/CommandSurface";
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 
-
-export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number}) => {
+export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string) => boolean | void}) => {
     const dispatch = useDispatch()
+    const list = useDmList(chatId)
     const otherUserInfo  = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     // A DM's level: one write for its header and a phone's sheet (hooks/useConversationNotification).
@@ -63,6 +51,10 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
     const openBeside = useOpenBeside();
     const chatRecordingHref = `/app/chat/${chatId}/recording`;
     const isBotPeer = otherUserInfo.data?.data?.is_bot === true;
+    const peerName = userDisplayName(otherUserInfo.data?.data);
+    const extras = useCallback((send: (html: string) => void, conversation: ConversationRef) => (
+        <DmComposerExtras conversation={conversation} send={send} peerName={peerName} isBot={isBotPeer} />
+    ), [peerName, isBotPeer]);
 
     const chatCallStatusActive = useSelector((state: RootState) => state.chat.chatCallStatus[chatId]?.active || false);
 
@@ -88,12 +80,9 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
 
     if(!otherUserInfo.data?.data && !otherUserInfo.isLoading) return
 
-
-
     // One rule for where they are, as the phone's header says it (lib/presence, QA F-18).
     const presence = presenceOf(userStatusState, otherUserInfo.data?.data);
     const isOnline = presence === "active";
-
 
     return (
         <div className='flex flex-col h-full relative'>
@@ -173,110 +162,15 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                 </FeatureGate>
             )}
             <div className="flex-1 overflow-y-auto">
-                <ChatMessageList chatId={chatId} unreadOnOpen={unreadCount} />
+                {list && <ConversationMessages list={list} />}
             </div>
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] bg-sheet px-5 pb-[18px]">
                 <div className="w-full max-w-[800px]">
-                    <ChatComposer
-                        chatId={chatId}
-                        handleSend={handleSend}
-                        peerName={userDisplayName(otherUserInfo.data?.data)}
-                        placeholder={dmComposerPlaceholder(displayNameOf(otherUserInfo.data?.data))}
-                        isBotPeer={isBotPeer}
-                        selfUUID={selfProfile.data?.data.user_uuid || ''}
-                    />
+                    <Composer handleSend={handleSend} placeholder={dmComposerPlaceholder(displayNameOf(otherUserInfo.data?.data))} above={extras} />
                 </div>
             </div>
 
         </div>
     )
 }
-
-const EMPTY_INPUT_STATE: Partial<RootState["chat"]["chatInputState"][string]> = {};
-
-/**
- * The DM's message box and what sits on it. Its own component because it is
- * the only part of the conversation that changes as someone types: the draft
- * is read here, so the header and the messages above it no longer re-render
- * with each change to it.
- */
-const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, placeholder, isBotPeer, selfUUID }: {
-    chatId: string
-    handleSend: (latestContent?: string) => boolean | void
-    peerName: string
-    placeholder: string
-    isBotPeer: boolean
-    selfUUID: string
-}) {
-    const dispatch = useDispatch()
-    const scheduleSend = useScheduleSend()
-    const uploadFile = useUploadFile()
-    const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
-    const chatState = useSelector((state: RootState) => state.chat.chatInputState[chatId] || EMPTY_INPUT_STATE);
-    const grpId = getGroupingId(chatId, selfUUID)
-
-    // The same function for the life of the composer, so the editor's action
-    // row (memoised in textInput) keeps its buttons as the parent re-renders.
-    // A first message here bursts from the new row's avatar (C60).
-    const rootRef = useRef<HTMLDivElement>(null)
-    const undoSchedule = useUndoSchedule(scheduleSend?.target)
-    const send = useStableCallback((latestContent?: string) => {
-        if (handleSend(latestContent)) celebrateFirstMessage()
-    })
-    const onChange = useStableCallback((content: Content) => {
-        publishTyping(content as string)
-        dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
-    })
-    const onActionFiles = useStableCallback(async (files: File[]) => {
-        if (!files?.length) return;
-        const valid = uploadFile.validateFiles(files);
-        if (valid.length === 0) return;
-        await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
-    })
-    const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'chatFileUpload' })) })
-
-    return (
-        <div ref={rootRef}>
-                    <CommandSurface
-                        surfaceKey={chatId}
-                        dmGroupId={grpId}
-                        onComposerText={(text) =>
-                            dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: `<p>${text}</p>` }))
-                        }
-                        onComposerHtml={(html) =>
-                            dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))
-                        }
-                    />
-                    {chatState.replyToUuid && (
-                        <ComposerReplyPill
-                            authorName={chatState.replyToAuthorName}
-                            text={chatState.replyToText}
-                            onCancel={() => dispatch(clearChatReplyTarget({ chatUUID: chatId }))}
-                        />
-                    )}
-                    <HeldNotificationsBar userUUID={chatId} name={peerName} isBot={isBotPeer} />
-                    {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
-                    <MinimalTiptapTextInput
-                        throttleDelay={300}
-                        attachmentOnclick={openUpload}
-                        onActionFiles={onActionFiles}
-                        variant="chat"
-                        output="html"
-                        content={chatState.chatBody}
-                        contentRevision={chatState.restoredUnsent}
-                        placeholder={placeholder}
-                        editable={true}
-                        ButtonIcon={SendHorizontal}
-                        hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
-                        buttonOnclick={send}
-                        onSchedule={scheduleSend?.schedule}
-                        editorClassName="focus:outline-none"
-                        onChange={onChange}
-                        onUndoSchedule={undoSchedule}
-                    >
-                        <ChatFileUpload chatUUID={chatId} />
-                    </MinimalTiptapTextInput>
-        </div>
-    )
-})

@@ -99,6 +99,12 @@ export function turnIntoFor(gate: EditionGate, kind: EditorKind = 'doc'): Array<
   return out.sort((a, b) => (a.order ?? 1000) - (b.order ?? 1000) || a.at - b.at).map(({ at: _at, ...t }) => t)
 }
 
+/** What a block that holds no text is called ("Page", "Image"): its spec's label, else its first "/" entry's title. */
+export function blockLabelFor(nodeName: string, gate: EditionGate, kind: EditorKind = 'doc'): string | undefined {
+  const spec = blocksFor(kind, gate).find((b) => b.schema.some((e) => e.kind === 'node' && e.name === nodeName))
+  return spec?.label ?? spec?.slash?.[0]?.title
+}
+
 /** The name of the block the caret is in ("Text", "Heading 2"…). */
 export function currentTurnIntoLabel(editor: Editor, entries: TurnIntoEntry[]): string {
   const asked = [...entries].sort((a, b) => (a.detect ?? 50) - (b.detect ?? 50))

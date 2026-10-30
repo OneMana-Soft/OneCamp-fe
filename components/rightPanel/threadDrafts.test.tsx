@@ -26,9 +26,8 @@ vi.mock("@/hooks/usePost", () => ({
 
 // Uploads go out through axios and wait for the test to finish them.
 const uploads: ((v: unknown) => void)[] = []
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
     default: { post: () => new Promise((resolve) => uploads.push(resolve)), get: () => new Promise(() => {}) },
-    OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({}) }))
 

@@ -34,8 +34,7 @@ beforeAll(() => loadBlocks("doc", { ai: true }), 30_000)
 // toggle, ⌘L copies the page's link, " + space makes a quote.
 
 const users = [{ user_uuid: "u-sam", uid: "0x1", user_full_name: "Sam Rivera", user_name: "sam", is_bot: false }]
-vi.mock("@/lib/axiosInstance", () => ({
-  OWN_ERRORS: { suppressErrorToast: true },
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: vi.fn(async () => ({ status: 200, data: { users } })),
     // A chip reads what it names (POST /entities): here, each is there to open.

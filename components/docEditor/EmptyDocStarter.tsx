@@ -25,11 +25,14 @@ import { Tile } from "@/components/ui/graphics"
 import { toast } from "@/hooks/use-toast"
 import { QUICK_DOC_TEMPLATES, templateGlyph } from "@/lib/docTemplates"
 import { LayoutTemplate, Loader2, Upload } from "@/lib/icons"
+import { lazyDialog } from "@/lib/lazy/lazyDialog"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { applyTemplate } from "@/services/docHomeService"
 
-const TemplatePicker = React.lazy(() => import("@/components/docTemplates/TemplatePicker"))
+// A dialog fetched as it opens (lib/lazy lazyDialog): when its code can't come, it says so and closes, the doc stays as
+// it was, and the next open asks again (V-64b).
+const TemplatePicker = lazyDialog(() => import("@/components/docTemplates/TemplatePicker").then((m) => m.default), "templates")
 
 /** The rows of an empty doc's starter, in the order they're drawn. */
 function starterRows(from: HTMLElement): HTMLElement[] {
@@ -200,11 +203,7 @@ export function StarterTemplates({ docId, editor }: SlotProps) {
           </PlainTile>
         }
       />
-      {picker && (
-        <React.Suspense fallback={null}>
-          <TemplatePicker mode={{ kind: "apply", docId, onApplied: done }} onClose={() => setPicker(false)} />
-        </React.Suspense>
-      )}
+      {picker && <TemplatePicker mode={{ kind: "apply", docId, onApplied: done }} onClose={() => setPicker(false)} />}
     </div>
   )
 }

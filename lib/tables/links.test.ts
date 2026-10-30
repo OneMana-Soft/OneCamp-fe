@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { canRollUp, rollupOptions, tableRelations } from "@/lib/tables/links"
+import { canRollUp, canSortRollupBy, rollupOptions, tableRelations } from "@/lib/tables/links"
 import { filterKind } from "@/lib/fieldTypes/registry"
 import { computedOf, fieldProblem, isComputed, relationOf, rollupOf, type TableField } from "@/services/tableService"
 
@@ -16,17 +16,20 @@ describe("a rollup", () => {
   it("offers the ways of adding up that fit the field, likeliest first", () => {
     expect(rollupOptions("number")[0]).toBe("sum")
     expect(rollupOptions("date").slice(0, 2)).toEqual(["earliest", "latest"])
-    expect(rollupOptions("checkbox")).toEqual(["checked", "count"])
+    expect(rollupOptions("checkbox")).toEqual(["checked", "formula", "count"])
     expect(rollupOptions("text")).not.toContain("sum")
     // With no field, it counts the rows.
     expect(rollupOptions(null)).toEqual(["count"])
   })
 
-  it("can't add up another rollup, or links to a table", () => {
+  it("adds up another rollup, by what it gives, but not links to a table; sorts by neither (airtable-02)", () => {
     expect(canRollUp(field("cost", "number"))).toBe(true)
     expect(canRollUp(field("tasks", "relation", { relation_target: "task" }))).toBe(true)
-    expect(canRollUp(field("spend", "rollup"))).toBe(false)
+    expect(canRollUp(field("spend", "rollup", { result: "number" }))).toBe(true)
     expect(canRollUp(field("vendor", "relation", { relation_target: "table", table_id: "v" }))).toBe(false)
+    // The linked rows' own values only: no view sorts by what other rows add up to (the server's sortProblem).
+    expect(canSortRollupBy(field("spend", "rollup", { result: "number" }))).toBe(false)
+    expect(canSortRollupBy(field("cost", "number"))).toBe(true)
   })
 
   it("reads relations that link to a table's rows", () => {

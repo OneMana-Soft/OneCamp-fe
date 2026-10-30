@@ -3,6 +3,7 @@
 import { useCallback } from "react"
 import { usePost } from "@/hooks/usePost"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
+import { carryCounts } from "@/lib/board/carryCounts"
 import { PostEndpointUrl } from "@/services/endPoints"
 import type { SettledDrop } from "@/lib/utils/kanbanDrop"
 import type { TaskStatusFields } from "@/lib/taskStatus"
@@ -21,7 +22,8 @@ export function useMoveTask() {
     // own status id, which the server accepts as is. patch is what the task
     // becomes (lib/taskStatus statusPatch), for the cache until it answers.
     (taskUuid: string, projectUuid: string, drop: SettledDrop<{ task_uuid: string }>, patch: TaskStatusFields) => {
-      optimisticUpdateTask({ task_uuid: taskUuid, ...patch }, projectUuid, drop.index, { before: drop.before, after: drop.after })
+      // The columns' counts move with the card (lib/board/carryCounts).
+      optimisticUpdateTask({ task_uuid: taskUuid, ...patch }, projectUuid, drop.index, { before: drop.before, after: drop.after }, carryCounts)
       return post
         .makeRequest({
           apiEndpoint: PostEndpointUrl.MoveTask,

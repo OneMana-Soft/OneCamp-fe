@@ -15,7 +15,7 @@ import type { Dispatch } from "@reduxjs/toolkit"
 import { ToastAction } from "@/components/ui/toast"
 import { toast } from "@/hooks/use-toast"
 import { docDeleted, docRestored } from "@/lib/docCache"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { addPlace, deleteDoc, duplicateDoc, removePlace, restoreDoc } from "@/services/docGraphService"
 import { starPlace, unstarPlace } from "@/store/slice/userSlice"
 import { openUI } from "@/store/slice/uiSlice"
@@ -128,32 +128,67 @@ export async function duplicate(d: DocRef, open: (href: string) => void, opts?: 
 }
 
 /**
+ * A doc whose sub-page block was deleted from its parent's body (docs C7a): it
+ * goes only while it is still that page's child, which the server checks, and
+ * nothing is said when it isn't, the block having been a link to it. Undo puts
+ * the block back (putBack) as it brings the doc back.
+ */
+export interface FromItsBlock {
+  parent: string
+  putBack(): void
+}
+
+/** A trash that went. undo brings it back as the toast's Undo does, once. */
+export interface Trashed {
+  undo(): Promise<void>
+}
+
+/** A block's page that is no longer the parent's child, or is gone already. */
+const notItsChild = (err: unknown) => apiErrorCode(err) === "not_under" || [404, 410].includes(apiErrorStatus(err))
+
+/**
  * Puts a doc and the pages inside it in the trash, with Undo (N32). Someone on
  * its page is taken to the docs home, since the page now says it was
- * deleted, and Undo takes them back to it. Resolves whether it went.
+ * deleted, and Undo takes them back to it. Resolves with what undoes it, or
+ * null when nothing went.
  */
-export async function trash(dispatch: Dispatch, d: DocRef, here: { onItsPage: boolean; go: (href: string) => void }): Promise<boolean> {
+export async function trash(
+  dispatch: Dispatch,
+  d: DocRef,
+  here: { onItsPage: boolean; go: (href: string) => void },
+  block?: FromItsBlock,
+): Promise<Trashed | null> {
   let gone: Awaited<ReturnType<typeof deleteDoc>>
   try {
-    gone = await deleteDoc(d.id, OWN)
+    gone = await deleteDoc(d.id, block ? { ...OWN, under: block.parent } : OWN)
   } catch (err) {
-    failed(`Couldn't move ${named(d)} to the trash`, err)
-    return false
+    if (!(block && notItsChild(err))) failed(`Couldn't move ${named(d)} to the trash`, err)
+    return null
   }
   docDeleted(dispatch, d.id)
   const page = `${app_doc_path}/${d.id}`
   if (here.onItsPage) here.go(app_doc_path)
+  const shown: { toast?: ReturnType<typeof toast> } = {}
+  let undone = false
   const undo = async () => {
+    if (undone) return
+    undone = true
+    shown.toast?.dismiss()
     try {
-      await restoreDoc(d.id, OWN)
+      await restoreDoc(d.id, block ? { ...OWN, placed: true } : OWN)
     } catch (err) {
-      failed(`Couldn't bring ${named(d)} back`, err, "It's still in the trash. Restore it from there.")
-      return
+      // Brought back another way meanwhile (the trash page): done all the same.
+      if (apiErrorCode(err) !== "not_in_trash") {
+        undone = false
+        failed(`Couldn't bring ${named(d)} back`, err, "It's still in the trash. Restore it from there.")
+        return
+      }
     }
     docRestored(d.id)
+    block?.putBack()
     if (here.onItsPage) here.go(page)
   }
-  toast({
+  shown.toast = toast({
     title: `Moved ${named(d)} to the trash${pagesInside(gone.count, "with")}`,
     description: pagesThatStayed(gone.kept, d),
     action: (
@@ -162,7 +197,7 @@ export async function trash(dispatch: Dispatch, d: DocRef, here: { onItsPage: bo
       </ToastAction>
     ),
   })
-  return true
+  return { undo }
 }
 
 /** Opens the rename dialog the doc's own page uses. */

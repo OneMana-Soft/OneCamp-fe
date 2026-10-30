@@ -37,14 +37,15 @@ import type { Cache } from "swr"
 import { onSessionEnd } from "@/lib/sessionEnd"
 import { CLIENT_CONFIG_KEY } from "@/lib/clientConfigKey"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { MAX_ENTRIES, RecentCache } from "@/lib/recentCache"
 
 const CACHE_KEY = "onecamp-app-cache"
 const CACHE_VERSION = 3 // bump when the serialised shape changes
 // Written down for the next load: parsing it blocks the first paint, so it
 // stays small; the newest responses are what that paint needs.
 export const MAX_CACHE_BYTES = 2 * 1024 * 1024
-// Responses kept in memory. A screen reads a few dozen; this is many screens.
-export const MAX_ENTRIES = 300
+// Responses kept in memory: MAX_ENTRIES, in lib/recentCache with the Map that keeps them.
+export { MAX_ENTRIES, RecentCache }
 
 /**
  * The responses written down for the next load: what the first screens show
@@ -90,61 +91,6 @@ const PROFILE_KEY: string = GetEndpointUrl.SelfProfile
 function memberOf(value: unknown): string | null {
   const uuid = (value as { data?: { data?: { user_uuid?: unknown } } } | null | undefined)?.data?.data?.user_uuid
   return typeof uuid === "string" && uuid !== "" ? uuid : null
-}
-
-/**
- * A Map that forgets the entries read or written least recently beyond its
- * limit. What is on screen is read on every render, so it stays; a response
- * read again after being forgotten is fetched again, as on a first visit.
- *
- * Reading never reorders the Map: SWR walks the cache's keys while it reads
- * entries (a global mutate does), and a Map walk visits a key that is moved to
- * the end again, so moving on read made that walk endless and froze the page.
- * Recency is kept beside the Map instead.
- */
-export class RecentCache<V> extends Map<string, V> {
-  private readonly used = new Map<string, number>()
-  private clock = 0
-
-  constructor(entries: Iterable<readonly [string, V]> = [], private readonly limit = MAX_ENTRIES) {
-    super()
-    for (const [k, v] of entries) this.set(k, v)
-  }
-
-  get(key: string): V | undefined {
-    if (super.has(key)) this.used.set(key, ++this.clock)
-    return super.get(key)
-  }
-
-  set(key: string, value: V): this {
-    super.set(key, value)
-    this.used.set(key, ++this.clock)
-    if (this.limit) {
-      while (this.size > this.limit) {
-        let oldest: string | undefined
-        let at = Infinity
-        for (const [k, t] of this.used) if (t < at && k !== key) (at = t), (oldest = k)
-        if (oldest === undefined) break
-        this.delete(oldest)
-      }
-    }
-    return this
-  }
-
-  delete(key: string): boolean {
-    this.used.delete(key)
-    return super.delete(key)
-  }
-
-  clear(): void {
-    this.used.clear()
-    super.clear()
-  }
-
-  /** Keys, most recently read or written first. */
-  recentFirst(): string[] {
-    return [...this.used.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k)
-  }
 }
 
 type SerialisedEntry = [string, unknown]
@@ -376,3 +322,6 @@ function forgetCache(): void {
 }
 
 onSessionEnd(forgetCache)
+// The Offline Store (lib/offline) is the member's too and goes with the
+// session: its wipe loads only then, so no route's first load carries it.
+onSessionEnd(() => import("@/lib/offline/wipe").then((m) => m.wipeOfflineStore()))

@@ -66,6 +66,17 @@ function propose(e: Editor, index: number, next: string) {
 }
 
 describe("proposals in the editor", () => {
+  // A suggestion being written is shown again under its id at every key: its new words are drawn, not the first ones.
+  it("draws a proposal's new words when it is shown again under its id", () => {
+    const { tabA } = tabs("<p>We ship on Thursday.</p>")
+    const first = propose(tabA, 0, "We ship on M.")
+    expect(tabA.view.dom.querySelector(".oc-proposal-ins")?.textContent).toBe("M")
+    const { from, to } = paragraph(tabA, 0)
+    const next = proposeReplacement(tabA.state, from + 1, to - 1, Fragment.from(tabA.schema.text("We ship on Monday.")))!
+    showProposal(tabA, { ...next, proposal: { ...next.proposal, id: first.proposal.id } })
+    expect(tabA.view.dom.querySelector(".oc-proposal-ins")?.textContent).toBe("Monday")
+  })
+
   it("draws the change in this tab only, and the doc is unchanged until Accept", () => {
     const { a, tabA, tabB } = tabs("<p>Intro.</p><p>We ship on Thursday and tell sales.</p>")
     const before = Y.encodeStateVector(a)

@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { SearchInput } from "@/components/ui/search-input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { RefreshCw, Github, Link2, Search, AlertCircle, GitPullRequest, CircleDot, User, Calendar, Check } from "@/lib/icons";
+import { Github, Link2, Search, AlertCircle, GitPullRequest, CircleDot, User, Calendar, Check } from "@/lib/icons";
 import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/hooks/useDebounce"
 import { usePost } from "@/hooks/usePost"
@@ -252,20 +253,16 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
 
           <TabsContent value="search" className="flex-1 min-h-0 flex flex-col mt-3 space-y-3 data-[state=active]:flex data-[state=active]:flex-col">
             <div className="flex gap-2 flex-shrink-0">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={`Search by ${searchType === "prs" ? "PR" : "issue"} title…`}
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value)
-                    setSelectedIssue(null)
-                  }}
-                  className="pl-9"
-                  autoComplete="off"
-                  autoFocus
-                />
-              </div>
+              <SearchInput
+                placeholder={`Search by ${searchType === "prs" ? "PR" : "issue"} title…`}
+                value={query}
+                onValueChange={(v) => {
+                  setQuery(v)
+                  setSelectedIssue(null)
+                }}
+                className="flex-1"
+                autoFocus
+              />
               <div className="flex items-center bg-muted rounded-md p-0.5 flex-shrink-0">
                 <button
                   onClick={() => { setSearchType("issues"); setSelectedIssue(null); }}
@@ -376,8 +373,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
 
             <DialogFooter className="flex-shrink-0">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={linking}>Cancel</Button>
-              <Button onClick={handleLinkSelected} disabled={!selectedIssue || linking}>
-                {linking ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+              <Button onClick={handleLinkSelected} disabled={!selectedIssue} busy={linking}>
                 {isBulk ? `Link to ${taskIds?.length} Tasks` : "Link to Task"}
               </Button>
             </DialogFooter>
@@ -386,22 +382,26 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
           <TabsContent value="manual" className="flex-1 min-h-0 flex flex-col mt-3 space-y-4 data-[state=active]:flex data-[state=active]:flex-col">
             <div className="space-y-2 flex-shrink-0">
               <Label htmlFor="gh-url" className={manualError ? "text-danger-ink" : ""}>GitHub URL</Label>
-              <div className="relative">
-                <Link2 className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
+              <InputGroup>
+                <InputGroupAddon>
+                  <Link2 aria-hidden="true" />
+                </InputGroupAddon>
+                <InputGroupInput
                   id="gh-url"
+                  type="url"
                   placeholder="https://github.com/owner/repo/issues/123"
                   value={manualUrl}
                   onChange={(e) => {
                     setManualUrl(e.target.value)
                     if (manualError) setManualError(null)
                   }}
-                  className={`pl-9 ${manualError ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                  aria-invalid={manualError ? true : undefined}
+                  aria-describedby={manualError ? "gh-url-error" : undefined}
                   autoComplete="off"
                 />
-              </div>
+              </InputGroup>
               {manualError ? (
-                <p className="text-xs font-medium text-danger-ink">{manualError}</p>
+                <p id="gh-url-error" className="text-xs font-medium text-danger-ink">{manualError}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   Paste the full URL of the issue or PR
@@ -411,8 +411,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
 
             <DialogFooter className="flex-shrink-0 mt-auto">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={linking}>Cancel</Button>
-              <Button onClick={handleManualLink} disabled={linking || !manualUrl.trim()}>
-                {linking ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+              <Button onClick={handleManualLink} disabled={!manualUrl.trim()} busy={linking}>
                 {isBulk ? `Link to ${taskIds?.length} Tasks` : "Link to Task"}
               </Button>
             </DialogFooter>

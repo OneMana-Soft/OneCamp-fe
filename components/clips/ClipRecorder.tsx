@@ -21,13 +21,20 @@ import {
   stopReason,
   type ClipKind,
 } from "@/lib/clips/clip"
+import { focusDialogItself } from "@/components/ui/overlayFocus"
 import { formatDuration } from "@/lib/utils/format/formatDuration"
+import { formatFileSizeForAttachment } from "@/lib/utils/format/formatFileSizeForAttachment"
 import { cn } from "@/lib/utils/helpers/cn"
 
 type Phase = "ready" | "starting" | "recording" | "paused" | "done" | "error"
 
 const canRecord = () => typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined"
 const canShareScreen = () => typeof window !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia
+
+/** A finished clip's line: how long it runs, and how big it is, as the app writes a file's size. Pure. */
+export function clipDoneLine(seconds: number, bytes: number): string {
+  return `${formatDuration(seconds)} · ${formatFileSizeForAttachment(bytes)}`
+}
 
 /** Asks for what the kind records: the microphone, the camera too, or a screen with the microphone over it. */
 async function streamFor(kind: ClipKind): Promise<MediaStream> {
@@ -247,11 +254,7 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
           Tab reaches the choices from here. */}
       <DialogContent
         data-clip-dialog="" className="bg-pop shadow-e4 outline-none sm:max-w-[520px]"
-        onOpenAutoFocus={(e) => {
-          e.preventDefault()
-          // Radix dispatches this on the content element itself.
-          if (e.target instanceof HTMLElement) e.target.focus({ preventScroll: true })
-        }}
+        onOpenAutoFocus={focusDialogItself}
       >
         <DialogHeader>
           <DialogTitle className="text-heading text-ink">Record a clip</DialogTitle>
@@ -348,7 +351,7 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
                     ? `Stopped at ${formatDuration(elapsed)}: the clip reached the ${limitMb} MB limit for a file.`
                     : stopped === "time"
                       ? `Stopped at ${CLIP_MAX_SECONDS / 60} minutes, the longest a clip runs.`
-                      : `${formatDuration(elapsed)} · ${(bytes / (1024 * 1024)).toFixed(1)} MB`
+                      : clipDoneLine(elapsed, bytes)
                   : recordingNow
                     ? `About ${formatDuration(left)} left`
                     : kind === "screen"

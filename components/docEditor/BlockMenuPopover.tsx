@@ -141,7 +141,7 @@ export default function BlockMenuPopover({ editor, docId, request, onClose }: { 
         }}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
-        className="content-float relative w-[288px] overflow-visible p-0 pop-surface"
+        className="content-float relative max-h-none w-[288px] overflow-visible p-0 pop-surface"
       >
         <div ref={panel} className="flex max-h-[min(70vh,520px)] flex-col">
           <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-3">

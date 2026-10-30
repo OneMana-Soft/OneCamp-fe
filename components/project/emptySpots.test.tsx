@@ -36,8 +36,10 @@ const read = (f: string) => readFileSync(join(__dirname, "../..", f), "utf8")
 describe("empty lists have their spot", () => {
   it.each([
     ["components/project/projectTaskTable.tsx", /illustration=\{<SpotTasks hue=\{projectHue\} \/>\}/],
-    ["components/myTask/myTaskTable.tsx", /illustration=\{<SpotTasks \/>\}/],
-    ["components/myTask/myTaskList.tsx", /illustration=\{isFiltered \? undefined : <SpotTasks \/>\}/],
+    // Nothing assigned is one empty state, the table's and the phone list's (R2b).
+    ["components/myTask/nothingAssigned.tsx", /illustration=\{<SpotTasks \/>\}/],
+    ["components/myTask/myTaskTable.tsx", /<NothingAssigned \/>/],
+    ["components/myTask/myTaskList.tsx", /<NothingAssigned \/>/],
     ["components/project/ProjectsOverview.tsx", /illustration=\{<SpotWelcome hue=\{areaHue\("projects"\)\} \/>\}/],
   ])("%s", (file, spot) => {
     expect(read(file)).toMatch(spot)

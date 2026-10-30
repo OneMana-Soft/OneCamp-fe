@@ -1,14 +1,18 @@
 import axiosInstance from "@/lib/axiosInstance"
-import { AdminPost } from "@/services/endpoints/admin"
+import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { tablePath } from "@/lib/tables/route"
+import { app_board_path } from "@/types/paths"
 
-// Templates client: shareable templates (agents, workflows, tables and docs).
+// Templates client: shareable templates (agents, workflows, tables, docs, boards).
 // Publish something you built, browse, and install a copy. All mutations are
 // POST (OneCamp router convention); reads use useFetch in components. A doc
 // template's own calls (save a doc as one, use one in an empty doc) are in
 // services/docHomeService.ts.
 
-export type TemplateKind = "agent" | "workflow" | "table" | "doc"
+export type TemplateKind = "agent" | "workflow" | "table" | "doc" | "board"
+
+/** The workspace's board templates, listed. */
+export const boardTemplatesKey = `${AdminGet.MarketplaceTemplates}?kind=board`
 
 export interface MarketplaceTemplate {
   id: string
@@ -49,8 +53,14 @@ export async function installTemplate(id: string): Promise<InstallResult> {
   return res.data?.data as InstallResult
 }
 
+/** One template, in full. */
+export async function getTemplate(id: string): Promise<MarketplaceTemplate> {
+  const res = await axiosInstance.get(`${AdminGet.MarketplaceTemplates}/${encodeURIComponent(id)}`)
+  return res.data?.data as MarketplaceTemplate
+}
+
 // Where an installed entity lives, for post-install navigation.
-export function installedPath(res: InstallResult): string {
+export function installedPath(res: InstallResult, templateId?: string): string {
   switch (res.kind) {
     case "table":
       return tablePath(res.entity_id)
@@ -61,6 +71,9 @@ export function installedPath(res: InstallResult): string {
     case "doc":
       // Its title ready to type over, as any new doc opens.
       return `/app/doc/${res.entity_id}?new=1`
+    case "board":
+      // The board lays it on itself (components/board/boardWorkbench).
+      return `${app_board_path}/${res.entity_id}${templateId ? `?template=team:${encodeURIComponent(templateId)}` : ""}`
     default:
       return "/app/templates"
   }

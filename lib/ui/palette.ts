@@ -55,6 +55,17 @@ export function onPaletteOpenRequest(cb: (request: OpenPaletteRequest) => void):
   return () => window.removeEventListener(PALETTE_OPEN_EVENT, handler)
 }
 
+/**
+ * For the palette's loader (components/ui/CommandPaletteLoader): hear that the
+ * palette is wanted, leaving the request for the palette to take as it mounts.
+ * onPaletteOpenRequest takes it, which would mount a palette that stays shut.
+ */
+export function onPaletteWanted(cb: () => void): () => void {
+  const handler = () => cb()
+  window.addEventListener(PALETTE_OPEN_EVENT, handler)
+  return () => window.removeEventListener(PALETTE_OPEN_EVENT, handler)
+}
+
 /** For the palette: say whether it is open now. */
 export function announcePaletteState(open: boolean): void {
   try {

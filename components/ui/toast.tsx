@@ -3,26 +3,23 @@
 import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
-import { AlertTriangle, Check, Info, Loader2, X } from "@/lib/icons"
+import { AlertTriangle, Check, CircleAlert, Info, Loader2, X } from "@/lib/icons"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { isTypedInto } from "@/lib/ui/typedInto"
+import { lazyChunk } from "@/lib/loadChunk"
 
 const ToastProvider = ToastPrimitives.Provider
 
 /**
- * Where toasts are drawn (design v3, shell T1). Bottom right from sm up, 24px
- * from the window, which is 16px inside the sheet's edge (the sheet sits 8px
- * in), and above anything the right-hand corner stack holds (the demo prompt,
- * slash-command cards: --corner-right-h, set by CornerStack). On a phone
- * (design v3, mobile C9), a 44px pill 12px above whatever owns the bottom of
- * the screen: the tab bar, or on a channel its composer (--phone-floor, set by
- * MobileNavigationBar from --mobile-drawer-h), so it never sits over the box
- * the person is typing in; centred, min(100% - 32px, 360px) wide; swiped down
- * to go. While the keyboard is up it comes in under the top bar instead
- * (app/phone.css). Over a call, 12px above its dock (--call-dock-floor).
- *
- * The toasts inside stack: see globals.css, "V3 SHELL: TOASTS AND NOTICES".
+ * Where toasts are drawn (design v3, shell T1). From sm, bottom right, 16px
+ * inside the sheet and above the right corner stack (--corner-right-h). On a
+ * phone (mobile C9), a 44px pill 12px above the tab bar or a composer
+ * (--phone-floor), centred, at most 360px, swiped down to go; under the top
+ * bar while the keyboard, a sheet or the field in use holds the foot
+ * (app/phone.css). Over a call, above its dock (--call-dock-floor). The stack:
+ * globals.css, "V3 SHELL: TOASTS AND NOTICES".
  */
 /**
  * Whether a key is the toasts' hotkey: ⌥T alone. Never while typing: in a
@@ -34,8 +31,11 @@ export function isToastHotkey(e: Pick<KeyboardEvent, "altKey" | "metaKey" | "ctr
   if (!e.altKey || e.metaKey || e.ctrlKey || e.shiftKey || e.code !== "KeyT" || e.defaultPrevented) return false
   const t = e.target as HTMLElement | null
   if (!t || typeof t.closest !== "function") return true
-  return !t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')
+  return !isTypedInto(t)
 }
+
+/** The toasts' foot slot (toastFootSlot.ts), fetched with the first field used. */
+const footSlot = lazyChunk(() => import("./toastFootSlot"))
 
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
@@ -43,32 +43,77 @@ const ToastViewport = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const own = React.useRef<React.ElementRef<typeof ToastPrimitives.Viewport>>(null)
   React.useImperativeHandle(ref, () => own.current as React.ElementRef<typeof ToastPrimitives.Viewport>)
+  // ⌥T's turn in a modal (toastTurn.tsx, in the foot slot's chunk), while it's held.
+  const [turn, setTurn] = React.useState<React.ReactNode>(null)
   // ⌥T reaches the toasts from the keyboard, when nobody is typing
-  // (isToastHotkey). Radix's hotkey is off (hotkey={[]}) for this one.
+  // (isToastHotkey). Radix's hotkey is off (hotkey={[]}) for this one. If a
+  // modal's trap pulls focus back, the toasts take a turn on its stack (V-99).
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isToastHotkey(e)) own.current?.focus()
+      if (!isToastHotkey(e)) return
+      const list = own.current!
+      const from = document.activeElement
+      list.focus()
+      if (!(from instanceof HTMLElement)) return
+      // Radix puts a modal's trap back a timer tick after a turn ends, and a
+      // busy thread runs keys first: ⌥T in that tick keeps focus in the list,
+      // and a modal's toasts still need their turn, or Esc goes nowhere.
+      const inModal = !!from.closest('[role="dialog"], [role="alertdialog"]')
+      if (document.activeElement === list && !inModal) return
+      void footSlot.use(() => undefined).then((m) => {
+        if (m && (document.activeElement === from || (inModal && document.activeElement === list))) setTurn(m.takeTurn(list, from, () => setTurn(null)))
+      })
     }
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
   }, [])
-  return (
+  // On a phone the toasts keep off the field in use (toastFootSlot), code that
+  // loads with the first field used. When it can't come (no network), the next
+  // field used asks again (V-67): its failure never goes unanswered.
+  React.useEffect(() => {
+    const vp = own.current!
+    let stop: (() => void) | undefined
+    let cancelled = false
+    const onIn = (e: FocusEvent) => {
+      if (!isTypedInto(e.target)) return
+      document.removeEventListener("focusin", onIn)
+      void footSlot
+        .use(() => cancelled || document.addEventListener("focusin", onIn))
+        .then((m) => {
+          if (m && !cancelled) stop = m.keepOffTheField(vp)
+        })
+    }
+    document.addEventListener("focusin", onIn)
+    return () => {
+      cancelled = true
+      document.removeEventListener("focusin", onIn)
+      stop?.()
+    }
+  }, [])
+  const viewport = (
   <ToastPrimitives.Viewport
     ref={own}
     hotkey={[]}
     label="Notifications (Alt+T)"
+    // Kept by hideOthers ([aria-live]) so toasts stay reachable inside a modal (V-98); Radix's announcer speaks them.
+    aria-live="off"
     className={cn(
       "toast-viewport fixed z-[var(--z-toast)] m-0 list-none p-0 outline-none",
       // Phone: above the tab bar or the composer, centred.
       "bottom-[max(calc(var(--phone-floor)+12px),var(--call-dock-floor,0px))] left-1/2 w-[min(100%-32px,360px)] -translate-x-1/2",
-      // sm and up: bottom right of the sheet, 356px wide: 16px inside its
-      // edge, which is the right panel's while that is open, so a toast never
-      // sits on the panel's composer (QA DSA-19). 24px with no panel.
-      "sm:left-auto sm:right-[calc(var(--shell-right-inset,8px)+16px)] sm:translate-x-0 sm:bottom-[max(calc(1.5rem+var(--corner-right-h,0px)),var(--call-dock-floor,0px))] sm:w-[356px]",
+      // sm and up: bottom right, 356px wide, 16px inside the right panel or a
+      // call's side column, off their composers (QA DSA-19). 24px with neither.
+      "sm:left-auto sm:right-[calc(max(var(--shell-right-inset,8px),var(--call-stage-right,0px))+16px)] sm:translate-x-0 sm:bottom-[max(calc(1.5rem+var(--corner-right-h,0px)),var(--call-dock-floor,0px))] sm:w-[356px]",
       className,
     )}
     {...props}
   />
+  )
+  return (
+    <>
+      {viewport}
+      {turn}
+    </>
   )
 })
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName
@@ -113,11 +158,12 @@ const ToastCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
 )
 ToastCard.displayName = "ToastCard"
 
-type Tone = "success" | "error" | "info" | "agent" | "person" | "loading"
+type Tone = "success" | "error" | "warning" | "info" | "agent" | "person" | "loading"
 
 /**
  * The 24px tile that leads a toast and says what kind of news it is: a moss
- * check, a danger alert, a sky "i", the agent's square (so you see an agent
+ * check, a danger alert, an amber alert for work at risk but not lost (a
+ * doc's changes waiting offline), a sky "i", the agent's square (so you see an agent
  * acted, which is the governance story again), a person's avatar, or a
  * spinner while something long runs.
  */
@@ -129,7 +175,7 @@ function ToastTile({ tone, icon }: { tone: Tone; icon?: React.ReactNode }) {
       </span>
     )
   }
-  const Glyph = tone === "error" ? AlertTriangle : tone === "info" ? Info : tone === "loading" ? Loader2 : Check
+  const Glyph = tone === "error" ? AlertTriangle : tone === "warning" ? CircleAlert : tone === "info" ? Info : tone === "loading" ? Loader2 : Check
   return (
     <span className={cn("toast-tile", `toast-tile-${tone}`)} aria-hidden="true" data-tone={tone}>
       {icon ?? <Glyph className={cn("size-3.5", tone === "loading" && "animate-spin")} />}
@@ -143,11 +189,11 @@ const ToastAction = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Action
     ref={ref}
+    data-interactive="button"
     className={cn(
       // One 26px action, raised at e1: Undo, Retry, View. It may hold a kbd.
       "toast-action inline-flex h-[26px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[7px]",
       "bg-raised px-2 font-medium text-ink shadow-e1",
-      "transition-shadow hover:shadow-e2",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-pop",
       "disabled:pointer-events-none disabled:opacity-50",
       className,

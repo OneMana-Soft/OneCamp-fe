@@ -6,7 +6,8 @@ import {useMedia} from "@/context/MediaQueryContext";
 import MinimalTiptapDocInput from "@/components/docEditor/docInput";
 import {ActiveUsersBar} from "@/components/docEditor/ActiveUsersBar";
 import { DocHeader, DocShortcutsDialog } from "@/components/docEditor/DocHeader";
-import { ConnectionPill } from "@/components/docEditor/ConnectionPill";
+import { DocSaveNotice } from "@/components/docEditor/DocSaveNotice";
+import { LazyConnectionPill } from "@/components/docEditor/LazyConnectionPill";
 import { RecoveredEditsBanner } from "@/components/docEditor/RecoveredEditsBanner";
 import type { DocSaveSource } from "@/components/docEditor/docSaveState";
 import { useLeaveGuard } from "@/components/docEditor/leaveGuard";
@@ -57,13 +58,18 @@ import { useActionKeys } from "@/components/docEditor/registry/actionKeys";
 import { DialogOutlet, rootClassesFor, SlotOutlet, useRegistryVersion } from "@/components/docEditor/registry/slots";
 import { dialogFor, panelFor } from "@/components/docEditor/registry/registry";
 import type { ActionContext } from "@/components/docEditor/registry/types";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 
 // B6's pages for a doc that can't open: they load when one is shown.
-const NoAccessPage = React.lazy(() => import("@/components/docEditor/NoAccessPage"));
-const TrashedBanner = React.lazy(() => import("@/components/docEditor/TrashedBanner"));
+const NoAccessPage = lazyPiece(() => import("@/components/docEditor/NoAccessPage"));
+const TrashedBanner = lazyPiece(() => import("@/components/docEditor/TrashedBanner"));
+const PanelSheet = lazyPiece(() => import("@/components/docEditor/registry/PanelSheet"));
 
 // A doc's comments join the store with the doc's page (store/lazySlices.ts).
 injectSlice(createDocCommentSlice);
+
+/** The route reads it too, to open a non-page as itself (F1b). */
+export const useDocInfo = (docId: string) => useFetch<DocInfoResponse & { data: import("@/types/docGraph").DocNodeFields }>(docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '', undefined, undefined, OWN_ERRORS);
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -78,12 +84,7 @@ export function DocView({ docId }: { docId: string }) {
     // A doc that's gone answers with an error: the page says so itself below,
     // so the server's words ("Failed to dgraph doc info from dgraph") don't
     // also pop up as a toast.
-    const { data: docInfoHelper, isLoading: isDocLoading, isError: docLoadError, mutate: refreshDocInfo } = useFetch<DocInfoResponse>(
-        docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '',
-        undefined,
-        undefined,
-        OWN_ERRORS,
-    );
+    const { data: docInfoHelper, isLoading: isDocLoading, isError: docLoadError, mutate: refreshDocInfo } = useDocInfo(docId);
     const docInfo = docInfoHelper?.data;
 
     // A doc never edited since it was made has no update time: its creation stands in.
@@ -94,7 +95,7 @@ export function DocView({ docId }: { docId: string }) {
     // the global router handles each one, once (useMqttMessageHandler). This
     // page handled every one again, so the comment count moved by two, and
     // fed comment events to the reaction handler and the other way round.
-    useMqttTopic({ topic: docInfo?.doc_mqtt_topic || "" });
+    useMqttTopic({ topic: docInfo?.doc_mqtt_topic || "", onLive: () => void refreshDocInfo() });
 
     const docCommentCount = useSelector((state: RootState) => state.createDocComment?.docCommentCount[docId]);
     const router = useRouter();
@@ -170,7 +171,7 @@ export function DocView({ docId }: { docId: string }) {
         return me ? { id: me.user_uuid, name: displayNameOf(me) || 'Anonymous', color: generateColorFromUUID(me.user_uuid || "default"), profileKey: me.user_profile_object_key } : undefined;
     }, [userProfile.data?.data]);
     const session = useDocSession({ docId, user: sessionUser, level: docLevel, keepEdits });
-    const { provider, status: collabStatus, synced: collabSynced, activeUsers, awarenessUsers, recovered, dismissRecovered, retry: retryCollab } = session;
+    const { provider, status: collabStatus, synced: collabSynced, stalled: collabStalled, activeUsers, awarenessUsers, recovered, dismissRecovered, retry: retryCollab } = session;
 
     // The editor's side of the live doc, for everyone the session connects (a
     // reader too, once the session joins readers live): who this person is to
@@ -366,6 +367,8 @@ export function DocView({ docId }: { docId: string }) {
         ? null
         : collabStatus === 'offline'
         ? 'offline' as const
+        : collabStalled
+        ? 'stalled' as const
         : collabStatus === 'disconnected' && everSynced
         ? 'reconnecting' as const
         : null;
@@ -422,10 +425,15 @@ export function DocView({ docId }: { docId: string }) {
             if (!asked.claimed) handleCommentClick();
         });
     });
+    // A phone has no side panel (app/app/LayoutContent): a registered panel opens as a sheet there.
+    const [sheetPanel, setSheetPanel] = React.useState<string | null>(null);
     useDocCommand(bus, 'openPanel', ({ kind }) => {
         if (kind === 'comments') handleCommentClick();
         else if (kind === 'viewers') dispatch(openUI({ key: "docViewers", data: { docId } }));
-        else if (panelFor(kind, gate)) dispatch(openRightPanel({ docPanel: { kind, docId } }));
+        else if (panelFor(kind, gate)) {
+            if (isMobile) setSheetPanel(kind);
+            else dispatch(openRightPanel({ docPanel: { kind, docId } }));
+        }
     });
     // A dialog over this doc: the page's own, or one a package registered.
     useRegistryVersion();
@@ -548,6 +556,8 @@ export function DocView({ docId }: { docId: string }) {
                     editor={editor}
                 />
             )}
+            {/* No header, no save dot: what it says about unsaved work comes as a notice (V-21). */}
+            {(focusMode || !isDesktop) && <DocSaveNotice source={saveSource} onRetry={retryCollab} besidePill={!focusMode} />}
 
             {/* On a phone the app bar names the doc and its menu has Share, so
                 this row only shows who else is here, and only when someone is. */}
@@ -576,7 +586,7 @@ export function DocView({ docId }: { docId: string }) {
 
             {/* Document content area */}
             <div ref={bodyRef} className="flex-1 w-full flex flex-col overflow-hidden relative">
-                {!focusMode && <ConnectionPill problem={connectionProblem} onRetry={retryCollab} />}
+                {!focusMode && <LazyConnectionPill problem={connectionProblem} onRetry={retryCollab} docked={isMobile} besideNotice={!isDesktop} />}
                 {recovered && <RecoveredEditsBanner recovered={recovered} onDismiss={dismissRecovered} className="shrink-0" />}
                 {editorReady ? (
                     <MinimalTiptapDocInput
@@ -632,6 +642,11 @@ export function DocView({ docId }: { docId: string }) {
 
             <DocShortcutsDialog open={showShortcuts} onClose={() => setShowShortcuts(false)} gate={gate} />
             {dialogId && <DialogOutlet id={dialogId} docId={docId} gate={gate} onClose={() => setDialogId(null)} />}
+            {sheetPanel && (
+                <React.Suspense fallback={null}>
+                    <PanelSheet kind={sheetPanel} docId={docId} gate={gate} onClose={() => setSheetPanel(null)} />
+                </React.Suspense>
+            )}
             {/* Once per open doc, in every mode: what has no UI of its own
                 (A6's live meta events, so a rename, delete or access change
                 made elsewhere reaches this tab). */}

@@ -58,6 +58,19 @@ describe("a column's save from its menu names only what it changes", () => {
     expect(onSave).toHaveBeenCalledWith({ config: { format: { decimals: 2, currency: "INR" } } })
   })
 
+  it("a formula's result format: a number as a duration, a date in long (B2)", () => {
+    const onSave = menu(field("formula", { formula: "{Hours} * 3600", result: "number" }), "format")
+    fireEvent.click(screen.getByRole("button", { name: "Duration" }))
+    const saved = onSave.mock.lastCall?.[0] as { config: Record<string, unknown> }
+    expect(saved.config.format).toEqual({ duration: "h:mm" })
+    // A duration has no currency, decimals or percent to choose.
+    expect(screen.queryByRole("button", { name: "₹" })).toBeNull()
+    cleanup()
+    const onDate = menu(field("rollup", { aggregate: "latest", result: "date" }), "format")
+    fireEvent.click(screen.getByRole("button", { name: "Long" }))
+    expect((onDate.mock.lastCall?.[0] as { config: Record<string, unknown> }).config.format).toEqual({ date: "long" })
+  })
+
   it("a date made a due date, its config", () => {
     const onSave = menu(field("date"), "main")
     fireEvent.click(screen.getByRole("switch", { name: "Due date" }))

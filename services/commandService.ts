@@ -2,6 +2,7 @@
 // cookie-auth axios instance and the centralized endpoint enums.
 
 import axiosInstance from "@/lib/axiosInstance"
+import { randomUUID } from "@/lib/utils/randomUUID"
 import { ChatGet, ChatPost } from "@/services/endpoints/chat"
 import type {
     CatalogResponse,
@@ -38,11 +39,8 @@ export async function interactCommand(req: InteractRequest): Promise<CommandResp
 
 // newTriggerID generates a client-side correlation id so async (deferred /
 // external) responses arriving over MQTT can be matched to the card the user
-// is currently viewing.
+// is currently viewing. lib/utils/randomUUID, since crypto.randomUUID is
+// missing where the app is served over plain http.
 export function newTriggerID(): string {
-    // crypto.randomUUID is available in all evergreen browsers we target.
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-        return crypto.randomUUID()
-    }
-    return `trig_${Date.now()}_${Math.random().toString(36).slice(2)}`
+    return randomUUID()
 }

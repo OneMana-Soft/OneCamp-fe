@@ -23,4 +23,4 @@ export const DEMO_SIGN_IN_LINE =
 
 /** Why the demo connects nobody's own accounts: the server's own words (helpers.DemoPersonalAccountMsg). */
 export const DEMO_ACCOUNTS_LINE =
-    "The demo is shared by everyone who opens it, so it never connects anyone's own Google or GitHub account: the next visitor would see it. Install OneCamp free to try this with yours."
+    "The demo is shared by everyone who opens it, so it never connects anyone's own Google, GitHub or Slack account: the next visitor would see it. Install OneCamp free to try this with yours."

@@ -4,6 +4,8 @@
 // written. Pure.
 
 import { isHiddenRef, parseFieldConfig, type TableField } from "@/services/tableService"
+import { dayDate } from "@/lib/utils/timeZone"
+import { typedWebURL } from "@/lib/links/webURL"
 import { formatLocale } from "./numberFormat"
 
 /** What a reader sees for the linked items in a cell they can't open: one phrase for all of them. */
@@ -12,7 +14,7 @@ export function hiddenText(count: number): string {
 }
 
 /**
- * A list cell (a multi-select, a relation) as one line of text: the names,
+ * A list cell (a multi-select, a relation, files) as one line of text: the names,
  * then the items the reader can't open as one phrase, never by their ids. The
  * count of links not shown has a name of its own ("3 more").
  */
@@ -22,12 +24,25 @@ export function listText(items: unknown[]): string {
   for (const item of items) {
     if (isHiddenRef(item)) hidden++
     else if (item && typeof item === "object") {
-      const label = (item as { label?: unknown }).label
+      const { label: l, name } = item as { label?: unknown; name?: unknown }
+      const label = l ?? name // a link's label, a file's name
       if (typeof label === "string" && label) names.push(label)
     } else if (item !== null && item !== undefined && item !== "") names.push(String(item))
   }
   if (hidden) names.push(hiddenText(hidden))
   return names.join(", ")
+}
+
+/**
+ * A text in one line: its first line that isn't blank, and whether another
+ * that isn't blank comes after it (a one-line cell's "…"). The cell's face,
+ * its name and its face while the cells' chunk loads all read this one line.
+ */
+export function leadLine(text: string): { line: string; more: boolean } {
+  const lines = text.split(/\r\n|\r|\n/)
+  const first = lines.findIndex((line) => line.trim())
+  if (first < 0) return { line: "", more: false }
+  return { line: lines[first], more: lines.slice(first + 1).some((line) => line.trim()) }
 }
 
 export interface NumberFormat {
@@ -39,6 +54,10 @@ export interface NumberFormat {
   percent?: boolean
   /** Draw a small bar before the value (percent columns). */
   bar?: boolean
+  /** A formula's or a rollup's number as a duration (B2). */
+  duration?: "h:mm" | "h:mm:ss"
+  /** A formula's or a rollup's date style. */
+  date?: "long" | "iso" | "relative"
 }
 
 export function numberFormatOf(f: TableField): NumberFormat {
@@ -50,6 +69,8 @@ export function numberFormatOf(f: TableField): NumberFormat {
     decimals: typeof r.decimals === "number" && r.decimals >= 0 && r.decimals <= 6 ? r.decimals : undefined,
     percent: r.percent === true,
     bar: r.bar === true,
+    duration: r.duration === "h:mm" || r.duration === "h:mm:ss" ? r.duration : undefined,
+    date: r.date === "long" || r.date === "iso" || r.date === "relative" ? r.date : undefined,
   }
 }
 
@@ -83,27 +104,21 @@ export function formatNumber(value: unknown, fmt: NumberFormat = {}, locale?: st
   }
 }
 
-// The short English month names, as en-GB writes them: a table, not an
-// Intl formatter per date cell.
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"]
-
-/** "7 Oct", with the year only when it isn't this year. */
-export function shortDay(d: Date, now: Date = new Date()): string {
-  const day = d.getDate()
-  const mon = MONTHS[d.getMonth()]
-  return d.getFullYear() === now.getFullYear() ? `${day} ${mon}` : `${day} ${mon} ${d.getFullYear()}`
+/**
+ * "2026-10-07" (or a timestamp) as the day it names, in the reader's zone. Here,
+ * not in the grid's cells, so a guest's read-only table and a phone's list
+ * read a day without bringing the grid.
+ */
+export function dayOf(value: unknown): Date | undefined {
+  if (typeof value !== "string" || !value) return undefined
+  const d = dayDate(value) ?? new Date(value)
+  return Number.isNaN(d.getTime()) ? undefined : d
 }
 
 /** A URL's host, for the cell ("example.com"); the text itself when it isn't one. */
 export function urlHost(text: string): string {
   const t = text.trim()
-  if (!t) return ""
-  try {
-    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(t) ? t : `https://${t}`)
-    return u.host.replace(/^www\./, "") || t
-  } catch {
-    return t
-  }
+  return typedWebURL(t)?.host.replace(/^www\./, "") || t
 }
 
 /** Whether a URL or an email cell's text is usable (a host; an @). Empty is fine. */
@@ -111,22 +126,8 @@ export function cellValid(type: "url" | "email", text: string): boolean {
   const t = text.trim()
   if (!t) return true
   if (type === "email") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)
-  try {
-    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(t) ? t : `https://${t}`)
-    return /^https?:$/.test(u.protocol) && u.host.includes(".")
-  } catch {
-    return false
-  }
+  return !!typedWebURL(t)?.host.includes(".")
 }
 
 /** An href for a URL cell, or null for an unsafe or broken one. */
-export function safeHref(text: string): string | null {
-  const t = text.trim()
-  if (!t) return null
-  try {
-    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(t) ? t : `https://${t}`)
-    return /^https?:$/.test(u.protocol) ? u.href : null
-  } catch {
-    return null
-  }
-}
+export const safeHref = (text: string): string | null => typedWebURL(text)?.href ?? null

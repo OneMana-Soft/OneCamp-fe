@@ -15,12 +15,14 @@ import { ZonePicker } from "@/components/ui/zonePicker"
 import { zoneLabel } from "@/lib/utils/zones"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { SpamTrap } from "@/components/common/SpamTrap"
-import { PaperCard, PublicFrame, WorkspaceMark } from "@/components/guest/PublicFrame"
+import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame"
+import { WorkspaceMark } from "@/components/guest/publicHeader"
 import { PublicGoneLater as PublicGone } from "@/components/guest/publicGoneLater"
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock, Loader2, Mail } from "@/lib/icons"
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Clock, Mail } from "@/lib/icons"
 import { dayKey, googleCalendarUrl, icsFor, type Slot } from "@/lib/calendar/availability"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { cn } from "@/lib/utils/helpers/cn"
+import { randomUUID } from "@/lib/utils/randomUUID"
 import { bookSlot, getBookingPage, type Booked, type PublicBookingPage } from "@/services/bookingService"
 import { publicTrouble, retryDelayMs, retryingText, type PublicTrouble } from "@/services/publicApi"
 import { clockTime, dateTimeFormat, readsTwelveHour } from "@/lib/utils/date/clock"
@@ -834,9 +836,8 @@ function GuestForm({
         </div>
       ) : null}
       <div className="flex flex-col gap-2 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-5 max-sm:bg-sheet max-sm:px-5 max-sm:pb-[max(12px,env(safe-area-inset-bottom))] max-sm:pt-3 max-sm:shadow-e2">
-        <Button type="submit" disabled={busy} className="relative h-10 w-full max-sm:h-12" data-book-button="">
-          <span className={cn(busy && "invisible")}>{bookLabel(slot, tz, h24)}</span>
-          {busy ? <Loader2 className="absolute size-4 animate-spin" aria-label="Booking" /> : null}
+        <Button type="submit" busy={busy} className="h-10 w-full max-sm:h-12" data-book-button="">
+          {bookLabel(slot, tz, h24)}
         </Button>
         <p className="text-center text-meta text-ink-3">By booking you agree to receive emails about this meeting.</p>
       </div>
@@ -855,7 +856,7 @@ function Confirmation({ booked, tz, h24 }: { booked: Booked; tz: string; h24: bo
   // The same event as the invite in the email (its UID is the booking's id),
   // so a guest who adds both gets one. Never the cancel token: that cancels
   // the booking, and a UID travels wherever the event goes.
-  const uid = React.useMemo(() => booked.booking_id || globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`, [booked])
+  const uid = React.useMemo(() => booked.booking_id || randomUUID(), [booked])
   const ics = React.useMemo(() => {
     // No cancel link in it: the link is the guest's credential, and a calendar
     // event is forwarded and shared far more freely than this page or the

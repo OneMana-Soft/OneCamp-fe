@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 const { toast, axiosGet, axiosPost } = vi.hoisted(() => ({ toast: vi.fn(), axiosGet: vi.fn(), axiosPost: vi.fn() }))
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: axiosGet, post: axiosPost } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: axiosGet, post: axiosPost } }))
 
 import GitHubConfigDialog from "@/components/admin/GitHubConfigDialog"
 

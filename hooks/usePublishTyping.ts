@@ -7,13 +7,9 @@ import { useCallback, useMemo } from 'react';
 import axiosInstance from '@/lib/axiosInstance';
 import { ChatPost } from "@/services/endpoints/chat";
 import { TYPING_REPEAT_MS } from '@/lib/typingTiming';
+import { listIdOf } from '@/store/conversations';
+import type { ConversationRef } from '@/lib/conversation/types';
 
-type PublishTypingTargetType = 'channel' | 'chat' | 'groupChat';
-
-interface PublishTypingProps {
-    targetType: PublishTypingTargetType;
-    targetId: string; // channelId, or userUuid (for DM), or grpUuid (for GroupChat)
-}
 
 /**
  * Strip TipTap's empty-paragraph noise so we can reliably detect "the
@@ -32,18 +28,15 @@ function isMeaningfulContent(html: string): boolean {
     return stripped.length > 0;
 }
 
-export const usePublishTyping = ({ targetType, targetId }: PublishTypingProps) => {
+/** Tells the others in a conversation that someone is typing there. */
+export const usePublishTyping = (conversation: ConversationRef) => {
+    const { kind } = conversation;
+    const id = listIdOf(conversation);
     const publish = useCallback(() => {
-        if (!targetId) return;
-
-        if (targetType === 'channel') {
-            axiosInstance.post(ChatPost.PublishChannelTyping, { channel_id: targetId }).catch(() => {});
-        } else if (targetType === 'chat') {
-            axiosInstance.post(ChatPost.PublishChatTyping, { user_uuid: targetId }).catch(() => {});
-        } else if (targetType === 'groupChat') {
-            axiosInstance.post(ChatPost.PublishChatTyping, { grp_id: targetId }).catch(() => {});
-        }
-    }, [targetType, targetId]);
+        const body = kind === 'channel' ? { channel_id: id } : kind === 'dm' ? { user_uuid: id } : { grp_id: id };
+        // A typing line that doesn't arrive is gone in 6 s anyway: nothing to retry or say.
+        axiosInstance.post(kind === 'channel' ? ChatPost.PublishChannelTyping : ChatPost.PublishChatTyping, body).catch(() => {});
+    }, [kind, id]);
 
     // At most once every 3 s: the receiver keeps the line up for 6 s, so it
     // holds while someone keeps typing (lib/typingTiming).

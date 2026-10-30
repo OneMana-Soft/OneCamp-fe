@@ -151,6 +151,17 @@ describe("the settings shell", () => {
     expect(nav.push).toHaveBeenCalledWith("/app/settings/notifications#notifications-quiet")
   })
 
+  it("lands on a field itself: its row", async () => {
+    render(<SettingsNav isAdmin />)
+    const box = screen.getByRole("searchbox", { name: "Search settings" })
+    fireEvent.change(box, { target: { value: "dnd" } })
+    const results = screen.getByRole("navigation", { name: "Settings search results" })
+    // The field index comes with the first letter typed.
+    const hit = await within(results).findByText("Hold notifications during quiet hours")
+    fireEvent.click(hit.closest("button")!)
+    expect(nav.push).toHaveBeenCalledWith("/app/settings/notifications#quiet_hours_enabled")
+  })
+
   it("finds a section by a word people use for it", () => {
     const hits = searchSettings("sso", SETTINGS_PLACES)
     expect(hits[0]?.place.key).toBe("integrations")

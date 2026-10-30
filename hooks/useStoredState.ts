@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+/** The guard for a remembered on/off choice. */
+export const isBoolean = (v: unknown): v is boolean => typeof v === "boolean"
+
 /**
  * A choice remembered in this browser (localStorage, as JSON) under a key: a
  * board's grouping, its folded columns. `accept` vets what was stored, so a

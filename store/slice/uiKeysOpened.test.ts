@@ -25,7 +25,9 @@ describe("the UI manager's sheets and dialogs", () => {
   it("are each opened from somewhere", () => {
     const slice = readFileSync(join(ROOT, "store/slice/uiSlice.ts"), "utf8")
     const keys = [...slice.matchAll(/^\s+([A-Za-z0-9_]+): SingleUIState;/gm)].map((m) => m[1])
-    expect(keys.length).toBeGreaterThan(50)
+    // 50 since chat A1 step 2c: each message box opens its own file picker, so
+    // the three kinds' upload keys went. Fewer means the keys weren't read.
+    expect(keys.length).toBeGreaterThanOrEqual(50)
     // Where a key is declared, shown and closed is not where it is opened.
     const code = ["app", "components", "hooks", "lib", "store", "services", "context"]
       .flatMap((d) => sources(join(ROOT, d)))

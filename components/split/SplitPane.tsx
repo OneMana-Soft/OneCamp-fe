@@ -19,7 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 
 // Each view loads only when it is first split, so the split costs nothing until used.
 const Loading = () => <div className="h-full w-full animate-pulse bg-press" />
-const ChannelView = dynamic(() => import("@/components/views/ChannelView").then((m) => m.ChannelView), { loading: Loading })
+const ChannelConversation = dynamic(() => import("@/components/conversation/ChannelConversation").then((m) => m.ChannelConversation), { loading: Loading })
 const ChatView = dynamic(() => import("@/components/views/ChatView").then((m) => m.ChatView), { loading: Loading })
 const GroupChatView = dynamic(() => import("@/components/views/GroupChatView").then((m) => m.GroupChatView), { loading: Loading })
 const DocView = dynamic(() => import("@/components/views/DocView").then((m) => m.DocView), { loading: Loading })
@@ -42,7 +42,7 @@ const PaneBody = memo(function PaneBody({ pane, onClose }: { pane: Pane; onClose
       return <CallView kind="group" id={pane.id} onLeave={onClose} embedded />
     // A conversation beside the page sits in its host, as the page's does (chat A1).
     case "channel":
-      return <ConversationView conversation={{ kind: "channel", id: pane.id }}><ChannelView channelId={pane.id} /></ConversationView>
+      return <ConversationView conversation={{ kind: "channel", id: pane.id }}><ChannelConversation channelId={pane.id} /></ConversationView>
     case "chat":
       return <DmPane other={pane.id} />
     case "group":

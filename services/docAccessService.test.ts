@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const post = vi.fn(async () => ({ data: { data: {} } }))
 const get = vi.fn(async () => ({ data: { data: {} } }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { post: (...a: unknown[]) => post(...(a as [])), get: (...a: unknown[]) => get(...(a as [])), delete: vi.fn() },
 }))
 const mutate = vi.fn()

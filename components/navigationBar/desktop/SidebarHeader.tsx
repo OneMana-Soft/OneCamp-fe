@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useDispatch } from "react-redux"
 import { localDay } from "@/lib/utils/timeZone"
-import * as Menu from "@radix-ui/react-dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ChevronsUpDown, CircleHelp, Gift, PanelLeft, Pin, Settings, Shield, SquarePen, UserPlus } from "@/lib/icons"
 import { openUI } from "@/store/slice/uiSlice"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -168,7 +168,7 @@ export function SidebarHeader({ isAdmin, onCollapse, onPin }: SidebarHeaderProps
  * Admin-only rows are absent for everyone else, never greyed.
  */
 export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
-  const router = useRouter()
+  const router = useAppRouter()
   // Invite people is offered to whoever may invite (admins, and members when
   // an admin allows it), as the palette and the phone's sheets offer it: a
   // member who couldn't was offered it, and refused (QA SH-02).
@@ -178,63 +178,60 @@ export function WorkspaceMenu({ isAdmin, children }: { isAdmin: boolean; childre
   useEffect(() => watchInputModality(), [])
 
   return (
-    <Menu.Root>
-      <Menu.Trigger asChild>{children}</Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Content
-          align="start"
-          sideOffset={4}
-          aria-label="Workspace"
-          collisionPadding={8}
-          onCloseAutoFocus={returnFocusOnlyForKeys}
-          className="shell-menu shell-pop z-[var(--z-dropdown)] origin-[var(--radix-dropdown-menu-content-transform-origin)]"
-        >
-          <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-2">
-            <WorkspaceMark />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{name}</div>
-              {host && <div className="truncate text-2xs text-ink-3">{host}</div>}
-            </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={4}
+        aria-label="Workspace"
+        onCloseAutoFocus={returnFocusOnlyForKeys}
+        className="shell-menu shell-pop origin-[var(--radix-dropdown-menu-content-transform-origin)]"
+      >
+        <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-2">
+          <WorkspaceMark />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold">{name}</div>
+            {host && <div className="truncate text-2xs text-ink-3">{host}</div>}
           </div>
-          <div className="shell-menu-sep" />
-          {can(CAP_INVITATION_CREATE) && (
-            <Menu.Item className="shell-menu-item" onSelect={() => window.dispatchEvent(new CustomEvent("open-invite-people"))}>
-              <UserPlus aria-hidden="true" />
-              Invite people
-              <span data-kbd-hint="" className="kbd ml-auto">I</span>
-            </Menu.Item>
-          )}
-          {isAdmin && (
-            <>
-              <Menu.Item className="shell-menu-item" onSelect={() => router.push("/app/admin?tab=settings")}>
-                <Settings aria-hidden="true" />
-                Workspace settings
-              </Menu.Item>
-              <Menu.Item className="shell-menu-item" onSelect={() => router.push("/app/admin")}>
-                <Shield aria-hidden="true" />
-                Admin
-                <span className="shell-menu-meta">audit, agents, SSO</span>
-              </Menu.Item>
-            </>
-          )}
-          {/* Release notes and the docs live on the product's site; an install
-              that names none shows neither row rather than a dead link. */}
-          {productSite() && (
-            <>
-              <div className="shell-menu-sep" />
-              {/* The release notes (QA SH-22): it opened the blog. */}
-              <Menu.Item className="shell-menu-item" onSelect={() => window.open(`${productSite()}/changelog`, "_blank", "noopener,noreferrer")}>
-                <Gift aria-hidden="true" />
-                What&apos;s new
-              </Menu.Item>
-              <Menu.Item className="shell-menu-item" onSelect={() => window.open(`${productSite()}/docs`, "_blank", "noopener,noreferrer")}>
-                <CircleHelp aria-hidden="true" />
-                Help and docs
-              </Menu.Item>
-            </>
-          )}
-        </Menu.Content>
-      </Menu.Portal>
-    </Menu.Root>
+        </div>
+        <div className="shell-menu-sep" />
+        {can(CAP_INVITATION_CREATE) && (
+          <DropdownMenuItem className="shell-menu-item" onSelect={() => window.dispatchEvent(new CustomEvent("open-invite-people"))}>
+            <UserPlus aria-hidden="true" />
+            Invite people
+            <span data-kbd-hint="" className="kbd ml-auto">I</span>
+          </DropdownMenuItem>
+        )}
+        {isAdmin && (
+          <>
+            <DropdownMenuItem className="shell-menu-item" onSelect={() => router.push("/app/admin?tab=settings")}>
+              <Settings aria-hidden="true" />
+              Workspace settings
+            </DropdownMenuItem>
+            <DropdownMenuItem className="shell-menu-item" onSelect={() => router.push("/app/admin")}>
+              <Shield aria-hidden="true" />
+              Admin
+              <span className="shell-menu-meta">audit, agents, SSO</span>
+            </DropdownMenuItem>
+          </>
+        )}
+        {/* Release notes and the docs live on the product's site; an install
+            that names none shows neither row rather than a dead link. */}
+        {productSite() && (
+          <>
+            <div className="shell-menu-sep" />
+            {/* The release notes (QA SH-22): it opened the blog. */}
+            <DropdownMenuItem className="shell-menu-item" onSelect={() => window.open(`${productSite()}/changelog`, "_blank", "noopener,noreferrer")}>
+              <Gift aria-hidden="true" />
+              What&apos;s new
+            </DropdownMenuItem>
+            <DropdownMenuItem className="shell-menu-item" onSelect={() => window.open(`${productSite()}/docs`, "_blank", "noopener,noreferrer")}>
+              <CircleHelp aria-hidden="true" />
+              Help and docs
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

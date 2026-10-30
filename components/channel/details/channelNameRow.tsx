@@ -90,7 +90,7 @@ export function ChannelNameRow({ name, canRename, onRename }: {
             </p>
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={cancel}>Cancel</Button>
-                <Button size="sm" onClick={() => void submit()} disabled={changed && (!!problem || !free || saving)}>
+                <Button size="sm" onClick={() => void submit()} disabled={changed && (!!problem || !free)} busy={saving}>
                     {saving ? "Saving…" : "Save"}
                 </Button>
             </div>

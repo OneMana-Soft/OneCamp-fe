@@ -27,11 +27,14 @@ vi.mock("@/components/groupChat/groupChatMessage", () => ({
 vi.mock("@/components/chat/SeenReceiptLine", () => ({ SeenReceiptLine: () => null }))
 
 const { default: store } = await import("@/store/store")
-const { ChannelMessages } = await import("@/components/channel/channelMessages")
-const { GroupChatMessages } = await import("@/components/groupChat/groupChatMessages")
+const { ChannelRows } = await import("@/components/conversation/ChannelRows")
+const { groupList } = await import("@/components/conversation/GroupRows")
+// A group's rows, as its list draws them (chat A1 step 2b).
+const GroupRows = groupList("g").Rows
 
 const at = (i: number) => new Date(Date.UTC(2026, 9, 16, 9, i)).toISOString()
-const paging = { getOldMessages: () => {}, hasMoreOldMsg: false, getNewMessages: () => {}, hasMoreNewMsg: false, isNewMsgLoading: false, isOLdMsgLoading: false, clickedScrollToBottom: () => {} }
+const still = { has: false, loading: false, ask: () => {} }
+const paging = { older: still, newer: still, toLatest: () => {} }
 
 afterEach(cleanup)
 
@@ -44,7 +47,7 @@ describe("a channel", () => {
       { post_uuid: "line", post_text: "<p>Maya made this channel from the conversation with Priya.</p>", post_by: { user_uuid: "maya", user_name: "Maya" }, post_created_at: at(1), post_comment_count: 0, post_kind: "system", post_system: JSON.stringify({ kind: "channel.from_group", actor: "maya", from: "g" }) },
       { post_uuid: "m1", post_text: "<p>hi</p>", post_by: { user_uuid: "maya", user_name: "Maya" }, post_created_at: at(2), post_comment_count: 0 },
     ] as PostsRes[]
-    render(<Provider store={store}><ChannelMessages {...paging} channelId="c1" posts={posts} unreadOnOpen={0} /></Provider>)
+    render(<Provider store={store}><ChannelRows {...paging} conversation={{ kind: "channel", id: "c1" }} rows={posts} unreadOnOpen={0} /></Provider>)
     expect(rows()).toEqual(["m1"])
     expect(lines()).toEqual(["Maya made this channel from the conversation with Priya."])
   })
@@ -61,7 +64,7 @@ describe("a group", () => {
       chat("started", 3, { chat_body_text: "<p>Maya started this conversation with Priya.</p>", chat_kind: "system", chat_system: JSON.stringify({ kind: "group.started", actor: "maya", targets: ["priya"], from: "old" }) }),
       chat("m1", 4),
     ]
-    render(<Provider store={store}><GroupChatMessages {...paging} grpId="g1" chats={chats} unreadOnOpen={0} /></Provider>)
+    render(<Provider store={store}><GroupRows {...paging} conversation={{ kind: "group", id: "g1" }} rows={chats} unreadOnOpen={0} /></Provider>)
     expect(rows()).toEqual(["copy1", "copy2", "m1"])
     expect(lines()[0]).toContain("Maya started this conversation with Priya.")
     const heading = document.querySelector("[data-shared-history]")
@@ -75,7 +78,7 @@ describe("a group", () => {
       chat("started", 1, { chat_kind: "system", chat_system: JSON.stringify({ kind: "group.started", actor: "maya" }) }),
       chat("m1", 2),
     ]
-    render(<Provider store={store}><GroupChatMessages {...paging} grpId="g2" chats={chats} unreadOnOpen={0} /></Provider>)
+    render(<Provider store={store}><GroupRows {...paging} conversation={{ kind: "group", id: "g2" }} rows={chats} unreadOnOpen={0} /></Provider>)
     expect(rows()).toEqual(["m1"])
     expect(document.querySelector("[data-testid=row]")?.hasAttribute("data-continued")).toBe(false)
     expect(document.querySelectorAll("[data-shared-history]")).toHaveLength(0)

@@ -21,7 +21,7 @@ import { avatarHueClass } from "@/components/ui/graphics/hues"
 import { invite, type InvitationAnswer } from "@/services/invitationService"
 import { InvitationOutcome, couldntEmail } from "@/components/invite/InvitationOutcome"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
-import { seatWords } from "@/components/admin/PeopleFrame"
+import { seatWords } from "@/lib/people/seatWords"
 
 const EMAIL = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/
 
@@ -261,7 +261,7 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
                 Invite more
               </Button>
             )}
-            <Button type="button" onClick={onClose} disabled={sending}>
+            <Button type="button" onClick={onClose} busy={sending}>
               {doneLabel}
             </Button>
           </DialogFooter>,
@@ -367,8 +367,7 @@ export function InviteForm({ asAdmin, sendVerb = "Send", seatsLeft, seatLimit, k
             </Button>
           )}
           {/* form=: in another overlay's footer it is outside the form. */}
-          <Button type="submit" form={formId} disabled={!count || sending}>
-            {sending && <Loader2 className="animate-spin" aria-hidden="true" />}
+          <Button type="submit" form={formId} disabled={!count} busy={sending}>
             {sendLabel}
           </Button>
         </DialogFooter>,

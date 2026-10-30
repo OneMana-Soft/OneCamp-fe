@@ -1,5 +1,9 @@
-import {MobileChannelTextInput} from "@/components/textInput/mobileChannelTextInput";
-import {ChannelMessageList} from "@/components/channel/channelMessageList";
+import { Composer } from "@/components/conversation/Composer";
+import { useChannelSend } from "@/hooks/useChannelSend";
+import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
+import { useMemo } from "react";
+import { channelList } from "@/components/conversation/ChannelRows";
+import { ConversationMessages } from "@/components/conversation/ConversationMessages";
 import { ComposerNotice } from "@/components/channel/composerNotice";
 import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
 import {ChannelInfoInterfaceResp} from "@/types/channel";
@@ -7,28 +11,26 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import { useJoinChannel } from "@/hooks/useJoinChannel";
 import {useFetch} from "@/hooks/useFetch";
 import { FileArchive, Megaphone } from "@/lib/icons";
-import {useDispatch, useSelector} from "react-redux";
+import {useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
-import { clearChannelReplyTarget } from "@/store/slice/channelSlice";
-import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import { ChannelWelcome, useWelcomeSend } from "@/components/onboarding/ChannelWelcome";
 
-export const ChannelIdMobile = ({channelId, handleSend: send, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean }) => {
+export const ChannelIdMobile = ({channelId, handleSend: send, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, focusComposer?: boolean }) => {
     // A new member's first landing (admin E5): the welcome card heads the feed.
     const [handleSend, welcomeSent] = useWelcomeSend(send)
+    const list = useMemo(() => channelList(channelId), [channelId])
 
-    const dispatch = useDispatch();
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
     const channelInSidebar = userChannels.find(ch => ch.ch_uuid === channelId);
-    const replyState = useSelector((state: RootState) => state.channel.channelInputState[channelId]);
 
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(`${GetEndpointUrl.ChannelBasicInfo}/${channelId}`)
 
     const channelDisplayName = channelInSidebar?.ch_name || channelInfo.data?.channel_info?.ch_name || "";
     // A refused join is said, never left unhandled (hooks/useJoinChannel).
     const joining = useJoinChannel(channelId, () => { void channelInfo.mutate() }, channelDisplayName);
+    const sendThrough = useChannelSend(channelId, channelDisplayName);
 
 
 
@@ -77,25 +79,20 @@ export const ChannelIdMobile = ({channelId, handleSend: send, unreadCount, focus
         }
 
         return (
-            <>
-                {replyState?.replyToUuid && (
-                    <div className="px-3">
-                        <ComposerReplyPill
-                            authorName={replyState.replyToAuthorName}
-                            text={replyState.replyToText}
-                            onCancel={() => dispatch(clearChannelReplyTarget({ channelId }))}
-                        />
-                    </div>
-                )}
-                <MobileChannelTextInput channelId={channelId} handleSend={handleSend} autoFocus={focusComposer}/>
-            </>
+            <Composer
+                phone
+                handleSend={handleSend}
+                placeholder={channelComposerPlaceholder(channelDisplayName || "channel")}
+                autoFocus={focusComposer}
+                sendThrough={sendThrough}
+            />
         )
     }
     return (
         <div className='flex flex-col h-full'>
             <ChannelWelcome channelId={channelId} channelName={channelDisplayName} info={channelInfo.data?.channel_info} show={focusComposer} sent={welcomeSent} className="mx-4 mt-3 shrink-0" />
             <div className="flex-1 min-h-0">
-                <ChannelMessageList channelId={channelId} unreadOnOpen={unreadCount}/>
+                <ConversationMessages list={list}/>
             </div>
 
             <div>

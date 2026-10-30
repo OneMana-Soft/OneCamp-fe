@@ -4,6 +4,13 @@
 import "@testing-library/jest-dom/vitest"
 import { afterEach, expect, vi } from "vitest"
 import { listenForEscape } from "@/lib/keys/escape"
+import { GetEndpointUrl } from "@/services/endPoints"
+
+// Surfaces draw with no edition's add-ons (lib/addOns): an edition's read the
+// server's settings on every message, and a test answers its own requests. A
+// test of add-ons gives them itself (components/ai/aiAddOns.test.tsx).
+vi.mock("@/lib/addOns/messages", () => vi.importActual("@/lib/addOns/core"))
+vi.mock("@/lib/addOns/attachments", () => vi.importActual("@/lib/addOns/core"))
 
 // Surfaces draw with no edition's add-ons (lib/addOns): an edition's read the
 // server's settings on every message, and a test answers its own requests. A
@@ -57,6 +64,12 @@ const reach = (request: string) => {
   reached.push(during ? `${request} (during "${during}")` : request)
   return new TypeError(`a test reached the network: ${request}`)
 }
+// The client config (hooks/useClientConfig) is read by much of the app, and a
+// component under test isn't asking about it: its read is held, unanswered, as
+// on a first paint before the server answers, so readers take the defaults and
+// SWR, seeing the read in flight, asks nothing more. A test about the config
+// answers it itself (hooks/useClientConfig.test mocks the request).
+const heldUnanswered = (request: string) => request === `GET ${GetEndpointUrl.GetClientConfig}`
 if (typeof XMLHttpRequest !== "undefined") {
   const opened = new WeakMap<XMLHttpRequest, string>()
   const open = XMLHttpRequest.prototype.open as (this: XMLHttpRequest, ...args: unknown[]) => void
@@ -65,7 +78,9 @@ if (typeof XMLHttpRequest !== "undefined") {
     open.apply(this, args)
   } as typeof XMLHttpRequest.prototype.open
   XMLHttpRequest.prototype.send = function (this: XMLHttpRequest) {
-    throw reach(opened.get(this) ?? "a request")
+    const request = opened.get(this) ?? "a request"
+    if (heldUnanswered(request)) return
+    throw reach(request)
   }
 }
 globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -77,3 +92,9 @@ afterEach(() => {
   const requests = [...new Set(reached.splice(0))].join("; ")
   throw new Error(`The network was reached: ${requests}. Mock what makes the request.`)
 })
+
+// The combobox's open menu is a chunk fetched as a field is approached
+// (components/ui/combobox): here it is fetched before any test, so a test
+// that opens a picker finds its rows at once, as a user who reached the field
+// does.
+if (typeof window !== "undefined") await import("@/components/ui/combobox").then((m) => m.preloadCombobox())

@@ -27,3 +27,17 @@ describe("the New line", () => {
     expect(result.current).toBe("k-m2")
   })
 })
+
+// Opened by its address, the conversation doesn't know yet how many were
+// unread (hooks/useUnreadOnOpen): the line waits, rather than fixing itself
+// at none before the count comes.
+describe("the New line, opened by its address", () => {
+  it("waits for the count, then sits above the unread", () => {
+    const { result, rerender } = renderHook(({ n }: { n: number | undefined }) => useUnreadAnchor(msgs, n, mine, key), {
+      initialProps: { n: undefined as number | undefined },
+    })
+    expect(result.current).toBeNull()
+    rerender({ n: 1 })
+    expect(result.current).toBe("k-m4")
+  })
+})

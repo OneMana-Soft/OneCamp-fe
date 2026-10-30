@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { sceneSignature, whenSceneReady } from "./scene"
+import { movingByHand, sceneFinder, sceneSignature, selectedIn, whenSceneReady } from "./scene"
 
 describe("sceneSignature", () => {
   const scene = [
@@ -41,5 +41,47 @@ describe("whenSceneReady", () => {
     stop()
     frames.forEach((f) => f())
     expect(never).not.toHaveBeenCalled()
+  })
+})
+
+/** A scene that throws if anything reads it: proof a reader didn't walk it. */
+function untouchable(): { id: string }[] {
+  return new Proxy([] as { id: string }[], {
+    get(t, k) {
+      if (k === "length" || /^\d+$/.test(String(k)) || k === Symbol.iterator) throw new Error("the scene was walked")
+      return Reflect.get(t, k)
+    },
+  })
+}
+
+describe("a selection, read from the scene (W-4)", () => {
+  const scene = [{ id: "a" }, { id: "b", isDeleted: true }, { id: "c" }, { id: "d" }]
+
+  it("is the selected live elements, in the scene's order", () => {
+    expect(selectedIn(scene, ["d", "a", "b", "gone"]).map((e) => e.id)).toEqual(["a", "d"])
+  })
+
+  it("never walks the scene when nothing is selected, as on most changes", () => {
+    expect(selectedIn(untouchable(), [])).toEqual([])
+  })
+
+  it("finds a few by a walk, and many through one index of the scene kept for that scene", () => {
+    const big = Array.from({ length: 50 }, (_, i) => ({ id: `e${i}` }))
+    const few = sceneFinder(big, 2)
+    expect(few.get("e7")).toBe(big[7])
+    expect(few.at("e49")).toBe(49)
+    expect(few.at("nope")).toBe(-1)
+    const many = sceneFinder(big, 20)
+    expect(many.get("e31")).toBe(big[31])
+    // Every reader of one scene shares its index.
+    expect(sceneFinder(big, 20).index).toBe(many.index)
+    expect(sceneFinder([...big], 20).index).not.toBe(many.index)
+  })
+})
+
+describe("movingByHand", () => {
+  it("reads Excalidraw's own marks of a move by hand: a drag, a resize, a turn", () => {
+    expect([{ selectedElementsAreBeingDragged: true }, { isResizing: true }, { isRotating: true }].map(movingByHand)).toEqual([true, true, true])
+    expect([{}, null, undefined, { selectedElementsAreBeingDragged: false }].map(movingByHand)).toEqual([false, false, false, false])
   })
 })

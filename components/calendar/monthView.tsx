@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, differenceInCalendarDays, format, isSameDay, isSameMonth, isWeekend, parseISO } from "date-fns";
-import { Plus } from "@/lib/icons";
 import { SpotCalendar } from "@/components/ui/graphics";
 import { cn } from "@/lib/utils/helpers/cn";
-import { HueBlock, dragPlaceholderClasses, hueBlockClasses } from "@/components/calendar/HueBlock";
-import { DayOverflowPopover } from "@/components/calendar/dayOverflowPopover";
+import { HueBlock, dragPlaceholderClasses, hueBlock, hueBlockClasses } from "@/components/calendar/HueBlock";
+import { DayOverflow, dayMoreButton } from "@/components/calendar/dayOverflowPopover";
+import { useProjectHues } from "@/lib/projectHue";
 import { onDragCancel } from "@/lib/ui/dragCancel";
 import { PRESS_LIFT, holdLifted, pressBecomes } from "@/lib/ui/pressLift";
 import { hueOf, kindOf } from "@/components/calendar/calendarTones";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
-import { dayKey, dayListTime, lastDayOf, placeItems, type DatedItem, type WeekBar } from "@/components/calendar/calendarLayout";
+import { dayKey, dayListTime, lastDayOf, layoutWeek, placeItems, type DatedItem, type Placed, type WeekBar } from "@/components/calendar/calendarLayout";
 import type { CalendarDraft } from "@/components/calendar/weekView";
 import { clockTime } from "@/lib/utils/date/clock";
 
@@ -25,6 +25,10 @@ import { clockTime } from "@/lib/utils/date/clock";
 export interface MonthItem extends DatedItem {
   event_description?: string;
   task_status?: string;
+  /** The calendar it is on (A6): the Calendars panel counts each calendar's week by it. */
+  event_calendar_id?: string;
+  /** Its calendar's colour when that isn't Personal's: Personal counts only its own. */
+  calendar_hue?: string;
 }
 
 export interface MonthWeek<T extends MonthItem> {
@@ -34,7 +38,8 @@ export interface MonthWeek<T extends MonthItem> {
 }
 
 interface MonthViewProps<T extends MonthItem> {
-  month: Date;
+  /** Days outside it are dimmed; a custom range of weeks has none. */
+  month?: Date;
   weeks: MonthWeek<T>[];
   byDay: Map<string, T[]>;
   now: Date;
@@ -46,15 +51,15 @@ interface MonthViewProps<T extends MonthItem> {
   /** Move an event by whole days (the existing update call). */
   onMoveDays?: (item: T, days: number) => void;
   canMove?: (item: T) => boolean;
-  selectedId?: string | null;
   matches?: (title: string) => boolean;
   blank?: boolean;
   onNewEvent?: () => void;
   /** A phone: events as thin hue lines, "+N" for the rest, no + on each day. */
   compact?: boolean;
+  /** Each row's week number ("W44"), when the view options show them. */
+  weekLabel?: (weekStart: Date) => string;
 }
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 type MonthDrag<T> =
   | { kind: "create"; from: Date; to: Date; el: HTMLElement }
@@ -79,6 +84,43 @@ function dayFromPoint(x: number, y: number): Date | null {
   return el ? parseISO(el.dataset.monthDay!) : null;
 }
 
+/** A row of the month's grid: its days and its bars, a hidden weekend's columns taken out. Pure. */
+export function weekRow<T extends DatedItem>(weekStart: Date, placed: readonly Placed<T>[], { weekends }: { weekends?: boolean }) {
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const tracks = layoutWeek(weekStart, placed)
+  if (weekends !== false) return { weekStart, days, tracks }
+  const kept = days.flatMap((d, i) => (isWeekend(d) ? [] : [i]))
+  return {
+    weekStart,
+    days: kept.map((i) => days[i]),
+    tracks: tracks
+      .map((t) =>
+        t.flatMap((bar) => {
+          const cols = kept.filter((c) => c >= bar.col && c < bar.col + bar.span)
+          return cols.length ? [{ ...bar, col: kept.indexOf(cols[0]), span: cols.length }] : []
+        }),
+      )
+      .filter((t) => t.length),
+  }
+}
+
+/**
+ * The month's grid from its first week to its last (a month, or a custom
+ * range of weeks), each row laid out once per change of what's on it. Drawn
+ * only when what it shows changes: an event's card opening draws none of it,
+ * its bar marked open by the card (data-selected, C3).
+ */
+export const MonthGrid = memo(function MonthGrid<T extends MonthItem>({ from, to, placed, weekends, ...rest }: Omit<MonthViewProps<T>, "weeks"> & { from: Date; to: Date; placed: readonly Placed<T>[]; weekends: boolean }) {
+  // By the dates' times: the calendar hands new Dates for the same range.
+  const weeks = useMemo(() => {
+    const out: MonthWeek<T>[] = [];
+    for (let ws = from; ws <= to; ws = addDays(ws, 7)) out.push(weekRow(ws, placed, { weekends }));
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- by the dates' times: the calendar hands new Dates for the same range
+  }, [+from, +to, placed, weekends]);
+  return <MonthView weeks={weeks} {...rest} />;
+}) as <T extends MonthItem>(props: Omit<MonthViewProps<T>, "weeks"> & { from: Date; to: Date; placed: readonly Placed<T>[]; weekends: boolean }) => React.ReactElement;
+
 export function MonthView<T extends MonthItem>({
   month,
   weeks,
@@ -90,12 +132,15 @@ export function MonthView<T extends MonthItem>({
   onDraft,
   onMoveDays,
   canMove,
-  selectedId,
   matches,
   blank,
   onNewEvent,
   compact = false,
+  weekLabel,
 }: MonthViewProps<T>) {
+  // As many columns as a week shows: five when the weekend is hidden.
+  const n = weeks[0]?.days.length || 7;
+  const cols = { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` };
   const [drag, setDrag] = useState<MonthDrag<T> | null>(null);
   const dragRef = useRef<MonthDrag<T> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -104,6 +149,13 @@ export function MonthView<T extends MonthItem>({
     const t = setTimeout(() => setRevealing(false), 600);
     return () => clearTimeout(t);
   }, []);
+  // The day whose "+N more" was pressed, and its one list (fluid-10: each
+  // busy day drew a component of its own).
+  const [more, setMore] = useState<{ day: Date; open: boolean } | null>(null);
+  const moreAt = useRef<HTMLButtonElement | null>(null);
+  // The bars are drawn here, each one element (hueBlock), not a component a
+  // bar: the project hues are read here, as HueBlock reads them (fluid-10).
+  useProjectHues();
   const set = (d: MonthDrag<T> | null) => {
     dragRef.current = d;
     setDrag(d);
@@ -208,10 +260,10 @@ export function MonthView<T extends MonthItem>({
         </div>
       )}
       {/* Weekday header: 32 px, sticky, left-aligned. */}
-      <div className="sticky top-0 z-20 grid grid-cols-7 border-b border-line bg-sheet" aria-hidden="true">
-        {WEEKDAYS.map((d, i) => (
-          <div key={d} className={cn("flex h-8 items-center px-2.5 text-meta font-medium text-ink-3", i >= 5 && "bg-sunken")}>
-            {d}
+      <div className="sticky top-0 z-20 grid border-b border-line bg-sheet" style={cols} aria-hidden="true">
+        {(weeks[0]?.days ?? []).map((d) => (
+          <div key={d.getDay()} className={cn("flex h-8 items-center px-2.5 text-meta font-medium text-ink-3", isWeekend(d) && "bg-sunken")}>
+            {format(d, "EEE")}
           </div>
         ))}
       </div>
@@ -219,12 +271,17 @@ export function MonthView<T extends MonthItem>({
       <div className="flex flex-1 flex-col">
         {weeks.map(({ weekStart, days, tracks }, wi) => (
           <div key={weekStart.toISOString()} className={cn("relative flex min-h-28 flex-1 flex-col", wi < weeks.length - 1 && "border-b border-line")}>
+            {weekLabel ? (
+              <span className="pointer-events-none absolute bottom-1 left-1.5 z-10 text-micro font-medium tabular-nums text-ink-3" data-week-number="">
+                {weekLabel(weekStart)}
+              </span>
+            ) : null}
             {/* The cells: date, hover "+", "+N more"; the pointer target for drafts. */}
-            <div className="absolute inset-0 grid grid-cols-7">
+            <div className="absolute inset-0 grid" style={cols}>
               {days.map((day, i) => {
                 const items = byDay.get(dayKey(day)) || [];
                 const isToday = isSameDay(day, now);
-                const outside = !isSameMonth(day, month);
+                const outside = !!month && !isSameMonth(day, month);
                 const first = day.getDate() === 1;
                 const hidden = items.length - Math.min(items.length, tracks.reduce((n, t) => n + (t.some((b) => i >= b.col && i < b.col + b.span) ? 1 : 0), 0));
                 return (
@@ -273,45 +330,22 @@ export function MonthView<T extends MonthItem>({
                         }}
                         className="absolute right-1.5 top-1.5 z-20 flex size-5 items-center justify-center rounded-sm text-ink-3 opacity-0 transition-opacity hover:bg-press hover:text-ink focus-visible:opacity-100 group-hover/cell:opacity-100 [@media(hover:none)]:opacity-100"
                       >
-                        <Plus className="size-3.5" />
+                        <span aria-hidden="true" className="calendar-plus" />
                       </button>
                     ) : null}
                     {dropOn(day) && drag?.kind === "move" ? <LiftedBar item={drag.item} days={Math.min(daysOf(drag.item), 7 - i)} /> : null}
-                    {hidden > 0 ? (
-                      <DayOverflowPopover
-                        day={day}
-                        hidden={hidden}
-                        today={isToday}
-                        compact={compact}
-                        className="absolute bottom-1 left-1 z-20"
-                        add={
-                          onDraft
-                            ? {
-                                label: "New event",
-                                onAdd: (cell) => {
-                                  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0);
-                                  onDraft({ start, end: new Date(start.getTime() + 30 * 60_000) }, cell);
-                                },
-                              }
-                            : undefined
-                        }
-                      >
-                        {(done) =>
-                          items.map((item) => (
-                            <HueBlock
-                              key={item.event_uuid}
-                              item={item}
-                              variant="row"
-                              onClick={(e) => onItemClick(item, (done() ?? e.currentTarget) as HTMLElement)}
-                              className="w-full"
-                            >
-                              <span className="min-w-0 flex-1 truncate">{item.event_title}</span>
-                              {!item.isTask ? <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">{dayListTime(item, day)}</span> : null}
-                            </HueBlock>
-                          ))
-                        }
-                      </DayOverflowPopover>
-                    ) : null}
+                    {hidden > 0
+                      ? dayMoreButton({
+                          hidden,
+                          compact,
+                          className: "absolute bottom-1 left-1 z-20",
+                          open: !!more?.open && isSameDay(more.day, day),
+                          onPress: (button) => {
+                            moreAt.current = button;
+                            setMore((m) => ({ day, open: !(m?.open && isSameDay(m.day, day)) }));
+                          },
+                        })
+                      : null}
                   </div>
                 );
               })}
@@ -334,8 +368,8 @@ export function MonthView<T extends MonthItem>({
                             parseISO(bar.item.event_end_time) < now && "opacity-55",
                           )}
                           style={{
-                            left: `calc(${(bar.col / 7) * 100}% + ${bar.startsHere ? 4 : 0}px)`,
-                            width: `calc(${(bar.span / 7) * 100}% - ${(bar.startsHere ? 4 : 0) + (bar.endsHere ? 4 : 0)}px)`,
+                            left: `calc(${(bar.col / n) * 100}% + ${bar.startsHere ? 4 : 0}px)`,
+                            width: `calc(${(bar.span / n) * 100}% - ${(bar.startsHere ? 4 : 0) + (bar.endsHere ? 4 : 0)}px)`,
                           }}
                         />
                       );
@@ -346,27 +380,25 @@ export function MonthView<T extends MonthItem>({
             ) : (
             <div className="pointer-events-none relative z-10 mt-8 flex flex-col gap-0.5 pb-7">
               {tracks.map((trackBars, trackIdx) => (
-                <div key={trackIdx} className="relative h-[22px] w-full">
+                <div key={trackIdx} data-month-track="" className="relative h-[22px] w-full" style={{ ["--days" as string]: n }}>
                   {trackBars.map((bar, bi) => {
                     const item = bar.item;
-                    const timed = bar.timed && kindOf(item) === "event";
-                    const outside = !isSameMonth(addDays(weekStart, bar.col), month);
+                    const timed = bar.timed && (kindOf(item) === "event" || kindOf(item) === "block");
+                    const outside = !!month && !isSameMonth(addDays(weekStart, bar.col), month);
                     const end = parseISO(item.event_end_time);
                     const past = end < now;
                     const isTask = kindOf(item) === "task";
                     const movable = !!onMoveDays && !isTask && (canMove ? canMove(item) : true);
                     return (
-                      <HueBlock
-                        key={item.event_uuid}
-                        item={item}
-                        variant="bar"
-                        quiet={timed}
-                        past={past}
-                        selected={selectedId === item.event_uuid}
-                        continued={!bar.startsHere}
-                        data-event-uuid={item.event_uuid}
-                        aria-label={`${isTask ? "Task" : "Event"}: ${item.event_title}`}
-                        onPointerDown={(e) => {
+                      <Fragment key={item.event_uuid}>
+                      {hueBlock({
+                        item,
+                        variant: "bar",
+                        quiet: timed,
+                        past,
+                        continued: !bar.startsHere,
+                        "aria-label": `${isTask ? "Task" : "Event"}: ${item.event_title}`,
+                        onPointerDown: (e) => {
                           e.stopPropagation();
                           if (e.button !== 0 || !movable) return;
                           const from = addDays(weekStart, bar.col);
@@ -381,19 +413,24 @@ export function MonthView<T extends MonthItem>({
                               if (cur?.kind === "move" && !cur.active) set({ ...cur, held: true, active: true });
                             }, PRESS_LIFT.hold);
                           }
-                        }}
-                        onClick={(e) => {
+                        },
+                        onClick: (e) => {
                           if (e.detail === 0 || !movable) onItemClick(item, e.currentTarget as HTMLElement);
-                        }}
-                        onDoubleClick={() => onItemOpen?.(item)}
-                        onMouseEnter={(e) => light(e.currentTarget, item.event_uuid, true)}
-                        onMouseLeave={(e) => light(e.currentTarget, item.event_uuid, false)}
-                        style={{
-                          left: `calc(${(bar.col / 7) * 100}% + ${bar.startsHere ? 4 : 0}px)`,
-                          width: `calc(${(bar.span / 7) * 100}% - ${(bar.startsHere ? 4 : 0) + (bar.endsHere ? 4 : 0)}px)`,
+                        },
+                        onDoubleClick: () => onItemOpen?.(item),
+                        onMouseEnter: (e) => light(e.currentTarget, item.event_uuid, true),
+                        onMouseLeave: (e) => light(e.currentTarget, item.event_uuid, false),
+                        style: {
+                          left: `calc(${(bar.col / n) * 100}% + ${bar.startsHere ? 4 : 0}px)`,
+                          width: `calc(${(bar.span / n) * 100}% - ${(bar.startsHere ? 4 : 0) + (bar.endsHere ? 4 : 0)}px)`,
                           ["--i" as string]: trackIdx * 3 + bi,
-                        }}
-                        className={cn(
+                          // Its days' columns, for print (calendar.css), where a bar grows with its words.
+                          ["--col" as string]: bar.col + 1,
+                          ["--span" as string]: bar.span,
+                          ["--ml" as string]: bar.startsHere ? "4px" : "0px",
+                          ["--mr" as string]: bar.endsHere ? "4px" : "0px",
+                        },
+                        className: cn(
                           "pointer-events-auto absolute top-0 data-[lit]:ring-1 data-[lit]:ring-inset data-[lit]:ring-hue/40 data-[lit]:[--fill:80%]",
                           !bar.startsHere && "rounded-l-none",
                           !bar.endsHere && "rounded-r-none",
@@ -403,15 +440,17 @@ export function MonthView<T extends MonthItem>({
                           // Where it was, while it moves: the placeholder (CA-09).
                           drag?.kind === "move" && drag.active && drag.item.event_uuid === item.event_uuid && dragPlaceholderClasses(item),
                           matches && !matches(item.event_title) && "opacity-25",
-                        )}
-                      >
-                        <span className={cn("truncate leading-none", isTask && item.task_status === "done" && "line-through decoration-ink-4")}>
-                          {timed ? (
-                            <span className="mr-1 hidden text-micro font-[450] tabular-nums opacity-70 @[40rem]/month:inline">{clockTime(parseISO(item.event_start_time), { compact: true })}</span>
-                          ) : null}
-                          {item.event_title}
-                        </span>
-                      </HueBlock>
+                        ),
+                        children: (
+                          <span className={cn("cal-bar-text truncate leading-none", isTask && item.task_status === "done" && "line-through decoration-ink-4")}>
+                            {timed ? (
+                              <span className="mr-1 hidden text-micro font-[450] tabular-nums @[40rem]/month:inline">{clockTime(parseISO(item.event_start_time), { compact: true })}</span>
+                            ) : null}
+                            {item.event_title}
+                          </span>
+                        ),
+                      })}
+                      </Fragment>
                     );
                   })}
                 </div>
@@ -421,6 +460,35 @@ export function MonthView<T extends MonthItem>({
           </div>
         ))}
       </div>
+      {more ? (
+        <DayOverflow
+          day={more.day}
+          anchor={moreAt}
+          open={more.open}
+          onOpenChange={(open) => setMore((m) => m && { ...m, open })}
+          today={isSameDay(more.day, now)}
+          add={
+            onDraft
+              ? {
+                  label: "New event",
+                  onAdd: (cell) => {
+                    const start = new Date(more.day.getFullYear(), more.day.getMonth(), more.day.getDate(), 9, 0);
+                    onDraft({ start, end: new Date(start.getTime() + 30 * 60_000) }, cell);
+                  },
+                }
+              : undefined
+          }
+        >
+          {(done) =>
+            (byDay.get(dayKey(more.day)) || []).map((item) => (
+              <HueBlock key={item.event_uuid} item={item} variant="row" onClick={(e) => onItemClick(item, (done() ?? e.currentTarget) as HTMLElement)} className="w-full">
+                <span className="min-w-0 flex-1 truncate">{item.event_title}</span>
+                {!item.isTask ? <span className="shrink-0 text-meta font-[450] tabular-nums">{dayListTime(item, more.day)}</span> : null}
+              </HueBlock>
+            ))
+          }
+        </DayOverflow>
+      ) : null}
     </div>
   );
 }

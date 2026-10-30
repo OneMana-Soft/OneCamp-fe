@@ -1,6 +1,7 @@
 import {useEffect} from "react";
-import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
+import { lazyPanel } from "@/lib/lazy/lazyPanel";
+import { TaskPanelSkeleton } from "@/components/task/taskPanelSkeleton";
 import { app_inbox_path } from "@/types/paths";
 import {useDispatch, useSelector} from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -21,19 +22,23 @@ export const panelLoaders = {
     event: () => import("@/components/rightPanel/eventInfoPanel"),
 };
 const loaders = panelLoaders;
-const TaskInfoPanel = dynamic(loaders.task);
-const DocCommentList = dynamic(() => loaders.doc().then((m) => m.DocCommentList));
-const EventInfoPanel = dynamic(loaders.event);
+const TaskInfoPanel = lazyPanel(() => loaders.task().then((m) => m.default), "the task", TaskPanelSkeleton);
+const DocCommentList = lazyPanel(() => loaders.doc().then((m) => m.DocCommentList), "the comments");
+const EventInfoPanel = lazyPanel(() => loaders.event().then((m) => m.default), "the event");
 
 export const PRELOAD_AFTER_MS = 5000
 // Places whose code came only at the press (inbox 210 KB, Settings 161 KB),
 // fetched in full: "auto" stops at the layout, without the page's own code.
-export const PRELOAD_ROUTES = [app_inbox_path, "/app/settings"]
+// Settings opens on Your profile on a computer (app/app/settings/page): its
+// route, not only the index that sends there (fluid-14). Written out, as
+// lib/adminSections' PROFILE_HREF would bring that module (panelPreload.test).
+export const PRELOAD_ROUTES = [app_inbox_path, "/app/settings", "/app/settings/profile"]
 const FULL = { kind: "full" } as never
 
-// Their code and the panels', after the first press or 5 s, once quiet.
-function usePreloadPanels() {
-    const router = useRouter()
+// Their code and the panels', after the first press or 5 s, once quiet; or only `jobs` (a task's panel with its
+// parts, for TaskInPlace: asana-12 (a)).
+export function usePreloadPanels(jobs?: (() => unknown)[]) {
+    const router = useAppRouter()
     useEffect(() => {
         let live = true
         let started = false
@@ -43,7 +48,7 @@ function usePreloadPanels() {
             started = true
             stop()
             void import("@/lib/ui/whenQuiet").then(({ runWhenQuiet }) => {
-                if (live) cancel = runWhenQuiet([...PRELOAD_ROUTES.map((href) => () => router.prefetch(href, FULL)), ...Object.values(loaders), preloadThreadPanels])
+                if (live) cancel = runWhenQuiet(jobs ?? [...PRELOAD_ROUTES.map((href) => () => router.prefetch(href, FULL)), ...Object.values(loaders), preloadThreadPanels])
             }, () => {})
         }
         const events = ["pointerdown", "keydown"] as const
@@ -58,7 +63,7 @@ function usePreloadPanels() {
             stop()
             cancel()
         }
-    }, [router]);
+    }, [router, jobs]);
 }
 
 // The shell's, open or not: RightPanel mounts only while open.
@@ -112,7 +117,7 @@ export const RightPanel = () => {
         }
 
         if(rightPanelState.data.eventUUID) {
-            return <EventInfoPanel key={rightPanelState.data.eventUUID} eventUUID={rightPanelState.data.eventUUID} />
+            return <EventInfoPanel key={rightPanelState.data.eventUUID} eventUUID={rightPanelState.data.eventUUID} editRequest={rightPanelState.data.eventEditAt} />
         }
     }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle, Fingerprint, Lock } from "@/lib/icons";
+import { Fingerprint, Lock } from "@/lib/icons";
 import { signInRefusal } from "@/lib/auth/signInRefusal";
 import { SIGN_IN_LABELS, otherWayInHint } from "@/lib/auth/signInHints";
 import { signInWithPasskey } from "@/services/passkeyService";
@@ -18,7 +18,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils/helpers/cn"
 import { AuthDivider, AuthField, AuthHeading, AuthNotice, AuthPlaceholder, AuthShell, IdentityChip, PasswordField, authControl } from "@/components/auth/AuthShell"
 import { SpotPlug } from "@/components/ui/graphics/spots"
-import { forgetMember, holdAppBoot, leaveAppBoot } from "@/lib/appBoot"
+import { holdAppBoot, leaveAppBoot } from "@/lib/appBoot"
+import { forgetMember } from "@/lib/memberMark"
 import { SignInSide } from "@/components/auth/SignInSide"
 import { landingPath } from "@/lib/landing"
 import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
@@ -550,8 +551,10 @@ export default function SignInPage() {
                     autoFocus={emailStep.back}
                   />
                   {/* On the demo build the demo button below is the page's one
-                      filled button, so this one is secondary beside it. */}
-                  <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} disabled={busy}>
+                      filled button, so this one is secondary beside it. While
+                      the demo signs in this one is only "not yet": its
+                      spinner said it was busy too. */}
+                  <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} busy={isLoading} disabled={isDemoLoading}>
                     Continue with email
                   </Button>
                 </form>
@@ -592,8 +595,7 @@ export default function SignInPage() {
                     </p>
                   )}
 
-                  <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} aria-busy={isLoading || undefined}>
-                    {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                  <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} busy={isLoading}>
                     {isLoading ? "Signing in…" : "Sign in"}
                   </Button>
                 </form>
@@ -632,8 +634,7 @@ export default function SignInPage() {
                 readOnly={isLoading}
               />
 
-              <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} aria-busy={isLoading || undefined}>
-                {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+              <Button type="submit" size="lg" variant={isDemoEnabled ? "secondary" : "default"} className={authControl} busy={isLoading}>
                 {isLoading ? "Signing in…" : "Sign in with directory"}
               </Button>
             </form>
@@ -649,10 +650,9 @@ export default function SignInPage() {
               <Button
                 size="lg"
                 className={authControl}
-                disabled={busy}
+                busy={busy}
                 onClick={() => void handleDemoLogin()}
               >
-                {isDemoLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                 Try the demo, no sign-up needed
               </Button>
 

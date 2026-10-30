@@ -35,6 +35,9 @@ describe("goals", () => {
     expect(percent(0.554)).toBe("55%")
     expect(percent(1.2)).toBe("100%")
     expect(percent(null)).toBe("—")
+    // A sliver isn't nothing: under half a per cent says so, and none is 0%.
+    expect(percent(0.004)).toBe("<1%")
+    expect(percent(0)).toBe("0%")
     expect(amount(410, "teams")).toBe("410 teams")
     expect(amount(250000, "$")).toBe("$250,000")
     expect(amount(1500000, "₹")).toBe("₹1,500,000")

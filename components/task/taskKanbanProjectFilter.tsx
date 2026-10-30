@@ -1,20 +1,15 @@
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 import { FilterChip } from "@/components/task/filterChip"
-
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxSeparator,
+  ComboboxTrigger,
+} from "@/components/ui/combobox"
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
@@ -23,73 +18,49 @@ import { ProjectTile } from "@/components/ui/graphics/ProjectTile";
 interface KanbanProjectFilterProps {
   activeList: string[];
   updateList: (l: string[])=>void;
-
 }
 
-export function TaskKanbanProjectFilter({
-                                                activeList,
-                                                updateList,
-
-}: KanbanProjectFilterProps) {
+/** The board's project filter: tasks in any of the projects ticked. */
+export function TaskKanbanProjectFilter({ activeList, updateList }: KanbanProjectFilterProps) {
   const { t } = useTranslation()
   const selfUserProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-
+  const projects = selfUserProfile.data?.data.user_projects ?? []
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <FilterChip title={t("project")} count={activeList.length} selected={(selfUserProfile.data?.data.user_projects ?? []).filter((o) => activeList.includes(o.uid)).map((o) => o.project_name)} />
-      </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={t('project')} />
-          <CommandList>
-            <CommandEmpty>{t('noResultFound')}</CommandEmpty>
-            <CommandGroup>
-              {selfUserProfile.data?.data.user_projects && selfUserProfile.data?.data.user_projects.map((option) => {
-                const isSelected = activeList.includes(option.uid);
-                return (
-                  <CommandItem
-                    key={option.uid}
-                    checked={isSelected}
-                    onSelect={() => {
-                      if (isSelected) {
-                        updateList(activeList.filter((item) => item !== option.uid))
-                      } else {
-                        updateList([...activeList, option.uid])
-                      }
-                    }}
-                  >
-                    {/*{option.icon && (*/}
-                    {/*  <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />*/}
-                    {/*)}*/}
-                    <ProjectTile id={option.project_uuid} />
-                    <span>{option.project_name}</span>
-                    {/*{facets?.get(option.value) && (*/}
-                    {/*  <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">*/}
-                    {/*    {facets.get(option.value)}*/}
-                    {/*  </span>*/}
-                    {/*)}*/}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-            {activeList.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem
-                    onSelect={() => updateList([])}
-                    className="justify-center text-center"
-                  >
-                    {t('clearFilters')}
-                  </CommandItem>
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <Combobox multiple>
+      <ComboboxTrigger asChild>
+        <FilterChip title={t("project")} count={activeList.length} selected={projects.filter((o) => activeList.includes(o.uid)).map((o) => o.project_name)} />
+      </ComboboxTrigger>
+      <ComboboxContent label={t("project")}>
+        <ComboboxInput placeholder={t('project')} />
+        <ComboboxList>
+          <ComboboxEmpty>{t('noResultFound')}</ComboboxEmpty>
+          {projects.map((option) => {
+            const isSelected = activeList.includes(option.uid);
+            return (
+              // By its id, found by its name: two projects may share one.
+              <ComboboxItem
+                key={option.uid}
+                value={option.uid}
+                keywords={[option.project_name]}
+                checked={isSelected}
+                onSelect={() => updateList(isSelected ? activeList.filter((item) => item !== option.uid) : [...activeList, option.uid])}
+              >
+                <ProjectTile id={option.project_uuid} />
+                <span className="min-w-0 truncate">{option.project_name}</span>
+              </ComboboxItem>
+            );
+          })}
+          {activeList.length > 0 && (
+            <>
+              <ComboboxSeparator />
+              <ComboboxItem value="__clear__" keywords={[t('clearProjects')]} onSelect={() => updateList([])} className="justify-center text-center">
+                {t('clearProjects')}
+              </ComboboxItem>
+            </>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }

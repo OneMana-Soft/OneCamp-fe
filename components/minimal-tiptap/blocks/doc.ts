@@ -15,14 +15,10 @@ import { CheckSquare, ChevronRight, ListTodo, MessageSquare, Table as TableIcon 
 import { registerBlock } from "@/components/docEditor/registry/registry"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import { DOC_EDITORS, ORDER, SLASH_ORDER } from "./kinds"
+import { once } from "@/lib/lazy/once"
 
 // One fetch for all of them: every loader below shares it.
-let chunk: Promise<typeof import("./docOnly")> | null = null
-const docOnly = () => (chunk ??= import("./docOnly").catch((e) => {
-  // A chunk that failed to load may come next time.
-  chunk = null
-  throw e
-}))
+const docOnly = once(() => import("./docOnly"))
 
 registerBlock({
   id: "callout",

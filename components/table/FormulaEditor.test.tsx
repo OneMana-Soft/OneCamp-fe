@@ -3,8 +3,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import * as React from "react"
 
 const preview = vi.fn()
-vi.mock("@/services/tableService", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/services/tableService")>()),
+vi.mock("@/services/tableCalls", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/tableCalls")>()),
   previewFormula: (...args: unknown[]) => preview(...args),
 }))
 
@@ -107,5 +107,75 @@ describe("writing a formula", () => {
     expect(editor.querySelector(".text-camp-sky-ink")?.textContent).toBe("IF")
     expect(editor.querySelector(".text-camp-moss-ink")?.textContent).toBe('"Paid"')
     expect(editor.querySelector(".text-camp-sun-ink")?.textContent).toBe("2")
+  })
+})
+
+describe("help as a formula is written (B2)", () => {
+  // Types text with the caret at its end, as typing leaves it.
+  const type = (text: string) => {
+    const el = box()
+    fireEvent.change(el, { target: { value: text, selectionStart: text.length, selectionEnd: text.length } })
+    el.setSelectionRange(text.length, text.length)
+    fireEvent.select(el)
+  }
+
+  it("offers the fields inside braces, and Enter puts the chosen one in", () => {
+    render(<Editing />)
+    type("{Pr")
+    expect(screen.getByRole("listbox", { name: "Suggestions" })).toBeTruthy()
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["PriceNumber"])
+    // Led by the kind's glyph, as the header and the chips show it.
+    expect(screen.getAllByRole("option")[0].firstElementChild?.tagName.toLowerCase()).toBe("svg")
+    fireEvent.keyDown(box(), { key: "Enter" })
+    expect(box().value).toBe("{Price}")
+  })
+
+  it("leaves an input method its Enter and Escape: the word being made is its, and the list stays", () => {
+    render(<Editing />)
+    type("{Pr")
+    // Typing Japanese, Enter picks the word being made and Escape drops it
+    // (isComposing, or Safari's keyCode 229): neither is the list's.
+    fireEvent.keyDown(box(), { key: "Enter", isComposing: true })
+    fireEvent.keyDown(box(), { key: "Enter", keyCode: 229 })
+    fireEvent.keyDown(box(), { key: "Escape", isComposing: true })
+    expect(box().value).toBe("{Pr")
+    expect(screen.getByRole("listbox", { name: "Suggestions" })).toBeTruthy()
+  })
+
+  it("puts the names that start as typed before those that only hold it", () => {
+    render(<Editing />)
+    // "Quantity" holds "ti"; "Total" starts with "t" and so comes first for "t".
+    type("{t")
+    expect(screen.getAllByRole("option").map((o) => o.querySelector("span")?.textContent)).toEqual(["Total", "Quantity"])
+  })
+
+  it("offers the functions as a name is typed; Tab opens the bracket, Esc shuts the list", () => {
+    render(<Editing />)
+    type("ROU")
+    expect(screen.getAllByRole("option").map((o) => o.querySelector("span")?.textContent)).toEqual(["ROUND", "ROUNDUP", "ROUNDDOWN"])
+    fireEvent.keyDown(box(), { key: "ArrowDown" })
+    fireEvent.keyDown(box(), { key: "Tab" })
+    expect(box().value).toBe("ROUNDUP(")
+    type("ROUNDUP(ab")
+    expect(screen.getByRole("listbox")).toBeTruthy()
+    fireEvent.keyDown(box(), { key: "Escape" })
+    expect(screen.queryByRole("listbox")).toBeNull()
+  })
+
+  it("says which function the caret is in, its value in bold, and rings the bracket pair at the caret", () => {
+    render(<Editing />)
+    type('IF({Price} > 10, "big", ')
+    const hint = document.querySelector("[data-formula-hint]")!
+    expect(hint.textContent).toContain("IF(test, then, otherwise)")
+    expect(hint.querySelector(".font-semibold")?.textContent).toBe("otherwise")
+    type("ROUND(1, 2)")
+    expect(document.querySelectorAll("[data-bracket-pair]")).toHaveLength(2)
+  })
+
+  it("draws a comment quietly, and offers nothing inside it", () => {
+    render(<Editing />)
+    type("{Price} /* tax incl")
+    expect(screen.queryByRole("listbox")).toBeNull()
+    expect(document.querySelector(".italic")?.textContent).toBe("/* tax incl")
   })
 })

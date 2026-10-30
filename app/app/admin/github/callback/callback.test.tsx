@@ -6,16 +6,16 @@ import { act, cleanup, render, screen } from "@testing-library/react"
 // on a raw grey tile with a spinner, and its way back was a text button to
 // Admin's first tab rather than to Integrations, where the admin started.
 
-const { params, push, post } = vi.hoisted(() => ({
-  params: { current: new URLSearchParams() },
-  push: vi.fn(),
-  post: vi.fn(),
-}))
+const { params, push, post, router } = vi.hoisted(() => {
+  const push = vi.fn()
+  return { params: { current: new URLSearchParams() }, push, post: vi.fn(), router: { push } }
+})
+// One router for the page's life, as Next's useRouter gives.
 vi.mock("next/navigation", () => ({
   useSearchParams: () => params.current,
-  useRouter: () => ({ push }),
+  useRouter: () => router,
 }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post } }))
 
 import GitHubCallbackPage from "./page"
 
@@ -84,5 +84,43 @@ describe("the GitHub return page", () => {
     rerender(<GitHubCallbackPage />)
     await act(async () => {})
     expect(post).toHaveBeenCalledTimes(1)
+  })
+
+  // It took the admin on two seconds later whatever they had done meanwhile:
+  // one who had gone elsewhere was pulled back to Integrations.
+  it("takes no one on once the admin has left, connected or still connecting", async () => {
+    vi.useFakeTimers()
+    params.current = new URLSearchParams("code=abc&state=s1")
+    post.mockResolvedValue({ data: {} })
+    const connected = render(<GitHubCallbackPage />)
+    await act(async () => {})
+    expect(screen.getByRole("heading", { level: 1, name: "GitHub is connected" })).toBeTruthy()
+    connected.unmount()
+    let answer: (v: unknown) => void = () => {}
+    post.mockReturnValue(new Promise((r) => (answer = r)))
+    const connecting = render(<GitHubCallbackPage />)
+    connecting.unmount()
+    await act(async () => answer({ data: {} }))
+    await act(async () => void vi.advanceTimersByTime(5000))
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  // The page stays mounted until the admin's next page commits, so one still
+  // on their way out was pulled back too: their own press, key or Back ends it.
+  it("takes no one on once the admin makes a move of their own, and stops saying it will", async () => {
+    vi.useFakeTimers()
+    params.current = new URLSearchParams("code=abc&state=s1")
+    post.mockResolvedValue({ data: {} })
+    render(<GitHubCallbackPage />)
+    await act(async () => {})
+    expect(screen.getByText("Taking you back to Admin, Integrations, to link a repository.")).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Go back now" })).toBeTruthy()
+    await act(async () => void document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })))
+    await act(async () => void vi.advanceTimersByTime(5000))
+    expect(push).not.toHaveBeenCalled()
+    expect(screen.getByText("Link a repository in Admin, Integrations.")).toBeTruthy()
+    // Nothing takes them back now, so the way there names where it goes.
+    expect(screen.queryByRole("link", { name: "Go back now" })).toBeNull()
+    expect(screen.getByRole("link", { name: "Open Integrations" }).getAttribute("href")).toBe("/app/admin?tab=integrations")
   })
 })

@@ -112,8 +112,7 @@ export default function ForgotPasswordPage() {
               error={error || undefined}
             />
 
-            <Button type="submit" size="lg" className={authControl} aria-busy={isLoading || undefined}>
-              {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+            <Button type="submit" size="lg" className={authControl} busy={isLoading}>
               {isLoading ? "Sending…" : "Send reset link"}
             </Button>
           </form>

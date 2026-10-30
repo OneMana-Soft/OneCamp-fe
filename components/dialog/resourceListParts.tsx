@@ -1,11 +1,11 @@
 "use client"
 
-import { avatarSeed } from "@/lib/utils/getAvatarColor"
+// A row of faces is the graphics' own now (components/ui/graphics/Faces), drawn here as before.
+export { Faces } from "@/components/ui/graphics/Faces"
 import * as React from "react"
 import type { LucideIcon } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
@@ -19,19 +19,6 @@ import { cn } from "@/lib/utils/helpers/cn"
 /** A row in such a list: on the dialog's ground, lit on hover, never a card. */
 export const RESOURCE_ROW = "flex min-h-12 items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-highlight/60"
 
-/** People as small faces in their own hues, overlapping. */
-export function Faces({ people, size = 20, max = 3 }: { people: { user_uuid: string; name: string }[]; size?: number; max?: number }) {
-  if (people.length === 0) return null
-  return (
-    <span className="flex -space-x-1.5">
-      {people.slice(0, max).map((p) => (
-        <span key={p.user_uuid} className="rounded-full ring-2 ring-background" title={p.name}>
-          <IdentityMark variant="avatar" size={size} id={avatarSeed(p.name)} label={p.name} />
-        </span>
-      ))}
-    </span>
-  )
-}
 
 /** Rows the list's own height while it loads. */
 export function ResourceListSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {

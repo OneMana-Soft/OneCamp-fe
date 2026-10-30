@@ -7,7 +7,9 @@ import { Provider } from "react-redux"
 // you're in goes into the sidebar.
 
 let info: Record<string, unknown> = {}
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: () => new Promise(() => {}) }, OWN_ERRORS: { suppressErrorToast: true } }))
+// How many were unread is known at once: hooks/useUnreadOnOpen has its own test.
+vi.mock("@/hooks/useUnreadOnOpen", () => ({ useUnreadOnOpen: () => 0 }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: () => new Promise(() => {}) } }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/hooks/useScheduledMessages", () => ({ useScheduleMessage: () => vi.fn() }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
@@ -24,7 +26,7 @@ vi.mock("@/components/channel/channelIdMobile", () => ({ ChannelIdMobile: () => 
 
 const { default: store } = await import("@/store/store")
 const { GetEndpointUrl } = await import("@/services/endPoints")
-const { ChannelView } = await import("./ChannelView")
+const { ChannelConversation: ChannelView } = await import("@/components/conversation/ChannelConversation")
 
 afterEach(cleanup)
 

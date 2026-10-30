@@ -52,10 +52,13 @@ describe("a lazy part of a screen", () => {
 
   it("draws at once once its code is in: no placeholder frame", async () => {
     const { load, calls } = deferredLoads()
-    const { Part, warm } = lazyPart(load, { placeholder: Room, failed: Failed })
+    const { Part, warm, isIn } = lazyPart(load, { placeholder: Room, failed: Failed })
     const warmed = warm()
+    // Says whether its code is in, for a part that waited to show it landed.
+    expect(isIn()).toBe(false)
     calls[0].resolve()
     expect(await warmed).toBe(true)
+    expect(isIn()).toBe(true)
     const { container } = render(<Part label="At once" />)
     expect(container.querySelector("[data-real]")?.textContent).toBe("At once")
   })
@@ -133,6 +136,25 @@ describe("a lazy part of a screen", () => {
     expect([...document.querySelectorAll("[data-real]")].map((e) => e.textContent)).toEqual(["first", "second"])
   })
 
+  // An overlay whose failure closes it (Docs & Files' dialogs, the Pages
+  // sheet) would otherwise close again at once, before the try.
+  it("keeps a copy drawn after a failure in its room while it tries again, and says it failed only if that fails too", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const { load, calls } = deferredLoads()
+    const { Part } = lazyPart(load, { placeholder: Room, failed: Failed })
+    const first = render(<Part label="first" />)
+    calls[0].reject(new Error("offline"))
+    await settle()
+    first.unmount()
+    const { container } = render(<Part label="second" />)
+    expect(container.querySelector("[data-room]")).not.toBeNull()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+    expect(load).toHaveBeenCalledTimes(2)
+    calls[1].reject(new Error("still offline"))
+    await settle()
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
+  })
+
   it("draws its placeholder on the server, as the browser's first render does", async () => {
     const { load, calls } = deferredLoads()
     const { Part, warm } = lazyPart(load, { placeholder: Room, failed: Failed })
@@ -140,5 +162,27 @@ describe("a lazy part of a screen", () => {
     calls[0].resolve()
     await warmed
     expect(renderToString(<Part label="hydrates" />)).toContain("data-room")
+  })
+})
+
+// A part that keeps no room (the realtime engine, the theme's sync, the
+// palette, the keys tip) passed a Nothing of its own, written four times
+// (CODE-REVIEW, 22 Oct 2026): with neither given, it draws nothing.
+describe("a lazy part with no room to keep", () => {
+  it("draws nothing while its code comes, nothing when it fails, then the part", async () => {
+    const { load, calls } = deferredLoads()
+    const part = lazyPart(load)
+    const { container } = render(<part.Part label="Hi" />)
+    expect(container.innerHTML).toBe("")
+    const first = part.warm()
+    calls[0].reject(new Error("offline"))
+    await settle()
+    expect(await first).toBe(false)
+    expect(container.innerHTML).toBe("")
+    const second = part.warm()
+    calls[1].resolve()
+    await settle()
+    expect(await second).toBe(true)
+    expect(screen.getByText("Hi").hasAttribute("data-real")).toBe(true)
   })
 })

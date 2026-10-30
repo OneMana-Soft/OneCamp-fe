@@ -124,6 +124,9 @@ const nextConfig: NextConfig = {
         remotePatterns: imageRemotePatterns(),
     },
     async headers() {
+        // Every path under these names its version or its hash, so a browser
+        // keeps the file for good rather than fetch it again.
+        const immutable = [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }];
         return [
             {
                 source: "/:path*",
@@ -134,12 +137,12 @@ const nextConfig: NextConfig = {
             // rule's header replaces an earlier one's of the same name.
             ...CALL_PAGES.map((source) => ({ source, headers: [{ key: CSP_HEADER, value: cspFromEnv({ wasm: true }) }] })),
             // The call effects' WebAssembly and model (lib/calls/processors):
-            // every path names its version or its hash, so a browser keeps
-            // them for good rather than fetch 9 MB again for every call.
-            {
-                source: "/calls/:dir(vendor|models)/:path*",
-                headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-            },
+            // 9 MB a browser need not fetch again for every call.
+            { source: "/calls/:dir(vendor|models)/:path*", headers: immutable },
+            // Excalidraw's faces (lib/board/excalidrawAssets.ts): the folder is named by their hash, each file by its own.
+            { source: "/board/vendor/:path*", headers: immutable },
+            // Inter's files (app/inter.css).
+            { source: "/fonts/:path*", headers: immutable },
         ];
     },
     // Design v3 renamed two places (shell N1). Inbox is notifications and

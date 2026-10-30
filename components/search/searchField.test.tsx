@@ -14,17 +14,27 @@ const classes = (el: Element | null) => (el?.className ?? "").split(/\s+/)
 describe("SearchField on a phone", () => {
   it("is 16px text and 44px tall on a phone, 14px and 32px from md up (design v3's field)", () => {
     render(<SearchField placeholder="Search channels…" value="" onChange={() => {}} />)
-    const field = classes(screen.getByPlaceholderText("Search channels…"))
-    expect(field).toEqual(expect.arrayContaining(["text-base", "md:text-sm", "h-11", "md:h-8"]))
-    expect(field, "an unprefixed text-sm overrides the phone size").not.toContain("text-sm")
+    const text = classes(screen.getByPlaceholderText("Search channels…"))
+    expect(text).toEqual(expect.arrayContaining(["text-base", "md:text-sm"]))
+    expect(text, "an unprefixed text-sm overrides the phone size").not.toContain("text-sm")
+    // The field is the input group round the text, the glyph and Clear.
+    const field = classes(screen.getByRole("group"))
+    expect(field).toEqual(expect.arrayContaining(["field-surface", "h-11", "md:h-8"]))
     expect(field).not.toContain("h-9")
   })
 
   it("gives clearing the search a thumb-sized target on a phone", () => {
     render(<SearchField placeholder="Search tasks…" value="launch" onChange={() => {}} />)
-    expect(classes(screen.getByRole("button", { name: "Clear search" }))).toEqual(
-      expect.arrayContaining(["h-11", "w-11", "md:h-5", "md:w-5"]),
-    )
+    // A 24px button with the app's 44px touch target (app/phone.css F3).
+    expect(screen.getByRole("button", { name: "Clear search" }).hasAttribute("data-touch-target")).toBe(true)
+  })
+
+  // The owner, 17 Oct: a search field "trimmed from left and right" in a
+  // sheet. The field keeps an inset wider than its 4px halo inside whatever
+  // scroller holds it (e2e/fieldEdges.spec.ts measures it in a browser).
+  it("keeps an inset wider than its halo round it", () => {
+    const { container } = render(<SearchField placeholder="Search tasks…" value="" onChange={() => {}} />)
+    expect(classes(container.firstElementChild!)).toEqual(expect.arrayContaining(["px-3", "py-2", "md:px-4"]))
   })
 })
 

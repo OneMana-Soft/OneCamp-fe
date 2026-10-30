@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
@@ -9,6 +10,7 @@ vi.mock("@/components/entityLink/LinkedFromSection", () => ({ LinkedFromSection:
 
 import "@/components/docEditor/registry"
 import { registerSlot, slotFor } from "@/components/docEditor/registry/registry"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 import { DocBusContext, createDocCommandBus } from "@/components/docEditor/registry/commandBus"
 import { DocBodyLayer, isBlankDoc } from "./DocBodyLayer"
 import { DocTitle } from "./DocTitle"
@@ -93,10 +95,23 @@ describe("the body's layer", () => {
 })
 
 describe("the editor overlay", () => {
-    // Edit proposals are made by the AI edition's Ask AI bar alone (A9): this
-    // edition draws no review bar for them.
-    it("carries no review bar of edit proposals on this edition", () => {
-        expect(slotFor("editorOverlay", GATE).map((c) => c.id)).not.toContain("proposals.review")
+    // The review bar (proposals.review) reviews people's suggestions on this
+    // edition too: suggesting mode hands it each open suggestion. AI-made
+    // proposals stay off it: only the AI edition's bar makes them, so this
+    // edition registers no AI overlay, and nothing but suggesting mode gives
+    // the bar a proposal to review.
+    it("reviews people's suggestions and no AI-made proposal on this edition", () => {
+        const overlays = slotFor("editorOverlay", GATE).map((c) => c.id)
+        expect(overlays).toContain("proposals.review")
+        expect(overlays.filter((id) => id.startsWith("ai."))).toEqual([])
+        const producers = sourceFiles(["app", "components", "hooks", "lib", "services", "store"], /\.tsx?$/)
+            .filter((f) => /\bsetReviewer\(/.test(readFileSync(f, "utf8")))
+            .sort()
+        // reviewers.ts defines setReviewer; SuggestionsOverlay.tsx is suggesting mode's one caller.
+        expect(producers).toEqual([
+            "components/minimal-tiptap/extensions/suggest-mode/SuggestionsOverlay.tsx",
+            "components/proposals/reviewers.ts",
+        ])
     })
 })
 

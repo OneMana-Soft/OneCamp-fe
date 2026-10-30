@@ -3,6 +3,7 @@ import { join } from "path"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { warmBursts } from "@/lib/celebrateSoon"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 // The celebrations' bursts are a chunk fetched when the page is idle
 // (lib/celebrateSoon): here they are in before anything finishes.
@@ -17,6 +18,11 @@ let connectionsState: { isError?: unknown } = {}
 let providersState: { isLoading?: boolean } = {}
 // Notion, which brings pages, connected beside Jira.
 let withNotion = false
+// The tools that bring tables alone: Airtable, and Google Sheets, which signs
+// in and is connected.
+let withTables = false
+// The CSV file, a tool with a file to upload and no account.
+let withCsv = false
 // When Jira was last connected: connecting again changes it.
 let jiraConnectedAt = "1"
 const refetchJobs = vi.fn()
@@ -28,12 +34,18 @@ vi.mock("@/hooks/useFetch", () => ({
     if (url === "/admin/import/providers") {
       const providers: Array<Record<string, unknown>> = [{ name: "jira", sources: ["api"], capabilities: [], default_status_map: {}, default_priority_map: {} }, { name: "asana", sources: ["api"], capabilities: [], default_status_map: {}, default_priority_map: {} }]
       if (withNotion) providers.push({ name: "notion", sources: ["api"], capabilities: ["projects", "tasks", "pages"], default_status_map: {}, default_priority_map: {} })
+      if (withTables)
+        providers.push(
+          { name: "airtable", sources: ["api"], capabilities: ["tables"], default_status_map: {}, default_priority_map: {} },
+          { name: "gsheets", sources: ["api"], capabilities: ["tables"], default_status_map: {}, default_priority_map: {}, sign_in: { configured: true } },
+        )
+      if (withCsv) providers.push({ name: "csv", sources: ["backup_csv"], capabilities: ["teams", "projects", "tasks", "subtasks"], default_status_map: {}, default_priority_map: {} })
       return { data: { providers }, mutate: vi.fn() }
     }
     if (url === "/admin/import/connections")
       return connectionsState.isError
         ? { data: undefined, isError: connectionsState.isError, mutate: vi.fn() }
-        : { data: { connections: [{ provider: "jira", created_at: "", updated_at: jiraConnectedAt }, ...(withNotion ? [{ provider: "notion", created_at: "", updated_at: "1" }] : [])] }, mutate: vi.fn() }
+        : { data: { connections: [{ provider: "jira", created_at: "", updated_at: jiraConnectedAt }, ...(withNotion ? [{ provider: "notion", created_at: "", updated_at: "1" }] : []), ...(withTables ? [{ provider: "gsheets", created_at: "", updated_at: "1" }] : [])] }, mutate: vi.fn() }
     if (url.startsWith("/admin/import/jobs")) {
       if (jobsState.isLoading || jobsState.isError) return { data: undefined, ...jobsState, mutate: refetchJobs }
       return { data: { jobs }, mutate: refetchJobs }
@@ -52,6 +64,8 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 let discover: () => Promise<unknown> = async () => []
 const cancelImportJob = vi.fn(async () => {})
 const createImportJob = vi.fn(async () => ({ job_id: "new" }))
+const uploadImportFile = vi.fn()
+vi.mock("@/services/importUploadService", () => ({ uploadImportFile: (...a: unknown[]) => uploadImportFile(...a) }))
 vi.mock("@/services/importService", async (orig) => ({
   ...(await orig<typeof import("@/services/importService")>()),
   discoverImportResources: vi.fn(() => discover()),
@@ -80,6 +94,8 @@ afterEach(() => {
   connectionsState = {}
   providersState = {}
   withNotion = false
+  withTables = false
+  withCsv = false
   jiraConnectedAt = "1"
   mqttConnected = true
   confirm.mockReset()
@@ -87,6 +103,7 @@ afterEach(() => {
   refetchJobs.mockReset()
   cancelImportJob.mockClear()
   createImportJob.mockClear()
+  uploadImportFile.mockReset()
 })
 
 const running = { id: "a", provider: "jira", source_workspace_name: "Acme", source: "api", status: "running", stage: "tasks", options: {}, created_at: new Date().toISOString(), updated_at: "", chunks_total: 2, chunks_done: 1, chunks_failed: 0, items_imported: 40, errors_total: 0 }
@@ -117,7 +134,8 @@ describe("the import card", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy())
     expect(screen.queryByRole("button", { name: /Reconnect/ })).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
-    await waitFor(() => expect(screen.getByRole("option", { name: "Engineering" })).toBeTruthy())
+    fireEvent.keyDown(await screen.findByRole("combobox"), { key: "ArrowDown" })
+    expect(await screen.findByRole("option", { name: "Engineering" })).toBeTruthy()
     expect(screen.queryByRole("alert")).toBeNull()
   })
 
@@ -133,7 +151,7 @@ describe("the import card", () => {
     }
     const { rerender } = render(<ImportCard />)
     fireEvent.click(screen.getByRole("radio", { name: "Jira" }))
-    await waitFor(() => expect(screen.getByRole("option", { name: "Engineering" })).toBeTruthy())
+    await screen.findByRole("combobox")
     rerender(<ImportCard />)
     rerender(<ImportCard />)
     await new Promise((r) => setTimeout(r, 20))
@@ -143,30 +161,31 @@ describe("the import card", () => {
     await waitFor(() => expect(calls).toBe(2))
   })
 
-  // Picking a tool was a filled orange button that narrowed the history to it,
-  // and the tool's Connection and New import were inserted above the history:
-  // picking Jira pushed the list down by a form's height, and "All" pulled it
-  // back up. The history is every tool's now, above the picker, and stays put.
-  it("picks the tool as a choice of one, and the history neither moves nor narrows", () => {
+  // Picking a tool was a filled orange button that narrowed the history to it.
+  // The tools come first (DESIGN-BUILD-2, 20 Oct): a tool's panel opens under
+  // the picker, and the history under them is every tool's, whatever is picked.
+  it("picks the tool as a choice of one, its panel under the picker and the history under both, never narrowed", () => {
     discover = async () => []
     jobs = [running]
     render(<ImportCard />)
     const picker = screen.getByRole("radiogroup", { name: "Tool to import from" })
     expect(within(picker).queryByRole("radio", { name: "All" })).toBeNull()
     const history = screen.getByRole("region", { name: "Recent imports" })
-    expect(history.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(picker.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(within(picker).getByRole("radio", { name: "Jira" }))
     expect(within(picker).getByRole("radio", { name: "Jira" }).getAttribute("aria-checked")).toBe("true")
     expect(asked.filter((u) => u.startsWith("/admin/import/jobs")).every((u) => u === "/admin/import/jobs")).toBe(true)
     expect(screen.getByRole("region", { name: "Recent imports" })).toBe(history)
     expect(within(history).getByText("Acme")).toBeTruthy()
-    // The panel the tool opens sits under the picker, never above the history.
+    // The panel the tool opens sits under the picker, above the history.
     const panel = document.querySelector("[data-provider-panel]") as HTMLElement
     expect(picker.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(panel.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it("is one flat section, its history and its new import sections inside it", () => {
     discover = async () => []
+    jobs = [running]
     const { container } = render(<ImportCard />)
     expect(screen.getByRole("heading", { level: 2, name: "Import from other tools" })).toBeTruthy()
     expect(screen.getByRole("heading", { level: 3, name: "Recent imports" })).toBeTruthy()
@@ -190,17 +209,22 @@ describe("the import card", () => {
     expect(importProviderLabel("monday")).toBe("monday.com")
   })
 
-  // "Source workspace name required" was a toast, away from the field.
-  it("says what's missing under the field, and focuses it", async () => {
-    discover = async () => []
+  // "Start import" is the one thing to do here (DESIGN-BUILD-2, 20 Oct): filled,
+  // and ready only once the start has what it needs, by the same check it
+  // makes. Picking a project names the import after it.
+  it("waits to start until a project is picked and the import is named", async () => {
+    discover = async () => [{ id: "ENG", name: "Engineering", kind: "project" }]
     render(<ImportCard />)
     fireEvent.click(screen.getByRole("radio", { name: "Jira" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Start import" }))
-    const field = screen.getByLabelText("Workspace name")
-    expect(field.getAttribute("aria-invalid")).toBe("true")
-    expect(screen.getByText("Name this import, so you can tell it apart in the history.")).toBeTruthy()
-    expect(document.activeElement).toBe(field)
-    expect(toast).not.toHaveBeenCalled()
+    const start = (await screen.findByRole("button", { name: "Start import" })) as HTMLButtonElement
+    expect(start.disabled).toBe(true)
+    fireEvent.keyDown(await screen.findByRole("combobox"), { key: "ArrowDown" })
+    fireEvent.click(await screen.findByRole("option", { name: "Engineering" }))
+    const name = screen.getByLabelText("Workspace name") as HTMLInputElement
+    expect(name.value).toBe("Engineering")
+    expect(start.disabled).toBe(false)
+    fireEvent.change(name, { target: { value: "  " } })
+    expect(start.disabled).toBe(true)
     expect(createImportJob).not.toHaveBeenCalled()
   })
 
@@ -259,7 +283,7 @@ describe("the import card in the guided first run", () => {
     expect(screen.queryByRole("heading", { name: "Import from other tools" })).toBeNull()
     expect(screen.queryByRole("heading", { name: "Start an import" })).toBeNull()
     expect(screen.queryByRole("heading", { name: "Recent imports" })).toBeNull()
-    expect(screen.queryByText(/Asana, ClickUp/)).toBeNull()
+    expect(screen.queryByText(/Asana, Basecamp, ClickUp/)).toBeNull()
     expect(screen.queryByText("Pick a tool to connect it or start an import from it.")).toBeNull()
     expect(screen.queryByText(/Live updates are off/)).toBeNull()
     expect(screen.queryByText("No imports from other tools yet")).toBeNull()
@@ -296,18 +320,25 @@ describe("the import card in the guided first run", () => {
     expect(slack.getAttribute("href")).toBe("/app/admin?tab=import&slack=new")
   })
 
-  it("leaves Admin › Import as it is: the history first, the long words, the notice", () => {
+  // Admin › Import leads with the tools too (DESIGN-BUILD-2, B-1): the empty
+  // history and its illustration sat above them, the tools below the fold.
+  it("is in the same order on Admin › Import, with the long words, the notice and Slack's own section", () => {
     discover = async () => []
     mqttConnected = false
-    render(<ImportCard />)
-    const order = screen
-      .getAllByRole("heading", { level: 3 })
-      .map((h) => h.textContent)
-      .filter((t) => t === "Recent imports" || t === "Start an import")
-    expect(order).toEqual(["Recent imports", "Start an import"])
+    const order = () =>
+      screen
+        .getAllByRole("heading", { level: 3 })
+        .map((h) => h.textContent)
+        .filter((t) => t === "Recent imports" || t === "Start an import")
+    const { unmount } = render(<ImportCard />)
+    expect(order()).toEqual(["Start an import"])
     expect(screen.getByText(/Live updates are off/)).toBeTruthy()
-    expect(screen.getByText("No imports from other tools yet")).toBeTruthy()
+    expect(screen.queryByText("No imports from other tools yet")).toBeNull()
     expect((document.querySelector('[data-source-card="slack"]') as HTMLElement).tagName).toBe("BUTTON")
+    unmount()
+    jobs = [running]
+    render(<ImportCard />)
+    expect(order()).toEqual(["Start an import", "Recent imports"])
   })
 })
 
@@ -427,10 +458,13 @@ describe("importing from Notion", () => {
     expect(screen.getByText(/a connection's token reads the pages shared with it/)).toBeTruthy()
     expect(await screen.findByLabelText("Database to bring as a project (optional)")).toBeTruthy()
 
+    // Each job carries the browser's zone, where the source's dates with no
+    // time land on their own day.
+    const time_zone = browserTZ()
     const start = async (options: Record<string, unknown>) => {
       fireEvent.change(screen.getByLabelText("Workspace name"), { target: { value: "Wiki" } })
       fireEvent.click(screen.getByRole("button", { name: "Start import" }))
-      await waitFor(() => expect(createImportJob).toHaveBeenLastCalledWith("notion", expect.objectContaining({ options })))
+      await waitFor(() => expect(createImportJob).toHaveBeenLastCalledWith("notion", expect.objectContaining({ options: { ...options, time_zone } })))
     }
     await start({ pages: true })
     fireEvent.click(pages)
@@ -464,5 +498,171 @@ describe("importing from Notion", () => {
   it("says rolling back sends the import's docs to the trash, where they can be restored", () => {
     expect(rollbackWords({ options: { pages: true } })).toMatch(/custom fields and tables.*Its docs go to the trash, with any pages added under them, where they can be restored\./)
     expect(rollbackWords({ options: {} })).not.toMatch(/docs|tables/)
+  })
+
+  it("says rolling back a Miro import deletes the boards it brought, with their pictures", () => {
+    expect(rollbackWords({ provider: "miro", options: {} })).toBe(
+      "This deletes the boards the import brought in, with their pictures. Boards your team has made, and anything else, stay.",
+    )
+  })
+
+  // The server's rollback takes an import's tables too (business/Import
+  // rollback.go): for a tool that brings nothing else, they are what goes.
+  it("says rolling back a tool that brings tables alone deletes its tables, with their files", () => {
+    withTables = true
+    discover = async () => []
+    jobs = [{ ...running, id: "t1", provider: "airtable", source_workspace_name: "Launch plan", status: "completed", chunks_done: 1 }]
+    render(<ImportCard />)
+    fireEvent.keyDown(screen.getByRole("button", { name: "More for Launch plan" }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Roll back" }))
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description:
+          "This deletes the tables the import brought in, with their files and any rows added to them since. Tables your team has made, and anything else, stay.",
+      }),
+    )
+  })
+})
+
+describe("importing Google Sheets", () => {
+  // Google Sheets has no list to pick from (the server answers its discover
+  // with no_discover, which reads as none): the admin pastes the addresses.
+  it("brings the spreadsheets pasted, and Start waits for one", async () => {
+    withTables = true
+    discover = async () => []
+    render(<ImportCard />)
+    const card = screen.getByRole("radio", { name: "Google Sheets" })
+    expect(card.textContent).toMatch(/Sheets as tables, dropdowns/)
+    fireEvent.click(card)
+    const box = await screen.findByLabelText("Spreadsheets to bring")
+    fireEvent.change(screen.getByLabelText("Workspace name"), { target: { value: "Launch budget" } })
+    const start = screen.getByRole("button", { name: "Start import" })
+    expect(start).toBeDisabled()
+
+    const budget = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0"
+    const vendors = "1qpyC0XzvTcKT6EISywvqESX3A0MwQoFDE8p-Bll4hps"
+    fireEvent.change(box, { target: { value: `${budget}\n${vendors}\n` } })
+    expect(start).toBeEnabled()
+    fireEvent.click(start)
+    await waitFor(() =>
+      expect(createImportJob).toHaveBeenLastCalledWith(
+        "gsheets",
+        expect.objectContaining({ source_workspace_name: "Launch budget", options: { spreadsheets: [budget, vendors], time_zone: browserTZ() } }),
+      ),
+    )
+  })
+})
+
+describe("a CSV of tasks", () => {
+  const csv = (name = "Launch plan.csv") => new File(["Name,Assignee\nShip it,Ana Lima\n"], name, { type: "text/csv" })
+  const pickCsv = () => {
+    withCsv = true
+    render(<ImportCard />)
+    fireEvent.click(screen.getByRole("radio", { name: "CSV file" }))
+  }
+  // The file field is the imports' drop zone (ImportDropZone): its button is the field's, its input hidden.
+  const fileInput = () => document.querySelector("[data-import-input]") as HTMLInputElement
+  const chooser = () => screen.getByRole("button", { name: "Choose a CSV file" })
+
+  it("is a file to upload, with no account to connect, and a mark of its own", () => {
+    pickCsv()
+    expect(screen.queryByText(/Not connected/)).toBeNull()
+    expect(screen.queryByRole("button", { name: /Connect/ })).toBeNull()
+    expect(fileInput().accept).toBe(".csv,text/csv")
+    // A file, not a vendor: ClickUp's "C" would be its initial.
+    const mark = screen.getByRole("radio", { name: "CSV file" }).querySelector('[data-source-mark="csv"]')
+    expect(mark?.querySelector("svg")).toBeTruthy()
+    expect(mark?.textContent).toBe("")
+  })
+
+  it("asks for a file, refuses one that isn't a CSV, and names the project from the file", () => {
+    pickCsv()
+    fireEvent.click(screen.getByRole("button", { name: /Start import/ }))
+    expect(screen.getByText("Choose the CSV file to import.")).toBeTruthy()
+    // Asked for at the field's own button, which the field's help and error describe.
+    expect(chooser()).toHaveFocus()
+    expect(chooser()).toHaveAccessibleDescription("Its first row names the columns. Choose the CSV file to import.")
+    fireEvent.change(fileInput(), { target: { files: [csv("notes.txt")] } })
+    expect(screen.getByText("notes.txt isn't a CSV file. Export the list as CSV, then choose that file.")).toBeTruthy()
+    expect(chooser()).toHaveAttribute("aria-invalid", "true")
+    fireEvent.change(fileInput(), { target: { files: [csv()] } })
+    expect((screen.getByLabelText("Project name") as HTMLInputElement).value).toBe("Launch plan")
+    expect(screen.queryByText(/isn't a CSV file/)).toBeNull()
+    expect(uploadImportFile).not.toHaveBeenCalled()
+  })
+
+  it("takes a file dropped on the field, as one chosen", () => {
+    pickCsv()
+    fireEvent.drop(screen.getByText("Drop a file here, or").parentElement!, { dataTransfer: { types: ["Files"], files: [csv()] } })
+    expect((screen.getByLabelText("Project name") as HTMLInputElement).value).toBe("Launch plan")
+    expect(screen.getByText(/^Launch plan\.csv, /)).toBeTruthy()
+  })
+
+  it("uploads the file under the project's name, with its progress, then opens its plan", async () => {
+    let finish: (v: { job_id: string }) => void = () => {}
+    uploadImportFile.mockImplementation(async (...a: unknown[]) => {
+      ;(a[4] as (p: number) => void)(40)
+      return new Promise<{ job_id: string }>((r) => (finish = r))
+    })
+    refetchJobs.mockResolvedValue({ jobs: [] })
+    pickCsv()
+    const file = csv()
+    fireEvent.change(fileInput(), { target: { files: [file] } })
+    fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "  Launch, Q4 " } })
+    fireEvent.click(screen.getByRole("button", { name: /Start import/ }))
+    await waitFor(() => expect(screen.getByText("Uploading 40%…")).toBeTruthy())
+    expect(uploadImportFile).toHaveBeenCalledWith("csv", file, "Launch, Q4", "backup_csv", expect.any(Function), expect.any(AbortSignal))
+    expect(screen.getByRole("button", { name: /Uploading/ }).getAttribute("aria-busy")).toBe("true")
+    finish({ job_id: "csv-1" })
+    // Not in the list it read back: it says where the import went.
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Import created" })))
+    expect(refetchJobs).toHaveBeenCalled()
+    expect((screen.getByLabelText("Project name") as HTMLInputElement).value).toBe("")
+  })
+
+  it("says why an upload failed, and keeps the file and name to try again", async () => {
+    uploadImportFile.mockRejectedValue({ response: { status: 413, data: { error: "That file is larger than this server takes." } } })
+    pickCsv()
+    fireEvent.change(fileInput(), { target: { files: [csv()] } })
+    fireEvent.click(screen.getByRole("button", { name: /Start import/ }))
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("That file is larger than this server takes."))
+    expect((screen.getByLabelText("Project name") as HTMLInputElement).value).toBe("Launch plan")
+    expect((screen.getByRole("button", { name: /Start import/ }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it("stops the upload when the panel goes", async () => {
+    let signal: AbortSignal | undefined
+    uploadImportFile.mockImplementation((...a: unknown[]) => {
+      signal = a[5] as AbortSignal
+      return new Promise<{ job_id: string }>(() => {})
+    })
+    pickCsv()
+    fireEvent.change(fileInput(), { target: { files: [csv()] } })
+    fireEvent.click(screen.getByRole("button", { name: /Start import/ }))
+    await waitFor(() => expect(signal).toBeTruthy())
+    fireEvent.click(screen.getByRole("radio", { name: "Jira" }))
+    expect(signal?.aborted).toBe(true)
+  })
+})
+
+// basecamp-46: the admin comes back from signing in at a provider, and the
+// card says how it went, picks that provider, and leaves the address clean.
+describe("coming back from signing in", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"))
+
+  it("says the provider is connected and picks it", async () => {
+    window.history.replaceState(null, "", "/app/admin?tab=import&connected=basecamp")
+    render(<ImportCard />)
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Basecamp connected" })))
+    expect(window.location.search).toBe("?tab=import")
+  })
+
+  it("says why it didn't connect, in words", async () => {
+    window.history.replaceState(null, "", "/app/admin?tab=import&connect_error=cancelled&provider=basecamp")
+    render(<ImportCard />)
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Basecamp wasn't connected", description: "The sign-in was cancelled, so nothing changed." })),
+    )
+    expect(window.location.search).toBe("?tab=import")
   })
 })

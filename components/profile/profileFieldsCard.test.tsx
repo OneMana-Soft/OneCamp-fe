@@ -24,11 +24,11 @@ const profile = {
 fetched.data.data = profile
 // The same answer on every render, as SWR gives.
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => fetched }))
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
+vi.mock("@/lib/utils/i18n", () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 vi.mock("@/components/dialog/appLanguageCombobox", () => ({ AppLanguageCombobox: () => null }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: vi.fn(async () => ({ data: {} })), post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: vi.fn(async () => ({ data: {} })), post } }))
 
 import { ProfileFieldsCard } from "./ProfileFieldsCard"
 

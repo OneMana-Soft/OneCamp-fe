@@ -7,7 +7,8 @@ import { useDispatch } from "react-redux";
 import { openUI, closeUI } from "@/store/slice/uiSlice";
 import { StandardReaction, SyncCustomReaction } from "@/types/reaction";
 import { app_chat_path } from "@/types/paths";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useCallback, useMemo } from "react";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -43,7 +44,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
     const dispatch = useDispatch();
 
-    const router = useRouter();
+    const router = useAppRouter();
 
     const copyToClipboard = useCopyToClipboard()
 

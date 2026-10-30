@@ -174,10 +174,12 @@ describe('the editor factory', () => {
     if (firstPackage >= 0) expect(firstPackage).toBeGreaterThan(lastBuiltIn)
   })
 
-  // A9's edit proposals are made by the AI edition's Ask AI bar alone, so this
-  // edition, which has nothing that makes one, carries them into no editor.
-  it("carries no edit proposals into any editor on this edition", () => {
-    for (const kind of ['doc', 'guest', 'chat', 'task'] as const) expect(specsFor(kind, ALL_EDITIONS).map((s) => s.id), kind).not.toContain('proposals')
+  // A9's edit proposals: on this edition people make them, by suggesting in a doc (C5, both editions),
+  // so the doc editor carries the plugin that draws and reviews them. Nothing here makes an AI's: no
+  // editor carries a part only the AI edition has (its Ask AI bar made them).
+  it("carries edit proposals for people's suggestions in a doc, and nothing only the AI edition has", () => {
+    expect(specsFor('doc', ALL_EDITIONS).map((s) => s.id)).toContain('proposals')
+    for (const kind of ['doc', 'guest', 'chat', 'task'] as const) expect(specsFor(kind, ALL_EDITIONS).filter((s) => s.edition !== 'both').map((s) => s.id), kind).toEqual([])
   })
 })
 

@@ -43,7 +43,10 @@ export function collabUrl(base: string): string {
 export const SOCKET_TIMING = {
   /** How long the socket stays open after the last doc leaves it. */
   idleMs: 60_000,
-  /** How long a reopened doc waits for the server to finish closing it. */
+  /**
+   * How long a reopened doc waits for the server to finish closing it, and how
+   * long a connection being replaced may take to close before it is let go.
+   */
   closeWaitMs: 3_000,
 }
 
@@ -52,8 +55,16 @@ const MESSAGE_CLOSE = 7
 
 type Deferred = { promise: Promise<boolean>; resolve: (closed: boolean) => void; timer: ReturnType<typeof setTimeout> }
 
+/** The provider's socket, which can also let go of a connection that will never finish closing. */
+class CollabSocket extends HocuspocusProviderWebsocket {
+  /** Takes the connection as closed, as the browser says it once it is: every doc on it hears the close. */
+  letGo() {
+    this.emit('close', { event: new CloseEvent('close', { code: 4408, reason: 'forced' }) })
+  }
+}
+
 interface SocketState {
-  socket: HocuspocusProviderWebsocket
+  socket: CollabSocket
   holds: number
   idle: ReturnType<typeof setTimeout> | null
   /** Doc names refused on a connection, with that connection's number. */
@@ -62,6 +73,10 @@ interface SocketState {
   closing: Map<string, Deferred>
   /** Whether the server has said a session (it speaks the A2 protocol); null while unknown. */
   speaksSession: boolean | null
+  /** When the server last sent anything on this socket (ms); 0 before it ever has. */
+  heardAt: number
+  /** A new connection being made (recycle): every doc that asks for one meanwhile gets this one. */
+  recycling: Promise<void> | null
 }
 
 let state: SocketState | null = null
@@ -101,16 +116,17 @@ function settleClosing(s: SocketState, name: string, closed: boolean) {
 }
 
 function create(): SocketState {
-  const socket = new HocuspocusProviderWebsocket({
+  const socket = new CollabSocket({
     // No fallback URL: an install that had not set it once opened a socket to
     // somebody else's server. An empty URL fails here, which is honest.
     url: collabUrl(process.env.NEXT_PUBLIC_COLLABORATION_URL || ''),
     // Opened by the first doc that needs it (holdCollabSocket), never at load.
     autoConnect: false,
   })
-  const s: SocketState = { socket, holds: 0, idle: null, refused: new Map(), closing: new Map(), speaksSession: null }
+  const s: SocketState = { socket, holds: 0, idle: null, refused: new Map(), closing: new Map(), speaksSession: null, heardAt: 0, recycling: null }
   // The server's answer to a closed doc: the name is free on this connection.
   socket.on('message', (event: { data: ArrayBuffer }) => {
+    s.heardAt = Date.now()
     const frame = peekFrame(event.data)
     if (frame && frame.type === MESSAGE_CLOSE && !socket.configuration.providerMap.has(frame.name)) settleClosing(s, frame.name, true)
   })
@@ -200,22 +216,42 @@ export function markClosing(name: string): void {
   s.closing.set(name, { promise, resolve, timer })
 }
 
-/** A new connection: closes the current one and opens another straight away. */
+/**
+ * A new connection: closes the current one and opens another straight away.
+ * A connection whose server answers nothing never finishes closing (the
+ * browser waits for the server's close), so after closeWaitMs it is taken as
+ * closed, as the browser would say it (every doc on it hears the close).
+ */
 function recycle(s: SocketState): Promise<void> {
   const socket = s.socket
   if (socket.status === 'disconnected') {
     connectIfIdle(s)
     return Promise.resolve()
   }
-  return new Promise((resolve) => {
+  if (s.recycling) return s.recycling
+  s.recycling = new Promise((resolve) => {
+    const letGo = setTimeout(() => socket.letGo(), SOCKET_TIMING.closeWaitMs)
     const onDisconnect = () => {
+      clearTimeout(letGo)
       socket.off('disconnect', onDisconnect)
+      s.recycling = null
       void socket.connect().catch(() => {})
       resolve()
     }
     socket.on('disconnect', onDisconnect)
     socket.disconnect()
   })
+  return s.recycling
+}
+
+/** Whether the server has sent anything on the tab's socket since `since` (ms). */
+export function collabSocketHeardSince(since: number): boolean {
+  return (state?.heardAt ?? 0) >= since
+}
+
+/** Replaces the tab's connection: for docs whose sign-in it never answered (lib/collabSession.ts). */
+export function recycleCollabSocket(): Promise<void> {
+  return recycle(current())
 }
 
 /**

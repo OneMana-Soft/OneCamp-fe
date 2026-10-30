@@ -13,15 +13,17 @@ import { pinTestClock } from "@/lib/testing/testClock"
 const fetchState = vi.hoisted(() => ({ value: { data: undefined as unknown, isLoading: false, isError: undefined as unknown, mutate: vi.fn() } }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => fetchState.value }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
-vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
+const dispatch = vi.hoisted(() => vi.fn())
+vi.mock("react-redux", () => ({ useDispatch: () => dispatch }))
 const post = vi.hoisted(() => vi.fn())
+const put = vi.hoisted(() => vi.fn())
 const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post, get: vi.fn(), put: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post, get: vi.fn(), put } }))
 
 import WebhooksCard from "@/components/admin/WebhooksCard"
 import WebhookDeleteDialog from "@/components/admin/WebhookDeleteDialog"
-import { deliveryState, eventChips, groupEvents, pausedWhy, shortUrl } from "@/components/admin/webhookParts"
+import { deliveryState, eventChips, groupEvents, pausedWhy, sendsNothingWhy, shortUrl, TICK_AN_EVENT } from "@/components/admin/webhookParts"
 
 const LONG = "https://hooks.integrations.example-company.com/services/T000/B000/very-long-secret-path/deploys"
 const hook = {
@@ -69,10 +71,62 @@ describe("a webhook row", () => {
     expect(events.innerHTML).not.toMatch(/camp-|hue-/)
   })
 
-  it("says every event when none are chosen", () => {
-    fetchState.value = { data: { webhooks: [{ ...hook, events: "[]" }] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+  // An outgoing webhook is sent only the kinds of event it names. One with none
+  // said "Every event" here and was sent nothing (V-112); the server refuses
+  // new ones now, and one kept from before says so, with Edit beside it.
+  it("says an outgoing webhook with no kinds sends nothing, and offers Edit", async () => {
+    expect(sendsNothingWhy({ type: "outgoing", events: "[]" })).toBe("Sends nothing: no kinds ticked.")
+    expect(sendsNothingWhy({ type: "outgoing" })).toBe("Sends nothing: no kinds ticked.")
+    expect(sendsNothingWhy({ type: "outgoing", events: '["post.created"]' })).toBeNull()
+    expect(sendsNothingWhy({ type: "incoming" })).toBeNull()
+
+    for (const events of ["[]", undefined]) {
+      dispatch.mockClear()
+      fetchState.value = { data: { webhooks: [{ ...hook, events }] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+      render(<WebhooksCard />)
+      expect(screen.queryByText("Every event")).toBeNull()
+      expect(document.querySelector('[data-webhook-notice="nokinds"]')?.textContent).toContain("Sends nothing: no kinds ticked.")
+      // Its switch waits for a kind too, on or off it is sent nothing, and says why in Create's words: focusable, and a press sends nothing.
+      const toggle = screen.getByRole("switch", { name: "CRM sync is on" })
+      expect(toggle.hasAttribute("disabled")).toBe(false)
+      expect(toggle.getAttribute("aria-disabled")).toBe("true")
+      expect(toggle.getAttribute("data-disabled-reason")).toBe(TICK_AN_EVENT)
+      put.mockClear()
+      fireEvent.click(toggle)
+      expect(toggle.getAttribute("aria-checked")).toBe("true")
+      expect(put).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole("button", { name: "Edit CRM sync" }))
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ key: "webhookEdit" }) }))
+      cleanup()
+    }
+
+    // An incoming webhook is sent nothing by design: no notice.
+    fetchState.value = { data: { webhooks: [{ ...hook, type: "incoming" as const, events: undefined }] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<WebhooksCard />)
-    expect(screen.getByText("Every event")).toBeTruthy()
+    expect(document.querySelector("[data-webhook-notice]")).toBeNull()
+    cleanup()
+
+    // One that names kinds keeps its switch: a press saves it off.
+    fetchState.value = { data: { webhooks: [hook] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<WebhooksCard />)
+    const own = screen.getByRole("switch", { name: "CRM sync is on" })
+    expect(own.getAttribute("aria-disabled")).toBeNull()
+    fireEvent.click(own)
+    await waitFor(() => expect(put).toHaveBeenCalledWith(expect.stringContaining("/w1"), expect.objectContaining({ is_active: false })))
+  })
+
+  // Edit opened the dialog without the webhook's scope, so it showed the whole
+  // workspace, and Save sent that: one set up for a channel was widened to
+  // every channel its owner can read (V-113).
+  it("opens Edit with the webhook's own scope", () => {
+    dispatch.mockClear()
+    fetchState.value = { data: { webhooks: [{ ...hook, scope_type: "channel", scope_entity_id: "c1" }] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<WebhooksCard />)
+    fireEvent.keyDown(screen.getByRole("button", { name: "More for CRM sync" }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }))
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ key: "webhookEdit", data: expect.objectContaining({ scope_type: "channel", scope_entity_id: "c1" }) }),
+    }))
   })
 
   it("says how the last delivery went", () => {
@@ -111,7 +165,7 @@ describe("a webhook row", () => {
         mutate,
       }
       render(<WebhooksCard />)
-      expect(document.querySelector("[data-webhook-paused]")?.textContent).toContain("its owner can't read the channel it's set up for")
+      expect(document.querySelector('[data-webhook-notice="paused"]')?.textContent).toContain("its owner can't read the channel it's set up for")
       fireEvent.click(screen.getByRole("button", { name: "Resume CRM sync" }))
       await waitFor(() => expect(mutate).toHaveBeenCalled())
       expect(post).toHaveBeenCalledWith("/admin/webhooks/w1/resume")

@@ -1,0 +1,33 @@
+{
+  "about": [
+    "The calls' fluidity budgets (calls A5, CALLS-11): an instant call's green room opened from Home. surfaces.mjs --only calls on a production build against the fake server side, its fixtures turning calls on, on a computer at 1x and a phone at 4x (CALLS-LEAD, 21 Oct 2026; the step is FLUIDITY-LEAD's, fluid-12).",
+    "measured is the median of 5 runs on beta 6c2bb4cad, every run BUSY (load 23 to 30 while the workstation ran other gates): times are provisional until a quiet rerun. Joining, to the first remote frame, needs a call server and is the perf harness's (design/calls-vs-zoom/perf-harness/join.mjs), not this run's.",
+    "Renders and bytes are enforced; times are printed against their max until they hold on a quiet P-core slot. Never raise a max to make a run pass."
+  ],
+  "budgets": {
+    "greenRoomMs": {
+      "scenario": "calls-fixtures",
+      "owner": "A5",
+      "source": "Home to an instant call's green room (/app/meet/instant) until its Start meeting can be pressed and its camera preview is drawn or starting. Beta 6c2bb4cad on fixtures, 21 Oct 2026, median of 5: 324 at 1x on a computer, 516 at 4x on a phone (load 23 to 30, BUSY). Target: the green room's button enabled within 1,500 ms on a computer at 1x and 3,000 ms on a phone at 4x (p75; design/calls-vs-zoom/perf-data/calls-budgets.proposed.json, PM-9)",
+      "cpu1": { "max": 1500, "target": 1500, "measured": 324 },
+      "cpu4": { "max": 3000, "target": 3000, "measured": 516 },
+      "enforce": false
+    },
+    "greenRoomRenders": {
+      "scenario": "calls-fixtures",
+      "owner": "A5",
+      "source": "Renders to open the green room from Home: most are the app's own around it, re-rendered on the route change. Beta 6c2bb4cad on fixtures, 21 Oct 2026, median of 5: 3607 at 1x on a computer, 3386 at 4x on a phone. Target: render only what changed (the fluidity method), Home's bar",
+      "cpu1": { "max": 3810, "target": 600, "measured": 3607 },
+      "cpu4": { "max": 3580, "target": 600, "measured": 3386 },
+      "enforce": true
+    },
+    "greenRoomKB": {
+      "scenario": "calls-fixtures",
+      "owner": "A5",
+      "source": "Script on the wire from Home until the green room can start a call, KB as served. Beta 6c2bb4cad on fixtures, 21 Oct 2026, median of 5: 364 at 1x on a computer, 359 at 4x on a phone. Target: the call's own code, about 170 KB (A5's lean call route, PM-5)",
+      "cpu1": { "max": 385, "target": 170, "measured": 364 },
+      "cpu4": { "max": 380, "target": 170, "measured": 359 },
+      "enforce": true
+    }
+  }
+}

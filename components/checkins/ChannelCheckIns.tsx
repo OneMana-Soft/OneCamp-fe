@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ErrorState } from "@/components/ui/error-state"
 import { TimeField } from "@/components/ui/date-field"
 import { Label } from "@/components/ui/label"
 import { useCheckIns } from "@/hooks/useCheckIns"
@@ -10,6 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Loader2, Pause, Play, Plus, Trash2 } from "@/lib/icons"
 import { DAY_LABELS, SUGGESTED_QUESTIONS, describeSchedule, nextLabel, type CheckIn, type CheckInInput } from "@/lib/checkins"
 import { cn } from "@/lib/utils/helpers/cn"
+import { zoneLabel } from "@/lib/utils/zones"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { clockTime } from "@/lib/utils/date/clock"
 
@@ -100,7 +102,7 @@ function CheckInForm({ editing, onSave, onCancel }: { editing?: CheckIn; onSave:
           <Label htmlFor="checkin-time">At</Label>
           <TimeField id="checkin-time" value={time} onChange={setTime} className="h-9 w-32" required />
         </div>
-        <p className="pb-2 text-xs text-muted-foreground">{tz}</p>
+        <p className="pb-2 text-xs text-muted-foreground">{zoneLabel(tz)}</p>
       </div>
       <p className="text-xs text-muted-foreground">
         Everyone in the channel is asked. The question is posted here and the answers go in its thread; people who are away get an email.
@@ -109,8 +111,7 @@ function CheckInForm({ editing, onSave, onCancel }: { editing?: CheckIn; onSave:
         <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" disabled={busy || !question.trim() || days.length === 0}>
-          {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+        <Button type="submit" size="sm" disabled={!question.trim() || days.length === 0} busy={busy}>
           {editing ? "Save" : "Set up check-in"}
         </Button>
       </div>
@@ -125,13 +126,17 @@ function CheckInForm({ editing, onSave, onCancel }: { editing?: CheckIn; onSave:
  */
 export function ChannelCheckIns({ channelId }: { channelId: string }) {
   const { toast } = useToast()
-  const { checkIns, canEdit, isLoading, create, edit, setPaused, remove, askNow } = useCheckIns(channelId)
+  const { checkIns, canEdit, isLoading, failed, retry, create, edit, setPaused, remove, askNow } = useCheckIns(channelId)
   const [form, setForm] = useState<{ editing?: CheckIn } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
   // The check-in a request is running for: its buttons wait, so a double
   // click can't ask everyone twice.
   const [pending, setPending] = useState<string | null>(null)
 
+  // The failure first: SWR's own retries load again with nothing held.
+  if (failed) {
+    return <ErrorState subject="check-ins" onRetry={retry} retrying={isLoading} />
+  }
   if (isLoading) {
     return (
       <div className="flex justify-center py-6">
@@ -177,7 +182,7 @@ export function ChannelCheckIns({ channelId }: { channelId: string }) {
             <li key={c.id} className="grid gap-1.5 rounded-lg border border-border/60 p-3">
               <p className="text-sm font-medium">{c.question}</p>
               <p className="text-xs text-muted-foreground">
-                {describeSchedule(c.days, c.time)} ({c.tz}){c.paused ? " · paused" : nextLabel(c.next_run_at) ? ` · next ${nextLabel(c.next_run_at)}` : ""}
+                {describeSchedule(c.days, c.time)} ({zoneLabel(c.tz)}){c.paused ? " · paused" : nextLabel(c.next_run_at) ? ` · next ${nextLabel(c.next_run_at)}` : ""}
               </p>
               {canEdit && (
                 <div className="flex flex-wrap items-center gap-1">

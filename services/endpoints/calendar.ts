@@ -4,16 +4,19 @@
  * own area's. An endpoint a second area comes to use moves to services/endPoints.ts
  * (app/endpointsShared.test.ts); scripts/endpoints/areas.mjs says which file is whose.
  */
-/* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum CalendarGet {
     GetBookingPages = "/event/bookingPages",
 }
 
 export enum CalendarPost {
-    FindTime = "/event/findTime",
+    // Ranked times in each person's own hours and zone, with reasons (calendar A3).
+    SuggestTimes = "/event/suggestTimes",
+    // People's kept working hours in their zones (calendar A3): {people: [...]}.
+    PeopleHours = "/event/hours",
     SaveBookingPage = "/event/bookingPages",
     DeleteBookingPage = "/event/bookingPages/delete",
     DeleteCalendarEvent = "/event/deleteEvent",
     LeaveEvent = "/event/leaveEvent",
+    UpdateCalendarEvent = "/event/updateEvent",
 }

@@ -93,6 +93,7 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
     let renderer: ReactRenderer<SuggestionListRef> | undefined
     let popup: TippyInstance | undefined
     let resized: ResizeObserver | undefined
+    let following = 0
     let editor: Editor | undefined
     let open = false
     let dismissed = false
@@ -111,6 +112,23 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
       openMenus.set(editor, Math.max(0, (openMenus.get(editor) ?? 0) + (next ? 1 : -1)))
       if (!next) clearComboboxAttributes(editor.view.dom)
       onOpenChange?.(next)
+    }
+
+    // Each frame while it shows, placed again if the typed text moved since the
+    // last: a phone's box settles by a slide on y, which neither a size change
+    // nor a scroll tells the menu of, and placed mid-slide the "/" menu stayed
+    // over the box's own row (DESIGN-BUILD-10's WM1, 24 Oct 2026). It rests
+    // once the text has kept still for a second; typing starts it again.
+    let still = 0
+    const follow = (last?: Pick<DOMRect, "top" | "left" | "bottom" | "right">) => {
+      cancelAnimationFrame(following)
+      following = requestAnimationFrame(() => {
+        const at = popup?.state.isVisible ? popup.props.getReferenceClientRect?.() : undefined
+        const moved = at && last && (at.top !== last.top || at.left !== last.left || at.bottom !== last.bottom || at.right !== last.right)
+        if (moved) popup?.popperInstance?.forceUpdate()
+        still = moved ? 0 : still + 1
+        if (popup && still < 60) follow(at ?? undefined)
+      })
     }
 
     const listProps = (props: SuggestionProps) => ({
@@ -145,12 +163,15 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
         // opens, and placed only while empty it stayed below the text, off the window.
         resized = new ResizeObserver(() => popup?.popperInstance?.forceUpdate())
         resized.observe(popup.popper)
+        follow()
         setOpen(!isEmpty?.(props))
       },
 
       onUpdate: (props: SuggestionProps) => {
         renderer?.updateProps(listProps(props))
         popup?.setProps({ getReferenceClientRect: () => props.clientRect?.() ?? props.editor.view.dom.getBoundingClientRect() })
+        still = 0
+        follow()
         show(props)
       },
 
@@ -171,6 +192,7 @@ export function suggestionPopup<P>({ component, extraProps, tippy: tippyOptions,
       onExit: () => {
         setOpen(false)
         resized?.disconnect()
+        cancelAnimationFrame(following)
         popup?.destroy()
         renderer?.destroy()
         popup = undefined

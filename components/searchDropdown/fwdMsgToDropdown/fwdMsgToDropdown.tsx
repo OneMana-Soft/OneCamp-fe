@@ -8,6 +8,8 @@ import type { ChannelAndUserListInterfaceReq, ChannelAndUserListInterfaceResp } 
 import {SearchableItem} from "@/types/search";
 import {FwdMsgToProfileAvatar} from "@/components/searchDropdown/fwdMsgToDropdown/fwdMsgToProfileAvatar";
 import {MultiSelectSearch} from "@/components/multiSelectSearch/multiSelectSearch";
+import { useState } from "react";
+import { MAX_FORWARD_PLACES, forwardCountNote } from "@/lib/chat/forwardLimit";
 
 interface ForwardMessageDropdownProps {
     onSelect?: (users: ChannelAndUserListInterfaceResp[]) => void
@@ -33,10 +35,14 @@ interface ForwardMessageSearchItem extends SearchableItem {
 export function ForwardMessageDropdown({
                                            onSelect,
                                            placeholder = "Search users, channels or groups…",
-                                           maxItems,
+                                           maxItems = MAX_FORWARD_PLACES,
                                            className,
                                        }: ForwardMessageDropdownProps) {
     const { makeRequest } = usePost()
+    // Counted under the picker, to the server's limit (DG4): at the limit
+    // the search stops taking more, and the note says why.
+    const [chosen, setChosen] = useState(0)
+    const note = forwardCountNote(chosen, maxItems)
 
     async function handleSearch(query: string): Promise<ForwardMessageSearchItem[]> {
         if (!query.trim()) return []
@@ -91,6 +97,7 @@ export function ForwardMessageDropdown({
     }
 
     function handleSelectItems(items: ForwardMessageSearchItem[]) {
+        setChosen(items.length)
         if (onSelect) {
             // Convert back to the original type expected by the parent component
             const convertedItems = items.map((item) => {
@@ -124,13 +131,18 @@ export function ForwardMessageDropdown({
     }
 
     return (
-        <MultiSelectSearch
-            onSearch={handleSearch}
-            onSelect={handleSelectItems}
-            renderItem={renderSearchItem}
-            placeholder={placeholder}
-            maxItems={maxItems}
-            className={className}
-        />
+        <div className="space-y-1" data-forward-picker="">
+            <MultiSelectSearch
+                onSearch={handleSearch}
+                onSelect={handleSelectItems}
+                renderItem={renderSearchItem}
+                placeholder={placeholder}
+                maxItems={maxItems}
+                className={className}
+            />
+            <p role="status" data-forward-count="" className="px-3 text-ui-sm text-ink-3">
+                {note}
+            </p>
+        </div>
     )
 }

@@ -5,10 +5,16 @@ import type { SlotProps } from "@/components/docEditor/registry/types"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { answerBlockMenu, type BlockMenuRequest } from "@/components/minimal-tiptap/extensions/block-commands/menuRequest"
 import { useBlockLinks } from "@/components/minimal-tiptap/extensions/block-link/useBlockLinks"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
+import { OverlayUnavailable } from "@/lib/lazy/overlayUnavailable"
 
 // The menu and the sheet load on first use; the host only listens.
-const BlockMenuPopover = React.lazy(() => import("./BlockMenuPopover"))
-const BlockSheet = React.lazy(() => import("./BlockSheet"))
+// The menu's code can't come (no network): it says so, as every lazy overlay does, and closes; the next open asks again.
+function MenuUnavailable({ onClose }: { onClose(refocus: boolean): void }) {
+  return <OverlayUnavailable title="Couldn't open block options" onClose={() => onClose(true)} />
+}
+const BlockMenuPopover = lazyPiece(() => import("./BlockMenuPopover"), { failed: MenuUnavailable })
+const BlockSheet = lazyPiece(() => import("./BlockSheet"), { failed: MenuUnavailable })
 
 /**
  * THE BLOCK MENU (B1; editor.md P0-3; content.md D10). The handle's ⋮⋮ click

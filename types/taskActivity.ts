@@ -42,9 +42,17 @@ export const taskActivityConst: Record<string, TaskActivityKey> = {
     "estimate": {
         "key": "updatedTaskEstimate",
     },
+    // A task's points on its project's scale (linear-05): an estimate too.
+    "points": {
+        "key": "updatedTaskEstimate",
+    },
     // A custom field's value: the activity's next state names the field.
     "fieldUpdate": {
         "key": "updatedTaskField",
+    },
+    // Its type (A8K): the next state names the type it has now.
+    "typeUpdate": {
+        "key": "updatedTaskType",
     },
     "subTaskAdd": {
         "key": "createSubTask",

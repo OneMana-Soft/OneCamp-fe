@@ -17,6 +17,9 @@ import * as React from "react"
 import Link from "next/link"
 import { ChevronLeft, Ellipsis } from "@/lib/icons"
 import { SaveDot, type SaveState } from "@/components/docEditor/SaveDot"
+import { docSaveState } from "@/components/docEditor/saveRule"
+import type { SessionStatus } from "@/lib/collabSession"
+import { movingByHand } from "@/lib/board/scene"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** One floating cluster: 40 px, pop, e3, r12, 4 px padding. */
@@ -159,7 +162,7 @@ export function BoardTitleCluster({
   menu: (trigger: React.ReactElement) => React.ReactNode
 }) {
   return (
-    <ChromeCluster label="Board" className="pr-1">
+    <ChromeCluster label="Board" className="min-w-0 pr-1">
       <Link
         href={backHref}
         aria-label="All boards"
@@ -174,7 +177,7 @@ export function BoardTitleCluster({
           View only
         </span>
       ) : null}
-      <SaveDot state={saveState} live className="mr-0.5" />
+      <SaveDot state={saveState} live thing="board" className="mr-0.5" />
       {menu(
         <ClusterButton label="More">
           <Ellipsis />
@@ -184,34 +187,72 @@ export function BoardTitleCluster({
   )
 }
 
-/** The save dot's state from the live connection. */
-export function boardSaveState(status: string, synced: boolean): SaveState {
-  if (status === "offline" || status === "disconnected") return "offline"
-  if (!synced) return "connecting"
-  return "saved"
+/**
+ * The save dot's state from the live connection, by a doc's own rule
+ * (docSaveState): offline when the device is, connecting until the first
+ * sync, reconnecting when the socket drops after it while the device is
+ * online, as the board's connection pill says. A board's session keeps
+ * `synced` through a reconnect (lib/collabSession), so it is also whether the
+ * board ever synced. It said "offline" for a dropped socket on a device that
+ * was online (VERIFY-LEAD-4, V-21).
+ */
+export function boardSaveState(status: SessionStatus, synced: boolean): SaveState {
+  return docSaveState({ live: true, collabStatus: status, synced, everSynced: synced })
 }
+
+/** Excalidraw's own drag threshold (its DRAGGING_THRESHOLD), in px: a press that travels less is a click. */
+const DRAG_THRESHOLD = 10
 
 /**
  * Marks the board's wrapper while a pointer is down on the canvas, so the
- * clusters fade (CSS, [data-board-drawing]). No state, no render.
+ * clusters fade (CSS, [data-board-drawing]); and once that press has
+ * travelled Excalidraw's drag threshold, as moving ([data-board-moving]), so
+ * the bar beside a selection steps aside until the release (miro-06) while a
+ * click never blinks it. A press off the canvas that Excalidraw moves by hand
+ * all the same (a frame's name, a label it draws beside its canvas) is known
+ * by the move itself: past the same threshold, Excalidraw's own marks
+ * (movingByHand) dim the chrome and send the bar aside alike (DB-44). No
+ * state, no render, no listening to the canvas's changes: its state is read
+ * on a movement of the press. `el` is the wrapper itself (a callback ref's
+ * state): the page draws a loading state first, so the wrapper comes later,
+ * and the listening starts then; `api` comes with the canvas.
  */
-export function useDrawingFade(ref: React.RefObject<HTMLElement | null>) {
+export function useDrawingFade(el: HTMLElement | null, api: { getAppState(): unknown } | null) {
   React.useEffect(() => {
-    const el = ref.current
     if (!el) return
+    // Where the press began, until it is a move; the move listener lives only that long.
+    let from: { x: number; y: number } | null = null
+    let onCanvas = false
+    const move = (e: PointerEvent) => {
+      if (!from || Math.hypot(e.clientX - from.x, e.clientY - from.y) < DRAG_THRESHOLD) return
+      // Off the canvas only Excalidraw's marks make it a move. It marks one as it handles a movement (paced by
+      // frames), so a press that passed the threshold first is a move at a later movement.
+      if (!onCanvas && !movingByHand(api?.getAppState())) return
+      el.dataset.boardDrawing = "true"
+      el.dataset.boardMoving = "true"
+      from = null
+      window.removeEventListener("pointermove", move)
+    }
     const down = (e: PointerEvent) => {
-      if ((e.target as HTMLElement | null)?.closest?.("canvas")) el.dataset.boardDrawing = "true"
+      onCanvas = !!(e.target as HTMLElement | null)?.closest?.("canvas")
+      if (onCanvas) el.dataset.boardDrawing = "true"
+      from = { x: e.clientX, y: e.clientY }
+      window.addEventListener("pointermove", move)
     }
     const up = () => {
+      from = null
+      window.removeEventListener("pointermove", move)
       if (el.dataset.boardDrawing) delete el.dataset.boardDrawing
+      if (el.dataset.boardMoving) delete el.dataset.boardMoving
     }
     el.addEventListener("pointerdown", down, true)
     window.addEventListener("pointerup", up)
     window.addEventListener("pointercancel", up)
     return () => {
       el.removeEventListener("pointerdown", down, true)
+      window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", up)
       window.removeEventListener("pointercancel", up)
     }
-  }, [ref])
+  }, [el, api])
 }

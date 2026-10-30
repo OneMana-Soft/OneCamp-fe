@@ -50,6 +50,19 @@ const group = {
     M.homeOpenBlankFrames = home?.blankFrames
     M.homeOpenCls = home?.cls
 
+    // ---- a query-only address write on Home, as a tab, a list's filter or
+    // the calendar's date writes one (history.replaceState, which Next's
+    // router follows). Nothing on Home reads the query, so nothing should
+    // render: every useRouter caller did, through LayoutRouterContext
+    // (PLATFORM-LEAD-2's navigation hook, 21 Oct 2026). The state is null,
+    // as an app's own write's is: Next passes a state carrying its own marker
+    // (__NA) straight through, without telling the router ----
+    const write = await h.step("queryWrite", {
+      act: () => page.evaluate(() => history.replaceState(null, "", `${location.pathname}?probe=1`)),
+      settle: 800,
+    })
+    M.queryWriteRenders = write?.renders
+
     // ---- the activity inbox, then down its rows by key ----
     const inbox = await h.step("inboxOpen", {
       act: () => h.visit(link("/app/inbox"), "/app/inbox"),
@@ -114,9 +127,21 @@ const group = {
       M.rendersPerSearchKey = search?.rendersPerKey
     }
 
-    // ---- Settings ----
+    // ---- Settings: the way a person goes ----
+    // On a computer from the profile menu's Settings (opened untimed first):
+    // where that leads is the build's own (live pushes /app/settings, which
+    // replaces itself with the profile page; 706270aa3 goes straight there).
+    // On a phone, the settings list (/app/settings).
+    let toSettings = () => h.push("/app/settings")
+    if (!h.phone) {
+      const item = page.getByRole("menuitem", { name: /^Settings\b/ }).first()
+      await h.press(page.getByRole("button", { name: "Profile and settings" }).first())
+      await item.waitFor({ timeout: 10000 })
+      await page.waitForTimeout(300)
+      toSettings = () => h.press(item)
+    }
     const settings = await h.step("settingsOpen", {
-      act: () => h.push("/app/settings"),
+      act: toSettings,
       ready: () => h.ready({ sel: "[data-split-view='-1'] h1, [data-split-view='-1'] h2, [data-app-scroller] h1, [data-app-scroller] h2, [data-large-title]", path: "/app/settings" }, { timeout: 20000 }),
       blank: MAIN,
       settle: 1200,
@@ -135,7 +160,8 @@ const group = {
         else await page.keyboard.press("Shift+?")
       },
       ready: () => h.ready({ sel: "[role=dialog], [data-vaul-drawer], [role=menu]" }, { timeout: 10000 }),
-      frames: true,
+      // Its entry: 500 ms from its first paint (a phone sheet's slide is 500 ms).
+      frames: { from: "ready", ms: 500 },
       settle: 800,
     })
     M.overlayOpenMs = overlay?.ready

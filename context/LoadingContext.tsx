@@ -3,6 +3,7 @@
 import React, { createContext, useState, useEffect, useSyncExternalStore } from 'react';
 import { cn } from "@/lib/utils/helpers/cn";
 import {loadingBus} from "@/lib/utils/loadingBus";
+import { heldOnServer, holdStore } from "@/lib/holdStore";
 
 interface LoadingContextType {
   activeRequests: number;
@@ -15,14 +16,7 @@ const LoadingContext = createContext<LoadingContextType | undefined>(undefined);
 // How many sheet bars are on screen. While one is, the window-wide fallback
 // stays away: the bar belongs on the sheet's edge (design v3, shell §L2), and
 // the window's top is only for the moments with no sheet (the splash).
-let sheetBars = 0;
-const sheetBarListeners = new Set<() => void>();
-const notifySheetBars = () => sheetBarListeners.forEach((l) => l());
-const subscribeSheetBars = (l: () => void) => {
-  sheetBarListeners.add(l);
-  return () => sheetBarListeners.delete(l);
-};
-const sheetBarMounted = () => sheetBars > 0;
+const sheetBars = holdStore();
 
 /** Whether a wait is in progress, from the app's HTTP client. */
 function useLoadingBus(): boolean {
@@ -33,7 +27,7 @@ function useLoadingBus(): boolean {
 
 export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const active = useLoadingBus();
-  const onSheet = useSyncExternalStore(subscribeSheetBars, sheetBarMounted, () => false);
+  const onSheet = useSyncExternalStore(sheetBars.subscribe, sheetBars.held, heldOnServer);
 
   return (
     <LoadingContext.Provider value={{ activeRequests: active ? 1 : 0, startRequest: () => {}, endRequest: () => {} }}>
@@ -84,14 +78,7 @@ function ProgressSweep({ shown, className }: { shown: boolean; className?: strin
 export function SheetProgressBar({ className }: { className?: string }) {
   const active = useLoadingBus();
   const shown = useShownAfterDelay(active);
-  useEffect(() => {
-    sheetBars++;
-    notifySheetBars();
-    return () => {
-      sheetBars--;
-      notifySheetBars();
-    };
-  }, []);
+  useEffect(() => sheetBars.hold(), []);
   return <ProgressSweep shown={shown} className={className} />;
 }
 

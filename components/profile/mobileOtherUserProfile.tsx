@@ -1,5 +1,6 @@
 "use client"
 
+import { LazyConnected } from "@/components/workGraph/LazyConnected"
 import { addressOrHandleOf, displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
@@ -194,6 +195,9 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 <MessageSquare className="h-4 w-4" />
                                 {isBot ? botCopy.action : "Message"}
                             </Button>
+                        )}
+                        {profileInfo.data?.data && !isSelf && (
+                            <LazyConnected kind="person" id={userUUID} title={profileInfo.data.data.user_full_name || profileInfo.data.data.user_name} showLabel className="mt-2 h-11 w-full max-w-[200px]" />
                         )}
                         {profileInfo.data?.data && isExternal && !isBot && (
                             <div className="mt-6 flex w-full max-w-[260px] flex-col items-center gap-3">

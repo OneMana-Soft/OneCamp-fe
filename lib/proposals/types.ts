@@ -58,6 +58,8 @@ export interface EditProposal {
   note?: string
   author_kind: ProposalAuthorKind
   author_uuid: string
+  /** The author's display name, as the doc's list gives it; absent for the AI, or someone with no name set. */
+  author_name?: string
   /** For an agent: the person who asked it. */
   asker_uuid?: string
   run_id?: string
@@ -69,7 +71,7 @@ export interface EditProposal {
   updated_at?: string
 }
 
-/** An inline AI rewrite before it is accepted: it lives only in this tab. */
+/** A proposal before it is kept (an inline AI rewrite, a suggestion being written): it lives only in this tab. */
 export interface EphemeralProposal {
   id: string
   anchor: Anchor
@@ -77,6 +79,8 @@ export interface EphemeralProposal {
   base: JSONContent[]
   proposed: JSONContent[]
   hunks: ProposalHunk[]
+  /** Who is making it, for how it is drawn: a person's suggestion in green, the AI's in its own tint. */
+  author_kind?: ProposalAuthorKind
 }
 
 /** One piece of a word diff, for the review view. */

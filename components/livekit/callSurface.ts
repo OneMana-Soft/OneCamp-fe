@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils/helpers/cn"
 /** The class that gives a call's portalled overlay the stage's dark surface. */
 export const CALL_SURFACE = "dark"
 
+/** The ink of what sits on the stage over a board or a tile, as a tile's own controls wear it. */
+export const STAGE_OVERLAY = "rounded-[8px] bg-[rgb(11_12_14/0.72)] text-[#EEEEF0]"
+
 /** A toast the call raises, on the call's dark surface. */
 export function callToast(t: Parameters<typeof toast>[0]): ReturnType<typeof toast> {
   return toast({ ...t, className: cn(CALL_SURFACE, t.className) })

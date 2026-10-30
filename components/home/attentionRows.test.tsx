@@ -7,8 +7,14 @@ vi.mock("@/lib/celebrate", async (orig) => ({ ...(await orig<typeof import("@/li
 // A DM partner who is a bot: OneCamp AI is an AI bot, the check-in bot is not.
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKind: (id?: string, isBot?: boolean) => (isBot ? (id === "u-ai" ? "assistant" : "checkin") : undefined) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
+// The shared toast, read back: what it says and the Undo it offers.
+type Toasted = { title?: string; description?: string; action?: { props: { onClick: () => void; altText?: string } } }
+const toast = vi.hoisted(() => vi.fn<(t: Toasted) => void>())
+vi.mock("@/hooks/use-toast", async (orig) => ({ ...(await orig<object>()), useToast: () => ({ toast }) }))
 
 const { NeedsMeSection } = await import("@/components/home/NeedsMeSection")
+const { NeedsGoneContext, useNeedsGoneState } = await import("@/components/home/needsGone")
+const { GlanceLine, glanceOf } = await import("@/components/home/GlanceLine")
 const { groupNeeds, tasksToNeeds, mentionsToNeeds, dmsToNeeds } = await import("@/components/home/needsMe")
 import type { NeedsItem } from "@/components/home/needsMe"
 import { warmBursts } from "@/lib/celebrateSoon"
@@ -22,6 +28,8 @@ beforeAll(async () => {
 afterEach(() => {
   cleanup()
   celebrateOnce.mockClear()
+  toast.mockReset()
+  vi.useRealTimers()
 })
 
 const task = (id: string, extra: Partial<NeedsItem> = {}): NeedsItem => ({ id: `task:${id}`, kind: "due", title: `Task ${id}`, status: "todo", due: "Due today", taskUuid: id, ...extra })
@@ -109,6 +117,162 @@ describe("acting in place", () => {
     expect(onDone).toHaveBeenCalledTimes(1)
   })
 
+  // design-01: the shared list keys (lib/listKeys), as tasks and boards have them.
+  it("moves between rows with J and K or the arrows, and opens one with Enter or O", () => {
+    const opened = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {})
+    const { container } = render(<NeedsMeSection items={[mention, task("1", { href: "/app/task/1" }), task("2", { href: "/app/task/2" })]} />)
+    const rows = [...container.querySelectorAll<HTMLElement>("[data-needs-kind]")]
+    rows[0].focus()
+    fireEvent.keyDown(rows[0], { key: "j" })
+    expect(document.activeElement).toBe(rows[1])
+    fireEvent.keyDown(rows[1], { key: "ArrowDown" })
+    expect(document.activeElement).toBe(rows[2])
+    fireEvent.keyDown(rows[2], { key: "j" })
+    expect(document.activeElement).toBe(rows[2])
+    fireEvent.keyDown(rows[2], { key: "k" })
+    expect(document.activeElement).toBe(rows[1])
+    fireEvent.keyDown(rows[1], { key: "Enter" })
+    expect(opened).toHaveBeenCalledTimes(1)
+    expect((opened.mock.contexts[0] as HTMLAnchorElement).getAttribute("href")).toBe("/app/task/1")
+    fireEvent.keyDown(rows[1], { key: "o" })
+    expect(opened).toHaveBeenCalledTimes(2)
+    opened.mockRestore()
+  })
+
+  it("offers Undo after Done, which puts the task back as it was", async () => {
+    const onDone = vi.fn().mockResolvedValue(undefined)
+    const onUndoDone = vi.fn().mockResolvedValue(undefined)
+    const one = task("1")
+    const { container } = render(<NeedsMeSection items={[one, task("2")]} onDone={onDone} onUndoDone={onUndoDone} />)
+    await act(async () => fireEvent.keyDown(container.querySelector('[data-needs-kind="due"]') as HTMLElement, { key: "e" }))
+    expect(container.querySelectorAll("[data-needs-kind]")).toHaveLength(1)
+    const said = toast.mock.calls.at(-1)![0]
+    expect(said.title).toBe("Done")
+    expect(said.description).toBe("Task 1")
+    expect(said.action?.props.altText).toBe("Undo")
+    await act(async () => said.action!.props.onClick())
+    expect(onUndoDone).toHaveBeenCalledWith(one)
+    expect(container.querySelectorAll("[data-needs-kind]")).toHaveLength(2)
+  })
+
+  it("holds a dismissal for the Undo's while, so Undo sends nothing", async () => {
+    vi.useFakeTimers()
+    const onDismiss = vi.fn().mockResolvedValue(undefined)
+    const { container } = render(<NeedsMeSection items={[agent, task("1")]} onDismiss={onDismiss} />)
+    const row = () => container.querySelector('[data-needs-kind="agent"]') as HTMLElement | null
+    await act(async () => fireEvent.keyDown(row()!, { key: "d" }))
+    expect(row()).toBeNull()
+    expect(onDismiss).not.toHaveBeenCalled()
+    await act(async () => toast.mock.calls.at(-1)![0].action!.props.onClick())
+    expect(row()).not.toBeNull()
+    await act(async () => void vi.advanceTimersByTime(10_000))
+    expect(onDismiss).not.toHaveBeenCalled()
+    // Dismissed and left alone: told once the Undo has gone.
+    await act(async () => fireEvent.keyDown(row()!, { key: "d" }))
+    await act(async () => void vi.advanceTimersByTime(10_000))
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it("tells the server of a held dismissal when Home goes away first", async () => {
+    vi.useFakeTimers()
+    const onDismiss = vi.fn().mockResolvedValue(undefined)
+    const { container, unmount } = render(<NeedsMeSection items={[agent]} onDismiss={onDismiss} />)
+    await act(async () => fireEvent.keyDown(container.querySelector('[data-needs-kind="agent"]') as HTMLElement, { key: "d" }))
+    unmount()
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it("offers no Undo after Approve: the agent has acted", async () => {
+    const onApprove = vi.fn().mockResolvedValue(undefined)
+    const { container } = render(<NeedsMeSection items={[agent]} onApprove={onApprove} />)
+    await act(async () => fireEvent.keyDown(container.querySelector('[data-needs-kind="agent"]') as HTMLElement, { key: "a" }))
+    expect(onApprove).toHaveBeenCalledTimes(1)
+    expect(toast.mock.calls.some(([t]) => t.action)).toBe(false)
+  })
+
+  // The greeting's line above said "1 overdue" after the overdue task was
+  // done (DESIGN-BUILD-3): Home's line and its list read one state.
+  it("takes a done task off the greeting's count, and Undo puts it back", async () => {
+    const onDone = vi.fn().mockResolvedValue(undefined)
+    const onUndoDone = vi.fn().mockResolvedValue(undefined)
+    const items = [task("1", { overdue: true }), task("2")]
+    function Home() {
+      const page = useNeedsGoneState()
+      const { counts } = glanceOf(page.shown)
+      return (
+        <NeedsGoneContext.Provider value={page}>
+          <p data-testid="line">
+            {counts.tasksDue + counts.overdue} due, {counts.overdue} overdue
+          </p>
+          <NeedsMeSection items={items} onDone={onDone} onUndoDone={onUndoDone} />
+        </NeedsGoneContext.Provider>
+      )
+    }
+    const { container } = render(<Home />)
+    expect(screen.getByTestId("line").textContent).toBe("2 due, 1 overdue")
+    await act(async () => fireEvent.keyDown(container.querySelector('[data-needs-kind="due"]') as HTMLElement, { key: "e" }))
+    expect(screen.getByTestId("line").textContent).toBe("1 due, 0 overdue")
+    await act(async () => toast.mock.calls.at(-1)![0].action!.props.onClick())
+    expect(screen.getByTestId("line").textContent).toBe("2 due, 1 overdue")
+  })
+
+  // DESIGN-BUILD-3 (21 Oct 2026): the line counted "1 task · 1 mention" over
+  // the list's loading rows. The list tells the page what it shows, and the
+  // line says that: it waits while the list does, and it never says nothing
+  // needs you over a row in the list.
+  it("keeps the line waiting while the list draws its loading rows, then says what the list shows", () => {
+    const next = { title: "Launch sync", time: "11:00" }
+    function Home({ items, loading = false }: { items: NeedsItem[]; loading?: boolean }) {
+      const page = useNeedsGoneState()
+      const g = glanceOf(page.shown)
+      return (
+        <NeedsGoneContext.Provider value={page}>
+          <GlanceLine loading={g.loading} failed={g.failed} counts={g.counts} unnamed={g.unnamed} next={next} />
+          <NeedsMeSection items={items} loading={loading} />
+        </NeedsGoneContext.Provider>
+      )
+    }
+    const view = render(<Home items={[mention, task("1")]} loading />)
+    expect(screen.getByRole("status", { name: "Counting what needs you" })).toBeTruthy()
+    view.rerender(<Home items={[mention, task("1")]} />)
+    expect(document.querySelector("[data-glance]")?.textContent).toBe("1 task due today · 1 mention waiting · Next: Launch sync at 11:00")
+    // A DM waiting, which the line leaves to the list: never "Nothing needs you".
+    const dm: NeedsItem = { id: "dm:g1", kind: "reply", title: "Maya Chen", person: { id: "u-maya", name: "Maya Chen" } }
+    view.rerender(<Home items={[dm]} />)
+    expect(document.querySelector("[data-glance]")?.textContent).toBe("Next up: Launch sync at 11:00.")
+    view.rerender(<Home items={[]} />)
+    expect(document.querySelector("[data-glance]")?.textContent).toBe("Nothing needs you. Next up: Launch sync at 11:00.")
+  })
+
+  // At 390 the mention's title lost its channel ("#en…") and its words ended
+  // "Thurs…" at 1280: both take up to two lines.
+  it("lets a task's title take two lines, as a mention's does", () => {
+    const { container } = render(<NeedsMeSection items={[task("1", { title: "Write the launch announcement for the press" })]} />)
+    const title = container.querySelector('[data-needs-kind="due"] [data-hub-title]') as HTMLElement
+    expect(title.className.split(" ")).toContain("line-clamp-2")
+  })
+
+  it("lets a mention's title and words take two lines", () => {
+    const { container } = render(<NeedsMeSection items={[mention]} onReply={vi.fn()} />)
+    const row = container.querySelector('[data-needs-kind="reply"]') as HTMLElement
+    const title = screen.getByText(mention.title).closest("[data-hub-title]") as HTMLElement
+    const words = row.querySelector("[data-hub-second]") as HTMLElement
+    for (const el of [title, words]) {
+      expect(el.className.split(" ")).toContain("line-clamp-2")
+      expect(el.className.split(" ")).not.toContain("truncate")
+    }
+  })
+
+  // "Reply R" offered an R on a phone with no keyboard: key hints carry the
+  // shared rule's mark (app/globals.css), which hides them there.
+  it("marks its key hints for the shared rule that hides them without a keyboard", async () => {
+    const { container } = render(<NeedsMeSection items={[mention]} onReply={vi.fn()} />)
+    const r = screen.getByRole("button", { name: /Reply/ }).querySelector(".kbd") as HTMLElement
+    expect(r.hasAttribute("data-kbd-hint")).toBe(true)
+    await act(async () => fireEvent.keyDown(container.querySelector('[data-needs-kind="reply"]') as HTMLElement, { key: "r" }))
+    expect(screen.getByText("↵ send · Esc close").hasAttribute("data-kbd-hint")).toBe(true)
+  })
+
   it("celebrates once, only when the last row is cleared in this session", async () => {
     const empty = render(<NeedsMeSection items={[]} />)
     expect(screen.getByText("Nothing needs you right now")).toBeTruthy()
@@ -138,6 +302,10 @@ describe("without AI", () => {
       ["Book the retro", true],
       ["Write the launch announcement", false],
     ])
+    // The status each was in, as the task list keeps it, for Done's Undo.
+    expect(tasks.map((t) => t.statusValue)).toEqual(["todo", "inprogress"])
+    const custom = tasksToNeeds([{ task_uuid: "t5", task_name: "Proof", task_status: "inprogress", task_custom_status: "cs-proof", task_due_date: now.toISOString() }] as never, now)
+    expect(custom[0].statusValue).toBe("cs-proof")
     const mentions = mentionsToNeeds(
       [
         {
@@ -151,5 +319,23 @@ describe("without AI", () => {
       now,
     )
     expect(mentions[0]).toMatchObject({ title: "Jonas mentioned you in #engineering", quote: "@You look" })
+  })
+})
+
+describe("an approval waiting for me", () => {
+  it("links to its item and says what is asked, by when and where, leaving the answer to the item's card", () => {
+    const row: NeedsItem = {
+      id: "approval:a1", kind: "approval", title: "Launch copy", quote: "Is the copy final?", person: { id: "u-cy", name: "Cy Park" },
+      due: "Was due 22 Oct", overdue: true, project: { id: "p1", name: "Q4 launch" }, href: "/app/task/t1", taskUuid: "t1", projectUuid: "p1",
+    }
+    // Groups are labelled once there are two of them.
+    render(<NeedsMeSection items={[row, task("1")]} />)
+    expect(screen.getByText("Approvals")).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Launch copy" }).getAttribute("href")).toBe("/app/task/t1")
+    const shown = document.querySelector('[data-needs-kind="approval"]')!
+    expect(shown.textContent).toContain("Is the copy final?")
+    expect(shown.textContent).toContain("Was due 22 Oct")
+    expect(shown.textContent).toContain("Q4 launch")
+    expect(shown.querySelector("button")).toBeNull()
   })
 })

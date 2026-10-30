@@ -34,6 +34,7 @@ import { sanitizeImportedDocument } from "@/lib/sanitizeHtml"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import axiosInstance from "@/lib/axiosInstance"
+import { workspaceLogoURL } from "@/services/workspaceLogo"
 
 interface EmailConfigResponse {
   has_logo: boolean
@@ -235,10 +236,7 @@ const EmailSettingsCard = () => {
     }
   }
 
-  const getPublicLogoUrl = () => {
-    const backendDomain = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000"
-    return `${backendDomain}/public/email/logo?ts=${logoTs}`
-  }
+  const getPublicLogoUrl = () => `${workspaceLogoURL()}?ts=${logoTs}`
 
   // Safe URL for preview so anchor tags don't break. Built from this install's
   // own address; it was hard-coded to ours, so every customer's preview showed

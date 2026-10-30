@@ -46,7 +46,7 @@ describe("Input's height", () => {
 
   it("keeps any height the caller writes without a breakpoint", () => {
     for (const h of ["h-7", "h-10", "h-[30px]", "!h-8"]) {
-      expect(inputSizing(`w-full ${h} px-2`, false)).toBe("max-md:h-11")
+      expect(inputSizing(`w-full ${h} px-2`, false)).toBe("max-md:h-11 pointer-coarse:h-11")
     }
   })
 
@@ -56,7 +56,23 @@ describe("Input's height", () => {
     const c = classesOf(screen.getByRole("textbox", { name: "Email" }))
     expect(c).toEqual(expect.arrayContaining(["h-11", "md:h-10"]))
     expect(c).not.toContain("md:h-9")
-    expect(inputSizing("sm:h-8", false)).toBe("h-11 md:h-8")
+    expect(inputSizing("sm:h-8", false)).toBe("h-11 md:h-8 pointer-coarse:h-11")
+  })
+
+  // DESIGN-BUILD-3, 21 Oct: held sideways a phone is 844px wide, so its fields
+  // were 32px, under a finger's 44. The pointer decides, as for tooltips: a
+  // touch screen's fields are 44px at any width, a mouse's keep 32px from md.
+  it("is 44px under a finger at any width, a caller's own height too, but not in a dense grid", () => {
+    render(
+      <>
+        <Input aria-label="Name" />
+        <Input aria-label="Filter" className="h-8 w-40" />
+        <Input dense aria-label="Cell" className="h-7" />
+      </>,
+    )
+    expect(classesOf(screen.getByRole("textbox", { name: "Name" }))).toContain("pointer-coarse:h-11")
+    expect(classesOf(screen.getByRole("textbox", { name: "Filter" }))).toContain("pointer-coarse:h-11")
+    expect(classesOf(screen.getByRole("textbox", { name: "Cell" }))).not.toContain("pointer-coarse:h-11")
   })
 
   it("lets a field in a dense grid or a compound control keep its height at every width", () => {

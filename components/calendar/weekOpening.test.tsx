@@ -57,12 +57,15 @@ describe("a week grid's first scroll", () => {
     expect(scroller().scrollTop).toBe(topAt(7))
   })
 
-  it("hides the hour label beside now on today's week only", () => {
+  // Hidden on screen beside now's pill (data-[beside-now]:invisible), and
+  // drawn, so that paper, which has no pill, prints every hour.
+  it("hides the hour label beside now on today's week only, and keeps it for print", () => {
     week([])
-    expect(screen.queryByText("8 AM")).toBeNull()
+    expect(screen.getByText("8 AM").hasAttribute("data-beside-now")).toBe(true)
+    expect(screen.getByText("9 AM").hasAttribute("data-beside-now")).toBe(false)
     cleanup()
     render(<WeekView weekStart={addDays(monday, 7)} events={[]} tasks={[]} showEvents showTasks onEventClick={vi.fn()} onTaskClick={vi.fn()} />)
-    expect(screen.getByText("8 AM")).toBeTruthy()
+    expect(screen.getByText("8 AM").hasAttribute("data-beside-now")).toBe(false)
   })
 })
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
 import ts from "typescript"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * THE OVERLAY FOOTER GUARD (design/drawers-v3/ANALYSIS.md §5.6). Every
@@ -21,7 +22,9 @@ import ts from "typescript"
  *
  * Read from the source with TypeScript's parser: each overlay content element
  * in app/ and components/ (outside components/ui), what it renders, and the
- * names it renders from this file or a file it imports (two files deep). The
+ * names it renders from this file or a file it imports (two files deep); a
+ * components/ui part that hands a content all its props is read as that
+ * content (contentsByOtherNames). The
  * overlays not yet moved are PENDING, by area: the list may only shrink. A
  * file that keeps the rules must leave it, and no file may join it.
  */
@@ -55,7 +58,6 @@ const PENDING: Record<string, string[]> = {
     "components/dialog/createTaskDialog.tsx",
     "components/goals/GoalDialog.tsx",
     "components/project/ProjectFieldsDialog.tsx",
-    "components/project/ProjectFormsDialog.tsx",
     "components/project/ProjectRatesDialog.tsx",
     "components/project/ProjectShareDialog.tsx",
     "components/project/ProjectStatusesDialog.tsx",
@@ -66,7 +68,6 @@ const PENDING: Record<string, string[]> = {
   "docs and tables": [
     "app/app/templates/page.tsx",
     "components/docEditor/history/HistorySheet.tsx",
-    "components/docTemplates/TemplatePicker.tsx",
     "components/marketplace/PublishTemplateDialog.tsx",
   ],
   "chat and people": [
@@ -240,21 +241,9 @@ function scanContent(rel: string, root: ts.Node, el: ts.JsxOpeningLikeElement, c
   return findings
 }
 
-function files(dir: string): string[] {
-  const out: string[] = []
-  for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
-    const p = join(dir, e.name)
-    if (e.isDirectory()) {
-      if (e.name === "node_modules" || e.name.startsWith(".")) continue
-      out.push(...files(p))
-    } else if (e.name.endsWith(".tsx") && !e.name.endsWith(".test.tsx")) out.push(p)
-  }
-  return out
-}
-
 function scanAll(): Finding[] {
   const findings: Finding[] = []
-  for (const rel of [...files("app"), ...files("components")].filter((f) => !f.startsWith("components/ui/"))) {
+  for (const rel of sourceFiles(["app", "components"], /\.tsx$/).filter((f) => !f.startsWith("components/ui/"))) {
     const ctx = parse(relative(ROOT, join(ROOT, rel)))
     if (!ctx) continue
     const visit = (n: ts.Node) => {
@@ -266,6 +255,25 @@ function scanAll(): Finding[] {
   }
   return findings
 }
+
+/**
+ * Contents under other names: a components/ui part that closes a content on
+ * all its own props (`<PopoverContent {...props} … />`), children among them,
+ * is that content, as BesideBlockContent is for the cards that stand by a
+ * block. Read as one, a card moved into it stays checked (V-60).
+ */
+function contentsByOtherNames(): string[] {
+  const names: string[] = []
+  const handsOn = (n: ts.Node): boolean =>
+    (ts.isJsxSelfClosingElement(n) && CONTENT.has(tagOf(n)) && n.attributes.properties.some((a) => ts.isJsxSpreadAttribute(a) && ts.isIdentifier(a.expression))) ||
+    !!ts.forEachChild(n, (ch) => handsOn(ch) || undefined)
+  for (const rel of sourceFiles(["components/ui"], /\.tsx$/)) {
+    const ctx = parse(rel)
+    if (ctx) for (const [name, body] of ctx.local) if (/^[A-Z]/.test(name) && !("alias" in body) && handsOn(body)) names.push(name)
+  }
+  return names
+}
+for (const name of contentsByOtherNames()) CONTENT.add(name)
 
 /** What the guard finds in a file's text: its own check, run on a planted copy. */
 function findingsIn(rel: string, source: string): string[] {
@@ -303,5 +311,14 @@ describe("overlay footers", () => {
     const scrolling = source.replace('className="hub-pop w-[360px]', 'className="hub-pop max-h-[var(--radix-popover-content-available-height)] overflow-y-auto w-[360px]')
     expect(scrolling).not.toBe(source)
     expect(findingsIn("components/dialog/updateUserStatusDialog.tsx", scrolling).join("\n")).toMatch(/with a footer scrolls itself/)
+  })
+
+  it("would see a Done planted in the event card, whose content goes by another name (BesideBlockContent)", () => {
+    const rel = "components/calendar/eventPopover.tsx"
+    const source = readFileSync(join(ROOT, rel), "utf8")
+    expect(findingsIn(rel, source), "the event card, as it is").toEqual([])
+    const planted = source.replace("<EventCard event={event} info={info} titleId={titleId}", "<Button onClick={onClose}>Done</Button><EventCard event={event} info={info} titleId={titleId}")
+    expect(planted).not.toBe(source)
+    expect(findingsIn(rel, planted).join("\n")).toMatch(/a primary action in what scrolls/)
   })
 })

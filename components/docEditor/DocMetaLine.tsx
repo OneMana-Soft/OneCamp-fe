@@ -4,7 +4,7 @@ import * as React from 'react'
 import type { Editor } from '@tiptap/react'
 import { cn } from '@/lib/utils/helpers/cn'
 import { useDocCounts } from '@/components/docEditor/docCounts'
-import { useRelativeTime } from '@/hooks/useRelativeTime'
+import { midSentence, useRelativeTime } from '@/hooks/useRelativeTime'
 import { useDocBus } from '@/components/docEditor/registry/commandBus'
 import { usePresence } from '@/components/docEditor/presence/store'
 
@@ -64,8 +64,7 @@ export const DocMetaLine = React.memo(function DocMetaLine({ editor, authorName,
     const by = theirs && (Object.values(presence!.people).filter((p) => p.name.split(/\s+/)[0] === first).length > 1 ? theirs.name : first)
     const parts = [
         authorName ? <span key="a" className="hover:text-ink-2">{authorName}</span> : null,
-        // Mid-sentence: "Edited yesterday", not "Edited Yesterday".
-        edited ? <span key="e">Edited {edited.replace(/^(Just|Yesterday)/, (w) => w.toLowerCase())}{by ? ` by ${by}` : ""}</span> : null,
+        edited ? <span key="e">Edited {midSentence(edited)}{by ? ` by ${by}` : ""}</span> : null,
         minutes > 0 ? <span key="m">{minutes} min read</span> : null,
     ].filter(Boolean)
     if (!parts.length) return null

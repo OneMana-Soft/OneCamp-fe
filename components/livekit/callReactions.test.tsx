@@ -11,17 +11,19 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function fakeRoom() {
+function fakeRoom(o: { metadata?: string; attributes?: Record<string, string> } = {}) {
   const handlers = new Set<(...a: unknown[]) => void>()
   const publishData = vi.fn().mockResolvedValue(undefined)
   return {
     room: {
       on: (ev: string, fn: (...a: unknown[]) => void) => (ev === RoomEvent.DataReceived && handlers.add(fn), undefined),
       off: (ev: string, fn: (...a: unknown[]) => void) => (handlers.delete(fn), undefined),
-      localParticipant: { identity: "sam", name: "Sam Rivera", publishData },
+      metadata: o.metadata,
+      localParticipant: { identity: "sam", name: "Sam Rivera", publishData, attributes: o.attributes ?? {} },
     },
     publishData,
-    receive: (payload: Uint8Array, from: { identity: string; name?: string } | undefined, topic?: string) => handlers.forEach((h) => h(payload, from, undefined, topic)),
+    receive: (payload: Uint8Array, from: { identity: string; name?: string; attributes?: Record<string, string> } | undefined, topic?: string) =>
+      handlers.forEach((h) => h(payload, from, undefined, topic)),
   }
 }
 
@@ -42,6 +44,20 @@ describe("useCallReactions", () => {
     act(() => f.receive(encodeSignal("reaction", { emoji: "<b>hi</b>" }), { identity: "leo", name: "Leo" }, CALL_SIGNAL_TOPIC))
     act(() => f.receive(encodeSignal("reaction", { emoji: "😮" }), undefined, CALL_SIGNAL_TOPIC))
     expect(result.current.shown.map((r) => `${r.emoji} ${r.name}`)).toEqual(["🎉 Maya Chen", "👍 Priya"])
+  })
+
+  it("drops a held sender's reaction on every screen, and a held sender's own, while who runs the call and who was let through react (meet-12)", () => {
+    const f = fakeRoom({ metadata: JSON.stringify({ held: ["react"] }), attributes: { "oc.role": "participant" } })
+    const { result } = renderHook(() => useCallReactions(f.room as never))
+    const send = (emoji: string, identity: string, attributes: Record<string, string>) =>
+      act(() => f.receive(encodeSignal("reaction", { emoji }), { identity, name: identity, attributes }, CALL_SIGNAL_TOPIC))
+    send("🎉", "leo", { "oc.role": "participant" })
+    send("👍", "maya", { "oc.role": "host" })
+    send("😮", "gia", { "oc.role": "guest" })
+    send("👏", "kai", { "oc.role": "participant", "oc.allowed": "react" })
+    act(() => result.current.send("😂"))
+    expect(result.current.shown.map((r) => `${r.emoji} ${r.name}`)).toEqual(["👍 maya", "👏 kai"])
+    expect(f.publishData).not.toHaveBeenCalled()
   })
 
   it("takes one from a person at a time, and lets each go after three seconds", () => {

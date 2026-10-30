@@ -1,11 +1,11 @@
-import { readFileSync, readdirSync, statSync } from "node:fs"
-import { join } from "node:path"
+import { readFileSync } from "node:fs"
 import { act, cleanup, render } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { CAMP_HUES, hueFor } from "@/lib/campHue"
 import { projectHue, setProjectOrder, shareProjectHues } from "@/lib/projectHue"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * One project tile (owner's decision, 12 Oct 2026). A project was a letter
@@ -71,15 +71,7 @@ describe("a project's own hue", () => {
 
 // --- The source: one primitive draws every project, in its own hue.
 
-function files(path: string): string[] {
-  const s = statSync(path)
-  if (s.isFile()) return [path]
-  if (/node_modules|\.next|test-results/.test(path)) return []
-  return readdirSync(path).flatMap((name) => files(join(path, name)))
-}
-const sources = ["app", "components", "hooks", "lib"]
-  .flatMap(files)
-  .filter((f) => /\.(tsx?|css)$/.test(f) && !/\.test\.tsx?$/.test(f))
+const sources = sourceFiles(["app", "components", "hooks", "lib"], /\.(tsx?|css)$/)
 const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
 
 const PRIMITIVE = "components/ui/graphics/ProjectTile.tsx"

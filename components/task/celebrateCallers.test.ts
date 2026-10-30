@@ -28,8 +28,8 @@ const ALLOWED = new Set([
   "components/project/ProjectHeaderLine.tsx",
   "components/task/cyclesSwitcher.tsx",
   "components/guest/GuestReview.tsx",
-  "app/f/[token]/page.tsx",
-  "app/f/[token]/IntakeForm.tsx",
+  // A form sent: the spark is its pages' Sent badge, for app/f/[token].
+  "components/forms/FormPages.tsx",
   // The other v3 waves' finishes, met at the integration (11 Oct): a board's
   // vote closing on its winner (content), a booking confirmed (content), the
   // last item of a doc's checklist ticked (content), your first reaction on a

@@ -23,7 +23,6 @@ import {usePost} from "@/hooks/usePost";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {clearFwdMsgInputState, createOrUpdateFwdMsg} from "@/store/slice/fwdMessageSlice";
-import { LoaderCircle } from "@/lib/icons";
 import {Skeleton} from "@/components/ui/skeleton";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
@@ -164,9 +163,8 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, groupChatMsgID, channe
                 </div>
                 <DialogFooter>
                     <Button onClick={clickFwdMessage}
-                    disabled={isSubmitting || selectedUsersOrChannels.length == 0 || isPreviewLoading}
+                    disabled={selectedUsersOrChannels.length == 0 || isPreviewLoading} busy={isSubmitting}
                     >
-                        {isSubmitting && <LoaderCircle className="h-4 w-4 animate-spin"/>}
                         Forward
                     </Button>
                 </DialogFooter>

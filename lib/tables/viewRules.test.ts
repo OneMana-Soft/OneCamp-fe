@@ -1,5 +1,25 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { applyViewRules, fitRules, keepInSight, loadViewRules, NO_RULES, saveViewRules, searchRows, type ViewRules } from "@/lib/tables/viewRules"
+import {
+  filterCount,
+  filterDepth,
+  filterRules,
+  fitRules,
+  groupingOf,
+  keepInSight,
+  loadViewRules,
+  ME,
+  namesMe,
+  NO_RULES,
+  readViewRules,
+  saveViewRules,
+  searchRows,
+  type FilterEntry,
+  type FilterGroup,
+  type FilterRule,
+  type ViewRules,
+  withGroups,
+} from "@/lib/tables/viewRules"
+import { applyViewRules, keptReason } from "@/lib/tables/applyRules"
 import { filterKind } from "@/lib/fieldTypes/registry"
 import type { TableField, TableRow } from "@/services/tableService"
 
@@ -151,6 +171,59 @@ describe("a field whose type changes", () => {
   })
 })
 
+// Tables V4: a view's filters nest in groups, three deep and fifty in all, as
+// the server's spec takes them (business/QuerySpec MaxFilterDepth, MaxConditions).
+describe("groups of filters, as a browser or a saved view keeps them", () => {
+  const has = (value: string): FilterRule => ({ field: "item", op: "contains", value })
+
+  it("reads the flat filters kept before there were groups as they were", () => {
+    const flat = { sort: [{ field: "cost", dir: "asc" }], filters: [has("a"), { field: "paid", op: "checked" }], match: "any" }
+    expect(readViewRules(flat, fields)).toEqual(flat)
+  })
+
+  it("keeps groups three deep, the view's own list the first, and drops any deeper", () => {
+    const kept = { match: "any", filters: [has("1"), { match: "all", filters: [has("2"), { match: "any", filters: [has("3")] }] }] }
+    expect(readViewRules({ filters: [kept] }, fields).filters).toEqual([
+      { match: "any", filters: [has("1"), { match: "all", filters: [has("2")] }] },
+    ])
+    // A group that says neither matches all.
+    expect(readViewRules({ filters: [{ match: "most", filters: [has("1")] }] }, fields).filters).toEqual([{ match: "all", filters: [has("1")] }])
+  })
+
+  it("keeps fifty filters, every group's together, in the order they're kept", () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => has(String(i)))
+    const read = readViewRules({ filters: [...thirty, { match: "any", filters: thirty }] }, fields).filters
+    expect(read).toHaveLength(31)
+    expect(read.slice(0, 30)).toEqual(thirty)
+    expect(read[30]).toEqual({ match: "any", filters: thirty.slice(0, 20) })
+  })
+
+  it("keeps rules that fit as they were, and drops a group none of whose filters fits any more", () => {
+    const either: FilterGroup = { match: "any", filters: [has("booth"), { field: "paid", op: "checked" }] }
+    const costly: FilterGroup = { match: "all", filters: [{ field: "cost", op: "gt", value: "500" }] }
+    const r = rules({ filters: [either, costly] })
+    expect(fitRules(r, fields)).toBe(r)
+    // Item becomes a number, which has no "contains": the group keeps the filter that still fits.
+    const retyped = fields.map((f) => (f.id === "item" ? { ...f, type: "number" as const } : f))
+    const fitted = fitRules(r, retyped)
+    expect(fitted.filters).toEqual([{ match: "any", filters: [{ field: "paid", op: "checked" }] }, costly])
+    expect(fitted.filters[1]).toBe(costly)
+    // Paid goes too: the group is left with no filter, so it goes.
+    expect(fitRules(r, retyped.filter((f) => f.id !== "paid")).filters).toEqual([costly])
+  })
+
+  it("finds every filter in its groups: how many, how deep they go, and whether one names me", () => {
+    const deep: FilterEntry[] = [has("1"), { match: "any", filters: [has("2"), { match: "all", filters: [has("3"), { field: "owners", op: "contains", value: ME }] }] }]
+    expect(filterRules(deep).map((r) => r.value)).toEqual(["1", "2", "3", ME])
+    expect(filterCount(deep)).toBe(4)
+    expect(filterDepth(deep)).toBe(3)
+    expect(namesMe(deep)).toBe(true)
+    expect(filterDepth([has("1")])).toBe(1)
+    expect(filterDepth([])).toBe(1)
+    expect(namesMe([has("1"), { match: "any", filters: [has("me")] }])).toBe(false)
+  })
+})
+
 // TAB-BUG-14: a row added where the view's rules hide it, or sort it away from
 // where it was added, stays in sight, last, until the person moves on.
 describe("a new row the view would hide or move", () => {
@@ -184,6 +257,30 @@ describe("a new row the view would hide or move", () => {
   })
 })
 
+// Tables T5c: a view read in windows comes ruled from the server and keeps a
+// row added here at its end, so why that row is out of place is read from
+// the row alone, with applyViewRules' meaning.
+describe("why a row kept at a windowed view's end is out of place", () => {
+  it("says the filter would hide it, before anything a sort says", () => {
+    const r = rules({ filters: [{ field: "item", op: "contains", value: "o" }], sort: [{ field: "item", dir: "asc" }] })
+    expect(keptReason(row("new", { item: "Aardvark" }), fields, r)).toBe("filter")
+    expect(keptReason(row("new", { item: "Oboe" }), fields, r)).toBe("sort")
+  })
+
+  it("says a sort puts it elsewhere, unless every key it sorts by is blank: blanks sort last, where it is", () => {
+    const r = rules({ sort: [{ field: "item", dir: "asc" }, { field: "cost", dir: "desc" }] })
+    expect(keptReason(row("new", { item: "Aardvark" }), fields, r)).toBe("sort")
+    expect(keptReason(row("new", { cost: 5 }), fields, r)).toBe("sort")
+    expect(keptReason(row("new", { item: " \u00a0 " }), fields, r)).toBeNull()
+    expect(keptReason(row("new", {}), fields, r)).toBeNull()
+  })
+
+  it("says nothing with no rules, or with rules on fields gone", () => {
+    expect(keptReason(row("new", { item: "x" }), fields, NO_RULES)).toBeNull()
+    expect(keptReason(row("new", { item: "x" }), fields, rules({ sort: [{ field: "gone", dir: "asc" }], filters: [{ field: "gone", op: "contains", value: "z" }] }))).toBeNull()
+  })
+})
+
 // TAB-BUG-8 in the filter box: a typed filter value was read by deleting its
 // commas, so "Cost is 1,5" filtered for 15. It's read now as a number cell
 // reads what's typed, in the reader's locale (en-US in these tests).
@@ -201,3 +298,50 @@ describe("a number filter's typed value", () => {
   })
 })
 
+
+// Tables V2b: up to three levels of groups lead a view's order. A view without
+// groups has none at all, so a saved view and the rules shown compare alike.
+describe("a view's groups, as a browser or a saved view keeps them", () => {
+  afterEach(() => localStorage.clear())
+  const withStage = [...fields, field("stage", "select", { options: [{ label: "Won" }] }), field("made", "created_time")]
+
+  it("keeps three groups by fields that group, a date's period, and nothing else", () => {
+    const read = readViewRules(
+      {
+        groups: [
+          { field: "stage", dir: "asc" },
+          { field: "due", dir: "desc", granularity: "week" },
+          { field: "cost", dir: "asc", granularity: "fortnight" },
+          { field: "paid", dir: "asc" },
+        ],
+      },
+      withStage,
+    )
+    expect(read.groups).toEqual([{ field: "stage", dir: "asc" }, { field: "due", dir: "desc", granularity: "week" }, { field: "cost", dir: "asc" }])
+    // Text, a list, a link, people and a formula giving text don't group yet; a period fits a date alone.
+    for (const g of [{ field: "item" }, { field: "tags" }, { field: "vendor" }, { field: "status" }, { field: "cost", granularity: "month" }])
+      expect(readViewRules({ groups: [{ dir: "asc", ...g }] }, withStage)).toEqual(NO_RULES)
+    expect(readViewRules({ groups: [{ field: "total", dir: "asc" }, { field: "made", dir: "asc", granularity: "year" }] }, withStage).groups).toHaveLength(2)
+    expect(readViewRules({ groups: "stage" }, withStage)).toEqual(NO_RULES)
+  })
+
+  it("drops a group whose field is gone or no longer groups, and keeps rules that fit as they were", () => {
+    const r = rules({ groups: [{ field: "stage", dir: "asc" }, { field: "paid", dir: "desc" }] })
+    expect(fitRules(r, withStage)).toBe(r)
+    expect(fitRules(r, withStage.filter((f) => f.id !== "stage"))).toEqual(rules({ groups: [{ field: "paid", dir: "desc" }] }))
+    expect(fitRules(r, withStage.map((f) => (f.id === "paid" || f.id === "stage" ? { ...f, type: "text" as const } : f)))).toEqual(NO_RULES)
+  })
+
+  it("remembers them, and forgets the rules once groups are cleared too", () => {
+    const grouped = rules({ groups: [{ field: "stage", dir: "desc" }] })
+    saveViewRules("t", grouped)
+    expect(loadViewRules("t", withStage)).toEqual(grouped)
+    saveViewRules("t", withGroups(grouped, []))
+    expect(localStorage.getItem("onecamp:tableView:t")).toBeNull()
+  })
+
+  it("leaves no groups behind when the last goes, and names a grouping by its fields and periods", () => {
+    expect(withGroups(rules({ groups: [{ field: "stage", dir: "asc" }] }), [])).toEqual(NO_RULES)
+    expect(groupingOf([{ field: "stage", dir: "asc" }, { field: "due", dir: "desc", granularity: "month" }])).toBe("stage|due:month")
+  })
+})

@@ -140,6 +140,14 @@
   min-height: 1.5rem;
 }
 
+/* A GIF or picture in the phone's box is at most 88px tall, so it and the
+   words around it show whole in the box's 156px (DESIGN-BUILD-10's M2: the
+   box showed half a 200px GIF, the words scrolled out above it; at 96px a
+   line above it still lost its top pixel). */
+.phone-composer-editor {
+  --editor-image-max-h: 88px;
+}
+
 /* The phone composer's words (C48): 16/24, the iOS zoom floor, one line at
    rest. */
 .phone-composer-editor .ProseMirror {

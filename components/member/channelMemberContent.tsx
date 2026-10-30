@@ -1,5 +1,6 @@
 "use client"
 import {useFetch} from "@/hooks/useFetch";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
 import {ChannelInfoInterfaceResp, ChannelMemberUpdateInterface} from "@/types/channel";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { PeopleGet } from "@/services/endpoints/people";
@@ -15,7 +16,8 @@ import {useDispatch} from "react-redux";
  * Details sheet (components/channel/details).
  */
 export function useChannelMembers(channelId: string) {
-    const channelInfo = useFetch<ChannelInfoInterfaceResp>(channelId ? PeopleGet.ChannelMemberInfoWithAdminFlagInfo + '/' + channelId : '')
+    // Its reader, the Details sheet, says a failed read in place.
+    const channelInfo = useFetch<ChannelInfoInterfaceResp>(channelId ? PeopleGet.ChannelMemberInfoWithAdminFlagInfo + '/' + channelId : '', undefined, undefined, OWN_ERRORS)
     const post = usePost()
 
     const dispatch = useDispatch()

@@ -14,8 +14,8 @@ vi.mock("@/components/docEditor/registry/gate", () => ({ useEditionGate: () => (
 // What B6's page actions do, heard here: Delete is doc.trash (chrome/contributions.ts).
 const { trash } = vi.hoisted(() => ({ trash: vi.fn() }))
 vi.mock("@/components/docEditor/chrome/actions", () => ({ trash, toggleStar: vi.fn(), duplicate: vi.fn() }))
-vi.mock("@/lib/export/contentIO", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/export/contentIO")>()),
+vi.mock("@/lib/export/contentIOCapabilities", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/export/contentIOCapabilities")>()),
   knownCapabilities: () => null,
   loadCapabilities: async () => null,
 }))
@@ -24,7 +24,9 @@ import { DocOptionsDrawer } from "./docOptionsDrawer"
 // B6's page actions, which the doc page's guard offers once drawn (Delete among them).
 import { offerPageActions } from "@/components/docEditor/chrome/contributions"
 import { createDocCommandBus, holdBus, provideActionContext } from "@/components/docEditor/registry/commandBus"
+import { registerAction } from "@/components/docEditor/registry/registry"
 import type { ActionContext } from "@/components/docEditor/registry/types"
+import { Pin } from "@/lib/icons"
 
 offerPageActions()
 
@@ -70,6 +72,18 @@ describe("the phone's doc sheet", () => {
       fireEvent.click(screen.getByRole("button", { name: /Back/ }))
     })
     expect(rows()).toContain("Export…")
+  })
+
+  // 22 Oct, the interaction polish's e2e: a sheet opened before the page's
+  // guard offered its actions had no Delete, and never gained it.
+  it("gains an action that registers while it is open, as More does", () => {
+    page({ owner: true, canShare: true, desktop: false })
+    sheet()
+    expect(rows()).not.toContain("Pin to Home")
+    act(() => {
+      registerAction({ id: "test.pin", label: "Pin to Home", icon: Pin, group: "doc", surfaces: ["phoneSheet"], edition: "both", run: () => {} })
+    })
+    expect(rows()).toContain("Pin to Home")
   })
 
   it("offers Share only to someone the page lets share, and Copy link to a reader", () => {

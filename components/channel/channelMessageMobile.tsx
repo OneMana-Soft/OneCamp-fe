@@ -12,7 +12,7 @@ import { setChannelReplyTarget } from "@/store/slice/channelSlice"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
 import { app_channel_path } from "@/types/paths"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useCallback, useMemo, memo } from "react"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -55,7 +55,7 @@ const ChannelMessageMobileComponent = ({
                                        }: ChannelMessageProps) => {
     const dispatch = useDispatch()
 
-    const router = useRouter()
+    const router = useAppRouter()
 
     const copyToClipboard = useCopyToClipboard()
 

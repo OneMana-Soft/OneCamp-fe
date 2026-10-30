@@ -99,17 +99,19 @@ describe("a request that can't reach the workspace", () => {
 
   it("says the demo couldn't be reached, not that the network erred", async () => {
     offline()
-    expect(await AuthService.loginAsDemo()).toEqual({ ok: false, msg: "Couldn't reach the demo. Check your connection and try again." })
+    // Status 0: nothing answered, which the page waits out (a deploy's restart)
+    // before it shows this, so it doesn't blame the visitor's connection.
+    expect(await AuthService.loginAsDemo()).toEqual({ ok: false, status: 0, msg: "Couldn't reach the demo. Try again in a minute." })
   })
 
-  it("says what the demo's own refusals mean", async () => {
+  it("says what the demo's own refusals mean, with their status", async () => {
     const answer = (status: number) => vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status, json: async () => ({}) }) as unknown as Response))
     answer(404)
-    expect((await AuthService.loginAsDemo()).msg).toBe("There's no demo on this server.")
+    expect(await AuthService.loginAsDemo()).toEqual({ ok: false, status: 404, msg: "There's no demo on this server." })
     answer(403)
-    expect((await AuthService.loginAsDemo()).msg).toBe("The demo is turned off right now.")
+    expect(await AuthService.loginAsDemo()).toEqual({ ok: false, status: 403, msg: "The demo is turned off right now." })
     answer(503)
-    expect((await AuthService.loginAsDemo()).msg).toBe("The demo isn't available right now. Try again in a few minutes.")
+    expect(await AuthService.loginAsDemo()).toEqual({ ok: false, status: 503, msg: "The demo isn't available right now. Try again in a few minutes." })
   })
 
   it("says a refused code didn't work, and to check it, when the server gives no words", async () => {

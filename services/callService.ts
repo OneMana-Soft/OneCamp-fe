@@ -1,7 +1,9 @@
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { publicCall } from "@/services/publicApi"
-import type { CallTranscription } from "@/components/livekit/callState"
+import { doorPath, type GuestDoor } from "@/services/guestDoor"
+import type { CallBoard, CallTranscription } from "@/components/livekit/callState"
 import type { CallAction } from "@/lib/calls/control"
+import type { CallHold } from "@/lib/calls/holds"
 
 // The calls' own requests, from the CALLS-FE ↔ CALLS-BE contract
 // (design/calls-vs-zoom/P0.md, 13 Oct) and Call State's (17 Oct): turning
@@ -55,7 +57,10 @@ export function callReadKeyOf(state: unknown): string {
  * Asks for something the people running a call may do (business/CallControl).
  * The caller says a refusal in the server's words.
  */
-export async function actInCall(sessionId: string, act: { action: CallAction; identity?: string; source?: string; on?: boolean }): Promise<{ affected: number }> {
+export async function actInCall(
+    sessionId: string,
+    act: { action: CallAction; identity?: string; source?: string; on?: boolean; what?: CallHold; feedback?: string; ticket?: string; board?: string; draw?: CallBoard["draw"]; rooms?: string[]; room?: number; minutes?: number; text?: string },
+): Promise<{ affected: number }> {
     const res = await axiosInstance.post(`/calls/${encodeURIComponent(sessionId)}/act`, act, OWN_ERRORS)
     return (res.data as { data?: { affected: number } })?.data ?? { affected: 0 }
 }
@@ -109,9 +114,15 @@ export async function newInstantMeetingLink(meetingId: string, revokePrevious: b
 
 // --- Guests (no account) ---
 
-/** Joining from a guest link, with the guest's language for the server's agent. A 403 is a removal. */
-export const joinGuestMeetingAs = (token: string, displayName: string, language?: string) =>
-    publicCall<{ token: string; room: string }>(`/guest/meet/${encodeURIComponent(token)}/join`, {
+/** Joining as a guest at a door, in their language. 403 is a removal, a ticket a lobby (guestKnock), 401 "locked" a room's passcode. */
+export const joinGuestMeetingAs = (door: GuestDoor, displayName: string, language?: string) =>
+    publicCall<{ token?: string; room?: string; ticket?: string }>(doorPath(door, "/join"), {
         method: "POST",
-        body: JSON.stringify({ display_name: displayName, audio_enabled: true, video_enabled: true, ...(language ? { language } : {}) }),
+        body: JSON.stringify({
+            display_name: displayName,
+            audio_enabled: true,
+            video_enabled: true,
+            ...(language ? { language } : {}),
+            ...(door.invitation ? { invitation: door.invitation } : {}),
+        }),
     })

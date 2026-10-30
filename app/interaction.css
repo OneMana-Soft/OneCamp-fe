@@ -16,10 +16,10 @@
 
    Plain CSS like phone.css, imported after globals.css and before phone.css
    (app/layout.tsx), so the phone's own press still wins on touch. Defaults
-   sit in @layer components, under every utility; the reduced-motion rule is
-   unlayered. A cue rides in Tailwind's composed box-shadow
-   (--tw-inset-ring-shadow), so it adds to a control's own elevation instead
-   of replacing it. */
+   sit in @layer components, under every utility; the disabled primary and
+   the reduced-motion rule are unlayered. A cue rides in Tailwind's composed
+   box-shadow (--tw-inset-ring-shadow), so it adds to a control's own
+   elevation instead of replacing it. */
 
 @property --ix-a {
   syntax: "<percentage>";
@@ -32,6 +32,13 @@
   initial-value: 0px;
 }
 @property --ix-fade-e {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+/* A held row's height, on each item that makes room for it (lib/ui/makeRoom):
+   not inherited, so setting it restyles that item alone. */
+@property --room {
   syntax: "<length>";
   inherits: false;
   initial-value: 0px;
@@ -160,8 +167,10 @@ body {
   }
   /* A tone a state takes when it isn't the accent: danger for a destructive
      control, success for one that restores or resolves, white for a control
-     over a photo or a video, and a darker shade of itself for the primary
-     button. */
+     over a photo or a video, a darker shade of itself for the primary button,
+     and ink beside an orange action, where the accent would make a second
+     orange thing: a time list's chosen time (as a day is chosen in ink), a
+     trigger while what it opened is up (Reschedule beside Schedule). */
   [data-interactive][data-tone="danger"] {
     --ix-tint: var(--destructive);
     --ix-mark: var(--danger-ink);
@@ -183,14 +192,24 @@ body {
     --ix-hover-a: 8%;
     --ix-press-a: 14%;
   }
+  /* Neutral: a pick or an open section's toggle, which isn't an action, so
+     its hover halo and its mark take the ink, never the accent (design
+     review, 20 Oct: orange is for actions). The ink follows the theme. */
+  [data-interactive][data-tone="neutral"] {
+    --ix-tint: var(--ink);
+    --ix-mark: var(--ink);
+  }
 
   /* HOVER, where a pointer can hover, and never on the outer of two nested
-     interactive things. Dense lists tint at once and fade out. */
+     interactive things. Dense lists tint at once and fade out. Nothing a
+     moving list carries under a resting pointer tints or shows its tools
+     until the list settles (lib/ui/scrollState's data-list-moving), read
+     against the element's own attribute so only those restyle. */
   @media (hover: hover) {
-    [data-interactive]:hover:not([data-interactive="card"], [data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"], [data-interactive="block"], [data-interactive="toggle"], [data-interactive="cell"], [data-interactive="item"], [aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"]):not(:has([data-interactive]:hover)) {
+    [data-interactive]:hover:not([data-interactive="card"], [data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"], [data-interactive="block"], [data-interactive="toggle"], [data-interactive="cell"], [data-interactive="item"], [aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"]):not(:has([data-interactive]:hover)):where(:not([data-list-moving] [data-interactive])) {
       --ix-a: var(--ix-hover-a);
     }
-    :is([data-interactive="message"], [data-interactive="row"][data-quiet]):hover:not([aria-disabled="true"]):not(:has([data-interactive]:hover)) {
+    :is([data-interactive="message"], [data-interactive="row"][data-quiet]):hover:not([aria-disabled="true"]):not(:has([data-interactive]:hover)):where(:not([data-list-moving] [data-interactive])) {
       --ix-a: var(--ix-hover-quiet-a);
     }
     /* The current tab or place doesn't tint under the pointer: it is already there. */
@@ -199,7 +218,7 @@ body {
     }
     /* A menu row the pointer is on is highlighted, as the keyboard's is;
        a list whose one pill slides to the row (CommandList) draws it there. */
-    [data-interactive="item"]:hover:not([aria-disabled="true"], [data-disabled=""], [data-disabled="true"], :disabled) {
+    [data-interactive="item"]:hover:not([aria-disabled="true"], [data-disabled=""], [data-disabled="true"], :disabled):where(:not([data-list-moving] [data-interactive])) {
       --ix-a: var(--ix-press-a);
     }
     [data-menu-cursor] ~ [data-interactive="item"]:hover {
@@ -232,6 +251,15 @@ body {
   [data-interactive="item"]:is([data-highlighted], [data-selected="true"], [data-state="open"]):not([aria-disabled="true"], [data-disabled=""], [data-disabled="true"]),
   [data-interactive]:is([data-interactive="button"], [data-interactive="icon"], [data-interactive="chip"], [data-interactive="row"], [data-interactive="nav"])[data-state="open"] {
     --ix-a: var(--ix-press-a);
+  }
+  /* Open is a state, not a choice: an open trigger's tint and mark are ink,
+     never the accent (DESIGN-BUILD-5, 22 Oct 2026). Open is Radix's
+     data-state, or a popup of our own's aria-expanded. A tone stays; a menu's
+     items keep the brand; a fold that opens in place (aria-expanded alone, a
+     tree row) keeps its hue and no tint at rest (app/openTrigger.test). */
+  [data-interactive]:is([data-interactive="button"], [data-interactive="icon"], [data-interactive="chip"], [data-interactive="row"], [data-interactive="nav"]):is([data-state="open"], [aria-expanded="true"][aria-haspopup]):not([data-tone]) {
+    --ix-tint: var(--ink);
+    --ix-mark: var(--ink);
   }
 
   /* A list whose highlight is one pill sliding between its rows (CommandList's
@@ -383,7 +411,7 @@ body {
     pointer-events: auto;
   }
   @media (hover: hover) {
-    [data-reveal]:hover [data-tools] {
+    [data-reveal]:hover [data-tools]:where(:not([data-list-moving] [data-tools])) {
       opacity: 1;
       pointer-events: auto;
     }
@@ -416,25 +444,60 @@ body {
       -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
       mask-image: linear-gradient(to right, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
       animation: ix-fade-s linear both, ix-fade-e linear both;
+      /* Stated: the build writes the shorthand's unstated duration as 0s, and
+         a 0s animation a scroll drives ends before it starts (app/motionCost). */
+      animation-duration: auto;
       animation-timeline: scroll(self inline);
+      animation-range: 0 24px, calc(100% - 24px) 100%;
+    }
+    /* A column that scrolls (data-edge-fade="block"), such as a held slot's
+       body, fades its top and bottom the same way, so a row the slot cuts
+       reads as more below, never a hard cut through a name (DESIGN-BUILD-16,
+       25 Oct). The fade alone: a column's rows aren't tabs to come to rest on. */
+    [data-edge-fade="block"] {
+      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
+      mask-image: linear-gradient(to bottom, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
+      /* Stated here too, for the same reason (app/motionCost). */
+      animation-duration: auto;
+      animation-timeline: scroll(self block);
+    }
+  }
+
+  /* A list that scrolls down fades the same way at its top and bottom
+     (data-edge-fade-block): a menu whose last row was cut at its edge, with no
+     sign of more, read as the list's end (the @ list's "@here", DESIGN-BUILD-8,
+     23 Oct). No snap: a list's keys move its highlight and the list follows
+     it, clear of the fade (components/ui/CommandList). */
+  @supports (animation-timeline: scroll()) {
+    [data-edge-fade-block] {
+      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
+      mask-image: linear-gradient(to bottom, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);
+      animation: ix-fade-s linear both, ix-fade-e linear both;
+      /* Stated, as [data-edge-fade]'s is (app/motionCost). */
+      animation-duration: auto;
+      animation-timeline: scroll(self block);
       animation-range: 0 24px, calc(100% - 24px) 100%;
     }
   }
 
   /* DRAG (§5): the handle, the lifted thing, the slot it left, the place it
-     will land, and the document's cursor while it moves (lib/ui/dnd.ts). */
+     will land, and the cursor while it moves (lib/ui/dnd.ts). The cursor is
+     on dnd-kit's overlay, which is under the pointer (DRAG_OVERLAY), and
+     never on the root: the document says it is dragging (html
+     data-dragging) for the drag's own rules alone. A rule for every element
+     (html[data-dragging] *), or an inherited cursor on the root, restyled
+     the whole page as a drag began and again as it ended: 12,900 elements
+     under a 200-row list, a frame of 100 ms or more each time. The sensors
+     clear any text selection themselves. */
   [data-drag-handle] {
     cursor: grab;
     touch-action: none;
   }
-  html[data-dragging],
-  html[data-dragging] * {
-    cursor: grabbing !important;
-    user-select: none;
+  .ix-drag-overlay {
+    cursor: grabbing;
   }
-  html[data-dragging="invalid"],
-  html[data-dragging="invalid"] * {
-    cursor: not-allowed !important;
+  html[data-dragging="invalid"] .ix-drag-overlay {
+    cursor: not-allowed;
   }
   [data-drag-state="lifted"] {
     box-shadow: var(--e3);
@@ -498,12 +561,77 @@ body {
   }
 }
 
+/* MAKE ROOM (§5.1, lib/ui/makeRoom): while a list's row is held, the items
+   past its slot sit lower by its height (--room, set on the list), by
+   transform only, sliding over 160 ms, so the lifted copy sits in an open
+   slot. The rows the drag holds dim where they were, without the keys'
+   cursor. Unlayered: a row's own transition-colors utility would win. */
+[data-room-flow] {
+  transition: transform var(--ix-lift) var(--ix-ease);
+}
+[data-room-shift] {
+  transform: translateY(var(--room));
+}
+[data-reorder-held] {
+  opacity: 0.4;
+}
+[data-reorder-held] [data-kbd-cursor] {
+  display: none;
+}
+
+/* A primary that can't be pressed looks like a disabled field, at full
+   strength: half a brand fill still read as an action (docs C6 fixes). The
+   field's hairline gives it a shape on a sunken footer, whose fill its ground
+   matches. Unlayered, so it wins over Button's own bg-brand and shadow
+   utilities: inside the layer it lost to them, and every disabled primary in
+   the app looked pressable. */
+[data-interactive][data-tone="primary"]:is([aria-disabled="true"], :disabled) {
+  background: var(--sunken);
+  color: var(--ink-3);
+  box-shadow: 0 0 0 1px var(--line);
+  opacity: 1;
+}
+
+/* A Button busy with its own action keeps its fill and its label at full
+   strength, and spins: in its leading icon's place, or before its label.
+   Dimmed to 70% with nothing turning, a busy "Make a link" read as
+   unavailable, its label at 2.94:1 (DESIGN-BUILD-10, 24 Oct 2026). The one
+   spinner of every busy Button (data-press is Button's), so callers draw none
+   (app/interaction.test rule 14). Unlayered, as above, so no utility on the
+   control or its icon undoes it. With reduced motion the arc holds still. */
+:is([data-press="control"], [data-press="icon"])[aria-busy="true"] > svg:first-child {
+  display: none;
+}
+:is([data-press="control"], [data-press="icon"])[aria-busy="true"]::after {
+  content: "";
+  order: -1;
+  flex: none;
+  width: 0.8125rem;
+  height: 0.8125rem;
+  margin: 0.09375rem;
+  border: 1.5px solid;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is([data-press="control"], [data-press="icon"])[aria-busy="true"]::after {
+    animation: ix-spin 1s linear infinite;
+  }
+}
+@keyframes ix-spin {
+  to {
+    rotate: 1turn;
+  }
+}
+
 /* Reduced motion: colour changes at once. The layer's transforms (press,
-   lift, tilt) are already written for no-preference only. */
+   lift, tilt) are already written for no-preference only; the room opens
+   at once. */
 @media (prefers-reduced-motion: reduce) {
   [data-interactive],
   [data-tools],
-  [data-drag-state] {
+  [data-drag-state],
+  [data-room-flow] {
     transition-duration: 0ms;
   }
 }

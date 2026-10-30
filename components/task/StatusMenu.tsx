@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
 import { Settings2 } from "@/lib/icons"
@@ -10,6 +10,7 @@ import { BUILT_IN_STATUSES, type StatusCategory, type StatusOption } from "@/lib
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
 import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
+import { TASK_PRIORITIES } from "@/types/taskScale"
 
 /**
  * The status and priority pickers (design v3, work.md W01, W02): a pop menu
@@ -36,7 +37,7 @@ const itemClass = "h-[30px] gap-2 rounded-md px-2 text-sm font-[450] data-[selec
 function RowEnd({ n, current }: { n: number | null; current: boolean }) {
   return (
     <span className="ml-auto flex shrink-0 items-center gap-2">
-      {n !== null && n <= 9 ? <span className="kbd">{n}</span> : null}
+      {n !== null && n <= 9 ? <span data-kbd-hint="" className="kbd">{n}</span> : null}
       <MenuCheck checked={current} className="text-ink-2" />
     </span>
   )
@@ -82,7 +83,7 @@ export function StatusMenuContent({
     <Command onKeyDown={onKeyDown} className="bg-transparent">
       <div className="relative">
         <CommandInput placeholder={t("changeStatusPlaceHolder", { defaultValue: "Change status…" })} className="h-8 pr-8" />
-        <span className="kbd pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">S</span>
+        <span data-kbd-hint="" className="kbd pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">S</span>
       </div>
       <CommandList className="max-h-80">
         <CommandEmpty>{t("noResultFound")}</CommandEmpty>
@@ -119,7 +120,7 @@ export function StatusMenuContent({
 }
 
 /** The priorities the server takes, in key order (W02: the key is the level). */
-const PRIORITY_CHOICES = ["low", "medium", "high"] as const
+const PRIORITY_CHOICES = [...TASK_PRIORITIES].reverse().map((p) => p.value)
 
 export function PriorityMenuContent({
   current,
@@ -137,7 +138,7 @@ export function PriorityMenuContent({
     <Command onKeyDown={onKeyDown} className="bg-transparent">
       <div className="relative">
         <CommandInput placeholder={t("changePriority", { defaultValue: "Change priority…" })} className="h-8 pr-8" />
-        <span className="kbd pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">P</span>
+        <span data-kbd-hint="" className="kbd pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">P</span>
       </div>
       <CommandList>
         <CommandEmpty>{t("noResultFound")}</CommandEmpty>

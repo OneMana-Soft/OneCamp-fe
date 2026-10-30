@@ -220,6 +220,46 @@ function drop(client: FakeClient) {
   })
 }
 
+// A page that takes up one of the settings' topics for itself (a task chip
+// or a doc's task list takes its project's) and then lets go of it leaves the
+// topic with the connection: the app's router still reads that project's
+// messages, and nothing would take the topic up again before a reconnect.
+describe("a topic the page lets go of", () => {
+  // What the client is asked to let go of from now on.
+  const lettingGo = (client: FakeClient) => {
+    const before = client.unsubscribes.length
+    return () => client.unsubscribes.slice(before)
+  }
+
+  it("stays while the settings name it", async () => {
+    const { client, result, unmount } = await connectedWith(CONFIG)
+    const since = lettingGo(client)
+    act(() => result.current.subscribeToTopic("chat/b"))
+    act(() => result.current.unsubscribeFromTopic("chat/b"))
+    expect(since()).toEqual([])
+    unmount()
+  })
+
+  it("goes when only the page wanted it", async () => {
+    const { client, result, unmount } = await connectedWith(CONFIG)
+    const since = lettingGo(client)
+    act(() => result.current.subscribeToTopic("doc/d-1"))
+    act(() => result.current.unsubscribeFromTopic("doc/d-1"))
+    expect(since()).toEqual([["doc/d-1"]])
+    unmount()
+  })
+
+  it("goes once the settings stop naming it as well", async () => {
+    const { client, result, rerender, unmount } = await connectedWith(CONFIG)
+    act(() => result.current.subscribeToTopic("chat/b"))
+    rerender({ ...CONFIG, password: "p2", topics: ["chat/a"] })
+    const since = lettingGo(client)
+    act(() => result.current.unsubscribeFromTopic("chat/b"))
+    expect(since()).toEqual([["chat/b"]])
+    unmount()
+  })
+})
+
 // A conversation started, joined or added to after the page loaded never
 // streamed: its topic was in none of the settings the connection subscribed
 // to. The settings are fetched again, and the connection takes up what's new
@@ -314,6 +354,50 @@ describe("a fresh session", () => {
   })
 })
 
+// A page reads its conversations before the connection's subscriptions are
+// answered (the engine starts at the first idle moment), so a message sent in
+// between is in neither (FLUIDITY-LEAD-8's rtGap, 22 Oct 2026). The hook says
+// when each connection's subscriptions are answered, for the page to read
+// what came after its history, once.
+describe("a connection's subscriptions", () => {
+  it("are said to be answered once the broker answers them, once a connection", async () => {
+    const onSubscribed = vi.fn()
+    const hook = renderHook(() => useMqttConnection({ config: CONFIG, connectionConfig: CONNECTION, onSubscribed }))
+    await after(100)
+    const client = clients[clients.length - 1]
+    act(() => {
+      client.connected = true
+      client.emit("connect", {})
+    })
+    expect(onSubscribed, "not before the broker answers").not.toHaveBeenCalled()
+    answer(client.subscribes[0], [1, 1])
+    expect(onSubscribed).toHaveBeenCalledTimes(1)
+    act(() => hook.result.current.subscribeToTopic("doc/d1"))
+    answer(client.subscribes[client.subscribes.length - 1], [1])
+    expect(onSubscribed, "a later subscribe on the same connection is no catch-up").toHaveBeenCalledTimes(1)
+    act(() => void client.emit("connect", {})) // connected again, as mqtt.js reconnects
+    const again = client.subscribes[client.subscribes.length - 1]
+    expect(again.topics).toContain("chat/a")
+    answer(again, again.topics.map(() => 1))
+    expect(onSubscribed, "every connection's own answer").toHaveBeenCalledTimes(2)
+    hook.unmount()
+  })
+
+  it("are said to be answered when the broker refuses one of them: the rest are subscribed", async () => {
+    const onSubscribed = vi.fn()
+    const hook = renderHook(() => useMqttConnection({ config: CONFIG, connectionConfig: CONNECTION, onSubscribed }))
+    await after(100)
+    const client = clients[clients.length - 1]
+    act(() => {
+      client.connected = true
+      client.emit("connect", {})
+    })
+    answer(client.subscribes[0], [1, 0x87])
+    expect(onSubscribed).toHaveBeenCalledTimes(1)
+    hook.unmount()
+  })
+})
+
 // It stopped after ten tries, about three minutes, while the pill said
 // "reconnecting": a broker restart that took longer left a visible tab dead.
 describe("reconnecting", () => {
@@ -402,5 +486,85 @@ describe("reconnecting", () => {
     await after(100)
     expect(clients.length).toBe(before + 1)
     unmount()
+  })
+})
+
+describe("a topic going live", () => {
+  // A page reads what it shows before its topics are live, so what was sent
+  // in between reached it neither way: each topic's first answer on a
+  // connection tells the page to read again (F5, REGRESSION-HUNT 26 Oct).
+  async function heard() {
+    const live: string[] = []
+    const hook = renderHook(() => useMqttConnection({ config: CONFIG, connectionConfig: CONNECTION, onTopicLive: (topic) => live.push(topic) }))
+    await after(100)
+    const client = clients[clients.length - 1]
+    act(() => {
+      client.connected = true
+      client.emit("connect", {})
+    })
+    return { ...hook, client, live }
+  }
+
+  it("is told once the broker answers the topic, and again on each connection", async () => {
+    const { result, client, live } = await heard()
+    expect(live, "not before the broker answers").toEqual([])
+    answer(client.subscribes[0], [0, 0])
+    expect(live).toEqual(["chat/a", "chat/b"])
+    expect(result.current.topicLiveAt("chat/a")).toBeTypeOf("number")
+    act(() => void result.current.subscribeToTopic("chat/a"))
+    answer(client.subscribes[1], [0])
+    expect(live, "an answer for a topic already live says nothing").toEqual(["chat/a", "chat/b"])
+    const asked = client.subscribes.length
+    act(() => void client.emit("connect", {})) // connected again
+    // The broker answers whatever the new connection asks for: the settings'
+    // topics, and the page's own taken up again.
+    for (const sub of client.subscribes.slice(asked)) answer(sub, sub.topics.map(() => 0))
+    expect(live).toEqual(["chat/a", "chat/b", "chat/a", "chat/b"])
+  })
+
+  it("holds nothing live once the connection closes", async () => {
+    const { result, client } = await heard()
+    answer(client.subscribes[0], [0, 0])
+    act(() => {
+      client.connected = false
+      client.emit("close")
+    })
+    expect(result.current.topicLiveAt("chat/a")).toBeUndefined()
+  })
+
+  it("isn't told about a topic the broker refused until it grants it", async () => {
+    const { client, live } = await heard()
+    answer(client.subscribes[0], [0x87, 0])
+    expect(live).toEqual(["chat/b"])
+    await after(5_000) // its first try again
+    answer(client.subscribes[client.subscribes.length - 1], [0])
+    expect(live).toEqual(["chat/b", "chat/a"])
+  })
+
+  it("is told again about a topic the page let go of and took up again", async () => {
+    const { result, client, live } = await heard()
+    answer(client.subscribes[0], [0, 0])
+    act(() => void result.current.subscribeToTopic("doc/1"))
+    answer(client.subscribes[1], [0])
+    act(() => result.current.unsubscribeFromTopic("doc/1"))
+    expect(result.current.topicLiveAt("doc/1"), "let go: no longer live").toBeUndefined()
+    act(() => void result.current.subscribeToTopic("doc/1"))
+    answer(client.subscribes[2], [0])
+    expect(live).toEqual(["chat/a", "chat/b", "doc/1", "doc/1"])
+  })
+
+  it("isn't live when the page let go of it before the broker answered, and is told once taken up again", async () => {
+    const { result, client, live } = await heard()
+    answer(client.subscribes[0], [0, 0])
+    // The page leaves within the round trip (a chip scrolled away, a doc
+    // switched): live then, the topic would read as live before the next
+    // page on it opened, and that page would never read again.
+    act(() => void result.current.subscribeToTopic("doc/1"))
+    act(() => result.current.unsubscribeFromTopic("doc/1"))
+    answer(client.subscribes[1], [0])
+    expect(result.current.topicLiveAt("doc/1"), "answered after the page let go: not live").toBeUndefined()
+    act(() => void result.current.subscribeToTopic("doc/1"))
+    answer(client.subscribes[2], [0])
+    expect(live).toEqual(["chat/a", "chat/b", "doc/1"])
   })
 })

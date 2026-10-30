@@ -25,6 +25,7 @@ export enum AdminGet {
     GetApp = "/admin/apps", // append /{appId}
     GetAppOAuthURL = "/admin/apps", // append /{appId}/oauth-url
     GetMarketplace = "/admin/marketplace",
+    MarketplaceTemplates = "/marketplace/templates", // append ?kind= or /{id}
     // Login OAuth credentials (admin)
     GetOAuthConfig = "/admin/auth/oauth-config",
     // Your OWN second factor. Scoped to the caller — none of the 2FA endpoints takes a user id, so

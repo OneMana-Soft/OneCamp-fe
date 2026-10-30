@@ -118,6 +118,7 @@ export function RecordingsView({ listUrl, pick = fromData, playerUrls, subtitle,
                     fileSize: rec.recording_size,
                     fileName: `Recording ${Number.isNaN(date.getTime()) ? "" : format(date, "yyyy-MM-dd HH.mm")}`.trim() + ".mp4",
                     recordedAt: rec.recording_stared_at,
+                    status: rec.recording_status,
                 },
             }),
         )

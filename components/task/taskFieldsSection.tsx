@@ -9,10 +9,8 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxField, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ProjectFieldsDialog } from "@/components/project/ProjectFieldsDialog"
 import { FieldValueView, OptionPill } from "@/components/task/fieldValue"
 import { TaskAssigneePicker } from "@/components/task/taskAssigneePicker"
 import { useToast } from "@/hooks/use-toast"
@@ -23,7 +21,7 @@ import { ExternalLink, Plus } from "@/lib/icons"
 import { appMutate } from "@/lib/swrMutate"
 import { colorDot } from "@/lib/taskStatus"
 import { OUTSIDE_PROJECT, draftOf, formatFieldValue, withField, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
-import { parseFieldInput } from "@/lib/tasks/fieldInput"
+import { lazyChunk } from "@/lib/loadChunk"
 import { inlineSelect, inlineValue } from "@/lib/ui/fieldRow"
 import { InlineEdit } from "@/components/task/inlineEdit"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
@@ -34,6 +32,10 @@ import { dayDate, localDay } from "@/lib/utils/timeZone"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { ProjectsPost } from "@/services/endpoints/projects"
 import type { UserProfileDataInterface } from "@/types/user"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
+
+// The fields dialog comes when it opens, as on the project's board.
+const ProjectFieldsDialog = lazyPiece(() => import("@/components/project/ProjectFieldsDialog").then((m) => ({ default: m.ProjectFieldsDialog })))
 
 type Save = (field: TaskField, value: FieldValue | null) => Promise<void>
 
@@ -107,7 +109,11 @@ export function TaskFieldsSection({
   const { fields, isLoading, refresh } = useProjectFields(projectUUID)
   const [managing, setManaging] = React.useState(false)
   const save = useSaveField(taskUUID, projectUUID, values, refresh)
-  const dialog = canEdit && <ProjectFieldsDialog projectId={projectUUID} open={managing} onOpenChange={setManaging} />
+  const dialog = canEdit && managing && (
+    <React.Suspense fallback={null}>
+      <ProjectFieldsDialog projectId={projectUUID} open={managing} onOpenChange={setManaging} />
+    </React.Suspense>
+  )
 
   if (fields.length === 0) {
     if (!canEdit || isLoading) return null
@@ -204,13 +210,19 @@ type EditorProps = { id: string; field: TaskField; value: FieldValue | undefined
 
 const PLACEHOLDER: Partial<Record<TaskField["type"], string>> = { url: "Add a link…", number: "Add a number…", money: "Add an amount…" }
 
+/** The reader of what's typed, fetched as a box takes the focus rather than
+ * with the task page (app/firstLoad.test.ts). */
+const fieldInput = lazyChunk(() => import("@/lib/tasks/fieldInput"))
+
 /** Text, a link, a number or money: typed, saved when the box loses focus;
  * Escape puts the value back. A value at rest, as every other (InlineEdit). */
 function TypedEditor({ id, field, value, onSave }: EditorProps) {
   const { toast } = useToast()
   const shown = draftOf(field, value)
-  const commit = (draft: string) => {
-    const parsed = parseFieldInput(field, draft)
+  const commit = async (draft: string) => {
+    const reader = await fieldInput.use(() => toast({ variant: "destructive", title: `${field.name} wasn't changed`, description: "Check your connection and try again." }))
+    if (!reader) return
+    const parsed = reader.parseFieldInput(field, draft)
     if ("error" in parsed) {
       toast({ variant: "destructive", title: `${field.name} wasn't changed`, description: parsed.error })
       return
@@ -219,7 +231,8 @@ function TypedEditor({ id, field, value, onSave }: EditorProps) {
   }
   const numeric = field.type === "number" || field.type === "money"
   return (
-    <div className="flex min-w-0 items-center">
+    // The box's focus (it bubbles) fetches the reader before the commit needs it.
+    <div className="flex min-w-0 items-center" onFocus={fieldInput.warm}>
       <InlineEdit
         id={id}
         value={shown}
@@ -278,38 +291,27 @@ function SelectEditor({ id, field, value, onSave }: EditorProps) {
 
 /** Any of a field's options: a list to tick, each tick saved as it's made. */
 function MultiSelectEditor({ id, field, value, onSave }: EditorProps) {
-  const [open, setOpen] = React.useState(false)
   const chosen = Array.isArray(value) ? value : []
   const toggle = (optionId: string) => {
     const next = chosen.includes(optionId) ? chosen.filter((x) => x !== optionId) : [...chosen, optionId]
     void onSave(next.length ? next : null)
   }
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button id={id} type="button" variant="ghost" role="combobox" aria-expanded={open} aria-label={field.name} className={cn(inlineValue, "h-auto min-h-8")}>
-          {chosen.length ? (
-            <FieldValueView field={field} value={chosen} />
-          ) : (
-            <span className="text-sm font-normal text-muted-foreground">Choose…</span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-60 p-0" align="start">
-        <Command>
-          <CommandInput placeholder={`Find in ${field.name}…`} />
-          <CommandList>
-            <CommandEmpty>No option by that name.</CommandEmpty>
-            <CommandGroup>
-              {field.options.map((o) => (
-                <CommandItem key={o.id} checked={chosen.includes(o.id)} value={o.label} onSelect={() => toggle(o.id)}>
-                  <OptionPill label={o.label} color={o.color} />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <Combobox multiple>
+      <ComboboxField id={id} variant="inline" aria-label={field.name} placeholder="Choose…" className="h-auto min-h-8">
+        {chosen.length ? <FieldValueView field={field} value={chosen} /> : undefined}
+      </ComboboxField>
+      <ComboboxContent label={field.name}>
+        <ComboboxInput placeholder={`Find in ${field.name}…`} />
+        <ComboboxList>
+          <ComboboxEmpty>No option by that name.</ComboboxEmpty>
+          {field.options.map((o) => (
+            <ComboboxItem key={o.id} checked={chosen.includes(o.id)} value={o.id} keywords={[o.label]} onSelect={toggle}>
+              <OptionPill label={o.label} color={o.color} />
+            </ComboboxItem>
+          ))}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   )
 }

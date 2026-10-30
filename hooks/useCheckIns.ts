@@ -7,12 +7,13 @@
 import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { ProjectsGet } from "@/services/endpoints/projects"
 import type { CheckIn, CheckInInput } from "@/lib/checkins"
 
 export function useCheckIns(channelId: string | undefined) {
   const key = channelId ? `${ProjectsGet.CheckIns}/${channelId}/checkins` : ""
-  const { data, isLoading, mutate } = useFetch<{ data: { checkins: CheckIn[]; can_edit: boolean } }>(key)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: { checkins: CheckIn[]; can_edit: boolean } }>(key, undefined, undefined, OWN_ERRORS)
   const act = useCallback(
     async (path: string, body: object = {}) => {
       const res = await axiosInstance.post(`${ProjectsGet.CheckIns}${path}`, body)
@@ -26,5 +27,8 @@ export function useCheckIns(channelId: string | undefined) {
   const setPaused = useCallback((id: string, paused: boolean) => act(`/checkins/${id}/pause`, { paused }), [act])
   const remove = useCallback((id: string) => act(`/checkins/${id}/delete`), [act])
   const askNow = useCallback((id: string) => act(`/checkins/${id}/ask`), [act])
-  return { checkIns: data?.data?.checkins ?? [], canEdit: !!data?.data?.can_edit, isLoading, create, edit, setPaused, remove, askNow }
+  // A read that failed with nothing held is said as failed, never as "no check-ins".
+  const failed = !!isError && !data
+  const retry = useCallback(() => void mutate(), [mutate])
+  return { checkIns: data?.data?.checkins ?? [], canEdit: !!data?.data?.can_edit, isLoading, failed, retry, create, edit, setPaused, remove, askNow }
 }

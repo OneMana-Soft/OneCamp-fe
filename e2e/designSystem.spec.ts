@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { probe } from "./controlLook"
 import { usableResetLink } from "./stubbedApp"
 
 /**
@@ -42,36 +43,10 @@ async function computed(page: Page, selector: string, prop: string): Promise<str
   )
 }
 
-/**
- * Resolves a Tailwind utility to a computed value by probing a real element.
- *
- * `dark` wraps the probe in an element carrying the `dark` class rather than
- * putting that class on <html>. The dark variant is `&:is(.dark *)`, so any
- * ancestor works, and this one is not shared with anybody: next-themes owns the
- * class on <html> and rewrites it on mount from the stored theme. A test that set
- * it there was racing the provider, and lost intermittently, reading the light
- * value twice and reporting that the token did not re-point.
- */
-async function probeUtility(
-  page: Page,
-  classes: string,
-  prop: string,
-  opts: { dark?: boolean } = {},
-): Promise<string> {
-  return page.evaluate(
-    ([cls, p, dark]) => {
-      const host = document.createElement("div")
-      if (dark) host.className = "dark"
-      const probe = document.createElement("div")
-      probe.className = cls as string
-      host.appendChild(probe)
-      document.body.appendChild(host)
-      const value = getComputedStyle(probe).getPropertyValue(p as string)
-      host.remove()
-      return value
-    },
-    [classes, prop, Boolean(opts.dark)] as [string, string, boolean],
-  )
+/** A Tailwind utility's computed value, probed on the page (e2e/controlLook probe). */
+async function probeUtility(page: Page, classes: string, prop: string, opts: { dark?: boolean } = {}): Promise<string> {
+  const [value] = await probe(page.locator("body"), { classes, dark: opts.dark }, [prop], "inside")
+  return value
 }
 
 /**

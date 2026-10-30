@@ -12,16 +12,13 @@ import { SWRConfig } from "swr";
 import { SWRMutateBridge } from "@/components/providers/SWRMutateBridge";
 import { localStorageProvider } from "@/lib/swrCache";
 import { sweepTTLKeys } from "@/lib/utils/helpers/ttlStorage";
+import { PersistGate } from "redux-persist/integration/react";
+import { persistor } from "@/store/store";
+import { StoreProvider } from "@/components/providers/StoreProvider";
+import { UnsavedChangesGuard } from "@/components/ui/UnsavedChangesGuard";
 import dynamic from "next/dynamic";
 import { lazyPart } from "@/lib/lazy/lazyPart";
 import "@/lib/env"; // Trigger validation on load
-// Initialise i18next on the client. Side-effect import ONLY: the module
-// runs i18n.use(initReactI18next).init({...}) at evaluation time. Without
-// this, every t("myTasks") call returns the literal key (e.g. "myTasks")
-// because no resources / language are registered with the i18n
-// instance. This must be a "use client" tree because i18next runs in
-// the browser.
-import "@/lib/utils/i18n";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -29,8 +26,7 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 const TipLayer = dynamic(() => import("@/components/ui/tipLayer"), { ssr: false });
 // The member's saved theme, applied once their profile is in the cache, and
 // their changes saved (lazy: without its code the page keeps its theme).
-const Nothing = () => null;
-const themeSync = lazyPart(() => import("@/components/activeTheme/ThemeSync").then((m) => m.ThemeSync), { placeholder: Nothing, failed: Nothing });
+const themeSync = lazyPart(() => import("@/components/activeTheme/ThemeSync").then((m) => m.ThemeSync));
 
 export default function ClientProviders({
   children,
@@ -47,35 +43,45 @@ export default function ClientProviders({
   }, []);
 
   return (
-    // SWRConfig with the localStorage cache provider gives users an
-    // instant first paint of cached lists (channels, chats, tasks, …)
-    // after a page reload, once the profile has said they're the member
-    // they were kept for — the network revalidation still runs in
-    // the background and updates the UI. Without this every reload was
-    // a cold-start blank state.
-    //
-    // The provider is module-scoped, so the same Map is reused across
-    // re-renders inside the page. On unload it serialises the Map to
-    // localStorage; on first mount it deserialises back. See lib/swrCache.ts
-    // for the persistence specifics.
-    <SWRConfig value={{ provider: localStorageProvider }}>
-      <SWRMutateBridge />
-      <themeSync.Part />
-      <MediaQueryProvider>
-        <LoadingProvider>
-          {/* One provider (design v3, shell M3): the first tooltip waits 500ms;
-              a neighbour within 300ms shows at once (Emil Kowalski's rule). */}
-          <TooltipProvider delayDuration={500} skipDelayDuration={300}>
-            <MqttProvider>
-              {children}
-              <CommandActionBridge />
-              <GlobalCommandHost />
-              <LaterDueHost />
-              <TipLayer />
-            </MqttProvider>
-          </TooltipProvider>
-        </LoadingProvider>
-      </MediaQueryProvider>
-    </SWRConfig>
+    // The Redux store for every page of the app, its kept slices (Recent)
+    // read back before anything draws. Pages outside /app have none.
+    <PersistGate loading={null} persistor={persistor}>
+      <StoreProvider>
+        {/* SWRConfig with the localStorage cache provider gives users an
+            instant first paint of cached lists (channels, chats, tasks, …)
+            after a page reload, once the profile has said they're the member
+            they were kept for — the network revalidation still runs in
+            the background and updates the UI. Without this every reload was
+            a cold-start blank state.
+
+            The provider is module-scoped, so the same Map is reused across
+            re-renders inside the page. On unload it serialises the Map to
+            localStorage; on first mount it deserialises back. See lib/swrCache.ts
+            for the persistence specifics. */}
+        <SWRConfig value={{ provider: localStorageProvider }}>
+          <SWRMutateBridge />
+          <themeSync.Part />
+          <MediaQueryProvider>
+            <LoadingProvider>
+              {/* One provider (design v3, shell M3): the first tooltip waits 500ms;
+                  a neighbour within 300ms shows at once (Emil Kowalski's rule). */}
+              <TooltipProvider delayDuration={500} skipDelayDuration={300}>
+                <MqttProvider>
+                  {children}
+                  <CommandActionBridge />
+                  <GlobalCommandHost />
+                  <LaterDueHost />
+                  <TipLayer />
+                  {/* Asks before an in-app link leaves a SaveBar's changes
+                      unsaved: every SaveBar is in the app, and so is the
+                      dialog it asks with (UnifiedUIManager). */}
+                  <UnsavedChangesGuard />
+                </MqttProvider>
+              </TooltipProvider>
+            </LoadingProvider>
+          </MediaQueryProvider>
+        </SWRConfig>
+      </StoreProvider>
+    </PersistGate>
   );
 }

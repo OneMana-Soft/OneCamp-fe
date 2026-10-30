@@ -6,6 +6,7 @@ import { incrementTotalUnreadActivityCount } from "@/store/slice/userSlice"
 import { appMutate } from "@/lib/swrMutate"
 import { inboxFeedKey, INBOX_PAGE_SIZE } from "@/lib/activity/feedPages"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { showsEvent } from "@/lib/calendar/eventCache"
 
 interface UseActivityMessageHandlersProps {
     userUuid?: string
@@ -51,12 +52,4 @@ export const useActivityMessageHandlers = ({ userUuid }: UseActivityMessageHandl
         handleActivityMessage,
         handleNoticeMessage,
     }
-}
-
-/** Whether a cached answer shows the calendar's events, or the one event a notice is about. */
-export function showsEvent(key: unknown, eventId: unknown): boolean {
-    if (typeof key !== "string") return false
-    if (key.startsWith(GetEndpointUrl.GoogleCalendarEvents)) return true
-    const id = typeof eventId === "string" ? eventId : ""
-    return !!id && (key.startsWith(`${GetEndpointUrl.GetEvent}/${id}`) || key.startsWith(`/calendar/events/${id}`))
 }

@@ -33,12 +33,12 @@ vi.mock("@/components/channel/chanelMessage", () => ({
   },
 }))
 let listRenders = 0
-vi.mock("@/components/channel/channelMessages", async (orig) => {
-  const real = await orig<typeof import("@/components/channel/channelMessages")>()
+vi.mock("@/components/conversation/ConversationRows", async (orig) => {
+  const real = await orig<typeof import("@/components/conversation/ConversationRows")>()
   return {
-    ChannelMessages: (props: Parameters<typeof real.ChannelMessages>[0]) => {
+    ConversationRows: (props: Parameters<typeof real.ConversationRows<PostsRes>>[0]) => {
       listRenders++
-      return <real.ChannelMessages {...props} />
+      return <real.ConversationRows {...props} />
     },
   }
 })
@@ -47,8 +47,8 @@ const { default: store } = await import("@/store/store")
 const { updateChannelPosts } = await import("@/store/slice/channelSlice")
 const { addChannelTyping } = await import("@/store/slice/typingSlice")
 const { MessageListVirtua } = await import("@/components/message/MessageListVirtua")
-const { ChannelMessages } = await import("@/components/channel/channelMessages")
-const { ChannelMessageList } = await import("@/components/channel/channelMessageList")
+const { ChannelRows, channelList } = await import("@/components/conversation/ChannelRows")
+const { ConversationMessages } = await import("@/components/conversation/ConversationMessages")
 
 const at = (i: number) => new Date(Date.UTC(2026, 9, 9, 9, i * 7)).toISOString()
 const post = (i: number) =>
@@ -116,22 +116,13 @@ describe("the message list", () => {
 
 describe("a channel's messages", () => {
   const posts = Array.from({ length: 12 }, (_, i) => post(i + 1))
-  const props = {
-    posts,
-    channelId: "c1",
-    getOldMessages: () => {},
-    hasMoreOldMsg: false,
-    getNewMessages: () => {},
-    hasMoreNewMsg: false,
-    isNewMsgLoading: false,
-    isOLdMsgLoading: false,
-    clickedScrollToBottom: () => {},
-  }
+  const still = { has: false, loading: false, ask: () => {} }
+  const props = { conversation: { kind: "channel", id: "c1" } as const, rows: posts, older: still, newer: still, toLatest: () => {} }
 
   it("keeps every row as it was when the list re-renders for something else", () => {
     const { rerender } = render(
       <Provider store={store}>
-        <ChannelMessages {...props} />
+        <ChannelRows {...props} />
       </Provider>,
     )
     expect(rowRenders.size).toBe(12)
@@ -139,7 +130,7 @@ describe("a channel's messages", () => {
     // Older messages started loading: a flag the rows know nothing about.
     rerender(
       <Provider store={store}>
-        <ChannelMessages {...props} isOLdMsgLoading />
+        <ChannelRows {...props} older={{ ...still, loading: true }} />
       </Provider>,
     )
     expect(rowRenders.size).toBe(0)
@@ -149,7 +140,7 @@ describe("a channel's messages", () => {
     store.dispatch(updateChannelPosts({ channelId: "c1", posts }))
     render(
       <Provider store={store}>
-        <ChannelMessageList channelId="c1" />
+        <ConversationMessages list={channelList("c1")} />
       </Provider>,
     )
     const before = listRenders

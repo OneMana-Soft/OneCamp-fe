@@ -7,10 +7,10 @@
 // a delete brings the whole delete back (A3).
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 
 import { DocIcon } from "@/components/docEditor/DocIcon"
-import { titleOf } from "@/components/doc/docRows"
+import { titleOf } from "@/lib/docs/docTitle"
 import { pagesLeftInTrash, purgeWarning } from "@/components/docTree/docActions"
 import { Button } from "@/components/ui/button"
 import { ToastAction } from "@/components/ui/toast"
@@ -46,7 +46,7 @@ const dated = (raw: string | undefined) => {
 }
 
 export function RestoreRow({ id, title, icon, at, verb, by, subpages = 0, purgeAt, canPurge }: RestoreRowProps) {
-  const router = useRouter()
+  const router = useAppRouter()
   const confirm = useConfirm()
   const [busy, setBusy] = React.useState<"restore" | "purge" | null>(null)
   const when = dated(at)

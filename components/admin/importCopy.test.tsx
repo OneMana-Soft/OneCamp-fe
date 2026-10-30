@@ -26,6 +26,15 @@ describe("the import screens' words and limits", () => {
     expect(screen.getByText(/Use a classic API token/)).toBeTruthy()
   })
 
+  // Miro's token comes from an app the admin makes in their own Miro and
+  // installs on the team that holds the boards (owner decision O3).
+  it("tells Miro people where their token comes from, and that the app must be on their boards' team", () => {
+    render(<ImportConnectDialog provider="miro" open onOpenChange={() => {}} onConnected={() => {}} />)
+    expect(screen.getByRole("link", { name: "Where to find them" }).getAttribute("href")).toMatch(/^https:\/\/developers\.miro\.com\//)
+    expect(screen.getByText(/boards:read/)).toBeTruthy()
+    expect(screen.getByText(/Install app and get OAuth token/)).toBeTruthy()
+  })
+
   it("says how many people only when the provider counted who is new", () => {
     expect(peopleLine({ user_count: 12, user_new: 0, user_merge: 0 })).toBe("12")
     expect(peopleLine({ user_count: 12, user_new: 9, user_merge: 3 })).toBe("12 (9 new, 3 already here)")

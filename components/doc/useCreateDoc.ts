@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useSyncExternalStore } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useDispatch } from "react-redux"
 
 import { createDoc } from "@/services/docGraphService"
@@ -49,6 +49,11 @@ function subscribe(l: () => void) {
 }
 const current = () => making
 
+/** What is being made in this tab (useCreateDoc's busy), for a row that only shows it. */
+export function useMakingDoc(): string | null {
+  return useSyncExternalStore(subscribe, current, () => null)
+}
+
 /**
  * The request a doc is made with. doc_private always, a subpage's its
  * parent's: a server without nested pages reads only it and the title
@@ -77,7 +82,7 @@ function createRequest(opts: CreateDocOptions): DocCreateRequest {
  * made already, or the server said no (the app's error toast says why).
  */
 export function useCreateDoc() {
-  const router = useRouter()
+  const router = useAppRouter()
   const dispatch = useDispatch()
   const busy = useSyncExternalStore(subscribe, current, () => null)
 

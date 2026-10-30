@@ -5,14 +5,15 @@ import { Button } from "@/components/ui/button"
 import { FitLabel } from "@/components/common/FitLabel"
 import type { CommandListItem } from "@/components/ui/CommandList"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Check, ChevronDown, Globe } from "@/lib/icons"
+import { Check, ChevronDown, Globe, Plus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { zoneLabel, zoneLabels, zoneRows } from "@/lib/utils/zones"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 // The list is a chunk of its own, fetched when the trigger is pointed at or
 // focused: a booking page or an event form shows the zone, and only some open it.
 const loadList = () => import("@/components/ui/CommandList")
-const CommandList = React.lazy(() => loadList().then((m) => ({ default: m.CommandList })))
+const CommandList = lazyPiece(() => loadList().then((m) => ({ default: m.CommandList })))
 
 /**
  * A time zone, picked from a searchable list with the reader's own first: a
@@ -20,12 +21,14 @@ const CommandList = React.lazy(() => loadList().then((m) => ({ default: m.Comman
  * there is little room), and a list that says each zone as people know it
  * ("Eastern Time · New York", with its offset). The booking page's visitor
  * and the calendar's Event Form pick with it. `footer` sits under the list
- * (the booking page's 24-hour switch).
+ * (the booking page's 24-hour switch). With `adds`, the button says that in
+ * place of a zone and picks one to add (Settings' "Add a time zone").
  */
 export function ZonePicker({
   tz,
   onTz,
   label = "Time zone",
+  adds,
   footer,
   className,
 }: {
@@ -33,6 +36,8 @@ export function ZonePicker({
   onTz: (tz: string) => void
   /** What the zone is for, said with it to a screen reader: "Time zone", "Ends in". */
   label?: string
+  /** What the button says when it picks a zone to add, not one to change. */
+  adds?: string
   footer?: React.ReactNode
   className?: string
 }) {
@@ -66,13 +71,22 @@ export function ZonePicker({
           variant="ghost"
           size="sm"
           className={cn("h-7 w-full justify-start gap-1.5 px-2 text-ui-sm font-medium text-ink-2", className)}
-          aria-label={`${label}: ${zoneLabel(tz)}`}
+          aria-label={adds ?? `${label}: ${zoneLabel(tz)}`}
           onPointerEnter={loadList}
           onFocus={loadList}
         >
-          <Globe className="size-3.5 shrink-0" aria-hidden="true" />
-          <FitLabel options={zoneLabels(tz)} />
-          <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+          {adds ? (
+            <>
+              <Plus className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{adds}</span>
+            </>
+          ) : (
+            <>
+              <Globe className="size-3.5 shrink-0" aria-hidden="true" />
+              <FitLabel options={zoneLabels(tz)} />
+              <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+            </>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0" data-tz-list="">

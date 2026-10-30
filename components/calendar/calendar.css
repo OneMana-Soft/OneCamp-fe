@@ -42,6 +42,24 @@
   transition: transform var(--duration-pop, 180ms) var(--ease-out), width 0s;
 }
 
+/* Under 46rem of header (an event's panel open at 1280) the five views say
+   their initials, which are their keys: their names left the period no room,
+   and the Calendars button sat over Today (V-43). Each name is still its
+   button's, at no size, for screen readers; the tooltip says it too. The
+   header's widths hold the longest week title, "26 Oct–1 Nov" (V-43b). */
+@container calhead (width < 46rem) {
+  [data-calendar-views] {
+    --seg: 26px;
+  }
+  .calendar-view-name {
+    display: inline-block;
+    font-size: 0;
+  }
+  .calendar-view-name::first-letter {
+    font-size: var(--text-ui-sm);
+  }
+}
+
 /* The loading dot beside the period title. */
 .calendar-loading-dot {
   animation: calendar-dot 1.2s var(--ease-in-out) infinite;
@@ -62,4 +80,143 @@
    from the sheet as light's weekend is. */
 .dark [data-weekend].bg-sunken {
   background-color: color-mix(in oklab, var(--sheet) 84%, black);
+}
+
+/* The day header's + (an all-day event): Plus's two round-capped strokes at
+   14 px (2 of its 24), drawn by CSS, so the week's seven cost no components (fluid-10). */
+.calendar-plus { position: relative; display: block; width: 14px; height: 14px; }
+.calendar-plus::before, .calendar-plus::after { content: ""; position: absolute; left: 2.33px; right: 2.33px; top: 6.42px; height: 1.17px; border-radius: 0.6px; background: currentColor; }
+.calendar-plus::after { transform: rotate(90deg); }
+
+/* A timed block says what its height holds at any hour's height (the week's
+   --cal-hour, which the density sets). A time is one fact: it shows whole or
+   not at all, never "2:…" (design review, 22 Oct).
+   - Under 28 px: its title and start in small type, on one line.
+   - From 28 px: the same at the block's size, with a dot before the start.
+   - From 40 px: its title on one line over its time (Compact's hour).
+   - From 56 px: its title on up to two lines over its time.
+   On one line the start follows the title only where both fit: the line is
+   a wrapping row one line tall, so a start with no room wraps out of sight
+   and the title alone takes the line. A time on its own line drops the same
+   way where the block is too narrow for it. The block is a size container
+   (the grid sets its box), so a density chosen restyles its words and draws
+   no block again (weekView's TimedBlock). */
+.cal-block { container-type: size; }
+.cal-block-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  column-gap: 0.25rem;
+  height: 0.75rem;
+  margin-block: auto;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--text-micro);
+  line-height: 0.75rem;
+  letter-spacing: var(--text-micro--letter-spacing);
+  font-weight: var(--text-micro--font-weight);
+}
+.cal-block-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cal-block-at { flex: none; }
+.cal-block-at, .cal-block-when { font-weight: 450; font-variant-numeric: tabular-nums; }
+.cal-block-when { display: none; }
+/* The tiers are a block's own height, its minutes less the 2 px gap under it
+   (weekView's tall()): a half hour at 56 px an hour is 26 px, an hour at
+   40 px (compact) is 38, an hour at 56 is 54. Keyed on the hour's height,
+   none of the three was ever met by the block it was for. */
+@container (min-height: 26px) {
+  .cal-block-text { height: 1.5rem; margin-block: 0; padding-block: 0.25rem; font-size: inherit; line-height: 1rem; letter-spacing: inherit; font-weight: inherit; }
+  .cal-block-at::before { content: "· "; }
+}
+@container (min-height: 38px) {
+  .cal-block-text { flex-direction: column; flex-wrap: nowrap; height: auto; max-height: 100%; }
+  .cal-block-at { display: none; }
+  .cal-block-when {
+    display: flex;
+    flex-wrap: wrap;
+    height: var(--text-micro--line-height);
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: var(--text-micro);
+    line-height: var(--text-micro--line-height);
+    letter-spacing: var(--text-micro--letter-spacing);
+  }
+  /* A first item of no width: a time wider than the block wraps out of sight. */
+  .cal-block-when::before { content: ""; flex: 0 0 0; }
+}
+@container (min-height: 54px) {
+  .cal-block-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; }
+}
+
+/* Printing (B1, gcal-2): the calendar is its page's print root (globals.css),
+   from View options' Print or the browser's own. It prints the period's title
+   and the view as drawn, with none of the controls, the now line, hovers,
+   drafts or side rails; every box down to the view grows with what it holds,
+   the days share the page's width, and a week's 24 hours fit a portrait A4 or
+   Letter page (7.5 mm an hour). */
+@media print {
+  [data-calendar] :is([data-calendar-header] :is(button, input, [data-calendar-views], [data-calendar-loading]), [data-calendars-rail], [data-day-rail], [data-now-line], [data-hover-band], [data-calendar-ghost], [data-drag-origin], [data-calendar-blank], [data-calendar-failed], [data-all-day-rail] button[aria-expanded], button:has(> .calendar-plus)) {
+    display: none !important;
+  }
+  [data-calendar] :has([data-time-grid-scroll], [data-month-grid], [data-agenda]),
+  [data-calendar] :is([data-time-grid-scroll], [data-month-grid]) {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  [data-calendar] [data-time-grid-scroll] { flex: none !important; }
+  [data-calendar] [data-period] * { min-width: 0 !important; }
+  [data-calendar] [style*="--cal-hour"] { --cal-hour: 7.5mm !important; }
+  [data-calendar], [data-calendar] * { animation: none !important; transition: none !important; }
+  /* Paper is white: no weekend or off-hours shade, as Google prints. Every
+     hour is labelled, with no now pill to give way to. */
+  [data-calendar] [data-weekend],
+  [data-calendar] [data-off-hours] { background: none !important; }
+  [data-calendar] [data-beside-now] { visibility: visible !important; }
+  /* A block's words at the print size: its title on up to two lines (one in
+     a block too short for two), never "Design re…" for want of a start time,
+     which drops whole; a block tall enough keeps its time under the title. */
+  [data-calendar] .cal-block-text {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    height: auto;
+    max-height: 100%;
+    margin-block: 0;
+    padding-block: 1px;
+    font-size: var(--text-micro);
+    line-height: 0.75rem;
+    letter-spacing: var(--text-micro--letter-spacing);
+    white-space: normal;
+  }
+  [data-calendar] .cal-block-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  [data-calendar] .cal-block-at { display: none; }
+  @container (max-height: 26px) {
+    [data-calendar] .cal-block-title { -webkit-line-clamp: 1; }
+  }
+  /* A month's bars at the print size: each laid in its days' columns and as
+     tall as its words, its time and title whole, never "9am Stand…". On
+     screen a bar is placed by its own style (left, width), which these
+     outrank. It stays positioned, with no offsets, so its colour strip
+     (data-hue-bar, absolute) keeps to the bar, not the page's edge. */
+  [data-calendar] [data-month-track] {
+    display: grid !important;
+    grid-template-columns: repeat(var(--days), minmax(0, 1fr));
+    height: auto !important;
+  }
+  [data-calendar] [data-month-track] > * {
+    position: relative !important;
+    inset: auto !important;
+    grid-column: var(--col) / span var(--span);
+    width: auto !important;
+    height: auto !important;
+    min-height: 22px;
+    margin-inline: var(--ml) var(--mr);
+    padding-block: 2px;
+  }
+  [data-calendar] .cal-bar-text {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 0.75rem;
+  }
 }

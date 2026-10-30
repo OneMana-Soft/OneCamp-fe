@@ -11,7 +11,10 @@ pinTestClock()
 // sliver in view showed "S…" at the chart's edge, and the client's timeline
 // drew blue bars under the project's teal mark.
 
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, isError: false, mutate: () => Promise.resolve() }) }))
+vi.mock("@/hooks/useFetch", () => {
+  const nothing = () => ({ data: undefined, isLoading: false, isError: false, mutate: () => Promise.resolve() })
+  return { useFetch: nothing, useFetchOnlyOnce: nothing }
+})
 vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useSelector: () => "" }))
 
 const { ProjectTimeline } = await import("./ProjectTimeline")

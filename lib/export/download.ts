@@ -1,5 +1,7 @@
 /** Saving an export: its file name, and handing the file to the browser. */
 
+import { downloadBlob } from '@/lib/utils/download'
+
 /**
  * A file name from a doc's title, as the API makes one: the characters a
  * file system refuses are left out, it is never empty, and never longer than
@@ -20,16 +22,5 @@ export function exportFileName(title: string): string {
 
 /** Downloads a file the browser made (an export never goes through a server). */
 export function downloadFile(filename: string, data: Blob | string, type = 'text/plain;charset=utf-8') {
-  const blob = typeof data === 'string' ? new Blob([data], { type }) : data
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.rel = 'noopener'
-  a.style.display = 'none'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  // Long enough for the download to start; the object goes with the page otherwise.
-  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  downloadBlob(data, typeof data === 'string' ? type : data.type, filename)
 }

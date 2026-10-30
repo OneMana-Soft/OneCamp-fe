@@ -66,6 +66,18 @@ const group = {
       }
       M.calViewSwitchP95Ms = worst
       M.rendersPerCalViewSwitch = worstRenders
+      // Year (B1's later steps, cal-b1y), on a build that has it: reported
+      // apart, so the switch's worst still compares with builds without it.
+      // The week comes back untimed for the event's card.
+      if (await view("Year").count()) {
+        const y = await h.step("calViewYear", { act: () => view("Year").click({ timeout: 10000 }), settle: 700 })
+        M.calViewYearInpMs = y?.inp
+        M.calViewYearRenders = y?.renders
+        await view("Week")
+          .click({ timeout: 10000 })
+          .catch(() => {})
+        await page.waitForTimeout(1200)
+      }
     } else {
       // A phone moves a day at a time along its week strip.
       const strip = page.locator("[data-week-strip] button").nth(4)

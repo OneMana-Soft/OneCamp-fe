@@ -1,8 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 
 import ts from "typescript"
 import { describe, expect, it } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * Fluidity rules from the Vercel Web Interface Guidelines, held by tests.
@@ -15,15 +16,7 @@ import { describe, expect, it } from "vitest"
  */
 
 const ROOT = process.cwd()
-function files(dir: string, ext: RegExp, out: string[] = []): string[] {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name)
-    if (e.isDirectory()) files(p, ext, out)
-    else if (ext.test(e.name) && !/\.(test|spec)\./.test(e.name)) out.push(p)
-  }
-  return out
-}
-const TSX = ["app", "components"].flatMap((d) => files(join(ROOT, d), /\.tsx$/))
+const TSX = sourceFiles(["app", "components"], /\.tsx$/)
 
 describe("fluid interface", () => {
   it("never transitions all properties", () => {
@@ -41,7 +34,7 @@ describe("fluid interface", () => {
   it("writes an ellipsis as one character in anything a person reads", () => {
     const RE = /[\p{L}\p{N})\]]\.\.\.(?=[\s"'`<)]|$)/u
     const found: string[] = []
-    for (const f of [...TSX, ...["hooks", "lib", "services"].flatMap((d) => files(join(ROOT, d), /\.tsx?$/))]) {
+    for (const f of [...TSX, ...sourceFiles(["hooks", "lib", "services"], /\.tsx?$/)]) {
       const src = readFileSync(f, "utf8")
       if (!src.includes("...")) continue
       const sf = ts.createSourceFile(f, src, ts.ScriptTarget.Latest, true, f.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS)

@@ -26,6 +26,7 @@ import type { AnyExtension } from '@tiptap/core'
 import { StarterKit } from '@tiptap/starter-kit'
 import { blocksFor, registryVersion, subscribeRegistry, type EditionGate } from './registry'
 import type { BlockContext, BlockSpec, EditorKind } from './types'
+import { once } from '@/lib/lazy/once'
 
 /** Where a package's block goes when it names no order: after every built-in one. */
 const PACKAGE_ORDER = 10_000
@@ -59,17 +60,7 @@ const loading = new Map<string, Promise<void>>()
 
 // The stand-ins for blocks on demand (onDemand.ts), loaded like a lazy block.
 let onDemand: typeof import('./onDemand') | null = null
-let onDemandLoading: Promise<typeof import('./onDemand')> | null = null
-function loadOnDemand() {
-  onDemandLoading ??= import('./onDemand').then(
-    (m) => (onDemand = m),
-    (e) => {
-      onDemandLoading = null
-      throw e
-    },
-  )
-  return onDemandLoading
-}
+const loadOnDemand = once(() => import('./onDemand').then((m) => (onDemand = m)))
 
 /** Whether an on-demand block holds up an editor: its stand-ins aren't here yet, or the saved content holds its node and its chunk isn't here. */
 function onDemandPending(spec: BlockSpec, saved: string): boolean {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useConfirm } from "@/hooks/useConfirm"
 import { SAVE_NUDGE_EVENT, unsavedWhat } from "@/lib/unsavedChanges"
 import { isPlainLeftClick } from "@/lib/ui/linkClick"
@@ -22,7 +22,7 @@ let lastNudge = 0
  */
 export function UnsavedChangesGuard() {
   const confirm = useConfirm()
-  const router = useRouter()
+  const router = useAppRouter()
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {

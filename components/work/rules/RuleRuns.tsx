@@ -22,9 +22,14 @@ const TONE: Record<RuleRun["status"], [StateTone, string]> = {
   running: ["warning", "Running"],
 }
 
-/** What a run did, in a line: its steps' words, or why it didn't run. */
+/** What a run did, in a line: its steps' words, or why it didn't run. A run for each task says how many it found and reached. */
 export function runSummary(run: RuleRun): string {
   if (run.status === "skipped") return run.error || "Skipped"
+  if (run.matched != null) {
+    const reached = new Set(run.steps.map((s) => s.task_id).filter(Boolean)).size
+    const failed = run.steps.filter((s) => s.status === "failed").length
+    return [`Matched ${run.matched}`, `acted on ${reached}`, failed ? `${failed} couldn't` : ""].filter(Boolean).join(" · ")
+  }
   const said = run.steps.map((s) => (s.status === "failed" ? `couldn't ${s.type.replace(/_/g, " ")}: ${s.detail ?? ""}` : s.detail || s.type.replace(/_/g, " ")))
   return said.join(" · ") || "Nothing to do"
 }
@@ -44,7 +49,7 @@ export function RuleRuns({ projectId, ruleId, ruleName, canUndo }: { projectId: 
   const [busy, setBusy] = useState<string | null>(null)
   const { toast } = useToast()
   if (error) return <ErrorState compact subject="the rules' history" onRetry={() => void refresh()} />
-  if (isLoading || !runs) {
+  if (isLoading || runs === undefined) {
     return (
       <div role="status" aria-label="Loading the history" className="space-y-2">
         {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}

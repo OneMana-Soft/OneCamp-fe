@@ -1,4 +1,4 @@
-import axios from "axios"
+import axios, { AxiosError } from "axios"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 // The session's one refresh (lib/auth/sessionRefresh). QA SH-16 (14 Oct
@@ -14,6 +14,8 @@ vi.mock("@/lib/sessionEnd", () => ({ endSession: async () => {} }))
 
 const KEY = "onecamp:token-issued-at"
 const STALE = () => String(Date.now() - 10 * 60 * 1000)
+/** The server's answer to a refresh with no session behind it. */
+const refused = () => new AxiosError("Unauthorized", "ERR_BAD_REQUEST", undefined, undefined, { status: 401 } as never)
 
 /** A tab: the module loaded afresh, as a new tab loads it. */
 async function tab() {
@@ -67,10 +69,96 @@ describe("the issue time every tab shares", () => {
     expect((await tab()).sessionIsStale()).toBe(false)
   })
 
-  it("starts at the load when no tab has kept one (just signed in), and is kept", async () => {
+  // A load kept its own time when no tab had kept one, so a sign-in page with
+  // no session went stale four minutes in, and from then on refreshed, was
+  // refused and signed out once a minute (regression audit S3, 23 Oct).
+  it("knows of no session in a tab where none is kept, so it never goes stale", async () => {
     const t = await tab()
+    expect(t.sessionIsStale(Date.now() + 60 * 60 * 1000)).toBe(false)
+    expect(localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it("starts when the app's gate sees the member (signed in without a reload), and is kept for every tab", async () => {
+    const t = await tab()
+    t.sessionHeld()
     expect(t.sessionIsStale()).toBe(false)
+    expect(t.sessionIsStale(Date.now() + 5 * 60 * 1000)).toBe(true)
     expect(Number(localStorage.getItem(KEY))).toBeGreaterThan(Date.now() - 5000)
+  })
+
+  it("keeps its own when the gate sees the member again", async () => {
+    const kept = Date.now() - 60 * 1000
+    localStorage.setItem(KEY, String(kept))
+    const t = await tab()
+    t.sessionHeld()
+    expect(Number(localStorage.getItem(KEY))).toBe(kept)
+  })
+})
+
+describe("a session that has ended", () => {
+  it("stops the clock when the server refuses a refresh", async () => {
+    localStorage.setItem(KEY, STALE())
+    const t = await tab()
+    vi.spyOn(axios, "get").mockRejectedValue(refused())
+    await expect(t.refreshSession()).rejects.toThrow("Unauthorized")
+    expect(t.sessionIsStale()).toBe(false)
+  })
+
+  it("keeps the clock when a refresh fails for any other reason, so the next one tries again", async () => {
+    localStorage.setItem(KEY, STALE())
+    const t = await tab()
+    vi.spyOn(axios, "get").mockRejectedValue(new AxiosError("Network Error", "ERR_NETWORK"))
+    await expect(t.refreshSession()).rejects.toThrow("Network Error")
+    expect(t.sessionIsStale()).toBe(true)
+  })
+
+  // A sign-out in this tab leaves by a full load, which finds nothing kept.
+  it("stops the clock when another tab signs out, which clears storage", async () => {
+    localStorage.setItem(KEY, STALE())
+    const t = await tab()
+    localStorage.clear()
+    window.dispatchEvent(new StorageEvent("storage", { key: null }))
+    expect(t.sessionIsStale()).toBe(false)
+  })
+})
+
+describe("a sign-in page with no session", () => {
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/")
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true })
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** The API client loaded on the page, every refresh refused, through ten minutes of its timer. */
+  async function tenMinutes() {
+    const refresh = vi.spyOn(axios, "get").mockRejectedValue(refused())
+    const signOut = vi.spyOn(axios, "post").mockResolvedValue({ data: {}, status: 200 })
+    vi.resetModules()
+    await import("@/lib/axiosInstance")
+    for (let minute = 0; minute < 10; minute++) {
+      await vi.advanceTimersByTimeAsync(60 * 1000)
+      await vi.dynamicImportSettled()
+      await vi.advanceTimersByTimeAsync(0)
+    }
+    return { refresh, signOut }
+  }
+
+  it("never refreshes, signs out or clears the origin's storage", async () => {
+    localStorage.setItem("onecamp-theme", "dark")
+    const { refresh, signOut } = await tenMinutes()
+    expect(refresh).not.toHaveBeenCalled()
+    expect(signOut).not.toHaveBeenCalled()
+    expect(localStorage.getItem("onecamp-theme")).toBe("dark")
+  })
+
+  it("signs out once when the session it kept is refused, then stays quiet", async () => {
+    localStorage.setItem(KEY, STALE())
+    const { refresh, signOut } = await tenMinutes()
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(signOut).toHaveBeenCalledTimes(1)
   })
 })
 

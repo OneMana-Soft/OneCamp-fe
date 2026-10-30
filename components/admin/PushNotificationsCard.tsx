@@ -260,8 +260,7 @@ const PushNotificationsCard: React.FC = () => {
                         <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
                             Cancel
                         </Button>
-                        <Button type="button" onClick={() => void save()} disabled={!checked?.ok || saving} aria-busy={saving || undefined}>
-                            {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
+                        <Button type="button" onClick={() => void save()} disabled={!checked?.ok} busy={saving}>
                             {stored ? "Replace credential" : "Turn on push"}
                         </Button>
                     </DialogFooter>

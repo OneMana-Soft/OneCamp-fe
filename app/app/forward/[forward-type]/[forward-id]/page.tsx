@@ -95,8 +95,10 @@ export default function Page() {
     }
 
 
+    // The page's gutter: the chip field, the message box and the preview sit
+    // 16px in from the screen's edges.
     return (
-        <div className='flex-col space-y-4 mt-4'>
+        <div className='flex-col space-y-4 mt-4 px-4'>
             <ForwardMessageDropdown onSelect={selectChatsOrChannels}/>
             <MinimalTiptapTextInput
                 throttleDelay={300}
@@ -115,7 +117,7 @@ export default function Page() {
             >
 
             </MinimalTiptapTextInput>
-            <div className='p-4'>
+            <div className='py-4'>
             <MessagePreview
                 msgBy={postInfo.data?.data?.post_by || chatInfo.data?.data.chat_from }
                 msgText={postInfo.data?.data?.post_text || chatInfo.data?.data.chat_body_text}

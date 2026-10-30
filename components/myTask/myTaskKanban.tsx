@@ -1,6 +1,5 @@
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 import { useMemo, useState } from "react"
-import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
@@ -8,6 +7,7 @@ import {
     DropdownMenuContent,
     DropdownMenuLabel,
     DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Plus, SlidersHorizontal } from "@/lib/icons"
 import { useDispatch } from "react-redux"
@@ -17,8 +17,28 @@ import type { TaskInfoInterface } from "@/types/task"
 import { canEditTask } from "@/lib/work/access"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { GetTaskStatusQueryParamByStatus } from "@/lib/utils/getTaskStatusQueryParamByStatus"
-import { TaskKanbanColumnPriorityFilter } from "@/components/task/taskKanbanColumnPriorityFilter"
-import { TaskKanbanProjectFilter } from "@/components/task/taskKanbanProjectFilter"
+import type { ComponentType } from "react"
+import { lazyPart } from "@/lib/lazy/lazyPart"
+import { FilterChip } from "@/components/task/filterChip"
+import { PartRetry } from "@/components/ui/part-retry"
+
+type KanbanFilterProps = { activeList: string[]; updateList: (l: string[]) => void }
+
+// The priority and project filters are SA-3's combobox, each a chunk of its
+// own (lib/lazy/lazyPart): its chip at rest while it comes, and Try again in
+// its place if it can't.
+const kanbanFilter = (what: "priority" | "project", load: () => Promise<ComponentType<KanbanFilterProps>>) =>
+    lazyPart<KanbanFilterProps>(load, {
+        placeholder: function FilterAtRest({ activeList }) {
+            const { t } = useTranslation()
+            return <FilterChip title={t(what)} count={activeList.length} />
+        },
+        failed: function FilterRetry({ retry }) {
+            return <PartRetry what={`the ${what} filter`} retry={retry} />
+        },
+    })
+const priorityFilterPart = kanbanFilter("priority", () => import("@/components/task/taskKanbanColumnPriorityFilter").then((m) => m.TaskKanbanColumnPriorityFilter))
+const projectFilterPart = kanbanFilter("project", () => import("@/components/task/taskKanbanProjectFilter").then((m) => m.TaskKanbanProjectFilter))
 import { openUI } from "@/store/slice/uiSlice"
 import { taskStatuses } from "@/types/table"
 import { useMoveTask } from "@/hooks/useMoveTask"
@@ -96,8 +116,8 @@ export const MyTaskKanban = ({ className }: { className?: string } = {}) => {
         <div className="flex h-full flex-col overflow-hidden">
             <div data-work-toolbar="" className={cn(workToolbar, "justify-between")}>
                 <div className="flex flex-wrap items-center gap-1.5">
-                    <TaskKanbanProjectFilter activeList={activeProject} updateList={setActiveProject} />
-                    <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
+                    <projectFilterPart.Part activeList={activeProject} updateList={setActiveProject} />
+                    <priorityFilterPart.Part activeList={priorityFilter} updateList={setPriorityFilter} />
                 </div>
                 {/* At every width, as on the List (below sm the icons stay):
                     Display, then the one primary at the far right. */}

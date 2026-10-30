@@ -37,15 +37,16 @@ export function dayKey(iso: string | Date, tz: string): string {
 }
 
 /** Slots by the day they fall on in the viewer's zone, in order. */
-export function groupByDay(slots: Slot[], tz: string): { day: string; slots: Slot[] }[] {
-  const out: { day: string; slots: Slot[] }[] = []
+export function groupByDay<S extends Slot>(slots: S[], tz: string): { day: string; slots: S[] }[] {
+  // Ranked times come best first, not in time order: each day's in order, the days in order.
+  const days = new Map<string, S[]>()
   for (const s of slots) {
     const day = dayKey(s.start, tz)
-    const last = out[out.length - 1]
-    if (last && last.day === day) last.slots.push(s)
-    else out.push({ day, slots: [s] })
+    days.set(day, [...(days.get(day) ?? []), s])
   }
-  return out
+  return [...days.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([day, ss]) => ({ day, slots: ss.sort((x, y) => Date.parse(x.start) - Date.parse(y.start)) }))
 }
 
 // A moment reads the same here as everywhere else in the app: the day in its

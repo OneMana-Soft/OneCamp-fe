@@ -37,7 +37,7 @@ export function activityKey(item: UnifiedActivityItem): string {
     return ["COMMENT", c.comment_created_at || item.time, c.comment_by?.user_uuid || "", c.comment_uuid || targetOfComment(c)].join("|")
   }
   if (item.activity_type === "REACTION" && r) {
-    const on = r.post?.post_uuid || r.chat?.chat_uuid || targetOfComment(r.comment) || r.reaction_task?.task_uuid || r.reaction_doc?.doc_uuid || ""
+    const on = r.post?.post_uuid || r.chat?.chat_uuid || targetOfComment(r.comment) || ""
     return ["REACTION", r.reaction_added_at || item.time, r.reaction_added_by?.user_uuid || "", r.reaction_emoji_id || "", r.uid || on].join("|")
   }
   return [item.activity_type, item.time].join("|")

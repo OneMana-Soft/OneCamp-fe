@@ -34,6 +34,7 @@ vi.mock("@/components/message/WorkLinkCards", () => ({ WorkLinkCards: () => null
 const { TooltipProvider } = await import("@/components/ui/tooltip")
 const { default: store } = await import("@/store/store")
 const { BaseMessageCard } = await import("@/components/message/baseMessageCard")
+const { SCROLL_SETTLE_MS, watchListMoving } = await import("@/lib/ui/scrollState")
 
 function row(continued = false) {
   return render(
@@ -79,6 +80,44 @@ describe("a message's actions", () => {
     expect(screen.getByRole("toolbar", { name: "Message actions" })).toBeTruthy()
     fireEvent.pointerLeave(message)
     expect(screen.queryByRole("toolbar")).toBeNull()
+  })
+
+  // A list carries its rows under a resting pointer as it scrolls: each one
+  // built its actions as it passed (14 to 29 toolbars a spin, 27 Oct 2026).
+  // The row under the pointer gets them once the list settles.
+  it("wait while the list carries the message under a resting pointer, and come once it settles", () => {
+    vi.useFakeTimers()
+    const { container } = row()
+    const undo = watchListMoving(container)!
+    const message = container.querySelector("#msg-p1")!
+    container.dispatchEvent(new Event("scroll"))
+    fireEvent.pointerEnter(message)
+    act(() => { vi.advanceTimersByTime(100) })
+    container.dispatchEvent(new Event("scroll"))
+    act(() => { vi.advanceTimersByTime(SCROLL_SETTLE_MS - 1) })
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(toolbars).toBe(0)
+    act(() => { vi.advanceTimersByTime(1) })
+    vi.useRealTimers()
+    expect(screen.getByRole("toolbar", { name: "Message actions" })).toBeTruthy()
+    undo()
+  })
+
+  it("don't come for a message the list carried on past the pointer", () => {
+    vi.useFakeTimers()
+    const { container } = row()
+    const undo = watchListMoving(container)!
+    const message = container.querySelector("#msg-p1")!
+    container.dispatchEvent(new Event("scroll"))
+    fireEvent.pointerEnter(message)
+    act(() => { vi.advanceTimersByTime(100) })
+    fireEvent.pointerLeave(message)
+    act(() => { vi.advanceTimersByTime(SCROLL_SETTLE_MS) })
+    expect(container.hasAttribute("data-list-moving"), "the list settled, and what waited on it ran").toBe(false)
+    vi.useRealTimers()
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(toolbars).toBe(0)
+    undo()
   })
 
   it("come with keyboard focus on the author, after the message in the tab order", () => {

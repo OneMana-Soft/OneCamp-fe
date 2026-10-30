@@ -1,4 +1,4 @@
-import type { Page, WebSocketRoute } from "@playwright/test"
+import type { Page, Route, WebSocketRoute } from "@playwright/test"
 import * as Y from "yjs"
 
 /**
@@ -84,6 +84,13 @@ export class CollabRelay {
   private connections = new Set<Connection>()
   /** Every message the pages sent, for a test to read (type by doc). */
   readonly received: Array<{ who: string; doc: string; type: number }> = []
+  /**
+   * What a page's editor threw while taking an update, by who: y-protocols
+   * catches it, logs it and goes on, leaving that editor behind its doc.
+   */
+  readonly updateErrors: string[] = []
+  /** The network is gone (drop): open sockets were closed, and new ones close at once. */
+  private down = false
 
   doc(name: string): Y.Doc {
     let d = this.docs.get(name)
@@ -93,7 +100,14 @@ export class CollabRelay {
 
   /** Routes a page's collaboration socket here (the one that sends the schema hash). */
   async attach(page: Page, who: string) {
+    page.on("console", (m) => {
+      if (m.type() === "error" && m.text().startsWith("Caught error while handling a Yjs update")) this.updateErrors.push(`${who}: ${m.text()}`)
+    })
     await page.routeWebSocket(/[?&]schema=/, (ws) => {
+      if (this.down) {
+        void ws.close({ code: 4000, reason: "collab relay: the network is gone" }).catch(() => {})
+        return
+      }
       const connection: Connection = { ws, who, docs: new Set(), awareness: new Map() }
       this.connections.add(connection)
       ws.onMessage((message) => {
@@ -108,6 +122,20 @@ export class CollabRelay {
         this.connections.delete(connection)
       })
     })
+  }
+
+  /**
+   * The network goes (true) or comes back (false) for every page here: the
+   * open sockets close, and a socket opened meanwhile closes at once, as on a
+   * connection that's gone (Playwright's setOffline leaves a routed socket open).
+   */
+  drop(down: boolean) {
+    this.down = down
+    if (!down) return
+    for (const c of [...this.connections]) {
+      this.connections.delete(c)
+      void c.ws.close({ code: 4000, reason: "collab relay: the network is gone" }).catch(() => {})
+    }
   }
 
   private send(to: Connection, doc: string, write: (w: Writer) => void) {
@@ -169,5 +197,21 @@ export class CollabRelay {
         return
       }
     }
+  }
+}
+
+/**
+ * The network gone while the device still says it's online (Wi-Fi with no
+ * internet, a dead cell link): every request fails, and the relay's sockets
+ * close and can't come back. navigator.onLine stays true, which Playwright's
+ * setOffline would not leave it. Returns the network's return.
+ */
+export async function networkDies(page: Page, relay: CollabRelay) {
+  const dead = (route: Route) => route.abort("internetdisconnected")
+  await page.route("**/*", dead)
+  relay.drop(true)
+  return async () => {
+    await page.unroute("**/*", dead)
+    relay.drop(false)
   }
 }

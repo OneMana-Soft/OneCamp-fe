@@ -16,17 +16,18 @@ const gets = vi.fn((url: string) => {
   const a = levels[url]
   return a ? Promise.resolve({ data: structuredClone(a) }) : Promise.reject(new Error(`no level at ${url}`))
 })
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: (url: string) => gets(url) } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: (url: string) => gets(url) } }))
 
 const node = (id: string, title: string, hasChildren = false, canEdit = true): TreeNode => ({ id, title, hasChildren, canEdit })
-const TOP = "/t?parent=&limit=50"
-const PLANS = "/t?parent=plans&limit=50"
+// A level reads more than it shows (fluid-06, Fix 2): a page of 50 reads 100.
+const TOP = "/t?parent=&limit=100"
+const PLANS = "/t?parent=plans&limit=100"
 
 function reset() {
   for (const k of Object.keys(levels)) delete levels[k]
   levels[TOP] = { level: { nodes: [node("plans", "Plans", true), node("notes", "Notes"), node("ideas", "", true)], hidden: 0, count: 3 } }
   levels[PLANS] = { level: { nodes: [node("q4", "Q4"), node("q3", "Q3")], hidden: 0, count: 2 } }
-  levels["/t?parent=ideas&limit=50"] = { level: { nodes: [], hidden: 2, count: 0 } }
+  levels["/t?parent=ideas&limit=100"] = { level: { nodes: [], hidden: 2, count: 0 } }
 }
 
 const move = vi.fn<(m: TreeMove) => Promise<void>>()
@@ -186,6 +187,122 @@ describe("TreeView", () => {
     dragAt("dragOver", q4, dt, 15)
     dragAt("drop", q4, dt, 15)
     expect(move).not.toHaveBeenCalled()
+  })
+
+  it("never puts a row inside a leaf (a file, a link): a drop on one lands beside it, and ⌥⇧→ under one does nothing", async () => {
+    levels[TOP] = { level: { nodes: [{ ...node("brief", "brief.pdf"), leaf: true }, node("notes", "Notes")], hidden: 0, count: 2 } }
+    renderTree()
+    const notes = await screen.findByRole("treeitem", { name: "Notes" })
+    press(notes, "ArrowRight", { altKey: true, shiftKey: true })
+    expect(move).not.toHaveBeenCalled()
+    const dt = { setData: vi.fn(), getData: vi.fn(), effectAllowed: "", dropEffect: "" }
+    fireEvent.dragStart(notes, { dataTransfer: dt })
+    // A third of the way down, which would drop inside a page.
+    dragAt("dragOver", row("brief.pdf"), dt, 10)
+    dragAt("drop", row("brief.pdf"), dt, 10)
+    expect(move).toHaveBeenLastCalledWith({ id: "notes", to: null, after: null, place: "first" })
+  })
+
+  it("draws a folder's contents from the folder down, and lifts a row out of it to sit after the folder", async () => {
+    levels["/t?parent=plans&limit=100"] = { level: { nodes: [node("q4", "Q4"), node("q3", "Q3")], hidden: 0, count: 2 } }
+    function Rooted({ parent }: { parent?: string }) {
+      const tree = useTree(adapter)
+      return <TreeView tree={tree} label="Plans" placeholder="Untitled" hiddenLabel={(n) => `${n} hidden`} root={{ id: "plans", parent }} />
+    }
+    const { unmount } = render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <SWRMutateBridge />
+        <Rooted parent="space-folder" />
+      </SWRConfig>,
+    )
+    const q3 = await screen.findByRole("treeitem", { name: "Q3" })
+    expect(q3).toHaveAttribute("aria-level", "1")
+    expect(screen.queryByRole("treeitem", { name: "Plans" })).toBeNull()
+    press(q3, "ArrowUp", { altKey: true, shiftKey: true })
+    expect(move).toHaveBeenLastCalledWith({ id: "q3", to: "plans", after: null, place: "first" })
+    press(row("Q4"), "ArrowLeft", { altKey: true, shiftKey: true })
+    expect(move).toHaveBeenLastCalledWith({ id: "q4", to: "space-folder", after: "plans" })
+    unmount()
+
+    // A folder at the top of its space: where "out" goes isn't known here, so ⌥⇧← does nothing.
+    move.mockClear()
+    render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <SWRMutateBridge />
+        <Rooted />
+      </SWRConfig>,
+    )
+    press(await screen.findByRole("treeitem", { name: "Q4" }), "ArrowLeft", { altKey: true, shiftKey: true })
+    expect(move).not.toHaveBeenCalled()
+  })
+
+  it("shows a row's line of detail after its title (a link's site, a file's size)", async () => {
+    function WithMeta() {
+      const tree = useTree(adapter)
+      return <TreeView tree={tree} label="Docs" placeholder="Untitled" hiddenLabel={(n) => `${n} hidden`} meta={(n) => (n.id === "notes" ? "figma.com" : null)} />
+    }
+    render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <SWRMutateBridge />
+        <WithMeta />
+      </SWRConfig>,
+    )
+    const notes = await screen.findByRole("treeitem", { name: "Notes" })
+    expect(notes.querySelector("[data-tree-meta]")?.textContent).toBe("figma.com")
+    expect(row("Plans").querySelector("[data-tree-meta]")).toBeNull()
+  })
+
+  // The shared long press (hooks/useLongPress): the click a hold's release
+  // sends is swallowed wherever it lands. A menu sheet grows to 92dvh, so by
+  // then it is usually the sheet's own item under the finger, which ran (a
+  // row's Select, a file's Versions) and closed the sheet it had just opened.
+  it("opens a row's menu on a long press under a finger, and its release clicks nothing, on the row or on the sheet over it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const item = document.body.appendChild(document.createElement("button"))
+    try {
+      const onOpen = vi.fn()
+      const onLongPress = vi.fn()
+      const ran = vi.fn()
+      item.addEventListener("click", ran)
+      function Held() {
+        const tree = useTree(adapter)
+        return <TreeView tree={tree} label="Docs" placeholder="Untitled" hiddenLabel={(n) => `${n} hidden`} onOpen={onOpen} onLongPress={onLongPress} />
+      }
+      render(
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <SWRMutateBridge />
+          <Held />
+        </SWRConfig>,
+      )
+      const notes = await screen.findByRole("treeitem", { name: "Notes" })
+      const finger = { touches: [{ clientX: 120, clientY: 12 }] }
+      fireEvent.touchStart(notes, finger)
+      await act(async () => void vi.advanceTimersByTime(600))
+      expect(onLongPress).toHaveBeenCalledWith(expect.objectContaining({ id: "notes" }))
+      fireEvent.touchEnd(notes)
+      fireEvent.click(item)
+      expect(ran).not.toHaveBeenCalled()
+      fireEvent.touchStart(notes, finger)
+      await act(async () => void vi.advanceTimersByTime(600))
+      fireEvent.touchEnd(notes)
+      fireEvent.click(notes)
+      expect(onOpen).not.toHaveBeenCalled()
+      // A tap is a tap.
+      fireEvent.touchStart(notes, finger)
+      fireEvent.touchEnd(notes)
+      fireEvent.click(notes)
+      expect(onOpen).toHaveBeenCalledTimes(1)
+      // A list scrolling under a still finger makes it a scroll, not a hold.
+      onLongPress.mockClear()
+      fireEvent.touchStart(notes, finger)
+      fireEvent.scroll(window)
+      await act(async () => void vi.advanceTimersByTime(600))
+      expect(onLongPress).not.toHaveBeenCalled()
+      fireEvent.touchEnd(notes)
+    } finally {
+      item.remove()
+      vi.useRealTimers()
+    }
   })
 
   it("says a level couldn't load, with a way to try again, rather than showing it empty", async () => {

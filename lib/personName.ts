@@ -1,13 +1,9 @@
 /**
- * The one name rule: the name people see for a member.
- *
- * It is their display name (user_name) when they have one, else their full
- * name (user_full_name), else their address's part before the first @, else
- * "". Each is trimmed. The backend applies the same rule
- * (helpers.PersonDisplayName, DgraphUser.DisplayName), so a name in a
- * notification, an email or a search result matches the one on screen.
- *
- * Guests and relayed authors are named elsewhere (lib/relayedAuthor).
+ * The one name rule, the name people see for a member: the display name
+ * (user_name), else the full name, else the address before its @, else "",
+ * each trimmed. The backend's is the same (helpers.PersonDisplayName), so a
+ * notification or a search result names them as the screen does. Guests and
+ * relayed authors: lib/relayedAuthor.
  */
 
 export interface PersonNameFields {
@@ -33,14 +29,27 @@ export function displayNameOf(user?: PersonNameFields | null): string {
   return at < 0 ? email : email.slice(0, at)
 }
 
+/** A name's first word ("Sam" of "Sam Rivera"), for a line that names someone again; "" for none. */
+export function firstNameOf(name?: string | null): string {
+  return trimmed(name).split(/\s+/)[0]
+}
+
 /**
- * The full name, for a second line under the shown name, when it says
- * something the shown name does not. "" otherwise.
+ * The full name, for a line under the shown name, when it says something
+ * that name doesn't; else "".
  */
 export function secondaryNameOf(user?: PersonNameFields | null): string {
   const full = trimmed(user?.user_full_name)
   if (!full) return ""
   return full.toLowerCase() === displayNameOf(user).toLowerCase() ? "" : full
+}
+
+/**
+ * A salutation's given name ("Good morning, Sam"): the full name's first
+ * word, else the display name's; never the address.
+ */
+export function greetingNameOf(user?: PersonNameFields | null): string {
+  return firstNameOf(user?.user_full_name) || firstNameOf(user?.user_name)
 }
 
 /** The member's @handle without the @, or "". */
@@ -49,9 +58,8 @@ export function handleOf(user?: PersonNameFields | null): string {
 }
 
 /**
- * The line under a member's name in a people list: their address, else their
- * "@handle", else "" (show no line at all). An address can be blank: the
- * demo's shared visitor is not shown other members' addresses.
+ * The line under a name in a people list: the address, else "@handle", else
+ * "" (the demo's visitor sees no addresses).
  */
 export function addressOrHandleOf(user?: PersonNameFields | null): string {
   const address = trimmed(user?.user_email_id)
@@ -66,10 +74,9 @@ export function normalizePersonQuery(query?: string | null): string {
 }
 
 /**
- * Whether a member matches what someone typed into a people picker: their
- * shown name, full name or handle contains it, ignoring case, and a leading
- * "@" is allowed. Extra fields (an address, say) can be passed to match too.
- * An empty query matches everyone.
+ * Whether a member matches a people picker's query: the shown name, full name
+ * or handle contains it, in any case, a leading "@" allowed; extra fields (an
+ * address) match too, and "" matches everyone.
  */
 export function matchesPerson(
   user: PersonNameFields | null | undefined,
@@ -84,9 +91,8 @@ export function matchesPerson(
 }
 
 /**
- * How well a member matches, for ordering a picker: 0 when a name or the
- * handle starts with the query, 1 when a word in a name does, 2 for any other
- * match. Assumes matchesPerson is true.
+ * A match's rank, to order a picker: 0 a name or the handle starts with the
+ * query, 1 a word in a name does, else 2. Assumes matchesPerson is true.
  */
 export function personMatchRank(user: PersonNameFields, query?: string | null): number {
   const q = normalizePersonQuery(query)
@@ -98,9 +104,8 @@ export function personMatchRank(user: PersonNameFields, query?: string | null): 
 }
 
 /**
- * The text a cmdk people list filters an item by: the shown name, the full
- * name, "@handle" (so a query typed with its @ still matches), the address
- * and the id.
+ * The text a cmdk people list filters by: shown name, full name, "@handle"
+ * (a query's @ still matches), address and id.
  */
 export function personSearchValue(
   shownName: string,
@@ -114,9 +119,8 @@ export function personSearchValue(
 }
 
 /**
- * The members a picker offers for what was typed, best first: those whose
- * name or handle starts with it, then those with a word that does, then the
- * rest that match. Ties keep their order. At most `limit` when given.
+ * A picker's members for a query, best first (personMatchRank), ties in
+ * their order; at most `limit` when given.
  */
 export function pickPeople<T extends PersonNameFields>(people: T[], query?: string | null, limit?: number): T[] {
   const picked = people

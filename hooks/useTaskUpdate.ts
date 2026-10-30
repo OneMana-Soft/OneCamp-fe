@@ -1,14 +1,15 @@
 import { useSWRConfig } from "swr";
 import { useCallback } from "react";
 import { GetEndpointUrl } from "@/services/endPoints";
-import { TaskInfoInterface } from "@/types/task";
+import type { TaskInfoInterface } from "@/types/task";
 import { isTimelineKey } from "@/lib/timelineKey";
 // The two small helpers, not lib/workload and lib/timeline whole: those came
 // onto the project's first screen with every list (app/firstLoad.test.ts).
 import { isWorkloadKey } from "@/lib/workloadKey";
 import type { WorkloadData, WorkloadTask } from "@/lib/workload";
 import { taskDate } from "@/lib/tasks/taskDate";
-import { fieldFilterMatches, fieldIdOfFilter, withField, type FieldValue } from "@/lib/tasks/fields";
+import { withField, type FieldValue } from "@/lib/tasks/fields";
+import { matchesFilters, statusToKey, withNewTask } from "@/lib/tasks/taskLists";
 
 /** A task list's response, whose lists of tasks are keyed by name. */
 type TaskLists = Record<string, unknown>;
@@ -18,58 +19,6 @@ const BOARD_COLUMNS = ["backlog", "todo", "in_progress", "in_review", "done", "c
 
 export const useTaskUpdate = () => {
     const { mutate, cache } = useSWRConfig();
-
-    const statusToKey = (status: string) => {
-        const mapping: Record<string, string> = {
-            backlog: "backlog",
-            todo: "todo",
-            inProgress: "in_progress",
-            inReview: "in_review",
-            done: "done",
-            canceled: "canceled",
-        };
-        return mapping[status] || status.replace(/ /g, "_");
-    };
-
-    // Whether a task belongs in a list filtered as the key says, as far as can
-    // be told here. A filter only the server can answer (a cycle, an assignee
-    // by graph id, overdue) answers `unsure`: an edited task stays in the list
-    // (dropping it lost the task after any edit), and a new one stays out until
-    // the list is fetched again.
-    const matchesFilters = (task: TaskInfoInterface, searchParams: URLSearchParams, unsure = true) => {
-        const searchText = searchParams.get("taskSearchString")?.toLowerCase();
-        if (searchText && !task.task_name.toLowerCase().includes(searchText)) {
-            return false;
-        }
-
-        const filtersJson = searchParams.get("filters");
-        if (!filtersJson) return true;
-        let filters: { id: string; value: unknown }[];
-        try {
-            filters = JSON.parse(filtersJson);
-        } catch (e) {
-            console.error("Error parsing filters in SWR key", e);
-            return true;
-        }
-        for (const filter of Array.isArray(filters) ? filters : []) {
-            // Most filters are lists of values; a few (overdue) are one string.
-            const values = Array.isArray(filter.value) ? filter.value.map(String) : filter.value ? [String(filter.value)] : [];
-            if (values.length === 0) continue;
-            if (filter.id === "task_priority" && !values.includes(task.task_priority)) return false;
-            // As the server reads it: a built-in status matches a task in no
-            // status of the project's own; a project's status matches by id.
-            if (filter.id === "task_status") {
-                const own = task.task_custom_status;
-                if (!(own ? values.includes(own) : values.includes(task.task_status))) return false;
-            }
-            if (fieldIdOfFilter(filter.id)) {
-                if (!fieldFilterMatches(task.task_fields, filter.id, values)) return false;
-            } else if (filter.id !== "task_priority" && filter.id !== "task_status" && !unsure) {
-                return false;
-            }
-        }
-        return true;
-    };
 
     const getTaskKeys = useCallback((projectId: string) => {
         const projectListPath = GetEndpointUrl.GetProjectTaskList;
@@ -96,44 +45,9 @@ export const useTaskUpdate = () => {
     const optimisticCreateTask = useCallback((newTask: TaskInfoInterface, projectId: string) => {
         // The workload lists open tasks with dates, and counts those without.
         Array.from(cache.keys() as IterableIterator<string>).filter(isWorkloadKey).forEach(key => void mutate(key));
-        const matchedKeys = getTaskKeys(projectId);
-
-        matchedKeys.forEach(key => {
-            mutate(key, (currentData: any) => {
-                if (!currentData || !currentData.data) return currentData;
-
-                const url = new URL(key, "http://localhost");
-                const pathname = url.pathname;
-                const searchParams = url.searchParams;
-                const pageIndex = parseInt(searchParams.get("pageIndex") || "0");
-
-                if (pageIndex !== 0) return currentData;
-                if (!matchesFilters(newTask, searchParams, false)) return currentData;
-
-                // A copy of what changes, the rest shared: see optimisticUpdateTask.
-                const data = { ...currentData.data };
-
-                // Use exact path matching to avoid overlap
-                if (isTimelineKey(pathname)) {
-                    // The timeline holds a project's own tasks, newest first.
-                    data.tasks = [newTask, ...(data.tasks || [])];
-                    data.total = (data.total || 0) + 1;
-                } else if (pathname.includes(GetEndpointUrl.GetProjectTaskListForKanban)) {
-                    const statusKey = `project_tasks_${statusToKey(newTask.task_status)}`;
-                    if (Array.isArray(data[statusKey])) data[statusKey] = [newTask, ...data[statusKey]];
-                } else if (pathname.includes(GetEndpointUrl.GetProjectTaskList)) {
-                    data.project_tasks = [newTask, ...(data.project_tasks || [])];
-                    data.project_task_count = (data.project_task_count || 0) + 1;
-                } else if (pathname === GetEndpointUrl.GetUserTaskListForKanban) {
-                    const statusKey = `user_tasks_${statusToKey(newTask.task_status)}`;
-                    if (Array.isArray(data[statusKey])) data[statusKey] = [newTask, ...data[statusKey]];
-                } else if (pathname === GetEndpointUrl.GetUserTaskList) {
-                    data.user_tasks = [newTask, ...(data.user_tasks || [])];
-                    data.user_task_count = (data.user_task_count || 0) + 1;
-                }
-
-                return { ...currentData, data };
-            }, { revalidate: false }); // Disable immediate revalidation to prevent blinking
+        getTaskKeys(projectId).forEach(key => {
+            // Disable immediate revalidation to prevent blinking
+            mutate(key, (currentData: { data?: TaskLists } | undefined) => withNewTask(key, currentData, newTask), { revalidate: false });
         });
     }, [cache, mutate, getTaskKeys]);
 
@@ -244,7 +158,7 @@ export const useTaskUpdate = () => {
     // goes over two lists, not the board. A JSON copy of every list, as this
     // was, made each of 270 cards render again after a drop, the slowest frame
     // of the drag.
-    const optimisticUpdateTask = useCallback((updatedTask: Partial<TaskInfoInterface> & { task_uuid: string }, projectId: string, newIndex?: number, placement?: { before?: string; after?: string }) => {
+    const optimisticUpdateTask = useCallback((updatedTask: Partial<TaskInfoInterface> & { task_uuid: string }, projectId: string, newIndex?: number, placement?: { before?: string; after?: string }, afterMove?: (d: TaskLists, p: "project" | "user", a: TaskInfoInterface, b: TaskInfoInterface) => void) => {
         // Fields alone change in place, as for several tasks at once.
         if (updatedTask.task_status === undefined && newIndex === undefined) {
             optimisticUpdateTasks([updatedTask], projectId);
@@ -286,6 +200,7 @@ export const useTaskUpdate = () => {
             else if (newIndex !== undefined) target.splice(newIndex, 0, moved);
             else target.unshift(moved);
             data[toKey] = target;
+            if (toKey !== fromKey) afterMove?.(data, prefix, found, moved);
         };
         // A filtered list keeps the task only while it still matches.
         const patchList = (tasks: unknown, searchParams: URLSearchParams) => {
@@ -329,10 +244,8 @@ export const useTaskUpdate = () => {
                 const data = { ...currentData.data };
                 const pathname = new URL(key, "http://localhost").pathname;
 
-                // A list's path is the start of its board's ("/project/taskList"
-                // and "/project/taskListForKanban"), so each board is tested
-                // before its list; tested the other way round, a deleted card
-                // stayed on the board until it was fetched again.
+                // Each board before its list, as above: the other way round, a
+                // deleted card stayed on the board.
                 if (isTimelineKey(pathname)) {
                     const had = (data.tasks || []).length;
                     data.tasks = (data.tasks || []).filter((t: TaskInfoInterface) => t.task_uuid !== taskUuid);

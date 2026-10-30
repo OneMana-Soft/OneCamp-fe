@@ -1,6 +1,10 @@
 import type { SentencePart } from "@/components/admin/workflowsParts"
-import { Bell, CalendarClock, Flag, Hash, ListTodo, MessageSquare, Pencil, Gauge, Repeat, Tag, Type, User, UserPlus, type LucideIcon } from "@/lib/icons"
-import type { RuleAction, RuleCondition, RuleDraft } from "@/lib/rules/types"
+import { AlarmClock, BadgeCheck, Bell, CalendarClock, ClipboardList, Clock, Flag, Hash, ListTodo, MessageSquare, Pencil, Gauge, Repeat, Tag, Type, User, UserPlus, type LucideIcon } from "@/lib/icons"
+import { dueText, scheduleText } from "@/lib/rules/schedule"
+import type { ApprovalOutcome, RuleAction, RuleCondition, RuleDraft } from "@/lib/rules/types"
+import { orList } from "@/lib/utils/format/orList"
+
+const OUTCOME: Record<ApprovalOutcome, string> = { approved: "a task is approved", changes: "changes are asked for on a task", rejected: "a task's approval is rejected" }
 
 /**
  * A project's rule said as one sentence, in the grammar the workspace's
@@ -13,7 +17,12 @@ import type { RuleAction, RuleCondition, RuleDraft } from "@/lib/rules/types"
 export interface RuleNames {
   status?: (value: string) => string | undefined
   person?: (id: string) => string | undefined
+  /** An AI teammate's name, by its principal's id. */
+  agent?: (id: string) => string | undefined
+  /** One of the project's forms, by id. */
+  form?: (id: string) => string | undefined
 }
+
 
 const PRIORITY: Record<string, string> = { low: "low", medium: "medium", high: "high" }
 const FIELD: Record<string, string> = { priority: "priority", due: "due date", tags: "tags", name: "name" }
@@ -22,11 +31,6 @@ const token = (role: "trigger" | "condition" | "action", text: string, icon?: Lu
 
 function personOf(id: string | undefined, names: RuleNames) {
   return (id && names.person?.(id)) || "someone"
-}
-
-function list(items: string[]) {
-  if (items.length <= 1) return items.join("")
-  return `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`
 }
 
 /** The trigger, said. */
@@ -38,15 +42,38 @@ export function triggerText(r: Pick<RuleDraft, "trigger_type" | "trigger_config"
       return "a task is assigned"
     case "task_field_changed": {
       const f = (r.trigger_config.fields ?? []).map((x) => FIELD[x] ?? x)
-      return f.length ? `a task's ${list(f)} changes` : "a task changes"
+      return f.length ? `a task's ${orList(f)} changes` : "a task changes"
     }
     case "task_status_changed": {
       const to = r.trigger_config.to_status
       return to ? `a task moves to ${names.status?.(to) ?? to}` : "a task changes status"
     }
+    case "schedule":
+      return scheduleText(r.trigger_config.repeat, r.trigger_config.at)
+    case "task_due_soon":
+    case "task_overdue":
+      return dueText(r.trigger_type, r.trigger_config.days)
+    case "form_submitted": {
+      const form = r.trigger_config.form_id ? names.form?.(r.trigger_config.form_id) : undefined
+      return form ? `‘${form}’ is sent` : "a form is sent"
+    }
+    case "approval_decided":
+      return r.trigger_config.outcome ? OUTCOME[r.trigger_config.outcome] : "a task's approval is answered"
   }
   return "something happens"
 }
+
+/** The trigger's glyph: a clock for time, a tag for a change of details, a form's clipboard, an approval's badge, a task for the rest. */
+function triggerGlyph(r: Pick<RuleDraft, "trigger_type">): LucideIcon {
+  if (r.trigger_type === "schedule") return Clock
+  if (r.trigger_type === "form_submitted") return ClipboardList
+  if (r.trigger_type === "approval_decided") return BadgeCheck
+  if (r.trigger_type === "task_due_soon" || r.trigger_type === "task_overdue") return AlarmClock
+  return r.trigger_type === "task_field_changed" ? Tag : ListTodo
+}
+
+/** Whether a rule is a schedule that acts for each task its conditions choose. */
+export const forEachTask = (r: Pick<RuleDraft, "trigger_type" | "trigger_config">) => r.trigger_type === "schedule" && !!r.trigger_config.each_task
 
 /** One condition, said. */
 export function conditionText(c: RuleCondition, names: RuleNames = {}): string {
@@ -101,16 +128,16 @@ export function actionPart(a: RuleAction, names: RuleNames = {}): [string, Lucid
     case "add_comment":
       return ["comment on it", MessageSquare]
     case "add_subtask":
-      return [a.task_name ? `add ‘${a.task_name}’` : "add a sub-task", ListTodo]
+      return [a.task_name ? `add ‘${a.task_name}’` : "add a subtask", ListTodo]
     case "notify": {
       const who =
-        a.notify === "assignee" ? "whoever has it" : a.notify === "creator" ? "its creator" : a.notify === "actor" ? "whoever changed it" : list((a.user_ids ?? []).map((id) => personOf(id, names)))
+        a.notify === "assignee" ? "whoever has it" : a.notify === "creator" ? "its creator" : a.notify === "actor" ? "whoever changed it" : orList((a.user_ids ?? []).map((id) => personOf(id, names)))
       return [`tell ${who || "people"}`, Bell]
     }
     case "reply":
       return ["post in a channel", MessageSquare]
     case "create_task":
-      return ["make a task", ListTodo]
+      return [a.task_name ? `make ‘${a.task_name}’` : "make a task", ListTodo]
   }
   return [String(a.type), Pencil]
 }
@@ -126,10 +153,13 @@ function actions(parts: SentencePart[], items: RuleAction[], names: RuleNames, m
 
 /** The parts of a rule's sentence. Pure: the list, the builder's preview and the tests share it. */
 export function ruleSentence(r: RuleDraft, names: RuleNames = {}, max = 3): SentencePart[] {
-  const parts: SentencePart[] = [{ kind: "text", text: "When" }, token("trigger", triggerText(r, names), r.trigger_type === "task_field_changed" ? Tag : ListTodo)]
+  const parts: SentencePart[] = [{ kind: "text", text: "When" }, token("trigger", triggerText(r, names), triggerGlyph(r))]
+  const each = forEachTask(r)
   const conds = r.conditions.items ?? []
+  if (each) parts.push({ kind: "text", text: conds.length ? "for each open task where" : "for each open task" })
   conds.slice(0, 2).forEach((c, i) => {
-    parts.push({ kind: "text", text: i === 0 ? "if" : r.conditions.match === "any" ? "or" : "and" })
+    const joint = i === 0 ? (each ? "" : "if") : r.conditions.match === "any" ? "or" : "and"
+    if (joint) parts.push({ kind: "text", text: joint })
     parts.push(token("condition", conditionText(c, names), Type))
   })
   if (conds.length > 2) parts.push({ kind: "text", text: `+${conds.length - 2}` })
@@ -147,4 +177,17 @@ export function ruleSentence(r: RuleDraft, names: RuleNames = {}, max = 3): Sent
 /** The sentence as plain words (an accessible name, a toast). */
 export function sentenceText(parts: SentencePart[]): string {
   return parts.map((p) => (p.kind === "arrow" ? "then" : p.text)).join(" ")
+}
+
+/**
+ * A name for a rule, from what it does, until someone types their own: "Every
+ * Monday at 9:00 AM: make ‘Review the week’", "A task is due tomorrow: ask
+ * OneCamp AI". Pure.
+ */
+export function suggestedName(r: RuleDraft, names: RuleNames = {}): string {
+  const when = triggerText(r, names)
+  const first = r.actions[0]
+  const what = first ? actionPart(first, names)[0] : ""
+  const name = `${when.charAt(0).toUpperCase()}${when.slice(1)}${what ? `: ${what}` : ""}`
+  return name.length > 120 ? `${name.slice(0, 119)}…` : name
 }

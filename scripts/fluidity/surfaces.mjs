@@ -17,6 +17,15 @@
 //            from the page; otherwise a phone's scroll is a finger's: fingerScroll)
 //            --selector-stats listScroll,taskPanel (CSS selector stats over these
 //            steps: a diagnosis, since the trace slows style work; their times don't count)
+//            --waterfall settingsOpen (every request these steps made, from the
+//            input to the settle's end, with its start and end: what a step waits on)
+//            --names queryWrite (every component that rendered in these steps, and
+//            every origin, not just the top 8, and the first three commits'
+//            components: name them on a profiling build)
+//            --trace calEventOpen (the step's longest task taken apart: the
+//            layouts and style recalculations a script forced in it, with the
+//            stack that forced each, and its script calls by time; a diagnosis
+//            on a build with names kept, as the trace slows the step)
 //            --steps listOpen,boardDrag (just these steps)  --budgets <file>
 //            --out <file.json> (every run's rows)  --result <file> (budget rows, for run.mjs)
 // Under Docker network churn, in its own namespace, in the light lane:
@@ -32,7 +41,7 @@ import { fileURLToPath } from "node:url"
 import { check } from "./budgets.mjs"
 import { USERS, fakeApp } from "./fakeApp.mjs"
 import { resetWorkspace } from "./workspace.mjs"
-import { BUSY_LOAD, addNet, cpuState, cpusAllowed, fingerScroll, hostLoad, installProbe, keyStats, mark, median, netBytes, p95, scrollGesture, selectorStats, since, startFrames, stopFrames, touchDrag } from "./lib.mjs"
+import { BUSY_LOAD, addNet, cpuState, cpusAllowed, fingerScroll, forcedWork, hostLoad, installProbe, keyStats, mark, median, netBytes, p95, scriptsTwice, scrollGesture, selectorStats, since, startFrames, stopFrames, touchDrag, traceEvents } from "./lib.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)
@@ -52,9 +61,63 @@ const OUT = opt("out", null)
 // A phone's scroll is a finger's, unless asked for by the wheel (diagnosis only).
 const PHONE_WHEEL = PHONE && opt("phone-scroll", "touch") === "wheel"
 const SELECTOR_STATS = new Set(String(opt("selector-stats", "")).split(",").filter(Boolean))
+// Diagnoses (FLUIDITY-LEAD-4, 21 Oct 2026): a step's requests with their times
+// (what it waits on), and every component that rendered in it, by name.
+const WATERFALL = new Set(String(opt("waterfall", "")).split(",").filter(Boolean))
+const NAMES = new Set(String(opt("names", "")).split(",").filter(Boolean))
+// What a step's longest task was made of (FLUIDITY-LEAD-5, 21 Oct 2026).
+const TRACE = new Set(String(opt("trace", "")).split(",").filter(Boolean))
+// The step's CPU, sampled over all of it (WHITEBOARD-LEAD-22, miro-06's drag): self time by script and the top
+// functions, so a drag's frames split into Excalidraw's work, React's and ours. A diagnosis: the profiler slows
+// the step, so its times don't count.
+const PROFILE = new Set(String(opt("profile", "")).split(",").filter(Boolean))
 // A screenshot of every step that failed, and the API calls each run made, into this folder.
 const SHOTS = opt("shots", null)
 if (SHOTS) mkdirSync(SHOTS, { recursive: true })
+
+/** A CPU profile's self time, in ms: in all, by script (a chunk's path), and its 25 busiest functions. */
+function cpuSplit(p) {
+  const self = new Map()
+  for (let i = 0; i < p.samples.length; i++) self.set(p.samples[i], (self.get(p.samples[i]) ?? 0) + (p.timeDeltas[i] ?? 0) / 1000)
+  const short = (url) => (url ? url.replace(/^.*\/_next\/static\//, "").replace(/^https?:\/\/[^/]+/, "") : "")
+  const byUrl = new Map()
+  const byFn = new Map()
+  let total = 0
+  for (const n of p.nodes) {
+    const ms = self.get(n.id) ?? 0
+    if (!ms) continue
+    total += ms
+    const f = n.callFrame
+    const where = short(f.url) || f.functionName || "(native)"
+    byUrl.set(where, (byUrl.get(where) ?? 0) + ms)
+    const fn = `${f.functionName || "(anonymous)"} ${short(f.url)}:${f.lineNumber + 1}:${f.columnNumber + 1}`
+    byFn.set(fn, (byFn.get(fn) ?? 0) + ms)
+  }
+  const top = (m, k) => [...m].sort((a, b) => b[1] - a[1]).slice(0, k).map(([name, ms]) => [name, Math.round(ms * 10) / 10])
+  // Who calls the busiest functions: each one's self time, by the chain of its first three callers that aren't itself
+  // (a recursive copy's time goes to whoever started it).
+  const parent = new Map()
+  for (const n of p.nodes) for (const c of n.children ?? []) parent.set(c, n.id)
+  const byId = new Map(p.nodes.map((n) => [n.id, n]))
+  const name = (n) => `${n.callFrame.functionName || "(anonymous)"} ${short(n.callFrame.url)}:${n.callFrame.lineNumber + 1}:${n.callFrame.columnNumber + 1}`
+  const busiest = new Set(top(byFn, 8).map(([f]) => f))
+  const callers = new Map()
+  for (const n of p.nodes) {
+    const ms = self.get(n.id) ?? 0
+    const fn = name(n)
+    if (!ms || !busiest.has(fn)) continue
+    const chain = []
+    let up = parent.get(n.id)
+    while (up !== undefined && chain.length < 3) {
+      const u = byId.get(up)
+      if (name(u) !== fn) chain.push(name(u))
+      up = parent.get(up)
+    }
+    const key = `${fn} <- ${chain.join(" <- ")}`
+    callers.set(key, (callers.get(key) ?? 0) + ms)
+  }
+  return { totalMs: Math.round(total), byScript: top(byUrl, 14), functions: top(byFn, 25), callers: top(callers, 24) }
+}
 
 const GROUPS = {}
 for (const name of ONLY) GROUPS[name] = (await import(join(here, "surfaces", `${name}.mjs`))).default
@@ -82,17 +145,12 @@ function inPage() {
   addEventListener("touchstart", at, true)
   // Frames in which the region a step opens shows nothing at all: no text, no
   // skeleton, no image. A skeleton or the old content is not blank.
+  // (lib.mjs's frameWatch counts them: hits are the blank frames.)
   window.__fluBlankWatch = (sel) => {
-    const B = (window.__fluBlank = { frames: 0, blank: 0, done: false })
-    const tick = () => {
-      if (B.done) return
-      B.frames++
+    window.__fluBlank = window.__flu.frameWatch(() => {
       const el = document.querySelector(sel)
-      const shows = el && el.getClientRects().length > 0 && ((el.innerText || "").trim().length > 0 || el.querySelector("img, svg, canvas, [data-skeleton], .animate-pulse, [aria-busy='true']"))
-      if (!shows) B.blank++
-      if (B.frames < 600) requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
+      return !(el && el.getClientRects().length > 0 && ((el.innerText || "").trim().length > 0 || el.querySelector("img, svg, canvas, [data-skeleton], .animate-pulse, [aria-busy='true']")))
+    })
   }
 }
 
@@ -245,8 +303,10 @@ function harness(page, context, cdp, net, log) {
     /**
      * One measured step. act() gives the input; ready(), when given, waits
      * for the useful content and returns its ms. frames: sample frame time
-     * while act runs. blank: the region whose empty frames count. typed: keys
-     * typed, for per-key latency.
+     * while act runs, until ready; or, as { from: "ready", ms }, for ms after
+     * the content is ready (an overlay's entry: what moves on screen, apart
+     * from the wait before it, which ready and INP already time). blank: the
+     * region whose empty frames count. typed: keys typed, for per-key latency.
      */
     async step(id, { act, ready, frames = false, blank = null, settle = 600, typed = 0, nav = false }) {
       if (!h.wants(id)) return null
@@ -256,14 +316,20 @@ function harness(page, context, cdp, net, log) {
       const perf = async () => Object.fromEntries(((await cdp.send("Performance.getMetrics").catch(() => null))?.metrics ?? []).map((x) => [x.name, x.value]))
       const perf0 = await perf()
       net.take()
+      // A new document starts with nothing cached: its scripts count again.
+      if (nav) net.cold()
       if (!nav) await page.evaluate(() => (window.__fluInputAt = performance.now()))
       if (blank && !nav) await page.evaluate((s) => window.__fluBlankWatch(s), blank)
       h.scrolledPx = 0
       h.scrollInput = PHONE && !PHONE_WHEEL ? "touch" : "wheel"
-      if (frames) await startFrames(page)
+      const entryMs = frames?.from === "ready" ? (frames.ms ?? 500) : 0
+      if (frames && !entryMs) await startFrames(page)
       let readyMs = null
       let error
       let selectors
+      let trace
+      let profile
+      if (NAMES.has(id)) await page.evaluate(() => (window.__fluCommitNames = true))
       // The bytes until the content is useful, apart from the settle's after
       // it (what a page warms once it is quiet): netReady and netWarm.
       let netReady = null
@@ -271,13 +337,37 @@ function harness(page, context, cdp, net, log) {
         await act()
         readyMs = ready ? await ready() : null
         if (ready) netReady = net.take()
+        if (entryMs) {
+          await startFrames(page)
+          await page.waitForTimeout(entryMs)
+        }
       }
       try {
         if (SELECTOR_STATS.has(id)) selectors = await selectorStats(cdp, run)
-        else await run()
+        else if (TRACE.has(id)) {
+          const events = await traceEvents(
+            cdp,
+            async () => {
+              await page.evaluate(() => performance.mark("flu-step"))
+              await run()
+            },
+            { stacks: true },
+          )
+          trace = forcedWork(events, "flu-step")
+        } else if (PROFILE.has(id)) {
+          await cdp.send("Profiler.enable")
+          await cdp.send("Profiler.setSamplingInterval", { interval: 250 })
+          await cdp.send("Profiler.start")
+          try {
+            await run()
+          } finally {
+            profile = cpuSplit((await cdp.send("Profiler.stop")).profile)
+          }
+        } else await run()
       } catch (e) {
         error = String(e?.message || e).split("\n")[0].slice(0, 200)
       }
+      if (NAMES.has(id)) await page.evaluate(() => (window.__fluCommitNames = false)).catch(() => {})
       const f = frames ? await stopFrames(page).catch(() => null) : null
       if (blank) await page.evaluate(() => window.__fluBlank && (window.__fluBlank.done = true)).catch(() => {})
       await page.waitForTimeout(settle)
@@ -296,6 +386,8 @@ function harness(page, context, cdp, net, log) {
         tbt: m?.tbt ?? null,
         cls: m?.cls ?? null,
         renders: m?.renders ?? null,
+        // Of those, the renders inside a library's own tree (window.__fluInsideProp: a whiteboard's canvas).
+        rendersInside: m?.rendersInside || undefined,
         commits: m?.commits ?? null,
         frames: f,
         scrolledPx: frames ? h.scrolledPx : undefined,
@@ -305,8 +397,11 @@ function harness(page, context, cdp, net, log) {
         layoutMs: delta("LayoutDuration"),
         styleMs: delta("RecalcStyleDuration"),
         scrollInput: frames && h.scrolledPx ? h.scrollInput : undefined,
-        blankFrames: b ? b.blank : null,
+        blankFrames: b ? b.hits : null,
         ...((rest) => (netReady ? { net: addNet(netReady, rest), netReady, netWarm: rest } : { net: rest }))(net.take()),
+        // Script elements put in again for an address the document had: a
+        // real browser takes each from its cache and runs it again.
+        scriptsTwice: scriptsTwice(m?.scriptsAgain, net.bytesOf),
         origins: m?.origins?.slice(0, 8),
         topApp: m?.topApp?.slice(0, 8),
         // ms per component, in a profiling build only (next build --profile).
@@ -317,6 +412,10 @@ function harness(page, context, cdp, net, log) {
         ro: m?.ro,
         // CSS selector stats (--selector-stats): a diagnosis; this step's times don't count.
         selectors,
+        // The longest task taken apart (--trace): a diagnosis; this step's times don't count.
+        trace,
+        // The step's CPU by script and function (--profile): a diagnosis; this step's times don't count.
+        profile,
       }
       if (typed && m) {
         const k = keyStats(m, typed)
@@ -324,11 +423,34 @@ function harness(page, context, cdp, net, log) {
         row.keyP95 = k.p95
         row.rendersPerKey = Math.round((m.renders / typed) * 10) / 10
       }
+      if (NAMES.has(id) && m) {
+        const byCount = (o) => Object.entries(o ?? {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}×${v}`)
+        row.names = { byName: byCount(m.byNameAll), origins: byCount(m.originsAll), commits: m.commitNames }
+      }
+      // Every request from the step's input (or its document's start) to the
+      // settle's end, in ms from that input: when it began and when its answer
+      // was in. A cached script shows 0 KB. Resource timing, so a request still
+      // open at the end isn't listed.
+      if (WATERFALL.has(id)) {
+        row.waterfall = await page
+          .evaluate((nav) => {
+            const t0 = nav ? 0 : (window.__fluInputAt ?? 0)
+            return performance
+              .getEntriesByType("resource")
+              .filter((e) => e.startTime >= t0 - 1)
+              .sort((a, b) => a.startTime - b.startTime)
+              .map((e) => ({ at: Math.round(e.startTime - t0), end: Math.round(e.responseEnd - t0), kind: e.initiatorType, kb: Math.round(e.transferSize / 102.4) / 10, url: e.name.replace(location.origin, "").replace(/^\/_next\/static\//, "").slice(0, 140) }))
+          }, nav)
+          .catch((e) => [{ error: String(e?.message || e).slice(0, 120) }])
+      }
       h.rows.push(row)
       if (error && SHOTS) await page.screenshot({ path: join(SHOTS, `${id}-${DEVICE}-${CPU}x-${Date.now()}.png`) }).catch(() => {})
       const fr = f ? ` frames p95 ${f.p95} ms, dropped ${f.droppedPct}%${row.scrollInput ? ` (${row.scrollInput}, ${row.scrolledPx} px)` : ""}` : ""
       if (selectors) console.log(`    selectors (a diagnosis: times don't count): ${selectors.totalMs} ms over ${selectors.recalcs} style recalculations; ${selectors.top.slice(0, 6).map((x) => `${x.selector} ${Math.round(x.us / 100) / 10} ms (${x.attempts} tries, ${x.matches} matched)`).join("; ")}`)
-      console.log(`  ${row.ok ? "ok " : "ERR"} ${id}: ready ${readyMs ?? "-"} ms, inp ${row.inp}, long ${row.longMs} ms, renders ${row.renders}${fr}${row.keyP95 != null ? `, key p95 ${row.keyP95}` : ""}${b ? `, blank ${b.blank}/${b.frames}` : ""}${error ? `: ${error}` : ""}`)
+      const tw = row.scriptsTwice
+      const kb = row.net?.scriptKB ? `, script ${row.netReady ? `${row.netReady.scriptKB}+${row.netWarm.scriptKB}` : row.net.scriptKB} KB${row.net.repeatKB ? ` (${row.net.repeatKB} fetched again)` : ""}${tw ? `, ${tw.runs} run twice (${tw.kb} KB)` : ""}` : ""
+      console.log(`  ${row.ok ? "ok " : "ERR"} ${id}: ready ${readyMs ?? "-"} ms, inp ${row.inp}, long ${row.longMs} ms, renders ${row.renders}${fr}${row.keyP95 != null ? `, key p95 ${row.keyP95}` : ""}${b ? `, blank ${b.hits}/${b.frames}` : ""}${kb}${error ? `: ${error}` : ""}`)
+      if (trace?.layout) console.log(`      trace: longest task ${trace.taskMs} ms at +${trace.taskAtMs}; layout ${trace.layout.ms} ms (forced ${trace.layout.forcedMs}), style ${trace.style.ms} ms (forced ${trace.style.forcedMs})`)
       return row
     },
   }
@@ -342,6 +464,8 @@ async function newPage(group, log) {
   const context = await browser.newContext({ viewport, ...(PHONE ? phoneOpts : {}), serviceWorkers: "block" })
   await installProbe(context)
   await context.addInitScript(inPage)
+  // The browser keeps 250 requests' timings unless told otherwise: a waterfall late in a run needs them all.
+  if (WATERFALL.size) await context.addInitScript(() => performance.setResourceTimingBufferSize(20000))
   // The first-run keys tip and the demo's prompts would rise mid-step: the
   // tip is seeded as seen, and a group seeds what else it needs (storage).
   await context.addInitScript((seen) => {
@@ -351,7 +475,9 @@ async function newPage(group, log) {
       /* storage off */
     }
   }, { oc_keys_tip_seen: "1", ...(group.storage ?? {}) })
-  await fakeApp(context, { app: BASE, user: USERS.sam, docs: group.docs ?? [], collab: group.collab ?? NO_COLLAB, rtt: RTT, fixtures: group.fixtures(), log, delays: group.delays })
+  // What a group's page needs from its first script: stamps on its socket, a probe's marker.
+  for (const s of group.initScripts ?? []) await context.addInitScript(s.fn, s.arg)
+  await fakeApp(context, { app: BASE, user: USERS.sam, docs: group.docs ?? [], collab: group.collab ?? NO_COLLAB, rtt: RTT, fixtures: group.fixtures(), log, delays: group.delays, broker: group.broker })
   const page = await context.newPage()
   const cdp = await context.newCDPSession(page)
   if (CPU > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU })
@@ -436,6 +562,18 @@ for (const r of rows) {
   console.log(r.metric.padEnd(30), String(r.value ?? "-").padStart(8), String(P[r.metric] ?? "-").padStart(8), String(r.max).padStart(8), String(r.target ?? "").padStart(8), ` ${r.owner.padEnd(6)} ${verdict}`)
 }
 for (const [k, v] of Object.entries(M)) if (!shown.has(k)) console.log(k.padEnd(30), String(v ?? "-").padStart(8), String(P[k] ?? "-").padStart(8), "(no budget)")
+// Per step, the scripts a real browser runs twice (Next 16.3.8's double
+// insert; lib.mjs scriptsTwice), median of runs: a report, no budget.
+const twice = new Map()
+for (const run of result.runs)
+  for (const row of run.rows ?? []) {
+    const t = twice.get(row.id) ?? { runs: [], kb: [] }
+    t.runs.push(row.scriptsTwice?.runs ?? 0)
+    t.kb.push(row.scriptsTwice?.kb ?? 0)
+    twice.set(row.id, t)
+  }
+result.scriptsTwice = Object.fromEntries([...twice].map(([id, t]) => [id, { runs: median(t.runs), kb: median(t.kb) }]).filter(([, v]) => v.runs))
+if (Object.keys(result.scriptsTwice).length) console.log(`scripts run twice, median a run: ${Object.entries(result.scriptsTwice).map(([id, v]) => `${id} ${v.runs} (${v.kb} KB)`).join(", ")}`)
 for (const e of result.errors) console.log(e)
 if (OUT) writeFileSync(OUT, JSON.stringify(result, null, 2))
 if (opt("result", null)) writeFileSync(opt("result"), JSON.stringify({ scenario: scenarioNames.join(","), cpu: CPU, device: DEVICE, metrics: M, p95: P, busyRuns: result.busyRuns, checks: rows }, null, 2))

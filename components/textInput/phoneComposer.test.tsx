@@ -100,6 +100,6 @@ describe("the phone composer", () => {
   it("draws no grab sheet at rest", () => {
     const drawer = readFileSync("components/drawers/dragableDrawer.tsx", "utf8")
     expect(drawer).not.toContain("rounded-t-3xl")
-    expect(drawer).toContain('isExpanded ? "bg-sheet" : "bg-gradient-to-t from-sheet from-70% to-transparent"')
+    expect(drawer).toContain('isExpanded ? "bg-sheet" : "bg-[linear-gradient(to_top,var(--sheet)_calc(100%_-_32px),transparent)]"')
   })
 })

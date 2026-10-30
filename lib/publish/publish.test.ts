@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 const axiosMock = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), delete: vi.fn(), post: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: axiosMock, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: axiosMock }))
 
 const { copyPublishedPage, pageAddress, pagePath, publishLink, settingsOf, tidySlug, unlockPage, unpublishLink } = await import("@/lib/publish/publish")
 

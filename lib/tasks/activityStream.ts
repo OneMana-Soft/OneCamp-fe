@@ -17,6 +17,8 @@ const CHANGED: Record<string, string> = {
   labelUpdate: "labels",
   descUpdate: "description",
   estimate: "estimate",
+  points: "points",
+  typeUpdate: "type",
 }
 
 /** History kinds that are comments: the stream shows the comments themselves. */

@@ -8,7 +8,7 @@
 import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
-import { ProjectsGet } from "@/services/endpoints/projects"
+import { ProjectsGet, ProjectsPost } from "@/services/endpoints/projects"
 import { type Ending, type Health, type ProjectUpdate, type UpdateDraft } from "@/lib/projectUpdates"
 import { browserTZ } from "@/lib/utils/timeZone"
 
@@ -45,7 +45,7 @@ export function useProjectUpdates(projectId: string | undefined) {
   }, [projectId])
 
   const aiDraft = useCallback(async (): Promise<UpdateDraft> => {
-    const res = await axiosInstance.post(ProjectsGet.AiProjectUpdateDraft, { project_uuid: projectId, tz: browserTZ() })
+    const res = await axiosInstance.post(ProjectsPost.AiProjectUpdateDraft, { project_uuid: projectId, tz: browserTZ() })
     return (res.data as { data: UpdateDraft }).data
   }, [projectId])
 

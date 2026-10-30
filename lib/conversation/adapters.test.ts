@@ -42,13 +42,37 @@ describe("the adapters' pages", () => {
 describe("the adapters' rows", () => {
   it("come oldest first, each at its exact place, as the one message shape", () => {
     const p = (id: string, at: string) => ({ post_uuid: id, post_created_at: at, post_text: "", post_by: { user_uuid: "u", user_name: "U", user_profile_object_key: "" }, post_comment_count: 0 }) as PostsRes
-    const rows = channelAdapter.rowsOf({ data: { posts: [p("b", "2026-10-16T09:01:00Z"), p("a", "2026-10-16T09:00:00Z")], has_more: false } })
+    const rows = channelAdapter.rowsOf({ data: { posts: [p("b", "2026-10-16T09:01:00Z"), p("a", "2026-10-16T09:00:00Z")], has_more: false } }, "latest")
     expect(rows.map((r) => r.post_uuid)).toEqual(["a", "b"])
     expect(channelAdapter.cursorOf(rows[0])).toEqual({ at: "2026-10-16T09:00:00Z", id: "a" })
     expect(channelAdapter.toMessage(rows[0])).toEqual(mapPostsResToBaseMessage(rows[0]))
 
     const c = { chat_uuid: "m1", chat_created_at: "2026-10-16T09:00:00Z", chat_body_text: "", chat_from: { user_uuid: "u", user_name: "U", user_profile_object_key: "" }, chat_attachments: [], chat_comment_count: 0 } as unknown as ChatInfo
-    expect(groupAdapter.rowsOf({ data: { chats: [c], has_more: false } }).map(groupAdapter.toMessage)).toEqual([mapChatInfoToBaseMessage(c)])
-    expect(dmAdapter.rowsOf(undefined)).toEqual([])
+    expect(groupAdapter.rowsOf({ data: { chats: [c], has_more: false } }, "latest").map(groupAdapter.toMessage)).toEqual([mapChatInfoToBaseMessage(c)])
+    expect(dmAdapter.rowsOf(undefined, "older")).toEqual([])
+  })
+
+  // The server's own order for each page (backend domain/Post and domain/Chat:
+  // the latest and an older page orderdesc, a newer page and a link's page
+  // orderasc; tests/integration/page_edge_test.go pins it). Each page is read
+  // in its own order: step 1 reversed every page, so a link's page and a
+  // newer page would have come upside down.
+  it.each([
+    ["latest", ["c", "b", "a"]],
+    ["older", ["c", "b", "a"]],
+    ["newer", ["a", "b", "c"]],
+    ["around", ["a", "b", "c"]],
+  ] as const)("read the %s page in the order the server writes it", (page, served) => {
+    const post = (id: string) => ({ post_uuid: id, post_created_at: `2026-10-16T09:00:0${"abc".indexOf(id)}Z` }) as PostsRes
+    const chat = (id: string) => ({ chat_uuid: id, chat_created_at: `2026-10-16T09:00:0${"abc".indexOf(id)}Z` }) as ChatInfo
+    expect(channelAdapter.rowsOf({ data: { posts: served.map(post), has_more: false } }, page).map((r) => r.post_uuid)).toEqual(["a", "b", "c"])
+    expect(dmAdapter.rowsOf({ data: { chats: served.map(chat), has_more: false } }, page).map((r) => r.chat_uuid)).toEqual(["a", "b", "c"])
+    expect(groupAdapter.rowsOf({ data: { chats: served.map(chat), has_more: false } }, page).map((r) => r.chat_uuid)).toEqual(["a", "b", "c"])
+  })
+
+  it("say whether there is more beyond a page, as the page says", () => {
+    expect(channelAdapter.hasMoreOf({ data: { posts: [], has_more: true } })).toBe(true)
+    expect(dmAdapter.hasMoreOf({ data: { chats: [], has_more: false } })).toBe(false)
+    expect(groupAdapter.hasMoreOf(undefined)).toBeUndefined()
   })
 })

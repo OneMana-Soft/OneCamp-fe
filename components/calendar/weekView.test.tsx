@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import { addDays, startOfWeek } from "date-fns"
 import type { CalendarEventInterface } from "@/types/calendar"
 import { WeekView } from "./weekView"
 import { CalendarAgenda } from "./calendarAgenda"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { areaHue } from "@/lib/areas"
 
 afterEach(cleanup)
 
@@ -50,11 +52,48 @@ describe("now", () => {
   })
 })
 
+// Calendar head 6 (gcal-3): the zones you keep beside yours, a column each, left
+// of your hours, its name over it. Read in London in mid-October (BST): 9 AM
+// there is 1:30 PM in Kolkata and 4 AM in New York.
+describe("other zones beside yours", () => {
+  const original = process.env.TZ
+  afterEach(() => {
+    if (original === undefined) delete process.env.TZ
+    else process.env.TZ = original
+  })
+  const hourIn = (zone: string, h: number) => document.querySelector(`[data-zone-hours="${zone}"]`)?.children[h]?.textContent
+
+  it("draws a column for each, its hours on your hours' lines, its name over it, and yours over your own", async () => {
+    process.env.TZ = "Europe/London"
+    week({ zones: [{ zone: "Asia/Kolkata", label: "Bengaluru" }, { zone: "America/New_York" }] })
+    await waitFor(() => expect(hourIn("Asia/Kolkata", 9)).toBe("1:30pm"))
+    expect(hourIn("America/New_York", 9)).toBe("4am")
+    expect(hourIn("America/New_York", 0)).toBe("")
+    expect([...document.querySelectorAll("[data-zone-name]")].map((n) => n.textContent)).toEqual(["Bengaluru", "New York", "London"])
+    // The gutter makes room for both, beside the all-day lane as on the hours.
+    expect((document.querySelector("[data-all-day-rail] > div") as HTMLElement).style.width).toBe("168px")
+  })
+
+  it("draws no hours for a zone this browser can't read, which would be the device's own", async () => {
+    process.env.TZ = "Europe/London"
+    week({ zones: [{ zone: "Mars/Olympus_Mons", label: "Base" }, { zone: "Asia/Tokyo" }] })
+    await waitFor(() => expect(hourIn("Asia/Tokyo", 9)).toBe("5pm"))
+    expect(document.querySelector('[data-zone-name="Mars/Olympus_Mons"]')?.textContent).toBe("Base")
+    expect(document.querySelectorAll('[data-zone-hours="Mars/Olympus_Mons"] span')).toHaveLength(0)
+  })
+
+  it("draws your hours alone without any", () => {
+    week()
+    expect(document.querySelector("[data-zone-hours], [data-zone-name]")).toBeNull()
+    expect((document.querySelector("[data-all-day-rail] > div") as HTMLElement).style.width).toBe("56px")
+  })
+})
+
 describe("a week with nothing in it", () => {
   it("says so, small, with the calendar drawing", () => {
     week()
     expect(screen.getByText("Nothing on this week")).toBeTruthy()
-    expect(blankNote()?.querySelector("svg.hue-berry")).toBeTruthy()
+    expect(blankNote()?.querySelector(`svg.${HUE_CLASS[areaHue("calendar")]}`)).toBeTruthy()
     // Small: the muted size, not a page's empty state.
     expect(blankNote()?.querySelector("svg")?.getAttribute("width")).toBe("64")
     // The free slots under it still take a click.
@@ -89,7 +128,7 @@ describe("the phone's agenda with nothing coming up", () => {
   it("draws the calendar over its words, as quietly as a free week does", () => {
     render(<CalendarAgenda days={[]} onOpen={vi.fn()} />)
     expect(screen.getByRole("heading", { name: "Nothing coming up this month" })).toBeTruthy()
-    expect(document.querySelector("[data-empty-illustration] svg.hue-berry")).toBeTruthy()
+    expect(document.querySelector(`[data-empty-illustration] svg.${HUE_CLASS[areaHue("calendar")]}`)).toBeTruthy()
     // The header's New event is the view's one action; the empty state adds no second.
     expect(screen.queryByRole("button", { name: /New event/ })).toBeNull()
     expect(document.querySelector("[data-empty-illustration]")?.className).not.toMatch(/size-24|h-24/)
@@ -130,6 +169,15 @@ describe("a day-long timed event", () => {
     expect(chips).toHaveLength(2)
     expect(chips[0].getAttribute("aria-label")).toMatch(/^Event: Launch day, From /)
     expect(chips[1].getAttribute("aria-label")).toMatch(/^Event: Launch day, Until /)
+  })
+
+  // DESIGN-BUILD-22/23's P1: beside its "From 9:30 AM" the title broke inside a
+  // word ("Laun / ch…"). It keeps one line, cut with an ellipsis.
+  it("keeps its title on one line beside its time, cut with an ellipsis", () => {
+    week({ events: [{ event_uuid: "launch", event_title: "Launch day", event_start_time: at(3, 9), event_end_time: at(4, 9) }] })
+    const title = screen.getAllByText("Launch day")[0]
+    expect(title.className).toMatch(/\btruncate\b/)
+    expect(title.className).not.toMatch(/line-clamp|break-words/)
   })
 })
 
@@ -215,6 +263,21 @@ describe("the all-day rail's chips", () => {
     expect(chip.querySelector(".line-clamp-2")?.textContent).toBe("Write the launch email for the pilot customers")
   })
 
+  // Head 9 (gcal-1b): a date a repeating task comes due next is drawn with the
+  // repeat glyph; a press opens the task, and it is never carried onto the hours.
+  it("show a repeating task's next date with the repeat glyph, and open the task", () => {
+    const onTaskClick = vi.fn()
+    const onTaskBlock = vi.fn()
+    week({ tasks: [{ ...task("t3", "Plan the week", "p-one"), task_ahead: true }] as never, onTaskClick, onTaskBlock })
+    const chip = document.querySelector('[data-all-day-rail] [data-event-uuid="t3"]') as HTMLElement
+    expect(chip.getAttribute("data-task-ahead")).toBe("true")
+    expect(chip.getAttribute("aria-label")).toBe("Repeating task, comes due: Plan the week")
+    expect(chip.querySelector("svg.lucide-repeat")).toBeTruthy()
+    chip.click()
+    expect(onTaskClick).toHaveBeenCalledWith("t3")
+    expect(onTaskBlock).not.toHaveBeenCalled()
+  })
+
   it("take their project's hue again when the reader's projects arrive", async () => {
     const { hueFor } = await import("@/lib/campHue")
     const { setProjectOrder } = await import("@/lib/projectHue")
@@ -231,3 +294,4 @@ describe("the all-day rail's chips", () => {
     act(() => setProjectOrder([]))
   })
 })
+

@@ -22,13 +22,15 @@ export function pausePresets(now: Date): SchedulePreset[] {
   ]
 }
 
+/** Whether a preset says only how long ("For 1 hour"), so its end is said beside it. */
+export const saysHowLong = (preset: SchedulePreset) => /^For /.test(preset.label)
+
 /**
- * When a "For ..." pause ends, said beside it ("until 8:10 PM"), so each
- * choice shows its end time. The "Until ..." presets already name their end:
- * nothing. clock writes a time in the reader's own clock. Pure.
+ * When a "For ..." pause ends, said beside it ("until 8:10 PM"); an "Until ..."
+ * preset names its own: nothing. clock writes a time in the reader's clock. Pure.
  */
 export function pauseEndsLine(preset: SchedulePreset, clock: (d: Date) => string): string {
-  return /^For /.test(preset.label) ? `until ${clock(preset.at)}` : ""
+  return saysHowLong(preset) ? `until ${clock(preset.at)}` : ""
 }
 
 /** The end of a pause still in force, or null. */

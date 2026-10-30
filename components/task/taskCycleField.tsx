@@ -2,33 +2,29 @@
 
 // The task panel's Cycle row: which of the project's cycles the task is in.
 // Only cycles not yet complete are offered; the project's admins change it.
+// On the shared pick row (taskPickRow), as the Milestone row.
 
 import * as React from "react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { TaskPickRow } from "@/components/task/taskPickRow"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { ProjectsGet, ProjectsPost } from "@/services/endpoints/projects"
 import { cycleDates, cycleLabel, openCycles, type Cycle } from "@/lib/tasks/cycles"
-import { inlineSelect } from "@/lib/ui/fieldRow"
-import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
-
-const NONE = "none"
 
 export function TaskCycleField({ taskUUID, projectId, isAdmin }: { taskUUID: string; projectId?: string; isAdmin: boolean }) {
   const { cycles, refresh } = useProjectCycles(projectId)
   const { data, mutate } = useFetch<{ data: Cycle | null }>(taskUUID ? `${ProjectsGet.GetTaskCycle}/${taskUUID}` : "")
   const { makeRequest, isSubmitting } = usePost()
   const current = data?.data ?? null
-  const options = openCycles(cycles)
 
   // A project without cycles doesn't need the row.
   if (!projectId || (cycles.length === 0 && !current)) return null
 
-  const change = async (value: string) => {
+  const change = async (id: string) => {
     const res = await makeRequest<{ task_uuid: string; cycle_id: string }, Cycle | null>({
       apiEndpoint: ProjectsPost.SetTaskCycle,
-      payload: { task_uuid: taskUUID, cycle_id: value === NONE ? "" : value },
+      payload: { task_uuid: taskUUID, cycle_id: id },
       showErrorToast: true,
     })
     if (res !== undefined) {
@@ -37,28 +33,22 @@ export function TaskCycleField({ taskUUID, projectId, isAdmin }: { taskUUID: str
     }
   }
 
+  const options = [
+    ...(current?.completed_at ? [{ id: current.id, label: `${cycleLabel(current)} (complete)`, disabled: true }] : []),
+    ...openCycles(cycles).map((c) => ({
+      id: c.id,
+      label: `${cycleLabel(c)} · ${cycleDates(c)}${c.state === "current" ? " · current" : ""}`,
+    })),
+  ]
+
   return (
-    <div className={propertyRow()} data-field-empty={current ? undefined : ""}>
-      <div>
-        <span className={propertyLabel}>Cycle</span>
-      </div>
-      <div className="min-w-0">
-        <Select value={current?.id ?? NONE} onValueChange={change} disabled={!isAdmin || isSubmitting}>
-          <SelectTrigger dense className={inlineSelect} aria-label="Cycle">
-            <SelectValue>{current ? cycleLabel(current) : <span className="text-muted-foreground">No cycle</span>}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>No cycle</SelectItem>
-            {current?.completed_at && <SelectItem value={current.id} disabled>{cycleLabel(current)} (complete)</SelectItem>}
-            {options.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {cycleLabel(c)} · {cycleDates(c)}
-                {c.state === "current" ? " · current" : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+    <TaskPickRow
+      label="Cycle"
+      none="No cycle"
+      current={current ? { id: current.id, label: cycleLabel(current) } : null}
+      options={options}
+      onPick={change}
+      disabled={!isAdmin || isSubmitting}
+    />
   )
 }

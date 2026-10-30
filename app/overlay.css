@@ -12,13 +12,16 @@
    provider's div) can't break the column. Loaded after phone.css
    (app/layout.tsx). Motion is transform and opacity only. */
 
-/* 1. A floating root that holds a body, up to three boxes down: a column
-   that never scrolls itself. A popover's column is at most the room the
-   window leaves it. A phone's sheet is a column already; its own body is the
-   scroller unless it holds one (below). The body marks what holds it and
-   the boxes between (components/ui/overlay markOverlayColumn): a :has() here
-   was tried on every element of every page (app/selectorKeyGuard.test.ts). */
-[data-overlay="float"][data-overlay-holds-body] {
+/* 1. A floating root, or a dialog (components/ui/dialog: a sheet of its own on
+   a phone, app/phone.css C5d), that holds a body, up to three boxes down: a
+   column that never scrolls itself, so its header, its close and its footer
+   stay while the body scrolls. A popover's column is at most the room the
+   window leaves it. A drawer is a column already; its own body is the
+   scroller unless it holds one (below). The body marks what holds it and the
+   boxes between (components/ui/overlay markOverlayColumn): a :has() here was
+   tried on every element of every page (app/selectorKeyGuard.test.ts). */
+[data-overlay="float"][data-overlay-holds-body],
+[data-overlay="dialog"][data-overlay-holds-body] {
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -62,13 +65,21 @@
 }
 
 /* 4. A hairline where the body meets the header or the footer, only while
-   there is more to see that way (OverlayBody's data-more-above and
-   data-more-below): a body that fits has no line at all. */
-[data-overlay]:has([data-overlay-body][data-more-above]) [data-overlay-header] {
+   there is more to see that way (the body's data-more-above and
+   data-more-below, components/ui/moreMarks: an OverlayBody's, or a drawer's
+   own body): a body that fits has no line at all. */
+[data-overlay]:has([data-overlay-body][data-more-above], [data-sheet-body][data-more-above]) [data-overlay-header] {
   box-shadow: inset 0 -1px 0 var(--line);
 }
-[data-overlay]:has([data-overlay-body][data-more-below]) [data-overlay-footer] {
+[data-overlay]:has([data-overlay-body][data-more-below], [data-sheet-body][data-more-below]) [data-overlay-footer] {
   box-shadow: inset 0 1px 0 var(--line);
+}
+/* A menu's last group in the footer (a doc row's sheet: the trash, pinned
+   where the menu can't fit): its own rule is the line above it while the menu
+   fits; while there is more below, the hairline is that line, and the rule
+   stands down. */
+[data-overlay]:has([data-overlay-body][data-more-below], [data-sheet-body][data-more-below]) [data-overlay-footer] [data-tail-rule] {
+  visibility: hidden;
 }
 
 /* 5. The quiet bar. A scroller inside an overlay never draws a track, and its
@@ -140,4 +151,165 @@
     max-width: 640px;
     margin-inline: auto;
   }
+}
+
+/* 8. A FLOATING OVERLAY ON A PHONE IS A BOTTOM SHEET (overlayMode's rule:
+   a phone in portrait or landscape). Dialogs, confirms, popovers, menus and
+   selects keep their own primitive (focus, Escape, outside taps are
+   Radix's) and take the sheet's place and look: the screen's foot, r20
+   corners, e4, the safe area, at most 92% of what the screen shows, standing
+   on the keyboard. A popover's or a menu's positioner lets go of it. What
+   it holds scrolls in it; a dialog's sticky footer stays at its foot. A
+   popover, a menu and a select mark their positioner and the page while they
+   are up (components/ui/floatMark), which a :has() found by
+   trying every element. */
+@media (max-width: 639px), (pointer: coarse) and (max-height: 500px) {
+  [data-radix-popper-content-wrapper][data-overlay-wrapper] {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    transform: none !important;
+    min-width: 0 !important;
+    z-index: var(--z-modal) !important;
+  }
+  [data-overlay="float"] {
+    position: fixed;
+    inset: auto 0 0 0;
+    translate: none;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    max-height: 92dvh !important;
+    margin: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: var(--z-modal);
+    border-radius: var(--r-sheet, 20px) var(--r-sheet, 20px) 0 0;
+    background: var(--pop);
+    box-shadow: var(--e4);
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    animation: overlay-sheet-in 300ms var(--ease-push, cubic-bezier(0.32, 0.72, 0, 1)) backwards;
+  }
+  /* In a popper's wrapper, the wrapper stands at the foot and the sheet
+     fills it: the wrapper then has the sheet's size, as it had the
+     popover's (a zero-height wrapper read as nothing open). */
+  [data-radix-popper-content-wrapper] > [data-overlay="float"] {
+    position: relative;
+    inset: auto;
+  }
+  [data-overlay="float"][data-state="closed"] {
+    animation: overlay-sheet-out 220ms var(--ease-push, cubic-bezier(0.32, 0.72, 0, 1)) forwards;
+  }
+  /* The grabber's look, at its top (a sheet a finger knows). */
+  [data-overlay="float"]::before {
+    content: "";
+    display: block;
+    flex-shrink: 0;
+    width: 36px;
+    height: 5px;
+    margin: 6px auto 4px;
+    border-radius: 3px;
+    background: var(--line-3);
+  }
+  /* Rows of a menu or a select: a finger's 48px, in the sheet's width. */
+  [data-overlay="float"][data-overlay-menu] {
+    padding-inline: 8px;
+  }
+  [data-overlay="float"][data-overlay-menu] :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"]) {
+    min-height: 48px;
+  }
+  [data-overlay="float"] [data-radix-select-viewport] {
+    height: auto !important;
+  }
+  /* A side menu opens over its menu, in the same place: a step further in. */
+  /* The page dims under a popover's, a menu's or a select's sheet (a dialog
+     has its own dim); a tap there is outside it, and closes it. It stays
+     while the sheet goes down. It stands one layer under the sheet, which
+     takes the modal layer here: over the bars, a sticky header and the
+     corner cards, so none of them stays bright or takes that tap. Its layer
+     was --z-modal-backdrop until bfe9e9d65 folded that into --z-modal (23
+     Oct); a name the scale lacks falls to z-index: auto (app/zLayers.test). */
+  html[data-float] body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-modal) - 1);
+    background: rgb(10 11 14 / 0.32);
+    animation: sheet-panel-fade 200ms var(--ease-out, ease-out) backwards;
+  }
+  .dark[data-float] body::after {
+    background: rgb(0 0 0 / 0.55);
+  }
+  html[data-keyboard="open"] [data-overlay-wrapper] {
+    bottom: calc(100% - var(--app-vv-top, 0px) - var(--app-vvh, 100%)) !important;
+  }
+  html[data-keyboard="open"] [data-radix-popper-content-wrapper] > [data-overlay="float"] {
+    bottom: auto;
+  }
+  html[data-keyboard="open"] [data-overlay="float"] {
+    bottom: calc(100% - var(--app-vv-top, 0px) - var(--app-vvh, 100%));
+    max-height: calc(var(--app-vvh, 100dvh) * 0.92) !important;
+    padding-bottom: 0;
+  }
+
+  /* 8b. ONE FOOT FOR EVERY PHONE SHEET (V-73). A footer pinned at a sheet's
+     foot (a drawer's, a float sheet's, a dialog's or a confirm's; a dialog's
+     is its DialogFooter, or a footer of its own marked data-sheet-footer, as
+     the share dialogs' ShareFooter) stands its
+     controls off that foot by the sheet's own side gutter, never under 16px,
+     and keeps the home-indicator strip where the strip is more. The gutter
+     is --sheet-gutter: unset, a dialog's or a confirm's --dlg-pad (20px),
+     else 16px; a sheet that pads its own sides says so there. The sheet adds
+     nothing under its footer: the footer is its foot. With the keyboard up
+     there is no strip (the keyboard covers it), so the gutter alone stands.
+     A drawer off a phone keeps its own (components/ui/drawer). A root that
+     holds a footer says so (data-overlay-holds-footer: a drawer given one,
+     a float root marked by its OverlayFooter), never found by :has().
+     Measured by e2e/sheetLayout's footIsGutter. */
+  [data-overlay="sheet"] > [data-sheet-footer],
+  [data-overlay="float"] [data-overlay-footer],
+  .v3-dialog[role="dialog"][data-v3-sheet] > .v3-dlg-footer,
+  .v3-dialog[role="dialog"][data-v3-sheet] > form > .v3-dlg-footer,
+  .v3-dialog[role="dialog"][data-v3-sheet] > [data-sheet-footer],
+  .v3-confirm-sheet [data-sheet-footer] {
+    padding-bottom: max(16px, var(--sheet-gutter, var(--dlg-pad, 16px)), var(--sheet-strip, env(safe-area-inset-bottom)));
+  }
+  html[data-keyboard="open"] {
+    --sheet-strip: 0px;
+  }
+  [data-overlay="sheet"][data-overlay-holds-footer],
+  [data-overlay="float"][data-overlay-holds-footer] {
+    padding-bottom: 0;
+  }
+}
+@media (pointer: coarse) and (max-height: 500px) and (min-width: 640px) {
+  [data-overlay="float"] {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+}
+
+@keyframes overlay-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes overlay-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) and (max-width: 639px), (prefers-reduced-motion: reduce) and (pointer: coarse) and (max-height: 500px) {
+  [data-overlay="float"] {
+    animation-name: sheet-panel-fade;
+  }
+}
+
+/* 9. A popover asked for from a menu or another popover lies over it: the
+   composer's Send later form opened its time list behind the menu that asked
+   for it. Radix stacks a popover by its content's z-index, read as it opens,
+   and the menus' layer (dropdown) is over the popovers'. On a phone a field's
+   own sheet lies over the layer that asked for it too (app/phone.css C5b). */
+[data-radix-popper-content-wrapper] ~ [data-radix-popper-content-wrapper] > [data-overlay="float"] {
+  z-index: calc(var(--z-dropdown) + 1);
 }

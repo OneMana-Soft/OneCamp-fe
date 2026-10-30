@@ -2,9 +2,10 @@
 
 import * as React from "react"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import Link from "next/link"
-import { Loader2, RotateCcw, Trash2 } from "@/lib/icons"
+import { NodeLink } from "@/components/docFiles/NodeLink"
+import { RotateCcw, Trash2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
+import { busyWith } from "@/lib/ui/busyWith"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotError } from "@/components/ui/graphics"
 import { SafeHtml } from "@/components/safeHtml/SafeHtml"
@@ -90,13 +91,13 @@ export function TrashedBanner({ docId, canRestore, onRestored }: { docId: string
         action={
           <div className="flex items-center gap-2">
             {may ? (
-              <Button size="sm" onClick={() => void restore()} disabled={!!busy} className="gap-1.5">
+              <Button size="sm" onClick={() => void restore()} {...busyWith(busy, "restore")} className="gap-1.5">
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 Restore
               </Button>
             ) : null}
             <Button variant="outline" size="sm" asChild>
-              <Link href="/app/doc">Back to docs</Link>
+              <NodeLink href="/app/doc">Back to docs</NodeLink>
             </Button>
           </div>
         }
@@ -120,8 +121,8 @@ export function TrashedBanner({ docId, canRestore, onRestored }: { docId: string
           </div>
           <div className="flex items-center gap-2">
             {may ? (
-              <Button size="sm" onClick={() => void restore()} disabled={!!busy} className="gap-1.5" data-doc-restore="">
-                {busy === "restore" ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <RotateCcw className="size-3.5" aria-hidden="true" />}
+              <Button size="sm" onClick={() => void restore()} {...busyWith(busy, "restore")} className="gap-1.5" data-doc-restore="">
+                <RotateCcw className="size-3.5" aria-hidden="true" />
                 Restore
               </Button>
             ) : (

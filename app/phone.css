@@ -34,8 +34,29 @@
   --t-sheet-out: 300ms;
   --t-tap: 90ms;
   /* What a phone toast sits above: the tab bar, a composer, or nothing.
-     MobileNavigationBar sets --phone-floor; the default is the tab bar. */
+     MobileNavigationBar sets --phone-floor; the default is the tab bar. On a
+     page with no tab bar it is the page's foot, --mobile-drawer-h, which any
+     page with bars of its own publishes (app/globals.css, the corner stacks). */
   --phone-floor: calc(var(--m-tab) + env(safe-area-inset-bottom));
+  /* Where a phone's scroll frame ends its content: 8px clear of what owns the
+     bottom edge. The page's scroller pads by it, and so does a list frame of
+     its own ([data-list-frame], below), which runs under the tab bar. */
+  --phone-scroll-end: calc(var(--phone-floor) + 8px);
+  /* The room a conversation leaves under its last message for the composer's
+     sheet, which floats over it: the sheet's height (--mobile-drawer-h, from
+     components/drawers/dragableDrawer) and 24px, and never less than the 150px
+     of a box at rest. A Giphy card or another command's answer grows the
+     sheet, and the room with it, so the last message stays above the card. */
+  --phone-composer-room: max(150px, calc(var(--mobile-drawer-h, 0px) + 24px));
+}
+/* A task over the page (asana-12 (a), components/rightPanel/TaskInPlace): the
+   sheet covers the tab bar, so the task's comment box owns the screen's foot,
+   as on a page with no tab bar (MobileNavigationBar). The toasts and the
+   offline pill sit above it, never over it (DESIGN-BUILD-21 M1). The page
+   carries data-task-sheet while the sheet is open (TaskInPlace sets it), so
+   the rule is keyed on an attribute, never a :has() (app/selectorKeyGuard). */
+html[data-task-sheet] {
+  --phone-floor: var(--mobile-drawer-h, env(safe-area-inset-bottom));
 }
 .dark {
   --e-bar: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 -8px 24px -12px rgb(0 0 0 / 0.7);
@@ -106,7 +127,9 @@
    fixed, sticky) keeps its position: relative is set in the components layer,
    under every utility. Menu items stack edge to edge, where a target that
    reaches past the item would take its neighbour's taps, so a menu item is
-   44px tall instead. A mouse sees none of it. */
+   44px tall instead, and so is a picker's row (cmdk's, in a combobox or the
+   command palette, and a select's in Radix's viewport; a bare option role
+   would stretch swatches and cover tiles too). A mouse sees none of it. */
 @layer components {
   @media (pointer: coarse) {
     :is([data-touch-target], .shell-icon-btn) {
@@ -120,7 +143,7 @@
     position: absolute;
     inset: min(0px, calc((100% - var(--m-hit)) / 2));
   }
-  :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
+  :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [cmdk-item], [data-radix-select-viewport] [role="option"]) {
     min-height: var(--m-hit);
   }
 }
@@ -132,21 +155,24 @@
    Every row of small controls is a touch group (data-touch-group, its value
    the controls' size, 28 when empty): under a finger its controls stand 44px
    less their size apart, so their reaches meet and never cover a neighbour's
-   own box. One rule, not a gap per screen; app/touchGroups.test.ts finds a
+   own box. The gap is --touch-gap, so a group that sits under a field or a
+   heading keeps the same space above it (the board's Tags list).
+   One rule, not a gap per screen; app/touchGroups.test.ts finds a
    row of small controls without it, and e2e/touchTargets.spec.ts taps one.
    Unlayered, so it wins over the row's own gap utility. */
 @media (pointer: coarse) {
   [data-touch-group] {
-    gap: calc(var(--m-hit) - 28px);
+    --touch-gap: calc(var(--m-hit) - 28px);
+    gap: var(--touch-gap);
   }
   [data-touch-group="32"] {
-    gap: calc(var(--m-hit) - 32px);
+    --touch-gap: calc(var(--m-hit) - 32px);
   }
   [data-touch-group="24"] {
-    gap: calc(var(--m-hit) - 24px);
+    --touch-gap: calc(var(--m-hit) - 24px);
   }
   [data-touch-group="20"] {
-    gap: calc(var(--m-hit) - 20px);
+    --touch-gap: calc(var(--m-hit) - 20px);
   }
 }
 
@@ -504,6 +530,18 @@
   .sheet-group + .sheet-group {
     margin-top: 8px;
   }
+  /* What destroys stays in reach (the owner's 18 Oct phone rule; 22 Oct). A
+     menu sheet grows to fit, up to its 60dvh; where its rows can't all fit
+     (375x667), the group that holds what destroys, alone and last, stays at
+     the sheet's foot while the rest scrolls under it, ringed in the sheet's
+     own colour so nothing shows through round it. SheetGroup marks itself
+     from its rows (components/ui/drawer). */
+  [data-v3-sheet][data-detent="menu"] .sheet-group[data-holds-danger] {
+    position: sticky;
+    bottom: 8px;
+    z-index: 1;
+    box-shadow: var(--e1), 0 0 0 8px var(--pop);
+  }
   /* Its rows: 48px, square inside the card, a hairline between them inset
      past the icon (16 + 32 + 12), none under the last. */
   .sheet-group > [data-press="row"],
@@ -560,10 +598,18 @@
       padding-bottom: 12px;
       margin-bottom: -12px;
     }
+    /* Over a pinned footer, which takes those 12px back: they stay in view
+       under the footer's fade, so the body's last row ends clear of it. Run
+       under the footer, a long list's last row ended inside the fade. */
+    [data-sheet-body] + [data-sheet-footer] {
+      margin-top: 12px;
+    }
   }
-  /* The pinned footer (DrawerContent's footer): what scrolls under its top
-     edge fades out rather than being cut off at a line. */
-  [data-sheet-footer]::before {
+  /* The pinned footer (DrawerContent's, and a dialog's on a sheet): what
+     scrolls under its top edge fades out rather than being cut off at a line. */
+  [data-sheet-footer]::before,
+  .v3-dialog[role="dialog"][data-v3-sheet] > .v3-dlg-footer::before,
+  .v3-dialog[role="dialog"][data-v3-sheet] > form > .v3-dlg-footer::before {
     content: "";
     position: absolute;
     inset-inline: 0;
@@ -594,20 +640,58 @@
   transition-duration: 300ms;
 }
 
-/* C5b. A SHEET OVER A SHEET (the emoji picker over the status sheet, a
-   field's own sheet over its form): its scrim lies over the sheet under it
-   too, lighter, as the page is dimmed already, so that one reads as behind
-   and a tap on it closes the top one. Unlayered: the scrim's colour and
-   z-index are utilities. */
-[data-vaul-drawer][data-state="open"] ~ [data-vaul-overlay][data-v3-scrim] {
-  z-index: calc(var(--z-modal) + 1);
+/* C5f. A SHEET'S LOADING FRAME (components/ui/sheetFrame). A phone's first
+   sheet is a chunk of its own; its frame stands in while it loads, and it is
+   the one that rises, in the sheet's own time and curve, its scrim fading in.
+   The sheet that takes its place (.sheet-after-frame) doesn't rise or fade
+   in again: it read as opening twice (DESIGN-BUILD-15). More specific than
+   vaul's own entrance, which is injected outside the layers too. Its exit is
+   vaul's as ever. Under reduced motion the frame simply shows. */
+@keyframes sheet-frame-rise {
+  from { transform: translate3d(0, 100%, 0); }
+}
+@keyframes sheet-frame-scrim {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-sheet-frame] {
+    animation: sheet-frame-rise var(--t-sheet) cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  [data-sheet-frame-scrim] {
+    animation: sheet-frame-scrim var(--t-sheet) cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+[data-vaul-drawer][data-v3-sheet][data-vaul-drawer-direction].sheet-after-frame[data-state="open"],
+[data-vaul-overlay][data-v3-scrim][data-vaul-snap-points].sheet-after-frame[data-state="open"] {
+  animation-name: none;
+}
+
+/* C5b. A LAYER OVER A LAYER (the emoji picker over the status sheet, a
+   confirm over a dialog or a sheet, a sheet over a dialog, a field's own
+   sheet over its form). Every layer and its scrim share one level
+   (--z-modal), so they stack in the order they open, at any depth, and each
+   scrim lies over the layer under it: lighter, as the page is dimmed
+   already, so that one reads as behind and a tap on it closes the top one.
+   With the scrims a level under the layers, a dialog's confirm or a sheet
+   over a dialog left the dialog under it bright (DESIGN-BUILD-8, 23 Oct).
+   Unlayered: the scrim's colour is a utility, or the dialog's own
+   (styles/admin/feedback.css). */
+:is([data-vaul-drawer], .v3-dialog, .v3-sheet)[data-state="open"] ~ :is([data-vaul-overlay][data-v3-scrim], .v3-overlay) {
   background-color: rgb(10 11 14 / 0.2);
 }
-.dark [data-vaul-drawer][data-state="open"] ~ [data-vaul-overlay][data-v3-scrim] {
+.dark :is([data-vaul-drawer], .v3-dialog, .v3-sheet)[data-state="open"] ~ :is([data-vaul-overlay][data-v3-scrim], .v3-overlay) {
   background-color: rgb(0 0 0 / 0.4);
 }
-[data-vaul-drawer][data-state="open"] ~ [data-vaul-drawer][data-v3-sheet] {
-  z-index: calc(var(--z-modal) + 2);
+/* C5b, OVER A POPOVER OR A MENU: a field's own sheet, asked for from a
+   popover or a menu (Schedule send's popover, the composer's Send later), and
+   its scrim lie over that layer too. At the sheets' own layer the sheet rose
+   under the popover, which hid its title and the box to type a date in. Its
+   [data-state] makes it outrank the rule above for a menu that is in a sheet. */
+[data-radix-popper-content-wrapper] ~ [data-vaul-overlay][data-v3-scrim][data-state] {
+  z-index: calc(var(--z-dropdown) + 1);
+}
+[data-radix-popper-content-wrapper] ~ [data-vaul-drawer][data-v3-sheet][data-state] {
+  z-index: calc(var(--z-dropdown) + 2);
 }
 /* C5c. THE ON-SCREEN KEYBOARD. Vaul's input repositioning is off
    (components/ui/drawer): it wrote a height and a bottom on the sheet and left
@@ -629,22 +713,100 @@ html[data-keyboard="open"] [data-vaul-drawer][data-v3-sheet] {
 html[data-keyboard="open"] [data-vaul-drawer][data-v3-sheet][data-detent="half"]:has(input:focus) {
   height: calc(var(--app-vvh, 100dvh) * 0.92);
 }
-/* A dialog asked for from a sheet (a confirm, a rename) stands over it, its
-   backdrop over the sheet as over the page, as iOS lays an alert over a
-   sheet: the backdrop sat under the sheet, which stayed bright behind it. */
-[data-vaul-drawer][data-state="open"] ~ .v3-overlay {
-  z-index: calc(var(--z-modal) + 3);
+/* C5d. A DIALOG IS A SHEET (owner, 18 Oct: on a phone every dialog is one).
+   components/ui/alert-dialog and dialog keep Radix's dialogs and, where
+   useSheetMode() holds, lay them on the bottom edge (.v3-confirm-sheet, a
+   dialog's data-v3-sheet). They rise in --t-sheet and go in --t-sheet-out
+   on the push curve, as the shared sheet does, and the dim keeps the same
+   time. Unlayered: the dialog's scale and fade (styles/admin/feedback.css)
+   sit in a layer. A failed action still shakes one, the rise kept in the
+   list so that it doesn't run again when the shake ends. Under reduced
+   motion the dialog's fade stands. */
+@media (prefers-reduced-motion: no-preference) {
+  :is(.v3-confirm-sheet, .v3-dialog[role="dialog"][data-v3-sheet])[data-state="open"] {
+    animation: phone-sheet-rise var(--t-sheet) var(--ease-push) backwards;
+  }
+  :is(.v3-confirm-sheet, .v3-dialog[role="dialog"][data-v3-sheet])[data-state="open"][data-shake="true"] {
+    animation: phone-sheet-rise var(--t-sheet) var(--ease-push) backwards, phone-shake 240ms var(--ease-out);
+  }
+  :is(.v3-confirm-sheet, .v3-dialog[role="dialog"][data-v3-sheet])[data-state="closed"] {
+    animation: phone-sheet-fall var(--t-sheet-out) var(--ease-push) both;
+  }
+  .v3-overlay[data-v3-scrim][data-state="open"] {
+    animation-duration: var(--t-sheet);
+  }
+  .v3-overlay[data-v3-scrim][data-state="closed"] {
+    animation-duration: var(--t-sheet-out);
+  }
 }
-[data-vaul-drawer][data-state="open"] ~ .v3-dialog {
-  z-index: calc(var(--z-modal) + 4);
+/* A dialog's sheet, the confirm's too: on the bottom edge at the screen's
+   width (640 at most, a phone held sideways), r20 top corners, 92dvh at
+   most. Out of the layers, it wins over the classes a caller places a
+   centred dialog with or sizes its width with; a height a caller sets stands
+   (one height for a dialog's tabs), under the cap. A full-screen viewer (the
+   attachment lightbox, the recording player at full screen) carries
+   data-full-screen and keeps its own geometry, edge to edge: it only rises
+   and goes as a sheet. The right panel's sheet on a phone (.shell-panel-phone,
+   components/rightPanel/RightPanelSheet) takes the same box. */
+.v3-dialog[data-v3-sheet]:not([data-full-screen]),
+.shell-panel-phone {
+  inset: auto 0 0;
+  translate: none;
+  width: 100%;
+  max-width: 640px;
+  max-height: 92dvh;
+  margin-inline: auto;
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+}
+/* A dialog's sheet keeps the home-indicator strip under what it holds, and a
+   footer (DialogFooter, edge to edge at its foot through the content's
+   padding, or a footer of its own marked as the sheet's, as the share
+   dialogs' ShareFooter) bleeds through all of that padding; its foot, the strip with it,
+   is every phone sheet's (app/overlay.css 8b). A sheet that holds a body
+   (components/ui/overlay) is a column whose body is the one scroller, under
+   a header and over a footer that stay (app/overlay.css 1); one without
+   scrolls as a whole. */
+.v3-dialog[role="dialog"][data-v3-sheet]:not([data-full-screen]) {
+  --dlg-pad-bottom: max(var(--dlg-pad), env(safe-area-inset-bottom));
+  padding-bottom: var(--dlg-pad-bottom);
+}
+:is(.v3-dialog[role="dialog"][data-v3-sheet] > .v3-dlg-footer, .v3-dialog[role="dialog"][data-v3-sheet] > form > .v3-dlg-footer, .v3-dialog[role="dialog"][data-v3-sheet] > [data-sheet-footer]) {
+  bottom: calc(var(--dlg-pad-bottom) * -1);
+  margin-bottom: calc(var(--dlg-pad-bottom) * -1);
+}
+/* With the keyboard up (a field in it) it stands on the keyboard and fits
+   what is left, as C5c's sheets do. The keyboard covers the home-indicator
+   strip, so neither a dialog's sheet nor its footer keeps room for it. The
+   right panel's sheet on a phone (.shell-panel-phone) stands on it too, its
+   comment box on the keyboard's top. */
+html[data-keyboard="open"] :is(.v3-confirm-sheet, .v3-dialog[role="dialog"][data-v3-sheet], .shell-panel-phone) {
+  bottom: calc(100% - var(--app-vv-top, 0px) - var(--app-vvh, 100%));
+  max-height: calc(var(--app-vvh, 100dvh) * 0.92);
+}
+html[data-keyboard="open"] .shell-panel-phone {
+  padding-bottom: 0;
+}
+html[data-keyboard="open"] .v3-dialog[role="dialog"][data-v3-sheet] {
+  --dlg-pad-bottom: var(--dlg-pad);
 }
 
 @layer components {
   /* C9. TOASTS ON A PHONE. A 44px pill above whatever owns the bottom of the
      screen (the tab bar, a composer: --phone-floor), 12px clear of it,
      min(100% - 32px, 360px) wide and centred; swiped down to go. While the
-     keyboard is up the bottom is the keyboard's, so they come in under the
-     top bar instead. */
+     keyboard is up the bottom is the keyboard's, and while a sheet is open it
+     is the sheet's (html[data-sheet], components/ui/drawer: a toast covered
+     Add section, 22 Oct; a menu, popover or select is a sheet here too,
+     html[data-float], components/ui/floatMark: a call's notice covered More's
+     Raise your hand, 26 Oct), so they come in under the top bar instead. So they
+     do while the field in use meets the foot slot (data-slot="top",
+     components/ui/toast's ToastViewport), keyboard reported or not. With a
+     call on screen they come in 12px under its top row (--call-top, which
+     the call keeps): on its own page it sits under the bar and any banner,
+     and one under the bar covered its place pill (DESIGN-BUILD-20, 26 Oct).
+     The bar's slot when that is lower, as when its top scrolled away. A row
+     docked under the bar (a doc's connection row, --docked-row-h) moves the
+     bar's slot down by its height: the save notice covered it (V-21). */
   @media (max-width: 639.98px) {
     .toast-viewport {
       --toast-dir: -1;
@@ -679,12 +841,14 @@ html[data-keyboard="open"] [data-vaul-drawer][data-v3-sheet][data-detent="half"]
       line-height: var(--text-sm--line-height);
       font-weight: 590;
     }
-    html[data-keyboard="open"] .toast-viewport {
+    html:is([data-keyboard="open"], [data-sheet="open"], [data-float]) .toast-viewport,
+    .toast-viewport[data-slot="top"] {
       --toast-dir: 1;
       bottom: auto !important;
-      top: calc(var(--app-vv-top, 0px) + env(safe-area-inset-top) + var(--m-bar) + 12px);
+      top: max(calc(var(--app-vv-top, 0px) + env(safe-area-inset-top) + var(--m-bar) + var(--docked-row-h, 0px) + 12px), calc(var(--call-top, 0px) + 12px));
     }
-    html[data-keyboard="open"] .toast-root {
+    html:is([data-keyboard="open"], [data-sheet="open"], [data-float]) .toast-root,
+    .toast-viewport[data-slot="top"] .toast-root {
       top: 0;
       bottom: auto;
       transform-origin: 50% 0%;
@@ -771,6 +935,16 @@ html[data-keyboard="open"] [data-vaul-drawer][data-v3-sheet][data-detent="half"]
     transform: translate3d(0, 8px, 0);
   }
 }
+@keyframes phone-sheet-rise {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+}
+@keyframes phone-sheet-fall {
+  to {
+    transform: translate3d(0, 100%, 0);
+  }
+}
 @keyframes phone-toast-in {
   from {
     opacity: 0;
@@ -786,5 +960,21 @@ html[data-keyboard="open"] [data-vaul-drawer][data-v3-sheet][data-detent="half"]
 @keyframes ptr-draw {
   from {
     stroke-dashoffset: 1;
+  }
+}
+
+/* F6. A LIST'S END CLEARS THE TAB BAR. Channels, DMs and Inbox draw a large
+   title over a full-height page whose list scrolls on its own; the title
+   pushed the list's frame under the fixed tab bar, so its last row, a
+   "Loading…" foot or a Try again sat in the bar's band, out of sight and
+   reach. A list frame leaves the room the page's scroller leaves
+   (--phone-scroll-end), and that is its list's only end room: a virtual list
+   in it (VirtualInfiniteScroll) leaves none of its own, where it left 10rem of
+   blank under its foot. Unlayered, so it outranks the frame's own padding. */
+@media (max-width: 639px) {
+  [data-app-scroller] [data-list-frame] {
+    --list-end-room: 0px;
+    padding-bottom: var(--phone-scroll-end);
+    scroll-padding-bottom: var(--phone-scroll-end);
   }
 }

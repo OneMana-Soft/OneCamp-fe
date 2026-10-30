@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { drawnSelected } from "@/components/minimal-tiptap/utils"
 import { parseISO } from "date-fns"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
 import { ChatFace } from "@/components/message/chatFace"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
@@ -27,13 +28,13 @@ const PER_COLUMN = 12
  * cards is the project's own board's job. Someone outside the project reads
  * that they can't see it, never its name.
  */
-export function BoardEmbedView({ node, selected }: NodeViewProps) {
+export function BoardEmbedView({ node, editor, selected }: NodeViewProps) {
   const projectId: string = node.attrs.projectId || ""
   const guest = useGuestReader()
   const read = useProjectBoard(projectId, { enabled: !guest && !!projectId })
   const { project, board } = read
   const today = useToday()
-  const router = useRouter()
+  const router = useAppRouter()
   const name = project.data?.name || "Untitled project"
   const go = (href: string) => (e: React.MouseEvent) => {
     e.preventDefault()
@@ -100,7 +101,7 @@ export function BoardEmbedView({ node, selected }: NodeViewProps) {
 
   return (
     <NodeViewWrapper data-board-embed="">
-      <EmbedFrame selected={selected} head={head}>
+      <EmbedFrame selected={drawnSelected(editor, selected)} head={head}>
         {body}
       </EmbedFrame>
     </NodeViewWrapper>

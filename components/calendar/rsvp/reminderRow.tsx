@@ -1,13 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { KeyedMutator } from "swr"
 import { Bell, ChevronDown } from "@/lib/icons"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, SheetCancel, SheetGroup } from "@/components/ui/drawer"
+import { DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { MenuOnDemand } from "@/components/ui/menuOnDemand"
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { SheetCancel, SheetGroup } from "@/components/ui/sheet-menu"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
 import { toast } from "@/hooks/use-toast"
+import { useFirstOpen } from "@/hooks/useFirstOpen"
 import { usePost } from "@/hooks/usePost"
 import { ix } from "@/lib/ui/interactive"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -33,7 +36,8 @@ export function withReminders(cur: GetEventsResponse | undefined, eventId: strin
  * series; one that couldn't be saved goes back, and says so. On a computer
  * the choices are a menu beside the row (`side`), never over the card's
  * title; on a phone, a sheet over the event's sheet, "Remind me" with the
- * event's title under it. The chosen row ends in the shared check.
+ * event's title under it. The chosen row ends in the shared check. Either is
+ * drawn from its first opening on, not with the card (C3).
  */
 export function ReminderRow({
   event,
@@ -59,8 +63,15 @@ export function ReminderRow({
   const saved = event.event_reminders ?? []
   const [shown, setShown] = useState<number[]>(saved)
   const [sheet, setSheet] = useState(false)
+  const sheetDrawn = useFirstOpen(sheet)
   const savedKey = saved.join(",")
-  useEffect(() => setShown(savedKey ? savedKey.split(",").map(Number) : []), [savedKey])
+  // What is saved, once it changes (a choice saved, the calendar read
+  // again), shows: set as it draws, not after, so the row draws once.
+  const [shownKey, setShownKey] = useState(savedKey)
+  if (savedKey !== shownKey) {
+    setShownKey(savedKey)
+    setShown(savedKey ? savedKey.split(",").map(Number) : [])
+  }
 
   const choose = async (minutes: number[]) => {
     const before = shown
@@ -105,45 +116,50 @@ export function ReminderRow({
     return (
       <>
         {trigger}
-        <Drawer detent="menu" open={sheet} onOpenChange={setSheet}>
-          <DrawerContent data-reminder-sheet="">
-            <DrawerHeader className="px-5 pb-1 pt-2">
-              <DrawerTitle className="text-sm font-[510] leading-5">Remind me</DrawerTitle>
-              <DrawerDescription className="line-clamp-1 text-meta text-ink-3">{event.event_title}</DrawerDescription>
-            </DrawerHeader>
-            <div className="pb-2">
-              <SheetGroup label="Remind me">
-                {choices.map((c) => (
-                  <DrawerItem
-                    key={c.minutes ?? "none"}
-                    label={c.label}
-                    current={isOn(c)}
-                    onClick={() => {
-                      setSheet(false)
-                      if (!isOn(c)) pick(c)
-                    }}
-                  />
-                ))}
-              </SheetGroup>
-              <SheetCancel />
-            </div>
-          </DrawerContent>
-        </Drawer>
+        {sheetDrawn ? (
+          <Drawer detent="menu" open={sheet} onOpenChange={setSheet}>
+            <DrawerContent data-reminder-sheet="">
+              <DrawerHeader className="px-5 pb-1 pt-2">
+                <DrawerTitle className="text-sm font-[510] leading-5">Remind me</DrawerTitle>
+                <DrawerDescription className="line-clamp-1 text-meta text-ink-3">{event.event_title}</DrawerDescription>
+              </DrawerHeader>
+              <div className="pb-2">
+                <SheetGroup label="Remind me">
+                  {choices.map((c) => (
+                    <DrawerItem
+                      key={c.minutes ?? "none"}
+                      label={c.label}
+                      current={isOn(c)}
+                      onClick={() => {
+                        setSheet(false)
+                        if (!isOn(c)) pick(c)
+                      }}
+                    />
+                  ))}
+                </SheetGroup>
+                <SheetCancel />
+              </div>
+            </DrawerContent>
+          </Drawer>
+        ) : null}
       </>
     )
   }
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent side={side} align={side === "left" ? "end" : "start"} sideOffset={side === "left" ? 12 : 4} collisionPadding={8} className="w-56" data-reminder-menu="">
-        {choices.map((c) => (
-          <DropdownMenuItem key={c.minutes ?? "none"} role="menuitemradio" {...menuCheckState(isOn(c))} onSelect={() => !isOn(c) && pick(c)}>
-            <span className="min-w-0 flex-1 truncate">{c.label}</span>
-            <MenuCheck checked={isOn(c)} className="text-ink-2" />
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <MenuOnDemand
+      menu={(own) => (
+        <DropdownMenuContent {...own} side={side} align={side === "left" ? "end" : "start"} sideOffset={side === "left" ? 12 : 4} collisionPadding={8} className="w-56" data-reminder-menu="">
+          {choices.map((c) => (
+            <DropdownMenuItem key={c.minutes ?? "none"} role="menuitemradio" {...menuCheckState(isOn(c))} onSelect={() => !isOn(c) && pick(c)}>
+              <span className="min-w-0 flex-1 truncate">{c.label}</span>
+              <MenuCheck checked={isOn(c)} className="text-ink-2" />
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      )}
+    >
+      {trigger}
+    </MenuOnDemand>
   )
 }
 

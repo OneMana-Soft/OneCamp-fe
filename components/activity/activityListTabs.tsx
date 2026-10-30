@@ -246,8 +246,10 @@ export function ActivityListTabs() {
         >
             <div data-inbox-body="" className="@container/inbox flex min-h-0 flex-1">
                 {/* Every tab draws in the same frame (activityFeedFrame); a tab
-                    switch cross-fades the column, nothing else moves. */}
-                <div key={effectiveTab} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    switch cross-fades the column, nothing else moves. On a phone
+                    the column is a list frame, so each tab's list ends clear of
+                    the tab bar (app/phone.css F6). */}
+                <div key={effectiveTab} data-list-frame="" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                     {threads ? (
                         <ThreadsList unreadOnly={unreadOnly} onShowAll={() => setUnreadOnly(false)} pane={pane} />
                     ) : (

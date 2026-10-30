@@ -17,6 +17,7 @@ import { SELECTION_GROUPS } from "./actions/text"
 import { NO_BUS, busFor } from "./registry/commandBus"
 import { actionGroupsFor, type ShownAction } from "./registry/readers"
 import type { ActionContext } from "./registry/types"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 /**
  * The doc's formatting, on selection (content.md D08). It replaces the
@@ -65,7 +66,7 @@ type Menu = null | "turn" | "link"
 // the first selection, off the doc's first load: until then there is nothing
 // to float over. It attaches to the editor as a view, never as a plugin, so it
 // can come late (registry/factory.ts), and reads the selection it came for.
-const BubbleMenu = React.lazy(() => import("@/components/minimal-tiptap/components/bubble-menu/bubble-menu").then((m) => ({ default: m.BubbleMenu })))
+const BubbleMenu = lazyPiece(() => import("@/components/minimal-tiptap/components/bubble-menu/bubble-menu").then((m) => ({ default: m.BubbleMenu })))
 
 export function SelectionBar({ editor, context, onAIClick, onComment, hide }: SelectionBarProps) {
   const barRef = React.useRef<HTMLDivElement>(null)

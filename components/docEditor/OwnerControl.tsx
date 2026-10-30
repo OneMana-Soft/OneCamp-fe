@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { Crown, Search, ShieldAlert } from "@/lib/icons"
+import { Crown, ShieldAlert } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { SearchInput } from "@/components/ui/search-input"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { toast } from "@/hooks/use-toast"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -98,17 +98,14 @@ export default function OwnerControl({ docId, onClose }: { docId: string; onClos
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button size="sm" disabled={!to || busy || !owner} onClick={() => void transfer()} data-doc-transfer="">
+          <Button size="sm" disabled={!to || !owner} busy={busy} onClick={() => void transfer()} data-doc-transfer="">
             {to ? `Transfer to ${displayNameOf(to) || "them"}` : "Transfer"}
           </Button>
         </>
       }
     >
       {!owner && access ? <InlineError>Only the doc&apos;s owner can hand it on.</InlineError> : null}
-      <div className="relative">
-        <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people by name or email" aria-label="Search people" className="h-9 pl-8" disabled={!owner} />
-      </div>
+      <SearchInput value={query} onValueChange={setQuery} placeholder="Search people by name or email" aria-label="Search people" disabled={!owner} />
       <ul role="listbox" aria-label="People" className="flex max-h-[240px] flex-col overflow-y-auto">
         {shown.map((p) => (
           <li key={p.user_uuid} role="option" aria-selected={to?.user_uuid === p.user_uuid}>

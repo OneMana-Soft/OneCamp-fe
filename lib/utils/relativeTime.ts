@@ -1,4 +1,4 @@
-import { shortDate } from "@/lib/utils/date/shortDate"
+import { shortDate } from "@/lib/utils/date/dateWords"
 
 /**
  * A compact "how long ago" for dense admin rows: "just now", "5m ago",

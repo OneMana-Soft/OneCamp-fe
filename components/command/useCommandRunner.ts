@@ -13,19 +13,15 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import { useDispatch } from "react-redux"
-import { useRouter } from "next/navigation"
-import useSWR from "swr"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useToast } from "@/hooks/use-toast"
 import {
     executeCommand,
-    fetchCommandCatalog,
     interactCommand,
     newTriggerID,
 } from "@/services/commandService"
-import {
-    setBackendCommandProvider,
-    type BackendCommandEntry,
-} from "@/components/minimal-tiptap/extensions/slash-command/slashCommand"
+import { COMMAND_POST, type CommandPost } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand"
+import { setBackendCommandProvider, type BackendCommandEntry } from "@/components/command/commandItems"
 import { upsertCard, dismissCard } from "@/store/slice/commandSlice"
 import type {
     BlockElement,
@@ -34,49 +30,41 @@ import type {
 } from "@/types/command"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { executeRequest } from "@/lib/command/executeRequest"
+import { escapeText } from "@/lib/codec/htmlEscape"
+import { useCommandCatalog } from "@/components/command/useCommandCatalog"
 
 export interface CommandSurfaceContext {
     surfaceKey: string          // channel uuid or dm grouping id
     channelId?: string
     dmGroupId?: string
     threadTs?: string
-    // postMessage lets a command like /shrug or /me inject content into the
-    // composer / send a message using the surface's own send path.
-    onComposerText?: (text: string) => void
-    onComposerHtml?: (html: string) => void
 }
 
 export function useCommandRunner(ctx: CommandSurfaceContext) {
     const dispatch = useDispatch()
-    const router = useRouter()
+    const router = useAppRouter()
     const { toast } = useToast()
 
-    // Catalog: fetched once per channel mount, cached by SWR. The backend
-    // also caches per-user, so this is cheap. We filter client-side as the
-    // user types to keep the typeahead instant.
-    const { data: catalog } = useSWR(
-        ["command-catalog", ctx.channelId || "global"],
-        () => fetchCommandCatalog(ctx.channelId),
-        { revalidateOnFocus: false, dedupingInterval: 60_000 },
-    )
-
-    // Register the provider that feeds the "/" menu of this conversation's
-    // composers, for this surface only, and again when the catalog comes, so
-    // an open "/" menu takes it in; take it back on unmount so docs (which
-    // never mount this) keep formatting-only.
+    // The catalog, filtered client-side as the person types to keep the
+    // typeahead instant. Registered for this surface only, once it has
+    // commands, so an open "/" menu takes them in when they come; taken back on
+    // unmount, so docs (which never mount this) keep formatting-only. Registered
+    // empty, it had the menu say "Commands" over formatting alone while they
+    // were on their way, and for good when they couldn't be read.
+    const catalog = useCommandCatalog(ctx.channelId)
     useEffect(() => {
-        const all = catalog?.commands ?? []
-        const provider = (query: string): BackendCommandEntry[] => {
-            if (!query) return all.slice(0, 10)
-            const q = query.toLowerCase()
-            return all
-                .filter(
-                    (c) =>
-                        c.command.toLowerCase().includes(q) ||
-                        c.description.toLowerCase().includes(q),
-                )
-                .slice(0, 10)
-        }
+        const all = catalog?.commands
+        if (!all?.length) return
+        // Apps first. With nothing typed, ten at most, but never at an app's
+        // expense: built-ins come first in the catalog, and ten of them filled
+        // "/" before any installed app's command, which showed only once its
+        // name was typed. For a typed query the menu ranks every command by
+        // how well it answers (slashScore), apps first only among equals: an
+        // app's description holding the letters put /zoom above "/me".
+        const apps = all.filter((c) => !c.is_builtin)
+        const appsFirst = [...apps, ...all.filter((c) => c.is_builtin)]
+        const provider = (query: string): BackendCommandEntry[] =>
+            query ? appsFirst : appsFirst.slice(0, Math.max(10, apps.length))
         return setBackendCommandProvider(provider, ctx.surfaceKey)
     }, [catalog, ctx.surfaceKey])
 
@@ -138,10 +126,18 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
                         }),
                     )
                     break
-                case "post_message":
-                    if (p.html && ctx.onComposerHtml) ctx.onComposerHtml(p.html)
-                    else if (p.text && ctx.onComposerText) ctx.onComposerText(p.text)
+                case "post_message": {
+                    // A message from the person (Giphy's Send, /shrug, /me): it
+                    // goes out from this surface's own message box.
+                    const html = p.html || (p.text ? `<p>${escapeText(p.text)}</p>` : "")
+                    if (!html) break
+                    const post: CommandPost = { surface: ctx.surfaceKey, html, taken: false }
+                    window.dispatchEvent(new CustomEvent(COMMAND_POST, { detail: post }))
+                    if (!post.taken) {
+                        toast({ variant: "destructive", title: "Couldn't post that", description: "Open the conversation's message box, then try again." })
+                    }
                     break
+                }
                 case "navigate":
                     if (p.href) router.push(p.href)
                     break
@@ -167,6 +163,11 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
             }
             if (resp.client_action) {
                 applyClientAction(resp.client_action)
+                // An answer that replaces its card with an action alone (Giphy's
+                // Send) leaves nothing to show: the card goes.
+                if (resp.replace_original) {
+                    dispatch(dismissCard({ surface_key: ctx.surfaceKey, trigger_id: resp.trigger_id || triggerId }))
+                }
                 return
             }
             if ((resp.blocks && resp.blocks.length > 0) || resp.text) {

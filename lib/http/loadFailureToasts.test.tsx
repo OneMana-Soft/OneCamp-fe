@@ -52,3 +52,15 @@ describe("a failed read with an error state on screen", () => {
     unmount()
   })
 })
+
+describe("a read the device answered", () => {
+  it("tells nothing for what was made offline and isn't on the server yet, and a real 404 still says so", () => {
+    // lib/offline answers a read of something made with no network (offlineAnswered): the screen shows its own state.
+    tellReadFailure({ config: { url: "/task/info/offline-1", method: "get", offlineAnswered: true }, response: { status: 404, data: { msg: "What you made offline is still waiting to be sent." } } })
+    vi.advanceTimersByTime(READ_FAILURE_BEAT_MS + 1)
+    expect(toasts).toHaveLength(0)
+    tellReadFailure(failed("/task/info/7a5c0000-0000-4000-8000-000000000001", 404, "Task not found"))
+    vi.advanceTimersByTime(READ_FAILURE_BEAT_MS + 1)
+    expect(toasts.map((t) => t.title)).toEqual(["Not found"])
+  })
+})

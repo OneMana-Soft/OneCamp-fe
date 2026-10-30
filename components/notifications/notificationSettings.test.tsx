@@ -20,7 +20,7 @@ const { state, post, wide } = vi.hoisted(() => ({
   wide: { on: false },
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => state.fetch }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post } }))
 
 import { NotificationPreferencesCard } from "./NotificationPreferencesCard"
 
@@ -144,6 +144,14 @@ describe("the email master switch", () => {
     expect(events.querySelector(".opacity-50")).not.toBeNull()
     expect(mentions()).toBeDisabled()
     expect(screen.getAllByRole("switch").length).toBeGreaterThanOrEqual(9)
+  })
+
+  // DESIGN-BUILD-9 on the settings shots, 23 Oct: with email off, the digest
+  // still said "Arrives each morning", a promise the off switch breaks.
+  it("says no digest comes while email is off, whatever the digest is set to", () => {
+    state.fetch = answered({ email_enabled: false, email_digest_frequency: "daily" })
+    render(<NotificationPreferencesCard />)
+    expect(screen.getByRole("radiogroup", { name: "Activity digest" })).toHaveAccessibleDescription("No digest while email is off.")
   })
 })
 

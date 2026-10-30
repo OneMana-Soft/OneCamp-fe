@@ -22,13 +22,13 @@
  * read of the connections offered "Connect Jira" for a connection that may
  * already exist. What a form is missing is said under the field it is about.
  *
- * THE HISTORY FIRST, AND IT STAYS PUT. It listed one tool's imports once a
- * tool was picked, under the tool's Connection and New import, which were
- * inserted above it: picking Jira pushed the history down by the height of a
- * form, and "All" pulled it back up. The history is every tool's now (each row
- * names its tool), above "Start an import", so picking a tool changes only the
- * panel under the picker. One flat section like every other admin tab, where
- * it was a bordered Card.
+ * THE TOOLS FIRST (DESIGN-BUILD-2, 20 Oct). The page opened on an empty
+ * history, its illustration and its long words, with the tools below the
+ * fold, so nobody saw what to do. "Start an import" leads now, and the history
+ * follows once there is some (or while it loads, or says it couldn't): every
+ * tool's imports in one list, each row naming its tool, Slack's in their own
+ * card. A picked tool's panel opens under the picker, above the history. One
+ * flat section like every other admin tab, where it was a bordered Card.
  *
  * PAGES (docs programme C4). A tool that brings pages (its "pages" capability:
  * Notion) offers them as docs, on by default: every page the token can read
@@ -36,29 +36,30 @@
  * database picked from the list comes across as a project too.
  */
 
-import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
+import { count } from "@/lib/utils/count"
+import React, { useEffect, useMemo, useRef, useState, Suspense } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Field } from "@/components/ui/field"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorState } from "@/components/ui/error-state"
-import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SettingsSection } from "@/components/ui/settingsSection"
 import { segmentedWell } from "@/components/ui/segmentedControl"
 import { StatusWord } from "@/components/ui/statusWord"
-import { SpotImported } from "@/components/ui/graphics"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttContext"
-import { Loader2, Plug, Plus } from "lucide-react"
+import { FileSpreadsheet, Loader2, Plug, Plus } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
+import { browserTZ } from "@/lib/utils/timeZone"
 import {
   createImportJob,
   cancelImportJob,
@@ -76,11 +77,14 @@ import {
   needsReconnect,
   type ImportProblem,
 } from "@/services/importService"
-import { IMPORT_LIST, ImportJobRow, ImportRowsSkeleton, ROW_ACTION, count } from "@/components/admin/ImportJobRow"
-import { SourceMark } from "@/components/admin/connectParts"
+import { IMPORT_LIST, ImportJobRow, ImportRowsSkeleton, ROW_ACTION } from "@/components/admin/ImportJobRow"
+import { SourceMark, sourceHue } from "@/components/admin/connectParts"
+import { CsvImportPanel } from "@/components/admin/CsvImportPanel"
 import { SLACK_IMPORT_NEW_EVENT } from "@/components/admin/importParts"
 import { ALL_OF_THEM, allOfThemLabel, optionsForPick, pickLabel } from "@/lib/importPick"
+import { signInReturn } from "@/lib/importSignIn"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 // Lazy-load the provider-specific dialogs. They're heavy (form
 // validation, mappings UI, error pagination) and only render when the
@@ -88,16 +92,16 @@ import { SaysLoadFailure } from "@/lib/http/loadFailure"
 // load. This trims the admin route's initial JS bundle by ~40 KB
 // minified for the common case where the user just opens settings to
 // scan job statuses without taking action.
-const ImportConnectDialog = lazy(() =>
+const ImportConnectDialog = lazyPiece(() =>
   import("@/components/admin/ImportConnectDialog").then((m) => ({ default: m.ImportConnectDialog })),
 )
-const ImportPlanDialog = lazy(() =>
+const ImportPlanDialog = lazyPiece(() =>
   import("@/components/admin/ImportPlanDialog").then((m) => ({ default: m.ImportPlanDialog })),
 )
-const ImportErrorsDialog = lazy(() =>
+const ImportErrorsDialog = lazyPiece(() =>
   import("@/components/admin/ImportErrorsDialog").then((m) => ({ default: m.ImportErrorsDialog })),
 )
-const ImportInviteDialog = lazy(() =>
+const ImportInviteDialog = lazyPiece(() =>
   import("@/components/admin/ImportInviteDialog").then((m) => ({ default: m.ImportInviteDialog })),
 )
 
@@ -111,14 +115,28 @@ function isLive(s: ImportJob["status"]) {
 const NAME_MISSING = "Name this import, so you can tell it apart in the history."
 
 /** What a source card says comes across, where it isn't projects and tasks. */
-const SOURCE_LINE: Partial<Record<ImportProvider, string>> = { notion: "Pages, databases, tasks" }
+const SOURCE_LINE: Partial<Record<ImportProvider, string>> = {
+  notion: "Pages, databases, tasks",
+  miro: "Boards, drawn",
+  airtable: "Bases, tables, links, views",
+  gsheets: "Sheets as tables, dropdowns",
+  csv: "Tasks from a spreadsheet",
+}
 
 /**
  * What rolling an import back takes away. An import that brought pages also
  * takes its tables, and its docs go to the trash with any pages added under
- * them, where they can be restored.
+ * them, where they can be restored. A Miro import brought boards only, and a
+ * tool whose registry capabilities have tables but no tasks (Airtable, Google
+ * Sheets) brought tables only.
  */
-export function rollbackWords(job: Pick<ImportJob, "options">): string {
+export function rollbackWords(job: Pick<ImportJob, "options"> & Partial<Pick<ImportJob, "provider">>, capabilities: readonly string[] = []): string {
+  if (job.provider === "miro") {
+    return "This deletes the boards the import brought in, with their pictures. Boards your team has made, and anything else, stay."
+  }
+  if (capabilities.includes("tables") && !capabilities.includes("tasks")) {
+    return "This deletes the tables the import brought in, with their files and any rows added to them since. Tables your team has made, and anything else, stay."
+  }
   const pages = job.options?.pages === true
   return pages
     ? "This takes away what the import brought in: its tasks, comments, files, custom fields and tables, and its projects and teams if nothing else is in them. Its docs go to the trash, with any pages added under them, where they can be restored. Anything else your team has added stays."
@@ -138,9 +156,9 @@ function MaybeSection({ bare, ...props }: React.ComponentProps<typeof SettingsSe
  * OnboardingRun), where the job is to pick a tool. It is the tiles alone,
  * which name the tools themselves: no title, words, heading or helper line,
  * and no live-updates notice, which is about the server and not for first
- * use. The history follows the tiles once there is some, and Slack's tile
- * opens Admin › Import's own Slack section, upload open, since the run
- * doesn't hold it. Admin › Import keeps the card as it is.
+ * use. Slack's tile opens Admin › Import's own Slack section, upload open,
+ * since the run doesn't hold it. The order is the same everywhere: the
+ * tools, then the history once there is some.
  *
  * onStarted: an import was made from the card, so the run can move on.
  */
@@ -158,6 +176,17 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
   } = useFetch<{ providers: ProviderInfo[] }>("/admin/import/providers")
   const providers = useMemo(() => providersResp?.providers ?? [], [providersResp])
   const [selectedProvider, setSelectedProvider] = useState<ImportProvider | null>(null)
+
+  // Back from signing in at a provider (Basecamp): say how it went, pick it,
+  // and take the sign-in's parameters off the address so a reload says
+  // nothing twice.
+  useEffect(() => {
+    const back = signInReturn(window.location.search)
+    if (!back) return
+    window.history.replaceState(window.history.state, "", window.location.pathname + back.search + window.location.hash)
+    if (back.provider) setSelectedProvider(back.provider as ImportProvider)
+    toast({ title: back.title, description: back.description, variant: back.ok ? undefined : "destructive" })
+  }, [toast])
 
   const { data: conResp, isError: connError, mutate: refetchConn } = useFetch<{ connections: ConnectionView[] }>(
     "/admin/import/connections",
@@ -180,14 +209,16 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
   // New-import inputs, and what is missing from them, said under each field.
   const [workspaceName, setWorkspaceName] = useState("")
   const [boardId, setBoardId] = useState("") // Trello-specific opt
+  const [sheets, setSheets] = useState("") // Google Sheets' pasted spreadsheets
   const [bringPages, setBringPages] = useState(true)
   const [creating, setCreating] = useState(false)
   const [nameError, setNameError] = useState("")
   const [pickError, setPickError] = useState("")
   const [createProblem, setCreateProblem] = useState("")
   const nameRef = useRef<HTMLInputElement>(null)
-  const pickRef = useRef<HTMLSelectElement>(null)
+  const pickRef = useRef<HTMLButtonElement>(null)
   const boardRef = useRef<HTMLInputElement>(null)
+  const sheetsRef = useRef<HTMLTextAreaElement>(null)
 
   // Discovery — populated after connect, used to render a dropdown of
   // accessible workspaces/boards/projects so the operator doesn't have
@@ -250,7 +281,7 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
         if (cancelled) return
         setDiscoverItems(items)
         // A token that sees one Asana workspace has nothing to choose.
-        if (selectedProvider === "asana" && items.length === 1) setPickedDiscoverId(items[0].id)
+        if ((selectedProvider === "asana" || selectedProvider === "basecamp") && items.length === 1) setPickedDiscoverId(items[0].id)
       })
       .catch((err) => {
         if (cancelled) return
@@ -272,8 +303,28 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
     setCreateProblem("")
   }
 
+  // A new import's plan opens on it: that is the confirmation. Without it,
+  // say where it went.
+  const openPlanOf = async (jobId: string) => {
+    onStarted?.()
+    const refetched = await refetchJobs()
+    const job = (refetched?.jobs ?? jobs).find((j: ImportJob) => j.id === jobId)
+    if (job) setPlanJob(job)
+    else toast({ title: "Import created", description: "Plan it from the list below to see what comes across." })
+  }
+
+  // What the start checks, read as the form is filled in: Start import waits on it.
+  // What is typed rather than picked: Trello's board, or the spreadsheets pasted.
+  const typed = selectedProvider === "gsheets" ? sheets : boardId
+  // A CSV starts from its own panel, once its file is up.
+  const readyToStart =
+    !!selectedProvider &&
+    selectedProvider !== "csv" &&
+    !!workspaceName.trim() &&
+    !("error" in optionsForPick(selectedProvider, pickedDiscoverId, discoverItems, typed, pages))
+
   const startNewJob = async () => {
-    if (!selectedProvider) return
+    if (!selectedProvider || selectedProvider === "csv") return
     setCreateProblem("")
     if (!workspaceName.trim()) {
       setNameError(NAME_MISSING)
@@ -281,13 +332,15 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
       return
     }
     // Each provider reads its own key for what was picked (lib/importPick).
-    const pick = optionsForPick(selectedProvider, pickedDiscoverId, discoverItems, boardId, pages)
+    const pick = optionsForPick(selectedProvider, pickedDiscoverId, discoverItems, typed, pages)
     if ("error" in pick) {
       setPickError(pick.error)
-      ;(discoverItems.length > 0 ? pickRef.current : boardRef.current)?.focus()
+      ;(discoverItems.length > 0 ? pickRef.current : selectedProvider === "gsheets" ? sheetsRef.current : boardRef.current)?.focus()
       return
     }
-    const opts = pick.options
+    // A date the source keeps with no time lands on that day in the admin's
+    // zone; without it the server falls back to noon UTC, a day late east of +12.
+    const opts = { ...pick.options, time_zone: browserTZ() }
     setCreating(true)
     try {
       const { job_id } = await createImportJob(selectedProvider, {
@@ -297,13 +350,9 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
       })
       setWorkspaceName("")
       setBoardId("")
+      setSheets("")
       setPickedDiscoverId("")
-      onStarted?.()
-      const refetched = await refetchJobs()
-      const job = (refetched?.jobs ?? jobs).find((j: ImportJob) => j.id === job_id)
-      // The plan opening is the confirmation; without it, say where it went.
-      if (job) setPlanJob(job)
-      else toast({ title: "Import created", description: "Plan it from the list below to see what comes across." })
+      await openPlanOf(job_id)
     } catch (err: unknown) {
       setCreateProblem(importProblemOf(err, "Couldn't start the import. Try again in a moment.").message)
     } finally {
@@ -353,7 +402,7 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
       title: "Roll back this import?",
       // Type-to-confirm (admin H4): it takes away work from many people.
       requireText: job.source_workspace_name || "Roll back",
-      description: rollbackWords(job),
+      description: rollbackWords(job, providers.find((p) => p.name === job.provider)?.capabilities),
       confirmText: "Roll back import",
       destructive: true,
       onConfirm: async () => {
@@ -423,13 +472,6 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
           detail={apiErrorStatus(jobsFetch.isError) ? apiErrorMessage(jobsFetch.isError) : undefined}
           onRetry={() => void refetchJobs()}
         />
-      ) : jobs.length === 0 ? (
-        // A first run: the imported spot, at the empty state's quiet size.
-        <EmptyState
-          illustration={<SpotImported hue={ADMIN_GROUP_HUE.workspace} />}
-          title="No imports from other tools yet"
-          description="Pick a tool under Start an import, connect it, and bring a workspace across. Each import is listed here with how far it got."
-        />
       ) : (
         <ul aria-label="Recent imports" className={IMPORT_LIST}>
           {jobs.map((j) => (
@@ -458,17 +500,18 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
       title="Import from other tools"
       description={
         <>
-          Asana, ClickUp, Jira, Linear, monday.com, Notion, Todoist and Trello. Projects, tasks, subtasks, comments,
-          files, people and custom fields come across, into the source&apos;s own teams or a team named after it.
-          Notion&apos;s pages come across as docs, in their tree, and its databases as tables. Importing the same
-          workspace again brings only what is new, without copies.
+          Airtable, Asana, Basecamp, ClickUp, Google Sheets, Jira, Linear, Miro, monday.com, Notion, Todoist and Trello. Projects,
+          tasks, subtasks, comments, files, people and custom fields come across, into the source&apos;s own teams or a team named
+          after it. Notion&apos;s pages come across as docs, in their tree, and its databases as tables; an Airtable base comes
+          across as tables, with its fields, links, rollups, formulas and views, and a Google Sheets spreadsheet as tables, one a
+          sheet, with its dropdowns, people and links. Miro&apos;s boards come across drawn, as boards.
+          Importing the same workspace again brings only what is new, without copies. A CSV of tasks, from any of them or
+          a spreadsheet, comes across as a project.
           {!isMqttHealthy && <span className="ml-1 text-warning-ink">Live updates are off, so the list refreshes every few seconds.</span>}
         </>
       }
     >
       <div className="space-y-8">
-        {!firstRun && recentImports}
-
         <MaybeSection bare={firstRun} level={3} title="Start an import">
           {/* The tool, as a choice of one: the app's segmented control. Its
               loading state is drawn inside the same well, at the options'
@@ -496,15 +539,21 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
 
           {/* The picked tool's panel: its account, then a new import from it,
               one list of two rows. */}
-          {selectedProvider && (
+          {selectedProvider === "csv" ? (
             <div data-provider-panel="" className="set-card">
-              <div className="set-row flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CsvImportPanel onUploaded={openPlanOf} />
+            </div>
+          ) : selectedProvider && (
+            <div data-provider-panel="" className="set-card">
+              {/* One line, the account's words and their action, wrapping only where
+                  they don't fit (DESIGN-BUILD-12's S4). */}
+              <div className="set-row flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 {connError && !conResp ? (
                   <>
                     <p role="alert" className="text-sm text-muted-foreground">
                       Couldn&apos;t check the connection to {providerName}.
                     </p>
-                    <Button size="sm" variant="outline" className={cn(ROW_ACTION, "shrink-0 self-start sm:self-auto")} onClick={() => void refetchConn()}>
+                    <Button size="sm" variant="outline" className={cn(ROW_ACTION, "shrink-0")} onClick={() => void refetchConn()}>
                       Try again
                     </Button>
                   </>
@@ -520,17 +569,17 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
                         <span className="text-xs text-muted-foreground">Until {shortDateTime(new Date(connection.expires_at))}</span>
                       )}
                     </p>
-                    <Button size="sm" variant="ghost" onClick={onDisconnect} className={cn(ROW_ACTION, "shrink-0 self-start sm:self-auto")}>
+                    <Button size="sm" variant="ghost" onClick={onDisconnect} className={cn(ROW_ACTION, "shrink-0")}>
                       Disconnect
                     </Button>
                   </>
                 ) : (
                   <>
-                    <p className="text-sm text-muted-foreground">
-                      <StatusWord className="mr-1.5">Not connected</StatusWord>
-                      Connect your {providerName} account to import from it.
+                    <p className="flex flex-col gap-0.5 text-sm text-muted-foreground sm:block">
+                      <StatusWord className="sm:mr-1.5">Not connected</StatusWord>
+                      <span>Connect your {providerName} account to import from it.</span>
                     </p>
-                    <Button size="sm" variant="outline" className={cn(ROW_ACTION, "shrink-0 gap-1.5 self-start sm:self-auto")} onClick={() => setConnectOpen(true)}>
+                    <Button size="sm" variant="outline" className={cn(ROW_ACTION, "shrink-0 gap-1.5")} onClick={() => setConnectOpen(true)}>
                       <Plug /> Connect {providerName}
                     </Button>
                   </>
@@ -570,31 +619,21 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
                       </div>
                     </div>
                   )}
-                  {discoverItems.length > 0 && (
-                    <Field label={pickLabel(selectedProvider, pages)} error={pickError}>
-                      <select
-                        ref={pickRef}
-                        value={pickedDiscoverId}
+                  {/* Google Sheets has no list to pick from (no_discover): its
+                      spreadsheets are pasted, by address or id. */}
+                  {selectedProvider === "gsheets" && (
+                    <Field label={pickLabel(selectedProvider)} help="Their addresses, one a line. Each sheet comes across as a table." error={pickError}>
+                      <Textarea
+                        ref={sheetsRef}
+                        value={sheets}
                         onChange={(e) => {
-                          setPickedDiscoverId(e.target.value)
-                          setPickError("")
-                          const picked = discoverItems.find((d) => d.id === e.target.value)
-                          if (picked && !workspaceName) setWorkspaceName(picked.name)
+                          setSheets(e.target.value)
+                          if (pickError) setPickError("")
                         }}
-                        // The fields' own height: 44px on a phone, 36px from md up.
-                        className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-1 text-sm md:h-9"
-                      >
-                        <option value="">Choose one</option>
-                        {allOfThemLabel(selectedProvider, discoverItems.length) && (
-                          <option value={ALL_OF_THEM}>{allOfThemLabel(selectedProvider, discoverItems.length)}</option>
-                        )}
-                        {discoverItems.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                            {d.meta?.task_shaped === false ? "  (not a task list)" : ""}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="https://docs.google.com/spreadsheets/d/…"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
                     </Field>
                   )}
                   {discoverLoading && (
@@ -619,7 +658,40 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {/* items-start: a field with no help line keeps its own height, so the
+                      picker's box lines up with the name's (a stretched cell spread
+                      its label and box apart). */}
+                  <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+                    {discoverItems.length > 0 && (
+                      // The app's own picker, a sheet on a phone (DESIGN-BUILD-2: no native controls).
+                      <Select
+                        // Empty is none picked: the placeholder, and controlled throughout.
+                        value={pickedDiscoverId}
+                        onValueChange={(v) => {
+                          setPickedDiscoverId(v)
+                          setPickError("")
+                          const picked = discoverItems.find((d) => d.id === v)
+                          if (picked && !workspaceName) setWorkspaceName(picked.name)
+                        }}
+                      >
+                        <Field label={pickLabel(selectedProvider, pages)} error={pickError}>
+                          <SelectTrigger ref={pickRef}>
+                            <SelectValue placeholder="Choose one" />
+                          </SelectTrigger>
+                        </Field>
+                        <SelectContent>
+                          {allOfThemLabel(selectedProvider, discoverItems.length) && (
+                            <SelectItem value={ALL_OF_THEM}>{allOfThemLabel(selectedProvider, discoverItems.length)}</SelectItem>
+                          )}
+                          {discoverItems.map((d) => (
+                            <SelectItem key={d.id} value={d.id}>
+                              {d.name}
+                              {d.meta?.task_shaped === false ? " (not a task list)" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Field label="Workspace name" help="Shown in the import history. Importing the same workspace again brings only what is new." error={nameError}>
                       <Input
                         ref={nameRef}
@@ -628,7 +700,7 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
                           setWorkspaceName(e.target.value)
                           if (nameError) setNameError("")
                         }}
-                        placeholder="Acme Inc.…"
+                        placeholder="Acme Inc."
                         autoComplete="off"
                       />
                     </Field>
@@ -649,19 +721,11 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
                     )}
                   </div>
                   <div className="space-y-2">
-                    {/* Outline, as every section's own action is on admin pages: the
-                        tab keeps one filled button, the Slack section's New import.
-                        The fields' height, beside them in the form. */}
-                    <Button variant="outline" className="h-11 gap-1.5 md:h-9" onClick={startNewJob} disabled={creating}>
-                      {creating ? (
-                        <>
-                          <Loader2 className="animate-spin" /> Starting…
-                        </>
-                      ) : (
-                        <>
-                          <Plus /> Start import
-                        </>
-                      )}
+                    {/* The one thing to do here, so filled (DESIGN-BUILD-2, 20 Oct),
+                        and ready only once what is picked and the name are: the
+                        same check the start makes. The fields' height. */}
+                    <Button className="h-11 gap-1.5 md:h-9" onClick={startNewJob} busy={creating} disabled={!readyToStart}>
+                      <Plus /> {creating ? "Starting…" : "Start import"}
                     </Button>
                     {createProblem && (
                       <p role="alert" className="text-sm text-danger-ink">
@@ -674,7 +738,7 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
             </div>
           )}
         </MaybeSection>
-        {firstRun && jobs.length > 0 && recentImports}
+        {(jobs.length > 0 || (!jobsResp && (jobsLoading || !!jobsFetch.isError))) && recentImports}
       </div>
 
         {/* Dialogs are lazy-loaded; the Suspense boundary renders
@@ -683,12 +747,13 @@ const ImportCard: React.FC<{ firstRun?: boolean; onStarted?: () => void }> = ({ 
              yet looking at the dialog area. A spinner here would
              flash on every action. */}
         <Suspense fallback={null}>
-          {selectedProvider && (
+          {selectedProvider && selectedProvider !== "csv" && (
             <ImportConnectDialog
               provider={selectedProvider}
               open={connectOpen}
               onOpenChange={setConnectOpen}
               onConnected={() => refetchConn()}
+              signIn={providers.find((p) => p.name === selectedProvider)?.sign_in}
             />
           )}
           {planJob && (
@@ -808,11 +873,15 @@ function SourcePicker({
                 aria-label={c.label}
                 tabIndex={i === focusable ? 0 : -1}
                 data-source-card={c.value}
+                // Chosen, the card is selected in its tool's hue (connect.css).
+                data-interactive="card"
+                data-hue={sourceHue(c.value)}
                 className="cx-imp-source"
                 onClick={() => onChange((c.value || null) as ImportProvider | null)}
                 onKeyDown={(e) => onKey(e, i)}
               >
-                <SourceMark vendor={c.value} name={c.label} />
+                {/* A CSV is a file, not a vendor: its initial would be ClickUp's. */}
+                <SourceMark vendor={c.value} name={c.label} glyph={c.value === "csv" ? FileSpreadsheet : undefined} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-foreground">{c.label}</span>
                   {/* Two lines rather than an ellipsis: at a third of the column the

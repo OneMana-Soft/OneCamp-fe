@@ -48,6 +48,8 @@ export interface TopicMessage {
 export interface ChipView {
   /** Before the words: a status glyph, a page's icon, an avatar. */
   lead?: ReactNode
+  /** A short name before the words, quieter, read with them: a task's key ("Q4-12"). */
+  tag?: string
   /** The words the chip names it by. */
   title: string
   /** After the words, quieter: who it's assigned to, when it's due. */

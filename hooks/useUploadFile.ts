@@ -5,6 +5,7 @@ import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { postUpload, type UploadTarget } from "@/lib/upload";
 import {useDispatch, useStore} from "react-redux";
 import type {RootState} from "@/store/store";
+import type { ConversationRef } from "@/lib/conversation/types";
 import {
     addProjectAttachmentPreviewFiles, addProjectAttachmentUploadedFiles, deleteProjectAttachmentPreviewFiles, markProjectAttachmentPreviewFailed,
     updateProjectAttachmentPreviewFiles, updateProjectAttachmentPreviewFilesUUID
@@ -354,10 +355,11 @@ export const useUploadFile = () => {
 
     // Each kind under the name its callers use.
     return React.useMemo(() => ({
-        makeRequestToUploadToChannel: (files: FileList, channelId: string) => upload("channel", files, channelId),
+        // A conversation's message box: a channel's, a DM's (by the other person, sent to the pair) or a group's.
+        makeRequestToUploadToConversation: (files: FileList | File[], c: ConversationRef) =>
+            c.kind === "channel" ? upload("channel", files, c.id) : c.kind === "dm" ? upload("chat", files, c.other, c.id) : upload("groupChat", files, c.id),
         uploadImageToDoc,
         makeRequestToUploadToGroupChatComment: (files: FileList, grpId: string, threadId: string) => upload("groupChatComment", files, grpId, threadId),
-        makeRequestToUploadToGroupChat: (files: FileList, grpId: string) => upload("groupChat", files, grpId),
         makeRequestToUploadToPublic,
         makeRequestToUploadToCreateTask: (files: FileList, projectId: string) => upload("createTask", files, projectId),
         makeRequestToUploadToChannelComment: (files: FileList, channelId: string, threadId: string) => upload("channelComment", files, channelId, threadId),
@@ -365,7 +367,6 @@ export const useUploadFile = () => {
         makeRequestToUploadToTask: (files: FileList, taskId: string, projectId: string) => upload("task", files, taskId, projectId),
         makeRequestToUploadToTaskComment: (files: FileList, projectId: string, taskId: string) => upload("taskComment", files, projectId, taskId),
         makeRequestToUploadToChatComment: (files: FileList, chatMessageUUID: string, grpId: string) => upload("chatComment", files, chatMessageUUID, grpId),
-        makeRequestToUploadToChat: (files: FileList, chatUUID: string, grpId: string) => upload("chat", files, chatUUID, grpId),
         validateFiles,
         uploadLimitMB: clientConfig.upload_limit_mb,
         isSubmitting

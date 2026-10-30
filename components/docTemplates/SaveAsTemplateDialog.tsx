@@ -90,7 +90,7 @@ export default function SaveAsTemplateDialog({ docId, onClose }: { docId: string
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={busy || !shownName.trim()}>
+            <Button type="submit" disabled={!shownName.trim()} busy={busy}>
               {busy ? "Saving…" : "Save template"}
             </Button>
           </DialogFooter>

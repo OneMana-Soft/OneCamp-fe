@@ -25,6 +25,7 @@ import { DateField } from "@/components/ui/date-field"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { deletedTitle, offerUndo, restore } from "@/services/restoreService"
 import { ArrowLeft, CheckCircle2, Loader2, Printer, Save, Send, Trash2, Undo2 } from "@/lib/icons"
 import Link from "next/link"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
@@ -215,13 +216,15 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     notes,
   })
 
-  // One change to the saved invoice: what it is now shows, or why not.
-  const act = async (done: string, failed: string, change: () => Promise<SavedInvoice | null>) => {
+  // One change to the saved invoice: what it is now shows, or why not; a
+  // change with an undo offers it.
+  const act = async (done: string, failed: string, change: () => Promise<SavedInvoice | null>, undo?: () => Promise<void>) => {
     setBusy(true)
     try {
       const inv = await change()
       if (inv) show(inv)
-      toast({ title: done })
+      if (undo) offerUndo(done, undo)
+      else toast({ title: done })
     } catch (e) {
       toast({ title: failed, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
@@ -238,15 +241,21 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     act("Draft saved", "The draft wasn't saved", async () => (await axiosInstance.post(`${invoices}/${saved!.id}`, body())).data.data as SavedInvoice)
   const mark = (to: SavedInvoice["status"], done: string) =>
     act(done, "That didn't change", async () => (await axiosInstance.post(`${invoices}/${saved!.id}/status`, { status: to })).data.data as SavedInvoice)
-  const remove = () =>
-    act("Draft deleted", "The draft wasn't deleted", async () => {
-      await axiosInstance.post(`${invoices}/${saved!.id}/delete`)
+  const remove = () => {
+    const id = saved!.id
+    return act(deletedTitle(saved!.number || number, "draft"), "The draft wasn't deleted", async () => {
+      await axiosInstance.post(`${invoices}/${id}/delete`)
       const q = `from=${encodeURIComponent(periodFrom.toISOString())}&to=${encodeURIComponent(periodTo.toISOString())}`
       setSaved(null)
       setNumber("")
       router.replace(`/invoice/${project}?${q}`)
       return null
+    }, async () => {
+      // Undo: the draft comes back, and opens again as it was.
+      await restore(axiosInstance, "invoice", id)
+      router.replace(`/invoice/${project}?id=${id}`)
     })
+  }
 
   if (error) return <Centered><p className="text-sm text-danger-ink">{error}</p></Centered>
   if (!invoice || (!saved && !report)) return <Centered><Loader2 className="size-6 animate-spin text-ink-3" aria-label="Loading the invoice" /></Centered>
@@ -341,7 +350,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
           <div className="grid gap-2" role="group" aria-label="Invoice actions">
             {!saved && (
               <div className="grid grid-cols-2 gap-2">
-                <Button onClick={() => void create("draft")} disabled={busy || invoice.lines.length === 0 || rateWrong || taxWrong} className="gap-2">
+                <Button onClick={() => void create("draft")} disabled={invoice.lines.length === 0 || rateWrong || taxWrong} busy={busy} className="gap-2">
                   <Save className="h-4 w-4" />
                   Save draft
                 </Button>
@@ -353,7 +362,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             )}
             {saved?.status === "draft" && (
               <div className="grid grid-cols-2 gap-2">
-                <Button onClick={() => void update()} disabled={busy || taxWrong} className="gap-2">
+                <Button onClick={() => void update()} disabled={taxWrong} busy={busy} className="gap-2">
                   <Save className="h-4 w-4" />
                   Save draft
                 </Button>
@@ -369,7 +378,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             )}
             {saved?.status === "sent" && (
               <div className="grid grid-cols-2 gap-2">
-                <Button onClick={() => void mark("paid", "Marked paid")} disabled={busy} className="col-span-2 gap-2">
+                <Button onClick={() => void mark("paid", "Marked paid")} busy={busy} className="col-span-2 gap-2">
                   <CheckCircle2 className="h-4 w-4" />
                   Mark paid
                 </Button>

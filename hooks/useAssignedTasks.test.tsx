@@ -3,7 +3,7 @@ import { cleanup, render, waitFor } from "@testing-library/react"
 import { SWRConfig } from "swr"
 
 const get = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: (...args: unknown[]) => get(...args) } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: (...args: unknown[]) => get(...args) } }))
 
 import { useAssignedTasks } from "./useAssignedTasks"
 import { pinTestClock } from "@/lib/testing/testClock"

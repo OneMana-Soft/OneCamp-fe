@@ -23,6 +23,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { DOMSerializer, Fragment } from '@tiptap/pm/model'
 import { checkPlace, nodesFromJSON } from '@/lib/proposals/core'
 import {
+  DECISION_WRITE,
   acceptIn,
   insertBelowIn,
   retrack,
@@ -111,11 +112,17 @@ function step(value: ProposalsState, tr: Transaction, before: EditorState, state
 // Drawing
 // ---------------------------------------------------------------------------
 
-function ghost(state: EditorState, hunk: ProposalHunk, focused: boolean): HTMLElement {
+/** Who made a proposal, as its drawing says it: "person" for a teammate's suggestion (green), else nothing (the agent tint). */
+function drawnBy(t: Tracked): string | null {
+  return t.proposal.author_kind === 'person' ? 'person' : null
+}
+
+function ghost(state: EditorState, hunk: ProposalHunk, focused: boolean, by: string | null): HTMLElement {
   const block = hunk.level === 'block'
   const el = document.createElement(block ? 'div' : 'span')
   el.className = `oc-proposal-ins${block ? ' oc-proposal-ins-block' : ''}${focused ? ' is-focused' : ''}`
   el.setAttribute('data-hunk', hunk.id)
+  if (by) el.setAttribute('data-by', by)
   el.setAttribute('contenteditable', 'false')
   // The text is for eyes: a screen reader hears the review bar's summary.
   el.setAttribute('aria-hidden', 'true')
@@ -128,6 +135,8 @@ function decorationsOf(state: EditorState, value: ProposalsState): DecorationSet
   const decos: Decoration[] = []
   for (const [id, t] of Object.entries(value.active)) {
     const isFocus = value.focus === id
+    const by = drawnBy(t)
+    const byAttr: Record<string, string> = by ? { 'data-by': by } : {}
     for (const h of t.proposal.hunks) {
       if (h.decision) continue
       const place = t.places[h.id]
@@ -137,11 +146,11 @@ function decorationsOf(state: EditorState, value: ProposalsState): DecorationSet
       const cls = `${focused ? ' is-focused' : ''}${isFocus ? '' : ' is-quiet'}`
       if (place.from < place.to) {
         if (h.level === 'inline') {
-          decos.push(Decoration.inline(place.from, place.to, { class: `oc-proposal-del${cls}`, 'data-hunk': h.id }))
+          decos.push(Decoration.inline(place.from, place.to, { class: `oc-proposal-del${cls}`, 'data-hunk': h.id, ...byAttr }))
         } else {
           state.doc.nodesBetween(place.from, place.to, (node, pos) => {
             if (pos >= place.from && pos + node.nodeSize <= place.to) {
-              decos.push(Decoration.node(pos, pos + node.nodeSize, { class: `oc-proposal-del-block${cls}`, 'data-hunk': h.id }))
+              decos.push(Decoration.node(pos, pos + node.nodeSize, { class: `oc-proposal-del-block${cls}`, 'data-hunk': h.id, ...byAttr }))
             }
             return false
           })
@@ -149,9 +158,9 @@ function decorationsOf(state: EditorState, value: ProposalsState): DecorationSet
       }
       if ((h.after ?? []).length) {
         decos.push(
-          Decoration.widget(place.to, () => ghost(state, h, focused), {
+          Decoration.widget(place.to, () => ghost(state, h, focused, by), {
             side: h.level === 'block' ? -1 : 1,
-            key: `${id}:${h.id}:${focused ? 1 : 0}`,
+            key: `${id}:${h.id}:${focused ? 1 : 0}:${by ?? ''}:${drawnOf(h.after ?? [])}`,
             ignoreSelection: true,
             marks: [],
           }),
@@ -197,6 +206,19 @@ export const Proposals = Extension.create({
 
 export const proposalsOf = (state: EditorState): ProposalsState => proposalsKey.getState(state) ?? EMPTY
 
+// ProseMirror keeps a keyed widget's DOM, so its key names the words it
+// draws: new words for the same change (a suggestion as it is typed) are
+// drawn again. Once per hunk's content, not at every draw.
+const drawn = new WeakMap<object, string>()
+function drawnOf(after: object): string {
+  let words = drawn.get(after)
+  if (words === undefined) {
+    words = JSON.stringify(after)
+    drawn.set(after, words)
+  }
+  return words
+}
+
 /** showProposal puts a proposal under review (or updates one, as a stream grows). */
 export function showProposal(editor: Editor, tracked: Tracked, opts: { focus?: boolean } = {}) {
   editor.view.dispatch(editor.state.tr.setMeta(proposalsKey, { type: 'show', tracked, focus: opts.focus } satisfies Meta))
@@ -224,7 +246,7 @@ export function markDecided(editor: Editor, id: string, hunks: string[], decisio
 export function acceptProposal(editor: Editor, id: string, ids?: string[]): AcceptResult {
   const tracked = proposalsOf(editor.state).active[id]
   if (!tracked) return { applied: [], conflicts: [] }
-  const result = acceptIn(editor.state, (tr) => editor.view.dispatch(tr), tracked, ids)
+  const result = acceptIn(editor.state, (tr) => editor.view.dispatch(tr.setMeta(DECISION_WRITE, true)), tracked, ids)
   if (result.applied.length) markDecided(editor, id, result.applied, 'accepted')
   return result
 }
@@ -233,7 +255,7 @@ export function acceptProposal(editor: Editor, id: string, ids?: string[]): Acce
 export function insertProposalBelow(editor: Editor, id: string): boolean {
   const tracked = proposalsOf(editor.state).active[id]
   if (!tracked) return false
-  if (!insertBelowIn(editor.state, (tr) => editor.view.dispatch(tr), tracked)) return false
+  if (!insertBelowIn(editor.state, (tr) => editor.view.dispatch(tr.setMeta(DECISION_WRITE, true)), tracked)) return false
   discardProposal(editor, id)
   return true
 }

@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { SettingsRowsSkeleton } from "@/components/ui/settingsSection"
+import { SettingsCardError, SettingsRowsSkeleton } from "@/components/ui/settingsSection"
 import {
     AlertTriangle,
     Check,
@@ -197,21 +197,7 @@ export function TwoFactorSection() {
         )
     }
 
-    if (status === "failed") {
-        return (
-            <div className="set-row flex items-center justify-between gap-6">
-                <div className="min-w-0">
-                    <h3 className="text-sm font-medium leading-5">Couldn&apos;t check two-step verification</h3>
-                    <p className="text-xs text-muted-foreground text-pretty">
-                        Nothing has changed. This is usually a connection problem: try again in a moment.
-                    </p>
-                </div>
-                <Button variant="secondary" size="sm" className="shrink-0" onClick={() => void load()}>
-                    Try again
-                </Button>
-            </div>
-        )
-    }
+    if (status === "failed") return <SettingsCardError title="Couldn't check two-step verification" onRetry={() => void load()} />
 
     const enrolled = status.enrolled
     const lowOnCodes = enrolled && status.unusedRecoveryCodes <= LOW_RECOVERY_CODE_THRESHOLD
@@ -429,8 +415,7 @@ export function TwoFactorSection() {
                                         <Button type="button" variant="ghost" onClick={() => setView({ ...view, step: 1 })}>
                                             Back
                                         </Button>
-                                        <Button type="submit" disabled={busy || code.trim() === ""}>
-                                            {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                                        <Button type="submit" disabled={code.trim() === ""} busy={busy}>
                                             Turn on two-step verification
                                         </Button>
                                     </div>

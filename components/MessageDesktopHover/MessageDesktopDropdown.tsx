@@ -42,7 +42,7 @@ interface MessageDesktopDropdownProps {
     laterTarget?: LaterTarget | null
     /** The message's words, for Copy text. */
     messageText?: string
-    /** Save to memory, drawn by the AI module where it is available. */
+    /** Save to memory's row, where AI is on; its kinds load with its side menu. */
     memorySlot?: ReactNode
     /** Pin or unpin, drawn where the message is in a conversation (components/conversation/pins). */
     pinSlot?: ReactNode

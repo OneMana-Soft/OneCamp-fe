@@ -11,6 +11,8 @@ const NAV = read("components/navigationBar/desktop/desktopNavigationBar.tsx")
 const HEADER = read("components/navigationBar/desktop/SidebarHeader.tsx")
 const SEARCH = read("components/navigationBar/desktop/SidebarSearchRow.tsx")
 const FOOT = read("components/navigationBar/desktop/SidebarFoot.tsx")
+// The profile menu's body, a chunk of its own from the first open (fluid-15).
+const MENU = read("components/navigationBar/desktop/ProfileMenuBody.tsx")
 const LAYOUT = read("app/app/LayoutContent.tsx")
 const SPLIT = read("components/split/SplitPane.tsx")
 
@@ -50,7 +52,7 @@ describe("the shell without a top bar", () => {
     // 6 the connection dot: the foot pill.
     expect(NAV).toMatch(/<FootPill \/>/)
     // 7 the status: the foot's status line and the profile menu's field.
-    expect(FOOT).toMatch(/Set a status/)
+    expect(MENU).toMatch(/Set a status/)
     // 8 the avatar menu: the foot, named as before.
     expect(FOOT).toMatch(/aria-label="Profile and settings"/)
   })

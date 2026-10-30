@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Check, Loader2, Plus, Trash2, TrendingDown } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
+import { deletedTitle, offerUndo, restore } from "@/services/restoreService"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cycleDates, cycleLabel, nextStart, percentDone, timeLeft, type Cycle } from "@/lib/tasks/cycles"
@@ -127,11 +128,11 @@ function CycleRow({
   const rowRef = React.useRef<HTMLLIElement>(null)
   // The cycle the unfinished tasks would move to: the next one by number, or a new one.
   const next = cycles.filter((c) => c.number > cycle.number && !c.completed_at).sort((a, b) => a.number - b.number)[0]
-  const { complete, remove } = useProjectCycles(projectId)
+  const { complete, remove, refresh, refreshTasks, http } = useProjectCycles(projectId)
   const { toast } = useToast()
   const [confirming, setConfirming] = React.useState(false)
-  // Deleting asks first, in the row, saying what goes: a cycle's burndown
-  // can't be had back, though its tasks stay.
+  // Deleting asks first, in the row, saying where its tasks go; its toast's
+  // Undo brings the cycle back with its tasks and burndown (V-78).
   const [deleting, setDeleting] = React.useState(false)
   const [carry, setCarry] = React.useState(true)
   const [busy, setBusy] = React.useState(false)
@@ -184,14 +185,13 @@ function CycleRow({
         <div className="mt-2 grid gap-2 border-t border-line pt-2" role="group" aria-label={`Delete ${cycleLabel(cycle)}`}>
           <p className="text-xs text-ink-2">
             <span className="font-medium text-foreground">Delete {cycleLabel(cycle)}?</span>{" "}
-            {p.total > 0 ? `Its ${p.total} ${p.total === 1 ? "task stays" : "tasks stay"} in the project, in no cycle.` : "It has no tasks."} Its burndown
-            is deleted with it, and this can&apos;t be undone.
+            {p.total > 0 ? `Its ${p.total} ${p.total === 1 ? "task stays" : "tasks stay"} in the project, in no cycle.` : "It has no tasks."}
           </p>
           <div className="flex justify-end gap-1.5">
             <Button size="sm" variant="ghost" className="h-7" onClick={() => setDeleting(false)}>Cancel</Button>
             <Button size="sm" variant="destructive" className="h-7" disabled={busy} onClick={() => run(async () => {
               await remove(cycle.id)
-              toast({ title: `Deleted ${cycleLabel(cycle)}`, description: "Its tasks stay in the project." })
+              offerUndo(deletedTitle(cycleLabel(cycle)), () => restore(http, "cycle", cycle.id, () => Promise.all([refresh(), refreshTasks()])), "Its tasks stay in the project.")
             })}>
               {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Delete cycle
             </Button>
@@ -214,14 +214,14 @@ function CycleRow({
             </label>
           )}
           <div className="flex gap-1.5">
-            <Button size="sm" className="h-7" disabled={busy} onClick={() => run(async () => {
+            <Button size="sm" className="h-7" busy={busy} onClick={() => run(async () => {
               const r = await complete(cycle.id, carry)
               // Every task finished: the Ring tier, from the cycle's row.
               if (open === 0 && p.total > 0) celebrateRing(rowRef.current)
               toast({ title: `${cycleLabel(cycle)} complete`, description: r.carried ? `${r.carried} moved to ${r.next ? cycleLabel(r.next) : "the next cycle"}.` : `${r.done} done.` })
               setConfirming(false)
             })}>
-              {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Complete
+              Complete
             </Button>
             <Button size="sm" variant="ghost" className="h-7" onClick={() => setConfirming(false)}>Cancel</Button>
           </div>
@@ -295,8 +295,8 @@ function NewCycle({ projectId, cycles, onDone }: { projectId: string; cycles: Cy
       <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Name (optional)" aria-label="Name" className="h-8" />
       <div className="flex justify-end gap-1.5">
         <Button type="button" size="sm" variant="ghost" onClick={onDone}>Back</Button>
-        <Button type="submit" size="sm" disabled={busy || !start}>
-          {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Start cycle
+        <Button type="submit" size="sm" disabled={!start} busy={busy}>
+          Start cycle
         </Button>
       </div>
     </form>

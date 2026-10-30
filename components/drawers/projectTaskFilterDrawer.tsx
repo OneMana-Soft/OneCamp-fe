@@ -3,6 +3,7 @@
 import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { SavedTaskViewsPanel } from "@/components/task/savedTaskViews"
+import { ExportCSVButton } from "@/components/task/ExportCSVButton"
 import { taskViewScope } from "@/lib/tasks/views"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -23,7 +24,8 @@ import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { taskPriorityOptions } from "@/types/task"
+import { taskPriorityOptions } from "@/types/taskScale"
+import { DATE_SORTS } from "@/lib/tasks/sortChoices"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
@@ -34,8 +36,10 @@ import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/de
 import {useEffect} from "react";
 import type { RootState } from "@/store/store"
 
-// Define sort field enum
-const sortFieldEnum = z.enum(["task_start_date", "task_due_date", "task_created_date"])
+// Define sort field enum. task_rank is Manual: the project's one order, the
+// board's too (L-1), which the list keeps as no sort at all.
+const sortFieldEnum = z.enum(["task_rank", "task_start_date", "task_due_date", "task_created_date"])
+const MANUAL = { id: "task_rank" as const, desc: false }
 
 // Define the schema using Zod
 const filterSchema = z.object({
@@ -64,6 +68,12 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     const { cycles } = useProjectCycles(drawerOpenState ? projectId : undefined)
     const dispatch = useDispatch()
     const taskFiltersAndSorts = useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId])
+    // The list as its applied sort and filters show it, as a CSV file (the
+    // code loads when asked). A search is the list's own and isn't here.
+    const exportCSV = React.useCallback(
+        async () => (await import("@/lib/tasks/exportTaskList")).exportTaskList(projectId, { sort: taskFiltersAndSorts?.sort, filters: taskFiltersAndSorts?.filters }),
+        [projectId, taskFiltersAndSorts],
+    )
 
     useEffect(() => {
         if (drawerOpenState) {
@@ -73,7 +83,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             const assignee = filters.find((f: any) => f.id === "task_assignee_name")?.value || []
             
             const sortArr = taskFiltersAndSorts?.sort || []
-            const sort = sortArr.length > 0 ? sortArr[0] : { id: "task_start_date", desc: false }
+            const sort = sortArr.length > 0 ? sortArr[0] : MANUAL
 
             reset({
                 sort: sort as FilterFormValues["sort"],
@@ -93,7 +103,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     } = useForm<FilterFormValues>({
         resolver: zodResolver(filterSchema),
         defaultValues: {
-            sort: { id: "task_start_date", desc: false },
+            sort: MANUAL,
             priority: [],
             status: [],
         },
@@ -112,14 +122,8 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
         { id: "assignee", label: "Assignee" },
     ]
 
-    const sortOptions = [
-        { id: "task_start_date", desc: false, label: "Start: Low to High" },
-        { id: "task_start_date", desc: true, label: "Start: High to Low" },
-        { id: "task_due_date", desc: false, label: "Due: Low to High" },
-        { id: "task_due_date", desc: true, label: "Due: High to Low" },
-        { id: "task_created_date", desc: false, label: "Created: Low to High" },
-        { id: "task_created_date", desc: true, label: "Created: High to Low" },
-    ]
+    // As the computer's Display menu has it: the order tasks are dragged into, then the dates.
+    const sortOptions = [{ ...MANUAL, label: "Manual" }, ...DATE_SORTS]
 
 
 
@@ -134,7 +138,9 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
         ]
 
 
-        dispatch(updateProjectSortingAndFiltering({projectId, filters, sort: Array(data.sort)}))
+        // Manual is no sort: the list asks for the project's order (lib/tasks/manualSort).
+        const sort = data.sort.id === MANUAL.id ? [] : [data.sort as sortInterface]
+        dispatch(updateProjectSortingAndFiltering({projectId, filters, sort}))
 
         setOpenState(false)
     }
@@ -145,7 +151,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
 
     const handleClear = () => {
         reset({
-            sort: { id: "task_start_date", desc: false },
+            sort: MANUAL,
             priority: [],
             status: [],
             assignee: [],
@@ -298,9 +304,12 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                     a third of the sheet empty under the buttons, and on a short
                     phone its tabs ran down over them. */}
                 <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 w-full flex-1 flex-col">
-                    <DrawerHeader className="shrink-0 text-left">
-                        <DrawerTitle>Sort and filter</DrawerTitle>
-                        <DrawerDescription></DrawerDescription>
+                    <DrawerHeader className="flex shrink-0 flex-row items-start justify-between gap-2 text-left">
+                        <div className="min-w-0">
+                            <DrawerTitle>Sort and filter</DrawerTitle>
+                            <DrawerDescription></DrawerDescription>
+                        </div>
+                        <ExportCSVButton onExport={exportCSV} className="-mr-2 shrink-0" />
                     </DrawerHeader>
                     <div className="flex min-h-0 flex-1 flex-col">
                         <div className="grid min-h-0 flex-1 grid-cols-9 grid-rows-[minmax(0,1fr)] border-t border-b">
@@ -330,7 +339,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                             </div>
                         </div>
                         <DrawerFooter className="flex shrink-0 flex-row space-x-2 w-full">
-                            <Button type="button" variant="outline" className="flex-1" onClick={handleClear}>Clear Filters</Button>
+                            <Button type="button" variant="outline" className="flex-1" onClick={handleClear}>Clear filters</Button>
                             <Button type="submit" className="flex-1">Apply</Button>
                         </DrawerFooter>
                     </div>

@@ -111,6 +111,17 @@ const TIMED_OUT = "The server took too long to answer. Try again in a moment."
 const UNREACHED = "Couldn't reach the server. Try again."
 
 /**
+ * Why the API refused a request (no access, the thing gone), for an error
+ * state's detail: the server's own words, or what its status means. Nothing for
+ * a server fault or a request that got no answer, which the error state says
+ * itself, with its Try again.
+ */
+export function refusalReason(error: unknown): string | undefined {
+  const status = apiErrorStatus(error)
+  return status > 0 && status < 500 ? apiErrorMessage(error) || undefined : undefined
+}
+
+/**
  * The machine-readable condition label, or "" when the server did not send one.
  *
  * Returns a string rather than `string | undefined` so callers compare instead of null-check; no

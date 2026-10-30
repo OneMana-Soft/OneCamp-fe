@@ -13,7 +13,7 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn"
 import { addPasskey, listPasskeys, removePasskey, renamePasskey, type Passkey } from "@/services/passkeyService"
 import { shortDate } from "@/lib/utils/date/shortDate"
-import { useSaysLoadFailure } from "@/lib/http/loadFailure"
+import { SettingsCardError } from "@/components/ui/settingsSection"
 
 const when = (iso: string) => shortDate(new Date(iso))
 
@@ -35,11 +35,10 @@ export function PasskeySection() {
   const [keys, setKeys] = useState<Passkey[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
-  // The list couldn't be read: said with a way to read it again, apart from a
-  // failed action's message.
-  const [loadProblem, setLoadProblem] = useState("")
-  // Said in place, below; the request's toast stays quiet.
-  useSaysLoadFailure(!!loadProblem)
+  // The list couldn't be read: the server's reason ("" for none), said by the
+  // row itself (SettingsCardError, which keeps the request's toast quiet),
+  // apart from a failed action's message.
+  const [loadProblem, setLoadProblem] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
   const supported = passkeysSupported()
   const confirm = useConfirm()
@@ -47,10 +46,9 @@ export function PasskeySection() {
   const refresh = useCallback(async () => {
     try {
       setKeys(await listPasskeys())
-      setLoadProblem("")
+      setLoadProblem(null)
     } catch (e) {
-      const reason = apiErrorMessage(e)
-      setLoadProblem(`Couldn't load your passkeys. ${reason || "This is usually a connection problem: try again in a moment."}`)
+      setLoadProblem(apiErrorMessage(e))
     }
   }, [])
   useEffect(() => {
@@ -74,33 +72,27 @@ export function PasskeySection() {
 
   return (
     <>
-      <div data-setting-row="" className="set-row space-y-2">
-        <div className="flex items-center justify-between gap-6">
-          <div className="min-w-0">
-            <h3 className="text-sm font-medium leading-5">Passkeys</h3>
-            <p className="text-xs text-muted-foreground text-pretty">
-              {supported ? "Sign in with your fingerprint, face or device PIN instead of a password." : "This browser can't use passkeys."}
-            </p>
+      {loadProblem !== null ? (
+        <SettingsCardError what="your passkeys" reason={loadProblem || undefined} onRetry={() => void refresh()} />
+      ) : (
+        <div data-setting-row="" className="set-row space-y-2">
+          <div className="flex items-center justify-between gap-6">
+            <div className="min-w-0">
+              <h3 className="text-sm font-medium leading-5">Passkeys</h3>
+              <p className="text-xs text-muted-foreground text-pretty">
+                {supported ? "Sign in with your fingerprint, face or device PIN instead of a password." : "This browser can't use passkeys."}
+              </p>
+            </div>
+            {supported && (
+              <Button size="sm" variant="secondary" className="shrink-0" disabled={busy} onClick={() => run(() => addPasskey(deviceName()))}>
+                {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                Add a passkey
+              </Button>
+            )}
           </div>
-          {supported && (
-            <Button size="sm" variant="secondary" className="shrink-0" disabled={busy} onClick={() => run(() => addPasskey(deviceName()))}>
-              {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-              Add a passkey
-            </Button>
-          )}
+          {error && <p role="alert" className="text-xs text-danger-ink">{error}</p>}
         </div>
-        {error && <p role="alert" className="text-xs text-danger-ink">{error}</p>}
-        {loadProblem && (
-          <div className="flex items-center justify-between gap-4">
-            <p role="alert" className="text-xs text-danger-ink text-pretty">
-              {loadProblem}
-            </p>
-            <Button size="sm" variant="secondary" className="shrink-0" onClick={() => void refresh()}>
-              Try again
-            </Button>
-          </div>
-        )}
-      </div>
+      )}
 
       {keys && keys.length > 0 && (
         <ul aria-label="Your passkeys" className="you-passkeys contents">

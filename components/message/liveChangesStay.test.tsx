@@ -20,12 +20,10 @@ vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams()
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useMessageResync", () => ({ useMessageResync: () => {} }))
 vi.mock("@/components/typingIndicator/typingIndicatorBar", () => ({ ChannelTypingBar: () => null, ChatTypingBar: () => null, GroupChatTypingBar: () => null }))
-vi.mock("@/components/channel/channelMessages", () => ({ ChannelMessages: () => null }))
-vi.mock("@/components/chat/chatMessages", () => ({ ChatMessages: () => null }))
+vi.mock("@/components/conversation/ConversationRows", () => ({ ConversationRows: () => null }))
 
 const { default: store } = await import("@/store/store")
-const { ChannelMessageList } = await import("@/components/channel/channelMessageList")
-const { ChatMessageList } = await import("@/components/chat/chatMessageList")
+const { ChannelList, DmList } = await import("@/lib/testing/conversationLists")
 const { updatePostByPostId, createPostReactionPostId } = await import("@/store/slice/channelSlice")
 const { updateChatByChatId } = await import("@/store/slice/chatSlice")
 const { GetEndpointUrl } = await import("@/services/endPoints")
@@ -44,7 +42,7 @@ const post = (id: string, text: string) => ({
 describe("a live change in a channel", () => {
   it("survives the next render: an edit isn't put back to the cached words", () => {
     cachedPage(`${GetEndpointUrl.GetChannelLatestPost}/ch-edit`, { data: { posts: [post("p1", "<p>v1</p>")], has_more: false } })
-    render(<Provider store={store}><ChannelMessageList channelId="ch-edit" /></Provider>)
+    render(<Provider store={store}><ChannelList channelId="ch-edit" /></Provider>)
     expect(store.getState().channel.channelPosts["ch-edit"]?.[0]?.post_text).toBe("<p>v1</p>")
 
     act(() => void store.dispatch(updatePostByPostId({ channelId: "ch-edit", postId: "p1", htmlText: "<p>v2</p>" })))
@@ -54,7 +52,7 @@ describe("a live change in a channel", () => {
   it("settles: a first reaction, which the cached page has no key for, doesn't loop the list", () => {
     cachedPage(`${GetEndpointUrl.GetChannelLatestPost}/ch-react`, { data: { posts: [post("p2", "<p>hi</p>")], has_more: false } })
     const errors = vi.spyOn(console, "error").mockImplementation(() => {})
-    render(<Provider store={store}><ChannelMessageList channelId="ch-react" /></Provider>)
+    render(<Provider store={store}><ChannelList channelId="ch-react" /></Provider>)
     let changes = 0
     const stop = store.subscribe(() => changes++)
     act(() => void store.dispatch(createPostReactionPostId({
@@ -74,7 +72,7 @@ describe("a live change in a DM", () => {
     cachedPage(`${GetEndpointUrl.GetChatLatestMessage}/jonas`, {
       data: { chats: [{ chat_uuid: "c1", chat_body_text: "<p>v1</p>", chat_created_at: "2026-10-13T08:59:00Z", chat_comment_count: 0, chat_from: { user_uuid: "jonas" } }], has_more: false },
     })
-    render(<Provider store={store}><ChatMessageList chatId="jonas" /></Provider>)
+    render(<Provider store={store}><DmList other="jonas" /></Provider>)
     act(() => void store.dispatch(updateChatByChatId({ chatId: "jonas", messageId: "c1", htmlText: "<p>v2</p>" } as never)))
     expect(store.getState().chat.chatMessages["jonas"][0].chat_body_text).toBe("<p>v2</p>")
   })

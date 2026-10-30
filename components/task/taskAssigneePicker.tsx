@@ -2,20 +2,28 @@
 
 import { displayNameOf, personKeywords } from "@/lib/personName"
 import React from "react"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { ChevronsUpDown } from "@/lib/icons";
-import { cn } from "@/lib/utils/helpers/cn"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxField,
+    ComboboxGroup,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxList,
+} from "@/components/ui/combobox"
 import {UserProfileDataInterface} from "@/types/user";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
-import { inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
-import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
+import { propertyLabel, propertyRow, propertyValue } from "@/lib/ui/propertyRow"
+import { cn } from "@/lib/utils/helpers/cn"
 import { BotTag } from "@/components/ui/botTag"
-import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
+import { NobodyMark } from "@/components/ui/graphics/NobodyMark"
 
+
+/** The row that takes the assignee off. */
+const NOBODY = "__nobody__"
 
 type AssigneePickerProps = {
     isAdmin: boolean
@@ -31,8 +39,6 @@ type AssigneePickerProps = {
 }
 
 export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange, includeAITeammates }: AssigneePickerProps) {
-    const [open, setOpen] = React.useState(false)
-
     // DM-able AI teammates (per-agent bot principals), badged AI. Empty when AI
     // is off or none are DM-able, so there is no dangling affordance. Fetched
     // only when opted in.
@@ -44,11 +50,26 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
     const resolve = (uuid: string): UserProfileDataInterface | undefined =>
         members.find((m) => m.user_uuid === uuid) || aiTeammates.find((m) => m.user_uuid === uuid)
 
-    const handleSelect = (currentValue: string) => {
-        const selected = currentValue === assignee?.user_uuid ? undefined : resolve(currentValue)
-        onChange(selected)
-        setOpen(false)
+    // No one takes the assignee off; the assignee chosen again stays.
+    const handleSelect = (uuid: string) => {
+        if (uuid === NOBODY) {
+            if (assignee) onChange(undefined)
+        } else if (uuid !== assignee?.user_uuid) onChange(resolve(uuid))
     }
+
+    const row = (member: UserProfileDataInterface, ai: boolean) => (
+        <ComboboxItem
+            key={member.user_uuid}
+            value={member.user_uuid}
+            keywords={personKeywords(member, ai ? ["ai"] : [])}
+            checked={assignee?.user_uuid === member.user_uuid}
+            onSelect={handleSelect}
+        >
+            <DesktopNavigationChatAvatar userInfo={member}/>
+            <span className="min-w-0 flex-1 truncate">{displayNameOf(member)}</span>
+            {ai && <BotTag userUUID={member.user_uuid} />}
+        </ComboboxItem>
+    )
 
     return (
         <div className={propertyRow()} data-field-empty={assignee ? undefined : ""}>
@@ -56,67 +77,44 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                 <span className={propertyLabel}>{label}</span>
             </div>
             <div className="min-w-0">
-                <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            role="combobox"
-                            aria-expanded={open}
+                {isAdmin ? (
+                    <Combobox>
+                        <ComboboxField
+                            variant="inline"
                             aria-label={assignee ? `${label}: ${displayNameOf(assignee)}` : `${label}: nobody`}
-                            className={cn(inlineValue, "max-w-[240px]")}
-                            disabled={!isAdmin}
+                            // The values' ink and weight: a ghost button's muted ink is a step lighter (DESIGN-BUILD-13).
+                            className="max-w-[240px] font-[450] text-foreground"
+                            icon={assignee ? <DesktopNavigationChatAvatar userInfo={assignee}/> : undefined}
+                            placeholder="Assign someone"
                         >
-                            {assignee && <DesktopNavigationChatAvatar userInfo={assignee}/>}
-                            <span className={cn("truncate", !assignee && "text-muted-foreground")}>
-                                {assignee ? displayNameOf(assignee) : isAdmin ? "Assign someone" : "Nobody"}
-                            </span>
-                            <ChevronsUpDown className={cn(inlineAffordance, "h-3.5 w-3.5")} aria-hidden />
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[240px] overflow-hidden p-0" align="start">
-                        <Command className="bg-popover">
-                            <CommandInput placeholder="Search member…" className="h-9 border-none focus:ring-0 shadow-none"/>
-                            <CommandList className="max-h-[200px] overflow-y-auto">
-                                <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">No member found.</CommandEmpty>
-                                <CommandGroup>
-                                    {members.map((member) => (
-                                        <CommandItem
-                                            key={member.user_uuid}
-                                            value={member.user_uuid}
-                                            keywords={personKeywords(member)}
-                                            onSelect={handleSelect}
-                                            className="cursor-pointer gap-2"
-                                            {...menuCheckState(assignee?.user_uuid === member.user_uuid)}
-                                        >
-                                            <DesktopNavigationChatAvatar userInfo={member}/>
-                                            <span className="flex-1 truncate">{displayNameOf(member)}</span>
-                                            <MenuCheck checked={assignee?.user_uuid === member.user_uuid} />
-                                        </CommandItem>
-                                    ))}
-                                </CommandGroup>
+                            {assignee ? displayNameOf(assignee) : undefined}
+                        </ComboboxField>
+                        <ComboboxContent label={label} selected={assignee?.user_uuid ?? NOBODY}>
+                            <ComboboxInput placeholder="Find someone…" />
+                            <ComboboxList>
+                                <ComboboxEmpty>Nobody by that name.</ComboboxEmpty>
+                                <ComboboxGroup>
+                                    {/* Nobody, as a row to choose (W19's unassigned ghost), checked while no one is. */}
+                                    <ComboboxItem value={NOBODY} keywords={["No one", "nobody", "unassign"]} checked={!assignee} onSelect={handleSelect} className="text-muted-foreground">
+                                        <NobodyMark className="size-7 md:size-5" />
+                                        <span className="min-w-0 flex-1 truncate">No one</span>
+                                    </ComboboxItem>
+                                    {members.map((member) => row(member, false))}
+                                </ComboboxGroup>
                                 {aiTeammates.length > 0 && (
-                                    <CommandGroup heading="AI teammates">
-                                        {aiTeammates.map((member) => (
-                                            <CommandItem
-                                                key={member.user_uuid}
-                                                value={member.user_uuid}
-                                                keywords={personKeywords(member, ["ai"])}
-                                                onSelect={handleSelect}
-                                                className="cursor-pointer gap-2"
-                                                {...menuCheckState(assignee?.user_uuid === member.user_uuid)}
-                                            >
-                                                <DesktopNavigationChatAvatar userInfo={member}/>
-                                                <span className="flex-1 truncate">{displayNameOf(member)}</span>
-                                                <BotTag userUUID={member.user_uuid} />
-                                                <MenuCheck checked={assignee?.user_uuid === member.user_uuid} />
-                                            </CommandItem>
-                                        ))}
-                                    </CommandGroup>
+                                    <ComboboxGroup heading="AI teammates">{aiTeammates.map((member) => row(member, true))}</ComboboxGroup>
                                 )}
-                            </CommandList>
-                        </Command>
-                    </PopoverContent>
-                </Popover>
+                            </ComboboxList>
+                        </ComboboxContent>
+                    </Combobox>
+                ) : (
+                    // Read only, the assignee is text at full ink, not a disabled control
+                    // drawn at half strength (app/interaction.css).
+                    <span className={cn(propertyValue, "max-w-[240px] hover:bg-transparent")}>
+                        {assignee && <DesktopNavigationChatAvatar userInfo={assignee}/>}
+                        <span className={cn("truncate", !assignee && "text-muted-foreground")}>{assignee ? displayNameOf(assignee) : "Nobody"}</span>
+                    </span>
+                )}
             </div>
         </div>
     )

@@ -3,24 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 // Mock the axios instance BEFORE importing the service. Vitest hoists
 // vi.mock calls, so this binding is in place when importService.ts is
 // resolved.
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: vi.fn(),
     post: vi.fn(),
     delete: vi.fn(),
   },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 
 import axiosInstance from "@/lib/axiosInstance"
 import {
   cancelImportJob,
   connectImport,
+  importSignInURL,
   createImportJob,
   deleteImportStagedZip,
   disconnectImport,
   discoverImportResources,
-  finalizeImportUpload,
   getImportErrors,
   getImportJob,
   getImportPeople,
@@ -31,7 +30,6 @@ import {
   listImportJobs,
   listImportProviders,
   planImportJob,
-  presignImportUpload,
   retryFailedImportChunks,
   rollbackImportJob,
   runImportJob,
@@ -88,6 +86,13 @@ describe("importService — providers / connections", () => {
       { access_token: "tok" },
       { suppressErrorToast: true },
     )
+  })
+
+  // basecamp-46: Basecamp has no tokens to paste; the admin signs in at it.
+  it("importSignInURL asks for the provider's sign-in page", async () => {
+    ax.get.mockResolvedValueOnce({ data: { url: "https://launchpad.37signals.com/authorization/new?state=s" } })
+    await expect(importSignInURL("basecamp")).resolves.toBe("https://launchpad.37signals.com/authorization/new?state=s")
+    expect(ax.get).toHaveBeenCalledWith("/admin/import/basecamp/oauth-url", { suppressErrorToast: true })
   })
 
   it("connectImport URL-encodes the provider segment defensively", async () => {
@@ -257,34 +262,7 @@ describe("importService — discovery", () => {
   })
 })
 
-describe("importService — presign + finalize", () => {
-  it("presignImportUpload posts the size and source", async () => {
-    ax.post.mockResolvedValueOnce({
-      data: {
-        job_id: "j1",
-        provider: "trello",
-        source_workspace_name: "Acme",
-        raw_object_key: "k1",
-        upload_url: "https://minio/...",
-        expires_in: 600,
-        method: "PUT",
-        headers: {},
-      },
-    })
-    const r = await presignImportUpload("trello", "Acme", 1024, "board_json")
-    expect(ax.post).toHaveBeenCalledWith(
-      "/admin/import/trello/presign",
-      { source_workspace_name: "Acme", file_size: 1024, source: "board_json" },
-    )
-    expect(r.upload_url).toContain("minio")
-  })
-
-  it("finalizeImportUpload hits the per-provider finalize endpoint", async () => {
-    ax.post.mockResolvedValueOnce({ data: {} })
-    await finalizeImportUpload("trello", "job-1")
-    expect(ax.post).toHaveBeenCalledWith("/admin/import/trello/finalize/job-1")
-  })
-
+describe("importService — a staged file", () => {
   it("deleteImportStagedZip uses DELETE, leaving the screen to say what went wrong", async () => {
     ax.delete.mockResolvedValueOnce({ data: {} })
     await deleteImportStagedZip("job-1")
@@ -295,6 +273,10 @@ describe("importService — presign + finalize", () => {
 describe("importProviderLabel", () => {
   it("uses the brand's own spelling for monday.com", () => {
     expect(importProviderLabel("monday")).toBe("monday.com")
+  })
+
+  it("names a CSV as the file it is", () => {
+    expect(importProviderLabel("csv")).toBe("CSV file")
   })
 
   it("capitalises every other provider id", () => {

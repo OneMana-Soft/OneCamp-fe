@@ -155,15 +155,15 @@ describe("how an import job reads", () => {
 })
 
 describe("which tool an import came from", () => {
-  // Design v3 (§1.5): a tool is a category, so its mark is a neutral glyph or
-  // initial in ink-2 on sunken. It was a camp-hued square per tool, which
-  // spent six hues on eight tools.
-  it("marks the tool with a neutral mark and names it where tools are mixed", () => {
+  // DESIGN-BUILD-11's I1: grey letter tiles told no tool from another, so a
+  // tool's mark wears its own camp hue (connectParts' sourceHue) with its
+  // initial, as on the card it was picked from.
+  it("marks the tool in its own hue and names it where tools are mixed", () => {
     const { container } = render(<ImportJobRow job={job("completed", { provider: "jira" })} showProvider {...handlers()} />)
     const mark = container.querySelector("[data-source-mark]") as HTMLElement
     expect(mark.getAttribute("data-source-mark")).toBe("jira")
     expect(mark.textContent).toBe("J")
-    expect(container.querySelector("[data-hue]")).toBeNull()
+    expect(mark.getAttribute("data-hue")).toBe("sky")
     expect(screen.getByText(/Jira ·/)).toBeTruthy()
   })
 })

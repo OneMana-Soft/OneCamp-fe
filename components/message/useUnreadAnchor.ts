@@ -42,8 +42,8 @@ export function useUnreadAnchor<T>(
     const at = messages.find((m) => movable.idOf(m) === movedTo)
     if (at) return keyOf(at)
   }
-  if (anchor.current === undefined && messages.length > 0) {
-    anchor.current = firstUnreadKey(messages, unreadOnOpen || 0, isMine, keyOf)
+  if (anchor.current === undefined && messages.length > 0 && unreadOnOpen !== undefined) {
+    anchor.current = firstUnreadKey(messages, unreadOnOpen, isMine, keyOf)
   }
   return anchor.current ?? null
 }

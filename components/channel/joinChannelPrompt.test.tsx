@@ -19,9 +19,13 @@ describe("joining a channel you're not in", () => {
   })
 
   it("reads as this channel before the name is known, and waits while joining", () => {
-    render(<JoinChannelPrompt channelName="" onJoin={() => {}} joining />)
-    const button = screen.getByRole("button", { name: "Joining…" }) as HTMLButtonElement
-    expect(button.disabled).toBe(true)
+    const onJoin = vi.fn()
+    render(<JoinChannelPrompt channelName="" onJoin={onJoin} joining />)
+    // Busy with its own join: it keeps its colours and takes no second press.
+    const button = screen.getByRole("button", { name: "Joining…" })
+    expect(button.getAttribute("aria-busy")).toBe("true")
+    fireEvent.click(button)
+    expect(onJoin).not.toHaveBeenCalled()
     expect(screen.getByText(/You're not in this channel yet/)).toBeTruthy()
   })
 

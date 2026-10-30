@@ -9,7 +9,7 @@
  */
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useSWRConfig } from "swr"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
@@ -24,7 +24,7 @@ interface LaterDueDetail {
 }
 
 export function LaterDueHost() {
-  const router = useRouter()
+  const router = useAppRouter()
   const { toast } = useToast()
   const { mutate } = useSWRConfig()
 

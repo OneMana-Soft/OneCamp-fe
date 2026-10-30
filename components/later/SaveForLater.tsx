@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import dynamic from "next/dynamic"
 import { springPop } from "@/lib/spring"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,14 +12,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Bookmark, CalendarClock, Check, Clock, Trash2 } from "@/lib/icons"
 import { useLaterActions, useSavedEntry } from "@/hooks/useLater"
 import { type LaterItemType, reminderChoices, reminderLabel } from "@/lib/utils/later"
-import { toLocalInputValue } from "@/lib/messages/schedulePresets"
 import { cn } from "@/lib/utils/helpers/cn"
+
+// Remind me's own date and time, loaded when it is first asked for.
+const ReminderPicker = dynamic(() => import("@/components/later/reminderPicker"), { ssr: false })
 
 /** The thing being saved, as the Later list will show and open it. */
 export interface LaterTarget {
@@ -47,6 +48,7 @@ export function SaveForLaterButton({
   const saved = useSavedEntry(target.itemType, target.itemId)
   const { save, remind, done, remove } = useLaterActions()
   const [picking, setPicking] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const now = new Date()
   const label = saved ? "Saved for later" : "Save for later"
@@ -88,7 +90,13 @@ export function SaveForLaterButton({
 
   return (
     <>
-      <DropdownMenu onOpenChange={onOpenChange} modal={false}>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          setMenuOpen(open)
+          onOpenChange?.(open)
+        }}
+        modal={false}
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
@@ -101,6 +109,8 @@ export function SaveForLaterButton({
                 aria-pressed={Boolean(saved)}
                 disabled={busy}
                 data-saved={saved ? "" : undefined}
+                // While its menu or Remind me is open, ink: not a second orange thing beside Set reminder.
+                data-tone={menuOpen || picking ? "neutral" : undefined}
                 className={cn(
                   "h-8 w-8 rounded-md text-ink-3 hover:text-foreground",
                   saved && "text-brand hover:text-brand [&_svg]:fill-current [&_svg]:!text-brand",
@@ -164,77 +174,16 @@ export function SaveForLaterButton({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <ReminderPicker
-        open={picking}
-        onOpenChange={setPicking}
-        initial={saved?.remind_at ? new Date(saved.remind_at) : undefined}
-        onPick={(at) => {
-          setPicking(false)
-          void saveWith(at)
-        }}
-      />
-    </>
-  )
-}
-
-/** A date and time of the person's choosing, within the next year. */
-function ReminderPicker({
-  open,
-  onOpenChange,
-  initial,
-  onPick,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  initial?: Date
-  onPick: (at: Date) => void
-}) {
-  const now = new Date()
-  const fallback = reminderChoices(now).find((c) => c.key === "tomorrow")!.at
-  const [value, setValue] = useState(() => toLocalInputValue(initial && initial > now ? initial : fallback))
-  const max = new Date(now.getTime() + 365 * 86_400_000)
-  const at = value ? new Date(value) : null
-  const problem = !at || Number.isNaN(at.getTime())
-    ? "Choose a date and time."
-    : at <= now
-      ? "Choose a time that has not passed yet."
-      : at > max
-        ? "Choose a time within the next year."
-        : ""
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Remind me</DialogTitle>
-          <DialogDescription>It comes back to the top of Later, and to your phone if notifications are on.</DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!problem && at) onPick(at)
+      {picking ? (
+        <ReminderPicker
+          initial={saved?.remind_at ? new Date(saved.remind_at) : undefined}
+          onClose={() => setPicking(false)}
+          onPick={(at) => {
+            setPicking(false)
+            void saveWith(at)
           }}
-          className="space-y-3"
-        >
-          <Input
-            type="datetime-local"
-            aria-label="Reminder date and time"
-            value={value}
-            min={toLocalInputValue(now)}
-            max={toLocalInputValue(max)}
-            onChange={(e) => setValue(e.target.value)}
-          />
-          {value && problem && <p className="text-xs text-danger-ink">{problem}</p>}
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={Boolean(problem)}>
-              Set reminder
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        />
+      ) : null}
+    </>
   )
 }

@@ -27,7 +27,8 @@ export const FILE_KIND_HUE: Record<FileKind, CampHue | null> = {
   other: null,
 }
 
-const KIND_ICON: Record<FileKind, LucideIcon> = {
+/** Each kind's glyph: the files tab's, the attachments', and the work graph's tile for a file. */
+export const FILE_KIND_ICON: Record<FileKind, LucideIcon> = {
   pdf: FileText,
   doc: FileText,
   sheet: FileSpreadsheet,
@@ -88,7 +89,7 @@ export function fileLabel(name: string | null | undefined, kind: FileKind): stri
 export function FileTypeIcon({ name, fileType, size = 24, className }: { name: string | null; fileType?: string; size?: number; className?: string }) {
   const kind = fileKind(name, fileType)
   const hue = FILE_KIND_HUE[kind]
-  const Icon = KIND_ICON[kind]
+  const Icon = FILE_KIND_ICON[kind]
   return (
     <Icon
       aria-hidden="true"
@@ -119,7 +120,7 @@ export function FileGlyph({
 }) {
   const kind = fileKind(name, fileType)
   const hue = FILE_KIND_HUE[kind]
-  const Icon = KIND_ICON[kind]
+  const Icon = FILE_KIND_ICON[kind]
   const label = size === 40 ? fileLabel(name, kind) : ""
   return (
     <span

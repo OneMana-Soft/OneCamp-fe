@@ -6,6 +6,7 @@ import { SPLIT_SHORTCUTS } from "@/lib/split"
 import { GO_KEYS } from "@/lib/goKeys"
 import { LIST_SHORTCUTS } from "@/lib/listKeys"
 import { calendarShortcutRows } from "@/lib/calendar/keys"
+import { pageGroups } from "@/lib/shortcuts/pageGroups"
 import { app_calendar_path } from "@/types/paths"
 import { usePathname } from "next/navigation"
 import { useAIAvailable } from "@/hooks/useClientConfig"
@@ -32,11 +33,9 @@ const typing = (t: EventTarget | null) => {
 }
 
 /**
- * The groups, in the order the dialog shows them (design v3, shell §K):
- * Everywhere, Go to, Lists and boards, Split view, Composer, and Calendar,
- * which comes first on the calendar. "Ctrl/⌘" reads ⌘ on a Mac and Ctrl
- * elsewhere. Go to comes from lib/goKeys, one row per place (G A is kept as
- * another way to Inbox); Calendar from the table the calendar binds.
+ * The groups in the dialog's order (shell §K); Calendar comes first on the
+ * calendar, and a page's own (lib/shortcuts/pageGroups) before all. "Ctrl/⌘"
+ * reads ⌘ on a Mac. Go to is lib/goKeys', one row per place.
  */
 export function shortcutGroups({ ai, calendar = false }: { ai: boolean; calendar?: boolean }): ShortcutGroup[] {
   const goRows: ShortcutRow[] = []
@@ -77,11 +76,7 @@ export function shortcutGroups({ ai, calendar = false }: { ai: boolean; calendar
 /** One piece of a written shortcut: a key, or a word between keys ("then", "or", "click"). */
 export type Piece = { key: string } | { word: string }
 
-/**
- * A written shortcut as keys and words. "J / K (or ↓ / ↑)" is J, /, K, or, ↓,
- * /, ↑; "Ctrl + Alt + S" is three keys; an all-lower-case word is a word. A
- * slash alone is a key (the calendar's search).
- */
+/** A written shortcut as keys and words: "Ctrl + Alt + S" is three keys, a lower-case word a word, a slash alone a key. */
 export function pieces(keys: string, mac: boolean): Piece[] {
   const out: Piece[] = []
   let afterPlus = false
@@ -100,9 +95,8 @@ export function pieces(keys: string, mac: boolean): Piece[] {
 }
 
 /**
- * The key combinations a row lists, each as normalised names, for lighting
- * the row up when they are pressed. Only combinations with a modifier: a
- * single key goes into the filter, which finds the row too.
+ * The combinations with a modifier a row lists, as normalised names, to light
+ * the row when pressed (a single key goes into the filter).
  */
 export function combosOf(keys: string): string[][] {
   const combos: string[][] = []
@@ -167,12 +161,9 @@ function Keys({ keys, mac, hit }: { keys: string; mac: boolean; hit: boolean }) 
 }
 
 /**
- * The keyboard shortcuts, behind "?" and F1 (when not typing), ⌘/ (Ctrl+/,
- * Slack's key, from a message box too) and the palette (design v3, shell §K,
- * mock M7): 720px, r16, e4. A filter field takes the
- * focus and narrows by what a shortcut does or by its keys; two columns of
- * groups; v3 kbd chips. Pressing a listed combination while it is open lights
- * its row and brings it into view, without doing it.
+ * The keys, behind ? and F1 (not typing), ⌘/ and the palette (shell §K, M7).
+ * The filter narrows by what a key does or by its keys. A listed combination
+ * pressed while open lights its row, without doing it.
  */
 export function ShortcutsDialog() {
   const [open, setOpen] = React.useState(false)
@@ -207,7 +198,7 @@ export function ShortcutsDialog() {
   }, [])
 
   const onCalendar = usePathname() === app_calendar_path
-  const groups = React.useMemo(() => shortcutGroups({ ai, calendar: onCalendar }), [ai, onCalendar])
+  const groups = React.useMemo(() => [...(open ? pageGroups() : []).map((g) => ({ ...g, page: true })), ...shortcutGroups({ ai, calendar: onCalendar })], [ai, onCalendar, open])
 
   // Live keys: while the list is open, a listed combination lights its row and
   // goes no further, so ⌘K finds "Search or ask" rather than opening the palette.
@@ -247,8 +238,8 @@ export function ShortcutsDialog() {
     }))
     .filter((g) => g.rows.length > 0)
 
-  // Two columns: the first holds Everywhere, Go to and Calendar, the second the rest.
-  const first = (g: ShortcutGroup) => g.title === "Everywhere" || g.title === "Go to" || g.title === "Calendar"
+  // Two columns: the first holds a page's own, Everywhere, Go to and Calendar, the second the rest.
+  const first = (g: ShortcutGroup) => "page" in g || g.title === "Everywhere" || g.title === "Go to" || g.title === "Calendar"
   const columns = [shown.filter(first), shown.filter((g) => !first(g))].filter((c) => c.length > 0)
 
   const section = (g: ShortcutGroup) => (
@@ -288,7 +279,10 @@ export function ShortcutsDialog() {
     >
       <DialogContent
         data-shortcuts-dialog=""
-        className="max-h-[85dvh] max-w-[720px] gap-0 bg-pop p-0 shadow-e4"
+        // The header and the filter stay; the list scrolls under them, faded at
+        // its ends with room after its last row, never cut through a key
+        // (DESIGN-BUILD-18, 25 Oct).
+        className="max-h-[85dvh] max-w-[720px] grid-rows-[auto_auto_minmax(0,1fr)] gap-0 overflow-hidden bg-pop p-0 shadow-e4"
         onOpenAutoFocus={(e) => {
           // The filter, never the close button: focus on the x opened the list
           // with an orange box on it.
@@ -314,7 +308,7 @@ export function ShortcutsDialog() {
             className="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-ink-3"
           />
         </label>
-        <div data-shortcut-columns="" className="grid grid-cols-1 gap-x-8 px-5 pb-5 pt-1 md:grid-cols-2">
+        <div data-shortcut-columns="" data-edge-fade="block" className="grid min-h-0 grid-cols-1 content-start gap-x-8 overflow-y-auto overscroll-contain px-5 pb-8 pt-1 md:grid-cols-2">
           {shown.length === 0 ? (
             <p className="py-6 text-sm text-ink-3 md:col-span-2">No shortcut matches “{filter.trim()}”.</p>
           ) : (

@@ -4,7 +4,6 @@ import { useRef, useState, type MutableRefObject } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { Field } from "@/components/ui/field"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -12,21 +11,19 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tile } from "@/components/ui/graphics/Tile"
 import { SettingsList, SettingsRowsSkeleton } from "@/components/ui/settingsSection"
 import { ErrorState } from "@/components/ui/error-state"
-import { useCopy } from "@/components/ui/settingsControls"
 import { useFetch } from "@/hooks/useFetch"
 import { AdminGet } from "@/services/endpoints/admin"
 import { toast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Loader2, Key, MoreHorizontal, Plus } from "@/lib/icons"
+import { Key, MoreHorizontal, Plus } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { shortDate } from "@/lib/utils/date/shortDate"
 import type { CampHue } from "@/lib/campHue"
 import { SpotKey } from "@/components/admin/apiTokenSpot"
 import { RevealCard } from "@/components/admin/revealCard"
+import { ScopeChecklist, tokenDates, useOneTimeSecret } from "@/components/tokens/tokenParts"
 import {
   ApiToken,
-  CreatedToken,
   parseScopes,
   scopeLabel,
   createApiToken,
@@ -46,39 +43,6 @@ const HUE: CampHue = "berry"
 
 /** How many scope chips a row shows before "+n". */
 const SCOPES_SHOWN = 3
-
-const when = (iso: string) => shortDate(new Date(iso))
-
-/** What a scope is about, for grouping the checkboxes: "tasks:read" is Tasks. */
-const GROUP_NAMES: Record<string, string> = {
-  tasks: "Tasks",
-  projects: "Projects",
-  docs: "Documents",
-  messages: "Messages",
-  calendar: "Calendar",
-  tables: "Tables",
-  data_sources: "Data sources",
-  attention: "Attention",
-  search: "Search",
-}
-
-function groupScopes(scopes: string[]): Array<{ name: string; scopes: string[] }> {
-  const groups = new Map<string, string[]>()
-  for (const s of scopes) {
-    const key = s.split(":")[0]
-    groups.set(key, [...(groups.get(key) ?? []), s])
-  }
-  return [...groups].map(([key, list]) => ({ name: GROUP_NAMES[key] ?? key, scopes: list }))
-}
-
-/** "Created 3 Oct · last used 9 Oct · expires 3 Jan" */
-function tokenDates(t: ApiToken) {
-  return [
-    `Created ${when(t.created_at)}`,
-    t.last_used_at ? `last used ${when(t.last_used_at)}` : "never used",
-    t.expires_at ? `expires ${when(t.expires_at)}` : "no expiry",
-  ].join(" · ")
-}
 
 /**
  * The person's API tokens (design v3, admin S7): rows of 52px in one card, a
@@ -243,9 +207,9 @@ function NewTokenForm({
   const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set())
   const [expiry, setExpiry] = useState("90")
   const [saving, setSaving] = useState(false)
-  const [created, setCreated] = useState<CreatedToken | null>(null)
-  const { state: copyState, copy } = useCopy()
-  const [everCopied, setEverCopied] = useState(false)
+  // The token once it's made: shown once, and closing before it was copied asks.
+  const once = useOneTimeSecret("You'd have to make a new one.")
+  const created = once.secret
   // What is missing, said under the field it is about; and a refusal from the
   // server, said in the dialog.
   const [errors, setErrors] = useState<{ name?: string; scopes?: string }>({})
@@ -255,18 +219,7 @@ function NewTokenForm({
 
   // Closing while the token is on screen and not yet copied asks first: it
   // can't be shown again.
-  const askBeforeClosing = () => {
-    if (!created || everCopied) return true
-    confirm({
-      title: "Close without copying?",
-      description: "The token can't be shown again. You'd have to make a new one.",
-      confirmText: "Close without copying",
-      cancelText: "Go back",
-      destructive: true,
-      onConfirm: onDone,
-    })
-    return false
-  }
+  const askBeforeClosing = () => once.mayClose(onDone)
   closeGuard.current = askBeforeClosing
 
   const toggleScope = (s: string, on: boolean) => {
@@ -299,19 +252,13 @@ function NewTokenForm({
         scopes: Array.from(selectedScopes),
         expires_in_days: Number(expiry),
       })
-      setCreated(res)
+      once.setSecret(res.plaintext)
       onCreated()
     } catch (e) {
       setProblem(`Couldn't create the token. ${apiErrorMessage(e, "Try again in a moment.")}`)
     } finally {
       setSaving(false)
     }
-  }
-
-  const copySecret = async () => {
-    if (!created?.plaintext) return
-    await copy(created.plaintext)
-    setEverCopied(true)
   }
 
   return (
@@ -328,8 +275,7 @@ function NewTokenForm({
 
       {created ? (
         <div className="space-y-4">
-          <RevealCard secret={created.plaintext} what="token" copied={copyState === "copied" || (everCopied && copyState !== "failed")} onCopy={() => void copySecret()} />
-          {copyState === "failed" && <p role="alert" className="text-xs text-danger-ink">Couldn&apos;t copy. Select the token and copy it yourself.</p>}
+          <RevealCard secret={created} what="token" copied={once.copied} copyFailed={once.copyFailed} onCopy={() => void once.copySecret()} />
 
           <div className="flex justify-end">
             <Button
@@ -378,31 +324,15 @@ function NewTokenForm({
 
           <div className="grid gap-2">
             <Label id="token-scopes-label">Scopes</Label>
-            <div
-              ref={scopesRef}
-              role="group"
-              aria-labelledby="token-scopes-label"
-              aria-describedby={errors.scopes ? "token-scopes-error" : undefined}
-              data-scope-groups=""
-              className="you-scope-groups"
-            >
-              {groupScopes(availableScopes).map((g) => (
-                <fieldset key={g.name} className="space-y-1.5">
-                  <legend className="mb-1 text-2xs font-medium text-ink-3">{g.name}</legend>
-                  {g.scopes.map((s) => {
-                    const id = `scope-${s.replace(/[^\w-]/g, "-")}`
-                    return (
-                      <div key={s} className="flex items-center gap-2">
-                        <Checkbox id={id} checked={selectedScopes.has(s)} onCheckedChange={(v) => toggleScope(s, v === true)} />
-                        <label htmlFor={id} className="text-sm">
-                          {scopeLabel(s)}
-                        </label>
-                      </div>
-                    )
-                  })}
-                </fieldset>
-              ))}
-            </div>
+            <ScopeChecklist
+              available={availableScopes}
+              selected={selectedScopes}
+              onToggle={toggleScope}
+              labelledBy="token-scopes-label"
+              describedBy={errors.scopes ? "token-scopes-error" : undefined}
+              idPrefix="scope"
+              groupRef={scopesRef}
+            />
             <p id="token-scopes-error" aria-live="polite" className={cn("text-xs font-medium text-danger-ink", !errors.scopes && "hidden")}>
               {errors.scopes}
             </p>
@@ -418,8 +348,7 @@ function NewTokenForm({
             <Button type="button" variant="ghost" onClick={onDone}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            <Button type="submit" busy={saving}>
               Create token
             </Button>
           </div>

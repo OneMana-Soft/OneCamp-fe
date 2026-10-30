@@ -91,7 +91,7 @@ describe("Mail's frame (I1)", () => {
     render(<InboxPage />)
     await act(async () => {})
     fireEvent.keyDown(window, { key: "/" })
-    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Search mail" }))
+    expect(document.activeElement).toBe(screen.getByRole("searchbox", { name: "Search mail" }))
   })
 })
 
@@ -124,17 +124,17 @@ describe("the list", () => {
     expect(state.textContent).toContain("Try again")
   })
 
-  it("says a search found nothing, start-aligned, with Clear search", async () => {
+  it("says a search found nothing, start-aligned, with Show the whole inbox", async () => {
     list = Promise.resolve({ threads: [] })
     render(<InboxPage />)
     await act(async () => {})
-    fireEvent.change(screen.getByRole("textbox", { name: "Search mail" }), { target: { value: "invoice" } })
-    fireEvent.submit(screen.getByRole("textbox", { name: "Search mail" }).closest("form")!)
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search mail" }), { target: { value: "invoice" } })
+    fireEvent.submit(screen.getByRole("searchbox", { name: "Search mail" }).closest("form")!)
     await act(async () => {})
     const state = document.querySelector('[data-inbox-state="search"]')!
     expect(state.className).toContain("items-start")
     expect(state.textContent).toContain("Nothing matches “invoice”")
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show the whole inbox" }))
     await act(async () => {})
     expect(screen.getByText("Inbox zero")).toBeTruthy()
   })

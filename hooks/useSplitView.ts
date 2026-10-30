@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import { useDispatch, useSelector, useStore } from "react-redux"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { injectSlice, type RootState } from "@/store/store"
 import splitSlice, { type SplitState } from "@/store/slice/splitSlice"
 import { closeSplit, evenOut, moveView, openInSplit, replacePane, restoreSplit, setActive, setFocused, setHere, setSplitOn } from "@/store/slice/splitActions"
@@ -33,7 +34,7 @@ function ring(key: string) {
 export function useSplitActions() {
   const dispatch = useDispatch()
   const store = useStore<RootState>()
-  const router = useRouter()
+  const router = useAppRouter()
   const pathname = usePathname()
 
   return useCallback(
@@ -113,7 +114,7 @@ export function useSplitView(enabled: boolean) {
   const split = useSelector(selectSplit)
   const run = useSplitActions()
   const pathname = usePathname()
-  const router = useRouter()
+  const router = useAppRouter()
   const restored = useRef(false)
 
   useEffect(() => {

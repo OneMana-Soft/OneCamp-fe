@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
-import { openSideMenu } from "./menuReach"
+import { hoverWhenReachable, openSideMenu, radioChecks } from "./menuReach"
 import { SAM, docInfo, stubBackend, type Answers } from "./stubbedApp"
 import { CollabRelay } from "./docs/collabRelay"
 import { PRIYA } from "./docs/twoPeople"
@@ -122,7 +122,7 @@ async function openChannel(page: Page, testInfo: TestInfo, extra: Answers = {}) 
 /** Maya's message's More menu, from its hover toolbar. */
 async function messageMenu(page: Page) {
   const row = page.locator("[data-message-row]").filter({ hasText: "We ship the launch on Thursday" }).first()
-  await row.hover()
+  await hoverWhenReachable(row)
   const more = row.getByRole("button", { name: "More actions" })
   await more.click()
   await expect(page.getByRole("menu").filter({ has: page.getByRole("menuitem", { name: /Copy text/ }) })).toBeVisible()
@@ -142,7 +142,7 @@ test("a message's Remind me… opens beside its menu, and a time saves the remin
   await expect.poll(() => requests.find((r) => r.path.includes("/later"))?.body).toMatchObject({ item_type: "post", item_id: post(0, MAYA, "").post_uuid })
 })
 
-// A keyboard user with a resting mouse: the side menu opened by → and closed 30 ms
+// A keyboard user with a resting mouse (CHAT-LEAD-25, 24 Oct 2026): the side menu opened by → and closed 30 ms
 // later. Opening it made Chrome send the row under the still pointer a pointerout, which a row took for the mouse
 // leaving; its menu took the focus back, and the side menu closed (lib/ui/stillPointer).
 test("a message's Remind me… opened by keyboard stays open while the mouse rests on another row", async ({ page }, testInfo) => {
@@ -177,7 +177,7 @@ test("a message's Remind me… opened by keyboard stays open while the mouse res
   const rows = side.locator('[role="menuitem"]')
   await expect(rows.first()).toBeFocused()
   // Chrome sends the row under a resting mouse a trusted pointer event when the page changes under it, the
-  // mouse unmoved (a pointerout as the side menu opened). Sent here at the very same place.
+  // mouse unmoved (the probe's trace: a pointerout as the side menu opened). Sent here at the very same place.
   await page.mouse.move(rest.x, rest.y)
   // The next key lands in the side menu, still open.
   await page.keyboard.press("ArrowDown")
@@ -186,7 +186,7 @@ test("a message's Remind me… opened by keyboard stays open while the mouse res
   expect(await page.evaluate(() => (window as unknown as { sideMenuCloses: number }).sideMenuCloses)).toBe(0)
 })
 
-// The other side of lib/ui/stillPointer: a mouse that moves is still followed. Its boundary events come
+// The other side of lib/ui/stillPointer (CR-31): a mouse that moves is still followed. Its boundary events come
 // before the pointermove at its new place, so a real leave never looks still.
 // The message menu can still move after it shows (it grows as its rows fill in, and it opens above its button, so it
 // rises): a row that slides under a resting mouse rightly takes no highlight, so the mouse moves only once it's at rest.
@@ -283,6 +283,7 @@ test("the channel header's Notifications opens beside More, by pointer and keybo
   await expect(page.getByRole("menu")).toHaveCount(0)
   menu = await pressFor(page, more)
   const side = await openSideMenu(page, menu, /^Notifications/, "pointer")
+  await radioChecks(side)
   await side.getByRole("menuitemradio", { name: /Mentions and threads/ }).click()
   await expect.poll(() => requests.find((r) => r.path.endsWith("/user/updateUserChannelNotification"))?.body).toMatchObject({ notification_type: "mention" })
 })
@@ -345,9 +346,17 @@ test("the share dialog's Access ends opens beside a person's level, and a time e
   await expect(dialog).toBeVisible()
   await dialog.getByRole("button", { name: /^priya.*: Can edit$/i }).click()
   let menu = await openMenu(page)
-  await openSideMenu(page, menu, /Access ends/, "keyboard")
+  const keyed = await openSideMenu(page, menu, /Access ends/, "keyboard")
+  // One layer a press, the innermost first (interaction spec, rule 7): Esc closes
+  // the side menu alone and gives Access ends the focus back, the next closes the
+  // level menu, and the dialog stays. Radix's Esc closed both menus at once, and
+  // the second press closed the dialog unless it came while they faded out.
   await page.keyboard.press("Escape")
+  await expect(keyed).toBeHidden()
+  await expect(menu).toHaveAttribute("data-state", "open")
+  await expect(menu.getByRole("menuitem", { name: /Access ends/ })).toBeFocused()
   await page.keyboard.press("Escape")
+  await expect(menu).toBeHidden()
   await expect(dialog).toBeVisible()
   await dialog.getByRole("button", { name: /^priya.*: Can edit$/i }).click()
   menu = await openMenu(page)

@@ -6,7 +6,7 @@
 // this device shown on the preview, as the call will send it. Nothing of it
 // is in a call's first load.
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { LocalTrack } from "livekit-client"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
@@ -15,15 +15,23 @@ import { useSheetMode } from "@/components/ui/overlayMode"
 import { WandSparkles } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { CALL_SURFACE } from "@/components/livekit/callSurface"
-import { DockButton } from "@/components/livekit/VideoControls"
+import { DockButton } from "@/components/livekit/DockButton"
 import EffectsChooser from "./EffectsChooser"
 import { useGreenRoomEffects } from "./useGreenRoomEffects"
 
 const TITLE = "Backgrounds and sound"
 
-export default function GreenRoomEffects({ preview }: { preview: LocalTrack | undefined }) {
+/**
+ * `preview` is LiveKit's track over the green room's camera, once its client
+ * has come; `onOpen` hears the chooser open (the green room asks again for a
+ * client that didn't come).
+ */
+export default function GreenRoomEffects({ preview, onOpen }: { preview: LocalTrack | undefined; onOpen?: () => void }) {
   const effects = useGreenRoomEffects(preview)
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (open) onOpen?.()
+  }, [open, onOpen])
   const { isMobile } = useMedia()
   // A sheet on a phone, held either way (components/ui/overlayMode); the
   // layout's width picks its columns.

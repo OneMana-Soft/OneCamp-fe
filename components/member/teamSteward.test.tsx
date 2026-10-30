@@ -18,7 +18,7 @@ vi.mock("react-redux", () => ({ useDispatch: () => (a: (typeof h.dispatched)[num
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 const posted = vi.hoisted(() => vi.fn(async () => ({ data: {} })))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: posted }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: posted } }))
 
 const { TeamMemberContent } = await import("./teamMemberContent")
 

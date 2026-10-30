@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input"
 import { SettingRow, SettingsCard, SettingsCardError, SettingsRowsSkeleton, SettingsSection } from "@/components/ui/settingsSection"
 import { CodeRow } from "@/components/ui/settingsControls"
 import { StatusWord } from "@/components/ui/statusWord"
-import { Loader2, Mail } from "@/lib/icons"
+import { Mail } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -81,8 +81,7 @@ export default function EmailProviderCard() {
                     Cancel
                 </Button>
             )}
-            <Button type="button" variant="secondary" size="sm" onClick={() => void save()} disabled={saving || !key} aria-busy={saving || undefined}>
-                {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
+            <Button type="button" variant="secondary" size="sm" onClick={() => void save()} disabled={saving || !key} busy={saving}>
                 {saving ? "Saving…" : "Save key"}
             </Button>
         </div>

@@ -38,7 +38,7 @@ async function linkNewPage(editor: Editor, at: number, title: string) {
   const place = trackPos(editor, at)
   try {
     const { createDoc } = await import("@/services/docGraphService")
-    const page = await createDoc({ doc_title: title, parent_uuid: docId, doc_private: subpagePrivate(docId) })
+    const page = await createDoc({ doc_title: title, parent_uuid: docId, doc_private: subpagePrivate(docId), placed: true })
     const pos = place.pos()
     if (pos !== null && !editor.isDestroyed) insertPage(editor, pos, page.doc_uuid)
   } catch {

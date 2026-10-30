@@ -1,14 +1,13 @@
 import { errorToastCopy, shownRecently } from "@/lib/utils/errorToast";
 import { endSession } from "@/lib/sessionEnd";
 import axios from 'axios'
-import store from "@/store/store"
-import {updateRefreshTokenStatus} from "@/store/slice/refreshSlice";
 import {loadingBus} from "@/lib/utils/loadingBus";
 import { toast } from "@/hooks/use-toast";
 import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity";
 import { tellReadFailure } from "@/lib/http/loadFailure";
-import { onSessionRefreshed, refreshSession, sessionIsStale } from "@/lib/auth/sessionRefresh";
+import { refreshSession, sessionIsStale } from "@/lib/auth/sessionRefresh";
 import { REQUEST_TIMEOUT_MS, isTimeout, waitsAsLongAsItTakes } from "@/lib/http/requestTimeout";
+import { onVisitorPage } from "@/lib/visitorPage";
 import { CSRF_HEADER, WEB_CLIENT_HEADERS, csrfToken, isWrite, noteCsrfToken, refusedForAnOldToken } from "@/lib/http/csrfToken";
 
 declare module "axios" {
@@ -17,11 +16,12 @@ declare module "axios" {
         suppressErrorToast?: boolean
         csrfSent?: string
         csrfRetried?: boolean
+        /** Answered or refused by lib/offline, never sent: no news of the network or session. */
+        offlineAnswered?: boolean
     }
 }
 
-/** Pass as a request's config when the screen explains failures itself. */
-export const OWN_ERRORS = { suppressErrorToast: true } as const
+export { OWN_ERRORS } from "@/lib/http/ownErrors"
 
 // --- Auth-token lifecycle ---
 //
@@ -46,30 +46,9 @@ export const OWN_ERRORS = { suppressErrorToast: true } as const
 //   4. The reactive 401 → refresh → retry path remains as the backstop for
 //      the edge where a token dies mid-flight despite the proactive window.
 
-// The refresh itself, single-flight across this tab's requests and across
-// tabs, and the shared time the cookie was issued: lib/auth/sessionRefresh
-// (QA SH-16). The store hears each refresh.
-onSessionRefreshed(() => {
-    store.dispatch(updateRefreshTokenStatus({ exist: true }));
-});
-
 let isLoggingOut = false;
 
-/**
- * The pages for someone outside the workspace, with no session at all: what a
- * guest link shares (/guest/d|t|b|c|m|p/<token>), a booking page and a booked
- * meeting (/book/<slug>, /booking/<token>), an intake form (/f/<token>), an
- * invitation to an event by email (/rsvp/<token>), a page published to the web
- * (/p/<slug>, its password and its copy) and unsubscribing. A 401 there is expected, never a session that ran out, so
- * nothing there refreshes a session or signs the browser out and sends it to
- * the sign-in page. That took a guest off the doc they were reading whenever a
- * node view asked the API for something, and, four minutes in, the refresh
- * timer below took a visitor off any of these pages, since every page loads
- * this client (the root layout's theme sync reaches it).
- */
-export function onVisitorPage(pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''): boolean {
-    return /^\/(guest|book|booking|f|rsvp|p|unsubscribe)(\/|$)/.test(pathname);
-}
+export { onVisitorPage } from "@/lib/visitorPage";
 
 // Proactive refresh that fails closed: if the refresh token itself is dead
 // (user idle past the refresh TTL), tear the session down. Safe to call from
@@ -187,6 +166,7 @@ axiosInstance.interceptors.response.use(
         if (!response.config.silent) {
             loadingBus.end();
         }
+        if (response.config?.offlineAnswered) return response;
         noteNetworkOk();
         noteCsrfToken(response.headers);
         return response;
@@ -200,6 +180,9 @@ axiosInstance.interceptors.response.use(
 
         // Don't process anything if we're logging out
         if (isLoggingOut) {
+            return Promise.reject(error);
+        }
+        if (originalRequest?.offlineAnswered) {
             return Promise.reject(error);
         }
 

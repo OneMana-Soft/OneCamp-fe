@@ -148,14 +148,15 @@ export function ProjectFilesEmpty({ onAdd, canAdd, className }: { onAdd?: () => 
     <div
       data-files-empty=""
       className={cn(
-        "flex min-h-60 items-center justify-center rounded-[16px] border border-dashed border-line-3 transition-colors group-data-[dragging=true]/files:border-brand group-data-[dragging=true]/files:bg-brand/5",
+        "flex min-h-60 items-center justify-center rounded-[16px] border border-dashed border-line-3 transition-colors group-data-[file-over=true]/files:border-brand group-data-[file-over=true]/files:bg-brand/5",
         className,
       )}
     >
       <EmptyState
         illustration={<SpotPlug />}
-        title={can ? "Drop files here" : "No files yet"}
-        description={can ? "Briefs, contracts, designs: everything this project runs on." : "Files added to this project show here."}
+        title={can ? "Drop files here" : "No attachments yet"}
+        // What lives here, now that the project's Docs & Files is its own tab (docs F1b, agreed with PROJ-LEAD-4).
+        description="Files added to this project's tasks and comments show up here."
         action={
           onAdd && (
             <Button variant="secondary" size="sm" onClick={onAdd} className="gap-1.5">

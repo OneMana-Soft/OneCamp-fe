@@ -3,7 +3,8 @@ import { readPages } from "@/lib/http/readPages"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { TablesGet, TablesPost } from "@/services/endpoints/tables"
-import { numberSigns } from "@/lib/format/number"
+import type { RowQueryAnswers, RowSpec } from "@/lib/tables/query"
+import type { GroupCount, QuerySummaries } from "@/lib/querySpec/types"
 
 // Tables client: a first-class, Notion-style structured-data entity. A table
 // has fields (columns), rows, and saved views (grid/board/calendar). All
@@ -23,6 +24,43 @@ export type FieldType =
   | "relation"
   | "formula"
   | "rollup"
+  // B1 (lib/fieldTypes/kindsMore)
+  | "status"
+  | "people"
+  | "long_text"
+  | "phone"
+  | "duration"
+  | "rating"
+  | "autonumber"
+  | "created_time"
+  | "created_by"
+  | "modified_time"
+  | "modified_by"
+  | "attachment"
+
+const FROM_ROW = new Set<FieldType>(["autonumber", "created_time", "created_by", "modified_time", "modified_by"])
+
+/** Whether a field is read from the row itself (its id, who made or changed it, when); nobody writes it. */
+export function isFromRow(f: Pick<TableField, "type">): boolean {
+  return FROM_ROW.has(f.type)
+}
+
+/** One file in a files cell (tables B1): its id is the attachment's. */
+export interface TableFile {
+  id: string
+  name: string
+  size?: number
+  mime?: string
+}
+
+/**
+ * Where a table's files are asked for: a file's address is GET of this and
+ * "/{file}", for someone who may read the table's rows (the attachment
+ * viewer's mediaGetUrl).
+ */
+export function tableFilesUrl(tableId: string): string {
+  return `${TablesGet.GetTableFile}/${tableId}/files`
+}
 
 // A relation cell holds an array of these refs. A row keeps only {id, type};
 // the server reads each item's current name for each reader as it sends the
@@ -60,7 +98,7 @@ export function relationWrite(refs: RelationRef[]): { id: string; type: string }
 
 export type RelationTarget = "task" | "doc" | "board" | "user" | "project" | "any" | "table"
 
-export type ViewType = "grid" | "board" | "calendar"
+export type ViewType = "grid" | "board" | "calendar" | "chart" | "gallery" | "list" | "timeline" | "gantt"
 export type Visibility = "private" | "workspace"
 
 export interface TableField {
@@ -123,11 +161,6 @@ export function rowPagePath(tableId: string, rowId: string): string {
   return `${TablesGet.GetTableRows}/${tableId}/rows/${rowId}/page`
 }
 
-/** A row's page, made now when it has none: for someone who may edit the row. */
-export async function ensureRowPage(tableId: string, rowId: string): Promise<{ doc_uuid: string; made: boolean }> {
-  const res = await axiosInstance.post(rowPagePath(tableId, rowId), {})
-  return res.data?.data as { doc_uuid: string; made: boolean }
-}
 
 export interface TableView {
   id: string
@@ -136,6 +169,9 @@ export interface TableView {
   type: ViewType
   config: string // raw JSON object
   position: number
+  /** Set on the reader's own view; others' aren't listed for them. */
+  owner_id?: string
+  locked?: boolean
 }
 
 export interface DataTable {
@@ -156,10 +192,14 @@ export interface TableBundle {
   rows: TableRow[]
   can_manage: boolean
   mqtt_topic: string
+  /** Who is on the table, and where (tables A7). */
+  presence_topic?: string
   /** The table has more rows than the bundle's first page carries. */
   rows_truncated?: boolean
   /** How many rows the table has, all of them. */
   row_count?: number
+  /** What the server's cell index answers for the table (tables T5c): the reader asks it only that. */
+  row_query?: RowQueryAnswers
 }
 
 // A select option as field.config.options keeps it for select/multi_select.
@@ -169,6 +209,8 @@ export interface SelectOption {
   id?: string
   label: string
   color?: string
+  /** A status option's group: todo, doing or done. */
+  group?: string
 }
 
 /** A select option with its id. */
@@ -192,13 +234,6 @@ export function optionsOf(f: TableField): FieldOption[] {
     optionsWithIds.set(options, out)
   }
   return out
-}
-
-/** An id for an option made here: "o_" and ten random characters. */
-export function newOptionId(): string {
-  const bytes = new Uint8Array(10)
-  crypto.getRandomValues(bytes)
-  return `o_${Array.from(bytes, (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("")}`
 }
 
 // A field's config, parsed once per field object and config text: every cell
@@ -274,6 +309,7 @@ export type RollupHow =
   | "list"
   | "unique"
   | "checked"
+  | "formula"
 
 // A rollup field's config as the server sends it: the relation it reads, the
 // field it adds up in the linked table, how, what it gives, and why it can't
@@ -301,9 +337,16 @@ export function computedOf(f: TableField): { result: FormulaResult; error?: stri
   return { result, error }
 }
 
-/** Whether a field holds numbers: a number column, or a formula or a rollup that gives one. */
+const NUMBERS = new Set<FieldType>(["number", "duration", "rating", "autonumber"])
+
+/** Whether a field holds numbers (a duration's seconds, a rating, an id), or a formula or a rollup gives one. */
 export function isNumeric(f: TableField): boolean {
-  return f.type === "number" || (isComputed(f) && computedOf(f).result === "number")
+  return NUMBERS.has(f.type) || (isComputed(f) && computedOf(f).result === "number")
+}
+
+/** Whether a column sits on the right as figures do; stars and an id read from the left. */
+export function alignsRight(f: TableField): boolean {
+  return isNumeric(f) && f.type !== "rating" && f.type !== "autonumber"
 }
 
 /** Why a field can't be worked out or link where it should, if it can't: a formula, a rollup or a relation to a table. */
@@ -314,7 +357,7 @@ export function fieldProblem(f: TableField): string | undefined {
 }
 
 // A table read for this reader: formulas count TODAY() where they are.
-function inZone(path: string): string {
+export function inZone(path: string): string {
   return `${path}${path.includes("?") ? "&" : "?"}tz=${encodeURIComponent(browserTZ())}`
 }
 
@@ -393,6 +436,17 @@ export async function patchRow(tableId: string, rowId: string, values: Record<st
   return res.data?.data as TableRow
 }
 
+/** Rows by id (tables A7), as a page of rows is read; 500 to a request. Quiet. */
+export async function rowsByIds(tableId: string, ids: string[], signal?: AbortSignal): Promise<TableRow[]> {
+  const out: TableRow[] = []
+  for (let at = 0; at < ids.length; at += 500) {
+    const some = ids.slice(at, at + 500).map(encodeURIComponent).join(",")
+    const res = await axiosInstance.get(inZone(`${TablesGet.GetTableRows}/${tableId}/rows?ids=${some}`), { ...OWN_ERRORS, signal })
+    out.push(...((res.data?.data as TableRow[] | null) ?? []))
+  }
+  return out
+}
+
 /**
  * A page of a table's rows, in the table's order: `limit` rows from the
  * `offset`th (the server answers at most 1,000). Quiet when it fails: the
@@ -401,6 +455,32 @@ export async function patchRow(tableId: string, rowId: string, values: Record<st
 export async function listRows(tableId: string, offset: number, limit: number, signal?: AbortSignal): Promise<TableRow[]> {
   const res = await axiosInstance.get(inZone(`${TablesGet.GetTableRows}/${tableId}/rows?limit=${limit}&offset=${offset}`), { ...OWN_ERRORS, signal })
   return (res.data?.data as TableRow[] | null) ?? []
+}
+
+/** A window of a view's rows, as the server answers it (tables T5c). */
+export interface RowsWindow {
+  rows: TableRow[]
+  /** Where the next window starts; none past the last. */
+  next?: string
+  /** How many rows the view shows, when the window was asked to count. */
+  total?: number
+  /** The count stopped at the server's cap: there are more. */
+  total_capped?: boolean
+  /** The spec's summaries over every row it keeps, beside a first window's count. */
+  summaries?: QuerySummaries
+  /** Every group's count and summaries, beside a first window's count (a grouped spec). */
+  groups?: GroupCount[]
+}
+
+/**
+ * A window of a view's rows (POST /tables/{id}/query, tables T5c): up to n
+ * of the rows the spec shows, in its order, from a cursor ("" for the first),
+ * in the reader's zone; with count, how many it shows too. Quiet.
+ */
+export async function queryRows(tableId: string, body: { spec: RowSpec; cursor?: string; n: number; count?: boolean }, signal?: AbortSignal): Promise<RowsWindow> {
+  const res = await axiosInstance.post(inZone(`${TablesPost.QueryTableRows}/${tableId}/query`), body, { ...OWN_ERRORS, signal })
+  const w = (res.data?.data ?? {}) as Partial<RowsWindow>
+  return { ...w, rows: w.rows ?? [] }
 }
 
 /** Rows each read of a whole table asks for: the most the server answers. */
@@ -432,9 +512,6 @@ export function eachRowOnce(rows: TableRow[]): TableRow[] {
   return out.length === rows.length ? rows : out
 }
 
-export async function deleteRow(tableId: string, rowId: string): Promise<void> {
-  await axiosInstance.post(`${TablesPost.DeleteTableRow}/${tableId}/rows/${rowId}/delete`)
-}
 
 // ───────────── aggregate (chart view / analytics) ─────────────
 
@@ -496,103 +573,67 @@ export async function aggregateTable(
   return res.data?.data as AggregateResult
 }
 
-// ───────────── fields ─────────────
-
-export async function createField(
-  tableId: string,
-  input: { name: string; type: FieldType; config?: Record<string, unknown>; position?: number },
-): Promise<TableField> {
-  const res = await axiosInstance.post(`${TablesPost.CreateTableField}/${tableId}/fields`, input)
-  return res.data?.data as TableField
+/** An AI column's fill as the server keeps it (migration 509): the cells it
+ * takes, how many it has asked the model for and written, and whether it
+ * runs. Its writes are one change set, which its person's undo names. */
+export type AIFill = {
+  id: string
+  table_id: string
+  field_id: string
+  started_by?: string
+  /** Client only: this person started it, so may stop it (the server checks). */
+  mine?: boolean
+  /** Client only: stops it, saying so if it couldn't (AIFillWatch). */
+  stop?: () => void
+  change_set?: string
+  total: number
+  asked: number
+  filled: number
+  state: "running" | "stopped" | "done"
 }
 
-/**
- * A change to a field: only what it names. The server keeps the stored value
- * of whatever a save leaves out, so a rename is `{name}`, a move
- * `{position}`, a setting `{config}` (with `removed_options` to take options
- * out) and a type change `{type, config}`, from the type picker. A save of
- * the page's copy put back what had changed since it was read: a stale type
- * turned a column changed meanwhile back (audit B1), a stale place undid a
- * move, a stale name a rename.
- */
-export interface FieldPatch {
-  name?: string
-  type?: FieldType
-  config?: Record<string, unknown>
-  position?: number
-  description?: string
-  required?: boolean
-  /** null takes the default away. */
-  default_value?: unknown
-  /** true makes it the primary field; a field stops being it only by another becoming it. */
-  primary?: true
-}
-
-/**
- * Saves a field's patch, sending only the keys it names; one naming nothing
- * sends nothing. A type change carries the reader's number signs, so a column
- * made numbers reads "1,5" as the reader writes it (audit B3).
- */
-export async function updateField(tableId: string, fieldId: string, patch: FieldPatch): Promise<void> {
-  const body: Record<string, unknown> = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
-  if (!Object.keys(body).length) return
-  await axiosInstance.post(
-    `${TablesPost.UpdateTableField}/${tableId}/fields/${fieldId}/update`,
-    patch.type ? { ...body, ...numberSigns() } : body,
-  )
-}
-
-// A formula being written, checked against the table's fields without saving
-// it: what it gives and its values in the first rows, or why it can't be read.
-export interface FormulaPreview {
-  result: FormulaResult
-  error?: string
-  values: unknown[]
-}
-
-export async function previewFormula(tableId: string, formula: string, fieldId?: string): Promise<FormulaPreview> {
-  const res = await axiosInstance.post(inZone(`${TablesPost.PreviewTableFormula}/${tableId}/formula/preview`), {
-    formula,
-    field_id: fieldId,
-  })
-  return res.data?.data as FormulaPreview
-}
-
-/** What changing a field's type would do to its cells: kept as they are, converted, and values cleared. */
-export interface ConvertCounts {
-  kept: number
-  converted: number
-  cleared: number
-}
-
-/**
- * What changing a field's type would do to its cells, counted by the server
- * over every row, without changing anything: what the column menu says
- * before it asks. Quiet when it fails: the menu says so.
- */
-export async function previewConversion(tableId: string, fieldId: string, type: FieldType): Promise<ConvertCounts> {
-  const res = await axiosInstance.post(`${TablesPost.UpdateTableField}/${tableId}/fields/${fieldId}/convert-preview`, { type, ...numberSigns() }, OWN_ERRORS)
-  return res.data?.data as ConvertCounts
-}
-
-export async function deleteField(tableId: string, fieldId: string): Promise<void> {
-  await axiosInstance.post(`${TablesPost.DeleteTableField}/${tableId}/fields/${fieldId}/delete`)
+/** What a column's AI fill did: the cells it filled and skipped now; of the
+ * total it took, how many are left to fill in the background as the AI's
+ * rate allows; and how many more are empty past those, for the next fill.
+ * needs_confirm: a fill past 500 cells waits for the person's yes, and did
+ * nothing (total says how many it would take). fill is the column's fill:
+ * this one, or the one running already. */
+export type AIFillResult = {
+  filled: number
+  skipped: number
+  left: number
+  total: number
+  more: number
+  needs_confirm?: boolean
+  fill?: AIFill
+  change_set?: string
 }
 
 // fillTableAIColumn evaluates an AI column's prompt over each row (or the given
-// subset) and writes the cells. Returns counts of filled/skipped rows. The fill
-// runs server-side through the shared AI service (per-user model, rate limit,
-// circuit breaker) and broadcasts each cell over MQTT, so the grid updates live.
-export async function fillTableAIColumn(
-  tableId: string,
-  fieldId: string,
-  rowIds?: string[],
-): Promise<{ filled: number; skipped: number }> {
+// subset) and writes the cells. The fill runs server-side through the shared AI
+// service (per-user model, rate limit, circuit breaker) and broadcasts each cell
+// over MQTT, so the grid updates live, the background's cells too. A fill of
+// the whole column says whether its person confirmed it: past 500 cells the
+// server waits for that yes (needs_confirm).
+export async function fillTableAIColumn(tableId: string, fieldId: string, rowIds?: string[], confirm = false): Promise<AIFillResult> {
   const res = await axiosInstance.post(
     `${TablesPost.FillTableAIColumn}/${tableId}/fields/${fieldId}/ai-fill`,
-    rowIds && rowIds.length ? { row_ids: rowIds } : {},
+    rowIds && rowIds.length ? { row_ids: rowIds } : { confirm },
   )
-  return (res.data?.data as { filled: number; skipped: number }) || { filled: 0, skipped: 0 }
+  return (res.data?.data as AIFillResult) || { filled: 0, skipped: 0, left: 0, total: 0, more: 0 }
+}
+
+/** Stops the column's running fill; answers it as it now is (null when none ran). */
+export async function stopTableAIFill(tableId: string, fieldId: string): Promise<AIFill | null> {
+  const res = await axiosInstance.post(`${TablesPost.StopTableAIFill}/${tableId}/fields/${fieldId}/ai-fill/stop`, undefined, OWN_ERRORS)
+  return (res.data?.data as AIFill | null) ?? null
+}
+
+/** A table's running fills, and those that ended in the last day, newest first. */
+export async function listTableAIFills(tableId: string): Promise<AIFill[]> {
+  // Its own errors: progress is a nicety, and a page without it still works.
+  const res = await axiosInstance.get(`${TablesGet.GetTableAIFills}/${tableId}/ai-fills`, OWN_ERRORS)
+  return (res.data?.data as AIFill[] | null) ?? []
 }
 
 // The key a table's fields are fetched under, for choosing what a rollup adds
@@ -610,15 +651,15 @@ export async function pickRows(tableId: string, q: string): Promise<{ id: string
 
 /**
  * A row's values as a copy of it is written (Duplicate): without what the
- * server works out on each read (formulas, rollups) or keeps apart (links to
- * tables' rows, which change through changeLinks), and links to items as
- * their ids alone.
+ * server works out on each read (formulas, rollups, what the row says of
+ * itself) or keeps apart (links to tables' rows, which change through
+ * changeLinks), and links to items and people as their ids alone.
  */
 export function writableValues(fields: TableField[], values: Record<string, unknown>): Record<string, unknown> {
   const out = { ...values }
   for (const f of fields) {
-    if (isComputed(f) || (f.type === "relation" && relationOf(f).target === "table")) delete out[f.id]
-    else if (f.type === "relation" && Array.isArray(out[f.id])) out[f.id] = relationWrite(out[f.id] as RelationRef[])
+    if (isComputed(f) || isFromRow(f) || (f.type === "relation" && relationOf(f).target === "table")) delete out[f.id]
+    else if ((f.type === "relation" || f.type === "people") && Array.isArray(out[f.id])) out[f.id] = relationWrite(out[f.id] as RelationRef[])
   }
   return out
 }

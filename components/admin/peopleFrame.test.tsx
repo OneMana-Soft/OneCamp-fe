@@ -77,11 +77,11 @@ const { default: ExternalUsersCard } = await import("./ExternalUsersCard")
 const { PEOPLE_SKELETON_ROWS } = await import("./PeopleFrame")
 
 const TABS = [
-  { name: "Members", Card: UserCard, search: /search members/i, action: "Invite people", leading: "avatar" },
-  { name: "Admins", Card: AdminCard, search: /search admins/i, action: "Add admin", leading: "avatar" },
-  { name: "Teams", Card: TeamsCard, search: /search teams/i, action: "New team", leading: "tile" },
-  { name: "Invitations", Card: InvitationCard, search: /search invitations/i, action: "Invite people", leading: "tile" },
-  { name: "External users", Card: ExternalUsersCard, search: /search external users/i, action: null, leading: "avatar" },
+  { name: "Members", Card: UserCard, search: /search members/i, action: "Invite people", leading: "avatar", showAll: "Show everyone" },
+  { name: "Admins", Card: AdminCard, search: /search admins/i, action: "Add admin", leading: "avatar", showAll: "Show everyone" },
+  { name: "Teams", Card: TeamsCard, search: /search teams/i, action: "New team", leading: "tile", showAll: "Show all teams" },
+  { name: "Invitations", Card: InvitationCard, search: /search invitations/i, action: "Invite people", leading: "tile", showAll: "Show everyone" },
+  { name: "External users", Card: ExternalUsersCard, search: /search external users/i, action: null, leading: "avatar", showAll: "Show everyone" },
 ] as const
 
 beforeEach(() => {
@@ -91,7 +91,7 @@ afterEach(cleanup)
 
 const frameOf = (container: HTMLElement) => container.querySelector("[data-people-frame]") as HTMLElement
 
-describe.each(TABS)("the $name tab", ({ name, Card, search, action, leading }) => {
+describe.each(TABS)("the $name tab", ({ name, Card, search, action, leading, showAll }) => {
   it("draws no title of its own: the page frame names the section, the frame opens on its toolbar", () => {
     const { container } = render(<Card />)
     const frame = frameOf(container)
@@ -106,9 +106,9 @@ describe.each(TABS)("the $name tab", ({ name, Card, search, action, leading }) =
     expect(toolbar.className).toContain("people-toolbar")
     const field = screen.getByRole("searchbox", { name: search })
     expect(toolbar.contains(field)).toBe(true)
-    // 32px from md up, 44px on a phone (the field's own floor there).
-    expect(field.className).toMatch(/(^|\s)h-8(\s|$)/)
-    expect(field.className).toContain("max-md:h-11")
+    // 32px from md up, 44px on a phone: the field is the input group round the text.
+    const group = field.closest("[data-slot=input-group]")!.className.split(/\s+/)
+    expect(group).toEqual(expect.arrayContaining(["h-11", "md:h-8"]))
     expect(field.getAttribute("aria-keyshortcuts")).toBe("/")
     if (action) {
       const button = screen.getAllByRole("button", { name: action }).find((b) => toolbar.contains(b))!
@@ -158,7 +158,7 @@ describe.each(TABS)("the $name tab", ({ name, Card, search, action, leading }) =
     expect(others.length).toBeLessThanOrEqual(1)
   })
 
-  it("says a search matched nobody with the magnifier spot, a description and Clear search", async () => {
+  it("says a search matched nobody with the magnifier spot, a description and the whole list back", async () => {
     const { container } = render(<Card />)
     await act(async () => {
       fireEvent.change(screen.getByRole("searchbox", { name: search }), { target: { value: "zzzz" } })
@@ -167,7 +167,8 @@ describe.each(TABS)("the $name tab", ({ name, Card, search, action, leading }) =
     expect(state).toBeTruthy()
     expect(state.querySelector("[data-empty-illustration] svg[data-spot]")).toBeTruthy()
     expect(state.textContent).toMatch(/matches “zzzz”\./)
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    // Named for where it takes you: the field's own Clear search is the × in it.
+    fireEvent.click(screen.getByRole("button", { name: showAll }))
     expect((screen.getByRole("searchbox", { name: search }) as HTMLInputElement).value).toBe("")
   })
 })

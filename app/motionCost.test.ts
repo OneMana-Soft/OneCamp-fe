@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 
 import { describe, expect, it } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * Motion that costs nothing: what moves, moves by transform and opacity.
@@ -21,15 +22,6 @@ import { describe, expect, it } from "vitest"
  */
 
 const ROOT = process.cwd()
-function files(dir: string, ext: RegExp, out: string[] = []): string[] {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name.startsWith(".")) continue
-    const p = join(dir, e.name)
-    if (e.isDirectory()) files(p, ext, out)
-    else if (ext.test(e.name) && !/\.(test|spec)\./.test(e.name)) out.push(p)
-  }
-  return out
-}
 
 const COMPOSITED = new Set(["transform", "opacity", "translate", "scale", "rotate"])
 const LAYOUT =
@@ -86,7 +78,8 @@ const LAYOUT_MOTION_BASELINE: Record<string, number> = {
   "components/booking/BookingFlow.tsx": 1,
   "components/fileUpload/AudioPlayer.tsx": 1,
   "components/minimal-tiptap/extensions/collapsible/components/collapsible-view.tsx": 1,
-  "components/minimal-tiptap/extensions/poll/poll-view.tsx": 1,
+  // A poll's bar, a message's and a call's (moved here from chat's poll-view.tsx).
+  "components/poll/PollChoices.tsx": 1,
 }
 
 function keyframes(css: string): Array<{ name: string; props: string[] }> {
@@ -127,9 +120,25 @@ function layoutMotion(src: string): string[] {
   return found
 }
 
+// The rules whose animation a scroll drives (a scroll or view timeline) that
+// don't state animation-duration: auto after their animation shorthand. The
+// build writes a shorthand out as longhands, the duration it leaves unstated
+// as 0s (Lightning CSS), and an animation a scroll drives that lasts 0s has
+// finished before it starts: a strip's fades show their ends wherever it is
+// scrolled, the start's fade at the start and none at the end.
+function scrollDrivenWithoutDuration(css: string): string[] {
+  const found: string[] = []
+  for (const m of css.matchAll(/([^{}]*)\{([^{}]*animation-timeline:\s*(?:scroll|view)\([^{}]*)\}/g)) {
+    const shorthand = m[2].search(/(?:^|[;\s])animation:/)
+    const duration = m[2].search(/animation-duration:\s*auto\b/)
+    if (duration < 0 || duration < shorthand) found.push(m[1].trim().split("\n").pop()!.trim())
+  }
+  return found
+}
+
 describe("motion cost", () => {
   it("keyframes animate transform and opacity, nothing that lays the page out", () => {
-    const css = ["app", "components"].flatMap((d) => files(join(ROOT, d), /\.css$/))
+    const css = sourceFiles(["app", "components"], /\.css$/)
     const wrong: string[] = []
     for (const file of css) {
       for (const k of keyframes(readFileSync(file, "utf8"))) {
@@ -142,7 +151,7 @@ describe("motion cost", () => {
   })
 
   it("no new transition, will-change or Motion prop animates layout", () => {
-    const tsx = ["app", "components", "hooks", "lib"].flatMap((d) => files(join(ROOT, d), /\.(t|j)sx?$/))
+    const tsx = sourceFiles(["app", "components", "hooks", "lib"], /\.(t|j)sx?$/)
     const over: string[] = []
     for (const file of tsx) {
       const rel = relative(ROOT, file)
@@ -186,11 +195,22 @@ describe("motion cost", () => {
     }
   })
 
+  it("an animation a scroll drives lasts its whole scroll: animation-duration auto, after the shorthand", () => {
+    const css = sourceFiles(["app", "components"], /\.css$/)
+    const all = css.map((file) => readFileSync(file, "utf8")).join("\n")
+    expect(all).toMatch(/animation-timeline:\s*scroll\(/)
+    const wrong = css.flatMap((file) => scrollDrivenWithoutDuration(readFileSync(file, "utf8")).map((rule) => `${relative(ROOT, file)} ${rule}`))
+    expect(wrong).toEqual([])
+  })
+
   it("would catch one: the shell's old panel transition and loading bar", () => {
     expect(layoutMotion(`className="transition-[flex-basis] duration-75"`)).toHaveLength(1)
     expect(layoutMotion(`className="will-change-[flex-basis]"`)).toHaveLength(1)
     expect(layoutMotion(`<motion.div initial={{ height: 0 }} />`)).toHaveLength(1)
     expect(layoutMotion(`className="transition-[transform,opacity] hover:-translate-y-px"`)).toHaveLength(0)
     expect(keyframes("@keyframes grow { 0% { width: 0% } 100% { width: 90% } }")[0].props).toEqual(["width"])
+    expect(scrollDrivenWithoutDuration(".a { animation: f linear both; animation-timeline: scroll(self); }")).toEqual([".a"])
+    expect(scrollDrivenWithoutDuration(".a { animation-duration: auto; animation: f linear both; animation-timeline: scroll(self); }")).toEqual([".a"])
+    expect(scrollDrivenWithoutDuration(".a { animation: f linear both; animation-duration: auto; animation-timeline: scroll(self); }")).toEqual([])
   })
 })

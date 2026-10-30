@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen, within } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 
 import type { ProjectOverview } from "@/lib/projectsOverview"
+import type { Milestone } from "@/lib/work/milestones"
 import { hueFor } from "@/lib/campHue"
 import { resetGrowForTests } from "@/hooks/useGrow"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 let projects: ProjectOverview[] = []
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => <a href={href} {...rest}>{children}</a> }))
@@ -13,6 +15,16 @@ vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 const media = vi.hoisted(() => ({ desktop: true }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: media.desktop, isMobile: !media.desktop }) }))
 vi.mock("@/hooks/useProjectsOverview", () => ({ useProjectsOverview: () => ({ projects, isLoading: false, isError: false, mutate: vi.fn() }) }))
+// Every project's milestones, read after the list (linear-16): none unless a test gives some.
+const read = vi.hoisted(() => ({ milestones: new Map<string, Milestone[]>(), ready: [] as boolean[] }))
+vi.mock("@/hooks/useMyMilestones", () => ({
+  useMyMilestones: (ready: boolean) => {
+    read.ready.push(ready)
+    return read.milestones
+  },
+}))
+// Each project's forecast (linear-20) is its own tests' (useProjectForecasts.test, projectsForecasts.spec): none here.
+vi.mock("@/hooks/useProjectForecasts", () => ({ useProjectForecasts: () => undefined }))
 vi.mock("@/components/goals/GoalsView", () => ({ GoalsView: () => null }))
 vi.mock("@/components/reports/ReportsView", () => ({ ReportsView: () => null }))
 vi.mock("@/components/project/ProjectsTimeline", () => ({ ProjectsTimeline: () => null }))
@@ -32,6 +44,7 @@ const project = (id: string, over: Partial<ProjectOverview> = {}): ProjectOvervi
   ...over,
 })
 
+pinTestClock()
 beforeEach(() => {
   window.localStorage.clear()
   resetGrowForTests()
@@ -39,6 +52,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   media.desktop = true
+  read.milestones = new Map()
+  read.ready = []
 })
 
 /** The projects table (design v3, work.md W39). */
@@ -55,6 +70,30 @@ describe("the projects table", () => {
     expect(tile.getAttribute("data-hue")).toBe(hueFor("q4-launch"))
     expect(within(rows[0]).getByText("On track")).toBeInTheDocument()
     expect(within(rows[1]).getByText("No update yet")).toBeInTheDocument()
+  })
+
+  it("names each project's next milestone after its name, at a desk and on a phone, once the list is in", async () => {
+    const m = (id: string, name: string, next: boolean, target_date: string | null): Milestone =>
+      ({ id, name, next, target_date, progress: { total: 3, started: 1, done: next ? 1 : 3 } }) as Milestone
+    projects = [project("q4-launch"), project("onboarding")]
+    read.milestones = new Map([["q4-launch", [m("a", "Alpha", false, "2026-10-01"), m("b", "Beta", true, "2026-11-30")]]])
+    for (const desktop of [true, false]) {
+      media.desktop = desktop
+      const { unmount } = render(<ProjectsOverview />)
+      // A chunk of its own (next/dynamic), so it comes a moment after the row.
+      const shown = await waitFor(() => {
+        const found = [...document.querySelectorAll("[data-next-milestone]")]
+        expect(found).toHaveLength(1)
+        return found
+      })
+      expect(shown[0].textContent).toContain("Next milestone:")
+      expect(shown[0].textContent).toContain("Beta")
+      expect(shown[0].getAttribute("title")).toMatch(/^Next milestone: Beta, /)
+      expect(shown[0].closest("[data-project-row]")!.textContent).toContain("q4-launch")
+      unmount()
+    }
+    // Read only once the list is in.
+    expect(read.ready.every(Boolean)).toBe(true)
   })
 
   it("fills progress by transform, not width", () => {

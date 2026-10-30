@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import Link from "next/link"
+import { NodeLink } from "@/components/docFiles/NodeLink"
 import { Check } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -137,7 +137,7 @@ export function NoAccessPage({ docId, onGranted, canRequest = true, admin = fals
         )}
 
               <Button variant="link" size="sm" asChild className="self-center">
-                <Link href="/app/doc">Back to docs</Link>
+                <NodeLink href="/app/doc">Back to docs</NodeLink>
               </Button>
             </div>
           ) : undefined

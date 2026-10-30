@@ -10,6 +10,14 @@ export interface CatalogCommand {
     app_name?: string
     icon_url?: string
     is_builtin: boolean
+    /** An admin's entry for a command whose app isn't set up: the menu offers to set the app up. */
+    setup?: CommandSetup
+}
+
+/** The app an admin is offered to set up (Admin › Apps opens at it). */
+export interface CommandSetup {
+    slug: string
+    name: string
 }
 
 export interface CatalogResponse {

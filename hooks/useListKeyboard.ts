@@ -5,7 +5,7 @@ import { useDispatch, useStore } from "react-redux"
 import type { RootState } from "@/store/store"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { goArmed, isTyping } from "@/lib/goKeys"
-import { listKey, rangeOf, stepAcross, stepIn, type ListField } from "@/lib/listKeys"
+import { LIST_FIELDS, listKey, rangeOf, stepAcross, stepIn, type ListField } from "@/lib/listKeys"
 import { onEscape } from "@/lib/keys/onEscape"
 import type { SelectionStore } from "@/lib/listSelection"
 
@@ -13,9 +13,10 @@ const ITEM = "[data-task-id]"
 
 /**
  * J and K (or the arrows) move through a list's tasks, ← and → across a
- * board's columns, Enter opens, X selects, and S, A, T or P change a field of
- * the selection (onEdit). Tasks are read from the page ([data-task-id] rows
- * and cards, [data-column] columns), so it works on whatever is drawn: a page
+ * board's columns, Enter opens, X selects, and S, A, T or P (or Shift+C on a
+ * backlog) change a field of the selection (onEdit), of the fields the list
+ * offers. Tasks are read from the page ([data-task-id] rows and cards,
+ * [data-column] columns), so it works on whatever is drawn: a page
  * of a table, a board that adds cards as it scrolls, folded columns passed
  * over. Keys count when they are the list's: typed in it, on its view, on the
  * page with its view active (split view), or in the panel showing one of its
@@ -26,11 +27,14 @@ export function useListKeyboard({
   store,
   enabled,
   onEdit,
+  fields = LIST_FIELDS,
 }: {
   containerRef: RefObject<HTMLElement | null>
   store: SelectionStore
   enabled: boolean
   onEdit?: (field: ListField) => void
+  /** The fields its selection's bar changes; another field's key is left alone. A constant, so the keys aren't bound anew. */
+  fields?: readonly ListField[]
 }) {
   const dispatch = useDispatch()
   const app = useStore<RootState>()
@@ -121,7 +125,7 @@ export function useListKeyboard({
           store.toggle(current)
           return
         case "edit":
-          if (!onEdit || e.repeat) return
+          if (!onEdit || e.repeat || !fields.includes(action.field)) return
           if (s.selected.size === 0) {
             if (!current) return
             store.toggle(current)
@@ -157,6 +161,21 @@ export function useListKeyboard({
       store.highlight(id)
     }
 
+    // A task the panel opens on its own (its previous and next, a link in it)
+    // takes the highlight when it's one of this list's, so J and K go on from
+    // it and one row reads as the panel's. It's brought into view; focus stays
+    // where the person is.
+    let shown = panelTask()
+    const unfollow = app.subscribe(() => {
+      const open = panelTask()
+      if (open === shown) return
+      shown = open
+      const el = open && !hidden() ? elOf(open) : null
+      if (!open || !el || store.get().highlighted === open) return
+      store.highlight(open)
+      el.scrollIntoView({ block: "nearest", inline: "nearest" })
+    })
+
     // Esc clears the selection; with none, it lets go of the highlight and passes the press on.
     const stopEscape = onEscape("page", (e) => {
       if (isTyping(e.target as Element | null) || goArmed() || !ours(e.target)) return false
@@ -170,11 +189,12 @@ export function useListKeyboard({
     box.addEventListener("mousedown", onMouseDown, true)
     box.addEventListener("click", onClick, true)
     return () => {
+      unfollow()
       stopEscape()
       document.removeEventListener("keydown", onKey)
       box.removeEventListener("focusin", onFocusIn)
       box.removeEventListener("mousedown", onMouseDown, true)
       box.removeEventListener("click", onClick, true)
     }
-  }, [enabled, containerRef, store, onEdit, dispatch, app])
+  }, [enabled, containerRef, store, onEdit, fields, dispatch, app])
 }

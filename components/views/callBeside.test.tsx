@@ -14,6 +14,8 @@ import { Provider } from "react-redux"
 // The real headers, the real store and the shell's real hook; only what they
 // read from the network and draw around them is stood in for.
 
+// The box reads its conversation's command catalog as it draws (LazyCommandSurface).
+vi.mock("@/services/commandService", () => ({ fetchCommandCatalog: async () => ({ commands: [] }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: false, isTablet: true }) }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }), usePathname: () => "/app/channel/c1", useSearchParams: () => new URLSearchParams() }))
 /** Where a link took the page: a plain click that nothing else took. */
@@ -49,9 +51,7 @@ vi.mock("@/hooks/useFetch", () => {
 })
 vi.mock("@/components/message/chatFace", () => ({ ChatFace: () => null }))
 vi.mock("@/components/textInput/textInput", () => ({ default: () => null }))
-vi.mock("@/components/channel/channelMessageList", () => ({ ChannelMessageList: () => null }))
-vi.mock("@/components/chat/chatMessageList", () => ({ ChatMessageList: () => null }))
-vi.mock("@/components/groupChat/groupChatMessageList", () => ({ GroupChatMessageList: () => null }))
+vi.mock("@/components/conversation/ConversationMessages", () => ({ ConversationMessages: () => null }))
 vi.mock("@/components/ai/ChannelAgents", () => ({ useChannelAgents: () => [] }))
 vi.mock("@/components/ai/CatchMeUpBanner", () => ({ default: () => null }))
 vi.mock("@/components/ai/ChannelMemoryIndicator", () => ({ ChannelMemoryIndicator: () => null }))
@@ -61,9 +61,6 @@ vi.mock("@/components/command/CommandSurface", () => ({ default: () => null }))
 vi.mock("@/components/messages/heldNotificationsBar", () => ({ HeldNotificationsBar: () => null }))
 vi.mock("@/components/chat/chatUserEmojiStatus", () => ({ ChatUserEmojiStatus: () => null }))
 vi.mock("@/components/chat/chatUserAvatar", () => ({ ChatUserAvatar: () => null }))
-vi.mock("@/components/fileUpload/channelFileUpload", () => ({ ChannelFileUpload: () => null }))
-vi.mock("@/components/fileUpload/chatFileUpload", () => ({ ChatFileUpload: () => null }))
-vi.mock("@/components/fileUpload/groupChatFileUpload", () => ({ GroupChatFileUpload: () => null }))
 
 const { TooltipProvider } = await import("@/components/ui/tooltip")
 const { default: store } = await import("@/store/store")

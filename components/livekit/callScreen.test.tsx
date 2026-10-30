@@ -1,15 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Track } from "livekit-client"
 import { personHue } from "@/lib/utils/getAvatarColor"
+import { fakeMedia } from "@/lib/testing/fakeMedia"
 
-vi.mock("livekit-client", async (orig) => ({
-  ...(await orig<typeof import("livekit-client")>()),
-  // The camera never answers: the preview's in-between state.
-  createLocalVideoTrack: vi.fn(() => new Promise(() => {})),
-}))
 let muted = true
 vi.mock("@livekit/components-react", () => ({
   useIsMuted: () => muted,
@@ -31,11 +27,18 @@ vi.mock("@/lib/calls/processors/background", () => ({ backgroundUnavailable: asy
 vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useFeature: () => false }))
 
 import { PreJoin, previewMessage } from "@/components/livekit/PreJoin"
-import { CallRemoved, CameraOffFace, CaptionsOverlay, GREEN_ROOM_GROUND, LivePill, NamePlate, RecordingPill, StageFace, cameraIsOff } from "@/components/livekit/CallStage"
+import { CallRemoved, CaptionsOverlay, captionsLift, GREEN_ROOM_GROUND, LivePill, NamePlate, RecordingPill, StageFace } from "@/components/livekit/CallStage"
+import { CameraOffFace, cameraIsOff } from "@/components/livekit/StageTile"
 import { CallDock, CONTROL_LABELS, VideoControls } from "@/components/livekit/VideoControls"
 import { whoIsHere } from "@/components/livekit/PreJoin"
 import { ParticipantKind } from "livekit-client"
 import { CallEndScreen } from "@/components/livekit/CallEndScreen"
+import { captionsHigh, STAGE_FRAME, STAGE_TYPE } from "@/components/livekit/VideoConference"
+
+// The camera never answers: the preview's in-between state.
+beforeEach(() => {
+  fakeMedia("never")
+})
 
 afterEach(() => {
   cleanup()
@@ -65,6 +68,11 @@ describe("the pre-join screen", () => {
     expect(line.textContent).toBe(" ")
     rerender(<PreJoin onJoin={() => {}} username="Sam Rivera" place="in #engineering" />)
     expect(container.querySelector("[data-call-place]")!.textContent).toBe("Call in #engineering")
+    // A place in a sentence (placeInSentence) reads as a call; a name stays as it is.
+    rerender(<PreJoin onJoin={() => {}} username="Sam Rivera" place="with Maya Chen" />)
+    expect(container.querySelector("[data-call-place]")!.textContent).toBe("Call with Maya Chen")
+    rerender(<PreJoin onJoin={() => {}} username="Sam Rivera" place="Design review" />)
+    expect(container.querySelector("[data-call-place]")!.textContent).toBe("Design review")
   })
 
   // F-54: a meeting that can't be opened was dark whatever the theme. Only
@@ -178,6 +186,18 @@ describe("the call stage", () => {
     expect(screen.getByLabelText("Muted")).toBeTruthy()
   })
 
+  // Someone let in by the call's invite is marked on their tile too, where
+  // people look before they speak: the Guest tag's shape in a neutral ink,
+  // no hue of its own (calls HU13; DESIGN-BUILD-4, 22 Oct).
+  it("plates someone invited into the call with an Invited tag, shaped as Guest's and neutral", () => {
+    render(<NamePlate name="Jonas Weber" invited />)
+    const invited = screen.getByText("Invited")
+    const guest = render(<NamePlate name="Priya" guest />).getByText("Guest")
+    const shape = (el: HTMLElement) => el.className.split(/\s+/).filter((c) => !/^(bg|text)-/.test(c) || c === "text-micro")
+    expect(shape(invited)).toEqual(shape(guest))
+    expect(invited.className).not.toMatch(/sun|agent|brand|hue/)
+  })
+
   it("has a Live pill that stands still where asked", () => {
     const { container } = render(<LivePill pulse={false} />)
     expect(container.textContent).toBe("Live")
@@ -190,6 +210,28 @@ describe("the call stage", () => {
     expect(name.className).not.toContain("uppercase")
     expect(name.className).toContain("text-hue-ink")
   })
+
+  it("rides above a bar over the dock by the room the bar takes, by transform", () => {
+    expect(captionsLift(0)).toBeUndefined()
+    expect(captionsLift(-4)).toBeUndefined()
+    expect(captionsLift(52)).toBe("translateY(-52px)")
+    expect(captionsLift(51.6)).toBe("translateY(-52px)")
+    const { container, rerender } = render(<CaptionsOverlay idleMessage="Listening for speech…" entries={[]} lift={52} />)
+    const block = () => container.querySelector("[data-captions]") as HTMLElement
+    expect(block().style.transform).toBe("translateY(-52px)")
+    rerender(<CaptionsOverlay idleMessage="Listening for speech…" entries={[]} />)
+    expect(block().style.transform).toBe("")
+  })
+
+  it("hands the stage its box, and the stage keeps the tallest it has been while on", async () => {
+    const box = { current: null as HTMLDivElement | null }
+    const { container } = render(<CaptionsOverlay idleMessage="Listening for speech…" entries={[]} boxRef={box} />)
+    expect(box.current).toBe(container.querySelector("[data-captions]"))
+    expect(captionsHigh(0, 40.4)).toBe(40)
+    expect(captionsHigh(40, 96)).toBe(96)
+    expect(captionsHigh(96, 40)).toBe(96)
+    expect(captionsHigh(96, 0)).toBe(0)
+  }, 20_000)
 })
 
 const dock = (over: Partial<Parameters<typeof CallDock>[0]> = {}) => (
@@ -299,13 +341,22 @@ describe("the guest meeting page", () => {
 
 describe("the call stage's frame", () => {
   // QA_BACKLOG "Tab consistency": Calls, Speaker vs Grid.
-  it("is one frame for speaker and grid, clear of the pills and the dock", async () => {
+  it("is one frame for speaker and grid, clear of the pills, the dock and, at every width, the captions", async () => {
     const { readFileSync } = await import("node:fs")
     const { resolve } = await import("node:path")
     const src = readFileSync(resolve(__dirname, "VideoConference.tsx"), "utf8")
     expect(src.match(/STAGE_FRAME\)/g)?.length).toBe(2)
-    const { STAGE_FRAME } = await import("@/components/livekit/VideoConference")
-    expect(STAGE_FRAME.split(" ")).toEqual(expect.arrayContaining(["px-3", "pt-12", "pb-24", "@3xl:pb-[84px]"]))
+    expect(STAGE_FRAME.split(" ")).toEqual(
+      expect.arrayContaining([
+        "px-3",
+        "pt-12",
+        "pb-[max(6rem,var(--call-captions-room,0px))]",
+        "@3xl:pb-[max(84px,var(--call-captions-room,0px))]",
+        "@7xl:pb-[max(100px,var(--call-captions-room,0px))]",
+      ]),
+    )
+    // No width keeps a fixed bottom that the captions could ride over.
+    expect(STAGE_FRAME).not.toMatch(/pb-\[\d+px\]/)
     // Importing the stage pulls in LiveKit; give it time on a loaded machine.
   }, 20_000)
 
@@ -315,7 +366,6 @@ describe("the call stage's frame", () => {
     const src = readFileSync(resolve(__dirname, "VideoConference.tsx"), "utf8")
     const root = src.slice(src.lastIndexOf("<div", src.indexOf('data-lk-theme="default"')), src.indexOf('data-lk-theme="default"'))
     expect(root).toContain("${STAGE_TYPE}")
-    const { STAGE_TYPE } = await import("@/components/livekit/VideoConference")
     expect(STAGE_TYPE).toBe("[--lk-font-family:var(--font-sans)]")
   }, 20_000)
 })

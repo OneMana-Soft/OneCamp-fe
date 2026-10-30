@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 
 const makeRequest = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
+// The card's Remove call asks through the app's dialog (calendar B11): not this file's case.
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 
 import { EventPopover } from "./eventPopover"
 import type { CalendarEventInterface } from "@/types/calendar"
@@ -60,6 +62,66 @@ describe("the organiser's card", () => {
     expect(text.indexOf("Join call")).toBeLessThan(text.indexOf("2 going"))
     expect(text.indexOf("2 going")).toBeLessThan(text.indexOf("OneCamp · Personal"))
     expect(text.indexOf("Organised by you")).toBeLessThan(text.indexOf("Join https://meet.example.com/abc"))
+  })
+})
+
+// B1, task blocks: a block's card says which task it is time for, where the
+// task stands, and its project; a task the reader can no longer see is said so.
+describe("a task block's card", () => {
+  it("names its task, the task's state and its project", () => {
+    const block = event({ event_title: "Write the brief", event_guests: [], event_participants: [], event_description: "", event_task: { task_uuid: "t1", task_name: "Write the launch brief", task_status: "in_progress", project_name: "Launch" } })
+    render(<EventPopover event={block} anchor={anchor()} now={now} selfId="sam" onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const card = screen.getByRole("dialog", { name: "Write the brief" })
+    const row = card.querySelector("[data-card-task]")!
+    expect(row.textContent).toBe("TaskTime for Write the launch brief · Launch")
+    expect(row.querySelector("[data-status-glyph]")?.getAttribute("data-status-glyph")).toBe("progress")
+  })
+
+  it("says so when the reader can no longer see the task", () => {
+    const block = event({ event_title: "Old work", event_guests: [], event_participants: [], event_description: "", event_task: { task_uuid: "t2" } })
+    render(<EventPopover event={block} anchor={anchor()} now={now} selfId="sam" onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    expect(screen.getByRole("dialog", { name: "Old work" }).querySelector("[data-card-task]")?.textContent).toContain("Time for a task you can no longer see")
+    expect(screen.queryByRole("link")).toBeNull()
+  })
+
+  // The card's way to the work itself: the task opens as the calendar opens
+  // one (beside it, or its own page on a phone), and the card gets out of the way.
+  const brief = () =>
+    event({
+      event_title: "Write the brief",
+      event_guests: [],
+      event_participants: [],
+      event_description: "",
+      event_task: { task_uuid: "t1", task_name: "Write the launch brief", task_status: "inProgress", project_uuid: "p1", project_name: "Launch" },
+    })
+
+  it("opens its task, and closes", () => {
+    const onClose = vi.fn()
+    const onOpenTask = vi.fn()
+    render(<EventPopover event={brief()} anchor={anchor()} now={now} selfId="sam" onClose={onClose} onOpenFull={vi.fn()} onOpenTask={onOpenTask} />)
+    const card = screen.getByRole("dialog", { name: "Write the brief" })
+    const link = within(card).getByRole("link", { name: "Write the launch brief" })
+    expect(link.getAttribute("href")).toBe("/app/task/t1")
+    expect(card.querySelector("[data-card-task]")?.textContent).toBe("TaskTime for Write the launch brief · Launch")
+    fireEvent.click(link)
+    expect(onOpenTask).toHaveBeenCalledWith("t1")
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("leaves a click for a new tab to the browser", () => {
+    const onOpenTask = vi.fn()
+    render(<EventPopover event={brief()} anchor={anchor()} now={now} selfId="sam" onClose={vi.fn()} onOpenFull={vi.fn()} onOpenTask={onOpenTask} />)
+    // What the card left to the browser, read once the card has had the click (jsdom can't open a tab).
+    let leftToBrowser: boolean | undefined
+    const browser = (e: MouseEvent) => {
+      leftToBrowser = !e.defaultPrevented
+      e.preventDefault()
+    }
+    window.addEventListener("click", browser)
+    fireEvent.click(screen.getByRole("link", { name: "Write the launch brief" }), { metaKey: true })
+    window.removeEventListener("click", browser)
+    expect(leftToBrowser).toBe(true)
+    expect(onOpenTask).not.toHaveBeenCalled()
   })
 })
 
@@ -137,10 +199,10 @@ describe("the card's reminders", () => {
 })
 
 describe("the card on a phone", () => {
-  it("is the half sheet, named by the title, with Going? at its foot at 44 px", () => {
+  it("is a sheet as tall as what it shows (V-44), named by the title, with Going? at its foot at 44 px", () => {
     render(<EventPopover event={event()} anchor={null} now={now} selfId="lee" phone onClose={vi.fn()} onOpenFull={vi.fn()} />)
     const sheet = document.querySelector("[data-event-sheet]") as HTMLElement
-    expect(sheet.getAttribute("data-detent")).toBe("half")
+    expect(sheet.getAttribute("data-detent")).toBe("medium")
     expect(screen.getByRole("dialog", { name: "Launch review" })).toBeTruthy()
     const foot = sheet.querySelector("[data-card-footer]") as HTMLElement
     expect(foot.className).toMatch(/sticky/)
@@ -152,5 +214,25 @@ describe("the card on a phone", () => {
     render(<EventPopover event={event()} anchor={anchor()} now={now} selfId="lee" holdOpen onClose={close} onOpenFull={vi.fn()} />)
     fireEvent.keyDown(screen.getByRole("dialog", { name: "Launch review" }), { key: "Escape" })
     expect(close).not.toHaveBeenCalled()
+  })
+})
+
+// Calendar head 6 (gcal-3): where an event keeps a zone you aren't in, the card
+// says its own time there under yours; in your zone, or in none, nothing more.
+describe("an event kept in another zone", () => {
+  const card = (extra: Partial<CalendarEventInterface>) =>
+    render(<EventPopover event={event(extra)} anchor={anchor()} now={now} selfId="sam" onClose={vi.fn()} onOpenFull={vi.fn()} />)
+
+  it("says its own time there, under yours", () => {
+    card({ event_zone: "Pacific/Kiritimati" })
+    expect(document.querySelector("[data-own-zone]")?.textContent).toMatch(/^\d.* in Kiritimati$/)
+  })
+
+  it("says nothing more for one in your zone, or one with none", () => {
+    card({ event_zone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+    expect(document.querySelector("[data-own-zone]")).toBeNull()
+    cleanup()
+    card({})
+    expect(document.querySelector("[data-own-zone]")).toBeNull()
   })
 })

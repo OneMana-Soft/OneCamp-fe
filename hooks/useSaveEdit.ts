@@ -60,7 +60,7 @@ export function useSaveEdit(): (target: EditTarget, html: string) => Promise<boo
       if (!html) return true
       const s = store.getState()
       const request = <T,>(apiEndpoint: string, payload: T) =>
-        post.makeRequest<T>({ apiEndpoint, payload, showToast: false, showErrorToast: true, description: "Saving your edit" })
+        post.makeRequest<T>({ apiEndpoint, payload, showToast: false, showErrorToast: true })
       let edit: Edit
       switch (target.kind) {
         case "post": {

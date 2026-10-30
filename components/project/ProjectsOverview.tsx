@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
@@ -18,20 +19,26 @@ import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { SpotWelcome } from "@/components/ui/graphics/spots"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Bar } from "@/components/ui/progress"
-import { Skeleton } from "@/components/ui/skeleton"
 import { WorkSearch, WorkSegmented, WorkTabs, type WorkTab } from "@/components/task/WorkTabs"
-import { WorkState, workToolbar } from "@/components/task/workFrame"
+import { lazyView } from "@/lib/lazy/lazyView"
+import { WorkRowsLoading, WorkState, workToolbar } from "@/components/task/workFrame"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useGrow } from "@/hooks/useGrow"
 import { useLongPress } from "@/hooks/useLongPress"
 import { useProjectsOverview } from "@/hooks/useProjectsOverview"
 import { useStoredState } from "@/hooks/useStoredState"
 import { measureFlip, playFlip, type FlipRects } from "@/lib/flip"
-import { BarChart3, ChartGantt, ChevronDown, Filter, List, Plus, SlidersHorizontal, Target, Users } from "@/lib/icons"
+import { BarChart3, ChartGantt, ChevronDown, Filter, List, Plus, Repeat, SlidersHorizontal, Target, Users } from "@/lib/icons"
 import { HEALTHS } from "@/lib/projectUpdates"
 import { OVERVIEW_SORTS, filterOverview, progressOf, sortOverview, type OverviewFilter, type OverviewSort, type ProjectOverview } from "@/lib/projectsOverview"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
+import { useMyMilestones } from "@/hooks/useMyMilestones"
+import { LazyForecastWhenOf } from "@/components/project/LazyForecastLines"
+import { useProjectForecasts } from "@/hooks/useProjectForecasts"
+import type { ForecastPages } from "@/lib/work/forecastsRead"
+import type { Milestone } from "@/lib/work/milestones"
+import { nextMilestone } from "@/lib/work/myMilestones"
 import { openUI } from "@/store/slice/uiSlice"
 import { app_project_path } from "@/types/paths"
 import { ix } from "@/lib/ui/interactive"
@@ -39,10 +46,18 @@ import { useProjectHue } from "@/lib/projectHue"
 import { MenuCheck } from "@/components/ui/menuCheck"
 import { areaHue } from "@/lib/areas"
 
+// The Cycles view is its own chunk, loaded when it is opened. lazyView, not
+// next/dynamic: it never suspends, so the page can't fall back to the route's
+// skeleton (a bare next/dynamic did, V-16), and once in, the view draws at
+// once. Its loading rows hold its place while the chunk is on its way.
+const Cycles = lazyView(() => import("@/components/work/RunningCycles"))
+// A row's next milestone (linear-16) comes in a chunk of its own, as its milestones come after the list.
+const NextMilestone = dynamic(() => import("@/components/work/milestones/NextMilestone").then((m) => m.NextMilestone), { ssr: false })
+
 const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
-type OverviewView = "table" | "timeline" | "workload" | "goals" | "reports"
-const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload" || v === "goals" || v === "reports"
+type OverviewView = "table" | "timeline" | "workload" | "cycles" | "goals" | "reports"
+const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload" || v === "cycles" || v === "goals" || v === "reports"
 type Grouping = "auto" | "team" | "health" | "none"
 const isGrouping = (v: unknown): v is Grouping => v === "auto" || v === "team" || v === "health" || v === "none"
 const href = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid}`
@@ -56,6 +71,7 @@ const VIEWS: readonly WorkTab<OverviewView>[] = [
   { value: "table", label: "Projects", icon: List },
   { value: "timeline", label: "Timeline", icon: ChartGantt },
   { value: "workload", label: "Workload", icon: Users },
+  { value: "cycles", label: "Cycles", icon: Repeat },
   { value: "goals", label: "Goals", icon: Target },
   { value: "reports", label: "Reports", icon: BarChart3 },
 ]
@@ -127,13 +143,17 @@ function AttentionDot({ p }: { p: ProjectOverview }) {
   )
 }
 
-/** The table's columns: tile, name and team, health, progress, end, tasks (work.md W39). */
-const COLUMNS = "grid grid-cols-[20px_minmax(0,1fr)_128px_176px_72px_132px] items-center gap-x-3 px-6"
+/**
+ * The table's columns: tile, name and team, health, progress, end, forecast, tasks (work.md W39). The forecast
+ * (linear-20) has a column of its own, so its longest words (held up, in another year) stay in it, wrapping to a
+ * second line inside the 52 px row, and the end's words never move when it lands.
+ */
+const COLUMNS = "grid grid-cols-[20px_minmax(0,1fr)_128px_176px_72px_136px_132px] items-center gap-x-3 px-6"
 
 type GrowProps = ReturnType<ReturnType<typeof useGrow>["bar"]>
 
 /** A project as the table lists it: a 52 px row that is a link. */
-function Row({ p, grow, now }: { p: ProjectOverview; grow: GrowProps; now: Date }) {
+function Row({ p, grow, now, next, forecasts }: { p: ProjectOverview; grow: GrowProps; now: Date; next?: Milestone; forecasts: ForecastPages | undefined }) {
   const total = p.open + p.done
   const pct = Math.round(progressOf(p) * 100)
   const hue = useProjectHue(p.project_uuid)
@@ -153,6 +173,7 @@ function Row({ p, grow, now }: { p: ProjectOverview; grow: GrowProps; now: Date 
             {p.project_name}
           </span>
           <AttentionDot p={p} />
+          {next && <NextMilestone m={next} now={now} className="ml-1.5" />}
         </span>
         {p.project_team?.team_name && <span className="block truncate text-xs text-ink-3">{p.project_team.team_name}</span>}
       </span>
@@ -170,6 +191,10 @@ function Row({ p, grow, now }: { p: ProjectOverview; grow: GrowProps; now: Date 
       <span className="text-xs">
         <Ends p={p} now={now} />
       </span>
+      {/* When its open work lands (linear-20): empty until the read comes, in room of its own. */}
+      <span data-forecast-cell="" className="min-w-0 text-xs text-ink-2">
+        <LazyForecastWhenOf forecasts={forecasts} projectId={p.project_uuid} className="flex-wrap whitespace-normal" />
+      </span>
       <span className="truncate text-xs">
         <Counts p={p} />
       </span>
@@ -178,7 +203,7 @@ function Row({ p, grow, now }: { p: ProjectOverview; grow: GrowProps; now: Date 
 }
 
 /** A project as a phone lists it (W39): 72 px, two lines. A long press offers its admins the project's options, as before. */
-function MobileRow({ p }: { p: ProjectOverview }) {
+function MobileRow({ p, next, forecasts }: { p: ProjectOverview; next?: Milestone; forecasts: ForecastPages | undefined }) {
   const dispatch = useDispatch()
   const longPress = useLongPress(
     () =>
@@ -212,12 +237,19 @@ function MobileRow({ p }: { p: ProjectOverview }) {
               </span>
               <HealthWord health={p.health} />
             </span>
-            <span className="mt-1.5 flex items-center gap-2 text-xs text-ink-2">
-              {any && <Bar value={pct} label={`${pct}% done`} className="!w-14" />}
-              <span className="truncate">
-                {any ? `${pct}% · ` : ""}
-                <Counts p={p} />
+            {/* One line, never more: the counts never give; the forecast's date gives its words; the next
+                milestone gives its name, and when even 64 px aren't left it wraps onto a second line that is
+                never shown, so nothing runs past the row. */}
+            <span className="mt-1.5 flex h-4 flex-wrap items-center gap-x-2 overflow-hidden text-xs text-ink-2">
+              <span className="flex min-w-0 max-w-full items-center gap-2">
+                {any && <Bar value={pct} label={`${pct}% done`} className="!w-14 shrink-0" />}
+                <span data-row-counts="" className="shrink-0 whitespace-nowrap">
+                  {any ? `${pct}% · ` : ""}
+                  <Counts p={p} />
+                </span>
+                <LazyForecastWhenOf forecasts={forecasts} projectId={p.project_uuid} before={<span aria-hidden className="text-ink-4">·</span>} />
               </span>
+              {next && <NextMilestone m={next} className="ml-auto min-w-0 grow basis-16 justify-end" />}
             </span>
           </span>
         </div>
@@ -249,6 +281,7 @@ function Header({ sort, onSort }: { sort: OverviewSort; onSort: (s: OverviewSort
       {head("Health", "attention")}
       {head("Progress", "progress")}
       {head("Ends")}
+      {head("Forecast")}
       {head("Tasks", "updated")}
     </div>
   )
@@ -435,6 +468,9 @@ export function ProjectsOverview() {
   const router = useRouter()
   const dispatch = useDispatch()
   const { projects, isLoading, isError, mutate } = useProjectsOverview()
+  // Every project's milestones (linear-16), read once the list is in: each row's next one and the timeline's diamonds.
+  const milestones = useMyMilestones(!!projects)
+  const nextOf = (p: ProjectOverview) => nextMilestone(milestones.get(p.project_uuid.toLowerCase()))
   const [query, setQuery] = useState("")
   const [sort, setSortRaw] = useStoredState<OverviewSort>("oc_projects_sort", "name", isSort)
   const [filter, setFilter] = useStoredState<OverviewFilter>("oc_projects_filter", "all", isFilter)
@@ -490,6 +526,10 @@ export function ProjectsOverview() {
   }, [all, query, filter, facets, sort])
   const overdue = useMemo(() => all.reduce((n, p) => n + p.overdue, 0), [all])
   const grow = useGrow("overview:projects", !!projects, 24)
+  // When each project's open work lands (linear-20): ONE read for every project listed, whatever the search or
+  // filter shows, so typing never asks again.
+  const ids = useMemo(() => all.map((p) => p.project_uuid), [all])
+  const forecasts = useProjectForecasts(ids)
   const [now] = useState(() => new Date())
   const newProject = () => dispatch(openUI({ key: "createProject" }))
   const nothingYet = all.length === 0
@@ -572,6 +612,9 @@ export function ProjectsOverview() {
   if (view === "goals") {
     // Goals stand on their own: a workspace may have goals before it has projects.
     body = <GoalsView compact={!isDesktop} />
+  } else if (view === "cycles") {
+    // Every project's running cycle (linear-12): read on its own, like Reports.
+    body = <Cycles.View fallback={<WorkRowsLoading kind="cycles" compact={!isDesktop} />} render={(m) => <m.RunningCycles compact={!isDesktop} />} />
   } else if (view === "reports") {
     // Reports read their own numbers, across every project (or the ones chosen).
     body = <ReportsView compact={!isDesktop} />
@@ -581,20 +624,9 @@ export function ProjectsOverview() {
         <ErrorState subject="your projects" onRetry={() => void mutate()} />
       </WorkState>
     )
-  } else if (isLoading && !projects) {
+  } else if (isLoading && projects === undefined) {
     // The table's shape: its header, then five rows a project's row high.
-    body = (
-      <div role="status" aria-label="Loading projects">
-        {isDesktop && <div className="h-8 border-b border-line" />}
-        {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} aria-hidden="true" className={cn("flex items-center gap-3 border-b border-line", isDesktop ? "h-[52px] px-6" : "h-[72px]")}>
-            <Skeleton className={cn("shrink-0", isDesktop ? "size-5 rounded-[6px]" : "size-7 rounded-lg")} />
-            <Skeleton className="h-3.5 w-1/4" />
-            <Skeleton className="ml-auto h-1.5 w-1/6" />
-          </div>
-        ))}
-      </div>
-    )
+    body = <WorkRowsLoading kind="projects" compact={!isDesktop} />
   } else if (nothingYet) {
     body = (
       <WorkState>
@@ -626,14 +658,14 @@ export function ProjectsOverview() {
       </div>
     )
   } else if (view === "timeline") {
-    body = <ProjectsTimeline projects={shown} compact={!isDesktop} tools={viewTools} />
+    body = <ProjectsTimeline projects={shown} compact={!isDesktop} tools={viewTools} milestones={milestones} />
   } else if (view === "workload") {
     body = <ProjectsWorkload projects={shown} compact={!isDesktop} tools={viewTools} />
   } else if (!isDesktop) {
     body = (
       <ul data-projects-list="">
         {shown.map((p) => (
-          <MobileRow key={p.project_uuid} p={p} />
+          <MobileRow key={p.project_uuid} p={p} next={nextOf(p)} forecasts={forecasts} />
         ))}
       </ul>
     )
@@ -646,7 +678,7 @@ export function ProjectsOverview() {
           <div key={g.key} role="rowgroup">
             {g.name && <GroupHeader name={g.name} count={g.items.length} />}
             {g.items.map((p) => (
-              <Row key={p.project_uuid} p={p} grow={grow.bar(index++)} now={now} />
+              <Row key={p.project_uuid} p={p} grow={grow.bar(index++)} now={now} next={nextOf(p)} forecasts={forecasts} />
             ))}
           </div>
         ))}

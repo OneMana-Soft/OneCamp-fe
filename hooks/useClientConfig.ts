@@ -8,9 +8,10 @@
 import useSWR from "swr"
 import axiosInstance from "@/lib/axiosInstance"
 import { CLIENT_CONFIG_KEY } from "@/lib/clientConfigKey"
+import { onVisitorPage } from "@/lib/visitorPage"
 import { GetEndpointUrl } from "@/services/endPoints"
 
-interface ClientConfig {
+export interface ClientConfig {
     upload_limit_mb: number
     upload_limit_bytes: number
     // Runtime transcription mode. Drives whether the browser Web-Speech
@@ -69,7 +70,7 @@ export const FEATURE_CALENDAR_REPEATS = "calendar_repeats"
 // A sane default mirrors the backend default (10 MB) so validation still works
 // before the config request resolves.
 const DEFAULT_UPLOAD_LIMIT_MB = 10
-const DEFAULT_CONFIG: ClientConfig = {
+export const DEFAULT_CONFIG: ClientConfig = {
     upload_limit_mb: DEFAULT_UPLOAD_LIMIT_MB,
     upload_limit_bytes: DEFAULT_UPLOAD_LIMIT_MB * 1024 * 1024,
     transcription_mode: "frontend",
@@ -96,13 +97,8 @@ async function fetchClientConfig(): Promise<ClientConfig> {
         silent: true,
     })
     const data = (res.data as { data?: Partial<ClientConfig> })?.data
-    // A COPY, not DEFAULT_CONFIG itself. Object identity against that constant is
-    // how useFeatureState below tells "the server has not answered yet" from "the
-    // server answered", and returning the shared object here would make a reply
-    // this thin look permanently like silence.
-    if (!data) return { ...DEFAULT_CONFIG }
     // Merge over defaults so a backend that hasn't shipped a field yet (or a
-    // partial payload) never yields an undefined transcription_mode.
+    // partial payload, or none) never yields an undefined transcription_mode.
     return { ...DEFAULT_CONFIG, ...data } as ClientConfig
 }
 
@@ -118,14 +114,19 @@ async function fetchClientConfig(): Promise<ClientConfig> {
 //   - with nothing known, FeaturesNotice says so and offers Try again.
 export const CONFIG_RETRY = { interval: 3000, count: 6 }
 
+// A visitor has no session (401): not asked, everything off.
 function useClientConfigRequest() {
-    return useSWR(CLIENT_CONFIG_KEY, fetchClientConfig, {
+    const visitor = onVisitorPage()
+    const request = useSWR(visitor ? null : CLIENT_CONFIG_KEY, fetchClientConfig, {
         revalidateOnFocus: false,
         dedupingInterval: 5 * 60 * 1000,
-        fallbackData: DEFAULT_CONFIG,
+        // No fallbackData: SWR weighs a reply against it by value, so a server
+        // with nothing optional (a reply equal to the defaults) drew nobody
+        // again, and its readers waited on "unknown" (Home's list, 22 Oct).
         errorRetryInterval: CONFIG_RETRY.interval,
         errorRetryCount: CONFIG_RETRY.count,
     })
+    return visitor ? { ...request, data: DEFAULT_CONFIG, error: undefined } : request
 }
 
 /**
@@ -135,7 +136,7 @@ function useClientConfigRequest() {
  */
 export function useClientConfigStatus(): { known: boolean; failed: boolean; retry: () => void } {
     const { data, error, mutate } = useClientConfigRequest()
-    return { known: !!data && data !== DEFAULT_CONFIG, failed: !!error, retry: () => void mutate() }
+    return { known: data !== undefined, failed: !!error, retry: () => void mutate() }
 }
 
 export function useClientConfig(): ClientConfig {
@@ -154,15 +155,21 @@ export function useClientConfig(): ClientConfig {
  * replaces it with the call, which reads as a broken product rather than a
  * careful one.
  *
- * So routes get the third state and decide for themselves. The check is object
- * identity against the fallback: SWR hands back that exact object until the
- * request resolves, and every real reply is a new one.
+ * So routes get the third state and decide for themselves: no reply yet is
+ * "unknown".
+ *
+ * A failed read with nothing kept stays "unknown": a route waits on (Try again
+ * is in FeaturesNotice), but a part that only holds its place passes onFailure
+ * "unavailable", or it waits for good (Home's list, 22 Oct).
  */
 type FeatureState = "unknown" | "available" | "unavailable"
 
-export function useFeatureState(name: string): FeatureState {
-    const { data } = useClientConfigRequest()
-    if (!data || data === DEFAULT_CONFIG) return "unknown"
+export function useFeatureState(
+    name: string,
+    { onFailure = "unknown" }: { onFailure?: "unknown" | "unavailable" } = {},
+): FeatureState {
+    const { data, error } = useClientConfigRequest()
+    if (!data) return error ? onFailure : "unknown"
     return data.features?.[name] === true ? "available" : "unavailable"
 }
 

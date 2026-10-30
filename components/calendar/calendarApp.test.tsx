@@ -5,8 +5,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 const asked: string[] = []
 let connected = false
 let account = ""
+// Where the person's sync with Google stands (calendar C9), as /calendar/sync/google answers.
+let syncState: string | undefined
 let loading = false
 let failing = false
+// The calendars beside yours: one listed, and their events' read failing (F2).
+// The same answers each time, as SWR gives: a new error each render would
+// tell the calendar something changed, again and again.
+let othersFailing = false
+const othersListed = { data: { data: [{ id: "c1", name: "Launch", kind: "project", access: "view" }] }, isLoading: false, mutate: () => {} }
+const othersDown = { data: undefined, isLoading: false, isError: new Error("500"), mutate: () => {} }
 let free = false
 let mobile = false
 // Set by a test that wants its own events (or tasks) back for every range.
@@ -25,14 +33,20 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
   useFeature: (name: string) => repeatsOn && name === "calendar_repeats",
 }))
+const NO_REPEATS = { data: undefined, isLoading: false, mutate: vi.fn() }
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
     if (loading && (url.includes("/event/getEvents") || url.includes("assignedTaskList"))) return { data: undefined, isLoading: true, mutate: refetch }
+    if (othersFailing && url === "/calendar/calendars") return othersListed
+    if (othersFailing && url.startsWith("/calendar/calendars/events")) return othersDown
     if (failing && url.includes("/event/getEvents")) return { data: undefined, isLoading: false, isError: new Error("502"), mutate: refetch }
     if (url.includes("/event/getEvents")) return { data: { data: events ?? (free ? [] : [standup()]) }, isLoading: false, mutate: refetch }
     if (url.includes("assignedTaskList")) return { data: { data: { user_tasks: taskList } }, isLoading: false, mutate: refetch }
+    // What repeats (head 9) has its own spec (e2e/calendarRepeats): nothing here, kept like SWR keeps it.
+    if (url.startsWith("/calendar/repeats")) return NO_REPEATS
     if (url.includes("bookingPages")) return { data: { data: [{}, {}] }, isLoading: false, mutate: vi.fn() }
+    if (url.includes("/calendar/sync/google")) return { data: syncState ? { data: { state: syncState } } : undefined, isLoading: false, mutate: vi.fn() }
     return { data: { data: { isConnected: connected, accountEmail: account } }, isLoading: false, mutate: vi.fn(async () => ({ data: { isConnected: connected, accountEmail: account } })) }
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
@@ -57,7 +71,7 @@ const dispatch = vi.fn()
 let panel = { isOpen: false, data: { eventUUID: "" } }
 vi.mock("react-redux", () => ({ useDispatch: () => dispatch, useSelector: (pick: (s: unknown) => unknown) => pick({ rightPanel: { rightPanelState: panel } }) }))
 const copy = vi.fn()
-vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copy }) }))
+vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copy }), copyToClipboard: copy }))
 const push = vi.fn()
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), useSearchParams: () => new URLSearchParams(window.location.search) }))
 // The full dialog: whether it is open, and what it opened with.
@@ -71,6 +85,7 @@ vi.mock("@/components/calendar/createCalendarEventDialog", () => ({
 
 import { CalendarApp, periodTitle, periodTitles } from "./calendarApp"
 import { CALENDAR_KEYS, type CalendarCommand } from "@/lib/calendar/keys"
+import { choose } from "@/lib/calendar/choices"
 import { deleteEventConfirm, deleteEventRequest } from "@/lib/calendar/confirmDelete"
 import { installPointerEvent } from "@/lib/testing/pointerEvent"
 import { pinTestClock, TEST_TODAY } from "@/lib/testing/testClock"
@@ -100,9 +115,11 @@ afterEach(() => {
   confirm.mockReset()
   connected = false
   account = ""
+  syncState = undefined
   toast.mockReset()
   loading = false
   failing = false
+  othersFailing = false
   free = false
   mobile = false
   events = null
@@ -137,6 +154,8 @@ const showMonth = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Month" }))
   await waitFor(() => expect(document.querySelector("[data-month-grid]")).toBeTruthy())
 }
+/** The agenda is a chunk of its own too: listed once its code is in. */
+const agendaShown = () => waitFor(() => expect(document.querySelector("[data-agenda]")).toBeTruthy())
 const views = () => screen.getAllByRole("button", { pressed: false }).concat(screen.getAllByRole("button", { pressed: true })).filter((b) => b.closest("[data-calendar-views]"))
 
 describe("the calendar", () => {
@@ -155,12 +174,21 @@ describe("the calendar", () => {
     expect(screen.getByRole("checkbox", { name: "Personal" })).toBeTruthy()
   })
 
-  it("asks before disconnecting Google Calendar", async () => {
+  it("asks before disconnecting Google Calendar, then unlinks it and takes its events off at once", async () => {
     connected = true
     render(<CalendarApp />)
     fireEvent.click(screen.getByRole("button", { name: /Calendars/ }))
     fireEvent.click(await screen.findByRole("button", { name: "Disconnect Google Calendar" }))
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Disconnect Google Calendar?", destructive: true }))
+    expect(makeRequest).not.toHaveBeenCalled()
+    await act(async () => {
+      await confirm.mock.calls[0][0].onConfirm()
+    })
+    expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ apiEndpoint: "/integration/google-calendar/unlink" }))
+    // Google's events leave the calendar's copy before it is read again.
+    const drop = refetch.mock.calls.find((c) => typeof c[0] === "function")
+    expect(drop?.[0]({ data: [{ event_uuid: "gcal-1" }, { event_uuid: "e1" }] })).toEqual({ data: [{ event_uuid: "e1" }] })
+    expect(drop?.[1]).toEqual({ revalidate: true })
   })
 
   it("has one primary action, New event", () => {
@@ -170,29 +198,33 @@ describe("the calendar", () => {
   })
 
   // Integration review, 12 Oct: at 768 beside the rail the header's title was
-  // cut to "12–18 …". Under 46rem of header New event keeps its plus alone.
-  it("folds New event to its plus under 46rem of header, still named New event", () => {
+  // cut to "12–18 …". Under 57rem of header New event keeps its plus alone
+  // (46rem until the fifth view, Year, made the actions wider: V-43).
+  it("folds New event to its plus under 57rem of header, still named New event", () => {
     render(<CalendarApp />)
     const add = document.querySelector("[data-new-event]") as HTMLElement
     expect(add.getAttribute("aria-label")).toBe("New event")
-    expect(add.className).toContain("@max-[46rem]/calhead:w-8")
+    expect(add.className).toContain("@max-[57rem]/calhead:w-8")
     const words = Array.from(add.querySelectorAll("span")).find((s) => s.textContent === "New event") as HTMLElement
-    expect(words.className).toBe("hidden @[46rem]/calhead:inline")
+    expect(words.className).toBe("hidden @[57rem]/calhead:inline")
   })
 
-  it("switches views with four buttons over one sliding thumb, asking for nothing new", () => {
+  it("switches views with five buttons over one sliding thumb, asking for nothing new", () => {
     render(<CalendarApp />)
     const first = ranges()
-    expect(views().map((b) => b.textContent).sort()).toEqual(["Agenda", "Day", "Month", "Week"])
+    expect(views().map((b) => b.textContent).sort()).toEqual(["Agenda", "Day", "Month", "Week", "Year"])
     expect(document.querySelectorAll("[data-calendar-views] [data-thumb]")).toHaveLength(1)
     expect(screen.getByRole("button", { name: "Week", pressed: true })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Month" }))
     const thumb = document.querySelector("[data-thumb]") as HTMLElement
-    // Whole segments: 64 px each, 52 under 40rem of header (the panel open at
-    // 1280), where the search (/ opens it) steps aside, so the period stays whole.
+    // Whole segments: 64 px each, 52 under 52rem of header, where the search (/
+    // opens it) steps aside, so the period stays whole; under 46rem (the panel
+    // open at 1280) each says its initial, its key (calendar.css), its name
+    // still its own.
     expect(thumb.style.transform).toBe("translateX(calc(var(--seg) * 2))")
-    expect(document.querySelector("[data-calendar-views]")!.className).toMatch(/\[--seg:64px\] @max-\[40rem\]\/calhead:\[--seg:52px\]/)
-    expect(screen.getByRole("button", { name: "Search events" }).className).toMatch(/@max-\[40rem\]\/calhead:hidden/)
+    expect(document.querySelector("[data-calendar-views]")!.className).toMatch(/\[--seg:64px\] @max-\[52rem\]\/calhead:\[--seg:52px\]/)
+    expect(screen.getByRole("button", { name: "Search events" }).className).toMatch(/@max-\[52rem\]\/calhead:hidden/)
+    expect(views().map((b) => b.querySelector(".calendar-view-name")?.textContent)).toEqual(views().map((b) => b.textContent))
     fireEvent.click(screen.getByRole("button", { name: "Day" }))
     expect(screen.getByRole("button", { name: "Previous day" })).toBeTruthy()
     expect(ranges()).toEqual(first)
@@ -242,11 +274,35 @@ describe("the calendar", () => {
     expect(screen.getByRole("heading", { name: "Couldn't load your calendar" })).toBeTruthy()
   })
 
+  // F2's follow-up (DESIGN-BUILD-8): a failed read of the calendars beside
+  // yours is partial data. Your week stays drawn and live, and one row says
+  // their times are missing, never that they're free.
+  it("keeps your week when only the calendars beside yours couldn't be read, and says so in one row", async () => {
+    othersFailing = true
+    render(<CalendarApp />)
+    await showMonth()
+    const words = await screen.findByText("Couldn't load the calendars beside yours, so their busy times aren't shown.")
+    expect(words.closest("[role=status]")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
+    expect(document.querySelector("[data-calendar-failed]")).toBeNull()
+    expect(document.querySelector('[data-event-uuid="e1"]')).toBeTruthy()
+  })
+
+  it("says a failure of your calendar and theirs once, as your calendar's", async () => {
+    failing = true
+    othersFailing = true
+    render(<CalendarApp />)
+    await waitFor(() => expect(asked.some((u) => u.startsWith("/calendar/calendars/events"))).toBe(true))
+    await act(async () => {})
+    expect(screen.getByRole("heading", { name: "Couldn't load your calendar" })).toBeTruthy()
+    expect(screen.queryByText(/so their busy times aren't shown/)).toBeNull()
+  })
+
   it("colours a personal event by its calendar", async () => {
     render(<CalendarApp />)
     await showMonth()
     const bar = document.querySelector('[data-event-uuid="e1"]') as HTMLElement
-    expect(bar.getAttribute("data-hue")).toBe("sky")
+    expect(bar.getAttribute("data-hue")).toBe("sun")
   })
 
   it("opens an event as a popover beside it, not the panel", async () => {
@@ -259,7 +315,7 @@ describe("the calendar", () => {
   it("opens on the agenda on a phone, with a strip of the week's days", () => {
     mobile = true
     render(<CalendarApp />)
-    expect(screen.getByRole("button", { name: "agenda", pressed: true })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Agenda", pressed: true })).toBeTruthy()
     expect(document.querySelectorAll("[data-week-strip] button")).toHaveLength(7)
     expect(screen.getByRole("button", { name: "New event" })).toBeTruthy()
   })
@@ -269,14 +325,14 @@ describe("the calendar", () => {
   it("pages a phone's month view by month", () => {
     mobile = true
     render(<CalendarApp />)
-    fireEvent.click(screen.getByRole("button", { name: "month" }))
+    fireEvent.click(screen.getByRole("button", { name: "Month" }))
     const title = () => document.querySelector("[data-period-title]")?.textContent ?? ""
     const before = title()
     fireEvent.click(screen.getByRole("button", { name: "Next month" }))
     expect(title()).not.toBe(before)
     fireEvent.click(screen.getByRole("button", { name: "Previous month" }))
     expect(title()).toBe(before)
-    fireEvent.click(screen.getByRole("button", { name: "agenda" }))
+    fireEvent.click(screen.getByRole("button", { name: "Agenda" }))
     expect(screen.queryByRole("button", { name: "Next month" })).toBeNull()
   })
 
@@ -287,7 +343,7 @@ describe("the calendar", () => {
   it("keeps a phone's month arrows' reaches apart", () => {
     mobile = true
     render(<CalendarApp />)
-    fireEvent.click(screen.getByRole("button", { name: "month" }))
+    fireEvent.click(screen.getByRole("button", { name: "Month" }))
     const pair = document.querySelector("[data-month-step]") as HTMLElement
     expect(pair.contains(screen.getByRole("button", { name: "Previous month" }))).toBe(true)
     // The one rule for a row of small controls: a touch group stands them 44px
@@ -314,6 +370,7 @@ describe("the calendar", () => {
     expect(periodTitles("week", new Date(2026, 11, 31))).toEqual(["28 Dec 2026 – 3 Jan 2027", "28 Dec – 3 Jan 2027", "28 Dec – 3 Jan", "28 Dec–3 Jan"])
     expect(periodTitles("month", d)).toEqual(["October 2026", "Oct 2026", "Oct"])
     expect(periodTitles("day", d)).toEqual(["Thursday 15 October 2026", "Thu 15 Oct 2026", "Thu 15 Oct", "15 Oct"])
+    expect(periodTitles("year", d)).toEqual(["2026"])
     for (const v of ["day", "week", "month", "agenda"] as const) {
       const t = periodTitles(v, d)
       for (let i = 1; i < t.length; i++) expect(t[i].length).toBeLessThan(t[i - 1].length)
@@ -332,7 +389,7 @@ describe("the calendar", () => {
 // it listed to 1 November and Next began on 13 November: 2 to 12 November
 // never showed. It pages by what it listed now.
 describe("the desktop agenda", () => {
-  it("pages by what it listed, so no day is ever skipped", () => {
+  it("pages by what it listed, so no day is ever skipped", async () => {
     vi.useRealTimers()
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(new Date(2026, 9, 13, 9))
@@ -345,6 +402,7 @@ describe("the desktop agenda", () => {
     events = [on(9, 5), on(9, 20), on(9, 30), on(10, 2), on(10, 5)]
     render(<CalendarApp />)
     fireEvent.click(screen.getByRole("button", { name: "Agenda" }))
+    await agendaShown()
     // The title's text holds each of its wordings, longest first.
     const title = () => document.querySelector("[data-calendar-header] [data-period-title]")?.textContent ?? ""
     const listed = () => Array.from(document.querySelectorAll("[data-agenda] section")).map((s) => s.getAttribute("aria-label"))
@@ -387,12 +445,34 @@ describe("moving a booked meeting", () => {
 // CAL-BUG-8: Google Calendar links through the connectors flow now, whose
 // callback lands on the calendar with ?connector=success|error.
 describe("linking Google Calendar", () => {
+  // C9, DESIGN-BUILD-8: while Google has stopped answering, the closed
+  // Calendars button carries a danger dot, and its name says so.
+  it("marks the closed Calendars button while Google needs connecting again", () => {
+    connected = true
+    syncState = "broken"
+    render(<CalendarApp />)
+    const button = screen.getByRole("button", { name: "Calendars, Google needs connecting again" })
+    expect(button.querySelector("[data-google-broken]")).toBeTruthy()
+  })
+
+  it("leaves the Calendars button plain while the sync is in step, or Google isn't connected", () => {
+    syncState = "broken"
+    const { unmount } = render(<CalendarApp />)
+    expect(screen.getByRole("button", { name: "Calendars" }).querySelector("[data-google-broken]")).toBeNull()
+    expect(asked.some((u) => u.includes("/calendar/sync/google"))).toBe(false)
+    unmount()
+    connected = true
+    syncState = "synced"
+    render(<CalendarApp />)
+    expect(screen.getByRole("button", { name: "Calendars" }).querySelector("[data-google-broken]")).toBeNull()
+  })
+
   it("says which Google account is connected", async () => {
     connected = true
     account = "maya@gmail.com"
     render(<CalendarApp />)
     fireEvent.click(screen.getByRole("button", { name: /Calendars/ }))
-    expect((await screen.findByText("Connected as maya@gmail.com")).hasAttribute("data-google-account")).toBe(true)
+    expect((await screen.findByText("maya@gmail.com")).hasAttribute("data-google-account")).toBe(true)
   })
 
   it("says so on coming back from Google, and drops the answer from the address", async () => {
@@ -402,7 +482,8 @@ describe("linking Google Calendar", () => {
     await act(async () => {
       render(<CalendarApp />)
     })
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Google Calendar is connected", description: "Connected as maya@gmail.com." }))
+    // Said by a chunk of its own, once it is in.
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Google Calendar is connected", description: "Connected as maya@gmail.com." })))
     expect(window.location.search).toBe("")
   })
 
@@ -411,7 +492,7 @@ describe("linking Google Calendar", () => {
     await act(async () => {
       render(<CalendarApp />)
     })
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't connect Google Calendar", variant: "destructive" }))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't connect Google Calendar", variant: "destructive" })))
     expect(window.location.search).toBe("")
   })
 })
@@ -423,9 +504,11 @@ describe("the calendar's address", () => {
   const title = () => document.querySelector("[data-calendar-header] [data-period-title]")?.textContent ?? ""
   const on13Oct = () => {
     vi.useRealTimers()
-    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] })
     vi.setSystemTime(new Date(2026, 9, 13, 9))
   }
+  // The address is written once the place has been still for a second (fluid-10).
+  const settle = () => act(() => void vi.advanceTimersByTime(1000))
 
   it("opens on the day and the view it names", () => {
     window.history.replaceState({}, "", "/app/calendar?date=2026-11-05&view=month")
@@ -434,15 +517,30 @@ describe("the calendar's address", () => {
     expect(title()).toContain("November 2026")
   })
 
-  it("says the day, and then the view, as you move, and nothing on opening", () => {
+  it("says the day, and then the view, once each has settled, and nothing on opening", () => {
     on13Oct()
     render(<CalendarApp />)
+    settle()
     expect(window.location.search).toBe("")
     act(() => void fireEvent.keyDown(window, { key: "j" }))
-    expect(window.location.search).toBe("?date=2026-10-20")
+    act(() => void fireEvent.keyDown(window, { key: "j" }))
+    // Not while it moves: J twice is one write, of where it stopped.
+    expect(window.location.search).toBe("")
+    settle()
+    expect(window.location.search).toBe("?date=2026-10-27")
     fireEvent.click(screen.getByRole("button", { name: "Month" }))
-    expect(window.location.search).toBe("?date=2026-10-20&view=month")
+    settle()
+    expect(window.location.search).toBe("?date=2026-10-27&view=month")
     expect(window.location.pathname).toBe("/app/calendar")
+  })
+
+  it("writes where it is at once when the page is left before it settles", () => {
+    on13Oct()
+    render(<CalendarApp />)
+    act(() => void fireEvent.keyDown(window, { key: "j" }))
+    expect(window.location.search).toBe("")
+    act(() => void window.dispatchEvent(new Event("pagehide")))
+    expect(window.location.search).toBe("?date=2026-10-20")
   })
 
   // The link that opens an event on a computer lands on the calendar with
@@ -458,9 +556,11 @@ describe("the calendar's address", () => {
     const { rerender } = render(<CalendarApp />)
     panel = { isOpen: true, data: { eventUUID: "e1" } }
     rerender(<CalendarApp />)
+    settle()
     expect(window.location.search).toBe("?date=2026-10-13&event=e1")
     panel = { isOpen: false, data: { eventUUID: "e1" } }
     rerender(<CalendarApp />)
+    settle()
     expect(window.location.search).toBe("?date=2026-10-13")
   })
 
@@ -538,6 +638,11 @@ describe("the calendar's keys", () => {
       press(k)
       expect(pressed("Day")).toBeTruthy()
     },
+    custom: (k) => {
+      press(k)
+      // Google's custom view: four days from the date, stepped four at a time.
+      expect(screen.getByRole("button", { name: "Next 4 days" })).toBeTruthy()
+    },
     week: (k) => {
       press("m")
       press(k)
@@ -550,6 +655,10 @@ describe("the calendar's keys", () => {
     agenda: (k) => {
       press(k)
       expect(pressed("Agenda")).toBeTruthy()
+    },
+    year: (k) => {
+      press(k)
+      expect(pressed("Year")).toBeTruthy()
     },
     newEvent: async (k) => {
       press(k)
@@ -632,9 +741,10 @@ describe("the calendar's keys", () => {
     expect(dispatch).toHaveBeenCalledWith(opened("e1"))
   })
 
-  it("acts on the agenda's row that has the focus", () => {
+  it("acts on the agenda's row that has the focus", async () => {
     render(<CalendarApp />)
     press("a")
+    await agendaShown()
     const row = document.querySelector<HTMLElement>('[data-agenda] [data-event-uuid="e1"]')!
     row.focus()
     press("e", row)
@@ -783,7 +893,8 @@ describe("under a finger", () => {
     mobile = true
     render(<CalendarApp />)
     const own = Array.from(document.querySelectorAll("[data-week-strip] button, [data-phone-bar] [data-calendar-views] button"))
-    expect(own).toHaveLength(10)
+    // The strip's seven days, and the switch's Agenda, Day, Month and Year.
+    expect(own).toHaveLength(11)
     for (const b of own) expect(b.hasAttribute("data-touch-target")).toBe(true)
   })
 
@@ -800,7 +911,7 @@ describe("under a finger", () => {
 
 // FE-F-1: the calendar asked for 100 of the month's tasks.
 describe("a month with many tasks", () => {
-  it("shows every one of 250", () => {
+  it("shows every one of 250", async () => {
     vi.useRealTimers()
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(new Date(2026, 9, 1, 9))
@@ -812,6 +923,7 @@ describe("a month with many tasks", () => {
     // The month grid's range, all of it (useAssignedTasks reads it page by page).
     expect(taskRange).toBe(`startDate=${new Date(2026, 8, 28).toISOString()}&endDate=${new Date(2026, 10, 1, 23, 59, 59, 999).toISOString()}`)
     fireEvent.click(screen.getByRole("button", { name: "Agenda" }))
+    await agendaShown()
     expect(document.querySelectorAll('[data-agenda] [data-event-uuid^="t"]')).toHaveLength(250)
   })
 })
@@ -864,5 +976,145 @@ describe("an instance of a repeating event", () => {
       fireEvent.click(screen.getByRole("button", { name: "Delete" }))
     })
     expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ method: "DELETE", apiEndpoint: "/calendar/events", appendToUrl: `/${instance}?scope=this` }))
+  })
+})
+
+// B1's view options: Google's custom view and its view settings, by the switch.
+describe("the view options", () => {
+  afterEach(() => act(() => choose(() => ({ view: { span: "4d", density: "comfortable", weekends: true, weekNumbers: false, weekStartsOn: 1 } }))))
+
+  it("show the custom length chosen there, live, and name it on their button", async () => {
+    render(<CalendarApp />)
+    fireEvent.click(screen.getByRole("button", { name: "View options" }))
+    const days = await screen.findByRole("radiogroup", { name: "Custom view in days" })
+    fireEvent.click(within(days).getByRole("radio", { name: "5" }))
+    expect(screen.getByRole("button", { name: "Next 5 days" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "View options", pressed: true }).textContent).toContain("5 days")
+  })
+
+  it("hide the weekend from the week, and number the weeks", () => {
+    render(<CalendarApp />)
+    expect(document.querySelectorAll("[data-weekend]").length).toBeGreaterThan(0)
+    act(() => choose((c) => ({ view: { ...c.view, weekends: false, weekNumbers: true } })))
+    expect(document.querySelectorAll("[data-weekend]")).toHaveLength(0)
+    expect(document.querySelector("[data-week-number]")?.textContent).toMatch(/^W\d+$/)
+  })
+
+  it("draw the week's hour compact from Density, live behind them", async () => {
+    render(<CalendarApp />)
+    const hour = () => document.querySelector<HTMLElement>('[data-calendar] [style*="--cal-hour"]')?.style.getPropertyValue("--cal-hour")
+    expect(hour()).toBe("56px")
+    fireEvent.click(screen.getByRole("button", { name: "View options" }))
+    const density = await screen.findByRole("radiogroup", { name: "Density" })
+    fireEvent.click(within(density).getByRole("radio", { name: "Compact" }))
+    expect(hour()).toBe("40px")
+    // Still open: a keyboard goes on through the choices.
+    expect(screen.getByRole("radiogroup", { name: "Density" })).toBeTruthy()
+  })
+
+  it("print the view as drawn, alone on the page, once they have closed", async () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => {})
+    render(<CalendarApp />)
+    // The calendar is what prints (globals.css: a print root prints alone),
+    // and the boxes around it carry the mark the print rules key on.
+    const calendar = document.querySelector("[data-calendar]")!
+    expect(calendar.hasAttribute("data-print-root")).toBe(true)
+    expect(calendar.parentElement?.hasAttribute("data-print-path")).toBe(true)
+    expect(document.documentElement.hasAttribute("data-print-path")).toBe(true)
+    fireEvent.click(screen.getByRole("button", { name: "View options" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Print" }))
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole("radiogroup", { name: "Density" })).toBeNull()
+  })
+})
+
+// B1's Year (Google's, Y or 6): the year's twelve months, from its own key and
+// its switch's segment; a day there opens its day, a month's name its month,
+// and the year asks for itself once.
+describe("the year", () => {
+  it("opens on Y, asks for its year, and a day there opens its day", async () => {
+    render(<CalendarApp />)
+    act(() => void fireEvent.keyDown(window, { key: "y" }))
+    await waitFor(() => expect(document.querySelector("[data-year]")).toBeTruthy())
+    expect(document.querySelectorAll("[data-year-month]")).toHaveLength(12)
+    expect(screen.getByRole("button", { name: "Year", pressed: true })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Next year" })).toBeTruthy()
+    const year = TEST_TODAY.getFullYear()
+    await waitFor(() => expect([...ranges()].some((u) => u.includes(`startDate=${new Date(year, 0, 1).toISOString()}`) && u.includes(`endDate=${new Date(year, 11, 31, 23, 59, 59, 999).toISOString()}`))).toBe(true))
+    fireEvent.click(document.querySelector(`[data-year-day="${year}-03-04"]`) as HTMLElement)
+    await waitFor(() => expect(document.querySelector("[data-period]")?.getAttribute("data-period")).toBe(`day:${year}-03-04`))
+  })
+
+  it("opens a month from its name", async () => {
+    render(<CalendarApp />)
+    act(() => void fireEvent.keyDown(window, { key: "6" }))
+    await waitFor(() => expect(document.querySelector("[data-year]")).toBeTruthy())
+    fireEvent.click(within(document.querySelector('[data-year-month="7"]') as HTMLElement).getByRole("button", { name: "July" }))
+    await waitFor(() => expect(document.querySelector("[data-month-grid]")).toBeTruthy())
+    expect(screen.getByRole("button", { name: "Month", pressed: true })).toBeTruthy()
+  })
+})
+
+// gcal-new-task-blocks: a task carried from the all-day lane onto the hours is
+// a block of its time, made through the one create (POST /calendar/events),
+// which names it for the task.
+describe("a task carried onto the hours", () => {
+  it("blocks an hour of its time through the one create", async () => {
+    taskList = [{ task_uuid: "t9", task_name: "Write the brief", task_due_date: iso(now.getDate(), 17), task_status: "todo" }]
+    makeRequest.mockResolvedValue({ id: "b1", title: "Write the brief" })
+    render(<CalendarApp />)
+    installPointerEvent()
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const col = this.dataset?.dayCol
+      const left = col !== undefined ? 56 + Number(col) * 100 : 56
+      return { left, right: left + (col !== undefined ? 100 : 700), top: 0, bottom: 24 * 56, width: col !== undefined ? 100 : 700, height: 24 * 56, x: left, y: 0, toJSON: () => ({}) } as DOMRect
+    })
+    const chip = document.querySelector('[data-all-day-rail] [aria-label^="Task: Write the brief"]') as HTMLElement
+    const hours = document.querySelector('[data-day-col="0"]')!.parentElement as HTMLElement
+    fireEvent.pointerDown(chip, { button: 0, pointerId: 1, clientX: 106, clientY: 5 })
+    fireEvent.pointerMove(hours, { pointerId: 1, clientX: 106, clientY: 10 * 56 })
+    await act(async () => {
+      fireEvent.pointerUp(hours, { pointerId: 1, clientX: 106, clientY: 10 * 56 })
+    })
+    await waitFor(() => expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ method: "POST", apiEndpoint: "/calendar/events" })))
+    const { payload } = makeRequest.mock.calls.find(([r]) => r.method === "POST")![0]
+    expect(payload).toMatchObject({ kind: "task_block", task_uuid: "t9", title: "" })
+    const start = new Date(payload.start.at)
+    expect([start.getHours(), start.getMinutes(), (new Date(payload.end.at).getTime() - start.getTime()) / 60000]).toEqual([9, 30, 60])
+  })
+})
+
+// Block time from a slot: quick create's task goes through the same block
+// write as the lane's carry (blockTime), with the title the card was given.
+describe("block time from a slot", () => {
+  beforeEach(() => {
+    repeatsOn = true
+  })
+  afterEach(() => {
+    repeatsOn = false
+  })
+
+  it("makes the block through the one create, at the slot pressed", async () => {
+    taskList = [{ task_uuid: "t9", task_name: "Write the brief", task_due_date: iso(now.getDate(), 17), task_status: "todo", task_project: { project_uuid: "p1", project_name: "Launch" } }]
+    makeRequest.mockResolvedValue({ id: "b2", title: "Write the brief" })
+    render(<CalendarApp />)
+    installPointerEvent()
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const col = this.dataset?.dayCol
+      const left = col !== undefined ? 56 + Number(col) * 100 : 56
+      return { left, right: left + (col !== undefined ? 100 : 700), top: 0, bottom: 24 * 56, width: col !== undefined ? 100 : 700, height: 24 * 56, x: left, y: 0, toJSON: () => ({}) } as DOMRect
+    })
+    const col = document.querySelector('[data-day-col="0"]') as HTMLElement
+    fireEvent.pointerDown(col, { button: 0, pointerId: 1, clientX: 106, clientY: 14 * 56 + 5 })
+    await act(async () => {
+      fireEvent.pointerUp(col.parentElement as HTMLElement, { pointerId: 1, clientX: 106, clientY: 14 * 56 + 5 })
+    })
+    fireEvent.click(await screen.findByRole("button", { name: "Block time for a task" }, { timeout: 3000 }))
+    fireEvent.click(await screen.findByRole("option", { name: /Write the brief/ }, { timeout: 3000 }))
+    fireEvent.click(screen.getByRole("button", { name: /^Save/ }))
+    await waitFor(() => expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ method: "POST", apiEndpoint: "/calendar/events" })))
+    const { payload } = makeRequest.mock.calls.find(([r]) => r.method === "POST")![0]
+    expect(payload).toMatchObject({ kind: "task_block", task_uuid: "t9", title: "" })
+    expect(new Date(payload.start.at).getHours()).toBe(14)
   })
 })

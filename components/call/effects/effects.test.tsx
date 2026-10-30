@@ -99,8 +99,12 @@ describe("the call route's first load", () => {
     "lib/calls/processors/effects", "lib/calls/processors/background", "lib/calls/processors/noise", "lib/calls/processors/backdrops", "lib/calls/processors/picture", "lib/calls/processors/strain", "lib/calls/onePeerConnection",
     "components/call/effects/CallEffects", "components/call/effects/GreenRoomEffects", "components/call/effects/useCallEffects", "components/call/effects/useGreenRoomEffects", "components/call/effects/effectsRunner", "components/call/effects/EffectsPicker", "components/call/effects/EffectsChooser", "components/call/effects/CallEffectsPanel",
     "components/livekit/CallPeoplePanel", "components/livekit/PersonMenuItems",
+    // Hands (CALLS-3a): what changes your hand, its badge, the signs that stay, and the unmute notice.
+    "lib/calls/hands", "components/livekit/handsRunner", "components/livekit/HandBadge", "components/livekit/FeedbackRow", "components/livekit/unmuteToast",
+    // The lobby (CALLS-2): its list and notice for whoever lets people in, and the guest's wait.
+    "lib/calls/lobby", "components/livekit/KnockBar", "components/livekit/CallLobbySection", "components/guest/GuestLobby", "components/guest/waitToBeLetIn", "services/guestKnock",
   ]
-  const ENTRIES = ["app/app/meet/ch/[channelId]/page.tsx", "app/app/meet/m/[meetingId]/page.tsx", "app/app/meet/instant/page.tsx", "app/guest/m/[token]/page.tsx", "app/app/channel/[channel-id]/page.tsx"]
+  const ENTRIES = ["app/app/meet/ch/[channelId]/page.tsx", "app/app/meet/m/[meetingId]/page.tsx", "app/app/meet/instant/page.tsx", "app/guest/m/[token]/page.tsx", "app/r/[slug]/page.tsx", "app/app/channel/[channel-id]/page.tsx"]
   const importRe = /^\s*(?:import|export)\s+(?!type\b)(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/gm
   const root = path.join(__dirname, "..", "..", "..")
   const resolve = (spec: string, from: string): string | null => {

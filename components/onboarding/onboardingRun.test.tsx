@@ -167,6 +167,32 @@ describe("the guided first run", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/sample project/i)
   })
 
+  // design-15's way to WIN (DESIGN-BUILD-3): the run makes a doc too, and
+  // its last step teaches the three keys, as Linear's command-menu lesson does.
+  it("opens the sample's brief beside the project, when it has one", async () => {
+    const sampled = state({ sample: { project_uuid: "p-1", team_uuid: "t-1", doc_uuid: "d-1", created_at: "" } })
+    const { rerender } = render(<OnboardingRun state={sampled} refresh={() => {}} onClose={() => {}} />)
+    await act(async () => next())
+    await act(async () => next())
+    expect(screen.getByRole("link", { name: "Open the brief" }).getAttribute("href")).toBe("/app/doc/d-1")
+    rerender(<OnboardingRun state={state({ sample: { project_uuid: "p-1", team_uuid: "t-1", created_at: "" } })} refresh={() => {}} onClose={() => {}} />)
+    expect(screen.queryByRole("link", { name: "Open the brief" })).toBeNull()
+  })
+
+  it("teaches the three keys on its last step, ticking each one tried, and the corner tip need not", async () => {
+    localStorage.removeItem("oc_keys_tip_seen")
+    render(<OnboardingRun state={state()} refresh={() => {}} onClose={() => {}} />)
+    for (let i = 0; i < 3; i++) await act(async () => next())
+    const lesson = screen.getByRole("region", { name: "Three keys worth knowing" })
+    // A key hint: the shared rule hides it where there's no keyboard.
+    expect(lesson.hasAttribute("data-kbd-hint")).toBe(true)
+    expect(lesson.querySelectorAll("[data-row]")).toHaveLength(3)
+    expect(lesson.querySelector('[data-row="help"] [aria-label="Tried"]')).toBeNull()
+    await act(async () => void fireEvent.keyDown(document, { key: "?" }))
+    expect(lesson.querySelector('[data-row="help"] [aria-label="Tried"]')).not.toBeNull()
+    expect(localStorage.getItem("oc_keys_tip_seen")).toBe("1")
+  })
+
   it("ends on what is left, and Done closes it", async () => {
     const onClose = vi.fn()
     render(<OnboardingRun state={state({ steps: [step("people", true), step("import")] })} refresh={() => {}} onClose={onClose} />)

@@ -16,7 +16,10 @@ vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn() }))
 import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
 import { getTranscriptionConfig, updateTranscriptionConfig, type TranscriptionConfig } from "@/services/settingsService"
 
-afterEach(() => {
+// A change that saves offers itself back from a chunk loaded on the side
+// (components/ui/saveStatus.tsx): its toast lands in its own test, not the next.
+afterEach(async () => {
+  await vi.dynamicImportSettled()
   cleanup()
   vi.clearAllMocks()
 })

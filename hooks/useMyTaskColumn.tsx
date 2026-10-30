@@ -1,16 +1,16 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@/lib/utils/i18n";
 
 import { Badge } from "@/components/ui/badge";
 
 import { priorities } from "@/types/table";
 import { isClosedStatus, statusValueOf, statusOptionOf } from "@/lib/taskStatus";
-import { shortDate } from "@/lib/utils/date/shortDate";
+import { shortDate } from "@/lib/utils/date/dateWords";
 import { GitBranch, MessageSquare } from "@/lib/icons";
 import {prioritiesInterface} from "@/types/table";
 import {TaskTableColumnHeader} from "@/components/task/taskTableColumnHeader";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
-import {TaskInfoInterface} from "@/types/task";
+import type { TaskInfoInterface } from "@/types/task";
 import {TaskStatusCell} from "@/components/task/taskStatusCell";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";

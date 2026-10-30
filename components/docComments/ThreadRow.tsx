@@ -4,9 +4,9 @@
  * A thread as the phone's comments page lists it (docs programme B7): the
  * words it is on, who started it and what they said, how many replies, and
  * whether there is news. The whole row opens the thread's own page, which is
- * live (N33).
+ * live (N33), fetched on a touch, never on sight (NodeLink).
  */
-import Link from "next/link"
+import { NodeLink } from "@/components/docFiles/NodeLink"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { plainText } from "@/lib/chat/pendingSend"
 import { displayNameOf } from "@/lib/personName"
@@ -23,7 +23,7 @@ export function ThreadRow({ docId, thread }: { docId: string; thread: ThreadView
     const name = displayNameOf(by) || "Someone"
     const said = plainText(first?.comment_text) || ((first?.comment_attachments?.length ?? 0) > 0 ? "Attached a file" : "")
     return (
-        <Link
+        <NodeLink
             href={`/app/doc/${docId}/comment/${encodeURIComponent(thread.id)}`}
             data-thread-row=""
             data-thread-id={thread.id}
@@ -55,6 +55,6 @@ export function ThreadRow({ docId, thread }: { docId: string; thread: ThreadView
                     {replies > 0 ? (replies === 1 ? "1 reply" : `${replies} replies`) : "New"}
                 </span>
             )}
-        </Link>
+        </NodeLink>
     )
 }

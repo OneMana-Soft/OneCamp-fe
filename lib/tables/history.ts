@@ -7,6 +7,7 @@
 
 import type { HistoryChange, HistoryItem } from "@/lib/tables/ledger"
 import type { TableField } from "@/services/tableService"
+import { kindText } from "@/lib/fieldTypes/kindsMore"
 
 /** The longest a value is quoted in a line. */
 const QUOTE_MAX = 60
@@ -32,6 +33,12 @@ export function whoDid(item: HistoryItem): string {
 /** A stored value as a line quotes it; "" for none. */
 export function valueText(field: TableField | undefined, v: unknown): string {
   if (v === null || v === undefined || v === "") return ""
+  // People as they're named, or how many; a duration's clock, a rating's stars.
+  const k = field ? kindText(field, v) : null
+  if (k) return quote(k)
+  if (Array.isArray(v) && field && (field.type === "people" || field.type === "created_by" || field.type === "modified_by")) {
+    return v.length ? `${v.length} ${v.length === 1 ? "person" : "people"}` : ""
+  }
   if (Array.isArray(v)) {
     if (v.length === 0) return ""
     if (v.every((x) => typeof x === "string" || typeof x === "number")) return quote(v.join(", "))

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -14,36 +14,58 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(query ? `q=${encodeURIComponent(query)}` : ""),
   useRouter: () => ({ replace: vi.fn(), back: vi.fn(), push }),
 }))
-vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: undefined }) }))
+vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: undefined }), useFetch: () => ({ data: undefined }) }))
 vi.mock("@/hooks/useClientConfig", async (orig) => ({ ...(await orig<typeof import("@/hooks/useClientConfig")>()), useAIAvailable: () => true }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
+// Who knows asks its own endpoint; whoKnows.test.tsx and e2e/whoKnows.spec.ts cover it.
+vi.mock("@/components/whoKnows/WhoKnowsStrip", () => ({ WhoKnowsStrip: ({ words }: { words: string }) => <div data-who-knows={words} /> }))
 const toasted = vi.hoisted(() => vi.fn(() => ({ id: "t", dismiss: () => {}, update: () => {} })))
 vi.mock("@/hooks/use-toast", async (orig) => ({ ...(await orig<typeof import("@/hooks/use-toast")>()), toast: toasted }))
 
 const task = (n: number) => ({ type: "task", task: { task_id: `t${n}`, task_name: `Launch task ${n}`, task_status: "todo", task_project_id: "p1", task_project_name: "Q4 launch", created_date: 1791614952 } })
 const doc = { type: "doc", doc: { doc_uuid: "d1", doc_title: "Q4 launch plan", created_date: 1791614952 } }
 let state = { results: [] as unknown[], isLoading: false, isError: false, debounced: "launch" }
-vi.mock("@/hooks/useSearch", () => ({
-  useSearch: () => ({
-    inputValue: state.debounced,
-    setInputValue: vi.fn(),
-    debouncedValue: state.debounced,
-    results: state.results,
-    resultsFor: state.results.length ? state.debounced : "",
-    isLoading: state.isLoading,
-    isRefreshing: false,
-    isError: state.isError,
-    isRetrying: false,
-    retry: vi.fn(),
-    handleResultClick: vi.fn(),
-    handlePreview: vi.fn(),
-    handleSearchSubmit: vi.fn(),
-  }),
-}))
+// The page's search, as the hook gives it: the chip on show is the hook's
+// state, so Show all re-renders, and the counts are the rows' own (a complete
+// listing, D-23).
+vi.mock("@/hooks/useQuerySearch", async () => {
+  const React = await import("react")
+  const { scopeCounts } = await import("@/lib/search/scopes")
+  return {
+    useQuerySearch: () => {
+      const [scope, setScope] = React.useState<"all" | "tasks" | "docs">("all")
+      const counts = scopeCounts(state.results as never)
+      return {
+        inputValue: state.debounced,
+        setInputValue: vi.fn(),
+        debouncedValue: state.debounced,
+        results: state.results,
+        resultsFor: state.results.length ? state.debounced : "",
+        scope,
+        setScope,
+        sort: "best",
+        setSort: vi.fn(),
+        counts,
+        total: counts[scope],
+        notes: [],
+        isLoading: state.isLoading,
+        isRefreshing: false,
+        isError: state.isError,
+        isRetrying: false,
+        retry: vi.fn(),
+        handleResultClick: vi.fn(),
+        handlePreview: vi.fn(),
+        handleSearchSubmit: vi.fn(),
+        hasMore: false,
+        loadMore: vi.fn(),
+        isLoadingMore: false,
+      }
+    },
+  }
+})
 
 const { default: SearchPage } = await import("@/app/app/search/page")
 const PAGE = readFileSync(join(process.cwd(), "app/app/search/page.tsx"), "utf8")
-const CSS = readFileSync(join(process.cwd(), "app/hub.css"), "utf8")
 
 afterEach(() => {
   cleanup()
@@ -52,6 +74,12 @@ afterEach(() => {
 })
 
 describe("the search page", () => {
+  it("asks Who knows about the words searched, not the filters", async () => {
+    state = { ...state, results: [task(1)], debounced: "launch plan from:@sam -in:#secret" }
+    render(<SearchPage />)
+    await waitFor(() => expect(document.querySelector("[data-who-knows]")?.getAttribute("data-who-knows")).toBe("launch plan"))
+  })
+
   it("has a 52px header with a ghost back and the page's name, from sm up", () => {
     render(<SearchPage />)
     const row = document.querySelector("[data-search-title-row]")!
@@ -63,17 +91,32 @@ describe("the search page", () => {
   it("puts everything in the hub's 760px column, and the field at 44px, r10, raised at e1", () => {
     render(<SearchPage />)
     expect(document.querySelector("[data-search-column]")!.className).toContain("max-w-[760px]")
-    const field = document.querySelector("[data-search-field]")!
+    // The shared search field (SearchInput, an input group) at its large size:
+    // the group is the field, raised at e1 (field-surface) with the halo on focus.
+    const field = document.querySelector("[data-search-column] [data-search-input]")!
     expect(field.className).toContain("h-11")
     expect(field.className).toContain("rounded-[10px]")
-    expect(field.className).toContain("hub-field")
-    expect(CSS).toMatch(/\.hub-field \{\s*background: var\(--raised\);\s*box-shadow: var\(--e1\);/)
+    expect(field.className).toContain("field-surface")
+    expect(field.className).not.toContain("md:h-8")
   })
 
-  it("says the count without the arrow instruction", () => {
+  it("says the count without the arrow instruction", async () => {
     state.results = [task(1), doc]
     render(<SearchPage />)
-    expect(document.querySelector("[data-search-count]")!.textContent).toBe("2 results for “launch”")
+    await waitFor(() => expect(document.querySelector("[data-search-count]")!.textContent).toBe("2 results for “launch”"))
+  })
+
+  // The count spelled out the whole search, filters and all, and a dated one
+  // wrapped at 390 round a lone "·". It names the
+  // words alone, and only the count when there are none; the chips say the rest.
+  it("names the words alone in the count, and no words when the search has only filters", async () => {
+    state = { ...state, results: [task(1), doc], debounced: "launch after:2026-10-01 from:@sam" }
+    const { unmount } = render(<SearchPage />)
+    await waitFor(() => expect(document.querySelector("[data-search-count]")!.textContent).toBe("2 results for “launch”"))
+    unmount()
+    state = { ...state, debounced: "from:@sam after:2026-10-01" }
+    render(<SearchPage />)
+    await waitFor(() => expect(document.querySelector("[data-search-count]")!.textContent).toBe("2 results"))
   })
 
   it("groups the results by type, three of each under All, with Show all", () => {
@@ -84,6 +127,9 @@ describe("the search page", () => {
     expect(document.querySelectorAll('[data-search-group="tasks"] [data-search-row]')).toHaveLength(3)
     const more = document.querySelector('[data-search-show-all="tasks"]')!
     expect(more.textContent).toBe("Show all 4 tasks")
+    // A link to the kind's own list, apart from Show more: link ink and a chevron.
+    expect(more.className).toContain("text-brand-text")
+    expect(more.querySelector("svg")).toBeTruthy()
     fireEvent.click(more)
     expect(document.querySelectorAll('[data-search-group="tasks"] [data-search-row]')).toHaveLength(4)
     expect(document.querySelector('[data-search-group="docs"]')).toBeNull()

@@ -47,22 +47,45 @@ export interface EdgeOptions {
   axis?: "x" | "y"
 }
 
+/** How long the scrollers found under a pointer are kept while it stays inside the innermost: a nested one it enters is found within this. */
+export const HIT_KEEP_MS = 150
+
+const inside = (b: EdgeBox, x: number, y: number) => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom
+
 /**
  * Keeps scrolling, once a frame, while a dragged pointer rests in an edge
  * zone. With `scroller`, that one only (null: none); with no argument, the
  * scrollers under the pointer, innermost first, the first that can still move
  * that way. `onScrolled` runs after each step that moved, so an engine reads
  * again what lies under a still pointer.
+ *
+ * Finding the scrollers under the pointer is a hit test and a read of every
+ * ancestor's style: 3 to 8 ms a frame on a long list, every frame of a drag.
+ * So they are kept, with their boxes, while the pointer stays inside the
+ * innermost, for HIT_KEEP_MS at most, and until one of them scrolls.
  */
 export function edgeScroller(scroller?: Element | null, onScrolled?: () => void, skip?: (el: Element) => boolean, { inset, axis }: EdgeOptions = {}) {
-  let at: { x: number; y: number; touch: boolean; under?: Element[] } | null = null
+  let at: { x: number; y: number; touch: boolean } | null = null
+  let under: { list: Element[]; boxes: EdgeBox[]; when: number } | null = null
   let frame = 0
   const step = () => {
     frame = 0
     if (!at) return
-    const list = scroller !== undefined ? (scroller ? [scroller] : []) : (at.under ??= scrollersAt(at.x, at.y, skip))
-    for (const el of list) {
-      const b = boxOf(el)
+    let list: Element[]
+    let boxes: EdgeBox[] | null = null
+    if (scroller !== undefined) list = scroller ? [scroller] : []
+    else {
+      const now = performance.now()
+      if (!under || now - under.when > HIT_KEEP_MS || (under.boxes[0] && !inside(under.boxes[0], at.x, at.y))) {
+        const found = scrollersAt(at.x, at.y, skip)
+        under = { list: found, boxes: found.map(boxOf), when: now }
+      }
+      list = under.list
+      boxes = under.boxes
+    }
+    for (let i = 0; i < list.length; i++) {
+      const el = list[i]
+      const b = boxes?.[i] ?? boxOf(el)
       const box = inset ? { top: b.top + (inset.top ?? 0), right: b.right - (inset.right ?? 0), bottom: b.bottom - (inset.bottom ?? 0), left: b.left + (inset.left ?? 0) } : b
       const speed = edgeSpeed(box, at.x, at.y, at.touch)
       const dx = axis === "y" ? 0 : speed.dx
@@ -73,6 +96,8 @@ export function edgeScroller(scroller?: Element | null, onScrolled?: () => void,
       el.scrollLeft = left + dx
       el.scrollTop = top + dy
       if (el.scrollLeft !== left || el.scrollTop !== top) {
+        // What scrolls moves the scrollers inside it: found again next time.
+        under = null
         onScrolled?.()
         frame = requestAnimationFrame(step)
         return
@@ -87,6 +112,7 @@ export function edgeScroller(scroller?: Element | null, onScrolled?: () => void,
     },
     stop() {
       at = null
+      under = null
       cancelAnimationFrame(frame)
       frame = 0
     },

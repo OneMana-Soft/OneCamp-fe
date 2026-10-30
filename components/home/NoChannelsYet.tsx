@@ -10,7 +10,7 @@
 // of channels to browse.
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useSelector } from "react-redux"
 import Link from "next/link"
 import { RootState } from "@/store/store"
@@ -29,7 +29,7 @@ interface SuggestedChannel {
 }
 
 export function NoChannelsYet() {
-  const router = useRouter()
+  const router = useAppRouter()
   const sidenav = useSidenav()
   const inSidebar = useSelector((state: RootState) => state.users.userSidebar.userChannels)
   // The server's answer, not only the store: the store is seeded from it a
@@ -72,7 +72,7 @@ export function NoChannelsYet() {
       <p className="mt-0.5 text-meta text-ink-3">Channels are where your team talks. Join one to see what&apos;s going on.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {channel && (
-          <Button size="sm" onClick={() => void joinSuggested()} disabled={join.isSubmitting}>
+          <Button size="sm" onClick={() => void joinSuggested()} busy={join.isSubmitting}>
             {join.isSubmitting ? "Joining…" : `Join #${channel.ch_name}`}
           </Button>
         )}

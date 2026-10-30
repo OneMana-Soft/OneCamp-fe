@@ -5,17 +5,16 @@ import { useMemo, useState } from "react"
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem"
 import { GoalOwner } from "@/components/goals/GoalOwner"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxField, ComboboxInput, ComboboxItem, ComboboxList, ComboboxTrigger } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useGoal, useGoals } from "@/hooks/useGoals"
 import { useProjectsOverview } from "@/hooks/useProjectsOverview"
-import { ChevronsUpDown, Loader2, X } from "@/lib/icons"
+import { X } from "@/lib/icons"
 import { MEASURES, parentChoices, quarterEnd, type GoalDetail, type GoalInput, type GoalSummary, type Measure } from "@/lib/goals"
 import { cn } from "@/lib/utils/helpers/cn"
 import { dayDate, localDay } from "@/lib/utils/timeZone"
@@ -68,8 +67,6 @@ export function GoalDialog({
   const [unit, setUnit] = useState(editing?.unit ?? "")
   const [parent, setParent] = useState(editing?.parent_id ?? parentId ?? NO_PARENT)
   const [linked, setLinked] = useState<string[]>([])
-  const [ownerOpen, setOwnerOpen] = useState(false)
-  const [projectsOpen, setProjectsOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState("")
 
@@ -147,47 +144,31 @@ export function GoalDialog({
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="grid gap-1.5">
               <Label>Owner</Label>
-              <Popover open={ownerOpen} onOpenChange={setOwnerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={ownerOpen}
-                    aria-label="Owner"
-                    className="h-9 justify-between px-2 font-normal"
-                  >
-                    {ownerUser ? <GoalOwner owner={ownerUser} /> : <span className="text-muted-foreground">Choose…</span>}
-                    <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-40" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent portalled={false} className="w-64 p-0">
-                  <Command>
-                    <CommandInput placeholder="Search people…" className="h-9" />
-                    <CommandList>
-                      <CommandEmpty>No one found</CommandEmpty>
-                      <CommandGroup>
-                        {people.map((u) => (
-                          <UserComboboxItem
-                            key={u.user_uuid}
-                            userUuid={u.user_uuid}
-                            userName={displayNameOf(u)}
-                            userFullName={u.user_full_name}
-                            userHandle={u.user_handle}
-                            userEmail={u.user_email_id}
-                            userProfileObjectKey={u.user_profile_object_key}
-                            isSelected={ownerId === u.user_uuid}
-                            onSelect={(id) => {
-                              setOwner(id)
-                              setOwnerOpen(false)
-                            }}
-                          />
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Combobox>
+                {/* As tall as Due and Under beside it. */}
+                <ComboboxField aria-label="Owner" placeholder="Choose…" className="h-9">
+                  {ownerUser ? <GoalOwner owner={ownerUser} /> : undefined}
+                </ComboboxField>
+                <ComboboxContent label="Owner" portalled={false} selected={ownerId || undefined}>
+                  <ComboboxInput placeholder="Find someone…" />
+                  <ComboboxList>
+                    <ComboboxEmpty>Nobody by that name.</ComboboxEmpty>
+                    {people.map((u) => (
+                      <UserComboboxItem
+                        key={u.user_uuid}
+                        userUuid={u.user_uuid}
+                        userName={displayNameOf(u)}
+                        userFullName={u.user_full_name}
+                        userHandle={u.user_handle}
+                        userEmail={u.user_email_id}
+                        userProfileObjectKey={u.user_profile_object_key}
+                        isSelected={ownerId === u.user_uuid}
+                        onSelect={setOwner}
+                      />
+                    ))}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
             </div>
             {/* The app's own date picker, as on a task (PTC-37): a browser date
                 input wrote mm/dd/yyyy in a US browser, unlike every other date. */}
@@ -290,35 +271,30 @@ export function GoalDialog({
                     </button>
                   </span>
                 ))}
-                <Popover open={projectsOpen} onOpenChange={setProjectsOpen}>
-                  <PopoverTrigger asChild>
+                <Combobox multiple>
+                  <ComboboxTrigger asChild>
                     <Button type="button" variant="outline" size="sm" className="h-7 text-xs">
                       Add a project
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent portalled={false} className="w-64 p-0">
-                    <Command>
-                      <CommandInput placeholder="Search your projects…" className="h-9" />
-                      <CommandList>
-                        <CommandEmpty>No project found</CommandEmpty>
-                        <CommandGroup>
-                          {(projects ?? []).map((p) => (
-                            <CommandItem
-                              key={p.project_uuid}
-                              checked={linked.includes(p.project_uuid)}
-                              value={`${p.project_name} ${p.project_uuid}`}
-                              onSelect={() => {
-                                setLinked(linked.includes(p.project_uuid) ? linked.filter((x) => x !== p.project_uuid) : [...linked, p.project_uuid])
-                              }}
-                            >
-                              <span className="truncate">{p.project_name}</span>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                  </ComboboxTrigger>
+                  <ComboboxContent label="Projects" portalled={false}>
+                    <ComboboxInput placeholder="Find one of your projects…" />
+                    <ComboboxList>
+                      <ComboboxEmpty>No project by that name.</ComboboxEmpty>
+                      {(projects ?? []).map((p) => (
+                        <ComboboxItem
+                          key={p.project_uuid}
+                          value={p.project_uuid}
+                          keywords={[p.project_name]}
+                          checked={linked.includes(p.project_uuid)}
+                          onSelect={(id) => setLinked(linked.includes(id) ? linked.filter((x) => x !== id) : [...linked, id])}
+                        >
+                          <span className="truncate">{p.project_name}</span>
+                        </ComboboxItem>
+                      ))}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </div>
               {measure === "projects" && linked.length === 0 && (
                 <p className="text-xs text-muted-foreground">Add them now or from the goal&apos;s page. Only projects you&apos;re in are listed.</p>
@@ -366,8 +342,7 @@ export function GoalDialog({
             <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
               Cancel
             </Button>
-            <Button type="submit" disabled={busy}>
-              {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            <Button type="submit" busy={busy}>
               {editing ? "Save" : "Create goal"}
             </Button>
           </DialogFooter>

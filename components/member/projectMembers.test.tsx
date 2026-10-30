@@ -47,7 +47,7 @@ describe("a project's members", () => {
   it("offers a find once the list is long", () => {
     h.members = Array.from({ length: 9 }, (_, i) => person(i))
     render(<ProjectMemberContent projectId="p1" />)
-    expect(screen.getByRole("textbox", { name: "Find a member" })).toBeTruthy()
+    expect(screen.getByRole("searchbox", { name: "Find a member" })).toBeTruthy()
   })
 
   // Each person's role is chosen on their row (Work Access); the creator's

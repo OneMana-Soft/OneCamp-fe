@@ -1,20 +1,11 @@
 import { expect, test, type Request } from "@playwright/test"
-import { SAM, stubBackend } from "./stubbedApp"
+import { SAM, stubBackend, tidy } from "./stubbedApp"
 
 // Any request the stubs don't answer, named in the log (a stray toast's cause).
 function probe(tab: import("@playwright/test").Page) {
   tab.on("response", (r) => {
     if (r.status() === 404) console.log(`PROBE 404 ${r.request().method()} ${new URL(r.url()).pathname}`)
   })
-}
-
-// The shared demo's banner and the first-run tip, closed so the shots show the screen.
-async function tidy(tab: import("@playwright/test").Page) {
-  for (let i = 0; i < 2; i++) {
-    const gotIt = tab.getByRole("button", { name: "Got it" }).first()
-    if (!(await gotIt.isVisible().catch(() => false))) break
-    await gotIt.click().catch(() => {})
-  }
 }
 
 // Chat P2 in a real browser with no backend: the Inbox's Threads tab lists the

@@ -44,8 +44,6 @@ export function activityHref(activity: UnifiedActivityItem, currentUserId: strin
       return (
         postHref(r.post) ??
         chatHref(r.chat, currentUserId) ??
-        (r.reaction_task?.task_uuid ? `/app/task/${r.reaction_task.task_uuid}` : null) ??
-        (r.reaction_doc?.doc_uuid ? `/app/doc/${r.reaction_doc.doc_uuid}/comment` : null) ??
         commentHref(r.comment, currentUserId)
       )
     }

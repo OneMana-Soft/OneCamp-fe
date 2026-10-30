@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 
 import { describe, expect, it } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * No off-token colour in the content area (content.md §1.4 and §1.6.2): file
@@ -12,24 +13,6 @@ import { describe, expect, it } from "vitest"
 
 const ROOT = process.cwd()
 const SCOPE = ["components/fileIcon", "components/minimal-tiptap", "components/calendar", "components/table", "components/board"]
-
-function files(p: string, out: string[] = []): string[] {
-  let st
-  try {
-    st = statSync(p)
-  } catch {
-    return out
-  }
-  if (st.isFile()) {
-    if (/\.(tsx?|css)$/.test(p) && !/\.(test|spec)\./.test(p)) out.push(p)
-    return out
-  }
-  for (const e of readdirSync(p, { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name.startsWith(".")) continue
-    files(join(p, e.name), out)
-  }
-  return out
-}
 
 // The edition without AI has no components/ai, so no doc AI files to check.
 const docAi: string[] = []
@@ -42,7 +25,7 @@ const EMOJI_WARNING = /⚠️/
 describe("content area colours", () => {
   it("uses no raw palette steps, stock AI indigo or Excalidraw violet", () => {
     const bad: string[] = []
-    for (const f of [...SCOPE, ...docAi].flatMap((d) => files(join(ROOT, d)))) {
+    for (const f of sourceFiles([...SCOPE, ...docAi], /\.(tsx?|css)$/)) {
       const rel = relative(ROOT, f)
       const src = readFileSync(f, "utf8")
       for (const re of [RAW, INDIGO, EXCALIDRAW_VIOLET, EMOJI_WARNING]) {
@@ -64,7 +47,7 @@ describe("content area colours", () => {
   })
 
   it("retires the legacy DateAndTimePicker", () => {
-    const users = ["app", "components"].flatMap((d) => files(join(ROOT, d))).filter((f) => {
+    const users = sourceFiles(["app", "components"], /\.(tsx?|css)$/).filter((f) => {
       const src = readFileSync(f, "utf8")
       return /from\s+["'][^"']*dateAndTimePicker[^"']*["']/.test(src)
     })

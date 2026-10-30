@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { GoalDialog } from "@/components/goals/GoalDialog"
+import dynamic from "next/dynamic"
 import { GoalOwner } from "@/components/goals/GoalOwner"
 import { GoalProgress, GoalRing } from "@/components/goals/GoalProgress"
 import { Bar } from "@/components/ui/progress"
@@ -57,6 +57,12 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { app_project_path } from "@/types/paths"
 import type { UserProfileInterface } from "@/types/user"
+import { LazyGoalLandsLate, LazyGoalProjectLands } from "@/components/project/LazyForecastLines"
+import { useProjectForecasts } from "@/hooks/useProjectForecasts"
+import type { ForecastPages } from "@/lib/work/forecastsRead"
+
+// The goal form is a chunk of its own: it loads as it opens, never with the page.
+const GoalDialog = dynamic(() => import("@/components/goals/GoalDialog").then((m) => m.GoalDialog), { loading: () => null })
 
 const GOALS_PATH = `${app_project_path}?view=goals`
 
@@ -73,7 +79,7 @@ function Section({ title, action, children }: { title: string; action?: React.Re
 }
 
 /** One project serving the goal: how much of it is done, what's late, and its people's last word. */
-function ProjectRow({ p, canEdit, onRemove }: { p: GoalProjectLine; canEdit: boolean; onRemove: () => void }) {
+function ProjectRow({ p, canEdit, onRemove, forecasts, due }: { p: GoalProjectLine; canEdit: boolean; onRemove: () => void; forecasts: ForecastPages | undefined; due?: string }) {
   const total = p.open + p.done
   return (
     <li className="group flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border/60 px-3 py-2.5">
@@ -97,6 +103,13 @@ function ProjectRow({ p, canEdit, onRemove }: { p: GoalProjectLine; canEdit: boo
             </>
           )}
         </p>
+        {/* When its open work lands (linear-20), and whether that's after the goal's date: a line of its own, its
+            room held from the first paint for a project with open work, so nothing moves when the line lands. */}
+        {!p.archived && p.open > 0 && (
+          <p data-goal-lands-line="" className="flex h-4 min-w-0 items-center overflow-hidden whitespace-nowrap pl-[18px] text-xs text-muted-foreground">
+            <LazyGoalProjectLands forecasts={forecasts} projectId={p.project_uuid} due={due} />
+          </p>
+        )}
       </div>
       {!p.archived && total > 0 && <GoalProgress goal={{ title: p.project_name, progress: p.progress, status: "open" }} className="w-36" />}
       <div className="flex w-36 items-center gap-1.5">
@@ -246,6 +259,9 @@ export function GoalPage({ goalId }: { goalId: string }) {
   const [deleting, setDeleting] = useState(false)
   const now = Date.now()
   const linked = useMemo(() => new Set(goal?.project_list.map((p) => p.project_uuid)), [goal])
+  // The goal's projects, whose forecasts come in one read (linear-20).
+  const projectIds = useMemo(() => goal?.project_list.map((p) => p.project_uuid) ?? [], [goal])
+  const forecasts = useProjectForecasts(projectIds)
   // The Camp tier (W04, W43): a check-in by this person that takes the goal
   // to its target fires once, from the hero ring, remembered per person.
   const ringRef = useRef<HTMLDivElement>(null)
@@ -349,6 +365,7 @@ export function GoalPage({ goalId }: { goalId: string }) {
                   </span>
                   {!open && <HealthWord health={goal.status} />}
                   {open && goal.health && <HealthWord health={goal.health} />}
+                  {open && <LazyGoalLandsLate forecasts={forecasts} ids={projectIds} due={goal.due_date} />}
                 </div>
               </div>
             </div>
@@ -435,6 +452,8 @@ export function GoalPage({ goalId }: { goalId: string }) {
                   <ProjectRow
                     key={p.project_uuid}
                     p={p}
+                    forecasts={forecasts}
+                    due={goal.status === "open" ? goal.due_date : undefined}
                     canEdit={goal.can_edit}
                     onRemove={act(() => unlinkProject(p.project_uuid), "Project taken off the goal")}
                   />
@@ -562,7 +581,7 @@ export function GoalPage({ goalId }: { goalId: string }) {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="dangerSolid"
               onClick={() =>
                 void remove()
                   .then(() => {

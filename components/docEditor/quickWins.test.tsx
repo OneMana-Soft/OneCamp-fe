@@ -34,7 +34,7 @@ beforeAll(() => loadBlocks("doc", { ai: true }), 30_000)
 // The docs quick wins (PROGRAM A0, small-details.md §3): one check per row,
 // on a real doc editor where the row is about typing.
 
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: vi.fn(async () => ({ status: 200, data: { users: [] } })), post: vi.fn(async () => ({ data: {} })) } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: vi.fn(async () => ({ status: 200, data: { users: [] } })), post: vi.fn(async () => ({ data: {} })) } }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/app/doc/d" }))
 

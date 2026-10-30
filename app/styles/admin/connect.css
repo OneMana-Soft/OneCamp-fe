@@ -8,8 +8,10 @@
 @layer components {
   /* ---------- Shared parts (components/admin/connectParts.tsx) ---------- */
 
-  /* A tool's mark: monochrome ink-2 on sunken, a hairline ring. A source is a
-     category, never a hue (§1.5). */
+  /* A tool's mark: monochrome ink-2 on sunken, a hairline ring. An import
+     source's wears its camp hue instead (connectParts sourceHue): its tint, its
+     ink and a ring of it, as grey tiles told no tool from another
+     (DESIGN-BUILD-11's I1, over §1.5's "never a hue" for these). */
   .cx-mark {
     display: inline-flex;
     flex-shrink: 0;
@@ -25,6 +27,11 @@
     font-weight: 590;
     line-height: 1;
     user-select: none;
+  }
+  .cx-mark[data-hue] {
+    background: var(--hue-tint);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--hue) 35%, transparent);
+    color: var(--hue-ink);
   }
   .cx-mark svg { width: 16px; height: 16px; }
   .cx-mark[data-size="28"] { width: 28px; height: 28px; border-radius: 8px; font-size: 0.75rem; }
@@ -135,20 +142,23 @@
     padding: 12px 14px;
     border-radius: var(--radius-lg);
     background: var(--raised);
-    box-shadow: var(--e1);
+    /* The lift is the shadow's last part, so the interaction layer's ring on
+       the chosen card draws over it rather than in its place. */
+    --tw-shadow: var(--e1);
+    box-shadow: var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-shadow);
     text-align: left;
     cursor: pointer;
     transition: box-shadow 140ms var(--ease-out), transform 140ms var(--ease-out);
   }
   .cx-imp-source[data-wide="true"] { grid-column: span 2 / span 2; }
   @media (hover: hover) {
-    .cx-imp-source:hover { box-shadow: var(--e2); transform: translateY(-1px); }
+    .cx-imp-source:hover { --tw-shadow: var(--e2); transform: translateY(-1px); }
   }
   .cx-imp-source:active { transform: translateY(0); }
   .cx-imp-source:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-  .cx-imp-source[aria-checked="true"] {
-    box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--brand) 70%, transparent), 0 1px 2px rgb(16 18 26 / 0.05);
-  }
+  /* The chosen tool is a selected card in its hue (data-interactive="card",
+     data-hue: INTERACTION_SPEC §3), its tint and a 1.5px ring; the form's
+     Start import stays the page's one orange. */
   .cx-imp-source-line { font-size: 0.78125rem; line-height: 1.125rem; color: var(--ink-2); }
 
   /* A job row: the 28px mark, the name and its state, a tabular meta line,
@@ -646,6 +656,8 @@
     transition: opacity 160ms var(--ease-out), transform 220ms var(--ease-spring);
   }
   .cx-app-slot > .cx-app-slot-label[data-show="true"] { opacity: 1; transform: none; }
+  /* Installing, the slot holds Button's busy spinner (app/interaction.css). */
+  .cx-app-slot::after { grid-area: 1 / 1; place-self: center; }
   .cx-app-installed { min-width: 104px; justify-content: flex-end; }
   @media (prefers-reduced-motion: reduce) {
     @media (hover: hover) {

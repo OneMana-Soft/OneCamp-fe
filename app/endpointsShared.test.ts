@@ -22,7 +22,7 @@ import { areaOf, shellFiles } from "../scripts/endpoints/areas.mjs"
  */
 
 /** services/endPoints.ts's bytes after the split. Lower it when the file shrinks; it never rises. */
-const ENDPOINTS_BYTES = 14_190
+const ENDPOINTS_BYTES = 14_120
 
 const SHARED = "services/endPoints.ts"
 const AREA_DIR = "services/endpoints"

@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { format, startOfDay } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Moon, UserPlus, X } from "@/lib/icons";
+import { Calendar as CalendarIcon, Clock, ListTodo, Moon, UserPlus, X } from "@/lib/icons";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { anchorTo } from "@/components/ui/anchor";
+import { BesideBlockContent } from "@/components/ui/besideBlock";
 import { Calendar } from "@/components/ui/calendar";
 import { TimeList } from "@/components/ui/date-time-picker";
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker";
@@ -13,13 +14,20 @@ import { usePost } from "@/hooks/usePost";
 import { useDebounce } from "@/hooks/useDebounce";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
-import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
+import { StatusGlyph } from "@/components/ui/graphics/glyphs";
+import { HUE_CLASS } from "@/components/ui/graphics/hues";
+import { taskGlyphStatus } from "@/components/calendar/HueBlock";
+import { PickTask } from "@/components/task/lazyTaskFinder";
+import { FEATURE_CALENDAR_REPEATS, useFeature } from "@/hooks/useClientConfig";
+import { blockDueBy, blockTaskOf } from "@/lib/calendar/taskBlock";
+import { projectHue } from "@/lib/projectHue";
+import { OWN_HUE } from "@/components/calendar/calendarTones";
 import { cn } from "@/lib/utils/helpers/cn";
 import { displayNameOf } from "@/lib/personName";
 import { parseEventText, type ParsedEvent } from "@/lib/calendar/parseEventText";
 import { foldName, matchName, type GuestCandidate, type NameMatch } from "@/lib/calendar/guestMatch";
 import { avatarSeed } from "@/lib/utils/getAvatarColor";
-import type { CreateEventPayload } from "@/types/calendar";
+import type { CalendarEventTask, CreateEventPayload } from "@/types/calendar";
 import type { ChannelAndUserListInterfaceResp } from "@/types/user";
 import type { CalendarDraft } from "@/components/calendar/weekView";
 import { clockTime } from "@/lib/utils/date/clock";
@@ -29,7 +37,9 @@ import { clockTime } from "@/lib/utils/date/clock";
  * ghost, which stays on the grid. The title reads natural language as you
  * type ("Lunch with Maya at 1pm tomorrow"), underlines what it understood and
  * moves the ghost to it; chips under it open the pickers. "More options"
- * carries everything into the full dialog. Escape discards the ghost.
+ * carries everything into the full dialog. Escape discards the ghost. Where
+ * the calendar keeps its own events, the Task chip makes the slot time for
+ * one of your tasks (B1): the block has no guests and isn't focus time.
  */
 export interface QuickCreateValues {
   title: string;
@@ -37,6 +47,8 @@ export interface QuickCreateValues {
   end: Date;
   isFocus: boolean;
   guests: PickedPerson[];
+  /** Time for this task: a task block, not an event. */
+  task?: CalendarEventTask | null;
 }
 
 interface QuickCreateCardProps {
@@ -47,6 +59,8 @@ interface QuickCreateCardProps {
   onClose: () => void;
   onCreated: () => void;
   onMoreOptions: (values: QuickCreateValues) => void;
+  /** Makes the draft's time a block for the task (the calendar's one block write), named as typed or for the task; true once made. */
+  onBlockTime?: (task: CalendarEventTask, start: Date, end: Date, title: string) => Promise<boolean>;
 }
 
 /**
@@ -70,11 +84,15 @@ const chip =
 const nameChip = "inline-flex min-h-6 max-w-full shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md bg-hover px-2 py-0.5 text-meta font-medium text-ink-2 ring-1 ring-inset ring-line [&_svg]:size-3";
 const chipButton = "inline-flex items-center rounded-[4px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand";
 
-export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreated, onMoreOptions }: QuickCreateCardProps) {
+export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreated, onMoreOptions, onBlockTime }: QuickCreateCardProps) {
   const [text, setText] = useState("");
   const [focus, setFocus] = useState(false);
   const [guests, setGuests] = useState<PickedPerson[]>([]);
-  const [picker, setPicker] = useState<null | "date" | "time" | "guests">(null);
+  const [picker, setPicker] = useState<null | "date" | "time" | "guests" | "task">(null);
+  // The task this time is for, once one is picked; and its block on its way.
+  const [task, setTask] = useState<CalendarEventTask | null>(null);
+  const [blocking, setBlocking] = useState(false);
+  const canBlock = useFeature(FEATURE_CALENDAR_REPEATS) && !!onBlockTime;
   // The people named after "with": what each name came to, and what the
   // person decided (someone picked, or null: nobody for that name).
   const [lookups, setLookups] = useState<Record<string, NameMatch>>({});
@@ -93,6 +111,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
       setFocus(false);
       setGuests([]);
       setPicker(null);
+      setTask(null);
       setLookups({});
       setDecided({});
       base.current = null;
@@ -116,7 +135,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsed.date?.getTime(), parsed.startMinutes, parsed.durationMinutes]);
 
-  const isFocus = focus || parsed.focus;
+  const isFocus = !task && (focus || parsed.focus);
   const title = parsed.title || (isFocus ? "Focus time" : "");
 
   // Each name after "with" is looked up while it is typed, once, and the card
@@ -163,10 +182,19 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
   }, [guests, named, lookups, decided]);
 
   const values = (): QuickCreateValues | null =>
-    draft ? { title, start: draft.start, end: draft.end, isFocus, guests: invited } : null;
+    draft ? { title, start: draft.start, end: draft.end, isFocus, guests: task ? [] : invited, task } : null;
 
   const save = async () => {
     const v = values();
+    if (v?.task && onBlockTime) {
+      // Time for a task: named as typed, else for its task.
+      if (blocking) return;
+      setBlocking(true);
+      const made = await onBlockTime(v.task, v.start, v.end, parsed.title.trim()).catch(() => false);
+      setBlocking(false);
+      if (made) onClose();
+      return;
+    }
     if (!v || !v.title.trim()) {
       inputRef.current?.focus();
       return;
@@ -226,14 +254,26 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
     [anchor, draft?.start.getTime(), draft?.end.getTime()],
   );
 
+  // Time for a task: either face of the task chip opens your tasks, due by the draft's day.
+  const pickTask = (start: Date, opener: ReactElement) => (
+    <PickTask
+      dueBy={blockDueBy(start)}
+      open={picker === "task"}
+      onOpenChange={(o) => setPicker(o ? "task" : null)}
+      onPick={(t) => {
+        setTask(blockTaskOf(t));
+        inputRef.current?.focus();
+      }}
+    >
+      {opener}
+    </PickTask>
+  );
+
   return (
     <Popover open={open} onOpenChange={(o) => !o && onClose()}>
       <PopoverAnchor virtualRef={at} />
-      <PopoverContent
-        side="right"
-        align="start"
-        sideOffset={12}
-        collisionPadding={12}
+      <BesideBlockContent
+        at={at.current}
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           inputRef.current?.focus();
@@ -257,12 +297,12 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
               ref={inputRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Lunch with Maya at 1pm tomorrow"
+              placeholder={task ? task.task_name || "Time for a task" : "Lunch with Maya at 1pm tomorrow"}
               aria-label="Event title"
               className="relative w-full bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
             />
           </div>
-          {namedPeople.some((n) => !n.setAside) ? (
+          {!task && namedPeople.some((n) => !n.setAside) ? (
             <ul className="flex flex-wrap gap-1.5 px-4 pt-2.5" aria-label="People named" data-named-people="">
               {namedPeople.map((n) =>
                 n.setAside ? null : (
@@ -353,31 +393,60 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
                 </PopoverContent>
               </Popover>
             ) : null}
-            <Popover open={picker === "guests"} onOpenChange={(o) => setPicker(o ? "guests" : null)}>
-              <PopoverAnchor asChild>
-                <button type="button" className={chip} onClick={() => setPicker("guests")} data-touch-target="">
-                  <UserPlus aria-hidden="true" />
-                  {guests.length ? `${guests.slice(0, 2).map((g) => g.name.split(" ")[0]).join(", ")}${guests.length > 2 ? ` +${guests.length - 2}` : ""}` : "Add guests"}
-                </button>
-              </PopoverAnchor>
-              <PopoverContent align="start" className="content-float w-[280px] rounded-xl bg-pop p-3 shadow-e3">
-                <PeoplePicker value={guests} onChange={setGuests} exclude={namedPeople.flatMap((n) => (n.person ? [n.person.uuid] : []))} placeholder="Add guests by name" />
-              </PopoverContent>
-            </Popover>
+            {task ? null : (
+              <Popover open={picker === "guests"} onOpenChange={(o) => setPicker(o ? "guests" : null)}>
+                <PopoverAnchor asChild>
+                  <button type="button" className={chip} onClick={() => setPicker("guests")} data-touch-target="">
+                    <UserPlus aria-hidden="true" />
+                    {guests.length ? `${guests.slice(0, 2).map((g) => g.name.split(" ")[0]).join(", ")}${guests.length > 2 ? ` +${guests.length - 2}` : ""}` : "Add guests"}
+                  </button>
+                </PopoverAnchor>
+                <PopoverContent align="start" className="content-float w-[280px] rounded-xl bg-pop p-3 shadow-e3">
+                  <PeoplePicker value={guests} onChange={setGuests} exclude={namedPeople.flatMap((n) => (n.person ? [n.person.uuid] : []))} placeholder="Add guests by name" />
+                </PopoverContent>
+              </Popover>
+            )}
             <span className={cn(chip, "cursor-default hover:bg-hover hover:text-ink-2")} title="Your OneCamp calendar">
-              <IdentityMark hue={CALENDAR_HUE.onecamp} variant="dot" size={6} className="!size-1.5" />
+              <IdentityMark hue={OWN_HUE} variant="dot" size={6} className="!size-1.5" />
               Personal
             </span>
-            <button
-              type="button"
-              aria-pressed={isFocus}
-              onClick={() => setFocus((f) => !f)}
-              data-touch-target=""
-              className={cn(chip, isFocus && "focus-hatch text-ink ring-ink-3")}
-            >
-              <Moon aria-hidden="true" />
-              Focus
-            </button>
+            {task ? null : (
+              <button
+                type="button"
+                aria-pressed={isFocus}
+                onClick={() => setFocus((f) => !f)}
+                data-touch-target=""
+                className={cn(chip, isFocus && "focus-hatch text-ink ring-ink-3")}
+              >
+                <Moon aria-hidden="true" />
+                Focus
+              </button>
+            )}
+            {canBlock && draft && !allDay ? (
+              task ? (
+                // The task, in its project's hue: press it to pick another; the cross makes it an event again.
+                <span className={cn(chip, HUE_CLASS[projectHue(task.project_uuid)], "max-w-full gap-0 bg-hue-tint p-0 text-hue-ink ring-transparent hover:bg-hue-tint hover:text-hue-ink")} data-quick-task="">
+                  {pickTask(
+                    draft.start,
+                    <button type="button" aria-label={`Time for ${task.task_name || "a task"}. Change the task`} data-touch-target="" className={cn(chipButton, "h-full min-w-0 gap-1.5 pl-2 pr-1")}>
+                      <StatusGlyph status={taskGlyphStatus(task.task_status)} size={12} />
+                      <span className="max-w-[12rem] truncate">{task.task_name || "A task"}</span>
+                    </button>,
+                  )}
+                  <button type="button" aria-label="Not for a task" onClick={() => setTask(null)} data-touch-target="" className={cn(chipButton, "h-full px-1 opacity-70 hover:opacity-100")}>
+                    <X aria-hidden="true" />
+                  </button>
+                </span>
+              ) : (
+                pickTask(
+                  draft.start,
+                  <button type="button" aria-label="Block time for a task" data-touch-target="" className={chip}>
+                    <ListTodo aria-hidden="true" />
+                    Time for a task
+                  </button>,
+                )
+              )
+            ) : null}
           </div>
           <div className="flex items-center justify-between border-t border-line px-3 py-2.5">
             <Button
@@ -395,7 +464,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
               <Button type="button" variant="ghost" size="icon-xs" aria-label="Discard" onClick={onClose}>
                 <X />
               </Button>
-              <Button type="submit" size="sm" disabled={post.isSubmitting} aria-busy={post.isSubmitting || undefined}>
+              <Button type="submit" size="sm" busy={post.isSubmitting || blocking}>
                 Save
                 <kbd className="kbd" aria-hidden="true">
                   ⏎
@@ -404,7 +473,7 @@ export function QuickCreateCard({ draft, anchor, onDraftChange, onClose, onCreat
             </div>
           </div>
         </form>
-      </PopoverContent>
+      </BesideBlockContent>
     </Popover>
   );
 }

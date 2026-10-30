@@ -8,10 +8,10 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { LazySearchInput } from "@/components/ui/lazy-search-input"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { Loader2, Plus, Table as TableIcon, Search } from "@/lib/icons"
+import { Loader2, Plus, Table as TableIcon } from "@/lib/icons"
 import type { DataTable } from "@/services/tableService"
 import { TableGlyph } from "@/components/table/TableGlyph"
 
@@ -64,16 +64,7 @@ export function TableEmbedPickerDialog({
           Create a new table
         </button>
 
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your tables…"
-            className="pl-8"
-            autoFocus
-          />
-        </div>
+        <LazySearchInput value={query} onValueChange={setQuery} placeholder="Search your tables…" autoFocus />
 
         <div className="max-h-64 space-y-0.5 overflow-y-auto">
           {isLoading ? (

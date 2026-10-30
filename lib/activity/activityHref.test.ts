@@ -7,7 +7,7 @@ import type { UnifiedActivityItem } from "@/types/activity"
  * "app/channel/…" (no leading slash), which from /app/activity resolved to
  * /app/app/channel/… and showed "This page doesn't exist" for every mention;
  * a DM mention added the message id twice; a mention in a reply opened
- * nothing; a reaction on a task threw on a comment that wasn't there.
+ * nothing; a reaction threw on a comment that wasn't there.
  */
 const ME = "me-uuid"
 const OTHER = "other-uuid"
@@ -46,10 +46,14 @@ describe("activityHref", () => {
     expect(activityHref(row({ activity_type: "COMMENT", comment: { comment_task: { task_uuid: "t1" } } }), ME)).toBe("/app/task/t1")
   })
 
-  it("opens a reaction on a task without a comment in the payload", () => {
-    expect(() => activityHref(row({ activity_type: "REACTION", reaction: { reaction_task: { task_uuid: "t1" } } }), ME)).not.toThrow()
-    expect(activityHref(row({ activity_type: "REACTION", reaction: { reaction_task: { task_uuid: "t1" } } }), ME)).toBe("/app/task/t1")
+  // A reaction row carries what was reacted to as the backend sends it (models/dgraph/Activity
+  // ReactionsActivity): a post, a chat message or a comment, and a comment's own parent says
+  // where it lives. People react to messages and comments only; no task or doc comes bare.
+  it("opens a reaction where its message or comment lives, with no comment in a message's payload", () => {
+    expect(() => activityHref(row({ activity_type: "REACTION", reaction: { post } }), ME)).not.toThrow()
     expect(activityHref(row({ activity_type: "REACTION", reaction: { post } }), ME)).toBe("/app/channel/c1/p1")
+    expect(activityHref(row({ activity_type: "REACTION", reaction: { chat: dmChat } }), ME)).toBe(`/app/chat/${OTHER}/m1`)
+    expect(activityHref(row({ activity_type: "REACTION", reaction: { comment: { comment_task: { task_uuid: "t1" } } } }), ME)).toBe("/app/task/t1")
     expect(activityHref(row({ activity_type: "REACTION", reaction: { comment: { comment_doc: { doc_uuid: "d1" } } } }), ME)).toBe("/app/doc/d1/comment")
   })
 

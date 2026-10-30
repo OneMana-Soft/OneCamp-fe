@@ -1,8 +1,10 @@
 "use client"
 
-import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react"
-import {VList, VListHandle} from "virtua"
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
+import {VList, VListHandle, type CustomItemComponentProps} from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
+import { watchMore } from "@/components/ui/moreMarks"
+import { watchListMoving } from "@/lib/ui/scrollState"
 import {debounceUtil} from "@/lib/utils/helpers/debounce";
 
 interface VirtualInfiniteScrollProps<T> {
@@ -44,6 +46,9 @@ interface VirtualInfiniteScrollProps<T> {
      */
     overscan?: number
 
+    /** Every row's height, when they share one (virtua's itemSize): rows are placed before they are measured. */
+    itemSize?: number
+
     /**
      * Height of the scroll container
      * @default '600px'
@@ -82,6 +87,16 @@ interface VirtualInfiniteScrollProps<T> {
     shift?: boolean
 }
 
+// One function, so a list keyed by index keeps the rows it has made.
+const byIndex = (_: unknown, index: number) => index
+
+// A row of one height (itemSize) shows once placed, not after virtua's hidden
+// pass, a second style pass in each frame a row entered on a phone (fluid-17).
+// virtua's box is hidden, so the row says visible itself (unset, none showed).
+function ShownRow({ style, index: _index, ...row }: CustomItemComponentProps) {
+    return <div {...row} style={{ ...style, visibility: "visible" }} />
+}
+
 export function VirtualInfiniteScroll<T>({
                                              items,
                                              renderItem,
@@ -92,7 +107,9 @@ export function VirtualInfiniteScroll<T>({
                                              endMessage,
                                              emptyComponent,
                                              className,
-                                             keyExtractor = (_, index) => index,
+                                             keyExtractor = byIndex,
+                                             overscan,
+                                             itemSize,
                                          }: VirtualInfiniteScrollProps<T>) {
 
 
@@ -136,43 +153,74 @@ export function VirtualInfiniteScroll<T>({
 
     useEffect(() => debouncedHandleScroll.cancel, [debouncedHandleScroll])
 
+    // Only the rows virtua draws, each made once until the list or its renderer
+    // changes: every render made all N (373 on a phone's long project list) for
+    // the dozen shown, and a scroll redrew them (fluid-17).
+    const end = !hasMore && !!endMessage && items.length > 0
+    const count = items.length + (isLoading ? 1 : 0) + (end ? 1 : 0)
+    const rowAt = useMemo(() => {
+        const made = new Map<number, React.ReactElement>()
+        return (index: number): React.ReactElement => {
+            let row = made.get(index)
+            if (!row) {
+                row =
+                    index < items.length ? (
+                        <div key={keyExtractor(items[index], index)} className="w-full">
+                            {renderItem(items[index], index)}
+                        </div>
+                    ) : index === items.length && isLoading ? (
+                        <div key="vlist:loading" className="flex items-center justify-center py-4">
+                            {loadingComponent || (
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                    <span>Loading more…</span>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div key="vlist:end" className="flex items-center justify-center py-4">
+                            {endMessage}
+                        </div>
+                    )
+                made.set(index, row)
+            }
+            return row
+        }
+    }, [items, renderItem, keyExtractor, isLoading, loadingComponent, endMessage])
+
+    // Its scroller (virtua's own box) says when it has more above or below
+    // (moreMarks), so a band over the list draws its hairline only while rows
+    // run under it (the Inbox's who band, app/hub.css); and while it moves, so
+    // the rows it carries under a resting pointer wait for it to settle.
+    const marks = useCallback((el: HTMLDivElement | null) => {
+        const scroller = el?.firstElementChild instanceof HTMLElement ? el.firstElementChild : null
+        const more = watchMore(scroller)
+        const moving = watchListMoving(scroller)
+        return () => {
+            more?.()
+            moving?.()
+        }
+    }, [])
+
     // Empty state
     if (items.length === 0 && !isLoading && emptyComponent) {
         return (emptyComponent)
     }
 
     return (
-        <div className={cn("relative h-full", className)} >
+        <div ref={marks} className={cn("relative h-full", className)} >
             <VList
                 ref={listRef}
-
-                className="w-full pb-40 scrollbar-thin no-scrollbar h-full"
+                count={count}
+                overscan={overscan}
+                itemSize={itemSize}
+                item={itemSize ? ShownRow : undefined}
+                // The room under the last row: 10rem, or none in a list frame,
+                // which keeps the list's end clear of the tab bar itself (app/phone.css F6).
+                className="w-full pb-[var(--list-end-room,10rem)] scrollbar-thin no-scrollbar h-full"
                 onScroll={debouncedHandleScroll}
             >
-                {items.map((item, index) => (
-                    <div key={keyExtractor(item, index)} className="w-full">
-                        {renderItem(item, index)}
-                    </div>
-                ))}
-
-                {/* Loading indicator */}
-                {isLoading && (
-                    <div className="flex items-center justify-center py-4">
-                        {loadingComponent || (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                <span>Loading more…</span>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* End message */}
-                {!hasMore && endMessage && items.length > 0 && (
-                    <div className="flex items-center justify-center py-4">
-                        {endMessage}
-                    </div>
-                )}
+                {rowAt}
             </VList>
         </div>
     )

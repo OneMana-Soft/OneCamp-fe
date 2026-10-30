@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest"
-import { FORMULA_FUNCTIONS, cardTitle, fieldRef, insertAt, showFormulaValue } from "@/lib/tables/formula"
+import { cardTitle, showFormulaValue } from "@/lib/tables/formula"
+import { pinTestClock } from "@/lib/testing/testClock"
 
-// The server's functions (business/DataTable/formula/funcs.go), less CONCAT,
+// Every test here reads dates against one moment: 18 Oct 2026, noon.
+pinTestClock(new Date(2026, 9, 18, 12, 0))
+import { FORMULA_FUNCTIONS, fieldRef, insertAt } from "@/lib/tables/formulaCatalogue"
+
+// The server's 94 functions (business/Formula/funcs*.go), less CONCAT,
 // which is CONCATENATE's other name. Change both when one changes.
 const SERVER = [
-  "ABS", "AND", "AVERAGE", "BLANK", "CEILING", "CONCATENATE", "DATEADD", "DATETIME_DIFF", "DAY", "FALSE", "FIND", "FLOOR",
-  "IF", "ISBLANK", "ISERROR", "LEFT", "LEN", "LOWER", "MAX", "MID", "MIN", "MOD", "MONTH", "NOT", "NOW", "OR",
-  "POWER", "REPT", "RIGHT", "ROUND", "ROUNDDOWN", "ROUNDUP", "SQRT", "SUBSTITUTE", "SUM", "SWITCH", "TODAY",
-  "TRIM", "TRUE", "UPPER", "VALUE", "WEEKDAY", "WORKDAY_DIFF", "YEAR",
+  "ABS", "AND", "ARRAYCOMPACT", "ARRAYFLATTEN", "ARRAYJOIN", "ARRAYSLICE", "ARRAYUNIQUE", "AVERAGE", "BLANK",
+  "CEILING", "CONCATENATE", "CONTAINS", "COUNT", "COUNTA", "COUNTALL", "CREATED_TIME", "CURRENT", "DATEADD", "DATESTR",
+  "DATETIME_DIFF", "DATETIME_FORMAT", "DATETIME_PARSE", "DAY", "ENCODE_URL_COMPONENT", "ERROR", "EVEN", "EXP",
+  "FALSE", "FILTER", "FIND", "FLOOR", "FROMNOW", "HOUR", "IF", "IFS", "INT", "ISBLANK", "ISERROR", "IS_AFTER", "IS_BEFORE",
+  "IS_SAME", "LAST_MODIFIED_TIME", "LEFT", "LEN", "LN", "LOG", "LOWER", "MAP", "MAX", "MID", "MIN", "MINUTE", "MOD",
+  "MONTH", "NOT", "NOW", "ODD", "OR", "PI", "POWER", "RECORD_ID", "REGEX_EXTRACT", "REGEX_MATCH", "REGEX_REPLACE",
+  "REPLACE", "REPT", "RIGHT", "ROUND", "ROUNDDOWN", "ROUNDUP", "SEARCH", "SECOND", "SET_LOCALE", "SET_TIMEZONE",
+  "SIGN", "SQRT", "SUBSTITUTE", "SUM", "SWITCH", "T", "TIMESTR", "TODAY", "TONOW", "TRIM", "TRUE", "UPPER", "VALUE",
+  "WEEKDAY", "WEEKNUM", "WORKDAY", "WORKDAY_DIFF", "XOR", "YEAR",
 ]
 
 describe("the functions the editor lists", () => {
@@ -75,5 +85,25 @@ describe("a card's title", () => {
       { id: "", label: "50 more", type: "more" },
     ]
     expect(cardTitle(field("relation", JSON.stringify({ relation_target: "table", table_id: "v" })), refs)).toBe("Acme, Globex")
+  })
+})
+
+describe("a formula's or a rollup's result format (B2)", () => {
+  it("writes a number in its format, or as a duration", () => {
+    expect(showFormulaValue(1234.5, "number", { currency: "INR", decimals: 2 })).toEqual({ kind: "number", text: `₹${(1234.5).toLocaleString(undefined, { minimumFractionDigits: 2 })}` })
+    expect(showFormulaValue(42, "number", { percent: true }).kind === "number" && (showFormulaValue(42, "number", { percent: true }) as { text: string }).text).toBe("42%")
+    expect(showFormulaValue(5400, "number", { duration: "h:mm" })).toEqual({ kind: "number", text: "1h 30m" })
+    expect(showFormulaValue(-3, "number", {})).toEqual({ kind: "number", text: "−3" })
+  })
+
+  it("writes a date short, long, as ISO or how long ago", () => {
+    expect((showFormulaValue("2026-10-12", "date", { date: "iso" }) as { text: string }).text).toBe("2026-10-12")
+    expect((showFormulaValue("2026-10-12", "date", { date: "long" }) as { text: string }).text).toContain("October 2026")
+    expect((showFormulaValue("2026-10-15", "date", { date: "relative" }) as { text: string }).text).toBe("3 days ago")
+  })
+
+  it("gives a card's title in the field's format", () => {
+    const f = { id: "f", table_id: "t", name: "Spend", type: "rollup" as const, config: JSON.stringify({ result: "number", format: { currency: "USD" } }), position: 0 }
+    expect(cardTitle(f, 20)).toBe("$20")
   })
 })

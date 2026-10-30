@@ -1,0 +1,160 @@
+diff --git a/dist/compiled/react-dom/cjs/react-dom-client.development.js b/dist/compiled/react-dom/cjs/react-dom-client.development.js
+index c59b28f1cb1d6f80c2b8c6087e8f95f9e57c959a..a8c66110f25182e0c04d0648bcc1633229a84460 100644
+--- a/dist/compiled/react-dom/cjs/react-dom-client.development.js
++++ b/dist/compiled/react-dom/cjs/react-dom-client.development.js
+@@ -25206,7 +25206,10 @@
+       );
+     }
+     function getScriptSelectorFromKey(key) {
+-      return "script[async]" + key;
++      // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++      // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++      // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++      return "script" + key;
+     }
+     function acquireResource(hoistableRoot, resource, props) {
+       resource.count++;
+diff --git a/dist/compiled/react-dom/cjs/react-dom-client.production.js b/dist/compiled/react-dom/cjs/react-dom-client.production.js
+index 4b0dfb0bf2f9855ad1152f0abbe88907ee51f17a..36d9ab781cf0532e7a24ecbf63ad9a02493f7e78 100644
+--- a/dist/compiled/react-dom/cjs/react-dom-client.production.js
++++ b/dist/compiled/react-dom/cjs/react-dom-client.production.js
+@@ -17076,7 +17076,10 @@ function getScriptKey(src) {
+   return '[src="' + escapeSelectorAttributeValueInsideDoubleQuotes(src) + '"]';
+ }
+ function getScriptSelectorFromKey(key) {
+-  return "script[async]" + key;
++  // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++  // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++  // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++  return "script" + key;
+ }
+ function acquireResource(hoistableRoot, resource, props) {
+   resource.count++;
+diff --git a/dist/compiled/react-dom/cjs/react-dom-profiling.development.js b/dist/compiled/react-dom/cjs/react-dom-profiling.development.js
+index ca70d27680d7add846390aefc9286531095a0b47..a9d46ab6e74f33e4c2b0568360a197302806f7df 100644
+--- a/dist/compiled/react-dom/cjs/react-dom-profiling.development.js
++++ b/dist/compiled/react-dom/cjs/react-dom-profiling.development.js
+@@ -25214,7 +25214,10 @@
+       );
+     }
+     function getScriptSelectorFromKey(key) {
+-      return "script[async]" + key;
++      // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++      // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++      // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++      return "script" + key;
+     }
+     function acquireResource(hoistableRoot, resource, props) {
+       resource.count++;
+diff --git a/dist/compiled/react-dom/cjs/react-dom-profiling.profiling.js b/dist/compiled/react-dom/cjs/react-dom-profiling.profiling.js
+index e11a5a3c3593bd1e59bfcea0e31e2b4e663f54e3..1fd9776e5e17cda6939ba25ef9f7313dfd7cf1e7 100644
+--- a/dist/compiled/react-dom/cjs/react-dom-profiling.profiling.js
++++ b/dist/compiled/react-dom/cjs/react-dom-profiling.profiling.js
+@@ -18983,7 +18983,10 @@ function getScriptKey(src) {
+   return '[src="' + escapeSelectorAttributeValueInsideDoubleQuotes(src) + '"]';
+ }
+ function getScriptSelectorFromKey(key) {
+-  return "script[async]" + key;
++  // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++  // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++  // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++  return "script" + key;
+ }
+ function acquireResource(hoistableRoot, resource, props) {
+   resource.count++;
+diff --git a/dist/compiled/react-dom-experimental/cjs/react-dom-client.development.js b/dist/compiled/react-dom-experimental/cjs/react-dom-client.development.js
+index 7f10926d2b34351b744dbb0cc73b15cd7e22b08c..b41f1b370c805366d4bc821cb67892db16589c56 100644
+--- a/dist/compiled/react-dom-experimental/cjs/react-dom-client.development.js
++++ b/dist/compiled/react-dom-experimental/cjs/react-dom-client.development.js
+@@ -27547,7 +27547,10 @@
+       );
+     }
+     function getScriptSelectorFromKey(key) {
+-      return "script[async]" + key;
++      // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++      // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++      // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++      return "script" + key;
+     }
+     function acquireResource(hoistableRoot, resource, props) {
+       resource.count++;
+diff --git a/dist/compiled/react-dom-experimental/cjs/react-dom-client.production.js b/dist/compiled/react-dom-experimental/cjs/react-dom-client.production.js
+index 18dfb228813d49d4466e21893873b308f89f7e77..66b768006671146a432198b2898eb1160b165836 100644
+--- a/dist/compiled/react-dom-experimental/cjs/react-dom-client.production.js
++++ b/dist/compiled/react-dom-experimental/cjs/react-dom-client.production.js
+@@ -19019,7 +19019,10 @@ function getScriptKey(src) {
+   return '[src="' + escapeSelectorAttributeValueInsideDoubleQuotes(src) + '"]';
+ }
+ function getScriptSelectorFromKey(key) {
+-  return "script[async]" + key;
++  // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++  // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++  // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++  return "script" + key;
+ }
+ function acquireResource(hoistableRoot, resource, props) {
+   resource.count++;
+diff --git a/dist/compiled/react-dom-experimental/cjs/react-dom-profiling.development.js b/dist/compiled/react-dom-experimental/cjs/react-dom-profiling.development.js
+index b4c1d0e254f1b1958e67117bcc3733b05bbd8304..1fe396351b0ead37f347192ed2b09c3e2adcb14d 100644
+--- a/dist/compiled/react-dom-experimental/cjs/react-dom-profiling.development.js
++++ b/dist/compiled/react-dom-experimental/cjs/react-dom-profiling.development.js
+@@ -27555,7 +27555,10 @@
+       );
+     }
+     function getScriptSelectorFromKey(key) {
+-      return "script[async]" + key;
++      // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++      // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++      // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++      return "script" + key;
+     }
+     function acquireResource(hoistableRoot, resource, props) {
+       resource.count++;
+diff --git a/dist/compiled/react-dom-experimental/cjs/react-dom-profiling.profiling.js b/dist/compiled/react-dom-experimental/cjs/react-dom-profiling.profiling.js
+index 0eeadb21ed97e0c32bc31d156b74deb45eedf3e9..ea19a11d21a60703c0eb674b2cee2e171beccfc2 100644
+--- a/dist/compiled/react-dom-experimental/cjs/react-dom-profiling.profiling.js
++++ b/dist/compiled/react-dom-experimental/cjs/react-dom-profiling.profiling.js
+@@ -21079,7 +21079,10 @@ function getScriptKey(src) {
+   return '[src="' + escapeSelectorAttributeValueInsideDoubleQuotes(src) + '"]';
+ }
+ function getScriptSelectorFromKey(key) {
+-  return "script[async]" + key;
++  // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++  // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++  // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++  return "script" + key;
+ }
+ function acquireResource(hoistableRoot, resource, props) {
+   resource.count++;
+diff --git a/dist/compiled/react-dom-experimental/cjs/react-dom-unstable_testing.development.js b/dist/compiled/react-dom-experimental/cjs/react-dom-unstable_testing.development.js
+index e9c79d2c86a590ddc305c0ee92478fb25e92b5aa..f998efa316a8810d59b21a20283bfdddc424a18b 100644
+--- a/dist/compiled/react-dom-experimental/cjs/react-dom-unstable_testing.development.js
++++ b/dist/compiled/react-dom-experimental/cjs/react-dom-unstable_testing.development.js
+@@ -27822,7 +27822,10 @@
+       );
+     }
+     function getScriptSelectorFromKey(key) {
+-      return "script[async]" + key;
++      // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++      // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++      // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++      return "script" + key;
+     }
+     function acquireResource(hoistableRoot, resource, props) {
+       resource.count++;
+diff --git a/dist/compiled/react-dom-experimental/cjs/react-dom-unstable_testing.production.js b/dist/compiled/react-dom-experimental/cjs/react-dom-unstable_testing.production.js
+index bf25f3ca3bf72ebbbe0fc8b0cc734d568a897db2..40be46a03af3cc8ca4d5d82893fac43b11302fc1 100644
+--- a/dist/compiled/react-dom-experimental/cjs/react-dom-unstable_testing.production.js
++++ b/dist/compiled/react-dom-experimental/cjs/react-dom-unstable_testing.production.js
+@@ -19335,7 +19335,10 @@ function getScriptKey(src) {
+   return '[src="' + escapeSelectorAttributeValueInsideDoubleQuotes(src) + '"]';
+ }
+ function getScriptSelectorFromKey(key) {
+-  return "script[async]" + key;
++  // OneCamp (patches/next@16.3.8.patch): any <script> with the src, async or not. On a client
++  // navigation Turbopack's runtime loads a chunk with a plain <script src>, and this lookup
++  // missed it, so the segment's hoisted <script async> ran the chunk a second time.
++  return "script" + key;
+ }
+ function acquireResource(hoistableRoot, resource, props) {
+   resource.count++;

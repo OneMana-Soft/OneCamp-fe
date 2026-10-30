@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { configureStore } from "@reduxjs/toolkit"
 import splitSlice from "@/store/slice/splitSlice"
-import desktopRightPanelSlice from "@/store/slice/desktopRightPanelSlice"
+import desktopRightPanelSlice, { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { BUILT_IN_STATUSES } from "@/lib/taskStatus"
 import { armGo, disarmGo } from "@/lib/goKeys"
 import type { TaskInfoInterface } from "@/types/task"
@@ -150,6 +150,20 @@ describe("a task list from the keyboard", () => {
     press("j")
     press("Enter")
     expect(store.getState().rightPanel.rightPanelState).toMatchObject({ isOpen: true, data: { taskUUID: "t2" } })
+  })
+
+  // STEP4 #8: the panel's previous and next open a task of the list with no
+  // key reaching the list. The highlight goes with them, so J and K go on
+  // from there, not from the row first opened, and one row reads as open.
+  it("follows a task the panel opens, so K goes on from it", () => {
+    const store = renderList()
+    press("j")
+    press("Enter")
+    act(() => void store.dispatch(openRightPanel({ taskUUID: "t3" })))
+    expect(row("Book the retro")).toHaveAttribute("data-highlighted")
+    expect(row("Write the copy")).not.toHaveAttribute("data-highlighted")
+    press("k")
+    expect(store.getState().rightPanel.rightPanelState.data.taskUUID).toBe("t2")
   })
 
   it("edits the highlighted task when nothing is selected", async () => {

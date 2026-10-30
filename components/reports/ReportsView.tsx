@@ -51,6 +51,7 @@ import { app_project_path } from "@/types/paths"
 import { useProjectHues } from "@/lib/projectHue"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { areaHue } from "@/lib/areas"
+import { Sparkline } from "@/components/ui/graphics/Sparkline"
 
 const isWeeks = (v: unknown): v is number => (REPORT_WEEKS as readonly unknown[]).includes(v)
 const isIdList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
@@ -88,23 +89,8 @@ function Stat({ label, value, note, alert, series, delta }: { label: string; val
         )}
       </dd>
       {note && <dd className={cn("mt-0.5 text-xs", alert ? "font-[510] text-danger-ink" : "text-ink-3")}>{note}</dd>}
-      {series && series.length > 1 && <Spark values={series} />}
+      {series && <Sparkline values={series} />}
     </div>
-  )
-}
-
-/** A KPI's weeks as a 32 px line (W44): 1.5 px in ink-2 with a dot at its end; no axis. */
-function Spark({ values }: { values: number[] }) {
-  const hi = Math.max(1, ...values)
-  const W = 120
-  const H = 32
-  const pts = values.map((v, i) => [(i / (values.length - 1)) * W, H - 3 - (v / hi) * (H - 6)] as const)
-  const [ex, ey] = pts[pts.length - 1]
-  return (
-    <svg data-spark="" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mt-2 block h-8 w-full max-w-[160px] overflow-visible" aria-hidden="true">
-      <path d={pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ")} fill="none" stroke="var(--ink-2)" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={ex} cy={ey} r={2} fill="var(--ink-2)" />
-    </svg>
   )
 }
 

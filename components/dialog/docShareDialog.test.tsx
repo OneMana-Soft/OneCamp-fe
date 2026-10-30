@@ -125,7 +125,7 @@ describe("a doc's share dialog", () => {
     expect(screen.getByRole("combobox", { name: "Add people or teams" })).toBeTruthy()
     // Levels are text, not menus; no general access menu; no guest links.
     expect(screen.queryByRole("button", { name: /Bea Park: / })).toBeNull()
-    expect(document.querySelector("[data-share-general-level]")).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Everyone in the workspace: / })).toBeNull()
     expect(document.querySelector("[data-guest-link-card]")).toBeNull()
     press(document.querySelector("[data-share-invite-level]")!)
     await screen.findByText("Can comment")
@@ -197,12 +197,26 @@ describe("a doc's share dialog", () => {
     serve(a, { "/guest": { data: [] } })
     hoisted.preview.mockRejectedValue({ response: { status: 503, data: {} } })
     render(dialog())
-    press(document.querySelector("[data-share-general-level]")!)
+    press(screen.getByRole("button", { name: "Everyone in the workspace: Can edit" }))
     await act(async () => fireEvent.click(await screen.findByText("Can view")))
     expect(await screen.findByText("Couldn't check who gains or loses access.")).toBeTruthy()
     expect(hoisted.update).not.toHaveBeenCalled()
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Change it" })))
     expect(hoisted.update).toHaveBeenCalledWith({ doc_uuid: "d1", general: { private: false, level: "view" } })
+  })
+
+  // DESIGN-BUILD-6, 22 Oct: the general access level's menu marked no level.
+  it("marks the level everyone in the workspace has, in its menu", async () => {
+    const a = accessFor("full")
+    a.sharing!.general = { private: false, level: "comment" }
+    serve(a)
+    render(dialog())
+    press(screen.getByRole("button", { name: "Everyone in the workspace: Can comment" }))
+    const check = async (level: string) => (await screen.findByRole("menuitem", { name: new RegExp(`^${level}`) })).querySelector("[data-menu-check]")?.getAttribute("data-menu-check")
+    expect(await check("Can comment")).toBe("on")
+    expect(await check("Can edit")).toBe("off")
+    expect(await check("Can view")).toBe("off")
+    expect((await screen.findByRole("menuitem", { name: /^Can comment/ })).getAttribute("aria-current")).toBe("true")
   })
 
   it("asks about guest links it couldn't read before making it private, and keeps them when told", async () => {

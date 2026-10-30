@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { ArrowLeftRight, GripVertical } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { clipWords } from "@/lib/utils/format/clipWords"
 import { MAIN, MAIN_KEY, keyOf, paneKey, type Pane } from "@/lib/split"
 import { SEAM_PX, viewRow } from "@/lib/splitLayout"
 import { moveView, restoreSplit, swapViews } from "@/store/slice/splitActions"
@@ -56,7 +57,8 @@ export function stopsFor(spots: Spot[], held: string): { x: number; aim: Aim }[]
  * the gap to the neighbour on that side (the gutter at the row's end), and the
  * incoming column's faint slot on the target's side of the line, the held
  * view's width but never past half the target, as VS Code previews a split: a
- * swap tints the whole target, with its chip, so the two never look alike. Pure.
+ * swap tints the whole target, and the ghost says it, so the two never look
+ * alike. Pure.
  */
 export function dropMarks(aim: Aim, spots: Spot[], held: string) {
   const i = spots.findIndex((s) => s.key === aim.key)
@@ -77,6 +79,29 @@ export function dropOf(aim: Aim, held: string, panes: Pane[], order: string[]) {
   if (aim.zone === "swap") return swapViews({ a, b, quiet: true })
   const rest = viewRow(panes, order).filter((v) => v !== a)
   return moveView({ view: a, to: rest.indexOf(b) + (aim.zone === "after" ? 1 : 0), quiet: true })
+}
+
+/** What a swap is called, on the ghost and aloud (design r5: the ghost carries the action, with no chip of its own under it). */
+export const swapWith = (name: string) => `Swap with ${name}`
+
+/** About as many characters as the ghost holds at its 280px. */
+const GHOST_CHARS = 30
+
+/** The ghost's words: the held view's name, or the swap it would make, cut at a word to what the ghost holds. Pure. */
+export function ghostWords(name: string, swapping: string | null): string {
+  return swapping ? swapWith(clipWords(swapping, GHOST_CHARS - swapWith("").length)) : clipWords(name, GHOST_CHARS)
+}
+
+/**
+ * Where the ghost sits for the carry at `p`: below and right of it, kept 8px
+ * inside the window (carried by the rightmost view's bar, it ran off the
+ * edge). Pure.
+ */
+export function ghostAt(p: { x: number; y: number }, size: { width: number; height: number }, view: { width: number; height: number }) {
+  return {
+    x: Math.round(Math.max(8, Math.min(p.x + 14, view.width - size.width - 8))),
+    y: Math.round(Math.max(8, Math.min(p.y + 10, view.height - size.height - 8))),
+  }
 }
 
 /**
@@ -156,7 +181,18 @@ export function SplitArrange({ shown }: { shown: string }) {
   const [aim, setAim] = useState<Aim | null>(null)
   const aimRef = useRef<Aim | null>(null)
   const ghost = useRef<HTMLDivElement>(null)
-  const start = useRef({ x: 0, y: 0 })
+  // The carry's point; the ghost's size as a ResizeObserver last saw it (read
+  // on a move, it would lay the page out), the widest until drawn; and the
+  // window's, read as the carry starts.
+  const at = useRef({ x: 0, y: 0 })
+  const size = useRef({ width: 280, height: 40 })
+  const view = useRef({ width: 0, height: 0 })
+  const place = useCallback((p: { x: number; y: number }) => {
+    at.current = p
+    const q = ghostAt(p, size.current, view.current)
+    // By `translate`, not `transform`: the lift's `scale` would scale a transform's move too (2% of it, 24px at the window's right).
+    if (ghost.current) ghost.current.style.translate = `${q.x}px ${q.y}px`
+  }, [])
   const [layer, setLayer] = useState<HTMLElement | null>(null)
 
   // The marks' layer, at the end of the page's body for as long as the arrange layer is.
@@ -190,6 +226,20 @@ export function SplitArrange({ shown }: { shown: string }) {
     window.addEventListener("split:slots", find)
     return () => window.removeEventListener("split:slots", find)
   }, [shownSet])
+
+  // The ghost's words change its width: it stays inside the window as they do.
+  useEffect(() => {
+    const g = ghost.current
+    if (!g || typeof ResizeObserver === "undefined") return
+    const ro = new ResizeObserver(([e]) => {
+      const b = e?.borderBoxSize?.[0]
+      if (!b?.inlineSize) return
+      size.current = { width: b.inlineSize, height: b.blockSize }
+      place(at.current)
+    })
+    ro.observe(g)
+    return () => ro.disconnect()
+  }, [layer, place])
 
   // A move travels: measured before the store's change reaches the page,
   // played once it has. The views only: a task list's rows inside one move
@@ -242,6 +292,11 @@ export function SplitArrange({ shown }: { shown: string }) {
         }
         return { container: zone === "swap" ? `${nameOf(key)}'s place, the two swapping` : `the place ${zone} ${nameOf(key)}` }
       },
+      // Over a swap it says what the ghost does.
+      over: (id) => {
+        const [key, zone] = String(id).split("|")
+        return zone === "swap" ? swapWith(nameOf(key)) : null
+      },
     }),
     [nameOf, store],
   )
@@ -278,13 +333,14 @@ export function SplitArrange({ shown }: { shown: string }) {
     sheetOf(held.current)?.setAttribute("data-split-held", "")
     const t = (e.activatorEvent as TouchEvent | null)?.touches?.[0]
     const p = e.activatorEvent instanceof MouseEvent ? { x: e.activatorEvent.clientX, y: e.activatorEvent.clientY } : t ? { x: t.clientX, y: t.clientY } : r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: 0, y: 0 }
-    start.current = p
+    view.current = { width: window.innerWidth, height: window.innerHeight }
+    place(p)
   }
   const onMove = (e: DragMoveEvent) => {
     const r = e.active.rect.current.translated
     const p = dragPoint(e) ?? (r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null)
     if (!p) return
-    if (ghost.current) ghost.current.style.transform = `translate3d(${Math.round(p.x + 14)}px, ${Math.round(p.y + 10)}px, 0)`
+    place(p)
     const a = aimAt(p.x, spots.current, held.current)
     if (a?.key !== aimRef.current?.key || a?.zone !== aimRef.current?.zone) {
       aimRef.current = a
@@ -310,6 +366,7 @@ export function SplitArrange({ shown }: { shown: string }) {
   const left = holding ? spots.current.find((s) => s.key === holding)?.rect : undefined
   const target = aim ? spots.current.find((s) => s.key === aim.key)?.rect : undefined
   const marks = aim ? dropMarks(aim, spots.current, held.current) : null
+  const swapping = aim?.zone === "swap" && target ? aim.key : null
   const GhostIcon = look?.icon
   const box = (r?: { left: number; top: number; width: number; height: number }) => (r ? { left: r.left, top: r.top, width: r.width, height: r.height } : undefined)
   return (
@@ -321,17 +378,13 @@ export function SplitArrange({ shown }: { shown: string }) {
           <>
             <div className={cn("split-carry", DRAG_OVERLAY)} {...mark(holding)} />
             <div className="split-held" {...mark(left)} style={box(left)} />
-            <div ref={ghost} className="split-ghost" data-drag-state="lifted" {...mark(look)} aria-hidden="true" style={{ transform: `translate3d(${Math.round(start.current.x + 14)}px, ${Math.round(start.current.y + 10)}px, 0)` }}>
-              {GhostIcon && <GhostIcon className="h-4 w-4 shrink-0 text-ink-3" />}
-              <span className="truncate">{look?.name}</span>
+            <div ref={ghost} className="split-ghost" data-drag-state="lifted" {...mark(look)} aria-hidden="true">
+              {swapping ? <ArrowLeftRight className="h-4 w-4 shrink-0 text-ink-3" /> : GhostIcon && <GhostIcon className="h-4 w-4 shrink-0 text-ink-3" />}
+              <span className="truncate">{look && ghostWords(look.name, swapping && nameOf(swapping))}</span>
             </div>
             <span className="split-drop-slot" {...mark(marks && marks.slotWidth > 0)} style={marks ? { left: marks.slotLeft, top: marks.top, width: marks.slotWidth, height: marks.height } : undefined} />
             <span data-drop-line="col" {...mark(marks)} style={marks ? { left: marks.x - 1, top: marks.top + 8, height: marks.height - 16 } : undefined} />
-            <div className="split-drop-swap" data-drop="valid" {...mark(aim?.zone === "swap" && target)} style={box(target)}>
-              <span className="split-drop-chip">
-                <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" /> Swap places
-              </span>
-            </div>
+            <div className="split-drop-swap" data-drop="valid" {...mark(swapping)} style={box(target)} />
           </>,
           layer,
         )}

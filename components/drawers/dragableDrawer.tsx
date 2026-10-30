@@ -149,8 +149,10 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
             className={cn(
                 "fixed bottom-0 left-0 right-0 max-h-dvh opacity-100 pb-[env(safe-area-inset-bottom)]",
                 // At rest, the sheet fades in behind the card so a row passing
-                // under it never shows through the 12px around it.
-                isExpanded ? "bg-sheet" : "bg-gradient-to-t from-sheet from-70% to-transparent",
+                // under it never shows through the 12px around it. The fade is
+                // its top 32px whatever its height: as 30% of it, a sheet
+                // holding a Giphy card faded rows in behind the card's top.
+                isExpanded ? "bg-sheet" : "bg-[linear-gradient(to_top,var(--sheet)_calc(100%_-_32px),transparent)]",
             )}
         >
             {/* The drag stays as a second way to expand: a 12px strip along the

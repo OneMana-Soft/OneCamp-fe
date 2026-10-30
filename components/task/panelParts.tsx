@@ -72,7 +72,7 @@ export function DatesProperty({
     <div className={propertyRow()} data-property="dates">
       <span className={propertyLabel}>Dates</span>
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <DateProperty bare isAdmin={isAdmin} label="Start date" emptyText={due ? "Start" : "Add dates"} value={start} onSelect={onStart} onClear={() => onStart(undefined)} />
+        <DateProperty bare isAdmin={isAdmin} label="Start date" emptyText={due ? "Start" : isAdmin ? "Add dates" : "None"} value={start} onSelect={onStart} onClear={() => onStart(undefined)} />
         {(start || due) && <span className="text-ink-4" aria-hidden>→</span>}
         {(start || due) && <DateProperty bare isAdmin={isAdmin} label="Due date" emptyText="Due" value={due} onSelect={onDue} onClear={() => onDue(undefined)} />}
         {due && !done && <DueLabel date={due} variant="panel" className="ml-1" />}
@@ -82,6 +82,11 @@ export function DatesProperty({
 }
 
 const MORE_KEY = "oc_task_more_fields"
+
+/** How many of a row's wrapped items fall past its first line (their tops below the first's): the ones it has no room to show. */
+export function pastFirstLine(tops: readonly number[]): number {
+  return tops.filter((t) => t > tops[0]).length
+}
 
 function readMore(): boolean {
   try {
@@ -103,6 +108,19 @@ export function MoreFields({ children }: { children: React.ReactNode }) {
   const [hidden, setHidden] = React.useState<string[]>([])
   const [opened, setOpened] = React.useState(false)
   const box = React.useRef<HTMLDivElement>(null)
+  // The names it folds away, whole: those with no room wrap past the first line, and are counted.
+  const list = React.useRef<HTMLSpanElement>(null)
+  const [rest, setRest] = React.useState(0)
+  React.useLayoutEffect(() => {
+    const el = list.current
+    if (!el) return setRest(0)
+    const count = () => setRest(pastFirstLine([...el.children].map((c) => (c as HTMLElement).offsetTop)))
+    count()
+    if (typeof ResizeObserver === "undefined") return
+    const watch = new ResizeObserver(count)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [hidden, open])
   React.useEffect(() => setOpen(readMore()), [])
   // What the toggle names: the labels of the empty rows, read again whenever
   // a row fills, empties or loads (Cycle and the fields load on their own).
@@ -146,7 +164,23 @@ export function MoreFields({ children }: { children: React.ReactNode }) {
         >
           <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", open ? "rotate-180" : "-rotate-90")} aria-hidden />
           <span className="shrink-0">{open ? "Fewer fields" : "More fields"}</span>
-          {!open && hidden.length > 0 && <span className="truncate font-normal">· {hidden.join(", ")}</span>}
+          {!open && hidden.length > 0 && (
+            <>
+              <span className="shrink-0 font-normal">·</span>
+              <span ref={list} className="flex h-4 min-w-0 flex-1 flex-wrap overflow-hidden font-normal">
+                {hidden.map((n, i) => (
+                  <span key={n} data-more-name="" className="whitespace-pre">
+                    {i ? `, ${n}` : n}
+                  </span>
+                ))}
+              </span>
+              {rest > 0 && (
+                <span data-more-rest="" aria-hidden className="shrink-0 font-normal">
+                  +{rest}
+                </span>
+              )}
+            </>
+          )}
         </button>
       )}
     </div>

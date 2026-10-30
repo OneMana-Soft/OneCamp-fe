@@ -6,13 +6,25 @@
 // last changed. A phone's row is two lines at 56 px, a finger's height. A
 // link, so it opens from the keyboard and in a new tab, and is fetched ahead
 // on intent (A2).
+//
+// Docs & Files (docs F1b): a folder, a file or a link wears its kind's mark
+// and opens its own way: a folder at its address, known as one before its
+// page asks (no live copy to fetch ahead, so a plain link); a file in its
+// preview, in place (⌘-click still opens its page in a new tab); a link is a
+// real link to its document, in a new tab. A file shows its size and a link
+// its site; a colour shows as a dot after the title.
 
 import { LevelMark } from "@/components/doc/LevelMark"
 import { levelLabel } from "@/lib/docs/abilities"
 import * as React from "react"
 
-import { DocIcon } from "@/components/docEditor/DocIcon"
+import { NodeLink } from "@/components/docFiles/NodeLink"
 import { DocRowMenu } from "@/components/docTree/DocRowMenu"
+import { ColourDot, NodeMark, markOfListItem, nodeHue } from "@/components/docFiles/NodeMark"
+import { seedNodeInfo } from "@/components/docFiles/fileActions"
+import { useNodeDialogs, warmFilePreview } from "@/components/docFiles/useNodeDialogs"
+import { checkLinkUrl, kindWord, linkSite, openingOf } from "@/lib/docs/docNode"
+import { formatFileSizeForAttachment } from "@/lib/utils/format/formatFileSizeForAttachment"
 import { IntentLink } from "@/components/navigationBar/desktop/IntentLink"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { displayNameOf } from "@/lib/personName"
@@ -21,13 +33,15 @@ import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { agoOrDate, fullDateTime } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
-import { docHue, rememberDocIcon } from "@/lib/docLook"
+import { rememberDocIcon } from "@/lib/docLook"
 import type { DocCrumb, DocListItem } from "@/types/docGraph"
 import type { DocSearchItem } from "@/types/docHome"
 import { app_doc_path } from "@/types/paths"
 
-/** What a doc's title shows: the title, or the placeholder it has until someone names it (D-6). */
-export const titleOf = (t: string | undefined) => (t ?? "").trim() || "Untitled"
+// The trash's rows name a doc with titleOf too, from its own small module, so
+// the trash page doesn't carry these rows and their menu.
+import { titleOf } from "@/lib/docs/docTitle"
+export { titleOf }
 
 /** "Engineering › RFCs": the pages above a doc, a page the viewer can't open as "…". Pure. */
 export function pathLabel(path: DocCrumb[] | undefined): string {
@@ -70,6 +84,20 @@ export function DocRow({ doc, when = "edited", canEdit = false, passages }: DocR
   const owner = doc.owner
   const titleMark = "title_highlight" in doc ? doc.title_highlight : undefined
   const [menuOpen, setMenuOpen] = React.useState(false)
+  const item = doc as DocListItem
+  const kind = item.doc_node_kind
+  const mark = markOfListItem(item)
+  const opening = openingOf(kind)
+  const link = opening === "external" ? checkLinkUrl(item.doc_link_url ?? "") : null
+  const external = link?.ok ? link.url : null
+  const detail = kind === "link" ? linkSite(item.doc_link_url) : kind === "file" && item.doc_file ? formatFileSizeForAttachment(item.doc_file.size_bytes) : ""
+  const dialogs = useNodeDialogs()
+  const preview = (versions = false) => dialogs.open({ kind: "preview", file: { id: doc.doc_uuid, title: doc.doc_title ?? "", facts: item.doc_file, canEdit }, versions })
+  // A page fetches its route and live copy on intent (IntentLink); a folder,
+  // a file or a link its route only (NodeLink): none on sight. A file's
+  // preview comes on the same intent.
+  const Anchor = kind ? NodeLink : IntentLink
+  const warm = opening === "preview" ? warmFilePreview : undefined
   // A long press on a phone opens the row's menu, as the "⋯" does.
   const press = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const pressed = React.useRef(false)
@@ -80,10 +108,14 @@ export function DocRow({ doc, when = "edited", canEdit = false, passages }: DocR
 
   return (
     <div className="group/row relative" data-doc-row={doc.doc_uuid}>
-      <IntentLink
-        href={`${app_doc_path}/${doc.doc_uuid}`}
-        aria-label={[title, where && `in ${where}`, time.short && `${when === "viewed" ? "opened" : "edited"} ${time.short}`, levelLabel("level" in doc ? doc.level : undefined).toLowerCase()].filter(Boolean).join(", ")}
+      <Anchor
+        href={external ?? `${app_doc_path}/${doc.doc_uuid}`}
+        {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+        aria-label={[title, kind && kindWord(kind), where && `in ${where}`, time.short && `${when === "viewed" ? "opened" : "edited"} ${time.short}`, levelLabel("level" in doc ? doc.level : undefined).toLowerCase()].filter(Boolean).join(", ")}
+        onPointerEnter={warm}
+        onFocus={warm}
         onTouchStart={() => {
+          warm?.()
           pressed.current = false
           press.current = setTimeout(() => {
             pressed.current = true
@@ -97,10 +129,18 @@ export function DocRow({ doc, when = "edited", canEdit = false, passages }: DocR
           if (pressed.current) {
             e.preventDefault()
             pressed.current = false
+            return
+          }
+          const plain = !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0
+          if (opening === "preview" && plain) {
+            e.preventDefault()
+            preview()
+          } else if (opening === "folder") {
+            seedNodeInfo({ kind: "doc", uuid: doc.doc_uuid, title: doc.doc_title, has_children: false, node_kind: kind, color: item.doc_color, private: item.doc_private })
           }
         }}
         // A row of the interaction layer, tinting in the doc's own hue (D13).
-        {...ix("row", { hue: docHue(doc.doc_uuid, doc.doc_icon) ?? undefined })}
+        {...ix("row", { hue: nodeHue(mark) ?? undefined })}
         className={cn(
           "flex min-w-0 items-center gap-2.5 rounded-lg px-2 text-ink",
           // A wide screen's row is one 36 px line; a phone's two lines at 56 px.
@@ -109,12 +149,15 @@ export function DocRow({ doc, when = "edited", canEdit = false, passages }: DocR
           "pr-10 [-webkit-touch-callout:none] sm:pr-10",
         )}
       >
-        <DocIcon icon={doc.doc_icon} id={doc.doc_uuid} size={16} className="self-start mt-[3px] sm:mt-0 sm:self-center" />
+        <NodeMark node={mark} size={16} className="self-start mt-[3px] sm:mt-0 sm:self-center" />
         <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-center sm:gap-2">
           <span className={cn("min-w-0 truncate text-ui font-[450]", !doc.doc_title?.trim() && "text-ink-3")}>
             {titleMark ? <Marked passage={titleMark} /> : title}
           </span>
+          {item.doc_color && kind !== "folder" ? <ColourDot hue={item.doc_color} className="max-sm:hidden" /> : null}
           <span className="flex min-w-0 items-center gap-1.5 text-ui-sm text-ink-3 sm:flex-1">
+            {detail ? <span className="shrink-0 tabular-nums">{detail}</span> : null}
+            {detail && where ? <span aria-hidden="true">·</span> : null}
             {where && <span className="min-w-0 truncate">in {where}</span>}
             <LevelMark level={"level" in doc ? doc.level : undefined} />
             {/* The phone's second line ends with when. */}
@@ -140,7 +183,7 @@ export function DocRow({ doc, when = "edited", canEdit = false, passages }: DocR
             </span>
           )}
         </span>
-      </IntentLink>
+      </Anchor>
       {passages && passages.length > 0 && (
         <div data-search-snippet="" className="-mt-1 hidden pb-2 pl-[34px] pr-10 text-ui-sm text-ink-2 sm:block">
           {passages.slice(0, 2).map((p, i) => (
@@ -152,12 +195,20 @@ export function DocRow({ doc, when = "edited", canEdit = false, passages }: DocR
         <DocRowMenu
           doc={{ id: doc.doc_uuid, title: doc.doc_title ?? "", icon: doc.doc_icon }}
           canEdit={canEdit}
+          node={{ kind, color: item.doc_color, linkUrl: item.doc_link_url, file: item.doc_file }}
+          act={{
+            preview: kind === "file" ? () => preview() : undefined,
+            versions: kind === "file" ? () => preview(true) : undefined,
+            replace: kind === "file" ? () => dialogs.open({ kind: "replace", file: { id: doc.doc_uuid, title: doc.doc_title ?? "" } }) : undefined,
+            colourSheet: () => dialogs.open({ kind: "colour", ids: [doc.doc_uuid], current: item.doc_color, title: doc.doc_title }),
+          }}
           focusable
           open={menuOpen}
           onOpenChange={setMenuOpen}
           className="size-7 sm:size-6"
         />
       </span>
+      {dialogs.element}
     </div>
   )
 }

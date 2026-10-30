@@ -1,19 +1,11 @@
-import { expect, test, type Page } from "@playwright/test"
-import { SAM, stubBackend } from "./stubbedApp"
+import { expect, test } from "@playwright/test"
+import { SAM, stubBackend, tidy } from "./stubbedApp"
 
 // Keywords and VIPs (chat P3 stage 3), in a real browser with no backend: a
 // channel post from someone else marks the reader's keyword (and only as a
 // whole word), their own post marks nothing; Settings, Notifications keeps the
 // keywords as chips and the VIPs as people, each saving at once. With
 // SHOTS=<dir> each is saved at 1280 and 390, light and dark.
-
-async function tidy(tab: Page) {
-  for (let i = 0; i < 2; i++) {
-    const gotIt = tab.getByRole("button", { name: "Got it" }).first()
-    if (!(await gotIt.isVisible().catch(() => false))) break
-    await gotIt.click().catch(() => {})
-  }
-}
 
 const person = (n: string, user_name: string) => ({ user_uuid: `5b1d7c2e-8f3a-4d6b-9e0c-1a2b3c4d5e${n}`, user_name, user_full_name: user_name, uid: `0x${n}`, user_profile_object_key: "" })
 const MAYA = person("6f", "Maya Chen")

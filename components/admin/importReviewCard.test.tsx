@@ -99,6 +99,22 @@ describe("Admin > Import and export: people earlier imports added", () => {
     expect(appMutate).toHaveBeenCalledWith(IMPORT_REVIEWS_KEY)
   })
 
+  it("shows the person being taken off as busy, while the other rows and the sheet's actions wait", async () => {
+    reviews([LAUNCH])
+    const dialog = await openLaunch()
+    let answer: () => void = () => {}
+    svc.takeOffImportReview.mockReturnValue(new Promise<void>((resolve) => (answer = resolve)))
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Take Ann Lee off Launch" })))
+    const ann = within(dialog).getByRole("button", { name: "Take Ann Lee off Launch" })
+    expect(ann).toHaveAttribute("aria-busy", "true")
+    expect(ann).toBeEnabled()
+    expect(within(dialog).getByRole("button", { name: "Take Ben Ortiz off Launch" })).toBeDisabled()
+    expect(within(dialog).getByRole("button", { name: "Keep everyone left" })).toBeDisabled()
+    expect(within(dialog).getByRole("button", { name: "Take everyone left off" })).toBeDisabled()
+    await act(async () => answer())
+    expect(within(dialog).getByRole("button", { name: "Take Ben Ortiz off Launch" })).toBeEnabled()
+  })
+
   it("says why a taking off was refused, and shows the list as it is now when another admin decided first", async () => {
     reviews([LAUNCH])
     const dialog = await openLaunch()

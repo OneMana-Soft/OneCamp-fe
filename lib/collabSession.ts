@@ -37,9 +37,10 @@
 "use client"
 
 import * as React from 'react'
-import type * as Y from 'yjs'
+import * as Y from 'yjs'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { forgetCollabToken, memberCollabToken } from '@/lib/collabToken'
+import { holdReload } from '@/lib/newBuild'
 import { markSchemaOutdated } from '@/lib/schemaOutdated'
 import {
   attachProvider,
@@ -48,6 +49,8 @@ import {
   markClosing,
   markRefused,
   noteServerSession,
+  collabSocketHeardSince,
+  recycleCollabSocket,
   reviveCollabSocket,
   serverSpeaksSession,
 } from '@/lib/collabSocket'
@@ -116,6 +119,8 @@ interface SessionSnapshot {
   activeUsers: number
   /** The server signed this tab in but never sent a session: an older collaboration service. */
   legacy: boolean
+  /** The doc hasn't arrived joinWaitMs after signing in (it may yet): the view offers Try again. */
+  stalled: boolean
 }
 
 type KeepEdits = () => { html: string; text: string } | null
@@ -156,6 +161,16 @@ export const SESSION_TIMING = {
   sessionWaitMs: 15_000,
   /** Synced with no session this long after: the server is older than sessions. */
   legacyDetectMs: 4_000,
+  /**
+   * How long a sign-in may go without the doc syncing before the join
+   * watchdog acts (CollabSession.watchJoin). Measured 22 Oct: on the demo, a
+   * new doc's editor was live and asking for its starters 1.7 s after the
+   * server took the join, its first load included (the 15:02 UTC journey);
+   * against a local server the sync came 60 to 130 ms after the sign-in. The
+   * join that stalled at 20:05 never synced. Eight seconds is over four times
+   * the slowest healthy join, and well before a person gives up on the page.
+   */
+  joinWaitMs: 8_000,
   /** Retries after a refusal that may pass (a token, a moment's outage). */
   retryDelaysMs: [2_000, 5_000, 15_000, 30_000],
 }
@@ -225,10 +240,56 @@ function epochIn(doc: Y.Doc | null | undefined): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Edits only this tab holds
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether leaving now would lose edits this tab made that the collaboration
+ * server hasn't confirmed: typed offline, or while the server is slow. A live
+ * doc keeps no local copy (on purpose: a cached copy once doubled every
+ * block), so those edits exist only in this tab's memory until the server
+ * says it has them. The doc's leave guard asks it before the tab closes
+ * (components/docEditor/leaveGuard), and every session holds off a reload a
+ * new build asks for while it says so (lib/chunkRecovery holdReload).
+ *
+ * The provider counts updates the server hasn't acknowledged
+ * (unsyncedChanges), but it also counts its own handshake on every connect,
+ * which loses nothing. So this tracks whether the document changed HERE
+ * (a change not applied by the provider itself) since the count last
+ * reached zero. It reads each transaction, never the "update" event: a
+ * listener there has Yjs encode every change, the server's too (W-4).
+ */
+export function trackUnsentEdits(provider: HocuspocusProvider) {
+  let changedHere = false
+  const onTransaction = (tr: Y.Transaction) => {
+    // The provider applies what the server sends with itself as the origin;
+    // anything else (typing, an undo, a template, an AI insert) is this tab's,
+    // when it changed something: an item deleted, or one added.
+    if (changedHere || tr.origin === provider) return
+    if (tr.deleteSet.clients.size > 0) changedHere = true
+    else for (const [client, clock] of tr.afterState) if (tr.beforeState.get(client) !== clock) changedHere = true
+  }
+  const onUnsynced = ({ number }: { number: number }) => {
+    if (number === 0) changedHere = false
+  }
+  provider.document.on('afterTransaction', onTransaction)
+  provider.on('unsyncedChanges', onUnsynced)
+  return {
+    /** Edits made here that the server hasn't confirmed yet. */
+    pending: () => changedHere && provider.unsyncedChanges > 0,
+    stop: () => {
+      provider.document.off('afterTransaction', onTransaction)
+      provider.off('unsyncedChanges', onUnsynced)
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The provider: Hocuspocus's, with the lineage check before a returning copy syncs
 // ---------------------------------------------------------------------------
 
 type OpenEvent = Parameters<HocuspocusProvider['onOpen']>[0]
+type ServerMessageEvent = Parameters<HocuspocusProvider['onMessage']>[0]
 
 class SessionProvider extends HocuspocusProvider {
   /** Compare lineages before a returning copy syncs (docs; not boards). */
@@ -242,6 +303,8 @@ class SessionProvider extends HocuspocusProvider {
   /** Called when the server holds another copy: never synced, the session opens afresh. */
   onLineageMismatch: (server: string | null) => void = () => {}
   private gateTimer: ReturnType<typeof setTimeout> | null = null
+  /** Set by destroy(): a message can end the copy while it applies (below). */
+  private destroyed = false
 
   private clearGate() {
     if (this.gateTimer) clearTimeout(this.gateTimer)
@@ -298,6 +361,34 @@ class SessionProvider extends HocuspocusProvider {
     super.receiveStateless(payload)
   }
 
+  /**
+   * A message from the server applies without Yjs encoding its change again.
+   * Yjs encodes every applied change whole for its update event when anyone
+   * listens, and this provider's listener drops its own changes unread
+   * (below): opening a board of 1,000 elements encoded all of them a second
+   * time (fluid-22's profile, W-4). An edit made while the message applies
+   * (an observer that writes) is still sent, with what the message brought.
+   */
+  override onMessage(event: ServerMessageEvent) {
+    const doc = this.document
+    const before = Y.encodeStateVector(doc)
+    let local = false
+    const watch = (transaction: Y.Transaction) => {
+      if (transaction.origin !== this) local = true
+    }
+    doc.on('afterTransaction', watch)
+    doc.off('update', this.boundDocumentUpdateHandler)
+    try {
+      super.onMessage(event)
+    } finally {
+      doc.off('afterTransaction', watch)
+      // The server saying it holds another copy ends this one mid-message:
+      // destroy() let go of the doc, and nothing hands it back.
+      if (!this.destroyed) doc.on('update', this.boundDocumentUpdateHandler)
+    }
+    if (local && !this.destroyed) this.documentUpdateHandler(Y.encodeStateAsUpdate(doc, before), null)
+  }
+
   override documentUpdateHandler(update: Uint8Array, origin: unknown) {
     if (origin === this) return
     // Not sent while the copy is unconfirmed: the sync that follows a match
@@ -318,6 +409,7 @@ class SessionProvider extends HocuspocusProvider {
   }
 
   override destroy() {
+    this.destroyed = true
     this.clearGate()
     super.destroy()
   }
@@ -343,10 +435,14 @@ const INITIAL: SessionSnapshot = {
   users: [],
   activeUsers: 0,
   legacy: false,
+  stalled: false,
 }
 
 /** The snapshot of no session: nothing connected. */
 const NO_SESSION: SessionSnapshot = { ...INITIAL, status: 'disconnected' }
+
+/** navigator.onLine is false only when the network surely is down. */
+const windowOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false
 
 /** Whether two presence lists name the same people, the same way, in order. */
 export function samePeople(a: PresenceUser[], b: PresenceUser[]): boolean {
@@ -373,10 +469,16 @@ export class CollabSession {
   private lingerTimer: ReturnType<typeof setTimeout> | null = null
   private retryTimer: ReturnType<typeof setTimeout> | null = null
   private legacyTimer: ReturnType<typeof setTimeout> | null = null
+  private joinTimer: ReturnType<typeof setTimeout> | null = null
+  /** The watchdog has opened a new connection since the doc last synced. */
+  private joinRecycled = false
   private retries = 0
   private reloads: number[] = []
   private metaEpoch: string | null = null
   private windowBound = false
+  /** The provider's edits only this tab holds; a reload a new build asks for waits while there are any. */
+  private unsent: ReturnType<typeof trackUnsentEdits> | null = null
+  private releaseReload: (() => void) | null = null
 
   constructor(name: string, key: string, opts: SessionOptions = {}) {
     this.name = name
@@ -400,6 +502,8 @@ export class CollabSession {
   getSnapshot = (): SessionSnapshot => this.snap
 
   private set(patch: Partial<SessionSnapshot>) {
+    // The window's offline wins over the socket's state until onOnline (V-21).
+    if (patch.status && windowOffline()) patch = { ...patch, status: 'offline' }
     let changed = false
     for (const k of Object.keys(patch) as (keyof SessionSnapshot)[]) {
       if (this.snap[k] !== patch[k]) {
@@ -446,6 +550,13 @@ export class CollabSession {
   private release() {
     this.holders = Math.max(0, this.holders - 1)
     if (this.holders > 0) return
+    // A guest's session ends with its last view: its token is a link's or a
+    // call's, and no list opens it again. A call's board that left the stage
+    // refuses the call's token, and a lingering copy kept asking for it.
+    if (this.opts.tokenFetcher) {
+      this.destroy()
+      return
+    }
     this.lastUsed = Date.now()
     // Nobody looks: present to nobody, but keep the presence state itself, so
     // the socket keeps hearing the server (the server echoes it back).
@@ -516,6 +627,10 @@ export class CollabSession {
         if (provider !== this.provider) return
         this.set({ status: status as SessionStatus })
       },
+      onOpen: () => {
+        if (provider !== this.provider) return
+        this.watchJoin(provider)
+      },
       onAuthenticated: ({ scope }: { scope: string }) => {
         if (provider !== this.provider) return
         this.retries = 0
@@ -536,6 +651,8 @@ export class CollabSession {
       },
       onClose: () => {
         if (provider !== this.provider) return
+        // The next sign-in is watched afresh.
+        this.clearJoin()
         // The whole socket went: it reconnects, and every doc on it signs in
         // again. The socket still up: the server closed this doc alone (its
         // access changed: A5, I10). It signs in again on the same socket and
@@ -571,6 +688,8 @@ export class CollabSession {
       this.freshCopy()
     }
     this.provider = provider
+    this.unsent = trackUnsentEdits(provider)
+    this.releaseReload ??= holdReload(() => !!this.unsent?.pending())
     this.metaEpoch = null
     if (this.holders === 0) provider.awareness?.setLocalState({})
     this.set({ provider, status: socket.status === 'connected' ? 'connecting' : (socket.status as SessionStatus), synced: false })
@@ -583,9 +702,12 @@ export class CollabSession {
     const p = this.provider
     if (!p) return
     this.provider = null
+    this.unsent?.stop()
+    this.unsent = null
     this.clearRetry()
     if (this.legacyTimer) clearTimeout(this.legacyTimer)
     this.legacyTimer = null
+    this.clearJoin()
     const attached = p.isAttached
     p.destroy()
     // The server answers the close; the name is reused only after it has.
@@ -603,11 +725,14 @@ export class CollabSession {
     }
     if (epoch) this.metaEpoch = epoch
     provider.markSynced()
+    this.clearJoin()
+    this.joinRecycled = false
     this.set({
       synced: true,
       status: 'synced',
       openError: null,
       refused: null,
+      stalled: false,
       lineage: this.checksLineage ? (provider.heldLineage ?? null) : null,
     })
     window.setTimeout(() => {
@@ -656,6 +781,9 @@ export class CollabSession {
   }
 
   private refusedWith(reason: string) {
+    // An answer: what the view says now is the refusal.
+    this.clearJoin()
+    if (this.snap.stalled) this.set({ stalled: false })
     markRefused(this.name)
     if (reason === UNAVAILABLE_REASON) {
       // Refused, not opened empty: the view offers Retry.
@@ -683,6 +811,37 @@ export class CollabSession {
   private clearRetry() {
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.retryTimer = null
+  }
+
+  /**
+   * The join watchdog, from each sign-in. A doc that hasn't synced joinWaitMs
+   * later on a connection that has said nothing at all since is on a dead
+   * connection: the first one through a cold edge after a restart can take
+   * the sign-in and never answer (22 Oct, 20:05), and the provider never drops
+   * a connection that hasn't spoken yet. A new one is opened, once until the
+   * doc syncs. Otherwise (the server is talking, so the doc is slow to come,
+   * or the new connection is silent too) the view says it is still connecting
+   * and offers Try again. Nothing is editable meanwhile: the doc is the
+   * server's copy or nothing.
+   */
+  private watchJoin(provider: SessionProvider) {
+    this.clearJoin()
+    const from = Date.now()
+    this.joinTimer = setTimeout(() => {
+      this.joinTimer = null
+      if (provider !== this.provider || provider.synced) return
+      if (!this.joinRecycled && !collabSocketHeardSince(from)) {
+        this.joinRecycled = true
+        void recycleCollabSocket()
+        return
+      }
+      this.set({ stalled: true })
+    }, SESSION_TIMING.joinWaitMs)
+  }
+
+  private clearJoin() {
+    if (this.joinTimer) clearTimeout(this.joinTimer)
+    this.joinTimer = null
   }
 
   /** Signs the same copy in again (a refused or failed open), on a connection that can take it. */
@@ -718,10 +877,16 @@ export class CollabSession {
     this.start()
   }
 
-  /** The view's Retry: open the doc again. */
+  /** The view's Retry (Try again while still connecting): open the doc again. */
   retry = () => {
     this.retries = 0
     this.clearRetry()
+    // Still connecting: a new connection, as the watchdog opens one.
+    if (this.snap.stalled) {
+      this.set({ stalled: false })
+      void recycleCollabSocket()
+      return
+    }
     if (this.provider) this.reattach()
     else this.start()
   }
@@ -803,6 +968,8 @@ export class CollabSession {
     this.destroyed = true
     this.clearLinger()
     this.stopProvider()
+    this.releaseReload?.()
+    this.releaseReload = null
     this.unbindWindow()
     if (pool.get(this.key) === this) pool.delete(this.key)
     this.set({ ...NO_SESSION, recovered: this.snap.recovered })

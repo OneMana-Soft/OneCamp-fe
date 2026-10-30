@@ -23,7 +23,7 @@ const SheetOverlay = React.forwardRef<
   <SheetPrimitive.Overlay
     className={cn(
       // The dialog's dim (v3-overlay): no blur.
-      "v3-overlay fixed inset-0 z-[var(--z-modal-backdrop)]",
+      "v3-overlay fixed inset-0 z-[var(--z-modal)]",
       className
     )}
     {...props}
@@ -140,7 +140,7 @@ const SheetTitle = React.forwardRef<
   <SheetPrimitive.Title
     ref={ref}
     // title-3 (17/24 590), joined by hand: cn() drops it beside a colour.
-    className={cn("font-semibold text-foreground text-balance", className) + (/(?:^|\s)text-(?:xs|sm|base|lg|xl|\dxl|body|heading|title-[123])(?:\s|$)/.test(className ?? "") ? "" : " text-title-3")}
+    className={cn("font-semibold text-foreground [text-wrap-style:balance]", className) + (/(?:^|\s)text-(?:xs|sm|base|lg|xl|\dxl|body|heading|title-[123])(?:\s|$)/.test(className ?? "") ? "" : " text-title-3")}
     {...props}
   />
 ))

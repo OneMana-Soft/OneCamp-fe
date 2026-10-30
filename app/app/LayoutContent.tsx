@@ -18,6 +18,7 @@ import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ImperativePanelHandle, type ImperativePanelGroupHandle, getPanelGroupElement } from "react-resizable-panels";
 import { cn } from "@/lib/utils/helpers/cn";
 import { PreloadPanels, RightPanel } from "@/components/rightPanel/rightPanel";
+import { lazyPart } from "@/lib/lazy/lazyPart";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { useRef, useEffect, useLayoutEffect, useState } from "react";
@@ -33,15 +34,23 @@ import { Seam } from "@/components/split/Seam";
 import { MAIN, MAIN_KEY, MAX_PANES, keyOf } from "@/lib/split";
 import { MIN_VIEW_PX, SEAM_PX, shares, shownViews, viewRow, viewsThatFit } from "@/lib/splitLayout";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
-import { KeyboardTip } from "@/components/onboarding/KeyboardTip";
+
 import { useBotKinds } from "@/hooks/useBotKinds";
 import { followKeyboard } from "@/lib/ui/visualViewport";
 import { followHistory, noteRouteChange } from "@/lib/navigation/back";
 import { usePanelPlacement, useShellBand } from "@/components/navigationBar/tablet/useShellBand";
 import { isTabletBand } from "@/lib/ui/shellBand";
 import { useMeetingFrame } from "@/lib/ui/meetingFrame";
-import { OverlaySheet } from "@/components/ui/overlaySheet";
+import { RightPanelSheet } from "@/components/rightPanel/RightPanelSheet";
 import { warmBurstsWhenIdle } from "@/lib/celebrateSoon";
+// The keys tip shows once per browser, 6 s in, on a computer: its code comes
+// only then (components/onboarding/KeysTipLoader).
+import { KeysTipLoader } from "@/components/onboarding/KeysTipLoader";
+
+// The one rule that opens a task in place with no network, and a phone's sheet for it (asana-12 (a)): a chunk of
+// its own, as only a device that loses the network uses it (components/rightPanel/TaskInPlace).
+const TaskInPlace = lazyPart(() => import("@/components/rightPanel/TaskInPlace").then((m) => m.TaskInPlace)).Part;
+
 
 /** The panel group beside the sidebar: the page, any split panes, the right panel. */
 const PANEL_GROUP_ID = "app-panels";
@@ -268,6 +277,15 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   const isTaskPage = !!(path.length > 2 && path[2] === "task" && path[3]);
 
+  // What the right panel shows, with its own error boundary.
+  const panelBody = (
+    <div key={panelKey} className="shell-content-swap min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <PanelErrorBoundary resetKey={panelKey} onClose={() => dispatch(closeRightPanel())}>
+        <RightPanel />
+      </PanelErrorBoundary>
+    </div>
+  );
+
   if (isMobile) {
     return (
       <MobileNavigationBar
@@ -281,6 +299,9 @@ function Shell({ children }: { children: React.ReactNode }) {
       >
         {children}
         <RunningTimerChip />
+        {/* With no network, a task opens over the page, in a sheet, as a laptop's panel opens it (asana-12 (a)):
+            a move to its page would show the browser's own offline page. Its code is on the device first. */}
+        <TaskInPlace body={panelBody} />
       </MobileNavigationBar>
     );
   }
@@ -303,38 +324,20 @@ function Shell({ children }: { children: React.ReactNode }) {
     </PageSheet>
   );
 
-  // What the right panel shows, with its own error boundary.
-  const panelBody = (
-    <div key={panelKey} className="shell-content-swap min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-      <PanelErrorBoundary resetKey={panelKey} onClose={() => dispatch(closeRightPanel())}>
-        <RightPanel />
-      </PanelErrorBoundary>
-    </div>
-  );
-
   // The right panel over the page (a tablet, mobile T4; a window under
   // 1100px, as Slack does in a narrow window): a sheet of its own that slides
   // over the page from the right, on a 20% scrim that closes it (Esc does
   // too: RightPanel's own). Beside the page, its width crushed what it sat
   // beside: on a tablet at 768 a list got 278px, its title on two lines and
   // New task cut off; in a 1024 window a conversation got about 360px, at
-  // 768 about 165. The shared OverlaySheet: focus stays in it while it is
+  // 768 about 165. The right panel's ONE sheet (components/rightPanel/
+  // RightPanelSheet, the shared OverlaySheet): focus stays in it while it is
   // open, and goes back where it was when it closes; Escape stays the
   // panel's own (escape="own"), an editor's popup or a field first.
   const panelOverlay = rightPanelState.isOpen ? (
-    <OverlaySheet
-      key="open"
-      open
-      onClose={() => dispatch(closeRightPanel())}
-      label="Side panel"
-      escape="own"
-      data-right-panel=""
-      data-right-panel-sheet=""
-      data-panel-over=""
-      className="app-sheet shell-panel-sheet shell-panel-over flex flex-col overflow-hidden"
-    >
+    <RightPanelSheet key="open" label="Side panel" shape="shell-panel-sheet shell-panel-over" over>
       {panelBody}
-    </OverlaySheet>
+    </RightPanelSheet>
   ) : null;
 
   // A view's panel. Views sit by CSS order and the panels' order, never by
@@ -358,6 +361,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <DesktopNavigationBar>
       <RunningTimerChip />
       <PreloadPanels />
+      <TaskInPlace />
       <ResizablePanelGroup
         id={PANEL_GROUP_ID}
         ref={groupRef}
@@ -457,7 +461,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       {panelOver && panelOverlay}
       {splitOn && split && focused === null && <SplitArrange shown={shownKeys.join(",")} />}
       <ShortcutsDialog />
-      {!tablet && <KeyboardTip />}
+      {!tablet && <KeysTipLoader />}
     </DesktopNavigationBar>
   );
 }

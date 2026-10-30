@@ -13,11 +13,21 @@ import {clickedMobileFwdMsgSend} from "@/store/slice/fwdMessageSlice";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {MobileTopNavigationBarThirdDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarThirdDoc";
 import {MobileBoardCreateButton} from "@/components/navigationBar/mobile/mobileBoardCreateButton";
 import { openPalette } from "@/lib/ui/palette";
 import { PhoneSelfAvatar } from "@/components/navigationBar/mobile/phoneSelfAvatar";
 import { usePauseNotifications } from "@/hooks/usePauseNotifications";
+import { LazyConnected } from "@/components/workGraph/LazyConnected";
+import { lazyPart } from "@/lib/lazy/lazyPart";
+
+// A doc's actions load with a doc, in a chunk of their own. The bar is drawn
+// outside the page's error boundary, so when that chunk can't come it draws
+// without them, and fetches them again once the browser is back online
+// (lib/lazy/lazyPart): next/dynamic threw the failure to the app's boundary.
+const docActions = lazyPart(() => import("@/components/navigationBar/mobile/mobileTopNavigationBarThirdDoc").then((m) => m.MobileTopNavigationBarThirdDoc))
+
+/** The Connected button at a phone top bar's 44px. */
+export const PHONE_CONNECTED = "h-11 w-11 rounded-md [&_svg]:size-5"
 
 /**
  * The one way a list says "make another": a 44px "+" named for what it makes.
@@ -104,6 +114,7 @@ export function MobileTopNavigationBarThird() {
                         : null
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
+                        <LazyConnected kind="project" id={path[3]} className={PHONE_CONNECTED} />
                         <Button aria-label='Filter tasks' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'projectTaskFilterDrawer', data: { projectUUID: path[3] } }))}}><Filter className='h-5'/></Button>
                         {/* No "⋯" here: the project header line's menu is the one,
                             holding the tools, notifications, name and members. */}
@@ -126,7 +137,10 @@ export function MobileTopNavigationBarThird() {
 
                 break
             case "task":
-                return <Button aria-label='Task options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'taskOptionDrawer', data: { taskId: path[3] } }))}}><Ellipsis className='h-5'/></Button>
+                return <div className='flex items-center'>
+                    <LazyConnected kind="task" id={path[3]} className={PHONE_CONNECTED} />
+                    <Button aria-label='Task options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'taskOptionDrawer', data: { taskId: path[3] } }))}}><Ellipsis className='h-5'/></Button>
+                </div>
             break
 
             case "channel":
@@ -136,6 +150,7 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 5)
                     return <WhileConversationThere kind="channel" id={path[3]}><div className='flex items-center'>
                         <PhoneHuddleButton kind="channel" id={path[3]} />
+                        <LazyConnected kind="channel" id={path[3]} className={PHONE_CONNECTED} />
                         <Button aria-label='Channel options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
                         </div></WhileConversationThere>
                 break
@@ -150,7 +165,7 @@ export function MobileTopNavigationBarThird() {
                 if(path[3] === "trash")
                     return null
                 if(path.length < 5)
-                    return <MobileTopNavigationBarThirdDoc docId={path[3]} />
+                    return <docActions.Part docId={path[3]} />
 
             case "chat":
 

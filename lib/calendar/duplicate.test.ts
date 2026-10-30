@@ -26,6 +26,12 @@ describe("a copy of an event", () => {
     expect(copy.end.toISOString()).toBe("2026-10-15T11:00:00.000Z")
   })
 
+  it("keeps a task block's task, so the copy is time for it too", () => {
+    const task = { task_uuid: "t-brief", task_name: "Write the launch brief", task_status: "todo", project_uuid: "p1", project_name: "Launch" }
+    expect(duplicateOf({ ...review(""), event_participants: [], event_task: task }, null, "sam")).toMatchObject({ task, guests: [] })
+    expect(duplicateOf(review(""), null, "sam").task).toBeUndefined()
+  })
+
   it("keeps its notes without the call link, written plain or as a link", () => {
     const call = "https://meet.example.com/abc-defg?pwd=1&amp;x=2"
     expect(duplicateOf(review(`Agenda first\n${call}\nBring numbers`), call).description).toBe("Agenda first\n\nBring numbers")

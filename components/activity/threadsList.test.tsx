@@ -54,7 +54,7 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetch: (key: string) => answers.get(key) ?? { data: undefined, isLoading: false, isError: undefined, mutate: () => {} },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "u-sam" } } }),
 }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { put, get: vi.fn(), post: vi.fn() }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { put, get: vi.fn(), post: vi.fn() } }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn(), patchCached: vi.fn() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))

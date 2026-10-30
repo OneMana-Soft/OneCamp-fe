@@ -77,7 +77,8 @@ for (const view of views) {
       })
 
       await page.goto(`/app/chat/${MAYA.user_uuid}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
-      await expect(page.getByText("Ship it on Friday?")).toBeVisible({ timeout: 60_000 })
+      // The message itself: the list's row for a DM it lacked repeats the newest message (fe3f22606).
+      await expect(page.locator(`#msg-${SHIP}`).getByText("Ship it on Friday?")).toBeVisible({ timeout: 60_000 })
 
       // Pinned by Maya, on her message, said beside its time.
       await expect(page.locator('[data-pinned][title="Pinned by maya"]')).toBeVisible()

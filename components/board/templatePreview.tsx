@@ -1,45 +1,23 @@
 "use client"
 
 // A board template drawn small, from its real layout (content.md B02): the
-// same skeleton the template inserts (lib/board/templates), scaled into a box
-// on the dot grid, each note in its camp tint. A retro reads as three columns
-// of moss, berry and sky notes, a brainstorm as a cluster round a centre
-// note, a SWOT as a 2 × 2. On hover (the card is a `group/tpl`) the notes
-// drift a degree or two, a small "alive" moment; never under reduced motion.
+// same skeleton the template inserts (lib/board/templates), drawn by the one
+// small drawing of a board (components/board/shapesPreview).
 
 import * as React from "react"
-import { STICKY_COLOURS, skeletonBounds, type BoardTemplate, type StickyColour } from "@/lib/board/templates"
-import { cn } from "@/lib/utils/helpers/cn"
+import { skeletonBounds, type BoardTemplate } from "@/lib/board/templates"
+import type { PreviewShapes } from "@/lib/board/previewShapes"
+import { ShapesPreview } from "@/components/board/shapesPreview"
 
-/** A note's paper, as the theme's token, from the colour the template stores. */
-const TINT: Record<StickyColour, string> = {
-  yellow: "var(--camp-sun-tint)",
-  green: "var(--camp-moss-tint)",
-  red: "var(--camp-berry-tint)",
-  blue: "var(--camp-sky-tint)",
-  purple: "var(--camp-dusk-tint)",
-  grey: "var(--sunken)",
-}
-const BY_FILL = new Map(Object.entries(STICKY_COLOURS).map(([k, v]) => [v.fill.toLowerCase(), k as StickyColour]))
-
-/** Small, fixed drifts per note, so a hover moves each a little differently. */
-const DRIFT = [
-  [1, -1, -2],
-  [-1, 1, 2],
-  [1, 1, 1.5],
-  [-1, -1, -1.5],
-  [0, -2, 2],
-  [2, 0, -1],
-]
-
-export function templateShapes(t: BoardTemplate) {
+export function templateShapes(t: BoardTemplate): PreviewShapes {
   const sk = t.build("preview")
   const b = skeletonBounds(sk)
   const notes = sk.flatMap((s) =>
-    s.type === "rectangle" ? [{ x: s.x - b.x, y: s.y - b.y, w: s.width, h: s.height, colour: BY_FILL.get(s.backgroundColor.toLowerCase()) ?? "grey" }] : [],
+    s.type === "rectangle" ? [{ x: s.x - b.x, y: s.y - b.y, w: s.width, h: s.height, colour: s.customData.colour }] : [],
   )
   const labels = sk.flatMap((s) => (s.type === "text" ? [{ x: s.x - b.x, y: s.y - b.y, w: s.text.length * s.fontSize * 0.55, h: s.fontSize }] : []))
-  return { notes, labels, width: b.width, height: b.height }
+  const lines = sk.flatMap((s) => (s.type === "arrow" ? [{ x1: s.x - b.x, y1: s.y - b.y, x2: s.x + s.width - b.x, y2: s.y + s.height - b.y }] : []))
+  return { notes, labels, lines, boxes: [], frames: [], width: b.width, height: b.height }
 }
 
 export function TemplatePreview({
@@ -54,96 +32,5 @@ export function TemplatePreview({
   pad?: number
 }) {
   const shapes = React.useMemo(() => templateShapes(template), [template])
-  // A fixed 16:10-ish viewBox; the drawing fits inside with padding.
-  const vw = 200
-  const vh = Math.round((vw * height) / 180)
-  const scale = Math.min((vw - pad * 2) / shapes.width, (vh - pad * 2) / shapes.height)
-  const ox = (vw - shapes.width * scale) / 2
-  const oy = (vh - shapes.height * scale) / 2
-  return (
-    <div className={cn("dot-ground relative w-full overflow-hidden", className)} style={{ height }} aria-hidden="true" data-template-preview={template.id}>
-      <svg viewBox={`0 0 ${vw} ${vh}`} preserveAspectRatio="xMidYMid meet" className="absolute inset-0 size-full">
-        {shapes.labels.map((l, i) => (
-          <rect key={`l${i}`} x={ox + l.x * scale} y={oy + l.y * scale + (l.h * scale) / 4} width={Math.max(6, l.w * scale * 0.7)} height={Math.max(2, (l.h * scale) / 2)} rx={1} fill="var(--ink-4)" />
-        ))}
-        {shapes.notes.map((n, i) => {
-          const [dx, dy, rot] = DRIFT[i % DRIFT.length]
-          const x = ox + n.x * scale
-          const y = oy + n.y * scale
-          const w = n.w * scale
-          const h = n.h * scale
-          return (
-            <g
-              key={i}
-              className="origin-center transition-transform duration-[400ms] ease-[var(--ease-spring)] [transform-box:fill-box] group-hover/tpl:[transform:translate(var(--dx),var(--dy))_rotate(var(--rot))] motion-reduce:group-hover/tpl:transform-none"
-              style={{ ["--dx" as string]: `${dx}px`, ["--dy" as string]: `${dy}px`, ["--rot" as string]: `${rot}deg` }}
-            >
-              <rect x={x} y={y + 0.8} width={w} height={h} rx={Math.min(3, w / 8)} fill="var(--ink)" opacity={0.06} />
-              <rect x={x} y={y} width={w} height={h} rx={Math.min(3, w / 8)} fill={TINT[n.colour]} stroke="var(--line-2)" strokeWidth={0.5} />
-              {w > 14 ? (
-                <>
-                  <rect x={x + w * 0.16} y={y + h * 0.24} width={w * 0.6} height={Math.max(1.2, h * 0.07)} rx={0.6} fill="var(--ink-4)" />
-                  <rect x={x + w * 0.16} y={y + h * 0.4} width={w * 0.4} height={Math.max(1.2, h * 0.07)} rx={0.6} fill="var(--ink-4)" />
-                </>
-              ) : null}
-            </g>
-          )
-        })}
-      </svg>
-    </div>
-  )
-}
-
-const NOTE_TINTS = ["sun", "sky", "berry", "moss", "dusk", "lake"] as const
-const NOTE_TURNS = [-6, -4, -2, 2, 4, 6]
-
-/** The same small number for the same text, every time. Pure. */
-function seedOf(text: string): number {
-  let h = 7
-  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0
-  return h
-}
-
-/**
- * The three notes a fallback draws, from a seed: without one, sun, sky and
- * berry as before; with a board's id, its own hues and tilts, so a list of
- * boards without pictures isn't one picture five times. Pure.
- */
-export function fallbackNotes(seed?: string): { tint: string; rot: number; x: number; y: number }[] {
-  const base = [
-    { tint: "var(--camp-sun-tint)", rot: -4, x: -46, y: -4 },
-    { tint: "var(--camp-sky-tint)", rot: 2, x: 0, y: 10 },
-    { tint: "var(--camp-berry-tint)", rot: 6, x: 44, y: -10 },
-  ]
-  if (!seed) return base
-  const n = seedOf(seed)
-  return base.map((b, i) => ({
-    tint: `var(--camp-${NOTE_TINTS[(n + i * 2) % NOTE_TINTS.length]}-tint)`,
-    rot: NOTE_TURNS[(n >>> (i * 3 + 2)) % NOTE_TURNS.length],
-    x: b.x,
-    y: b.y + (((n >>> (i * 4 + 5)) % 7) - 3) * 2,
-  }))
-}
-
-/**
- * The fallback for a board with no picture yet (B01): three tilted sticky
- * notes on the dot grid, so it reads as a board and not as an error. Given
- * the board's id, the notes take that board's own hues and tilts.
- */
-export function NotesFallback({ className, seed }: { className?: string; seed?: string }) {
-  const notes = fallbackNotes(seed)
-  return (
-    <div data-note-fallback="" aria-hidden="true" className={cn("absolute inset-0 flex items-center justify-center", className)}>
-      {notes.map((n, i) => (
-        <span
-          key={i}
-          className="absolute size-9 rounded-[4px] p-1.5 shadow-e1"
-          style={{ background: n.tint, transform: `translate(${n.x}px, ${n.y}px) rotate(${n.rot}deg)` }}
-        >
-          <span className="block h-[3px] w-5 rounded-[2px] bg-ink-4" />
-          <span className="mt-1 block h-[3px] w-3 rounded-[2px] bg-ink-4" />
-        </span>
-      ))}
-    </div>
-  )
+  return <ShapesPreview shapes={shapes} id={template.id} height={height} className={className} pad={pad} />
 }

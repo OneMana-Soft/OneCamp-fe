@@ -1,6 +1,6 @@
 import { expect, type Browser, type Locator, type Page, type TestInfo } from "@playwright/test"
 
-import { SAM, docInfo, stubBackend } from "../stubbedApp"
+import { SAM, docInfo, stubBackend, type Answers } from "../stubbedApp"
 import { CollabRelay } from "./collabRelay"
 
 /** A second person, for the doc to have two. */
@@ -21,6 +21,13 @@ export interface DocTab {
   close(): Promise<void>
 }
 
+/** How a doc is opened: on a phone (a touch screen 390 px wide), with what the browser keeps (a theme, a tip seen), with more of the API answered. */
+export interface OpenAs {
+  phone?: boolean
+  storage?: Record<string, string>
+  answers?: Answers
+}
+
 /**
  * Opens a doc as a person, in a browser context of their own, on the relay:
  * signed in with no backend (stubbedApp), the doc theirs to edit, and its
@@ -32,13 +39,19 @@ export async function openDocAs(
   relay: CollabRelay,
   person: Person,
   doc: { id: string; title?: string; body?: string },
+  { phone = false, storage = {}, answers = {} }: OpenAs = {},
 ): Promise<DocTab> {
-  const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL || "http://localhost:3001"), viewport: { width: 1280, height: 900 } })
+  const context = await browser.newContext({
+    baseURL: String(testInfo.project.use.baseURL || "http://localhost:3001"),
+    ...(phone ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } : { viewport: { width: 1280, height: 900 } }),
+  })
   const page = await context.newPage()
+  await page.addInitScript((kept) => Object.entries(kept).forEach(([key, value]) => localStorage.setItem(key, value)), storage)
   await stubBackend(page, testInfo, {
     [`/doc/getDocInfo/${doc.id}`]: docInfo({ doc_uuid: doc.id, doc_title: doc.title ?? "Launch plan", doc_body: doc.body ?? "<p></p>", edit: true }),
     "/user/profile": { msg: "ok", data: person },
     "/auth/token": { data: { token: `e2e-${person.user_name}` } },
+    ...answers,
   })
   await relay.attach(page, person.user_full_name)
   await page.goto(`/app/doc/${doc.id}`, { waitUntil: "domcontentloaded", timeout: 120_000 })

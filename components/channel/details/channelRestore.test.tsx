@@ -26,7 +26,7 @@ vi.mock("@/components/ai/ChannelWeeklyReportSetting", () => ({ ChannelWeeklyRepo
 vi.mock("@/components/member/channelAITeammates", () => ({ default: () => null }))
 vi.mock("@/components/member/channelAIBudget", () => ({ default: () => null }))
 vi.mock("@/components/guest/GuestLinkSection", () => ({ GuestLinkSection: () => null }))
-vi.mock("@/components/combobox/addChannelMemberCombobox", () => ({ default: () => null }))
+vi.mock("@/components/combobox/addMemberCombobox", () => ({ AddMemberCombobox: () => null }))
 const restoreChannel = vi.fn(async (_id: string) => {})
 vi.mock("@/services/channelService", async (orig) => ({
   ...(await orig<typeof import("@/services/channelService")>()),

@@ -54,6 +54,18 @@ interface Props {
     className?: string;
     /** Face size in px (20 under a message). */
     size?: number;
+    /**
+     * What clicking a face does, and what it's called (the face's label and
+     * its tooltip): a table's faces go to the cell each person is on. A face
+     * it gives nothing for stays a face, named.
+     */
+    actionFor?: (p: ThreadParticipant) => FaceAction | null;
+}
+
+/** A face's click, and its name. */
+export interface FaceAction {
+    label: string;
+    run: () => void;
 }
 
 /**
@@ -64,22 +76,36 @@ interface Props {
  * "MC" and "JW" read as one word, "MCJW". A guest or Slack person keeps the
  * neutral face (not a member).
  */
-function ParticipantAvatar({ p, size }: { p: ThreadParticipant; size: number }) {
+function ParticipantAvatar({ p, size, action }: { p: ThreadParticipant; size: number; action: FaceAction | null }) {
+    const face = <ChatFace name={p.name} profileKey={p.profileKey} userUUID={p.uuid} isBot={p.isBot} relayed={p.relayed} size={size} />;
     return (
         <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
-                <span data-participant="" className="relative inline-flex shrink-0 rounded-full ring-2 ring-sheet">
-                    <ChatFace name={p.name} profileKey={p.profileKey} userUUID={p.uuid} isBot={p.isBot} relayed={p.relayed} size={size} />
-                </span>
+                {action ? (
+                    // A face that does something lifts from the pile under the pointer, over its neighbours.
+                    <button
+                        type="button"
+                        data-participant=""
+                        aria-label={action.label}
+                        onClick={action.run}
+                        className="relative inline-flex shrink-0 cursor-pointer rounded-full ring-2 ring-sheet outline-none transition-transform duration-150 ease-out hover:z-10 hover:-translate-y-px focus-visible:z-10 focus-visible:ring-brand"
+                    >
+                        {face}
+                    </button>
+                ) : (
+                    <span data-participant="" className="relative inline-flex shrink-0 rounded-full ring-2 ring-sheet">
+                        {face}
+                    </span>
+                )}
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={6} className="px-2 py-0.5 text-2xs font-medium">
-                {p.name}
+                {action?.label ?? p.name}
             </TooltipContent>
         </Tooltip>
     );
 }
 
-export function ThreadParticipants({ participants, maxShown = 3, className, size = 20 }: Props) {
+export function ThreadParticipants({ participants, maxShown = 3, className, size = 20, actionFor }: Props) {
     const unique = React.useMemo(() => {
         const seen = new Set<string>();
         const out: ThreadParticipant[] = [];
@@ -104,7 +130,7 @@ export function ThreadParticipants({ participants, maxShown = 3, className, size
         // (DESIGN-BUILD-2, 18 Oct).
         <div data-participants="" className={cn("flex items-center -space-x-1", className)}>
             {shown.map((p) => (
-                <ParticipantAvatar key={p.uuid} p={p} size={size} />
+                <ParticipantAvatar key={p.uuid} p={p} size={size} action={actionFor?.(p) ?? null} />
             ))}
         </div>
     );

@@ -17,13 +17,15 @@ interface CommentsListProps {
     getMediaURL: string
     /** Shown when there are no replies yet (a thread); nothing when not given. */
     empty?: React.ReactNode
+    /** Whether the reader may react to these, as the server says; true when not given. */
+    canReact?: boolean
 }
 
 // The panel around this list re-renders on every keystroke in its composer and
 // recreates these handlers each time. The outer shell hands the list stable
 // wrappers that call the latest handler, so the replies re-render only when
 // they change.
-export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty }: CommentsListProps) => {
+export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty, canReact }: CommentsListProps) => {
     return (
         <CommentsListInner
             empty={empty}
@@ -33,12 +35,13 @@ export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, re
             removeComment={useStableCallback(removeComment)}
             updateComment={useStableCallback(updateComment)}
             getMediaURL={getMediaURL}
+            canReact={canReact}
         />
     )
 }
 
 // A doc's comments are thread cards of their own (components/docComments/ThreadCard).
-const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty }: CommentsListProps) {
+const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty, canReact = true }: CommentsListProps) {
     // Replies by the same person within five minutes read as one turn.
     const continued = useMemo(
         () => continuedFlags(comments ?? [], (c) => ({ author: c.comment_by?.user_uuid, at: c.comment_created_at, isBot: !!c.comment_by?.is_bot })),
@@ -64,6 +67,7 @@ const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdat
                         updatedAt={comment.comment_updated_at}
                         content={comment.comment_text}
                         rawReactions={comment.comment_reactions}
+                        canReact={canReact}
                         addReaction={(emojiId:string, reactionId: string) => {addOrUpdateReaction(emojiId, reactionId, comment.comment_uuid, idx)}}
                         removeReaction={(reactionId: string)=>{removeReaction(reactionId, comment.comment_uuid, idx)}}
                         deleteMessage={(commentUUID)=>{removeComment(commentUUID, idx)}}

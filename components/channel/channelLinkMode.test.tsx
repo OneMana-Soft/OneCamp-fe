@@ -30,9 +30,11 @@ vi.mock("@/hooks/useFetch", () => ({
     if (url) asked.push(url)
     return { data: answers[url], isLoading: false, isError: undefined, mutate: () => {}, lastRequestStartedAt: 1 }
   },
+  // Who is signed in, and a group's people: nobody, here.
+  useFetchOnlyOnce: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: () => {} }),
 }))
-vi.mock("@/components/channel/channelMessages", () => ({
-  ChannelMessages: ({ posts, clickedScrollToBottom }: { posts: { post_uuid: string }[]; clickedScrollToBottom: () => void }) => (
+vi.mock("@/components/conversation/ConversationRows", () => ({
+  ConversationRows: ({ rows: posts, toLatest: clickedScrollToBottom }: { rows: { post_uuid: string }[]; toLatest: () => void }) => (
     <div>
       <ol aria-label="Messages">{posts.map((p) => <li key={p.post_uuid}>{p.post_uuid}</li>)}</ol>
       <button type="button" onClick={clickedScrollToBottom}>Jump to latest</button>
@@ -49,7 +51,7 @@ const OLD = "0ld00000-0000-4000-8000-00000000000a"
 
 const { default: store, RESET_STORE_ACTION } = await import("@/store/store")
 const { updateChannelPosts } = await import("@/store/slice/channelSlice")
-const { ChannelMessageList } = await import("@/components/channel/channelMessageList")
+const { ChannelList } = await import("@/lib/testing/conversationLists")
 const { InSplitPaneContext } = await import("@/hooks/useLinkTarget")
 const { GetEndpointUrl } = await import("@/services/endPoints")
 const { ChatGet } = await import("@/services/endpoints/chat")
@@ -71,7 +73,7 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
-const list = (channelId: string) => <Provider store={store}><ChannelMessageList channelId={channelId} /></Provider>
+const list = (channelId: string) => <Provider store={store}><ChannelList channelId={channelId} /></Provider>
 
 describe("a channel opened at an older post from a link", () => {
   it("shows the linked post when the channel's latest page is already in memory", () => {
@@ -101,7 +103,7 @@ describe("a channel beside a linked one in split view", () => {
     render(
       <Provider store={store}>
         <InSplitPaneContext.Provider value={true}>
-          <ChannelMessageList channelId={BESIDE} />
+          <ChannelList channelId={BESIDE} />
         </InSplitPaneContext.Provider>
       </Provider>,
     )

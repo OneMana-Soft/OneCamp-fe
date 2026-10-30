@@ -17,7 +17,7 @@ vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<objec
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 const start = vi.fn(async () => ({}))
-const address = vi.fn<(id: string) => Promise<string>>(async () => "https://files.example.test/workspace-docs.zip")
+const address = vi.fn<(id: string) => Promise<string>>(async () => "https://files.example.test/workspace-export.zip")
 vi.mock("@/lib/workspaceExport/workspaceExport", async (orig) => ({
   ...(await orig<typeof import("@/lib/workspaceExport/workspaceExport")>()),
   startWorkspaceExport: () => start(),
@@ -48,7 +48,7 @@ describe("the export card", () => {
   it("starts an export, and its button waits while one is being made", async () => {
     render(<ExportCard />)
     expect(screen.getByText("No exports yet")).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: /Export all docs/ }))
+    fireEvent.click(screen.getByRole("button", { name: /^Export all$/ }))
     await waitFor(() => expect(start).toHaveBeenCalledTimes(1))
     expect(refetch).toHaveBeenCalled()
 
@@ -71,7 +71,7 @@ describe("the export card", () => {
       expect(screen.getByText("3 private docs left out: their owners haven't let them into workspace exports.")).toBeTruthy()
       expect(screen.getByText("Couldn't be read, so not in it: ‘Q3 plan’.")).toBeTruthy()
       fireEvent.click(screen.getByRole("button", { name: /Download/ }))
-      await waitFor(() => expect(assign).toHaveBeenCalledWith("https://files.example.test/workspace-docs.zip"))
+      await waitFor(() => expect(assign).toHaveBeenCalledWith("https://files.example.test/workspace-export.zip"))
       expect(address).toHaveBeenCalledWith("x1")
     } finally {
       vi.unstubAllGlobals()
@@ -101,7 +101,7 @@ describe("the export card", () => {
   it("says why an export couldn't be started", async () => {
     start.mockRejectedValueOnce({ response: { status: 403, data: { msg: "Only an admin can export the workspace." } } })
     render(<ExportCard />)
-    fireEvent.click(screen.getByRole("button", { name: /Export all docs/ }))
+    fireEvent.click(screen.getByRole("button", { name: /^Export all$/ }))
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Only an admin can export the workspace."))
   })
 })

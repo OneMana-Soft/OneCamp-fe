@@ -12,7 +12,7 @@
 import { FileCode2, FileText, FileType2, FileUp, Printer } from 'lucide-react'
 import { dialogFor, registerAction, registerDialog } from '@/components/docEditor/registry/registry'
 import type { ActionContext } from '@/components/docEditor/registry/types'
-import { ExportFormat, knownCapabilities, loadCapabilities } from './contentIO'
+import { knownCapabilities, loadCapabilities, type ExportFormat } from './contentIOCapabilities'
 import '@/components/minimal-tiptap/styles/partials/print.css'
 
 // The exporters, and the codec they use, load with the first export.

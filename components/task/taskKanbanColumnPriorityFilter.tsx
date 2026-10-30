@@ -1,15 +1,15 @@
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 import { FilterChip } from "@/components/task/filterChip"
-import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-    CommandSeparator
-} from "@/components/ui/command";
+    Combobox,
+    ComboboxContent,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxList,
+    ComboboxSeparator,
+    ComboboxTrigger,
+} from "@/components/ui/combobox"
 import {priorities} from "@/types/table";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 
@@ -18,63 +18,43 @@ type TaskCardProps = {
     updateList: (l: string[])=>void;
 };
 
+/** The board's priority filter: tasks at any of the priorities ticked. */
 export function TaskKanbanColumnPriorityFilter({ activeList, updateList}: TaskCardProps) {
     const { t } = useTranslation()
 
-
     return (
-        <Popover>
-            <PopoverTrigger asChild>
+        <Combobox multiple>
+            <ComboboxTrigger asChild>
                 <FilterChip title={t("priority")} count={activeList.length} selected={priorities.filter((o) => activeList.includes(o.value)).map((o) => t(o.value, { defaultValue: o.label }))} />
-            </PopoverTrigger>
-            <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
-                    <CommandInput placeholder={t('priority')} />
-                    <CommandList>
-                        <CommandEmpty>No results found.</CommandEmpty>
-                        <CommandGroup>
-                            {priorities.map((option) => {
-                                const isSelected = activeList.includes(option.value);
-                                return (
-                                    <CommandItem
-                                        key={option.value}
-                                        checked={isSelected}
-                                        onSelect={() => {
-                                            if (isSelected) {
-                                                updateList(activeList.filter((item) => item !== option.value))
-                                            } else {
-                                                updateList([...activeList, option.value])
-                                            }
-
-                                        }}
-                                    >
-                                        <TaskPriorityCell priority={option}/>
-
-                                        {/*{facets?.get(option.value) && (*/}
-                                        {/*  <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">*/}
-                                        {/*    {facets.get(option.value)}*/}
-                                        {/*  </span>*/}
-                                        {/*)}*/}
-                                    </CommandItem>
-                                );
-                            })}
-                        </CommandGroup>
-                        {activeList.length > 0 && (
-                            <>
-                                <CommandSeparator />
-                                <CommandGroup>
-                                    <CommandItem
-                                        onSelect={() => updateList([])}
-                                        className="justify-center text-center"
-                                    >
-                                        {t('clearFilters')}
-                                    </CommandItem>
-                                </CommandGroup>
-                            </>
-                        )}
-                    </CommandList>
-                </Command>
-            </PopoverContent>
-        </Popover>
+            </ComboboxTrigger>
+            <ComboboxContent label={t("priority")}>
+                <ComboboxInput placeholder={t('priority')} />
+                <ComboboxList>
+                    <ComboboxEmpty>{t('noResultFound')}</ComboboxEmpty>
+                    {priorities.map((option) => {
+                        const isSelected = activeList.includes(option.value);
+                        return (
+                            <ComboboxItem
+                                key={option.value}
+                                value={option.value}
+                                keywords={[t(option.value, { defaultValue: option.label })]}
+                                checked={isSelected}
+                                onSelect={() => updateList(isSelected ? activeList.filter((item) => item !== option.value) : [...activeList, option.value])}
+                            >
+                                <TaskPriorityCell priority={option}/>
+                            </ComboboxItem>
+                        );
+                    })}
+                    {activeList.length > 0 && (
+                        <>
+                            <ComboboxSeparator />
+                            <ComboboxItem value="__clear__" keywords={[t('clearPriority')]} onSelect={() => updateList([])} className="justify-center text-center">
+                                {t('clearPriority')}
+                            </ComboboxItem>
+                        </>
+                    )}
+                </ComboboxList>
+            </ComboboxContent>
+        </Combobox>
     );
 }

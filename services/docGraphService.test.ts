@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 const post = vi.fn(async () => ({ data: { data: {} } }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...(a as [])), get: vi.fn(), delete: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...(a as [])), get: vi.fn(), delete: vi.fn() } }))
 
 import { childrenKey, docTreeAdapter, listKey } from "@/services/docGraphService"
 
@@ -32,6 +32,32 @@ describe("the docs tree adapter", () => {
     })
     expect(level.nodes.map((n) => n.title)).toEqual(["A"])
     expect(level.hidden).toBe(2)
+  })
+
+  it("carries a node's kind, colour, link and file facts, and makes a file or a link a leaf (docs F1, D-30)", () => {
+    const file = { name: "brief.pdf", size_bytes: 2048, mime: "application/pdf", versions: 2, attachment_id: "att-2" }
+    const level = adapter.read({
+      data: {
+        parent: "",
+        nodes: [
+          { kind: "doc", uuid: "page", title: "Plan", has_children: false },
+          { kind: "doc", uuid: "folder", title: "Contracts", has_children: true, node_kind: "folder", color: "moss" },
+          { kind: "doc", uuid: "file", title: "brief.pdf", has_children: false, node_kind: "file", file },
+          { kind: "doc", uuid: "link", title: "Roadmap", has_children: false, node_kind: "link", link_url: "https://figma.com/file/1" },
+        ],
+        hidden: 0,
+        count: 4,
+      },
+    })
+    expect(level.nodes.map((n) => [n.id, !!n.leaf])).toEqual([
+      ["page", false],
+      ["folder", false],
+      ["file", true],
+      ["link", true],
+    ])
+    expect(level.nodes[1].node.color).toBe("moss")
+    expect(level.nodes[2].node.file).toEqual(file)
+    expect(level.nodes[3].node.link_url).toBe("https://figma.com/file/1")
   })
 
   it("sends a move as the server reads it", async () => {

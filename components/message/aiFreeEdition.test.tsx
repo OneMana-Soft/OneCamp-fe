@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { pinTestClock } from "@/lib/testing/testClock"
 
+pinTestClock()
+
 // The AI-free edition offers nothing of AI's (E1, 22 Oct 2026). Its build
 // shipped Translate on every message, on a computer and on a phone, and Ask
 // AI and Summarise with AI on a picture or a document in the viewer; each
@@ -49,8 +51,6 @@ const { MessageActionSheet } = await import("@/components/drawers/messageActionS
 const { MediaLightboxDialog } = await import("@/components/dialog/attachmentLightboxDialog")
 
 afterEach(cleanup)
-// Today is TEST_TODAY wherever the code under test reads the time: a message's card says when it was sent.
-pinTestClock()
 
 const AI = /translat|ask ai|summari[sz]e|ai summary/i
 const TEXT = "<p>The launch moves to Thursday.</p>"

@@ -26,7 +26,7 @@ import { useCallback, useEffect, useRef, memo } from "react";
 import { useEditInPlace } from "@/hooks/useEditInPlace";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { app_user } from "@/types/paths";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor";
@@ -85,7 +85,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
         if (edit.draft !== undefined) updatedTextRef.current = edit.draft
     }, [edit.draft])
 
-    const router = useRouter()
+    const router = useAppRouter()
 
     const copyToClipboard = useCopyToClipboard()
 

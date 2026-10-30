@@ -59,7 +59,7 @@ const configKey = (tableId: string) => `onecamp:tableChart:${tableId}`
 function loadConfig(tableId: string, fields: TableField[], numericFields: TableField[]): ChartConfig {
     // Grouped by what groups rows (a select, a person, a date), not one bar a row.
     const byPosition = [...fields].sort((a, b) => a.position - b.position)
-    const groups = byPosition.find((f) => f.type === "select" || f.type === "multi_select" || f.type === "person" || f.type === "date")
+    const groups = byPosition.find((f) => ["status", "select", "multi_select", "people", "person", "date"].includes(f.type))
     const fallback: ChartConfig = {
         chartType: "bar",
         groupBy: (groups ?? byPosition[0])?.id ?? "",

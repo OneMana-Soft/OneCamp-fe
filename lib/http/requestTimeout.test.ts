@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { isTimeout, waitsAsLongAsItTakes } from "./requestTimeout"
 import { GetEndpointUrl, PostEndpointUrl, PostFileUploadURL } from "@/services/endPoints"
+import { DocGraphEndpoint } from "@/services/docGraphService"
 import { AdminGet } from "@/services/endpoints/admin"
 import { ChatGet, ChatPost } from "@/services/endpoints/chat"
 import { InboxPost } from "@/services/endpoints/inbox"
@@ -35,7 +36,7 @@ describe("what waits as long as its work takes", () => {
     for (const url of [
       InboxPost.AICatchUp,
       "/admin/ai/self-test",
-      PostEndpointUrl.GenerateBoardDiagram,
+      "/board/aiGenerateStream",
       "/tables/t1/fields/f1/ai-fill",
       "/tables/t1/query-plan",
       TablesPost.GenerateTable,
@@ -49,6 +50,24 @@ describe("what waits as long as its work takes", () => {
   it("imports, exports, restores and checks of another service", () => {
     for (const url of ["/admin/import/jobs/j1/run", "/admin/github/import-issues/l1", "/admin/auditLog/export?from=1", ChatPost.RestoreChannel, "/data-sources/test-connection", "/agents/agui/check"]) {
       expect(waitsAsLongAsItTakes({ url }), url).toBe(true)
+    }
+  })
+
+  // An archive run's undo restores the whole run, however big: cut at 30 s,
+  // it left part of the run deleted (REGRESSION-AUDIT R3, 23 Oct 2026).
+  it("an archive run's undo, which is a write", () => {
+    expect(waitsAsLongAsItTakes({ url: `${PostEndpointUrl.UndoArchiveJob}/j1`, method: "post" })).toBe(true)
+    expect(waitsAsLongAsItTakes({ url: `${PostEndpointUrl.UndoArchiveJob}/j1`, method: "get" })).toBe(false)
+  })
+
+  // A duplicate fills up to 200 copies and a purge forgets up to 5,000 pages:
+  // cut at 30 s, a second Duplicate made the copies again.
+  it("a duplicate and a purge of a doc tree, and nothing else of the docs", () => {
+    for (const url of [DocGraphEndpoint.Duplicate, DocGraphEndpoint.Purge]) {
+      expect(waitsAsLongAsItTakes({ url, method: "post" }), url).toBe(true)
+    }
+    for (const url of [DocGraphEndpoint.Delete, DocGraphEndpoint.Move, DocGraphEndpoint.Children]) {
+      expect(waitsAsLongAsItTakes({ url, method: "post" }), url).toBe(false)
     }
   })
 
@@ -77,8 +96,8 @@ describe("what waits as long as its work takes", () => {
     for (const [, url] of entries) uses.set(url, (uses.get(url) ?? 0) + 1)
     const missed = entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1 && !waitsAsLongAsItTakes({ url })).map(([name, url]) => `${name} = ${url}`)
     expect(missed).toEqual([])
-    // The AI-free web names fewer of them (27 when the AI endpoints nothing here reads went).
-    expect(entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1).length).toBeGreaterThan(20)
+    // The AI-free web names fewer of them (20 once the AI endpoints nothing here reads went).
+    expect(entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1).length).toBeGreaterThan(15)
   })
 })
 

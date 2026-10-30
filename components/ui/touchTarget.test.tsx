@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Toggle } from "@/components/ui/toggle"
@@ -17,6 +18,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 // changes size and a mouse sees nothing.
 
 const CSS = readFileSync(join(__dirname, "../../app/phone.css"), "utf8")
+/** A select's option row: Radix draws them in its viewport. */
+const SELECT_ROW = '[data-radix-select-viewport] [role="option"]'
 
 /** The body of the rule whose selector is exactly `selector` (whitespace ignored). */
 function ruleBody(selector: string): string | undefined {
@@ -55,7 +58,23 @@ describe("the touch target rule (app/phone.css F3)", () => {
   })
 
   it("makes a menu item 44px tall instead: items stack edge to edge", () => {
-    expect(ruleBody(':is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"])')).toMatch(/min-height: var\(--m-hit\);/)
+    // A combobox's option rows (cmdk) and a select's stack the same way. A bare
+    // [role="option"] would stretch swatches and cover tiles too.
+    expect(ruleBody(`:is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [cmdk-item], ${SELECT_ROW})`)).toMatch(/min-height: var\(--m-hit\);/)
+  })
+
+  it("names a select's rows as Radix draws them", () => {
+    const { getByRole } = render(
+      <Select defaultOpen value="a">
+        <SelectTrigger aria-label="Kind">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="a">Alpha</SelectItem>
+        </SelectContent>
+      </Select>,
+    )
+    expect(getByRole("option", { name: "Alpha" }).matches(SELECT_ROW)).toBe(true)
   })
 })
 

@@ -10,13 +10,16 @@
 // whole app, so a fresh load is the one recovery worth offering.
 
 import { useEffect } from "react"
-import { isChunkLoadError, reloadForNewBuild } from "@/lib/chunkRecovery"
+import { isChunkLoadError } from "@/lib/chunkRecovery"
+import { reloadForNewBuild } from "@/lib/newBuild"
 
 export default function GlobalError({ error }: { error: Error & { digest?: string }; reset: () => void }) {
   const chunk = isChunkLoadError(error)
+  // Only when the server says the old build's code is gone (lib/chunkRecovery):
+  // with no network the page stays, and its button reloads when asked.
   useEffect(() => {
-    if (chunk) reloadForNewBuild()
-  }, [chunk])
+    if (chunk) void reloadForNewBuild(error)
+  }, [chunk, error])
   return (
     <html lang="en">
       <head>

@@ -7,6 +7,7 @@ import { Bookmark, Crop, Download, ExternalLink, File, FileText, Globe, Headphon
 import { embedFor } from "@/lib/embeds/providers"
 import { ACCEPT, pickFiles, type FileKind } from "../file-block/fileBlock"
 import { adminHostsNow, requestLinkFocus } from "./hosts"
+import { actionBlock } from "../../utils/actionBlock"
 import type { BlockActionId } from "./blockActions"
 
 /**
@@ -51,17 +52,7 @@ registerBlock({
   ],
 })
 
-/** The block an action runs on: the block menu's range (B1), else the selected node. */
-export function blockAt(ctx: ActionContext) {
-  const editor = ctx.editor
-  if (!editor || editor.isDestroyed) return null
-  const range = ctx.state?.range as { from: number } | undefined
-  const pos = range?.from ?? editor.state.selection.from
-  const node = editor.state.doc.nodeAt(pos)
-  return node ? { editor, pos, node } : null
-}
-
-const typeAt = (ctx: ActionContext) => blockAt(ctx)?.node.type.name ?? ""
+const typeAt = (ctx: ActionContext) => actionBlock(ctx)?.node.type.name ?? ""
 
 /** One block action, on the block menu for the block types it names; changes only for someone who can edit. */
 function action(id: BlockActionId, label: string, icon: SurfaceAction["icon"], types: string[], reads = false, extra?: (ctx: ActionContext) => boolean) {
@@ -82,7 +73,7 @@ action("crop", "Crop", Crop, ["image"])
 action("alt", "Alt text", Type, ["image"])
 action("link", "Link", Link2, ["image"])
 action("refresh", "Refresh preview", RefreshCw, ["bookmark"])
-action("toEmbed", "Turn into embed", Globe, ["bookmark"], false, (ctx) => !!embedFor(String(blockAt(ctx)?.node.attrs.href || ""), adminHostsNow()))
+action("toEmbed", "Turn into embed", Globe, ["bookmark"], false, (ctx) => !!embedFor(String(actionBlock(ctx)?.node.attrs.href || ""), adminHostsNow()))
 action("toBookmark", "Turn into bookmark", Bookmark, ["webEmbed"])
 action("toLink", "Turn into link", Link2, ["bookmark", "webEmbed"])
 action("open", "Open in a new tab", ExternalLink, ["bookmark", "webEmbed"], true)

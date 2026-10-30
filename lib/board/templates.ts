@@ -1,64 +1,55 @@
 /**
- * Board templates: the starting layouts teams reach for in Miro (a retro, a
- * brainstorm, a kanban, a user journey, a SWOT), built as Excalidraw element
- * skeletons so they are ordinary, editable shapes on the shared canvas.
+ * Board templates: the starting layouts teams reach for in Miro, built as
+ * Excalidraw element skeletons so they are ordinary, editable shapes on the
+ * shared canvas. The five here are the ones the empty board offers; the rest
+ * of the library (lib/board/templateLibrary) is loaded with the picker, from
+ * the same builders.
  *
  * A blank canvas is where a new board loses people; a template is a first
  * move they can make in one click. Pure, so the layouts are tested.
  */
 
+import { NOTE_COLOURS, noteSkeleton, type NoteColourId, type NoteSkeleton } from "./notes"
+
 export type StickyColour = "yellow" | "green" | "red" | "blue" | "purple" | "grey"
 
 /**
- * A note's colours: the camp palette's tint as its paper, the hue's ink for
- * its words and a hairline of the strong cut round it, the treatment a tag
- * or an avatar has everywhere else in the app (the playful layer). Hex, the
- * light theme's token values (app/globals.css), because a board stores its
- * colours in the shared document; Excalidraw's dark theme inverts the canvas,
- * which turns a tint into a dark ground and an ink into a light one.
- *
- * Yellow is sun, green moss, red berry, blue sky and purple dusk; grey is the
- * app's own neutral, for a note that should not stand out.
+ * The camp six of the note colours (lib/board/notes), as the templates and
+ * their previews name them.
  */
 export const STICKY_COLOURS: Record<StickyColour, { fill: string; edge: string; ink: string }> = {
-  yellow: { fill: "#FFF6D6", edge: "#B98200", ink: "#7A5200" },
-  green: { fill: "#E6F6EC", edge: "#2F9E5B", ink: "#1D6A3C" },
-  red: { fill: "#FCE8EF", edge: "#D9467C", ink: "#962556" },
-  blue: { fill: "#E7EFFC", edge: "#3B7DDD", ink: "#1E4E9A" },
-  purple: { fill: "#EFEBFC", edge: "#7B61D9", ink: "#4B3699" },
-  grey: { fill: "#F5F6F7", edge: "#D3D5DA", ink: "#14161A" },
+  yellow: NOTE_COLOURS.yellow,
+  green: NOTE_COLOURS.green,
+  red: NOTE_COLOURS.red,
+  blue: NOTE_COLOURS.blue,
+  purple: NOTE_COLOURS.purple,
+  grey: NOTE_COLOURS.grey,
 }
 
 /** The subset of Excalidraw's element skeleton the templates use. */
 export type Skeleton =
-  | {
-      type: "rectangle"
-      id: string
-      x: number
-      y: number
-      width: number
-      height: number
-      backgroundColor: string
-      strokeColor: string
-      strokeWidth: number
-      roughness: number
-      fillStyle: "solid"
-      roundness: { type: 3 }
-      label: { text: string; fontSize: number; strokeColor: string }
-    }
+  | NoteSkeleton
   | { type: "text"; id: string; x: number; y: number; text: string; fontSize: number; strokeColor: string }
   | { type: "frame"; id: string; name: string; children: string[] }
+  | { type: "arrow"; id: string; x: number; y: number; width: number; height: number; strokeColor: string; strokeWidth: number; roughness: number; start?: { id: string }; end?: { id: string } }
+
+/** The kinds the picker files templates under, in its order. */
+export const TEMPLATE_CATEGORIES = ["Retrospectives", "Brainstorming", "Strategy", "Research & product", "Planning", "Meetings & workshops"] as const
+export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number]
 
 export interface BoardTemplate {
   id: string
   name: string
   description: string
+  category: TemplateCategory
+  /** What else it's found by in the picker. */
+  keywords?: string
   build: (prefix: string) => Skeleton[]
 }
 
 export const STICKY = 180
-const GAP = 24
-const INK = "#14161A" // the app's own text colour (--foreground, light)
+export const GAP = 24
+export const INK = "#14161A" // the app's own text colour (--foreground, light)
 
 /**
  * Line breaks for a note's label. Excalidraw does not re-wrap a label made from
@@ -79,60 +70,96 @@ export function wrapLabel(text: string, perLine: number): string {
   return lines.join("\n")
 }
 
-function sticky(id: string, x: number, y: number, text: string, colour: StickyColour, size = STICKY): Skeleton {
+/** A template's note: the sticky tool's own (lib/board/notes), its words wrapped to fit. */
+export function sticky(id: string, x: number, y: number, text: string, colour: NoteColourId, size = STICKY): NoteSkeleton {
+  const n = noteSkeleton({ id, x, y, colour, text: wrapLabel(text, Math.floor((size - 20) / 11)) })
+  return size === STICKY ? n : { ...n, width: size, height: size }
+}
+
+export function heading(id: string, x: number, y: number, text: string, fontSize = 28): Skeleton {
+  return { type: "text", id, x, y, text, fontSize, strokeColor: INK }
+}
+
+/** An arrow from a point by (dx, dy), bound to shapes at its ends when given. */
+export function arrow(id: string, x: number, y: number, dx: number, dy: number, ends: { start?: string; end?: string } = {}): Skeleton {
   return {
-    type: "rectangle",
+    type: "arrow",
     id,
     x,
     y,
-    width: size,
-    height: size,
-    backgroundColor: STICKY_COLOURS[colour].fill,
-    // A clean hairline (roughness 0): a note is paper, not a sketch of one.
-    strokeColor: STICKY_COLOURS[colour].edge,
-    strokeWidth: 1,
+    width: dx,
+    height: dy,
+    strokeColor: INK,
+    strokeWidth: 2,
     roughness: 0,
-    fillStyle: "solid",
-    roundness: { type: 3 },
-    // A label takes its container's stroke unless told otherwise, so the
-    // words are given the hue's ink here, not its edge.
-    label: { text: wrapLabel(text, Math.floor((size - 20) / 11)), fontSize: 18, strokeColor: STICKY_COLOURS[colour].ink },
+    ...(ends.start ? { start: { id: ends.start } } : {}),
+    ...(ends.end ? { end: { id: ends.end } } : {}),
   }
 }
 
-function heading(id: string, x: number, y: number, text: string, fontSize = 28): Skeleton {
-  return { type: "text", id, x, y, text, fontSize, strokeColor: INK }
+/** A named column of notes: what `columns` and `areas` take. */
+export interface Column {
+  name: string
+  colour: NoteColourId
+  notes: string[]
+  /** Notes side by side in it (default the layout's). */
+  perRow?: number
+}
+
+/**
+ * Rows of named areas, each a frame of notes laid two (or perRow) to a row,
+ * side by side, the next row below the tallest area of the one above: a
+ * retro's columns, a lean canvas's boxes, an empathy map's quarters. Pure.
+ */
+export function areas(p: string, rows: Column[][], perRow = 2): Skeleton[] {
+  const out: Skeleton[] = []
+  let y0 = 0
+  rows.forEach((row, ri) => {
+    let x0 = 0
+    let tallest = 0
+    row.forEach((c, ci) => {
+      const per = Math.max(1, c.perRow ?? perRow)
+      const width = per * STICKY + (per - 1) * GAP
+      const ids: string[] = []
+      const notes = c.notes.length ? c.notes : [""]
+      notes.forEach((text, ni) => {
+        // The first row's ids as they always were (`${p}-c${ci}-n${ni}`), so a
+        // board laid from a template before keeps the same element ids.
+        const id = ri === 0 ? `${p}-c${ci}-n${ni}` : `${p}-r${ri}c${ci}-n${ni}`
+        ids.push(id)
+        out.push(sticky(id, x0 + (ni % per) * (STICKY + GAP), y0 + Math.floor(ni / per) * (STICKY + GAP), text, c.colour))
+      })
+      out.push({ type: "frame", id: ri === 0 ? `${p}-c${ci}` : `${p}-r${ri}c${ci}`, name: c.name, children: ids })
+      const lines = Math.ceil(notes.length / per)
+      tallest = Math.max(tallest, lines * STICKY + (lines - 1) * GAP)
+      x0 += width + GAP * 4
+    })
+    y0 += tallest + GAP * 4
+  })
+  return out
 }
 
 /**
  * Columns of notes, each wrapped in a named frame. Frames are what Excalidraw
  * moves, exports and presents as a unit, so a column stays a column.
  */
-function columns(
-  p: string,
-  cols: { name: string; colour: StickyColour; notes: string[] }[],
-  perRow = 2,
-): Skeleton[] {
-  const out: Skeleton[] = []
-  const colWidth = perRow * STICKY + (perRow - 1) * GAP
-  cols.forEach((c, ci) => {
-    const x0 = ci * (colWidth + GAP * 4)
-    const ids: string[] = []
-    c.notes.forEach((text, ni) => {
-      const id = `${p}-c${ci}-n${ni}`
-      ids.push(id)
-      out.push(sticky(id, x0 + (ni % perRow) * (STICKY + GAP), Math.floor(ni / perRow) * (STICKY + GAP), text, c.colour))
-    })
-    out.push({ type: "frame", id: `${p}-c${ci}`, name: c.name, children: ids })
-  })
-  return out
+export function columns(p: string, cols: Column[], perRow = 2): Skeleton[] {
+  return areas(p, [cols], perRow)
 }
 
+/** Two by two: four named quarters (a SWOT, a priority matrix). */
+export function quadrants(p: string, quads: [Column, Column, Column, Column]): Skeleton[] {
+  return areas(p, [quads.slice(0, 2), quads.slice(2, 4)])
+}
+
+/** The five the empty board offers, by what teams start with most. */
 export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "retro",
     name: "Retrospective",
     description: "What went well, what to improve, who does what.",
+    category: "Retrospectives",
+    keywords: "retro sprint review lessons",
     build: (p) =>
       columns(p, [
         { name: "Went well", colour: "green", notes: ["What went well?", ""] },
@@ -144,6 +171,8 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "brainstorm",
     name: "Brainstorm",
     description: "One question in the middle, ideas around it.",
+    category: "Brainstorming",
+    keywords: "ideas ideation",
     build: (p) => {
       const out: Skeleton[] = [sticky(`${p}-topic`, 0, 0, "The question we're answering", "purple", 260)]
       const ids = [`${p}-topic`]
@@ -162,6 +191,8 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "kanban",
     name: "Kanban",
     description: "To do, doing, done. Notes become tasks.",
+    category: "Planning",
+    keywords: "board todo tasks workflow",
     build: (p) =>
       columns(
         p,
@@ -179,9 +210,11 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "journey",
     name: "User journey",
     description: "Stages across; doing, thinking, feeling down.",
+    category: "Research & product",
+    keywords: "customer experience map ux",
     build: (p) => {
       const stages = ["Discover", "Sign up", "First use", "Grow"]
-      const rows: { name: string; colour: StickyColour }[] = [
+      const rows: { name: string; colour: NoteColourId }[] = [
         { name: "Doing", colour: "blue" },
         { name: "Thinking", colour: "yellow" },
         { name: "Feeling", colour: "red" },
@@ -216,34 +249,28 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "swot",
     name: "SWOT",
     description: "Strengths, weaknesses, opportunities, threats.",
-    build: (p) => {
-      const quads: { name: string; colour: StickyColour; x: number; y: number }[] = [
-        { name: "Strengths", colour: "green", x: 0, y: 0 },
-        { name: "Weaknesses", colour: "red", x: 1, y: 0 },
-        { name: "Opportunities", colour: "blue", x: 0, y: 1 },
-        { name: "Threats", colour: "yellow", x: 1, y: 1 },
-      ]
-      const span = 2 * STICKY + GAP
-      const out: Skeleton[] = []
-      quads.forEach((q, qi) => {
-        const x0 = q.x * (span + GAP * 4), y0 = q.y * (STICKY + GAP * 6)
-        const ids = [`${p}-q${qi}a`, `${p}-q${qi}b`]
-        out.push(sticky(ids[0], x0, y0, "", q.colour), sticky(ids[1], x0 + STICKY + GAP, y0, "", q.colour))
-        out.push({ type: "frame", id: `${p}-q${qi}`, name: q.name, children: ids })
-      })
-      return out
-    },
+    category: "Strategy",
+    keywords: "analysis competition",
+    build: (p) =>
+      quadrants(p, [
+        { name: "Strengths", colour: "green", notes: ["", ""] },
+        { name: "Weaknesses", colour: "red", notes: ["", ""] },
+        { name: "Opportunities", colour: "blue", notes: ["", ""] },
+        { name: "Threats", colour: "yellow", notes: ["", ""] },
+      ]),
   },
 ]
 
-/** The extent of a template's notes and headings, for centring it in view. */
+/** The extent of a template's notes, headings and arrows, for centring it in view. */
 export function skeletonBounds(sk: Skeleton[]): { x: number; y: number; width: number; height: number } {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
   for (const s of sk) {
     if (s.type === "frame") continue
-    const w = s.type === "rectangle" ? s.width : s.text.length * s.fontSize * 0.55
-    const h = s.type === "rectangle" ? s.height : s.fontSize * 1.25
-    x0 = Math.min(x0, s.x); y0 = Math.min(y0, s.y); x1 = Math.max(x1, s.x + w); y1 = Math.max(y1, s.y + h)
+    const sx = s.type === "arrow" ? Math.min(s.x, s.x + s.width) : s.x
+    const sy = s.type === "arrow" ? Math.min(s.y, s.y + s.height) : s.y
+    const w = s.type === "rectangle" ? s.width : s.type === "arrow" ? Math.abs(s.width) : s.text.length * s.fontSize * 0.55
+    const h = s.type === "rectangle" ? s.height : s.type === "arrow" ? Math.abs(s.height) : s.fontSize * 1.25
+    x0 = Math.min(x0, sx); y0 = Math.min(y0, sy); x1 = Math.max(x1, sx + w); y1 = Math.max(y1, sy + h)
   }
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
 }

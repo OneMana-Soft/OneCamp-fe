@@ -295,7 +295,14 @@ export function clickBlocks(state: EditorState, block: BlockRef, toggle: boolean
   return null
 }
 
+/**
+ * The tint over chosen blocks. An atom (a page, an image, an embed) that a
+ * NodeSelection holds, clicked or held for a menu's action, draws its own selected
+ * look (drawnSelected), so it takes no tint: it wore both (DESIGN-BUILD-15).
+ */
 function decorations(state: EditorState): DecorationSet | null {
+  const sel = state.selection
+  if (sel instanceof NodeSelection && sel.node.isAtom) return null
   const chosen = selectedBlocks(state)
   if (!chosen) return null
   return DecorationSet.create(

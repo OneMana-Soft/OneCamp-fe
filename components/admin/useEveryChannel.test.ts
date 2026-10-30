@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/axiosInstance", () => ({ default: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: {} }))
 
 import { EVERY_CHANNEL_PAGE_SIZE, readEveryChannel } from "@/components/admin/useEveryChannel"
 import type { ChannelInfoInterface } from "@/types/channel"

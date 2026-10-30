@@ -30,7 +30,7 @@ vi.mock("@/components/table/DataTableGrid", () => {
   grid.loads++
   return { DataTableGrid: ({ tableId }: { tableId: string }) => <div data-testid="table-grid">{tableId}</div> }
 })
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: vi.fn(async (url: string) => {
       if (url.startsWith("/doc/getDocInfo/")) return { status: 200, data: { msg: "ok", data: { doc_uuid: DOC, doc_title: "Launch plan", doc_private: true } } }
@@ -40,7 +40,6 @@ vi.mock("@/lib/axiosInstance", () => ({
     }),
     post: vi.fn(async () => ({ data: {} })),
   },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))

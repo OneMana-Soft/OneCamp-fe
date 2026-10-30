@@ -11,6 +11,8 @@ interface BottomMenuProps {
     selfName?: string
     /** The reaction the reader just made as their first on this message: it bursts. */
     burstEmojiId?: string
+    /** Whether the reader may react here (the server says): else the pills only say who did. */
+    canReact?: boolean
 }
 
 /** How long a pill that reached zero stays to shrink away (react-out). */
@@ -24,7 +26,7 @@ const LEAVE_MS = 130
  * that appears pops in, one that reaches zero shrinks away; the pills a
  * message was drawn with stand still.
  */
-export const BottomMenu = ({ reactions, handleEmojiClick, selectedEmojiIds, selfName, burstEmojiId }: BottomMenuProps) => {
+export const BottomMenu = ({ reactions, handleEmojiClick, selectedEmojiIds, selfName, burstEmojiId, canReact = true }: BottomMenuProps) => {
     // The pills this row was first drawn with never animate.
     const initial = useRef<Set<string> | null>(null)
     if (initial.current === null) initial.current = new Set(Object.keys(reactions))
@@ -67,6 +69,7 @@ export const BottomMenu = ({ reactions, handleEmojiClick, selectedEmojiIds, self
                     selfName={selfName}
                     motion={initial.current!.has(emojiId) ? undefined : "pop"}
                     burst={burstEmojiId === emojiId && selectedEmojiIds.has(emojiId)}
+                    readOnly={!canReact}
                 />
             ))}
             {leavingIds.map((emojiId) => (
@@ -79,11 +82,11 @@ export const BottomMenu = ({ reactions, handleEmojiClick, selectedEmojiIds, self
                     motion="out"
                 />
             ))}
-            <AddReactionTrigger
+            {canReact && <AddReactionTrigger
                 onReactionSelect={(id) => handleEmojiClick(id)}
                 showCustomReactions={false}
                 className="size-[26px] rounded-[13px] bg-transparent text-ink-3 ring-1 ring-inset ring-line hover:bg-hover hover:text-ink [&_svg]:size-3.5 pointer-coarse:size-8"
-            />
+            />}
         </div>
     )
 }

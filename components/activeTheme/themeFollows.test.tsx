@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render } from "@testing-library/react"
 import { SWRConfig } from "swr"
 
@@ -30,6 +30,12 @@ vi.mock("@/hooks/usePost", () => ({
 }))
 
 const saved = (color: string, mode: string) => ({ data: { user_uuid: "u-1", user_theme_color: color, user_theme_mode: mode } })
+
+// Loaded once before any test's clock runs (V-61, lib/testing/inTestImportsGuard): the fresh copy
+// each test imports then only runs it again, without transforming its graph inside the test's 5 s.
+beforeAll(async () => {
+  await import("@/components/activeTheme/ThemeSync")
+})
 
 async function mount(profile?: unknown) {
   const { ActiveThemeProvider, useThemeConfig } = await import("@/components/activeTheme/activeTheme")

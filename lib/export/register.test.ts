@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { OWN_ERRORS } from '@/lib/axiosInstance'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Editor } from '@tiptap/core'
@@ -7,7 +8,7 @@ import type { ActionContext, DocCommandBus } from '@/components/docEditor/regist
 
 const post = vi.fn()
 const get = vi.fn()
-vi.mock('@/lib/axiosInstance', () => ({ default: { post: (...a: unknown[]) => post(...a), get: (...a: unknown[]) => get(...a) }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a), get: (...a: unknown[]) => get(...a) } }))
 const toast = vi.fn()
 vi.mock('@/hooks/use-toast', () => ({ toast: (...a: unknown[]) => toast(...a) }))
 const downloadFile = vi.fn()
@@ -92,7 +93,7 @@ describe('export and import in More', () => {
     editor.commands.insertContent(', typed just now')
     const md = actionsFor('more', { ai: false }).find((a) => a.id === 'doc.export.markdown')!
     await md.run(ctxFor(editor))
-    expect(post).toHaveBeenCalledWith('/doc/recordExport', { doc_uuid: 'doc-1', format: 'md' }, {})
+    expect(post).toHaveBeenCalledWith('/doc/recordExport', { doc_uuid: 'doc-1', format: 'md' }, OWN_ERRORS)
     expect(downloadFile).toHaveBeenCalledTimes(1)
     const [name, text] = downloadFile.mock.calls[0]
     expect(name).toBe('Plan.md')

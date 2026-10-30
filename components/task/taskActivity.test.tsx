@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react"
 import en from "@/lib/utils/i18n/locales/en/en.json"
 
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, o?: { field?: string }) => (en as Record<string, string>)[k]?.replace("{{field}}", o?.field ?? "") ?? k }) }))
+vi.mock("@/lib/utils/i18n", () => ({ useTranslation: () => ({ t: (k: string, o?: { field?: string }) => (en as Record<string, string>)[k]?.replace("{{field}}", o?.field ?? "") ?? k }) }))
 const { default: TaskActivity } = await import("@/components/task/taskActivity")
 
 const row = (activity_type: string, next = "") =>
@@ -21,6 +21,9 @@ describe("a task's activity", () => {
     expect(screen.getByText(/created the task\./)).toBeTruthy()
     row("fieldUpdate", "Channel")
     expect(screen.getByText(/changed Channel\./)).toBeTruthy()
+    // A task's type (A8K): the type it has now.
+    row("typeUpdate", "Bug")
+    expect(screen.getByText(/changed the type to Bug\./)).toBeTruthy()
   })
 
   it("has every empty state's words in English, so none is a humanised key", () => {

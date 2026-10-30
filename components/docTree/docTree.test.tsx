@@ -35,9 +35,8 @@ const post = vi.fn(async (url: string, body: unknown) => {
   }
   return { data: { data: {} } }
 })
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: (url: string) => get(url), post: (url: string, body: unknown) => post(url, body), delete: vi.fn(async () => ({ data: {} })) },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 const push = vi.fn()
 const nav = vi.hoisted(() => ({ pathname: "/app/doc/plans-0001" }))
@@ -47,6 +46,12 @@ const confirmed = vi.fn()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirmed }))
 const toasts = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: unknown) => toasts(t) }))
+// Whether a page opened from the tree held the trees' reading ahead (fluid-06).
+const opening = vi.fn()
+vi.mock("@/components/tree/useTree", async (real) => ({
+  ...(await real<typeof import("@/components/tree/useTree")>()),
+  pauseReadAheadWhileOpening: () => opening(),
+}))
 
 import { DocTree, hiddenLabel, docIdOfPath } from "./DocTree"
 import DocsTreeGroups from "./DocsTreeGroups"
@@ -75,13 +80,14 @@ function renderWith(ui: React.ReactNode) {
 
 beforeEach(() => {
   for (const k of Object.keys(levels)) delete levels[k]
-  levels["/doc/children?space=workspace&limit=8"] = { nodes: [page("plans-0001", "Plans", true, true, false), page("notes-0001", ""), page("theirs-001", "Board minutes", false, false)] }
-  levels["/doc/children?parent=plans-0001&limit=8"] = { nodes: [page("q4-000001", "Q4 launch")], hidden: 2 }
-  levels["/doc/children?space=shared&limit=8"] = { nodes: [] }
-  levels["/doc/children?space=private&limit=8"] = { nodes: [page("mine-0001", "My notes", false, true, true)] }
+  levels["/doc/children?space=workspace&limit=50"] = { nodes: [page("plans-0001", "Plans", true, true, false), page("notes-0001", ""), page("theirs-001", "Board minutes", false, false)] }
+  levels["/doc/children?parent=plans-0001&limit=50"] = { nodes: [page("q4-000001", "Q4 launch")], hidden: 2 }
+  levels["/doc/children?space=shared&limit=50"] = { nodes: [] }
+  levels["/doc/children?space=private&limit=50"] = { nodes: [page("mine-0001", "My notes", false, true, true)] }
   get.mockClear()
   post.mockClear()
   push.mockClear()
+  opening.mockClear()
   confirmed.mockReset()
   toasts.mockReset()
   preview = { available: true, can_adopt: true, lose: 0, gain: 0, summary: "No one's access changes." }
@@ -138,6 +144,15 @@ describe("a space's page tree", () => {
     expect(plans).toHaveAttribute("aria-current", "page")
   })
 
+  // DOCS-LEAD-2, fluid-06: the page asks for its data and code; a level read
+  // ahead meanwhile only competes with them.
+  it("opens a page from its row, holding the trees' reading ahead while it comes", async () => {
+    renderWith(<DocTree space="workspace" label="Workspace pages" />)
+    fireEvent.click(await screen.findByRole("treeitem", { name: "Board minutes" }))
+    expect(push).toHaveBeenCalledWith("/app/doc/theirs-001")
+    expect(opening).toHaveBeenCalledTimes(1)
+  })
+
   it("opens a page's children a level at a time, counting the ones the viewer can't open and naming none", async () => {
     renderWith(<DocTree space="workspace" label="Workspace pages" />)
     fireEvent.click(await screen.findByRole("button", { name: "Open Plans" }))
@@ -189,7 +204,8 @@ describe("a space's page tree", () => {
     fireEvent.contextMenu(plans)
     const menu = await screen.findByRole("menu")
     const items = within(menu).getAllByRole("menuitem").map((i) => i.textContent)
-    expect(items).toEqual(["Add a page inside", "Star", "Rename", "Duplicate", "Copy link", "Move to trash"])
+    // A colour for every kind, and Move to…, drag's keyboard and finger (docs F1b).
+    expect(items).toEqual(["Add a page inside", "Star", "Rename", "Colour", "Move to…", "Duplicate", "Copy link", "Move to trash"])
   })
 
   it("gives a title the row's whole width: + and ⋯ take room only on hover or focus, and stay while its menu is open", async () => {
@@ -234,8 +250,8 @@ describe("the sidebar's Docs section", () => {
   })
 
   it("offers the first doc to someone with none anywhere", async () => {
-    levels["/doc/children?space=workspace&limit=8"] = { nodes: [] }
-    levels["/doc/children?space=private&limit=8"] = { nodes: [] }
+    levels["/doc/children?space=workspace&limit=50"] = { nodes: [] }
+    levels["/doc/children?space=private&limit=50"] = { nodes: [] }
     renderWith(<DocsTreeGroups />)
     fireEvent.click(await screen.findByRole("button", { name: "Write the first doc" }))
     await waitFor(() => expect(post).toHaveBeenCalledWith("/doc/createDoc", { doc_title: "", space: "private", doc_private: true }))
@@ -247,12 +263,15 @@ describe("the sidebar's Docs section", () => {
     localStorage.clear()
     nav.pathname = "/app/home"
     const many = Array.from({ length: 7 }, (_, i) => page(`page-00${i}0`, `Page ${i}`))
-    levels["/doc/children?space=workspace&limit=5"] = { nodes: many.slice(0, 5), hidden: 0 }
-    levels["/doc/children?space=shared&limit=5"] = { nodes: [page("from-00001", "From Maya")] }
-    levels["/doc/children?space=private&limit=5"] = { nodes: [page("mine-0001", "My notes")] }
+    // A level reads more than it shows (fluid-06, Fix 2): five shown of what it read.
+    levels["/doc/children?space=workspace&limit=50"] = { nodes: many, hidden: 0 }
+    levels["/doc/children?space=shared&limit=50"] = { nodes: [page("from-00001", "From Maya")] }
+    levels["/doc/children?space=private&limit=50"] = { nodes: [page("mine-0001", "My notes")] }
     renderWith(<DocsTreeGroups sidebar />)
-    expect(await screen.findByRole("tree", { name: "Workspace pages" })).toBeTruthy()
-    expect(get).toHaveBeenCalledWith("/doc/children?space=workspace&limit=5")
+    const workspace = await screen.findByRole("tree", { name: "Workspace pages" })
+    expect(get).toHaveBeenCalledWith("/doc/children?space=workspace&limit=50")
+    await waitFor(() => expect(within(workspace).getAllByRole("treeitem")).toHaveLength(5))
+    expect(screen.getByRole("button", { name: "Show 2 more" })).toBeTruthy()
     // Open until folded, and each fold is kept.
     expect(await screen.findByRole("tree", { name: "Pages shared with me" })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Fold Private" }))
@@ -272,9 +291,9 @@ describe("the sidebar's Docs section", () => {
     localStorage.setItem("docsGroup.open.private", "0")
     localStorage.setItem("docsGroup.open.shared", "0")
     nav.pathname = "/app/doc/mine-0001"
-    levels["/doc/children?space=workspace&limit=5"] = { nodes: [page("plans-0001", "Plans")] }
-    levels["/doc/children?space=shared&limit=5"] = { nodes: [page("from-00001", "From Maya")] }
-    levels["/doc/children?space=private&limit=5"] = { nodes: [page("mine-0001", "My notes")] }
+    levels["/doc/children?space=workspace&limit=50"] = { nodes: [page("plans-0001", "Plans")] }
+    levels["/doc/children?space=shared&limit=50"] = { nodes: [page("from-00001", "From Maya")] }
+    levels["/doc/children?space=private&limit=50"] = { nodes: [page("mine-0001", "My notes")] }
     raw["/doc/getDocInfo/mine-0001"] = { data: { doc_uuid: "mine-0001", doc_private: true, doc_created_by: { user_uuid: "me-1" } } }
     raw["/user/sidebarNav"] = { data: { user_uuid: "me-1" } }
     renderWith(<DocsTreeGroups sidebar />)

@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { Suspense } from "react"
 import type { DraggableSyntheticListeners } from "@dnd-kit/core"
 import type { Transform } from "@dnd-kit/utilities"
 
@@ -11,13 +11,13 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { GitBranch, ArrowUpRight, MessageSquare, MoreHorizontal, Clock, Check } from "@/lib/icons"
 import { GitHubBadgeGroup } from "@/components/task/PRStatusBadge"
 import { useSelector } from "react-redux"
-import { TaskInfoInterface } from "@/types/task"
+import type { TaskInfoInterface } from "@/types/task"
 import type { RootState } from "@/store/store"
 import { isClosedStatus, statusOptionOf, statusValueOf } from "@/lib/taskStatus"
 import { MenuCheck } from "@/components/ui/menuCheck"
 import { timeInStatus } from "@/lib/utils/timeInStatus"
 import { splitTags } from "@/lib/tags"
-import { BlockedBadge } from "@/components/task/BlockedBadge"
+import { BlockedBadge, RestrictedMark } from "@/components/task/BlockedBadge"
 import { CardFields } from "@/components/task/cardFields"
 import { LabelChip } from "@/components/ui/chip"
 import { DueLabel } from "@/components/task/DueLabel"
@@ -31,16 +31,19 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { displayNameOf } from "@/lib/personName"
 import { useBoardActions } from "@/components/kanbanComponents/boardActions"
+import { MenuOnDemand } from "@/components/ui/menuOnDemand"
 import {
-    DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSub,
     DropdownMenuSubContent,
     DropdownMenuSubTrigger,
-    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useProjectHue } from "@/lib/projectHue"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
+
+const TaskTypeGlyph = lazyPiece(() => import("@/components/task/TaskTypeGlyph"))
+const WaitingMark = lazyPiece(() => import("@/components/task/WaitingMark"))
 
 interface Props {
     dragOverlay?: boolean
@@ -128,6 +131,24 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge, cross
 
     return (
         <>
+            {/* The type, the key and the marks (STEP4 #8): a label line, top left. */}
+            {(task.task_key || task.task_blocked_open || task.task_restricted || task.task_waiting) && (
+                <div className="flex h-4 min-w-0 items-center gap-1.5 pr-6 text-micro text-ink-3" data-card-key="">
+                    {task.task_work_type && (
+                        <Suspense fallback={<span className="size-3" />}>
+                            <TaskTypeGlyph type={task.task_work_type} className="size-3" />
+                        </Suspense>
+                    )}
+                    {task.task_key && <span className="whitespace-nowrap">{task.task_key}</span>}
+                    <RestrictedMark restricted={task.task_restricted} />
+                    <BlockedBadge count={task.task_blocked_open} className="text-camp-sun-ink" />
+                    {task.task_waiting && (
+                        <Suspense fallback={null}>
+                            <WaitingMark waiting={task.task_waiting} />
+                        </Suspense>
+                    )}
+                </div>
+            )}
             {tags.length > 0 && (
                 <div className="flex min-w-0 items-center gap-1.5 pr-6" data-card-labels="">
                     {tags.slice(0, 2).map((t) => (
@@ -174,7 +195,6 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge, cross
                             {task.task_comment_count}
                         </span>
                     )}
-                    <BlockedBadge count={task.task_blocked_open} className="text-camp-sun-ink" />
                     {inStatus?.stale && (
                         <span
                             className="inline-flex items-center gap-1 tabular-nums text-warning-ink"
@@ -230,20 +250,11 @@ function CardMenu({ task, onOpen }: { task: TaskInfoInterface; onOpen: () => voi
         )
     }
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    aria-label="Card actions"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    className={MENU_BUTTON}
-                    data-touch-target=""
-                >
-                    <MoreHorizontal className="size-3.5" />
-                </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
+        // In the tree only while it is open: every card on a board had one
+        // mounted (MenuProvider ×120 on 120 cards; F-1 #2).
+        <MenuOnDemand
+            menu={(onDemand) => (
+            <DropdownMenuContent {...onDemand} align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
                 <DropdownMenuItem onSelect={onOpen}>
                     <ArrowUpRight className="size-3.5" />
                     Open
@@ -266,7 +277,20 @@ function CardMenu({ task, onOpen }: { task: TaskInfoInterface; onOpen: () => voi
                     </DropdownMenuSub>
                 )}
             </DropdownMenuContent>
-        </DropdownMenu>
+            )}
+        >
+            <button
+                type="button"
+                aria-label="Card actions"
+                // A press here neither opens the card nor picks it up.
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                className={MENU_BUTTON}
+                data-touch-target=""
+            >
+                <MoreHorizontal className="size-3.5" />
+            </button>
+        </MenuOnDemand>
     )
 }
 

@@ -1,7 +1,8 @@
 "use client"
 import { Popover, PopoverTrigger } from "@/components/ui/popover"
 import {StandardReaction, SyncCustomReaction} from "@/types/reaction";
-import {lazy, Suspense, useRef, useState} from "react";
+import { Suspense, useRef, useState } from "react";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 
 export interface ReactionPickerPopoverProps {
     showCustomReactions : boolean
@@ -12,7 +13,7 @@ export interface ReactionPickerPopoverProps {
 
 // The picker loads on first use, asked for as a pointer or the focus reaches its trigger (reactionPickerPanel).
 const loadPanel = () => import("@/components/popover/reactionPickerPanel")
-const Panel = lazy(loadPanel)
+const Panel = lazyPiece(loadPanel)
 const ahead = () => void loadPanel()
 
 export function ReactionPickerPopover({showCustomReactions, onReactionSelect, setPopupState, children}:ReactionPickerPopoverProps) {

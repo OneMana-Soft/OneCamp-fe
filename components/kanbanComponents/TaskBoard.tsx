@@ -33,7 +33,7 @@
  * step function skipped every column that already held a card.
  */
 
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { createContext, memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react"
 import { fieldKeyDown } from "@/lib/keys/ime"
 import { createPortal } from "react-dom"
 import {
@@ -51,10 +51,13 @@ import {
     defaultDropAnimationSideEffects,
     type DropAnimation,
     type CollisionDetection,
+    type MeasuringConfiguration,
+    getClientRect,
 } from "@dnd-kit/core"
 import { Container, Item } from "@/components/kanbanComponents"
 import { ColumnMoveMenu } from "@/components/kanbanComponents/Container/Container"
 import { moveKeyOf, spotLabel, stepSpot } from "@/lib/board/keyMove"
+import { cardOf, measuredCard } from "@/lib/board/cardOf"
 import type { TaskInfoInterface } from "@/types/task"
 import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/lib/utils/kanbanDrop"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -76,6 +79,11 @@ import { useDispatch } from "react-redux"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { CardSheet } from "@/components/kanbanComponents/CardSheet"
 import { ColumnDropLine, ColumnGrip, ColumnLift, ColumnOrderProvider, COLUMN_SLOT, useColumnDrag, useColumnOrder, type ColumnOrdering } from "@/components/kanbanComponents/columnDrag"
+// Where a dragged card will land: the one drop line, in the middle of the gap
+// the cards open for it (work.md W22); above a card that has moved aside it
+// rises by half the room, to the gap's middle. The keys keep it in view.
+import { DropLine } from "@/components/ui/drop-line"
+import { DRAG_OVERLAY } from "@/lib/ui/dnd"
 
 /** Cards a column renders at first, and adds each time it is scrolled near its end. */
 export const CARDS_PER_PAGE = 30
@@ -129,7 +137,7 @@ const DROP_MS = 200
  * renders nothing for it.
  */
 function landCard(board: HTMLElement | null, taskId: string, intoDone: boolean) {
-    const card = Array.from(board?.querySelectorAll<HTMLElement>("[data-task-id]") ?? []).find((c) => c.dataset.taskId === taskId)
+    const card = cardOf(board, taskId)
     if (!card) return
     card.animate?.(
         [{ backgroundColor: "color-mix(in oklab, var(--brand-muted) 100%, var(--raised))" }, { backgroundColor: "var(--raised)" }],
@@ -203,6 +211,7 @@ export function TaskBoard({
     onMove,
     boardKey,
     onQuickAdd,
+    addsTo,
     totals,
     badgeFor,
     onShowMore,
@@ -224,6 +233,8 @@ export function TaskBoard({
     boardKey?: string
     /** Make a task in a column (and lane) from its name; resolves whether it worked. */
     onQuickAdd?: (column: string, name: string, lane?: string) => Promise<boolean>
+    /** Whether this person may make a task in a column (its rule on who); all when unset. */
+    addsTo?: (status: StatusOption) => boolean
     /** A column's real total, for one the server sent only part of (any column since PROJ-BUG-8; lib/board/columnTotals). */
     totals?: Record<string, number | undefined>
     /** A word on each card the column does not already say (its status, on a board of people). */
@@ -278,11 +289,14 @@ export function TaskBoard({
     const dragging = activeTask !== null
     const tilted = useRef(false)
     // The gap a column opens for the held card: its height and the 8px between
-    // cards (make-room), set on the board as --room, so no card renders for it.
+    // cards (make-room), set on the board as --card-room, so no card renders
+    // for it. The cards inherit it, so its name is the board's own: the list's
+    // --room is registered as not inherited (app/interaction.css, lib/ui/makeRoom),
+    // and under that name every card here would read 0px.
     const roomFor = (id: string) => {
-        const card = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-task-id]") ?? []).find((c) => c.dataset.taskId === id)
+        const card = cardOf(boardRef.current, id)
         const h = card?.getBoundingClientRect().height ?? 0
-        boardRef.current?.style.setProperty("--room", `${Math.round(h) + 8}px`)
+        boardRef.current?.style.setProperty("--card-room", `${Math.round(h) + 8}px`)
     }
 
     const canDragRef = useRef(canDrag)
@@ -303,6 +317,7 @@ export function TaskBoard({
     }, [board, dragging])
 
     const sensors = useSensors(useSensor(MouseSensor, MOUSE), useSensor(TouchSensor, TOUCH))
+    const [cardDragSource, startCardDrag] = useCardDragSource()
 
     const aim = (next: Target | null) => {
         const cur = targetRef.current
@@ -354,9 +369,9 @@ export function TaskBoard({
         }
         // The pointer for a mouse or finger; the lifted card's centre otherwise.
         const p = pointer.current
-        if (p) return aimAt(p.x, p.y, String(active.id))
+        if (p) return aimAt(p.x, p.y, activeTask.task_uuid)
         const r = active.rect.current.translated
-        if (r) aimAt(r.left + r.width / 2, r.top + r.height / 2, String(active.id))
+        if (r) aimAt(r.left + r.width / 2, r.top + r.height / 2, activeTask.task_uuid)
     }
 
     // The list under (x, y) and the place in it, as the line shows it. Run on
@@ -414,6 +429,14 @@ export function TaskBoard({
         setByKeys(false)
     }
 
+    // The board's one shared draggable is bound to the pressed card's node: a
+    // card dropped into another list or lane is measured where it landed
+    // (lib/board/cardOf measuredCard), never as the detached node it left.
+    const measuring = useMemo<MeasuringConfiguration>(
+        () => ({ draggable: { measure: (element: HTMLElement) => getClientRect(measuredCard(boardRef.current, element), { ignoreTransform: true }) } }),
+        [],
+    )
+
     // Puts the held card where the line is, and saves it. Returns where it went.
     const settle = (task: TaskInfoInterface): Target | null => {
         const t = targetRef.current
@@ -439,7 +462,7 @@ export function TaskBoard({
     }
 
     const onDragEnd = ({ active }: DragEndEvent) => {
-        if (activeTask && String(active.id) === activeTask.task_uuid) settle(activeTask)
+        if (activeTask && active.data.current?.type === "task") settle(activeTask)
         finish()
     }
 
@@ -523,7 +546,7 @@ export function TaskBoard({
         const id = refocus.current
         if (!id || activeTask) return
         refocus.current = null
-        const card = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-task-id]") ?? []).find((c) => c.dataset.taskId === id)
+        const card = cardOf(boardRef.current, id)
         card?.focus()
     })
 
@@ -575,10 +598,11 @@ export function TaskBoard({
     const columnDrag = useColumnDrag({ boardRef, visible, ordering, say, describedBy: columnHelp, animate: !lanes })
     const heldColumn = columnDrag.held ? visible.find((v) => v.value === columnDrag.held) : undefined
 
-    // The line stays in view as the keys move it down a long column.
+    // The line (an empty column's lit box) stays in view as the keys move it
+    // down a long column or across the board.
     useEffect(() => {
         if (!byKeys || !target) return
-        boardRef.current?.querySelector<HTMLElement>("[data-drop-line]")?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+        boardRef.current?.querySelector<HTMLElement>("[data-drop-line], [data-drop-slot][data-drop]")?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
     }, [byKeys, target])
 
     return (
@@ -586,6 +610,7 @@ export function TaskBoard({
             sensors={sensors}
             collisionDetection={noCollisions}
             autoScroll={AUTO_SCROLL}
+            measuring={measuring}
             // A column's grip or a card: each drag is one or the other.
             onDragStart={(e) => {
                 if (!columnDrag.onDragStart(e)) onDragStart(e)
@@ -598,6 +623,8 @@ export function TaskBoard({
                 if (!columnDrag.onDragCancel()) finish()
             }}
         >
+            {cardDragSource}
+            <CardDragContext.Provider value={startCardDrag}>
             <ColumnOrderProvider value={columnDrag.actions}>
             <BoardActionsContext.Provider value={actions}>
             {/* Display contents: only here to catch the keys of the cards inside. */}
@@ -616,6 +643,7 @@ export function TaskBoard({
                     folded={foldedLanes}
                     onToggleLane={toggleLane}
                     onQuickAdd={onQuickAdd}
+                    addsTo={addsTo}
                     totals={totals}
                     onShowMore={onShowMore}
                     badgeFor={badgeFor}
@@ -635,6 +663,7 @@ export function TaskBoard({
                 className="flex min-h-0 flex-1 gap-2 overflow-x-auto px-4 pb-4 snap-x snap-mandatory scroll-px-4 sm:gap-3 sm:px-0 sm:snap-none sm:scroll-px-0 after:w-4 after:shrink-0 after:content-[''] sm:after:w-5"
                 data-board-scroll=""
                 data-board=""
+                data-task-sequence=""
             >
                 {visible.map((status) => (
                     <BoardColumn
@@ -648,7 +677,7 @@ export function TaskBoard({
                         lineAt={target?.column === status.value ? target.index : null}
                         collapsed={collapsed.has(status.value)}
                         onToggleCollapse={toggleCollapsed}
-                        onQuickAdd={onQuickAdd}
+                        onQuickAdd={addsTo?.(status) === false ? undefined : onQuickAdd}
                         total={totals?.[status.value]}
                         badgeFor={badgeFor}
                         onShowMore={onShowMore}
@@ -666,6 +695,7 @@ export function TaskBoard({
             </div>
             </BoardActionsContext.Provider>
             </ColumnOrderProvider>
+            </CardDragContext.Provider>
             <ColumnDropLine line={columnDrag.line} />
             {sheet && (
                 <CardSheet
@@ -690,7 +720,7 @@ export function TaskBoard({
             </p>
             {typeof document !== "undefined" &&
                 createPortal(
-                    <DragOverlay dropAnimation={dropAnimation} className="work-drag-overlay">
+                    <DragOverlay dropAnimation={dropAnimation} className={cn("work-drag-overlay", DRAG_OVERLAY)}>
                         {heldColumn && columnDrag.heldByPointer ? (
                             <ColumnLift status={heldColumn} width={columnDrag.liftWidth} count={Math.max(totals?.[heldColumn.value] ?? 0, items[heldColumn.value]?.length ?? 0)} />
                         ) : activeTask && !byKeys ? (
@@ -799,21 +829,24 @@ const BoardColumn = memo(function BoardColumn({
             move={move}
             lifted={lifted}
         >
-            <CardStack
-                id={id}
-                column={id}
-                tasks={tasks}
-                canDrag={canDrag}
-                activeId={activeId}
-                liftedId={liftedId}
-                describedBy={describedBy}
-                lineAt={lineAt}
-                total={total}
-                paging={columnPaging(status)}
-                badgeFor={badgeFor}
-                onShowMore={onShowMore}
-                className="pb-4"
-            />
+            {/* An empty column has only its box (Container), where a card lands: no line, and no gap above it. */}
+            {count > 0 && (
+                <CardStack
+                    id={id}
+                    column={id}
+                    tasks={tasks}
+                    canDrag={canDrag}
+                    activeId={activeId}
+                    liftedId={liftedId}
+                    describedBy={describedBy}
+                    lineAt={lineAt}
+                    total={total}
+                    paging={columnPaging(status)}
+                    badgeFor={badgeFor}
+                    onShowMore={onShowMore}
+                    className="pb-4"
+                />
+            )}
         </Container>
     )
 })
@@ -868,7 +901,7 @@ function CardStack({
     }, [more, limit])
     const others = shown.filter((t) => t.task_uuid !== activeId).length
     // Make room (work.md W22): the cards from the line down move aside by the
-    // held card's height and the gap (--room, on the board), 160 ms, so the
+    // held card's height and the gap (--card-room, on the board), 160 ms, so the
     // gap is where it will land. Set on the cards' elements, not their props:
     // a step renders no card. In the card's own column, at its own place,
     // the slot it left already says so and nothing moves.
@@ -900,13 +933,15 @@ function CardStack({
                             task={task}
                             column={id}
                             disabled={!canDrag(task)}
+                            dragging={task.task_uuid === activeId && activeId !== liftedId}
                             lifted={task.task_uuid === liftedId}
                             describedBy={describedBy}
                             // Its own status, where the column does not already say it
                             // (My Tasks has only the built-in columns).
                             statusBadge={badgeFor ? badgeFor(task, column) : task.task_custom_status && task.task_custom_status !== column ? task.task_custom_status_name : undefined}
                             lineAbove={lineAt !== null && position === lineAt}
-                            lineBelow={lineAt !== null && lineAt === others && position === others - 1}
+                            // Never the held card's own slot (position -1), which matched when it was the only card.
+                            lineBelow={lineAt !== null && lineAt === others && position >= 0 && position === others - 1}
                         />
                     )
                 })}
@@ -964,6 +999,7 @@ function LaneGrid({
     folded,
     onToggleLane,
     onQuickAdd,
+    addsTo,
     totals,
     onShowMore,
     badgeFor,
@@ -982,6 +1018,7 @@ function LaneGrid({
     folded: Set<string>
     onToggleLane: (lane: string) => void
     onQuickAdd?: (column: string, name: string, lane?: string) => Promise<boolean>
+    addsTo?: (status: StatusOption) => boolean
     totals?: Record<string, number | undefined>
     onShowMore?: (column: string) => void
     badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
@@ -992,7 +1029,7 @@ function LaneGrid({
     const inColumn = (status: string) => lanes.reduce((n, l) => n + (items[cellKey(l.id, status)]?.length ?? 0), 0)
     const order = useColumnOrder()
     return (
-        <div ref={boardRef} className="h-full overflow-auto overscroll-contain px-4 pb-4 sm:px-0" data-board-scroll="">
+        <div ref={boardRef} className="h-full overflow-auto overscroll-contain px-4 pb-4 sm:px-0" data-board-scroll="" data-task-sequence="">
             <div className="w-max min-w-full">
                 <div className="sticky top-0 z-20 flex gap-3 bg-sheet pb-2 pl-1">
                     {visible.map((status) => {
@@ -1098,7 +1135,7 @@ function LaneGrid({
                                                     liftedId={liftedId}
                                                     describedBy={describedBy}
                                                     lineAt={target?.column === id ? target.index : null}
-                                                    onQuickAdd={onQuickAdd}
+                                                    onQuickAdd={addsTo?.(status) === false ? undefined : onQuickAdd}
                                                     badgeFor={badgeFor}
                                                 />
                                             )
@@ -1162,21 +1199,51 @@ const LaneCell = memo(function LaneCell({
     )
 })
 
-/**
- * Where a dragged card will land: the layer's 2px accent line with its ring
- * (app/interaction.css [data-drop-line], INTERACTION_SPEC §5.1), in the
- * middle of the gap the cards open for it (work.md W22). Above a card that
- * has moved aside, it rises by half the room, to the gap's middle. It takes
- * no space, and the keys keep it in view.
- */
-function DropLine({ className }: { className: string }) {
-    return <span aria-hidden="true" data-drop-line="" className={cn("pointer-events-none absolute inset-x-1 z-10 block", className)} />
+// The board's one card draggable (F-1 #5, FLUIDITY-LEAD 20 Oct): with a
+// useDraggable in each card, every card read dnd-kit's context and drew again
+// when a drag started, moved past a measure and ended (x639, frame p95 33 ms).
+// A card's press binds this source to the card's node and its task, then
+// starts it, as the card's own listeners did.
+const CARD_DRAG = "board-card"
+type Press = "onMouseDown" | "onTouchStart"
+type CardDragStart = (press: Press, event: React.SyntheticEvent, task: TaskInfoInterface, column: string, node: HTMLElement | null) => void
+const CardDragContext = createContext<CardDragStart | null>(null)
+
+function pressesOf(start: CardDragStart, task: TaskInfoInterface, column: string, node: React.RefObject<HTMLElement | null>) {
+    const on = (press: Press) => (event: React.SyntheticEvent) => start(press, event, task, column, node.current)
+    return { onMouseDown: on("onMouseDown"), onTouchStart: on("onTouchStart") }
+}
+
+/** The draggable the cards share; it binds, on each press, to the card pressed. */
+function useCardDragSource(): [ReactNode, CardDragStart] {
+    const source = useRef<{ setNodeRef: (el: HTMLElement | null) => void; listeners?: Record<string, ((event: React.SyntheticEvent) => void) | undefined>; data: { type: "task"; task: TaskInfoInterface | null; containerId: string } } | null>(null)
+    const start = useCallback<CardDragStart>((press, event, task, column, node) => {
+        const s = source.current
+        const handler = s?.listeners?.[press]
+        if (!s || !handler || !node) return
+        s.data.task = task
+        s.data.containerId = column
+        s.setNodeRef(node)
+        handler(event)
+    }, [])
+    return [<CardDragSource key="card-drag" source={source} />, start]
+}
+
+function CardDragSource({ source }: { source: React.MutableRefObject<{ setNodeRef: (el: HTMLElement | null) => void; listeners?: Record<string, ((event: React.SyntheticEvent) => void) | undefined>; data: { type: "task"; task: TaskInfoInterface | null; containerId: string } } | null> }) {
+    // One object for the board's life: a press fills it in before the drag starts.
+    const data = useRef<{ type: "task"; task: TaskInfoInterface | null; containerId: string }>({ type: "task", task: null, containerId: "" }).current
+    const { setNodeRef, listeners } = useDraggable({ id: CARD_DRAG, data })
+    useLayoutEffect(() => {
+        source.current = { setNodeRef, listeners: listeners as Record<string, ((event: React.SyntheticEvent) => void) | undefined> | undefined, data }
+    })
+    return null
 }
 
 const BoardCard = memo(function BoardCard({
     task,
     column,
     disabled,
+    dragging,
     lifted,
     describedBy,
     lineAbove,
@@ -1186,6 +1253,8 @@ const BoardCard = memo(function BoardCard({
     task: TaskInfoInterface
     column: string
     disabled: boolean
+    /** Carried by the pointer: the slot it left is the placeholder. */
+    dragging: boolean
     /** Held from the keyboard: it stays in place, ringed, while the line moves. */
     lifted: boolean
     describedBy: string
@@ -1193,28 +1262,28 @@ const BoardCard = memo(function BoardCard({
     lineAbove: boolean
     lineBelow: boolean
 }) {
-    const { setNodeRef, listeners, isDragging } = useDraggable({
-        id: task.task_uuid,
-        data: { type: "task", task, containerId: column },
-        disabled,
-    })
+    // A press goes to the board's one drag source (CardDragSource), so no card
+    // reads the drag's context and draws again as a drag starts, moves or ends.
+    const start = useContext(CardDragContext)
+    const node = useRef<HTMLDivElement>(null)
+    const listeners = useMemo(() => (disabled || !start ? undefined : pressesOf(start, task, column, node)), [disabled, start, task, column])
     const { highlighted, selected } = useRowState(task.task_uuid)
     return (
         <div
             data-card-slot={task.task_uuid}
-            className="relative transition-transform duration-[160ms] ease-out data-[shift]:translate-y-[var(--room,0px)]"
+            className="relative transition-transform duration-[160ms] ease-out data-[shift]:translate-y-[var(--card-room,0px)]"
         >
-            {lineAbove && <DropLine className="-top-[5px] [[data-shift]>&]:top-[calc(-5px_-_var(--room,0px)/2)]" />}
+            {lineAbove && <DropLine className="-top-[5px] [[data-shift]>&]:top-[calc(-5px_-_var(--card-room,0px)/2)]" />}
             <Item
-                ref={setNodeRef}
+                ref={node}
                 value={task.task_uuid}
                 task={task}
                 statusBadge={statusBadge}
-                dragging={isDragging}
+                dragging={dragging}
                 lifted={lifted}
                 highlighted={highlighted}
                 selected={selected}
-                listeners={disabled ? undefined : listeners}
+                listeners={listeners}
                 data-task-id={task.task_uuid}
                 aria-describedby={disabled ? undefined : describedBy}
             />

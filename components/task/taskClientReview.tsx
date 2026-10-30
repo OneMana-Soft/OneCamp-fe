@@ -15,10 +15,9 @@ export function TaskClientReview({ taskUUID }: { taskUUID: string }) {
   if (!review) return null
   return (
     <div className={propertyRow("start")}>
-      <div className="pt-0.5">
-        <span className={propertyLabel}>Client</span>
-      </div>
-      <div className="min-w-0">
+      <span className={propertyLabel}>Client</span>
+      {/* The badge's 12 px line, centred on the name's 32 px one. */}
+      <div className="min-w-0 pt-2">
         <ReviewBadge review={review} withNote />
       </div>
     </div>

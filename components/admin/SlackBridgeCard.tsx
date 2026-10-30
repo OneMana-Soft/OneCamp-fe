@@ -306,9 +306,8 @@ const SlackBridgeCard: React.FC = () => {
                             size="sm"
                             className={cn(sectionActionClass, "w-fit")}
                             onClick={() => void connect()}
-                            disabled={!token.trim() || !secret.trim() || busy === "connect"}
+                            disabled={!token.trim() || !secret.trim()} busy={busy === "connect"}
                         >
-                            {busy === "connect" && <Loader2 className="animate-spin" aria-hidden="true" />}
                             Connect Slack
                         </Button>
                         <p className="text-xs text-muted-foreground">
@@ -413,9 +412,8 @@ const SlackBridgeCard: React.FC = () => {
                             size="sm"
                             className={sectionActionClass}
                             onClick={() => void link()}
-                            disabled={!pickSlack || !pickOneCamp || busy === "link"}
+                            disabled={!pickSlack || !pickOneCamp} busy={busy === "link"}
                         >
-                            {busy === "link" && <Loader2 className="animate-spin" aria-hidden="true" />}
                             Link
                         </Button>
                     </div>

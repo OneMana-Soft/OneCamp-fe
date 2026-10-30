@@ -77,20 +77,22 @@ export function useProjectFields(projectId: string | undefined) {
     reorder,
     remove,
     refresh: mutate,
+    refreshTasks,
+    // The client, for restoreService's restore: the lazy dialog may not import it itself (V-49).
+    http: axiosInstance,
   }
 }
 
-/** The project's people, for person fields: to name a value and to filter
- * on one. Fetched only when the project has a person field. */
-export function usePeople(projectId: string | undefined, fields: TaskField[]) {
-  const needed = !!projectId && fields.some((f) => f.type === "person")
-  const { data } = useFetch<ProjectInfoRawInterface>(needed ? `${GetEndpointUrl.GetProjectMembers}/${projectId}` : "", undefined, { revalidateOnFocus: false })
+/** A project's people, by id. */
+export function useProjectMembers(projectId: string | undefined) {
+  const { data } = useFetch<ProjectInfoRawInterface>(projectId ? `${GetEndpointUrl.GetProjectMembers}/${projectId}` : "", undefined, { revalidateOnFocus: false })
   const members = data?.data?.project_members
   return useMemo(() => {
-    // Named as the task panel's picker names them; bots are named but not
-    // offered as a filter.
+    // As the task panel's picker names them; bots are never a filter.
     const all = (members ?? []).filter((m) => m.user_uuid).map((m) => ({ id: m.user_uuid, name: displayNameOf(m) || "A member", bot: !!m.is_bot }))
     const byId = new Map(all.map((p) => [p.id, p.name]))
     return { people: all.filter((p) => !p.bot).map(({ id, name }) => ({ id, name })), nameOf: (id: string) => byId.get(id) }
   }, [members])
 }
+
+export const usePeople = (projectId: string | undefined, fields: TaskField[]) => useProjectMembers(fields.some((f) => f.type === "person") ? projectId : undefined)

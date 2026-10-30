@@ -97,8 +97,12 @@ export interface QuerySummaryRequest {
   fns: string[]
 }
 
-/** A set's summaries: by field, then by function, a number or (for dates) a day. */
-export type QuerySummaries = Record<string, Record<string, number | string>>
+/**
+ * A set's summaries: by field, then by function, a number, or for a date a
+ * day ("2026-10-01") or a moment, and a date's range as [earliest, latest];
+ * null for a number's or a date's function of no value.
+ */
+export type QuerySummaries = Record<string, Record<string, number | string | [string, string] | null>>
 
 /** Where a page starts: opaque, from the page before. */
 export type QueryCursor = string

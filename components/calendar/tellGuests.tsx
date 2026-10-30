@@ -1,6 +1,6 @@
 "use client";
 
-import { lazyView } from "@/components/task/LazyView";
+import { lazyView } from "@/lib/lazy/lazyView";
 import { useAsk } from "@/hooks/useAsk";
 import type { TellAction, TellChoice } from "@/components/calendar/tellGuestsDialog";
 

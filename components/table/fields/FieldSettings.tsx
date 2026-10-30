@@ -14,7 +14,9 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { fieldKind } from "@/lib/fieldTypes/registry"
 import { fieldKeyDown } from "@/lib/keys/ime"
 import { typedNumberText } from "@/lib/format/number"
-import { optionsOf, type FieldPatch, type TableField } from "@/services/tableService"
+import { durationFormat, durationText } from "@/lib/fieldTypes/kindsMore"
+import { optionsOf, type TableField } from "@/services/tableService"
+import type { FieldPatch } from "@/services/tableCalls"
 
 /** What the settings change: a field's description, default and whether it's required. */
 type SettingsPatch = Pick<FieldPatch, "description" | "required" | "default_value">
@@ -31,10 +33,11 @@ function Caption({ htmlFor, children }: { htmlFor?: string; children: React.Reac
   )
 }
 
-/** A default as its input shows it: a number in the reader's signs, anything else as text. */
+/** A default as its input shows it: a number in the reader's signs, a duration as its clock, anything else as text. */
 function defaultText(field: TableField): string {
   const v = field.default_value
   if (v === null || v === undefined) return ""
+  if (field.type === "duration" && typeof v === "number") return durationText(v, durationFormat(field))
   return field.type === "number" ? typedNumberText(v) : String(v)
 }
 
@@ -58,7 +61,7 @@ function TypedDefault({ field, onSave }: { field: TableField; onSave: (patch: Se
       <input
         id={id}
         value={text}
-        inputMode={field.type === "number" ? "decimal" : undefined}
+        inputMode={field.type === "number" ? "decimal" : field.type === "phone" ? "tel" : field.type === "rating" ? "numeric" : undefined}
         // Esc puts a changed default back, and the column menu round it stays
         // (lib/keys/escapeOwn); with nothing to put back, it closes the menu.
         data-escape-own={text !== saved ? "" : undefined}
@@ -160,7 +163,7 @@ export function FieldSettings({ field, onSave }: { field: TableField; onSave: (p
       </div>
 
       {kind.defaults ? (
-        field.type === "select" ? (
+        field.type === "select" || field.type === "status" ? (
           <OptionDefault field={field} onSave={onSave} />
         ) : field.type === "date" ? (
           <DateDefault field={field} onSave={onSave} />

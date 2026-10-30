@@ -9,18 +9,17 @@
  */
 import type { CelebrateOptions } from "@/lib/celebrate"
 import { feedback, type FeedbackKind } from "@/lib/ui/feedback"
+import { isTouchScreen } from "@/lib/ui/touchScreen"
+import { once } from "@/lib/lazy/once"
 
 type Bursts = typeof import("@/lib/celebrate")
 
 let bursts: Bursts | undefined
-let loading: Promise<Bursts | undefined> | undefined
+const loadBursts = once(() => import("@/lib/celebrate").then((m) => (bursts = m)))
 
-/** Loads lib/celebrate once; a failed load is tried again. */
+/** Loads lib/celebrate once; a failed load answers undefined and is tried again. */
 export function warmBursts(): Promise<Bursts | undefined> {
-  return (loading ??= import("@/lib/celebrate").then(
-    (m) => (bursts = m),
-    () => (loading = undefined),
-  ))
+  return loadBursts().catch(() => undefined)
 }
 
 /** lib/celebrate once it is in; until then undefined (and loading). */
@@ -73,11 +72,9 @@ export function celebrateCamp(el: Element | null | undefined, kind: CampKind, uu
   return b ? b.celebrateCamp(el, kind, uuid) : campFinish(kind, uuid)
 }
 
-const coarse = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
-
 /** A tier's buzz (mobile F3), vibration only: a spark a selection, a ring an impact, Camp a success. */
 export function buzz(kind: FeedbackKind): void {
-  if (coarse()) feedback(kind)
+  if (isTouchScreen()) feedback(kind)
 }
 
 let lastSpark = 0

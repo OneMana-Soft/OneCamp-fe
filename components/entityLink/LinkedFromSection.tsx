@@ -4,8 +4,9 @@ import * as React from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { DocsGet } from "@/services/endpoints/docs"
 import type { DocBacklinks } from "@/types/docChrome"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
-const List = React.lazy(() => import("@/components/docEditor/chrome/LinkedFromList"))
+const List = lazyPiece(() => import("@/components/docEditor/chrome/LinkedFromList"))
 const QUIET = { suppressErrorToast: true } as never
 
 /**

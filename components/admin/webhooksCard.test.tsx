@@ -8,7 +8,7 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: () => fetchState.value }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(), isSubmitting: false }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (opts: (typeof confirmCalls)[number]) => confirmCalls.push(opts) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: vi.fn().mockResolvedValue({ data: {} }), get: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: vi.fn().mockResolvedValue({ data: {} }), get: vi.fn() } }))
 
 import WebhooksCard from "@/components/admin/WebhooksCard"
 import axiosInstance from "@/lib/axiosInstance"

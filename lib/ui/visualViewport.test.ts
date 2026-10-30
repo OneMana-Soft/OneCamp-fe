@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { afterEach, describe, expect, it } from "vitest"
-import { bringsUpKeyboard, followKeyboard, keyboardFit, KEYBOARD_MIN_PX } from "./visualViewport"
+import { bringsUpKeyboard, followKeyboard, frameFitted, keyboardDock, keyboardFit, KEYBOARD_MIN_PX, onFrameFit } from "./visualViewport"
 
 // A phone's keyboard shrinks only the visual viewport, so a composer on the
 // bottom edge of a 100dvh frame ends up behind it. While the keyboard is up
@@ -166,5 +166,43 @@ describe("where it applies", () => {
 
   it("asks Android to resize the page for the keyboard again", () => {
     expect(readFileSync("app/layout.tsx", "utf8")).toMatch(/interactiveWidget: "resizes-content"/)
+  })
+})
+
+// V-72: a doc's Formatting bar floated a keyboard's height over the keyboard.
+// Fixed inside the fitted frame, it is placed in that frame, whose bottom is
+// already the keyboard's top; raised by the keyboard too, it counted it twice.
+describe("keyboardDock", () => {
+  it("raises a bar by nothing in the fitted frame, and by the keyboard on the bare screen", () => {
+    expect(keyboardDock(844, { height: 508, offsetTop: 0 }, true)).toEqual({ keyboard: 336, raise: 0 })
+    expect(keyboardDock(844, { height: 508, offsetTop: 0 }, false)).toEqual({ keyboard: 336, raise: 336 })
+  })
+
+  it("counts iOS's pan, and nothing when there is no keyboard", () => {
+    expect(keyboardDock(844, { height: 508, offsetTop: 120 }, false)).toEqual({ keyboard: 216, raise: 216 })
+    expect(keyboardDock(844, { height: 844, offsetTop: 0 }, false)).toEqual({ keyboard: 0, raise: 0 })
+    expect(keyboardDock(844, { height: 900, offsetTop: 0 }, true)).toEqual({ keyboard: 0, raise: 0 })
+  })
+})
+
+describe("the frame's fit, read and followed", () => {
+  afterEach(() => document.documentElement.removeAttribute("data-keyboard"))
+
+  it("says whether the frame is fitted, and tells a listener each time it is fitted or let go", async () => {
+    let calls = 0
+    const stop = onFrameFit(() => calls++)
+    expect(frameFitted()).toBe(false)
+    document.documentElement.setAttribute("data-keyboard", "open")
+    await Promise.resolve()
+    expect(frameFitted()).toBe(true)
+    expect(calls).toBe(1)
+    document.documentElement.removeAttribute("data-keyboard")
+    await Promise.resolve()
+    expect(frameFitted()).toBe(false)
+    expect(calls).toBe(2)
+    stop()
+    document.documentElement.setAttribute("data-keyboard", "open")
+    await Promise.resolve()
+    expect(calls).toBe(2)
   })
 })

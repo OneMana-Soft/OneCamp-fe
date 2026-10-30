@@ -42,3 +42,6 @@ export function useRelativeTime(date: Date | string | null) {
 
   return relative
 }
+
+/** The hook's words inside a sentence: "Edited yesterday", "Viewed just now"; a date keeps its capital. Pure. */
+export const midSentence = (relative: string) => relative.replace(/^(Just|Yesterday)/, (w) => w.toLowerCase())

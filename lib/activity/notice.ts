@@ -12,6 +12,7 @@ import { format } from "date-fns"
 import { dayAndTime } from "@/lib/utils/date/clock"
 import { calendarRoute } from "@/lib/calendar/route"
 import { tablePath } from "@/lib/tables/route"
+import { count } from "@/lib/utils/count"
 
 /** The place a notice names when its reader can't open the page now. */
 export const UNOPENED_PLACE = "a page you can't open"
@@ -51,6 +52,11 @@ const DECIDED: Record<string, string> = {
   "doc.proposal.withdrawn": "withdrew",
 }
 
+/** The person a notice is about, as its data names them: someone a mention didn't reach, someone taken off work. */
+function personNamed(n: NoticeItem): UserProfileDataInterface | undefined {
+  return n.data?.person ? ({ user_uuid: n.data.person, user_name: n.data.person_name ?? "" } as UserProfileDataInterface) : undefined
+}
+
 /** A notice in words. */
 export function noticeWords(n: NoticeItem): NoticeWords {
   const place = n.can_open && n.title ? n.title : n.can_open ? "Untitled" : UNOPENED_PLACE
@@ -63,17 +69,13 @@ export function noticeWords(n: NoticeItem): NoticeWords {
     // row in its table, "Acme in Deals".
     case "table_row.mentioned":
       return { actor, verb: "mentioned you on", place, preview: "" }
-    case "table_row.mention.unshared": {
-      const person = n.data?.person
-        ? ({ user_uuid: n.data.person, user_name: n.data.person_name ?? "" } as UserProfileDataInterface)
-        : undefined
+    case "table_row.mention.unshared":
       return {
-        actor: person,
+        actor: personNamed(n),
         verb: "can't open",
         place,
         preview: "You mentioned them, but the table isn't shared with them, so they weren't told.",
       }
-    }
     case "doc.comment.created":
       return { actor, verb: "commented on", place, preview: "" }
     case "doc.shared":
@@ -109,6 +111,13 @@ export function noticeWords(n: NoticeItem): NoticeWords {
     // no face: the sentence is the rule's, the task its place.
     case "work.rule":
       return { actor: undefined, verb: "A rule asks you to look at", place, preview: "" }
+    // Approvals (package 9 R2): asked to approve a move, and how one ended.
+    case "work.approval.requested":
+      return { actor, verb: "asks you to approve", place, preview: "" }
+    case "work.approval.decided": {
+      const said: Record<string, string> = { approved: "approved", changes: "asked for changes to", rejected: "rejected" }
+      return { actor, verb: said[n.data?.state ?? ""] ?? "answered", place, preview: "" }
+    }
     case "work.rule.paused":
       return { actor: undefined, verb: "Your rule stopped itself:", place, preview: "It ran too often. Check it, then turn it back on." }
     // Taken off an event's guest list (CAL-BUG-1). The event is never named:
@@ -131,18 +140,34 @@ export function noticeWords(n: NoticeItem): NoticeWords {
         preview: "You can ask again, with a note that says why you need it.",
       }
     }
-    case "doc.mention.unshared": {
-      // Asked of whoever wrote the mention: the person they mentioned can't open the page.
-      const person = n.data?.person
-        ? ({ user_uuid: n.data.person, user_name: n.data.person_name ?? "" } as UserProfileDataInterface)
-        : undefined
+    case "member.left_work":
+      // The server says the work in words ("3 docs and 2 links").
       return {
-        actor: person,
+        actor: { user_uuid: n.resource_uuid, user_name: n.can_open && n.title ? n.title : "Someone who left" } as UserProfileDataInterface,
+        verb: "left with",
+        place: `${n.data?.work || "work"} under their name`,
+        preview: "Hand them on, or turn their links off, in Settings under Docs.",
+      }
+    case "doc.mention.unshared":
+      // Asked of whoever wrote the mention: the person they mentioned can't open the page.
+      return {
+        actor: personNamed(n),
         verb: "can't open",
         place,
         preview: "You mentioned them, but the page isn't shared with them, so they weren't told. Share it to let them see it.",
       }
-    }
+    // To a project's admins, once per person: an upgrade took them off tasks
+    // the assign rule wouldn't give them now. The tasks are counted, never
+    // named; the line under it is for a reader who can open the project.
+    case "project.assignees_repaired":
+      return {
+        actor: personNamed(n),
+        verb: `was taken off ${count(Number(n.data?.tasks) || 0, "task", "tasks")} in`,
+        place: n.can_open ? n.title || "Untitled" : "a project you can't open",
+        preview: n.can_open
+          ? "To give them the tasks back, add them to the project or let them into the tasks, then assign them again."
+          : "",
+      }
   }
   const decided = DECIDED[n.kind]
   if (decided) {
@@ -185,6 +210,7 @@ export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
  * page, which on a wider screen is the doc with its panel).
  */
 export function noticeHref(n: NoticeItem | undefined): string | null {
+  if (n?.resource_kind === "departed_member") return n.can_open ? "/app/admin?tab=docs#docs-departed" : null
   if (n?.resource_kind === "event") {
     if (n.kind === "booking.created") return calendarRoute({ event: n.resource_uuid })
     // An event its guest or organiser can still open opens: the instance a
@@ -198,6 +224,8 @@ export function noticeHref(n: NoticeItem | undefined): string | null {
   }
   // A rule's notice opens its task; a stopped rule, its project's Rules.
   if (n?.resource_kind === "task") return n.can_open && n.resource_uuid ? `/app/task/${n.resource_uuid}` : null
+  // One about a project's people opens the project.
+  if (n?.resource_kind === "project") return n.can_open && n.resource_uuid ? `/app/project/${n.resource_uuid}` : null
   if (n?.resource_kind === "rule") {
     const project = n.data?.project_id
     return n.can_open && project ? `/app/project/${project}?tool=rules` : n.can_open ? "/app/settings/workflows" : null
@@ -257,9 +285,14 @@ function calendarWords(n: NoticeItem, actor: UserProfileDataInterface | undefine
     case "calendar.cancelled":
       return { actor, verb: "cancelled", place, preview: "It's no longer on your calendar." }
   }
-  // An answer, to the organiser: from a member, or from a guest invited by email.
+  // An answer, to the organiser: from a member, or from a guest invited by
+  // email; with another time it proposes (calendar head 4), that time on the
+  // reader's own clock, then the note.
   const guest = !n.actor && n.data?.guest_name ? ({ user_uuid: "", user_name: n.data.guest_name } as UserProfileDataInterface) : undefined
-  return { actor: actor ?? guest, verb: ANSWERED[n.data?.response ?? ""] ?? "answered", place, preview: n.data?.note ? `“${n.data.note}”` : when }
+  const note = n.data?.note ? `“${n.data.note}”` : ""
+  const proposed = bookingWhen(n.data?.proposed_start, n.data?.proposed_end)
+  if (proposed) return { actor: actor ?? guest, verb: "proposed a new time for", place, preview: note ? `${proposed} · ${note}` : proposed }
+  return { actor: actor ?? guest, verb: ANSWERED[n.data?.response ?? ""] ?? "answered", place, preview: note || when }
 }
 
 /** An event notice's time on the reader's own clock, or its dates for an all-day one. */

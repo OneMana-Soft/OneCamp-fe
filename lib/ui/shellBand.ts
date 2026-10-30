@@ -27,8 +27,8 @@ export function shellBand(width: number, coarse: boolean): ShellBand {
 export const isTabletBand = (band: ShellBand): band is "tablet-compact" | "tablet-wide" =>
   band === "tablet-compact" || band === "tablet-wide"
 
-/** The media queries the band follows. */
-export const COARSE_QUERY = "(pointer: coarse)"
+/** The pointer the band follows: a touch screen's, the one reading of it (lib/ui/touchScreen). */
+export { TOUCH_QUERY as COARSE_QUERY } from "@/lib/ui/touchScreen"
 
 /**
  * From this window width the right panel (a thread, a task, OneCamp AI) opens

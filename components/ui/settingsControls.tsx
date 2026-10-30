@@ -22,15 +22,19 @@ export function useCopy(ms = 1200) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle")
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => () => window.clearTimeout(timer.current), [])
+  /** Copies `value`; true once the clipboard took it. */
   const copy = async (value: string) => {
     window.clearTimeout(timer.current)
+    let copied = false
     try {
       await navigator.clipboard.writeText(value)
       setState("copied")
+      copied = true
     } catch {
       setState("failed")
     }
     timer.current = window.setTimeout(() => setState("idle"), ms)
+    return copied
   }
   return { state, copy }
 }
@@ -146,7 +150,7 @@ export const NumberUnitInput = React.forwardRef<
         type="number"
         inputMode="numeric"
         aria-invalid={invalid || undefined}
-        className="min-w-0 flex-1 bg-transparent text-right text-base tabular-nums text-foreground outline-none [appearance:textfield] md:text-sm [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="min-w-0 flex-1 bg-transparent text-right text-base tabular-nums text-foreground outline-none md:text-sm"
         {...props}
       />
       <span aria-hidden="true" className="shrink-0 text-xs text-ink-3">

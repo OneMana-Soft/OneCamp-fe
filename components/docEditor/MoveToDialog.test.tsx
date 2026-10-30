@@ -55,13 +55,26 @@ describe("Move to… (structure.md P0.5)", () => {
     expect(document.querySelector('[data-doc-move-dialog="access"]')).not.toBeNull()
   })
 
-  // React may throw a first render away and run it again (a part that
-  // suspends, an urgent update cutting in): the page dropped must still be
-  // the one moved, never the open doc (subpages.spec.ts:198, 25 Oct).
-  it("moves the page dropped on a breadcrumb when its first render is thrown away", async () => {
+  // A child page's block (docs C7a part 4): the page is staged with no
+  // target, so the dialog asks where it goes, named, and moves that page.
+  it("asks where a page staged without a target goes, and moves that page", async () => {
     const { stageDrop } = await import("./chrome/stagedDrop")
-    hoisted.previewDocMove.mockResolvedValue({ available: true, can_adopt: true, lose: 2, gain: 0, pages: 0, summary: "2 people lose access." })
-    stageDrop("m1", { page: { uuid: "d-other" }, target: { uuid: "p-eng", title: "Engineering" } })
+    hoisted.previewDocMove.mockResolvedValue({ available: true, can_adopt: true, lose: 0, gain: 0, pages: 0, summary: "" })
+    stageDrop("m1", { page: { uuid: "d-child", title: "Budget" } })
+    await act(async () => void render(<MoveToDialog docId="m1" onClose={() => {}} />))
+    expect(hoisted.previewDocMove).not.toHaveBeenCalled()
+    expect(screen.getByText("Move “Budget” to…")).toBeTruthy()
+    await choose(/Engineering/)
+    expect(hoisted.moveDoc).toHaveBeenCalledWith(expect.objectContaining({ doc_uuid: "d-child", parent_uuid: "p-eng" }))
+  })
+
+  // React may throw a first render away and run it again (a part that
+  // suspends, an urgent update cutting in): the staged page must still be
+  // the one moved, never the open doc (subpages.spec.ts:198, 25 Oct).
+  it("moves the staged page when its first render is thrown away", async () => {
+    const { stageDrop } = await import("./chrome/stagedDrop")
+    hoisted.previewDocMove.mockResolvedValue({ available: true, can_adopt: true, lose: 0, gain: 0, pages: 0, summary: "" })
+    stageDrop("m1", { page: { uuid: "d-child", title: "Budget" } })
     let thrown = false
     const later = new Promise<void>((done) => setTimeout(done, 20))
     function SuspendsOnce() {
@@ -77,7 +90,9 @@ describe("Move to… (structure.md P0.5)", () => {
         <SuspendsOnce />
       </React.Suspense>,
     )
-    await vi.waitFor(() => expect(hoisted.previewDocMove).toHaveBeenCalledWith({ doc_uuid: "d-other", parent_uuid: "p-eng", place: "last", access: "adopt" }))
+    expect(await screen.findByText("Move “Budget” to…")).toBeTruthy()
+    await choose(/Engineering/)
+    expect(hoisted.moveDoc).toHaveBeenCalledWith(expect.objectContaining({ doc_uuid: "d-child", parent_uuid: "p-eng" }))
   })
 
   it("offers recent pages and the top of Docs, never the page itself or where it already is", () => {

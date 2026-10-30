@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 
 interface ThrottledFn<T extends (...args: any[]) => void> {
     (...args: Parameters<T>): void
@@ -57,7 +57,7 @@ export function useThrottle<T extends (...args: any[]) => void>(
         [delay]
     ) as ThrottledFn<T>
 
-    throttled.flush = useCallback(() => {
+    const flush = useCallback(() => {
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current)
             timeoutRef.current = null
@@ -69,14 +69,25 @@ export function useThrottle<T extends (...args: any[]) => void>(
             pendingArgsRef.current = null
         }
     }, [])
+    throttled.flush = flush
 
-    throttled.cancel = useCallback(() => {
+    const cancel = useCallback(() => {
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current)
             timeoutRef.current = null
         }
         pendingArgsRef.current = null
     }, [])
+    throttled.cancel = cancel
+
+    // A trailing call still waiting when the component goes runs then, once,
+    // with the latest args: text typed just before leaving (for Tasks, or
+    // closing a thread) stays in the draft. The callback is the component's
+    // own latest, and the editor is still readable (tiptap destroys it on a
+    // later tick). Nothing is left to fire after teardown, where reading the
+    // editor threw "window is not defined" in tests. A send cancels first, so
+    // a sent message writes nothing here.
+    useEffect(() => flush, [flush])
 
     return throttled
 }

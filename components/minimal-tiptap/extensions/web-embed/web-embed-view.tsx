@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { drawnSelected } from "@/components/minimal-tiptap/utils"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
 import { ArrowUpRight, Globe, GripHorizontal, Loader2, WifiOff } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -106,7 +107,7 @@ export function WebEmbedView({ node, editor, selected, updateAttributes, getPos 
     return (
       <NodeViewWrapper data-web-embed="" contentEditable={false} className="select-none my-1">
         {/* On a phone the button wraps under the words, in line with them. */}
-        <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] bg-sunken px-4 py-3 text-ui-sm", selected && "ring-2 ring-brand ring-offset-2 ring-offset-sheet")}>
+        <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[12px] bg-sunken px-4 py-3 text-ui-sm", drawnSelected(editor, selected) && "ring-2 ring-brand ring-offset-2 ring-offset-sheet")}>
           {settled ? <Globe className="size-4 shrink-0 text-ink-3" aria-hidden="true" /> : <Loader2 className="size-4 shrink-0 animate-spin text-ink-3 motion-reduce:animate-none" aria-hidden="true" />}
           <span className="min-w-0 flex-1 basis-56 text-ink-2">
             {settled ? "This link can't be shown here." : "Opening the embed…"}{" "}
@@ -155,7 +156,7 @@ export function WebEmbedView({ node, editor, selected, updateAttributes, getPos 
   return (
     <NodeViewWrapper data-web-embed={embed.provider} contentEditable={false} className="select-none group/embed relative my-1">
       <div
-        className={cn("relative mx-auto w-full overflow-hidden rounded-[12px] bg-sunken shadow-e1", selected && "ring-2 ring-brand ring-offset-2 ring-offset-sheet")}
+        className={cn("relative mx-auto w-full overflow-hidden rounded-[12px] bg-sunken shadow-e1", drawnSelected(editor, selected) && "ring-2 ring-brand ring-offset-2 ring-offset-sheet")}
         style={box}
       >
         {online ? (

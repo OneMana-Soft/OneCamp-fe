@@ -117,27 +117,41 @@
 
 /* ---- the tool bar, at the bottom centre ---------------------------------- */
 
-@media (min-width: 731px) {
-  .excalidraw.excalidraw .App-menu_top .shapes-section {
-    position: absolute;
-    left: 50%;
-    bottom: 0;
-    transform: translateX(-50%);
-    z-index: 3;
-  }
-  /* The hint ("To move canvas…") sits above the bar, not under it. */
-  .excalidraw.excalidraw .App-menu_top .shapes-section > div > .Stack_vertical {
-    flex-direction: column-reverse;
-  }
-  /* The style panel opens on the left under the board's own top cluster. */
-  .excalidraw.excalidraw .App-menu_top__left {
-    margin-top: 52px;
-  }
+/* The bottom row on a computer is one measured layout at every width
+   (components/board/bottomRow.ts, DB-34's H8 M1): the board page writes where
+   each island goes as CSS variables on its own element. The tool row moves off
+   the middle by --board-row-shift, the zoom cluster rises over the row's end by
+   --board-cluster-lift, and the pill (stickyTool) and the facilitation bar read
+   theirs. Unset (a phone, or before the first measure), nothing moves.
+   Excalidraw draws .App-menu_top only on its computer UI, which it switches on
+   its own box (under 730 px it draws its MobileMenu), so these rules follow
+   its switch, not a copy of it on the window's width. */
+.excalidraw.excalidraw .App-menu_top .shapes-section {
+  position: absolute;
+  left: calc(50% + var(--board-row-shift, 0px));
+  bottom: 0;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+/* The hint ("To move canvas…") sits above the bar, not under it. */
+.excalidraw.excalidraw .App-menu_top .shapes-section > div > .Stack_vertical {
+  flex-direction: column-reverse;
+}
+/* The style panel opens on the left under the board's own top cluster. */
+.excalidraw.excalidraw .App-menu_top__left {
+  margin-top: 52px;
 }
 
 .excalidraw.excalidraw .App-toolbar {
   padding: 4px;
   gap: 2px;
+}
+/* Someone who only views a board on a phone: Excalidraw keeps its bottom
+   bar's island, an empty pill across the canvas's foot. In view mode it holds
+   only the main menu's trigger, which the board hides (above), and "Scroll
+   back to content" once the board is scrolled away, so it shows only then. */
+.excalidraw.excalidraw.excalidraw--view-mode .App-bottom-bar:not(:has(.scroll-back-to-content)) {
+  display: none;
 }
 .excalidraw.excalidraw .App-toolbar .ToolIcon__icon,
 .excalidraw.excalidraw .App-toolbar .ToolIcon {
@@ -200,11 +214,27 @@
   font-size: 12px;
   font-family: var(--font-sans);
 }
+/* The hint line speaks to a keyboard and a mouse ("Press Enter to add text.
+   Hold Ctrl and Arrow key…", "Click to start…"): a touch screen has neither,
+   so it isn't drawn there (DESIGN-BUILD-24, 28 Oct; e2e/boardTouchHint). */
+@media (hover: none) and (pointer: coarse) {
+  .excalidraw.excalidraw .HintViewer {
+    display: none;
+  }
+}
 
 /* ---- zoom and undo: one cluster at the bottom right ---------------------- */
 
 .excalidraw.excalidraw .layer-ui__wrapper__footer-left {
   margin-left: auto;
+  /* Over the tool row's end when they can't share the row (bottomRow.ts). Not a
+     transform: Excalidraw's zen mode moves this footer with one. */
+  position: relative;
+  bottom: var(--board-cluster-lift, 0px);
+}
+/* The pill is placed by the bottom row's measure: hidden until it is. */
+[data-board-page]:not([data-board-row]) [data-board-create] {
+  visibility: hidden;
 }
 .excalidraw.excalidraw .layer-ui__wrapper__footer-left > .Stack > section {
   display: flex;
@@ -355,8 +385,11 @@
   .excalidraw.excalidraw .App-toolbar--mobile {
     border-radius: 16px;
   }
+  /* More tools too: at Excalidraw's own 32px it sat 6px above the tools'
+     centre line, a smaller target (DESIGN-BUILD-27). */
   .excalidraw.excalidraw .App-toolbar--mobile .ToolIcon__icon,
-  .excalidraw.excalidraw .App-toolbar--mobile .ToolIcon {
+  .excalidraw.excalidraw .App-toolbar--mobile .ToolIcon,
+  .excalidraw.excalidraw .App-toolbar--mobile .App-toolbar__extra-tools-trigger {
     width: 44px;
     height: 44px;
   }
@@ -371,6 +404,26 @@
 }
 [data-board-drawing="true"] [data-board-chrome] {
   opacity: 0.6;
+}
+
+/* While a note moves by hand, the bar beside the selection (on a phone, its
+   dock) steps aside: the board's same drag signal, set once a press on the
+   canvas, or a move by hand from a frame's name, has travelled Excalidraw's
+   own 10 px drag threshold, so a click never blinks it. Gone at once, with no pointer and no tab stop; at the drop it is
+   back above the note's new place (the dock in its own), fading in only
+   (miro-06, DB-43). The rest of the chrome keeps its dim. */
+[data-following-bar] {
+  transition: opacity var(--duration-hover) var(--ease-out);
+}
+[data-board-moving="true"] [data-following-bar] {
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-following-bar] {
+    transition: none;
+  }
 }
 
 /* ---- facilitation -------------------------------------------------------- */
@@ -396,4 +449,77 @@
 .board-grow {
   animation: board-grow 320ms var(--ease-out) both;
   animation-delay: min(calc(var(--i, 0) * 16ms), 240ms);
+}
+
+/* ---- the notes bar ---------------------------------------------------------
+   While notes are selected, the notes bar (components/board/notesBar) holds
+   what people change on them, beside the selection; Excalidraw's own panel
+   steps behind the bar's More, which sets data-props-open. */
+[data-board-page][data-notes-selected]:not([data-props-open]) .excalidraw.excalidraw .App-menu__left {
+  display: none;
+}
+
+/* ---- on a call's stage ---------------------------------------------------- */
+
+/* Someone who can't draw gets no toolbar: on a phone the canvas still drew
+   its bottom bar, empty, across the board (DESIGN-BUILD-23, 27 Oct). */
+[data-call-board][data-board-view-only] .excalidraw .App-bottom-bar {
+  display: none;
+}
+
+/* On a phone the stage is narrower than the screen Excalidraw lays its tool
+   row out for, so Insert image, Eraser and More tools sat past the frame's
+   right edge with no way to reach them. The row scrolls sideways inside the
+   frame as every strip does: CallBoardStage marks it data-edge-fade, whose
+   one rule (app/interaction.css) fades an edge with more past it and rests a
+   scrolled row on a whole tool (DESIGN-BUILD-24). Its shade is the call's
+   lighter one: the board's own deep drop shadow read as a heavy grey band on
+   the call's dark (DESIGN-BUILD-23). */
+[data-call-board] .excalidraw--mobile .App-top-bar {
+  left: 8px;
+  right: 8px;
+}
+[data-call-board] .excalidraw {
+  container-type: inline-size;
+}
+[data-call-board] .excalidraw .App-toolbar--mobile {
+  max-width: calc(100cqw - 16px);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 12px -6px rgb(0 0 0 / 0.5);
+}
+[data-call-board] .excalidraw .App-toolbar--mobile::-webkit-scrollbar {
+  display: none;
+}
+[data-call-board] .excalidraw .App-toolbar--mobile .ToolIcon {
+  scroll-snap-align: start;
+}
+/* The phone's bottom bar holds only Undo and Redo on a call's stage (no main
+   menu there), so it hugs them at the right, as the wide board's zoom and
+   undo cluster does, rather than spanning the board (DESIGN-BUILD-24). While
+   a shape is selected it holds the shape's properties too, and spans again. */
+[data-call-board] .excalidraw .App-bottom-bar > .Island:not(:has(.panelColumn)) {
+  width: auto;
+  min-width: 0;
+  margin-left: auto;
+}
+[data-call-board] .excalidraw .App-bottom-bar > .Island {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 12px -6px rgb(0 0 0 / 0.5);
+}
+/* The phone's column of library, lock and hand tools is a tab on the
+   screen's edge; on a call's stage that edge is the board frame's, which cut
+   it off, so it stands 8px inside the frame as a whole island. */
+[data-call-board] .excalidraw .mobile-misc-tools-container {
+  transform: translateX(-8px);
+  border-right: 1px solid var(--sidebar-border-color);
+  border-radius: var(--border-radius-lg);
+}
+/* On a wide stage the zoom and undo cluster sits at the board's bottom left:
+   the call's toasts rise at the bottom right, and one ("Took back 1 change
+   guests made") covered the zoom for its four seconds (DESIGN-BUILD-24). */
+@media (min-width: 731px) {
+  [data-call-board] .excalidraw .layer-ui__wrapper__footer-left {
+    margin-left: 0;
+  }
 }

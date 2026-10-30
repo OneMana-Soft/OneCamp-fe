@@ -8,7 +8,7 @@
 import { FilterChip } from "@/components/task/filterChip"
 import type { Table } from "@tanstack/react-table"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { lazyView } from "@/components/task/LazyView"
+import { lazyView } from "@/lib/lazy/lazyView"
 import { FILTERABLE, FILTER_ANY, FILTER_NONE, type TaskField } from "@/lib/tasks/fields"
 
 export type FieldChoice = { value: string; label: string; color?: string }

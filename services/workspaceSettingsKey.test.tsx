@@ -3,9 +3,8 @@ import { cleanup, render, screen } from "@testing-library/react"
 import { SWRConfig } from "swr"
 
 const get = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: (...a: unknown[]) => get(...a), post: vi.fn() },
-  OWN_ERRORS: {},
 }))
 
 import { useWorkspaceSettings } from "@/services/settingsService"

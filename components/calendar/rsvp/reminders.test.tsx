@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 const makeRequest = vi.hoisted(() => vi.fn())
@@ -16,7 +17,7 @@ vi.mock("@/hooks/use-toast", () => ({
   },
   useToast: () => ({ toast: vi.fn() }),
 }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: axiosGet, post: axiosPost }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: axiosGet, post: axiosPost } }))
 // A toast's action outside a toaster: a plain button, or its own link.
 vi.mock("@/components/ui/toast", () => ({
   ToastAction: ({ children, onClick, asChild }: { children: React.ReactNode; onClick?: () => void; asChild?: boolean }) =>
@@ -191,7 +192,7 @@ describe("a reminder in the open app", () => {
     fireEvent.click(screen.getByRole("button", { name: "Snooze" }))
     fireEvent.click(screen.getByRole("button", { name: "Snooze until it starts" }))
     await waitFor(() => expect(toasts).toHaveLength(2))
-    expect(axiosPost).toHaveBeenCalledWith("/calendar/events/0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d/snooze", { until: "start" }, {})
+    expect(axiosPost).toHaveBeenCalledWith("/calendar/events/0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c4d/snooze", { until: "start" }, OWN_ERRORS)
     expect(dismissed).toEqual(["1"])
     expect(toasts[1].title).toMatch(/^Snoozed until 10:10/)
     expect(updates).toHaveLength(0)

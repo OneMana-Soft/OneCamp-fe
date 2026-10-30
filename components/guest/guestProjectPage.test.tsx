@@ -19,6 +19,7 @@ vi.mock("@/lib/celebrate", () => ({ celebrateTask: (el: Element) => celebrateTas
 
 import GuestProjectPage from "@/app/guest/p/[token]/page"
 import { warmBursts } from "@/lib/celebrateSoon"
+import { dueByWords } from "@/components/task/dueByWords"
 
 // The celebrations' bursts are a chunk fetched when the page is idle
 // (lib/celebrateSoon): here they are in before anything finishes.
@@ -141,11 +142,30 @@ describe("a client's task panel, once the task is in", () => {
     expect(filled.map((b) => b.textContent || b.getAttribute("aria-label"))).toEqual(["Approve"])
   })
 
+  // R2b's design review, 23 Oct: the panel said "Request changes" beside a card saying "Ask for changes".
+  it("offers the card's answers in the card's words", async () => {
+    localStorage.setItem("oc_guest_name_tok", "Jordan")
+    await open()
+    await openTask()
+    const verdict = within(screen.getByRole("complementary", { name: "Task" })).getByRole("region", { name: "Your verdict" })
+    expect(within(verdict).getAllByRole("button").map((b) => b.textContent)).toEqual(["Approve", "Ask for changes"])
+  })
+
   it("closes with a cross on a wide screen", async () => {
     await open()
     await openTask()
     const close = screen.getByRole("button", { name: "Close the task" })
     expect(close.querySelector("svg.lucide-x")).not.toBeNull()
+  })
+
+  it("says what the team asks of the client and who asked, above the verdict (package 9 R2b)", async () => {
+    getGuestProjectTask.mockResolvedValue({ ok: true, data: { ...task, waiting: { to_label: "Done", asked_by: "Maya Chen", asked_at: new Date().toISOString() } } })
+    await open()
+    await openTask()
+    const note = screen.getByRole("complementary", { name: "Task" }).querySelector("[data-guest-ask]")
+    expect(note).toHaveTextContent("Waiting for your approval")
+    expect(note).toHaveTextContent("Approving moves it to Done.")
+    expect(note).toHaveTextContent("Asked by Maya Chen")
   })
 })
 
@@ -200,5 +220,37 @@ describe("what waits on the client (work.md W51)", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Approve" })))
     expect(reviewGuestTask).toHaveBeenCalledWith("tok", "t2", { display_name: "Priya", decision: "approved", note: "" })
     expect(celebrateTask).toHaveBeenCalledTimes(1)
+  })
+
+  it("lists a task the team asked about, whatever its status or an earlier verdict, with what is asked, by when and by whom", async () => {
+    const at = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString()
+    const due = at(26)
+    const asked = {
+      ...inReview,
+      total_tasks: 3,
+      columns: [
+        ...inReview.columns,
+        {
+          status: "inProgress",
+          label: "In progress",
+          tasks: [{
+            id: "t3", name: "Approve the launch copy", status: "inProgress", status_label: "In progress", comment_count: 0,
+            review: { decision: "changes", name: "Priya", created_at: at(-13 * 24) },
+            waiting: { ask: "Is the copy final?", due_at: due, asked_by: "Maya Chen", asked_at: at(-24) },
+          }],
+        },
+      ],
+    } as unknown as GuestProjectView
+    getGuestProject.mockResolvedValue({ ok: true, data: asked })
+    await open()
+    const tab = screen.getByRole("tab", { name: /Needs your review/ })
+    expect(tab).toHaveTextContent("2")
+    await act(async () => fireEvent.click(tab))
+    const card = screen.getByRole("button", { name: /Approve the launch copy/ }).closest("[data-guest-card]")
+    expect(card).toHaveTextContent("Waiting for your approval")
+    expect(card).toHaveTextContent("Is the copy final?")
+    // By when, as one phrase: the clock writes a no-break space before PM.
+    expect(card?.querySelector("[data-ask-due]")?.textContent).toBe(dueByWords(new Date(due)))
+    expect(card).toHaveTextContent("Asked by Maya Chen")
   })
 })

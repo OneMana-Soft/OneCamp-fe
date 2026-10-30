@@ -42,7 +42,7 @@ import { AlertCircle, FileArchive } from "@/lib/icons"
 import { ImportStepper, SLACK_READ_STEPS, SLACK_STEPS } from "@/components/admin/importParts"
 import { SlackTokenHelp } from "@/components/admin/slackTokenHelp"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
-import { SLACK_IMPORT_LIMITS_KEY, readSlackWorkspace, uploadSlackExport, uploadSlackExportPresigned } from "@/services/slackImportService"
+import { SLACK_IMPORT_LIMITS_KEY, readSlackWorkspace, slackTokenKind, uploadSlackExport, uploadSlackExportPresigned } from "@/services/slackImportService"
 import { importProblemOf } from "@/services/importService"
 import { useFetch } from "@/hooks/useFetch"
 import { readableBytes } from "@/lib/readableBytes"
@@ -62,10 +62,6 @@ interface Props {
 /** How the workspace comes in: an export file, or a read through Slack's API. */
 type WayIn = "file" | "api"
 
-/** Whether s looks like a Slack token: a person's (xoxp-) or an app's (xoxb-). Pure. */
-export function isSlackToken(s: string): boolean {
-  return /^xox[pb]-[A-Za-z0-9-]{8,}$/.test(s.trim())
-}
 
 // 50 GB is the practical ceiling for the presigned PUT path on most
 // browsers. Browsers cap individual fetch/XHR uploads at slightly
@@ -235,7 +231,7 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
   const handleRead = async () => {
     const name = workspaceName.trim()
     if (!name || starting) return
-    if (!isSlackToken(token)) {
+    if (!slackTokenKind(token)) {
       setTokenError("That isn't a Slack token. A person's starts xoxp-, an app's xoxb-.")
       return
     }
@@ -426,11 +422,11 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
             </Button>
           )}
           {way === "api" ? (
-            <Button onClick={handleRead} disabled={!workspaceName.trim() || !token.trim() || starting}>
+            <Button onClick={handleRead} disabled={!workspaceName.trim() || !token.trim()} busy={starting}>
               {starting ? "Starting…" : "Start the read"}
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={!file || !workspaceName.trim() || uploading}>
+            <Button onClick={handleSubmit} disabled={!file || !workspaceName.trim()} busy={uploading}>
               {uploading ? "Uploading…" : "Upload and plan"}
             </Button>
           )}

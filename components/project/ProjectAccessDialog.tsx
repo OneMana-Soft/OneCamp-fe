@@ -40,16 +40,17 @@ export function ProjectAccessDialog({ projectId, open, onOpenChange }: { project
   const { status, run } = useSaveStatus()
   const shown = picked ?? chosenOf(info)
 
-  const choose = async (next: string) => {
+  const choose = async (next: string): Promise<boolean> => {
     setPicked(next)
     const held = await run(async () => {
       const saved = await setProjectEditWho(projectId, next === WORKSPACE ? null : (next as EditWho))
       await appMutate(key, { data: (policies.data?.data ?? []).map((p) => (p.key === EDIT_WHO ? saved : p)) }, { revalidate: false })
-    })
+    }, { what: `Who can change tasks: ${next === WORKSPACE ? "As the workspace has it" : editWhoLabel(next)}`, undo: () => choose(shown) })
     setPicked(null)
     // What each person may do in the project follows the choice: every read
     // of it that carries project_access is asked again.
     if (held) void appMutate((k) => typeof k === "string" && k.includes(projectId) && k !== key)
+    return held
   }
 
   return (

@@ -36,9 +36,7 @@ interface MessageDesktopHoverOptionProps {
     messageText?: string;
     /** Who wrote it, shown beside the message in Later. */
     authorName?: string;
-    // onReply, when provided, arms the composer to inline-reply to this message
-    // (Discord-style). Distinct from "Reply in thread" (which opens the thread
-    // panel). Rendered only when the surface supplies it.
+    /** Arms the composer to reply to this message, quoting it. */
     onReply?: () => void;
     // What an edition adds to the message's More menu (lib/addOns).
     addOns?: AddOnAction[];
@@ -48,6 +46,8 @@ interface MessageDesktopHoverOptionProps {
     isAdmin?: boolean;
     isOwner: boolean;
     onReactionSelect: (id: string) => void;
+    /** Whether the reader may react here (the server says); the reactions give way when not. */
+    canReact?: boolean;
     /**
      * A reply inside a thread: there is no thread to open from it, and Reply
      * in thread gives way. The same toolbar otherwise, list and panel alike.
@@ -108,6 +108,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     chatMessageID,
     commentUUID,
     inThread = false,
+    canReact = true,
 }: MessageDesktopHoverOptionProps) => {
     const dispatch = useDispatch();
     // Decided once, as it mounts: arriving from outside, or from the row above.
@@ -188,15 +189,15 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     return (
         // A floating toolbar on the pop surface (design v3 chat, C19): r10 at
         // e3 with 3px of padding, six slots. It overlaps the row's top edge.
-        // It enters by pop (y 2px and scale .98 to rest in 120 ms) when the
-        // pointer arrives from outside, and not again row to row.
+        // It fades in (120 ms) when the pointer arrives from outside, not
+        // row to row, and never moves: a click lands where it rests.
         <div
             role="toolbar"
             aria-label="Message actions"
             data-message-toolbar=""
             className={cn("pop-surface flex items-center gap-px rounded-[10px] p-[3px]", enters && "animate-toolbar-in")}
         >
-            {quick.map((reaction) => (
+            {canReact && quick.map((reaction) => (
                 <Button
                     key={reaction.id}
                     type="button"
@@ -211,6 +212,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 </Button>
             ))}
 
+            {canReact && <>
             <span aria-hidden="true" className="mx-[3px] h-4 w-px bg-line" />
 
             <AddReactionTrigger
@@ -219,6 +221,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 setPopupState={setEmojiPopupState}
                 className={TOOL_BUTTON}
             />
+            </>}
 
             {!inThread && (
                 <HoverIconButton label="Reply in thread" onClick={handleOpenThread}>

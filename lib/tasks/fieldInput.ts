@@ -5,6 +5,7 @@
  * but for the reader's locale. */
 
 import { typedNumber } from "@/lib/format/number"
+import { typedWebURL, webURL } from "@/lib/links/webURL"
 import type { FieldValue, TaskField } from "./fields"
 
 /** What a typed value is for a text-like field (text, link, number, money):
@@ -16,16 +17,10 @@ export function parseFieldInput(field: Pick<TaskField, "name" | "type">, text: s
   switch (field.type) {
     case "text":
       return { value: t }
-    case "url": {
-      const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`
-      try {
-        const u = new URL(withScheme)
-        if ((u.protocol === "https:" || u.protocol === "http:") && u.hostname.includes(".")) return { value: withScheme }
-      } catch {
-        // falls through to the message
-      }
+    case "url":
+      // Kept as typed, with https:// when it was left off.
+      if (typedWebURL(t)?.hostname.includes(".")) return { value: webURL(t) ? t : `https://${t}` }
       return { error: `${field.name} takes a web address, like example.com/page.` }
-    }
     case "number":
     case "money": {
       // A currency sign before the amount ("₹ 12,500") goes; the rest is read

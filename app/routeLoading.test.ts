@@ -55,7 +55,8 @@ const SPINNER = /LoadingStateCircle[^>]*size=["'](lg|xl)["']|Loader2[^>]*(size-1
 const SPINNER_BASELINE: Record<string, number> = {
   // The lightbox's spinner over a photo that is still arriving, on the black
   // viewer: the image's own placeholder, not a page. The viewer's to replace.
-  "components/dialog/attachmentLightboxDialog.tsx": 1,
+  // It moved with the stage the lightbox shares with Docs & Files (docs F1b).
+  "components/attachments/mediaStage.tsx": 1,
 }
 
 function sources(dir: string, out: string[] = []): string[] {

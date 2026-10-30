@@ -11,7 +11,7 @@ vi.mock("@/hooks/useFetch", () => ({
     return { data: url && disk ? { data: disk } : undefined }
   },
 }))
-vi.mock("@/lib/axiosInstance", () => ({ OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({}))
 vi.mock("next/link", () => ({ default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a> }))
 
 const { DiskBanner } = await import("./DiskBanner")

@@ -33,6 +33,7 @@ export interface TileProps extends HTMLAttributes<HTMLSpanElement> {
  * 4.5:1.
  *
  * Decorative by default, since a tile sits beside the words it illustrates.
+ * hue="ink" names no area.
  *
  *   <Tile hue="moss"><CheckCircle2 /></Tile>
  */

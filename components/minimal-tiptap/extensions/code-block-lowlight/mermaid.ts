@@ -12,10 +12,10 @@
  */
 
 import DOMPurify from "dompurify"
+import { once } from "@/lib/lazy/once"
 
 type Mermaid = typeof import("mermaid")["default"]
 
-let mermaid: Promise<Mermaid> | null = null
 let purifier: ReturnType<typeof DOMPurify> | null = null
 let themed: "light" | "dark" | null = null
 let seq = 0
@@ -23,16 +23,7 @@ let seq = 0
 /** A token's value on the page, or undefined (Mermaid's own default then). */
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined
 
-function load(): Promise<Mermaid> {
-  mermaid ??= import("mermaid").then(
-    (m) => m.default,
-    (e) => {
-      mermaid = null
-      throw e
-    },
-  )
-  return mermaid
-}
+const load: () => Promise<Mermaid> = once(() => import("mermaid").then((m) => m.default))
 
 /** A diagram's CSS with nothing that fetches: no @import, no url() but to its own #ids. */
 export function safeCss(css: string): string {

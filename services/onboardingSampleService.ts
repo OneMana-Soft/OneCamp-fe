@@ -7,13 +7,15 @@ import { onboardingUrl } from "@/services/onboardingService"
 
 /**
  * The sample project (the built-in client project template, in an ordinary
- * project), and what removing it archives: that project, and the team made
- * for it when there was none.
+ * project) with its brief, and what removing it takes away: the brief, the
+ * project, and the team made for it when there was none.
  */
 export interface OnboardingSample {
     project_uuid: string
     team_uuid: string
     made_team?: boolean
+    /** The sample's brief ("Start here: the brief"), when it could be made. */
+    doc_uuid?: string
     created_at: string
 }
 

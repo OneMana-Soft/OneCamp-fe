@@ -115,6 +115,8 @@ function IssueStatusBadge({ task, size = "sm" }: PRStatusBadgeProps) {
 }
 
 export function GitHubBadgeGroup({ task, size = "sm" }: PRStatusBadgeProps) {
+  // No link, no box: an empty one sat in every phone row (fluid-17).
+  if (!task.task_github_pr_url && !task.task_github_issue_url) return null
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       <PRStatusBadge task={task} size={size} />

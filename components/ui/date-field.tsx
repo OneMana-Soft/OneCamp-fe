@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { createPortal } from "react-dom"
-import dynamic from "next/dynamic"
 import { format, isValid, parse } from "date-fns"
 
 import { CalendarIcon, Clock } from "@/lib/icons"
@@ -11,13 +10,13 @@ import { clockTime } from "@/lib/utils/date/clock"
 import { inputSizing } from "@/components/ui/input"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { useSheetPanel } from "@/components/ui/sheetPanels"
+import { PickerSheet } from "@/components/ui/pickerSheet"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { lazyView } from "@/lib/lazy/lazyView"
 
-// The pickers load when a field first opens (date-field-panels).
-const DatePanel = dynamic(() => import("@/components/ui/date-field-panels").then((m) => m.DatePanel), { ssr: false, loading: () => <div className="size-[280px]" /> })
-const TimePanel = dynamic(() => import("@/components/ui/date-field-panels").then((m) => m.TimePanel), { ssr: false, loading: () => <div className="h-[212px]" /> })
-// A phone's own sheet for a picker, loaded with the first one opened there.
-const PickerSheet = dynamic(() => import("@/components/ui/date-field-sheet"), { ssr: false })
+// The pickers load as a field is pointed at, focused or opened (date-field-panels).
+const panels = lazyView(() => import("@/components/ui/date-field-panels"))
+const warmPanels = () => void panels.prefetch()
 
 /**
  * ONE DATE FIELD AND ONE TIME FIELD (INTERACTION_SPEC D14, PG2-06), in place
@@ -59,6 +58,13 @@ function PickerFrame({
   // Mounted from the first open on, so the sheet can animate away.
   const [used, setUsed] = React.useState(false)
   if (sheet && open && !inSheet && !used) setUsed(true)
+  // Where overlays float, the popover opens once its picker is in: Radix
+  // places it by its first size, and a stand-in's kept a taller panel below
+  // its field, cut at the window's foot. One that can't load shuts.
+  const loaded = panels.useLoaded(false)
+  React.useEffect(() => {
+    if (open && !loaded) panels.warm().catch(() => onOpenChange(false))
+  }, [open, loaded, onOpenChange])
   if (sheet) {
     const button = trigger as React.ReactElement<React.ButtonHTMLAttributes<HTMLButtonElement>>
     const opener = button.props.onClick
@@ -80,9 +86,9 @@ function PickerFrame({
     )
   }
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent data-overlay-holds-body="" className={cn("content-float rounded-xl bg-pop p-0 shadow-e3", floatClassName)} align="start">
+    <Popover open={open && !!loaded} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild onPointerEnter={warmPanels} onFocus={warmPanels}>{trigger}</PopoverTrigger>
+      <PopoverContent data-overlay-holds-body="" collisionPadding={8} className={cn("content-float rounded-xl bg-pop p-0 shadow-e3", floatClassName)} align="start">
         {/* The body (app/overlay.css): a short window scrolls it, never runs it off the screen. */}
         <div data-overlay-body="" className="-mx-1 min-h-0 p-1">
           {children}
@@ -121,20 +127,25 @@ export function DatePicker({
   return (
     <PickerFrame trigger={trigger} label={label} open={open} onOpenChange={onOpenChange} detent="medium" floatClassName="w-auto">
       {open ? (
-        <DatePanel
-          day={value}
-          from={from}
-          to={to}
-          clearable={clearable}
-          sheet={sheet}
-          onPick={(d) => {
-            onPick(d)
-            onOpenChange(false)
-          }}
-          onClear={() => {
-            onPick(undefined)
-            onOpenChange(false)
-          }}
+        <panels.View
+          fallback={<div className="size-[280px]" />}
+          render={(m) => (
+            <m.DatePanel
+              day={value}
+              from={from}
+              to={to}
+              clearable={clearable}
+              sheet={sheet}
+              onPick={(d) => {
+                onPick(d)
+                onOpenChange(false)
+              }}
+              onClear={() => {
+                onPick(undefined)
+                onOpenChange(false)
+              }}
+            />
+          )}
         />
       ) : null}
     </PickerFrame>
@@ -166,15 +177,20 @@ function TimePicker({
   return (
     <PickerFrame trigger={trigger} label={label} open={open} onOpenChange={onOpenChange} detent="half" floatClassName="w-[220px]">
       {open ? (
-        <TimePanel
-          minutes={minutes}
-          since={since}
-          after={after}
-          sheet={sheet}
-          onPick={(m) => {
-            onPick(m)
-            onOpenChange(false)
-          }}
+        <panels.View
+          fallback={<div className="h-[212px]" />}
+          render={(m) => (
+            <m.TimePanel
+              minutes={minutes}
+              since={since}
+              after={after}
+              sheet={sheet}
+              onPick={(at) => {
+                onPick(at)
+                onOpenChange(false)
+              }}
+            />
+          )}
         />
       ) : null}
     </PickerFrame>
@@ -194,6 +210,8 @@ interface FieldProps {
   /** As Input's: the caller's height everywhere, no 44px floor on a phone. */
   dense?: boolean
   "aria-label"?: string
+  /** Its picker's name, a sheet's head on a phone, where aria-label names a part (a filter's "Value"). */
+  pickerTitle?: string
   "aria-describedby"?: string
   "aria-invalid"?: boolean
 }
@@ -207,12 +225,12 @@ function dayOf(value: string | undefined): Date | undefined {
 }
 
 /** "09:30" as minutes from midnight; null when it isn't a time. */
-function minutesOf(value: string | undefined): number | null {
+export function minutesOf(value: string | undefined): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(value ?? "")
   return m ? Number(m[1]) * 60 + Number(m[2]) : null
 }
 
-const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
+export const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
 
 /** A moment's time of day as a TimeField's value ("HH:mm"), for a caller that keeps a Date. */
 export const timeValueOf = (d: Date) => hhmm(d.getHours() * 60 + d.getMinutes())
@@ -270,7 +288,8 @@ function Field({
   picker,
   props,
 }: {
-  icon: typeof Clock
+  /** None where the row already says what it is (a working day's ranges). */
+  icon: typeof Clock | null
   shown: string
   empty: boolean
   picker: (trigger: React.ReactElement, open: boolean, setOpen: (open: boolean) => void) => React.ReactNode
@@ -294,7 +313,7 @@ function Field({
       {...{ "aria-describedby": props["aria-describedby"], "aria-invalid": props["aria-invalid"] }}
       className={cn(TRIGGER, inputSizing(className, dense), className)}
     >
-      <Icon className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+      {Icon ? <Icon className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" /> : null}
       <span id={valueId} className={cn("truncate", empty && "text-ink-3")}>
         {empty ? placeholder : shown}
       </span>
@@ -336,7 +355,7 @@ export function DateField({ min, max, ...props }: FieldProps & { min?: string; m
       picker={(trigger, open, setOpen) => (
         <DatePicker
           trigger={trigger}
-          label={props["aria-label"] ?? "Date"}
+          label={props.pickerTitle ?? props["aria-label"] ?? "Date"}
           open={open}
           onOpenChange={setOpen}
           value={day}
@@ -356,18 +375,18 @@ export function DateField({ min, max, ...props }: FieldProps & { min?: string; m
  * ("HH:mm"), for an end time: the list starts after it and says how long.
  * `after` ("HH:mm"): the list offers only later times, and says nothing more.
  */
-export function TimeField({ since, after, ...props }: FieldProps & { since?: string; after?: string }) {
+export function TimeField({ since, after, bare, ...props }: FieldProps & { since?: string; after?: string; bare?: boolean }) {
   const minutes = minutesOf(props.value)
   return (
     <Field
-      icon={Clock}
+      icon={bare ? null : Clock}
       shown={minutes === null ? "" : clockTime(new Date(2000, 0, 1, Math.floor(minutes / 60), minutes % 60))}
       empty={minutes === null}
       props={{ placeholder: "Pick a time", ...props }}
       picker={(trigger, open, setOpen) => (
         <TimePicker
           trigger={trigger}
-          label={props["aria-label"] ?? "Time"}
+          label={props.pickerTitle ?? props["aria-label"] ?? "Time"}
           open={open}
           onOpenChange={setOpen}
           minutes={minutes}

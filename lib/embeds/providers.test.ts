@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { EMBED_FRAME_ORIGINS } from "./origins"
+import { EMBED_FRAME_ORIGINS, EMBED_SITE_NAMES } from "./origins"
 import { embedFor, hostAllowed } from "./providers"
 
 // One link per site the editor embeds (editor.md P1-5), and the address its
@@ -49,6 +49,22 @@ describe("embeds", () => {
       used.add(origin)
     }
     expect([...EMBED_FRAME_ORIGINS].filter((o) => !used.has(o))).toEqual([])
+  })
+
+  it("names every built-in provider in Settings' list of sites, and lists no site it doesn't embed", () => {
+    const providers = ["youtube", "vimeo", "loom", "figma", "google-docs", "google-sheets", "google-slides", "google-forms", "google-maps", "gist", "codepen", "excalidraw", "miro", "spotify", "x"]
+    const google = EMBED_SITE_NAMES.find((n) => n.startsWith("Google "))!
+    const listed = (name: string) => (EMBED_SITE_NAMES as readonly string[]).includes(name) || (name.startsWith("Google ") && google.includes(name.slice("Google ".length)))
+    const seen = new Map<string, string>()
+    for (const href of [...CASES.map(([h]) => h), "https://docs.google.com/forms/d/e/1FAIpQLSdAbC/viewform"]) {
+      const e = embedFor(href, [], "app.example.test")!
+      expect(listed(e.name), `${e.name}, from ${href}`).toBe(true)
+      expect(EMBED_FRAME_ORIGINS, href).toContain(new URL(e.src).origin)
+      seen.set(e.provider, e.name)
+    }
+    expect([...seen.keys()].sort()).toEqual([...providers].sort())
+    const names = [...seen.values()]
+    expect(EMBED_SITE_NAMES.filter((n) => n !== google && !names.includes(n))).toEqual([])
   })
 
   it("frames nothing it can't name: pages, home pages and short links stay links", () => {

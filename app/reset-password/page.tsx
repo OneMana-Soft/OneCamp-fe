@@ -1,6 +1,5 @@
 "use client"
 
-import { LoaderCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import { useEffect, useRef, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
@@ -179,8 +178,7 @@ function ResetPasswordForm() {
 
         {errorField === null && <FormProblem>{error}</FormProblem>}
 
-        <Button type="submit" size="lg" className={authControl} aria-busy={isLoading || undefined}>
-          {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+        <Button type="submit" size="lg" className={authControl} busy={isLoading}>
           {isLoading ? "Saving…" : "Save new password"}
         </Button>
       </form>

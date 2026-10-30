@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 // PM-3: quick create, the full dialog, the Calendars panel, Go to, an event's
-// pop card and its menu, and the month view are chunks of their own (app/firstLoad.test.ts holds the route to that). Their
+// pop card and its menu, the month view and the agenda are chunks of their own (app/firstLoad.test.ts holds the route to that). Their
 // code is fetched ahead, when the pointer heads for one and at the first
 // quiet moment, so none waits on its first use. Each module records when it
 // is first asked for, once per file: the cases run in this order.
@@ -17,9 +17,12 @@ vi.mock("@/components/calendar/goToDate", async () => (loaded.add("goTo"), { GoT
 vi.mock("@/components/calendar/eventMenu", async () => (loaded.add("menu"), { EventMenu: () => null }))
 vi.mock("@/components/calendar/eventPopover", async () => (loaded.add("card"), { EventPopover: () => null }))
 vi.mock("@/components/calendar/monthView", async (real) => (loaded.add("month"), await real()))
+vi.mock("@/components/calendar/calendarAgenda", async (real) => (loaded.add("agenda"), await real()))
 
+// What repeats (head 9) answers nothing here, one object kept as SWR keeps it: a fresh one each render loops its effect.
+const NO_REPEATS = { data: undefined, isLoading: false, mutate: vi.fn() }
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (url: string) => ({ data: url.includes("/event/getEvents") ? { data: [] } : { data: { isConnected: false } }, isLoading: false, mutate: vi.fn() }),
+  useFetch: (url: string) => (url.startsWith("/calendar/repeats") ? NO_REPEATS : { data: url.includes("/event/getEvents") ? { data: [] } : { data: { isConnected: false } }, isLoading: false, mutate: vi.fn() }),
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
 }))
 vi.mock("@/hooks/useAssignedTasks", () => ({ useAssignedTasks: () => ({ data: { msg: "", data: { user_tasks: [] } }, isLoading: false, mutate: vi.fn() }) }))
@@ -53,18 +56,24 @@ describe("the calendar's surfaces", () => {
     expect([...loaded]).toEqual([])
   })
 
-  it("on a phone, fetch only the dialog, the event's card (its sheet) and the month it can open at the first quiet moment", async () => {
+  it("on a phone, fetch the agenda it opens on at once, then only the dialog, the event's card (its sheet) and the month it can open at the first quiet moment", async () => {
     // A phone by both rules: the layout's width (isMobile) and the overlays' sheet rule.
     mobile = true
     offScreen = putOnScreen(SCREENS["a phone in portrait"])
     vi.useFakeTimers()
     render(<CalendarApp />)
+    // The agenda it opens on is asked for at once: its chunk is in before the
+    // quiet moment's timers have run (the agenda is in the idle list too).
+    await act(async () => {
+      await vi.dynamicImportSettled()
+    })
+    expect([...loaded]).toEqual(["agenda"])
     await act(async () => {
       vi.advanceTimersByTime(1200)
     })
     vi.useRealTimers()
     await settle()
-    expect([...loaded].sort()).toEqual(["card", "dialog", "month"])
+    expect([...loaded].sort()).toEqual(["agenda", "card", "dialog", "month"])
   })
 
   it("are fetched when the pointer heads for one, so it opens at once", async () => {
@@ -91,6 +100,6 @@ describe("the calendar's surfaces", () => {
     })
     vi.useRealTimers()
     await settle()
-    expect([...loaded].sort()).toEqual(["calendars", "card", "dialog", "goTo", "menu", "month", "quick"])
+    expect([...loaded].sort()).toEqual(["agenda", "calendars", "card", "dialog", "goTo", "menu", "month", "quick"])
   })
 })
