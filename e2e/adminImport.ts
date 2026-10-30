@@ -49,7 +49,7 @@ export async function importPage(page: Page, testInfo: TestInfo, configured: boo
     },
     "/admin/import/jobs": { jobs: [] },
     "/admin/import/slack/jobs": { jobs: [] },
-    "/admin/import/slack/limits": { max_upload_bytes: 2147483648 },
+    "/admin/import/slack/limits": { max_bytes: 2147483648 },
     // The export card under the imports.
     "/admin/docs/exports": { exports: [] },
     ...more,

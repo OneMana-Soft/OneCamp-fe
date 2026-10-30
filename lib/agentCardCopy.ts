@@ -1,3 +1,4 @@
+import { firstNameOf } from "@/lib/personName"
 import type { AgentCard } from "@/services/agentService"
 
 /**
@@ -7,11 +8,9 @@ import type { AgentCard } from "@/services/agentService"
  * tested rather than eyeballed.
  */
 
-const firstName = (sponsor?: string) => sponsor?.trim().split(/\s+/)[0] || ""
-
 /** "Priya" or "its sponsor" when the account could not be resolved. */
 export function sponsorName(card: Pick<AgentCard, "sponsor">): string {
-  return firstName(card.sponsor) || "its sponsor"
+  return firstNameOf(card.sponsor) || "its sponsor"
 }
 
 export function autonomyPhrase(autonomy: string): string {

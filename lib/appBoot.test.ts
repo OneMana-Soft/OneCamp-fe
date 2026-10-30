@@ -6,17 +6,15 @@ import {
   APP_BOOT_LEAVE_MS,
   APP_BOOT_SCREEN_ATTR,
   APP_BOOT_SCRIPT,
-  MEMBER_KEY,
   ROOT_UNCLAIMED_MS,
   appBootShowing,
   appBootState,
   endAppBoot,
-  forgetMember,
   holdAppBoot,
   leaveAppBoot,
-  rememberMember,
   slowAppBoot,
 } from "./appBoot"
+import { MEMBER_KEY, forgetMember, rememberMember } from "./memberMark"
 import { VALID_COLOR_THEMES } from "@/components/activeTheme/activeTheme"
 import { GROUND } from "@/lib/pwa/grounds"
 

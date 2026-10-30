@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 // "Something went wrong" about a request the person never made.
 
 const http = vi.hoisted(() => ({ get: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: http, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: http }))
 
 const { getOnboardingStatus } = await import("@/services/onboardingService")
 

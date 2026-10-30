@@ -31,12 +31,23 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { PERSONAL_ALERT_PATHS } from "@/hooks/useMyKeywords"
 import type { UserProfileInterface } from "@/types/user"
+import { listOnceRead } from "@/lib/utils/listOf"
 
 /** The most of each the server keeps (business/PersonalAlert). */
 const MAX_KEYWORDS = 50
 const MAX_VIPS = 300
 
-type List<T> = { data: T[] }
+type List<T> = { data: T[] | null }
+
+/** The toast's words for a list that gained or lost one item: "Keyword added: launch". */
+function listWords<T>(noun: string, was: T[], next: T[], name: (t: T) => string, key: (t: T) => string = name): string {
+  const had = new Set(was.map(key))
+  const has = new Set(next.map(key))
+  const added = next.filter((t) => !had.has(key(t)))
+  const [one, ...more] = [...added, ...was.filter((t) => !has.has(key(t)))]
+  if (!one || more.length) return `${noun}s changed`
+  return `${noun} ${added.length ? "added" : "removed"}: ${name(one)}`
+}
 
 export function KeywordsAndVipsCard() {
   const kw = useFetch<List<string>>(PERSONAL_ALERT_PATHS.keywords)
@@ -46,26 +57,34 @@ export function KeywordsAndVipsCard() {
   const kwSave = useSaveStatus()
   const vipSave = useSaveStatus()
 
-  const keywords = kw.data?.data
-  const vips = vip.data?.data
+  const keywords = listOnceRead<List<string>, string>(kw.data, (a) => a.data)
+  const vips = listOnceRead<List<PickedPerson>, PickedPerson>(vip.data, (a) => a.data)
 
-  /** Shows next at once, sends it, and keeps the server's answer or puts the list back. */
+  /**
+   * Shows next at once, sends it, and keeps the server's answer or puts the
+   * list back. A change that held is offered back: the old list, sent again.
+   */
   const save = async <T, B>(
     req: typeof kw | typeof vip,
     path: string,
     was: T[],
     next: T[],
-    body: B,
+    bodyOf: (list: T[]) => B,
     run: ReturnType<typeof useSaveStatus>["run"],
-  ) => {
+    what: string,
+  ): Promise<boolean> => {
     const mutate = req.mutate as (d: List<T>, o: { revalidate: boolean }) => Promise<unknown>
     void mutate({ data: next }, { revalidate: false })
     let kept: T[] | undefined
-    const held = await run(async () => {
-      const res = await axiosInstance.put<List<T>>(path, body, OWN_ERRORS)
-      kept = res?.data?.data
-    })
+    const held = await run(
+      async () => {
+        const res = await axiosInstance.put<List<T>>(path, bodyOf(next), OWN_ERRORS)
+        kept = res?.data?.data ?? undefined
+      },
+      { what, undo: () => save(req, path, kept ?? next, was, bodyOf, run, what) },
+    )
     void mutate({ data: held ? (kept ?? next) : was }, { revalidate: false })
+    return held
   }
 
   const failed = kw.isError || vip.isError
@@ -83,7 +102,7 @@ export function KeywordsAndVipsCard() {
             void vip.mutate()
           }}
         />
-      ) : !keywords || !vips ? (
+      ) : keywords === undefined || vips === undefined ? (
         <SettingsRowsSkeleton rows={2} control="field" />
       ) : (
         <SettingsList>
@@ -101,7 +120,9 @@ export function KeywordsAndVipsCard() {
               max={MAX_KEYWORDS}
               maxLength={64}
               placeholder="Add a word or short phrase…"
-              onChange={(next) => void save(kw, PERSONAL_ALERT_PATHS.keywords, keywords, next, { keywords: next }, kwSave.run)}
+              onChange={(next) =>
+                void save(kw, PERSONAL_ALERT_PATHS.keywords, keywords, next, (l) => ({ keywords: l }), kwSave.run, listWords("Keyword", keywords, next, (k) => k))
+              }
             />
           </SettingRow>
           <SettingRow
@@ -117,9 +138,11 @@ export function KeywordsAndVipsCard() {
               value={vips}
               exclude={selfId ? [selfId] : []}
               placeholder={vips.length >= MAX_VIPS ? `You can keep up to ${MAX_VIPS}.` : "Add a person by name"}
-              onChange={(next) =>
-                void save(vip, PERSONAL_ALERT_PATHS.vips, vips, next.slice(0, MAX_VIPS), { vips: next.slice(0, MAX_VIPS).map((p) => p.uuid) }, vipSave.run)
-              }
+              onChange={(next) => {
+                const capped = next.slice(0, MAX_VIPS)
+                const words = listWords("VIP", vips, capped, (p) => p.name, (p) => p.uuid)
+                void save(vip, PERSONAL_ALERT_PATHS.vips, vips, capped, (l) => ({ vips: l.map((p) => p.uuid) }), vipSave.run, words)
+              }}
             />
           </SettingRow>
         </SettingsList>

@@ -15,7 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Input } from "@/components/ui/input"
+import { SearchInput } from "@/components/ui/search-input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -156,16 +156,13 @@ export const ModelCatalog: React.FC<{
     <div className="space-y-3">
       {/* Toolbar: search + refresh */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search models (e.g. llama, embeddings, code)…"
-            aria-label="Search models"
-            className="h-9 pl-8"
-          />
-        </div>
+        <SearchInput
+          value={query}
+          onValueChange={setQuery}
+          placeholder="Search models (e.g. llama, embeddings, code)…"
+          aria-label="Search models"
+          className="flex-1"
+        />
         {/* The search's height beside it: it was a 32px button by a 36px field. */}
         <Button
           variant="outline"
@@ -228,7 +225,7 @@ export const ModelCatalog: React.FC<{
                     setFilter("all")
                   }}
                 >
-                  {query ? "Clear search" : "Show all"}
+                  Show all models
                 </Button>
               ) : undefined
             }

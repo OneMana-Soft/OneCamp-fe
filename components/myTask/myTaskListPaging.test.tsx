@@ -1,16 +1,18 @@
 import { useLayoutEffect } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, render } from "@testing-library/react"
+import { act, cleanup, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 
 import { pinTestClock } from "@/lib/testing/testClock"
+import type { sortInterface } from "@/store/slice/taskFilterSlice"
 
 // My Tasks on a phone reads its tasks a page at a time. Once the last page was
 // in it asked for the one past it, as a project's list did: the same paging
 // rule, written in each.
 
+const nav = vi.hoisted(() => ({ replace: vi.fn() }))
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: nav.replace, push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => "/app/myTask",
 }))
@@ -44,6 +46,7 @@ vi.mock("@/hooks/useFetch", () => ({
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async () => ({})), isSubmitting: false }) }))
 
 const { default: store } = await import("@/store/store")
+const { updateMyTaskSortingAndFiltering, clearMyTaskSortingFilteringAndTask } = await import("@/store/slice/taskFilterSlice")
 const { MyTaskList } = await import("@/components/myTask/myTaskList")
 const { PHONE_PAGE_SIZE } = await import("@/lib/tasks/grouping")
 
@@ -55,6 +58,8 @@ afterEach(() => {
   shown.length = 0
   asked.length = 0
   answers.clear()
+  nav.replace.mockClear()
+  window.history.replaceState(null, "", "/")
 })
 
 const task = (i: number) => ({
@@ -99,10 +104,75 @@ describe("My Tasks on a phone, a page at a time", () => {
     expect(shown.at(-1)).toMatchObject({ count: tasks.length, hasMore: false })
   })
 
+  // fluid-17: the page went into the address through the router, which
+  // fetched the route again for every page a scroll loaded.
+  it("keeps the page it has read to in the address, without a navigation", () => {
+    window.history.replaceState(null, "", "/app/myTask?view=list")
+    serve(Array.from({ length: PHONE_PAGE_SIZE + 20 }, (_, i) => task(i)))
+    readToTheEnd()
+    expect(nav.replace).not.toHaveBeenCalled()
+    const at = new URL(window.location.href)
+    expect([at.pathname, at.searchParams.get("view"), at.searchParams.get("page")]).toEqual(["/app/myTask", "list", "1"])
+  })
+
   it("asks for nothing more when the first page is the whole list", () => {
     serve(Array.from({ length: 7 }, (_, i) => task(i)))
     readToTheEnd()
     expect(pagesAsked()).toEqual([0])
     expect(shown.at(-1)).toMatchObject({ count: 7, hasMore: false })
+  })
+})
+
+// R2b's design review, 23 Oct: with nothing assigned, a phone said "You're all caught up"
+// under "2 to approve", where a computer says what is true whatever else waits.
+describe("My Tasks on a phone with nothing assigned", () => {
+  it("says so in the computer's words, never that you're all caught up", () => {
+    serve([])
+    render(
+      <Provider store={store}>
+        <MyTaskList searchQuery="" />
+      </Provider>,
+    )
+    expect(screen.getByText("Nothing assigned to you")).toBeInTheDocument()
+    expect(screen.getByText("Tasks you're given, or make for yourself, land here.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "New task" })).toBeInTheDocument()
+    expect(screen.queryByText(/caught up/)).toBeNull()
+  })
+})
+
+// A search's read left the list's sort and filters out, as a project's list
+// did: sorted and filtered in the phone's sheet, then searched, My Tasks came
+// back in the server's order with every task. Its first read did too.
+describe("My Tasks on a phone, sorted and filtered", () => {
+  const sort: sortInterface[] = [{ id: "task_due_date", desc: true }]
+  const filters = [{ id: "task_status", value: ["todo", "inProgress"] }]
+  const asks = () =>
+    asked.map((u) => {
+      const q = new URL(u, "http://app").searchParams
+      return { sorting: q.get("sorting"), filters: q.get("filters"), search: q.get("taskSearchString"), page: q.get("pageIndex") }
+    })
+  const list = (searchQuery: string) => (
+    <Provider store={store}>
+      <MyTaskList searchQuery={searchQuery} />
+    </Provider>
+  )
+
+  afterEach(() => {
+    store.dispatch(clearMyTaskSortingFilteringAndTask())
+  })
+
+  it("asks for its first page sorted and filtered", () => {
+    serve(Array.from({ length: 7 }, (_, i) => task(i)))
+    store.dispatch(updateMyTaskSortingAndFiltering({ sort, filters }))
+    render(list(""))
+    expect(asks()).toEqual([{ sorting: JSON.stringify(sort), filters: JSON.stringify(filters), search: null, page: "0" }])
+  })
+
+  it("asks for a search's tasks sorted and filtered", () => {
+    serve(Array.from({ length: 7 }, (_, i) => task(i)))
+    store.dispatch(updateMyTaskSortingAndFiltering({ sort, filters }))
+    const view = render(list(""))
+    view.rerender(list("venue"))
+    expect(asks().at(-1)).toEqual({ sorting: JSON.stringify(sort), filters: JSON.stringify(filters), search: "venue", page: "0" })
   })
 })

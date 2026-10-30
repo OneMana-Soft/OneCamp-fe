@@ -1,7 +1,7 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { ComposerHost } from "@/components/conversation/ComposerHost"
+import { lazyPanel } from "@/lib/lazy/lazyPanel"
 import type { ThreadRef } from "@/lib/conversation/types"
 
 // Each kind's panel loads the first time one is opened, not with the page: a
@@ -11,9 +11,9 @@ const loaders = {
     dm: () => import("@/components/rightPanel/chatComments"),
     group: () => import("@/components/rightPanel/groupChatComments"),
 }
-const ChannelComments = dynamic(() => loaders.channel().then((m) => m.ChannelComments))
-const ChatComments = dynamic(() => loaders.dm().then((m) => m.ChatComments))
-const GroupChatComments = dynamic(() => loaders.group().then((m) => m.GroupChatComments))
+const ChannelComments = lazyPanel(() => loaders.channel().then((m) => m.ChannelComments), "the thread")
+const ChatComments = lazyPanel(() => loaders.dm().then((m) => m.ChatComments), "the thread")
+const GroupChatComments = lazyPanel(() => loaders.group().then((m) => m.GroupChatComments), "the thread")
 
 /** Fetches the thread panels' code ahead of their first use (the right panel's idle preload). */
 export function preloadThreadPanels(): void {

@@ -30,7 +30,7 @@ export const AREA_RULES = [
   // Calendar: events, booking, focus time.
   ...rule("calendar", /^components\/(calendar|booking)\//, /^app\/(app\/calendar|book|booking|rsvp)\//, /^lib\/calendar\//, /^hooks\/use(Calendar|FocusTime|StartFocus)/, /^services\/(bookingService|eventInvitationService)\./, /\/(event|calendar|booking)[A-Z][^/]*\.(t|j)sx?$/),
   // Tables.
-  ...rule("tables", /^components\/table\//, /^app\/app\/tables\//, /^lib\/(tables|csv)\b/, /^services\/(tableService|tableRows)\b/),
+  ...rule("tables", /^components\/table\//, /^app\/app\/tables\//, /^lib\/(tables|csv)\b/, /^services\/(tableService|tableRows|tableCalls|tableViews)\b/),
   // Docs: the editor, the tree, comments, live entities.
   ...rule("docs", /^components\/(doc|docEditor|docTree|docComments|docTemplates|minimal-tiptap|entityLink|liveEntity)\//, /^app\/app\/doc\//, /^lib\/(doc[A-Za-z]*|docs|docComments|codec|anchors|embeds|liveEntity|export)(\/|\.)/, /^hooks\/useDoc/, /^services\/(doc[A-Za-z]*|entityLinkService|followService|connectedService)\./),
   // Projects and tasks.
@@ -66,7 +66,11 @@ export async function shellFiles(root = ".") {
   const here = process.cwd()
   process.chdir(root)
   try {
-    return new Set([...reach(["app/layout.tsx", "app/app/layout.tsx"]).keys()])
+    // The layouts, and the realtime engine (fluid-15). The engine is here on
+    // purpose: every signed-in page starts it at its first idle moment, 1.5 s
+    // after the page mounts at the latest (START_BY_MS in
+    // components/mqtt/mqttProvider), so what it uses is loaded on every page.
+    return new Set([...reach(["app/layout.tsx", "app/app/layout.tsx", "components/mqtt/RealtimeEngine.tsx"]).keys()])
   } finally {
     process.chdir(here)
   }

@@ -64,8 +64,8 @@ export function Bar({
   className?: string
   /** Fill moss at 100 % (a project or a goal); off for an estimate. */
   doneAtFull?: boolean
-  /** Override the fill: "sun" for over an estimate. */
-  tone?: "sun"
+  /** Override the fill: "sun" for over an estimate; "sky", the chart order's first series, for a bar that counts rather than progresses. */
+  tone?: "sun" | "sky"
 }) {
   const v = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))
   const full = doneAtFull && v >= 100
@@ -86,7 +86,7 @@ export function Bar({
             data-bar-fill=""
             className={cn(
               "block h-full w-full origin-left rounded-full transition-transform duration-[320ms] ease-out",
-              tone === "sun" ? "bg-camp-sun" : full ? "bg-camp-moss" : "bg-progress",
+              tone === "sun" ? "bg-camp-sun" : tone === "sky" ? "bg-camp-sky" : full ? "bg-camp-moss" : "bg-progress",
             )}
             style={{ transform: `scaleX(${v / 100})` }}
           />

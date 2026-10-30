@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page, type TestInfo } from "@playwright/test"
 import * as Y from "yjs"
 
-import { SAM, docInfo, stubBackend } from "../stubbedApp"
+import { SAM, docInfo, reviewShot, stubBackend } from "../stubbedApp"
 import { CollabRelay } from "./collabRelay"
 import { PRIYA } from "./twoPeople"
 // A doc's live copy as the server writes a template into it.
@@ -119,6 +119,30 @@ test.describe("the sidebar's page tree", () => {
     const inside = after.locator(`[data-tree-parent="${ENGINEERING}"]`)
     await expect(inside.filter({ hasText: "Handbook" })).toHaveCount(1)
   })
+
+  test("gives the keys back to the row whose menu they opened", async ({ page }, testInfo) => {
+    // The row's "⋯" hides once its menu lets the row go, so the menu can't
+    // give the focus to it: after ⇧F10 and Escape it fell to <body> (F8,
+    // REGRESSION-HUNT 26 Oct 2026).
+    await serveDocs(page, testInfo, workspace())
+    await page.setViewportSize({ width: 1280, height: 860 })
+    await page.goto("/app/home", { waitUntil: "domcontentloaded", timeout: 120_000 })
+    const tree = page.getByRole("tree", { name: "Workspace pages" })
+    const handbook = tree.getByRole("treeitem", { name: "Handbook" })
+    await expect(handbook).toBeVisible({ timeout: 60_000 })
+    await handbook.focus()
+    await page.keyboard.press("Shift+F10")
+    // The keys are in the menu: on the menu itself here, as its chunk lands
+    // after the key (on its first item once the chunk is in).
+    const menu = page.getByRole("menu")
+    await expect(menu).toBeVisible({ timeout: 30_000 })
+    await expect.poll(() => menu.evaluate((m) => m.contains(document.activeElement))).toBe(true)
+    await page.keyboard.press("Escape")
+    await expect(menu).toHaveCount(0)
+    await expect(handbook).toBeFocused()
+    await page.keyboard.press("ArrowUp")
+    await expect(tree.getByRole("treeitem", { name: "Engineering" })).toBeFocused()
+  })
 })
 
 test.describe("the docs home", () => {
@@ -216,6 +240,82 @@ test.describe("the docs home", () => {
     expect((await restore).postDataJSON()).toEqual({ doc_uuid: OLD_PLAN })
     // Exact: the toast's live region repeats it after "Notification" for a moment.
     await expect(page.getByText("Restored “Old plan” and 2 pages inside", { exact: true })).toBeVisible()
+  })
+
+  test("at a sheet's width on a computer, a sheet opened from the keys takes them and gives them back", async ({ browser }, testInfo) => {
+    // Under 640 px a window shows the phone's shell and its sheets. A sheet
+    // opened from the keys took none of them: they stayed on the page behind
+    // it, which the open sheet hides from a screen reader (27 Oct 2026).
+    const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL || "http://localhost:3001"), viewport: { width: 600, height: 900 } })
+    const page = await context.newPage()
+    await serveHome(page, testInfo)
+    await page.goto("/app/doc", { waitUntil: "domcontentloaded", timeout: 120_000 })
+    const pages = page.getByRole("button", { name: "Pages" })
+    await expect(pages).toBeVisible({ timeout: 60_000 })
+    await pages.focus()
+    await page.keyboard.press("Enter")
+    const pagesSheet = page.getByRole("dialog", { name: "Pages" })
+    await expect(pagesSheet).toBeFocused({ timeout: 30_000 })
+    const tree = pagesSheet.getByRole("tree", { name: "Workspace pages" })
+    const handbook = tree.getByRole("treeitem", { name: "Handbook" })
+    await expect(handbook).toBeVisible({ timeout: 30_000 })
+    await handbook.focus()
+    await page.keyboard.press("Shift+F10")
+    const rowSheet = page.getByRole("dialog", { name: "Handbook" })
+    await expect(rowSheet).toBeFocused({ timeout: 30_000 })
+    // For review (SHOTS_DIR): the sheet as the keys find it, in both themes.
+    if (process.env.SHOTS_DIR) {
+      for (const theme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme: theme })
+        await reviewShot(page, "sheet-from-keys", theme)
+      }
+    }
+    // Escape gives the keys back: the row's menu to its row (F8), the Pages
+    // sheet to the button that opened it.
+    await page.keyboard.press("Escape")
+    await expect(rowSheet).toHaveCount(0)
+    await expect(handbook).toBeFocused()
+    await page.keyboard.press("ArrowUp")
+    await expect(tree.getByRole("treeitem", { name: "Engineering" })).toBeFocused()
+    await page.keyboard.press("Escape")
+    await expect(pagesSheet).toHaveCount(0)
+    await expect(pages).toBeFocused()
+    await context.close()
+  })
+
+  test("on a phone, a sheet a tap opens holds the focus itself, and a tap that closes it leaves it be", async ({ browser }, testInfo) => {
+    // Never a field on a tap: the phone's keyboard would come up over the
+    // sheet. The sheet itself takes the focus, for a screen reader, and a tap
+    // that closes it gives the focus to nothing it came from.
+    const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL || "http://localhost:3001"), viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+    const page = await context.newPage()
+    await serveHome(page, testInfo)
+    await page.goto("/app/doc", { waitUntil: "domcontentloaded", timeout: 120_000 })
+    await page.getByRole("button", { name: "Pages" }).tap({ timeout: 60_000 })
+    const pagesSheet = page.getByRole("dialog", { name: "Pages" })
+    await expect(pagesSheet).toBeFocused({ timeout: 30_000 })
+    const handbook = pagesSheet.getByRole("tree", { name: "Workspace pages" }).getByRole("treeitem", { name: "Handbook" })
+    const more = handbook.getByRole("button", { name: "More for Handbook" })
+    await more.tap({ timeout: 30_000 })
+    const rowSheet = page.getByRole("dialog", { name: "Handbook" })
+    await expect(rowSheet).toBeFocused({ timeout: 30_000 })
+    // The scrim above the row's sheet: the tap closes the sheet and nothing
+    // else, so the row under it opens no doc and the Pages sheet stays up.
+    await page.touchscreen.tap(195, 40)
+    await expect(rowSheet).toHaveCount(0)
+    // Radix gives the focus back a task after the sheet goes: that task first.
+    await page.evaluate(() => new Promise((done) => setTimeout(done, 0)))
+    await expect(more).not.toBeFocused()
+    await expect(pagesSheet).toBeVisible()
+    await expect(page).toHaveURL(/\/app\/doc$/)
+    // For review (SHOTS_DIR): the Pages sheet as the tap left it, in both themes.
+    if (process.env.SHOTS_DIR) {
+      for (const theme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme: theme })
+        await reviewShot(page, "scrim-tap-closed", theme)
+      }
+    }
+    await context.close()
   })
 })
 

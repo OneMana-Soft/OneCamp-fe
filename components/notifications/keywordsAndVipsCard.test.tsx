@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 // Your keywords and VIPs (chat P3 stage 3): each change saves at once with
-// the row's tick; a refusal puts the list back and says the server's words on
-// the row, never a toast.
+// the row's tick, and the toast offers it back (design-14); a refusal puts the
+// list back and says the server's words on the row, with no toast.
 
 const { state, put, toast } = vi.hoisted(() => ({
   state: { fetch: {} as Record<string, Record<string, unknown>> },
@@ -14,7 +14,7 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => state.fetch[url] ?? {},
   useFetchOnlyOnce: (url: string) => state.fetch[url] ?? {},
 }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { put }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { put } }))
 vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
 vi.mock("@/components/common/peoplePicker", () => ({
   PeoplePicker: ({ value, onChange, exclude }: { value: { uuid: string; name: string }[]; onChange: (v: unknown) => void; exclude?: string[] }) => (
@@ -60,6 +60,20 @@ describe("keywords", () => {
     expect(put).toHaveBeenCalledWith("/me/keywords", { keywords: ["budget", "launch"] }, { suppressErrorToast: true })
     expect(kwMutate).toHaveBeenLastCalledWith({ data: ["budget", "launch"] }, { revalidate: false })
     expect(document.querySelector("[data-saved-tick]")).not.toBeNull()
+  })
+
+  it("offers a new word back, and Undo sends the list as it was", async () => {
+    put.mockResolvedValue({ data: { data: ["budget", "launch"] } })
+    render(<KeywordsAndVipsCard />)
+    await addKeyword("launch")
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Keyword added: launch" })))
+
+    put.mockResolvedValue({ data: { data: ["budget"] } })
+    const [{ action }] = toast.mock.calls[0] as [{ action: { props: { onClick: () => Promise<void> } } }]
+    await act(() => action.props.onClick())
+    expect(put).toHaveBeenLastCalledWith("/me/keywords", { keywords: ["budget"] }, { suppressErrorToast: true })
+    expect(kwMutate).toHaveBeenLastCalledWith({ data: ["budget"] }, { revalidate: false })
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Undone" }))
   })
 
   it("puts the list back and says the server's reason when it's refused", async () => {

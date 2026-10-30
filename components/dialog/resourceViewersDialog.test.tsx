@@ -4,9 +4,9 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 // Viewed by says a failed read as a failure (N46): it used to catch the error,
 // leave the list empty and say "No views yet" about a doc twelve people read.
 
-vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }) }))
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ mutate: vi.fn() }), useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }) }))
 const get = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: (...a: unknown[]) => get(...a) } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: (...a: unknown[]) => get(...a) } }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
 import ResourceViewersDialog from "./resourceViewersDialog"
@@ -48,6 +48,12 @@ describe("who viewed a doc", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     expect(await screen.findByText("Person 2")).toBeTruthy()
     expect(get).toHaveBeenLastCalledWith("/doc/getViewers?doc_uuid=d&pageIndex=1&pageSize=50", { suppressErrorToast: true })
+  })
+
+  it("says when each person viewed it mid-sentence: \"Viewed yesterday\", never \"Viewed Yesterday\"", async () => {
+    get.mockResolvedValueOnce({ data: { data: [{ ...viewer(1), last_viewed_at: new Date(Date.now() - 30 * 3600_000).toISOString() }], count: 1 } })
+    dialog()
+    expect(await screen.findByText("Viewed yesterday")).toBeTruthy()
   })
 
   it("shows its rows' shape while it loads, not an empty list", () => {

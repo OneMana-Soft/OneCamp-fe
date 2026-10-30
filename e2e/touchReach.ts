@@ -1,5 +1,7 @@
 import type { Page } from "@playwright/test"
 
+import { overlap } from "./boxes"
+
 /**
  * Where a finger reaches a control: the touch target rule (app/phone.css F3)
  * gives anything with data-touch-target, and the shell's icon button, a box
@@ -53,17 +55,16 @@ export async function reachesIn(page: Page, row: string): Promise<Reach[]> {
   )
 }
 
-/** Each pair of different controls whose reach overlaps, named. Pure. */
+/** A reach as a box, for the one rule of overlap (e2e/boxes). */
+const asBox = (r: Reach) => ({ x: r.left, y: r.top, width: r.right - r.left, height: r.bottom - r.top })
+
+/** Each pair of different controls whose reach overlaps, named. Half a pixel either way is rounding, not a shared tap. Pure. */
 export function overlapping(reaches: Reach[]): string[] {
   const out: string[] = []
   for (let i = 0; i < reaches.length; i++) {
     for (let j = i + 1; j < reaches.length; j++) {
-      const a = reaches[i]
-      const b = reaches[j]
-      const x = Math.min(a.right, b.right) - Math.max(a.left, b.left)
-      const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
-      // Half a pixel either way is rounding, not a shared tap.
-      if (x > 0.5 && y > 0.5) out.push(`"${a.name}" and "${b.name}" share ${Math.round(x)}×${Math.round(y)} px`)
+      const shared = overlap(asBox(reaches[i]), asBox(reaches[j]))
+      if (shared) out.push(`"${reaches[i].name}" and "${reaches[j].name}" share ${Math.round(shared.width)}×${Math.round(shared.height)} px`)
     }
   }
   return out

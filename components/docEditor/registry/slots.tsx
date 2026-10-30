@@ -11,6 +11,7 @@ import * as React from 'react'
 import type { Editor } from '@tiptap/core'
 import { dialogFor, panelFor, slotFor, registryVersion, subscribeRegistry, type EditionGate } from './registry'
 import type { ShellSlot, SlotContribution, SlotProps } from './types'
+import { lazyPiece } from '@/lib/lazy/lazyPiece'
 
 /** Renders again when something registers later (a chunk loaded after the shell). */
 export function useRegistryVersion(): number {
@@ -28,7 +29,7 @@ const lazies = new WeakMap<AnyLoader, React.ComponentType<unknown>>()
 function lazyOf<P>(load: Loader<P>): React.ComponentType<P> {
   let c = lazies.get(load as AnyLoader)
   if (!c) {
-    c = React.lazy(load as AnyLoader) as React.ComponentType<unknown>
+    c = lazyPiece(load as AnyLoader) as React.ComponentType<unknown>
     lazies.set(load as AnyLoader, c)
   }
   return c as React.ComponentType<P>

@@ -41,6 +41,7 @@ export function OptionsEditor<O extends ChoiceOption>({
   max,
   maxLength,
   busy = false,
+  aside,
 }: {
   options: O[]
   /** The options after a change, and the ids of saved ones it takes out. */
@@ -59,6 +60,8 @@ export function OptionsEditor<O extends ChoiceOption>({
   max?: number
   maxLength?: number
   busy?: boolean
+  /** A control after an option's name: a status's group. */
+  aside?: (option: O, change: (next: O) => void) => React.ReactNode
 }) {
   const [draft, setDraft] = React.useState("")
   const [renaming, setRenaming] = React.useState<{ key: string; text: string } | null>(null)
@@ -166,6 +169,7 @@ export function OptionsEditor<O extends ChoiceOption>({
                   }}
                   className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-ui text-ink outline-none focus:bg-raised focus:shadow-e1"
                 />
+                {aside?.(o, (next) => onChange(options.map((x) => (x === o ? next : x)), []))}
                 <button
                   type="button"
                   aria-label={`Remove ${o.label}`}

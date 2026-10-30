@@ -5,18 +5,19 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { anchorTo } from "@/components/ui/anchor"
 import { hoverCardProps } from "@/lib/hub/hoverIntent"
 import { entityKind } from "@/lib/liveEntity"
+import { lazyPiece, type LazyPiece } from "@/lib/lazy/lazyPiece"
 
 type Card = React.ComponentType<{ id: string; data: unknown }>
 
 // One lazy card per kind, made once: its code loads the first time a pointer
 // rests on a chip of that kind.
-const cards = new Map<string, React.LazyExoticComponent<Card>>()
+const cards = new Map<string, LazyPiece<React.ComponentProps<Card>>>()
 
-function cardOf(kind: string): React.LazyExoticComponent<Card> | null {
+function cardOf(kind: string): LazyPiece<React.ComponentProps<Card>> | null {
   const load = entityKind(kind)?.card
   if (!load) return null
   let card = cards.get(kind)
-  if (!card) cards.set(kind, (card = React.lazy(load as () => Promise<{ default: Card }>)))
+  if (!card) cards.set(kind, (card = lazyPiece(load as () => Promise<{ default: Card }>)))
   return card
 }
 

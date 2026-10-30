@@ -13,7 +13,7 @@
  */
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useToast } from "@/hooks/use-toast"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { ToastAction } from "@/components/ui/toast"
@@ -26,7 +26,7 @@ const MARK = "oc.agentNote"
 
 export function AgentNoteOnOpen() {
   const ai = useAIAvailable()
-  const router = useRouter()
+  const router = useAppRouter()
   const { toast } = useToast()
   const asked = React.useRef(false)
   const pending = React.useRef<(() => void) | null>(null)

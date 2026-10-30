@@ -3,7 +3,7 @@
 // A running timer follows the person around the app: its task, its clock, and
 // a stop button, so a timer is never forgotten in a task they closed.
 
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { CornerCard } from "@/components/ui/CornerStack"
@@ -21,7 +21,7 @@ import { stopTimer, useElapsed, useRunningTimer } from "@/hooks/useTaskTime"
 export function RunningTimerChip({ className = "" }: { className?: string }) {
   const { running } = useRunningTimer()
   const elapsed = useElapsed(running?.entry.started_at)
-  const router = useRouter()
+  const router = useAppRouter()
   const { toast } = useToast()
   const [busy, setBusy] = useState(false)
   if (!running) return null

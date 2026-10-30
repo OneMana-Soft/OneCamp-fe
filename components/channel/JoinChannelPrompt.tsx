@@ -23,7 +23,7 @@ export function JoinChannelPrompt({ channelName, onJoin, joining = false, classN
       <p className="text-sm text-muted-foreground">
         You&apos;re not in {name} yet. Join to send messages here.
       </p>
-      <Button onClick={onJoin} disabled={joining}>
+      <Button onClick={onJoin} busy={joining}>
         {joining ? "Joining…" : `Join ${name}`}
       </Button>
     </div>

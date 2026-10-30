@@ -15,9 +15,9 @@ import { SettingRow, SettingsCard, SettingsCardError, SettingsRowsSkeleton, Sett
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { useSaveStatus } from "@/components/ui/saveStatus"
 import { useFetch } from "@/hooks/useFetch"
-import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
-import { ADMIN_POLICIES_KEY, EDIT_WHO, type PolicyInfo } from "@/services/workAccessService"
+import { ADMIN_POLICIES_KEY, EDIT_WHO, setWorkspacePolicy, type PolicyInfo } from "@/services/workAccessService"
 
 /** Each row: its policy, its words and its choices, short enough for a segment. */
 const ROWS = [
@@ -38,22 +38,17 @@ function PolicyRow({ row, info }: { row: (typeof ROWS)[number]; info: PolicyInfo
   const [pending, setPending] = useState<string | null>(null)
   const { status, run } = useSaveStatus()
   const id = `projects-${row.key.replace(/[^\w-]/g, "-")}`
-  const choose = async (next: string) => {
-    if (next === saved) return
+  const choose = async (next: string): Promise<boolean> => {
     setPending(next)
-    const held = await run(async () => {
-      const res = await axiosInstance.put<{ data: PolicyInfo }>(`${ADMIN_POLICIES_KEY}/${row.key}`, { value: next }, OWN_ERRORS)
-      const after = res.data.data
-      await appMutate<{ data: PolicyInfo[] }>(
-        ADMIN_POLICIES_KEY,
-        (d) => (d ? { ...d, data: d.data.map((p) => (p.key === row.key ? after : p)) } : d),
-        { revalidate: false },
-      )
+    const held = await run(() => setWorkspacePolicy(row.key, next), {
+      what: `${row.label}: ${row.options.find((o) => o.value === next)?.label}`,
+      undo: () => choose(saved),
     })
     setPending(null)
     // What people may do in projects follows the default: the projects
     // they have open are asked again.
     if (held && row.key === EDIT_WHO) void appMutate((k) => typeof k === "string" && k.startsWith("/project/"))
+    return held
   }
   return (
     <SettingRow label={row.label} description={row.description} controlId={id} status={status}>
@@ -62,7 +57,7 @@ function PolicyRow({ row, info }: { row: (typeof ROWS)[number]; info: PolicyInfo
         aria-label={row.label}
         aria-describedby={`${id}-desc`}
         value={pending ?? saved}
-        onValueChange={(v) => void choose(v)}
+        onValueChange={(v) => v !== saved && void choose(v)}
         options={row.options}
         disabled={status.state === "saving"}
       />

@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { RefreshCw } from "@/lib/icons";
 import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
 import { PostEndpointUrl } from "@/services/endPoints"
@@ -28,7 +27,7 @@ import { AdminGet } from "@/services/endpoints/admin"
 import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
-import { groupEvents } from "@/components/admin/webhookParts"
+import { groupEvents, TICK_AN_EVENT } from "@/components/admin/webhookParts"
 import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
 import { AddressReveal } from "@/components/admin/webhookAddress"
 
@@ -40,6 +39,7 @@ export const FALLBACK_EVENT_TYPES = [
   "user.joined", "user.left",
   "doc.created", "doc.updated", "doc.deleted", "doc.shared", "doc.comment.created",
   "table.rows.changed",
+  "call.started", "call.ended",
 ]
 
 /**
@@ -55,6 +55,7 @@ export const INCOMING_CHANNEL_HELP = (
 const GROUP_NOTE: Record<string, string> = {
   doc: "Sent only for docs whoever sets up the webhook can open. A private doc's title is never sent, and doc.updated is at most once a minute per doc.",
   table: "One event for each change to a table's rows, naming every row it touched: a paste of 500 rows is one event. Ids only, never a cell's value.",
+  call: "Sent only for calls in channels and meetings whoever sets up the webhook can open. Ids, times and how many joined, never a name or anything said. A call in a DM or a group chat is never sent.",
 }
 
 /**
@@ -117,7 +118,7 @@ export function WebhookEventChoice({
       </div>
       <p className="text-xs text-muted-foreground" aria-live="polite">
         {chosen.length === 0
-          ? "None ticked: it is sent every event."
+          ? TICK_AN_EVENT
           : `${chosen.length} ${chosen.length === 1 ? "event" : "events"} chosen.`}
       </p>
     </fieldset>
@@ -318,11 +319,12 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
               help={INCOMING_CHANNEL_HELP}
             >
               <Select
+                id="wh-channel"
                 value={form.channel_id || NO_CHANNEL_VALUE}
                 onValueChange={(v) => setForm(f => ({ ...f, channel_id: v === NO_CHANNEL_VALUE ? "" : v }))}
                 disabled={channelsLoading}
               >
-                <SelectTrigger id="wh-channel">
+                <SelectTrigger>
                   {channelsLoading ? (
                     <span className="text-muted-foreground">Loading channels…</span>
                   ) : (
@@ -352,8 +354,12 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={post.isSubmitting}>
-            {post.isSubmitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+          <Button
+            onClick={handleSubmit}
+            busy={post.isSubmitting}
+            disabled={form.type === "outgoing" && form.events.length === 0}
+            disabledReason={TICK_AN_EVENT}
+          >
             {post.isSubmitting ? "Creating…" : "Create webhook"}
           </Button>
         </DialogFooter>

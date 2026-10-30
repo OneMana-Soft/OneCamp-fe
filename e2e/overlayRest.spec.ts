@@ -58,8 +58,7 @@ test("menus, side menus, popovers and dialogs hold no transform at rest", async 
   await page.keyboard.press("Escape")
   await page.keyboard.press("Escape")
 
-  // A dialog. It still centres with translate, which DRAWERS-3's overlay
-  // layout replaces (inset 0, margin auto); until then that one is allowed.
+  // A dialog: centred with inset 0 and margin auto, no transform (components/ui/dialog).
   await page.getByLabel("New task", { exact: true }).click()
-  await expectAtRest(page.locator('[role="dialog"][data-state="open"]').last(), "the new-task dialog", /^translate: /)
+  await expectAtRest(page.locator('[role="dialog"][data-state="open"]').last(), "the new-task dialog")
 })

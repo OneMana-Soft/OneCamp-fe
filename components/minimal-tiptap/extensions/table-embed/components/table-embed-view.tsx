@@ -11,6 +11,8 @@ import { TableBundle, tableBundleKey } from "@/services/tableService"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
 import { tablePath } from "@/lib/tables/route"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
+import { PieceUnavailable } from "@/lib/lazy/pieceUnavailable"
 
 // The grid (DataTableGrid, its cells, menus and virtual rows: about 38 KB
 // gzip) is fetched with the first table a doc embeds, not with every doc: it
@@ -18,7 +20,11 @@ import { tablePath } from "@/lib/tables/route"
 // weight, routeKbOverHome). This view is made for each embed the doc holds,
 // however it came (its first content, an insert, a paste, another person's
 // edit), so that is when it loads; until then the embed shows its rows loading.
-const DataTableGrid = React.lazy(() => import("@/components/table/DataTableGrid").then((m) => ({ default: m.DataTableGrid })))
+// The grid's code can't come (no network): the table says so in its place, and 'online', its next draw or Try again
+// asks again.
+const DataTableGrid = lazyPiece(() => import("@/components/table/DataTableGrid").then((m) => ({ default: m.DataTableGrid })), {
+  failed: ({ retry }) => <PieceUnavailable what="this table" retry={retry} />,
+})
 
 /** The embed's rows while they load: the table's own, or the grid's code. */
 function RowsLoading() {
@@ -67,7 +73,7 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
     if (refreshTimer.current) clearTimeout(refreshTimer.current)
     refreshTimer.current = setTimeout(() => mutate(), 300)
   }, [mutate])
-  useMqttTopic({ topic: gone || guest ? "" : bundle?.mqtt_topic || "", onMessage: onMqtt })
+  useMqttTopic({ topic: gone || guest ? "" : bundle?.mqtt_topic || "", onMessage: onMqtt, onLive: () => void mutate() })
   React.useEffect(() => {
     return () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current)

@@ -9,6 +9,7 @@
  */
 
 import { PostEndpointUrl } from "@/services/endPoints"
+import { CalendarPost } from "@/services/endpoints/calendar"
 import type { CreateEventPayload } from "@/types/calendar"
 import type { RepeatScope } from "@/lib/calendar/repeat"
 import type { ScopeAction } from "@/components/calendar/scopePrompt"
@@ -129,7 +130,7 @@ export async function saveLegacyChange(deps: SaveDeps, id: string, v: EventFormV
   const { start, end } = whenOf({ ...v, allDay: false })
   try {
     await deps.makeRequest({
-      apiEndpoint: `${PostEndpointUrl.UpdateCalendarEvent}/${id}` as string,
+      apiEndpoint: `${CalendarPost.UpdateCalendarEvent}/${id}` as string,
       payload: {
         title: v.title.trim(),
         description: savedNotes(v),

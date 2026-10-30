@@ -2,7 +2,7 @@ import {UserProfileDataInterface} from "@/types/user";
 import {PostsRes} from "@/types/post";
 import {ChatInfo} from "@/types/chat";
 import {CommentInfoInterface} from "@/types/comment";
-import {TaskInfoInterface} from "@/types/task";
+import type { TaskInfoInterface } from "@/types/task";
 import {DocInfoInterface} from "@/types/doc";
 
 

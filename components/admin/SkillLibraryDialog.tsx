@@ -262,7 +262,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged, selectedIds, onTo
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <Button size="sm" onClick={save} disabled={!dirty || saving}>
+                                <Button size="sm" onClick={save} disabled={!dirty} busy={saving}>
                                     Save
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={openHistory} disabled={saving}>

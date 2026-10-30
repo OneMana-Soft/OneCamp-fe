@@ -157,10 +157,5 @@ export function rowsText(n: number): string {
   return `${n.toLocaleString()} ${n === 1 ? "row" : "rows"}`
 }
 
-/** What an undo's or a redo's toast says, and what it left. Pure. */
-export function undoneNote(r: UndoResult, redo = false): { title: string; description?: string } {
-  const title = redo ? "Redone" : "Undone"
-  if (!r.skipped) return { title }
-  const one = r.skipped === 1
-  return { title, description: `${r.skipped.toLocaleString()} ${one ? "change was left as it is: it" : "changes were left as they are: they"} changed again since.` }
-}
+// What an undo's or a redo's toast says: its own module, on the table's first load.
+export { undoneNote } from "@/lib/tables/undoneNote"

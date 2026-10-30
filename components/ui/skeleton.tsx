@@ -12,17 +12,16 @@ interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "shimmer" | "circle";
 }
 
-function Skeleton({ className, variant = "shimmer", ...props }: SkeletonProps) {
-  return (
-    <div
-      className={cn(
-        "animate-shimmer bg-highlight",
-        variant === "circle" ? "rounded-full" : "rounded-md",
-        className
-      )}
-      {...props}
-    />
-  );
+/**
+ * A skeleton's look, for blocks drawn in bulk where a component apiece would
+ * cost a render each (a grid's cells: gridRowRenders).
+ */
+function skeletonClass(variant: SkeletonProps["variant"] = "shimmer") {
+  return cn("animate-shimmer bg-highlight", variant === "circle" ? "rounded-full" : "rounded-md");
 }
 
-export { Skeleton };
+function Skeleton({ className, variant = "shimmer", ...props }: SkeletonProps) {
+  return <div className={cn(skeletonClass(variant), className)} {...props} />;
+}
+
+export { Skeleton, skeletonClass };

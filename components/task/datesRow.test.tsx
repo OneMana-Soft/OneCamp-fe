@@ -23,4 +23,15 @@ describe("the Dates property", () => {
     expect(row.querySelectorAll("[data-property], [data-field-empty]").length).toBe(0)
     expect(row.querySelectorAll("button").length).toBe(2)
   })
+
+  it("offers nothing to someone who can't change the dates: empty, it says None", () => {
+    const { container } = render(
+      <MediaQueryProvider>
+        <DatesProperty isAdmin={false} done={false} onStart={() => {}} onDue={() => {}} />
+      </MediaQueryProvider>,
+    )
+    const row = container.querySelector("[data-property=dates]")!
+    expect(row.textContent).not.toMatch(/Add dates/)
+    expect(row.textContent).toContain("None")
+  })
 })

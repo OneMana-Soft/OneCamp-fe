@@ -27,7 +27,7 @@ describe("channelComposerPlaceholder", () => {
   const read = (p: string) => readFileSync(join(ROOT, p), "utf8")
   it.each([
     ["components/channel/chanelIdDesktop.tsx", /placeholder=\{channelComposerPlaceholder\(/],
-    ["components/textInput/mobileChannelTextInput.tsx", /placeholder=\{channelComposerPlaceholder\(/],
+    ["components/channel/channelIdMobile.tsx", /placeholder=\{channelComposerPlaceholder\(/],
   ])("%s uses the shared placeholder", (file, pattern) => {
     const src = read(file)
     expect(src).toMatch(pattern)

@@ -157,6 +157,7 @@ const ROLES: Record<string, Role> = {
   "line-3": { is: "not text", why: "an unchecked box, a dashed orbit" },
   ok: { is: "not text", why: "the presence dot" },
   "tooltip-bg": { is: "not text", why: "a tooltip's ground, under white text only (components/ui/tooltip.tsx)" },
+  "board-ground": { is: "not text", why: "a board canvas's place while it loads (CanvasPending), its words for screen readers only; the board's own text is Excalidraw's, on the ground it draws (paletteContrast pins this to it)" },
   "scroll-bar-color": { is: "not text", why: "the scrollbar's thumb" },
   "scroll-bar-bg-color": { is: "not text", why: "the scrollbar's track" },
 }
@@ -364,16 +365,21 @@ describe.each(MODES)("%s: the words on the lit frame read at AA", (mode) => {
 })
 
 describe("the paper copies carry the light tokens", () => {
-  // An invoice and a printed doc are paper in any theme, so they restate the
-  // light values; a value moved on :root has to move here too.
+  // An invoice, a printed doc and a part of a page printed alone (the
+  // calendar's view) are paper in any theme, so they restate the light
+  // values; a value moved on :root has to move here too.
   const papers: Array<[string, Root, string]> = [
     ["app/globals.css", SHEET, ".invoice-paper"],
+    ["app/globals.css, printed alone", SHEET, "html[data-print-path]"],
     ["components/minimal-tiptap/styles/partials/print.css", postcss.parse(readFileSync(join(REPO, "components/minimal-tiptap/styles/partials/print.css"), "utf8")), ":root:has(.doc-scroll [data-doc-title])"],
   ]
   it.each(papers)("%s", (_file, root, selector) => {
     const paper = props(root, selector)
     expect(paper.size).toBeGreaterThan(0)
-    for (const name of ["sheet", "raised", "sunken", "ink", "ink-2", "ink-3"]) {
+    // The neutrals, and every area's hue a paper copy restates (the calendar
+    // prints its events in their light tints, in any theme).
+    const hues = [...paper.keys()].filter((n) => /^(camp-|agent)/.test(n))
+    for (const name of ["sheet", "raised", "sunken", "ink", "ink-2", "ink-3", ...hues]) {
       const v = paper.get(name)
       if (v) expect(v.toUpperCase(), `--${name} on ${selector}`).toBe((LIGHT.get(name) ?? "").toUpperCase())
     }
@@ -393,7 +399,6 @@ describe("the paper copies carry the light tokens", () => {
 type Use = { file: string; match: string; why: string; arrives?: string }
 
 const DECORATIVE: Use[] = [
-  { file: "app/app/tables/[table-id]/page.tsx", match: "[&>svg]:text-ink-4", why: "an off toggle's icon, beside its own label in ink-3" },
   { file: "app/app/tables/[table-id]/page.tsx", match: "<ChevronRight className=\"hidden size-3.5 shrink-0 text-ink-4", why: "a chevron, aria-hidden" },
   { file: "app/globals.css", match: ".shell-row[aria-disabled=\"true\"]", why: "a disabled sidebar row" },
   { file: "app/globals.css", match: ".split-handle-glyph", why: "a split pane's grip glyph, aria-hidden: it says the bar drags, and the bar's name says what it is" },
@@ -401,11 +406,11 @@ const DECORATIVE: Use[] = [
   { file: "components/ai/aiActivityFeedRow.tsx", match: "<ChevronDown aria-hidden", why: "a chevron, aria-hidden" },
   { file: "components/board/excalidrawTheme.css", match: "[disabled] .ToolIcon__icon", why: "a disabled tool's icon" },
   { file: "components/booking/BookingFlow.tsx", match: "!loading && !open && \"cursor-default font-normal text-ink-4\"", why: "a day with no times: the booking page's disabled day (its label says so)" },
-  { file: "components/calendar/bookingSettings.tsx", match: ": \"text-ink-4\")}", why: "a closed day in the booking page's preview, drawn as the page draws it: disabled" },
+  { file: "components/calendar/bookingEditor.tsx", match: ": \"text-ink-4\")}", why: "a closed day in the booking page's preview, drawn as the page draws it: disabled" },
   { file: "components/calendar/calendarsPopover.tsx", match: "<ChevronRight className=\"size-3.5 text-ink-4\" aria-hidden=\"true\" />", why: "a chevron, aria-hidden" },
   { file: "components/doc/docPreview.tsx", match: "justify-center text-ink-4\" aria-hidden=\"true\"", why: "a doc preview's placeholder glyph" },
-  { file: "components/home/GlanceLine.tsx", match: "<span className=\"text-ink-4\"> · </span>", why: "a separator dot" },
-  { file: "components/home/NeedsMeSection.tsx", match: "<span className=\"text-ink-4\">·</span>", why: "a separator dot" },
+  { file: "components/home/GlanceLine.tsx", match: "<span className=\"text-ink-4\"> ·</span>", why: "a separator dot, kept with the fact before it" },
+  { file: "components/home/needsRow.tsx", match: "<span className=\"text-ink-4\">·</span>", why: "a separator dot" },
   { file: "components/message/sendStatus.tsx", match: "\"shrink-0 text-ink-4\"", why: "the clock while a message sends, aria-hidden; the word Sending… joins it at 2 s" },
   { file: "components/minimal-tiptap/styles/index.css", match: ".block-handle-btn", why: "the block handle's + and ⋮⋮ glyphs; hover lifts them to ink-2" },
   { file: "components/myTask/myTaskDesktop.tsx", match: "<span aria-hidden=\"true\" className=\"text-ink-4\">·</span>", why: "a separator dot" },
@@ -413,11 +418,13 @@ const DECORATIVE: Use[] = [
   { file: "components/project/ProjectsOverview.tsx", match: "<span className=\"text-ink-4\"> · </span>", why: "a separator dot" },
   { file: "components/project/ProjectsOverview.tsx", match: "text-ink-4\">–</span>", why: "an empty date's dash" },
   { file: "components/project/ProjectsOverview.tsx", match: "<span className=\"px-1.5 text-ink-4\">·</span>", why: "a separator dot" },
+  { file: "components/project/ProjectsOverview.tsx", match: "before={<span aria-hidden className=\"text-ink-4\">·</span>}", why: "a separator dot, aria-hidden, before a phone row's forecast" },
   { file: "components/project/timeline/UnscheduledPanel.tsx", match: "<GripVertical aria-hidden", why: "a drag grip" },
   { file: "components/rightPanel/RightPanelTaskHeader.tsx", match: "<ChevronRight aria-hidden className=\"size-3.5 shrink-0 text-ink-4\" />", why: "the task path's separator chevron, aria-hidden" },
+  { file: "components/rightPanel/RightPanelTaskHeader.tsx", match: "<ChevronRight aria-hidden className={cn(\"size-3.5 shrink-0 text-ink-4\", parent && ", why: "the separator chevron before the key, aria-hidden" },
   { file: "components/search/searchResultRow.tsx", match: "const dot = <span className=\"text-ink-4\"> · </span>", why: "a separator dot" },
   { file: "components/fields/OptionsEditor.tsx", match: "<GripVertical className=\"size-3.5 text-ink-4\" />", why: "an option's drag grip, in its aria-hidden handle" },
-  { file: "components/table/TableRowList.tsx", match: "<ChevronRight className=\"size-4 shrink-0 text-ink-4\" aria-hidden=\"true\" />", why: "a chevron, aria-hidden" },
+  { file: "components/table/TableRowList.tsx", match: "iconMarkup(ChevronRight, { className: \"size-4 shrink-0 text-ink-4\", \"aria-hidden\": true })", why: "a chevron, aria-hidden" },
   { file: "components/task/panelParts.tsx", match: "<span className=\"text-ink-4\" aria-hidden>→</span>", why: "the arrow between two dates" },
   { file: "components/ui/FloatingBar.tsx", match: "disabled:text-ink-4", why: "a disabled action" },
   { file: "components/ui/calendar.tsx", match: "day_disabled: \"text-ink-4", why: "a day that can't be picked" },
@@ -425,6 +432,8 @@ const DECORATIVE: Use[] = [
   { file: "components/ui/settingsPage.tsx", match: "<span aria-hidden=\"true\" className=\"text-ink-4\">/</span>", why: "a breadcrumb separator" },
   { file: "components/calendar/quickCreateCard.tsx", match: "<span aria-hidden=\"true\" className=\"text-ink-4\">·</span>", why: "a separator dot", arrives: "calfix-fe" },
   { file: "components/docEditor/Breadcrumbs.tsx", match: "<ChevronRight aria-hidden=\"true\" className=\"size-3", why: "a breadcrumb chevron, aria-hidden", arrives: "docs-b6-fe" },
+  { file: "components/docFiles/FolderView.tsx", match: "<ChevronRight className=\"size-3.5 shrink-0 text-ink-4 max-sm:hidden\" aria-hidden=\"true\" />", why: "a folder's way down: a breadcrumb chevron, aria-hidden" },
+  { file: "components/docFiles/FolderView.tsx", match: "<ChevronRight className=\"size-3.5 shrink-0 text-ink-4\" aria-hidden=\"true\" />", why: "a folder's way down: the chevron before its own name, aria-hidden" },
   { file: "components/minimal-tiptap/extensions/web-embed/web-embed-view.tsx", match: "cursor-ns-resize items-center justify-center rounded-md text-ink-4", why: "an embed's resize grip; hover lifts it to ink-2", arrives: "docs-b4-fe" },
 ]
 

@@ -5,16 +5,21 @@
 // link each wrote it out, and a fourth surface would have copied it again.
 // The seed of A1's useCallSession. The page keeps only how it mints a token.
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { CallEnd } from "./VideoConference"
 import { joinLanguage } from "./callState"
+import { warmCall } from "./LazyCall"
+import { stopGiven, type GreenRoomTracks } from "./greenRoomHandOver"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { useWhenIdle } from "@/hooks/useWhenIdle"
 
 export type CallPhase = "prejoin" | "joining" | "in-call" | "left" | "removed" | "failed"
 
 export interface CallChoice {
   audio: boolean
   video: boolean
+  /** The camera and microphone the green room handed the call at Join, for it to send (greenRoomHandOver). */
+  tracks?: GreenRoomTracks
 }
 
 /** Thrown by a mint that has already shown its own outcome (a dead guest link): nothing is said under Join. */
@@ -46,38 +51,54 @@ export function useCallLifecycle(
   const [phase, setPhase] = useState<CallPhase>(start?.token ? "in-call" : "prejoin")
   const [token, setToken] = useState(start?.token ?? "")
   const [choice, setChoice] = useState<CallChoice>(start?.choice ?? { audio: true, video: true })
+  // The latest choice, for the ends below: from Join the tracks it carries are
+  // the call's to stop. LiveKit stops what the call sent; this stops the rest.
+  const choiceRef = useRef(choice)
+  useEffect(() => () => stopGiven(choiceRef.current.tracks), [])
   const [joinError, setJoinError] = useState<string | undefined>()
   const [end, setEnd] = useState<CallEnd | undefined>()
   const [minutes, setMinutes] = useState<number | undefined>()
   const joinedAt = useRef<number | null>(null)
   const mintRef = useRef(mint)
   mintRef.current = mint
+  // The call's code comes after the green room (LazyCall): fetched once the page is idle, and on Join.
+  useWhenIdle(() => void warmCall())
 
   const begin = useCallback((c: CallChoice) => {
     setChoice(c)
+    choiceRef.current = c
     setJoinError(undefined)
     setEnd(undefined)
     setPhase("joining")
     joinedAt.current = null
+    void warmCall()
     mintRef
-      .current({ ...c, language: joinLanguage() })
+      .current({ audio: c.audio, video: c.video, language: joinLanguage() })
       .then((t) => {
         if (!t) throw new Error("The call server didn't answer. Try again.")
         setToken(t)
         setPhase("in-call")
       })
       .catch((e: unknown) => {
+        // No call to take them: the green room that gave them shows them
+        // again, or, if it has gone, nobody would, so they are stopped.
+        if (!c.tracks?.greenRoomOpen?.()) stopGiven(c.tracks)
         setPhase("prejoin")
         if (!(e instanceof JoinHandled)) setJoinError(apiErrorMessage(e, "Try again in a moment."))
       })
   }, [])
 
-  const join = useCallback((c: { audioEnabled: boolean; videoEnabled: boolean }) => begin({ audio: c.audioEnabled, video: c.videoEnabled }), [begin])
-  const retry = useCallback(() => begin(choice), [begin, choice])
+  const join = useCallback(
+    (c: { audioEnabled: boolean; videoEnabled: boolean; tracks?: GreenRoomTracks }) => begin({ audio: c.audioEnabled, video: c.videoEnabled, tracks: c.tracks }),
+    [begin],
+  )
+  // Again after a failed call: the tracks it was handed went with it, so the call opens its own.
+  const retry = useCallback(() => begin({ audio: choice.audio, video: choice.video }), [begin, choice])
   const onConnected = useCallback(() => {
     joinedAt.current = Date.now()
   }, [])
   const onDisconnect = useCallback((e?: CallEnd) => {
+    stopGiven(choiceRef.current.tracks)
     setToken("")
     setEnd(e)
     if (e?.removed) return setPhase("removed")

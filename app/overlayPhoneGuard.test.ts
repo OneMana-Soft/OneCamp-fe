@@ -1,9 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import ts from "typescript"
 import { describe, expect, it } from "vitest"
 
 import { resolve as resolveImport } from "../scripts/fluidity/reach.mjs"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * ONE SHEET RULE (20 Oct 2026; design/drawers-v3/ANALYSIS.md §5.4, §5.6).
@@ -395,22 +396,11 @@ function scan(sources: Source[], users: (name: string) => Source[] = () => sourc
   return [...findings, ...scanUses(users, wanted)]
 }
 
-function files(dir: string, out: string[] = []): string[] {
-  if (!existsSync(join(ROOT, dir))) return out
-  for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name.startsWith(".")) continue
-    const p = join(dir, e.name)
-    if (e.isDirectory()) files(p, out)
-    else if (/\.tsx$/.test(e.name) && !/\.(test|spec)\.tsx$/.test(e.name)) out.push(p)
-  }
-  return out
-}
-
 /** A file that may choose a sheet some other way, with why. Empty: keep it so. */
 const BASELINE: Record<string, string> = {}
 
 function scanAll(): Finding[] {
-  const rels = DIRS.flatMap((d) => files(d)).filter((f) => !OWN.has(f) && !f.startsWith("lib/testing/"))
+  const rels = sourceFiles(DIRS, /\.tsx$/).filter((f) => !OWN.has(f) && !f.startsWith("lib/testing/"))
   const text = new Map(rels.map((r) => [r, readFileSync(join(ROOT, r), "utf8")]))
   // Only a file that names the Drawer, or a component of a file that imports it, can draw a sheet: the rest aren't parsed.
   const names = new Set(["Drawer"])

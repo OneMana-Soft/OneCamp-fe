@@ -1,4 +1,4 @@
-import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
+import { holdLoaded, keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import {createSlice} from "@reduxjs/toolkit";
 import {ExtendedCallStatus, ExtendedScrollToBottom, FilePreview, ScrollToBottom} from "@/store/slice/channelSlice";
 import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, restoreCase, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
@@ -509,20 +509,10 @@ const chatSlice = createSlice({
 
         updateChats: (state, action: {payload: UpdateChats}) => {
             const { chatId, chats } = action.payload;
-
-            state.chatMessages[chatId] = [...chats];
-            keepRecentlyLoaded(state.chatMessages, state.loadedOrder, chatId);
-
+            holdLoaded(state.chatMessages, state.loadedOrder, chatId, chats);
         },
 
-        // SYNC (window-reconcile): reconcile this DM against a freshly-fetched
-        // "latest" window after an idle gap (MQTT reconnect / tab foreground).
-        // Within the time-range the window covers, the server is authoritative,
-        // so this applies adds, edits, AND deletes — the two latter an add-only
-        // merge misses. Messages newer than the window (just-sent optimistic
-        // sends not yet round-tripped) and older paginated history are left
-        // untouched, so nothing unconfirmed is dropped and there's no empty
-        // flash. Reference-stable when nothing changed.
+        // A fresh latest window, as mergeChannelPosts.
         mergeChats: (state, action: {payload: UpdateChats}) => {
             const { chatId, chats, authoritativeThrough } = action.payload;
             if (!chats) return;
@@ -811,6 +801,12 @@ const chatSlice = createSlice({
 
         },
 
+        // A row added without its last message takes the newest where it stands (useListPreviewFill).
+        FillChatListPreview: (state, action: {payload: {grpId: string, chat: ChatInfo}}) => {
+            const dm = state.latestChatList.find((d) => d.dm_grouping_id === action.payload.grpId)
+            if (dm && !dm.dm_chats?.length) dm.dm_chats = [action.payload.chat]
+        },
+
 
         updateChatMessageReplyIncrement: (state, action: {payload: UpdateReplyCountInterface}) => {
 
@@ -911,6 +907,7 @@ export const {
     updateChatScrollToBottom,
     CreateUserChatList,
     AddUserInChatList,
+    FillChatListPreview,
     updateChatMessageReplyIncrement,
     updateChatMessageReplyDecrement,
     UpdateUnreadCountToZero,

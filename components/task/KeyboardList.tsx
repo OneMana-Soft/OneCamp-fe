@@ -7,11 +7,13 @@ import { TableCell, TableRow } from "@/components/ui/table"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useListKeyboard } from "@/hooks/useListKeyboard"
 import { useFetch } from "@/hooks/useFetch"
+import { PANEL_INCLUDE, seedPanelParts, type PanelParts } from "@/lib/work/panelIncludes"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { ListSelectionContext, useRowState } from "@/hooks/useListSelection"
 import { createSelectionStore } from "@/lib/listSelection"
 import { cn } from "@/lib/utils/helpers/cn"
-import type { ListField } from "@/lib/listKeys"
+import { LIST_FIELDS, PROJECT_FIELDS, type ListField } from "@/lib/listKeys"
+import type { CycleChoice } from "@/lib/work/backlog"
 import type { StatusOption } from "@/lib/taskStatus"
 import type { TaskInfoInterface } from "@/types/task"
 
@@ -23,15 +25,17 @@ const BulkTaskBar = dynamic(() => import("@/components/task/BulkTaskBar").then((
 /**
  * A list or board of tasks worked from the keyboard (lib/listKeys): J and K
  * move, X selects, Enter opens, S, A, T and P change what is selected, with
- * the selection's toolbar at the foot. Rows and cards inside mark themselves
- * with data-task-id and read their state with useRowState. On a phone the
- * list is as it was.
+ * the selection's toolbar at the foot; on a project's backlog, Shift+C moves
+ * it into a cycle. Rows and cards inside mark themselves with data-task-id
+ * and read their state with useRowState. On a phone the list is as it was.
  */
 export function KeyboardList({
   tasks,
   canEdit,
   listProjectId,
   statusOptions,
+  cycles,
+  paused = false,
   placement = "sticky",
   className,
   children,
@@ -42,6 +46,10 @@ export function KeyboardList({
   canEdit: (task: TaskInfoInterface) => boolean
   listProjectId?: string
   statusOptions?: StatusOption[]
+  /** The cycles a selection can move into (a project's backlog), with the backlog itself. Memoise it. */
+  cycles?: CycleChoice[]
+  /** While a drag is under way, the keys are the drag's. */
+  paused?: boolean
   placement?: "sticky" | "overlay"
   className?: string
   children: React.ReactNode
@@ -50,7 +58,9 @@ export function KeyboardList({
   const ref = React.useRef<HTMLDivElement>(null)
   const [picker, setPicker] = React.useState<ListField | null>(null)
   const { isMobile } = useMedia()
-  useListKeyboard({ containerRef: ref, store, enabled: !isMobile, onEdit: setPicker })
+  // A project's lists offer its milestones (Shift+M); its backlog, its cycles too (Shift+C).
+  const fields = cycles ? (listProjectId ? PROJECT_WITH_CYCLE : WITH_CYCLE) : listProjectId ? PROJECT_FIELDS : LIST_FIELDS
+  useListKeyboard({ containerRef: ref, store, enabled: !isMobile && !paused, onEdit: setPicker, fields })
   const hovered = useHoverIntent(ref)
   const highlighted = React.useSyncExternalStore(store.subscribe, () => store.get().highlighted, () => null)
   // Another page, a filter or a change that moved a task off the list: what
@@ -71,6 +81,7 @@ export function KeyboardList({
             canEdit={canEdit}
             listProjectId={listProjectId}
             statusOptions={statusOptions}
+            cycles={cycles}
             picker={picker}
             onPicker={setPicker}
             placement={placement}
@@ -81,7 +92,9 @@ export function KeyboardList({
   )
 }
 
-/** A task's row in a table: marked for the keys, tinted when selected, edged when highlighted, with its box first. */
+const WITH_CYCLE: readonly ListField[] = [...LIST_FIELDS, "cycle"]
+const PROJECT_WITH_CYCLE: readonly ListField[] = [...PROJECT_FIELDS, "cycle"]
+
 /**
  * A task table's row: 36px, the list row of the task panel's bar, whatever its
  * cells hold. The cells' own 8px padding made a row as tall as its tallest
@@ -90,6 +103,7 @@ export function KeyboardList({
  */
 export const taskRowClass = "h-9 [&>td]:py-1.5"
 
+/** A task's row in a table: marked for the keys, tinted when selected, edged when highlighted, with its box first. */
 export function TaskTableRow({ id, children }: { id: string; children: React.ReactNode }) {
   const { highlighted, selected } = useRowState(id)
   return (
@@ -102,14 +116,15 @@ export function TaskTableRow({ id, children }: { id: string; children: React.Rea
       className={cn(taskRowClass, "group/row outline-none", highlighted && "bg-muted/60 shadow-[inset_2px_0_0_var(--primary)]")}
     >
       <TableCell className="w-8 pr-0">
-        <RowCheck id={id} selected={selected} />
+        <TaskRowCheck id={id} selected={selected} />
       </TableCell>
       {children}
     </TableRow>
   )
 }
 
-function RowCheck({ id, selected }: { id: string; selected: boolean }) {
+/** A task's box in a list's selection, for a row marked group/row. */
+export function TaskRowCheck({ id, selected }: { id: string; selected: boolean }) {
   const store = React.useContext(ListSelectionContext)
   return (
     <Checkbox
@@ -146,9 +161,15 @@ function useHoverIntent(ref: React.RefObject<HTMLElement | null>): string | null
   return id
 }
 
-/** Loads a task's details into the cache the panel reads (it renders nothing). */
+/** Loads a task's details, with the panel's other reads, into the cache the panel reads (it renders nothing). */
 function TaskPrefetch({ id }: { id: string | null }) {
-  useFetch(id && !id.startsWith("temp-") ? `${GetEndpointUrl.GetTaskInfo}/${id}` : "", undefined, PREFETCH)
+  useFetch<{ data?: { task_project?: { project_uuid?: string } }; included?: PanelParts }>(
+    id && !id.startsWith("temp-") ? `${GetEndpointUrl.GetTaskInfo}/${id}` : "",
+    undefined,
+    { ...PREFETCH, onFetched: (d) => id && seedPanelParts(id, d?.data?.task_project?.project_uuid, d?.included) },
+    WITH_PARTS,
+  )
   return null
 }
 const PREFETCH = { revalidateOnFocus: false, dedupingInterval: 10_000 }
+const WITH_PARTS = { params: { include: PANEL_INCLUDE } }

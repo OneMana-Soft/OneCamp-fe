@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
 import { Check, X } from "@/lib/icons"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
-import { ANSWER_WORD, faceLabel, responseOf } from "@/lib/calendar/answers"
+import { faceLabel, responseOf } from "@/lib/calendar/answers"
+import type { EventProposal } from "@/types/calendar"
 
 /** Someone on an event, as their face shows them. */
 export interface FaceGuest {
@@ -26,6 +26,8 @@ export interface FaceGuest {
   email?: string
   /** To the organiser: whether a guest by email was emailed their invitation. */
   invite?: string
+  /** Another time they proposed, where the reader may see it (calendar head 4). */
+  proposal?: EventProposal
 }
 
 /** How many faces show before the row folds to faces and counts (STEP4_PLAN §4 #5). */
@@ -75,55 +77,5 @@ export function GuestFace({ g, size = 20 }: { g: FaceGuest; size?: number }) {
       <IdentityMark variant="avatar" size={size} id={avatarSeed(g.seed)} label={g.name} src={g.src} className="ring-2 ring-pop" />
       <AnswerMark response={g.response} organiser={g.organiser} />
     </span>
-  )
-}
-
-/**
- * An event's guests as faces with their answers (STEP4_PLAN §4 #5): the
- * organiser first, then going, maybe, not going and no answer, 24 px faces
- * 6 px apart. Under them, `summary` on a line of its own, wrapping inside
- * the card (the names, or the counts for the organiser and once it folds).
- * Above four, the row folds to the first faces, and the counts open the
- * list, each answer in words.
- */
-export function GuestFaces({ guests, summary, className }: { guests: FaceGuest[]; summary: string; className?: string }) {
-  const [open, setOpen] = useState(false)
-  // Above four guests, the organiser not counted (eventGuests' guestsFold).
-  const folds = guests.filter((g) => !g.organiser).length > FACES_BEFORE_FOLD
-  const shown = folds ? guests.slice(0, FACES_BEFORE_FOLD) : guests
-  return (
-    <div className={cn("min-w-0", className)} data-guest-faces="">
-      {/* Apart, never overlapping: each face's answer is at its bottom right. */}
-      <span className="flex flex-wrap gap-1.5">
-        {shown.map((g) => (
-          <GuestFace key={g.key} g={g} size={24} />
-        ))}
-      </span>
-      {folds ? (
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
-          className="mt-1 block max-w-full rounded-sm text-left text-meta tabular-nums text-ink-3 outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
-          data-touch-target=""
-        >
-          {summary}
-        </button>
-      ) : (
-        <p className="mt-1 text-meta tabular-nums text-ink-3">{summary}</p>
-      )}
-      {folds && open ? (
-        <ul className="mt-2 grid grid-cols-1 gap-1" aria-label="Guests and their answers" data-guest-list="">
-          {guests.map((g) => (
-            <li key={g.key} className="flex min-h-7 min-w-0 items-center gap-2 text-ui-sm">
-              <GuestFace g={g} size={24} />
-              <span className="min-w-0 flex-1 truncate text-ink">{g.name}</span>
-              {g.outside ? <span className={cn(HUE_CLASS.sun, "shrink-0 rounded-[5px] bg-hue-tint px-1 text-micro text-hue-ink")}>Guest</span> : null}
-              <span className="shrink-0 text-meta text-ink-3">{g.organiser ? "organiser" : ANSWER_WORD[responseOf(g.response)]}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
   )
 }

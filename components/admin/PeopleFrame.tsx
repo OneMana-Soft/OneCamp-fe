@@ -3,9 +3,10 @@
 import * as React from "react"
 import { useEffect, useId, useRef } from "react"
 import type { LucideIcon } from "lucide-react"
-import { MoreHorizontal, Search, X } from "@/lib/icons"
+import { MoreHorizontal } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { LazySearchInput } from "@/components/ui/lazy-search-input"
+import { seatWords } from "@/lib/people/seatWords"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -110,27 +111,21 @@ function PeopleSearch({ value, onChange, placeholder, label, name, inputRef }: P
     else if (inputRef) (inputRef as React.MutableRefObject<HTMLInputElement | null>).current = el
   }
   return (
-    <div data-people-search="" className="relative min-w-0 flex-1 max-md:basis-full md:w-[280px] md:flex-none">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
-      <Input
+    <div data-people-search="" className="min-w-0 flex-1 max-md:basis-full md:w-[280px] md:flex-none">
+      <LazySearchInput
         ref={setRefs}
-        type="search"
         name={name}
-        autoComplete="off"
-        spellCheck={false}
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        // 32px from md up, as written; the field keeps its own 44px on a phone.
-        className="h-8 pl-8 pr-8"
+        onValueChange={onChange}
         aria-label={label}
         aria-keyshortcuts="/"
+        hint={
+          <kbd aria-hidden="true" className="kbd pointer-events-none max-md:hidden">
+            /
+          </kbd>
+        }
       />
-      {!value && (
-        <kbd aria-hidden="true" className="kbd pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 max-md:hidden">
-          /
-        </kbd>
-      )}
     </div>
   )
 }
@@ -499,14 +494,6 @@ export function PeopleFab({ icon: Icon, label, onClick }: { icon: LucideIcon; la
   )
 }
 
-/** What the seat meter says. Pure. */
-export function seatWords(used: number, limit: number): { words: string; near: boolean; ratio: number } {
-  const ratio = limit > 0 ? Math.min(1, Math.max(0, used / limit)) : 0
-  const left = Math.max(0, limit - used)
-  const near = ratio >= 0.9
-  const words = near ? (left === 0 ? "No places left" : `${left} ${left === 1 ? "place" : "places"} left`) : `${used} of ${limit}`
-  return { words, near, ratio }
-}
 
 /**
  * The plan's seats: "14 of 25" over a 120x4 track. At 90 % or more the fill
@@ -593,8 +580,12 @@ export function PeopleFirstRun({
   )
 }
 
-/** A search that matched nobody: the 64px magnifier spot, what to try, and Clear search (a ghost). */
-export function PeopleNoMatch({ title, hint, onClear }: { title: string; hint: string; onClear: () => void }) {
+/**
+ * A search that matched nobody: the 64px magnifier spot, what to try, and a
+ * ghost that brings the whole list back ("Show everyone"). The search field's
+ * own Clear search is the × in it; this one is named for where it takes you.
+ */
+export function PeopleNoMatch({ title, hint, onClear, showAll = "Show everyone" }: { title: string; hint: string; onClear: () => void; showAll?: string }) {
   return (
     <EmptyState
       illustration={<SpotSearch hue={ADMIN_GROUP_HUE.people} />}
@@ -602,8 +593,7 @@ export function PeopleNoMatch({ title, hint, onClear }: { title: string; hint: s
       description={hint}
       action={
         <Button variant="ghost" size="sm" onClick={onClear}>
-          <X aria-hidden="true" />
-          Clear search
+          {showAll}
         </Button>
       }
     />

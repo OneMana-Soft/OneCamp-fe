@@ -47,6 +47,19 @@ describe("a Slack import's plan and options", () => {
     expect(screen.getByText("830 (1.2 GB)")).toBeTruthy()
   })
 
+  // A channel's history comes across as quiet lines (chat B28): kept unless the
+  // operator skips it, where it was left out unless they asked for it.
+  it("keeps a channel's joins, topics and renames unless asked to skip them", async () => {
+    open()
+    const skip = await screen.findByRole("switch", { name: "Skip system messages" })
+    expect(skip.getAttribute("aria-checked")).toBe("false")
+    expect(planSlackImport.mock.calls[0][1]).toMatchObject({ skip_subtypes: false })
+    await screen.findByText("42 (3 names already taken)")
+    fireEvent.click(screen.getByRole("button", { name: "Run import" }))
+    await waitFor(() => expect(runSlackImport).toHaveBeenCalled())
+    expect(runSlackImport.mock.calls[0][1]).toMatchObject({ skip_subtypes: false })
+  })
+
   // Clearing the size field sent a cap of 1 MB, so nearly every file was
   // skipped, without a word.
   it("says the size cap is missing rather than skipping every file over 1 MB", async () => {

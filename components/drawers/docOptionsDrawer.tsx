@@ -6,13 +6,12 @@ import { useState } from "react";
 import { ChevronLeft, Download } from "@/lib/icons";
 import {
     Drawer,
-    SheetCancel,
-    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
+import { SheetCancel, SheetGroup } from "@/components/ui/sheet-menu"
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
 import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
 import {useFetch} from "@/hooks/useFetch";
@@ -22,6 +21,7 @@ import "@/components/docEditor/registry";
 import { NO_BUS, actionContextOf, busForDoc, editorOf } from "@/components/docEditor/registry/commandBus";
 import { useEditionGate } from "@/components/docEditor/registry/gate";
 import { actionGroupsFor, type ShownAction } from "@/components/docEditor/registry/readers";
+import { useRegistryVersion } from "@/components/docEditor/registry/slots";
 import type { ActionContext } from "@/components/docEditor/registry/types";
 import { SHEET_GROUPS, SHEET_SUBSHEETS } from "@/components/docEditor/actions/doc";
 
@@ -48,6 +48,10 @@ const labelOf = (group: string) => GROUP_LABEL[group] ?? group.charAt(0).toUpper
  */
 export function DocOptionsDrawer({drawerOpenState, setOpenState, docId, isOwner}: docOptionsDrawerProps) {
     const gate = useEditionGate()
+    // An action registered while the sheet is open joins it, as it joins
+    // More: the page's guard offers Delete, Duplicate and Move once it has
+    // the router, and a sheet opened before that never had them.
+    useRegistryVersion()
     const docInfo = useFetch<DocInfoResponse>(docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '');
     // The group open as a sheet of its own (Export), or the sheet itself.
     const [subsheet, setSubsheet] = useState<string | null>(null)

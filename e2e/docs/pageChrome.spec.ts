@@ -2,7 +2,7 @@ import { expect, test, type Browser, type Page, type TestInfo } from "@playwrigh
 
 import { SAM, docInfo, stubBackend, type Answers } from "../stubbedApp"
 import { CollabRelay } from "./collabRelay"
-import { more, openMore } from "./docWith"
+import { more, openDocWith, openMore } from "./docWith"
 import { PRIYA, type Person } from "./twoPeople"
 
 // A doc's page chrome (B6), in a real browser on A1's two-person harness:
@@ -26,7 +26,7 @@ interface Tab {
 }
 
 /** The access answer B6's pieces read (A5's GET /doc/access). */
-function access(level: "full" | "edit" | "view", people: unknown[] = []) {
+function access(level: "full" | "edit" | "view", people: unknown[] = [], general: { private: boolean; level: string } = { private: true, level: "view" }) {
   return {
     data: {
       doc_uuid: DOC,
@@ -37,7 +37,7 @@ function access(level: "full" | "edit" | "view", people: unknown[] = []) {
       can_share: level === "full",
       can_lock_soft: level !== "view",
       can_lock_hard: level === "full",
-      ...(level === "view" ? {} : { sharing: { owner: SAM, people, teams: [], general: { private: true, level: "view" }, everyone: "none" } }),
+      ...(level === "view" ? {} : { sharing: { owner: SAM, people, teams: [], general, everyone: "none" } }),
     },
   }
 }
@@ -214,6 +214,39 @@ test("full access shares at any level; an editor invites, up to Can edit", async
   await expect(asEditor.locator("[data-guest-link-card]")).toHaveCount(0)
   await editor.close()
 })
+
+// DESIGN-BUILD-6, 22 Oct: on a phone the share sheet cut "Everyone in the
+// workspace" mid-word, and the menu of the level it gives marked none.
+for (const screen of [
+  { on: "a phone", width: 390, height: 844, isMobile: true, hasTouch: true },
+  { on: "a computer", width: 1280, height: 900, isMobile: false, hasTouch: false },
+] as const) {
+  test(`on ${screen.on}, general access names who it reaches in full, and its level menu marks the level`, async ({ browser }, testInfo) => {
+    const relay = new CollabRelay()
+    const tab = await openDocWith(browser, testInfo, relay, SAM, { id: DOC, title: "Launch notes", body: "<p>The plan.</p>" }, { [`/doc/access/${DOC}`]: access("full", [], { private: false, level: "comment" }) }, screen)
+    const { page } = tab
+    if (screen.width < 640) {
+      await page.getByRole("button", { name: "Document options" }).click()
+      await page.getByText("Share", { exact: true }).click()
+    } else {
+      await page.locator("[data-doc-share]").click()
+    }
+    const dialog = page.locator("[data-share-dialog]")
+    const title = dialog.locator("[data-access-card]").getByText("Everyone in the workspace", { exact: true })
+    await expect(title).toBeVisible({ timeout: 60_000 })
+    // Nothing of it hidden past its end or under its last line.
+    expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight)).toBe(true)
+
+    const level = dialog.getByRole("button", { name: "Everyone in the workspace: Can comment" })
+    await (screen.hasTouch ? level.tap() : level.click())
+    const item = (name: string) => page.getByRole("menuitem", { name: new RegExp(`^${name}`) })
+    await expect(item("Can comment")).toHaveAttribute("aria-current", "true")
+    await expect(item("Can comment").locator("[data-menu-check]")).toHaveAttribute("data-menu-check", "on")
+    await expect(item("Can edit").locator("[data-menu-check]")).toHaveAttribute("data-menu-check", "off")
+    await expect(item("Can view").locator("[data-menu-check]")).toHaveAttribute("data-menu-check", "off")
+    await tab.close()
+  })
+}
 
 test("a reader beside a writer sees the writing live, and gets none of the editor's page actions", async ({ browser }, testInfo) => {
   const relay = new CollabRelay()

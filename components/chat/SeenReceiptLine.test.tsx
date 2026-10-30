@@ -14,7 +14,7 @@ vi.mock("react-redux", () => ({
   useSelector: (pick: (state: unknown) => unknown) => pick({ typing: { chatTyping: typing, groupChatTyping: {} } }),
 }))
 const post = vi.fn(async (url: string) => ({ url }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (url: string) => post(url) }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (url: string) => post(url) } }))
 vi.mock("@/components/message/chatFace", () => ({ ChatFace: () => <span data-face="" /> }))
 
 const { SeenReceiptLine } = await import("@/components/chat/SeenReceiptLine")

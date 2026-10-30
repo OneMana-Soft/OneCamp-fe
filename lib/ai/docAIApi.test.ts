@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 
 const get = vi.fn()
 const post = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: (...a: unknown[]) => get(...a), post: (...a: unknown[]) => post(...a) },
-  OWN_ERRORS: { ownErrors: true },
 }))
 
 import { DOC_AI_PATHS, getDocAIModel, getDocAIStarters, recordAppliedEdit, revertAgentEdit } from "./docAIApi"
@@ -52,7 +52,7 @@ describe("doc AI's routes", () => {
       chars: 120,
     }
     await recordAppliedEdit(edit)
-    expect(post).toHaveBeenCalledWith("/doc/ai/applied", edit, { ownErrors: true })
+    expect(post).toHaveBeenCalledWith("/doc/ai/applied", edit, OWN_ERRORS)
     expect(Object.keys(post.mock.calls[0][1])).not.toContain("text")
   })
 

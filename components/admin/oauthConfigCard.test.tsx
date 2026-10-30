@@ -8,7 +8,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 // (no pill), and edits wait in one save bar that sends only what changed.
 
 const http = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: http.get, post: http.post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: http.get, post: http.post } }))
 const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 

@@ -72,13 +72,13 @@ describe("the model catalog", () => {
     expect(await screen.findByText("Qwen3 4B")).toBeTruthy()
   })
 
-  it("says a search matched nothing, and offers to clear it", async () => {
+  it("says a search matched nothing, and offers every model back", async () => {
     vi.mocked(getOllamaCatalog).mockResolvedValue({ models: [model()] } as never)
     render(<ModelCatalog providerId="p1" onInstalled={() => {}} />)
     const search = await screen.findByPlaceholderText(/Search models/)
     fireEvent.change(search, { target: { value: "zzz" } })
     expect(screen.getByText("No models match")).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show all models" }))
     expect(await screen.findByText("Qwen3 4B")).toBeTruthy()
   })
 })

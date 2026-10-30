@@ -7,6 +7,7 @@ import { ProjectsGet } from "@/services/endpoints/projects"
 import { savedIn } from "@/lib/rules/draft"
 import type { Rule, RuleDraft, RuleRun, RulesPayload } from "@/lib/rules/types"
 import { browserTZ } from "@/lib/utils/timeZone"
+import { listOnceRead } from "@/lib/utils/listOf"
 
 const base = (projectId: string) => `${ProjectsGet.ProjectRules}/${projectId}/rules`
 
@@ -65,7 +66,7 @@ export function useProjectRules(projectId: string | undefined) {
 /** A project's runs (or one rule's), newest first, and Undo. */
 export function useRuleRuns(projectId: string | undefined, ruleId?: string) {
   const key = projectId ? runsKey(projectId, ruleId) : ""
-  const { data, isError: error, isLoading, mutate } = useFetch<{ data: RuleRun[] }>(key, undefined, { revalidateOnFocus: false })
+  const { data, isError: error, isLoading, mutate } = useFetch<{ data: RuleRun[] | null }>(key, undefined, { revalidateOnFocus: false })
   const undo = useCallback(
     async (runId: string): Promise<RuleRun> => {
       const res = await axiosInstance.post<{ data: RuleRun }>(`${base(projectId!)}/runs/${runId}/undo`)
@@ -74,5 +75,5 @@ export function useRuleRuns(projectId: string | undefined, ruleId?: string) {
     },
     [projectId, mutate],
   )
-  return { runs: data?.data, error, isLoading, undo, refresh: mutate }
+  return { runs: listOnceRead<{ data: RuleRun[] | null }, RuleRun>(data, (a) => a.data), error, isLoading, undo, refresh: mutate }
 }

@@ -1,58 +1,58 @@
 {
   "about": [
     "The page tree's fluidity budgets (fluid-06): the sidebar's Docs section on a computer and the Pages sheet on a phone, over workspace.mjs's tree of 2,281 pages (40 at the top; 120, 60 and 300 under the three big ones; 24 shared, 30 private). surfaces.mjs --only pages on a production build against the fake server side, a computer at 1x and a phone at 4x (FLUIDITY-LEAD-3, 21 Oct 2026).",
-    "measured is one diagnostic run on beta 354028322 at load 33-37, so every time is provisional and printed against its max (enforce false) until 5 quiet P-core rounds agree; renders are enforced at the measure plus 5% (a busy host doesn't change them). In-app presses go the way a person goes: the pointer rests 150 ms on a row (what the tree prefetches a doc on) and clicks; a phone taps.",
+    "measured is the median of 5 quiet P-core rounds on beta 354028322 (21 Oct 2026, load 0.1-0.9); the busy diagnostic run that first set them read the same render counts but for Show more and the cached re-open, so renders are set from the quiet rounds. Times are printed against their max (enforce false); renders are enforced at the measure plus 5%. In-app presses go the way a person goes: the pointer rests 150 ms on a row (what the tree prefetches a doc on) and clicks; a phone taps.",
     "Owners: B5 is the docs programme's page tree and Pages sheet, A3 the shared TreeView, A2 a doc's open (DOCS-LEAD-2). Never raise a max to make a run pass."
   ],
   "budgets": {
     "pageTreeColdMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "A new tab to Home, until the sidebar's Docs section draws the tree's first row. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 1241 at 1x on a computer. Target: A new tab, nothing in memory: 1.0 s on a computer (chat programme Wave C; Nielsen's 1 s)",
+      "source": "A new tab to Home, until the sidebar's Docs section draws the tree's first row. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 875 at 1x on a computer. Target: A new tab, nothing in memory: 1.0 s on a computer (chat programme Wave C; Nielsen's 1 s)",
       "cpu1": {
-        "max": 1620,
+        "max": 1000,
         "target": 1000,
-        "measured": 1241
+        "measured": 875
       },
       "enforce": false
     },
     "pagesSheetOpenMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "The docs home's Pages button, until the sheet shows the workspace's first row (a phone). Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 726 at 4x on a phone. Target: Instant: an overlay opened within 300 ms on the 4x phone (fluid-16's rule for sheets)",
+      "source": "The docs home's Pages button, until the sheet shows the workspace's first row (a phone). Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 637 at 4x on a phone. Target: Instant: an overlay opened within 300 ms on the 4x phone (fluid-16's rule for sheets)",
       "cpu4": {
-        "max": 950,
+        "max": 830,
         "target": 300,
-        "measured": 726
+        "measured": 637
       },
       "enforce": false
     },
     "pagesSheetOpenInpMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "The Pages sheet's tap, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 40 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
+      "source": "The Pages sheet's tap, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 24 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
       "cpu4": {
         "max": 100,
         "target": 100,
-        "measured": 40
+        "measured": 24
       },
       "enforce": false
     },
     "pagesSheetFrameP95Ms": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "Frame time while the Pages sheet comes in. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 116.6 at 4x on a phone. Target: Frames while it moves: one refresh on a computer (16.7 ms, read as 16.8 with the timer's jitter), two at 4x (33.4)",
+      "source": "Frame time while the Pages sheet comes in. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 16.8 at 4x on a phone. Target: Frames while it moves: one refresh on a computer (16.7 ms, read as 16.8 with the timer's jitter), two at 4x (33.4)",
       "cpu4": {
-        "max": 151.6,
+        "max": 33.4,
         "target": 33.4,
-        "measured": 116.6
+        "measured": 16.8
       },
       "enforce": false
     },
     "pagesSheetOpenRenders": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "React renders as the Pages sheet opens. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 1608 at 4x on a phone. Target: Renders: the sheet and its first rows, about 20 a row for three groups of eight",
+      "source": "React renders as the Pages sheet opens. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 1608 at 4x on a phone. Target: Renders: the sheet and its first rows, about 20 a row for three groups of eight",
       "cpu4": {
         "max": 1690,
         "target": 400,
@@ -62,39 +62,39 @@
     "treeExpandMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "The Handbook opened by its chevron (the pointer rests on its row first on a computer; a tap on a phone), until its first child shows. Its children are read on the press. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 181 at 1x on a computer; 280 at 4x on a phone. Target: Instant: a reveal in place or a switch from cache within 100 ms on a computer and 300 ms on the 4x phone (the brief; Nielsen's 0.1 s; RAIL's 100 ms response). The rival is Notion's sidebar, which opens a page's children without a wait: met only if a level is read ahead (on the pointer's rest, as a row already prefetches its doc)",
+      "source": "The Handbook opened by its chevron (the pointer rests on its row first on a computer; a tap on a phone), until its first child shows. Its children are read on the press. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 179 at 1x on a computer; 211 at 4x on a phone. Target: Instant: a reveal in place or a switch from cache within 100 ms on a computer and 300 ms on the 4x phone (the brief; Nielsen's 0.1 s; RAIL's 100 ms response). The rival is Notion's sidebar, which opens a page's children without a wait: met only if a level is read ahead (on the pointer's rest, as a row already prefetches its doc)",
       "cpu1": {
         "max": 240,
         "target": 100,
-        "measured": 181
+        "measured": 179
       },
       "cpu4": {
         "max": 300,
         "target": 300,
-        "measured": 280
+        "measured": 211
       },
       "enforce": false
     },
     "treeExpandInpMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "The chevron's press, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 16 at 1x on a computer; 136 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
+      "source": "The chevron's press, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 32 at 1x on a computer; 72 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
       "cpu1": {
         "max": 100,
         "target": 100,
-        "measured": 16
+        "measured": 32
       },
       "cpu4": {
-        "max": 180,
+        "max": 100,
         "target": 100,
-        "measured": 136
+        "measured": 72
       },
       "enforce": false
     },
     "treeExpandRenders": {
       "scenario": "pages",
       "owner": "A3",
-      "source": "React renders as the Handbook opens: five pages, the hidden row and Show more. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 648 at 1x on a computer; 595 at 4x on a phone. Target: Renders: only what changed, about 20 a tree row entering (its row, icon and two actions)",
+      "source": "React renders as the Handbook opens: five pages, the hidden row and Show more. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 648 at 1x on a computer; 595 at 4x on a phone. Target: Renders: only what changed, about 20 a tree row entering (its row, icon and two actions)",
       "cpu1": {
         "max": 690,
         "target": 150,
@@ -109,101 +109,101 @@
     "treeExpandAgainMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "The Handbook closed and opened again, its children from the cache. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 69 at 1x on a computer; 129 at 4x on a phone. Target: Instant: a reveal in place or a switch from cache within 100 ms on a computer and 300 ms on the 4x phone (the brief; Nielsen's 0.1 s; RAIL's 100 ms response). The rival is Notion's sidebar, which opens a page's children without a wait: met only if a level is read ahead (on the pointer's rest, as a row already prefetches its doc)",
+      "source": "The Handbook closed and opened again, its children from the cache. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 18 at 1x on a computer; 53 at 4x on a phone. Target: Instant: a reveal in place or a switch from cache within 100 ms on a computer and 300 ms on the 4x phone (the brief; Nielsen's 0.1 s; RAIL's 100 ms response). The rival is Notion's sidebar, which opens a page's children without a wait: met only if a level is read ahead (on the pointer's rest, as a row already prefetches its doc)",
       "cpu1": {
         "max": 100,
         "target": 100,
-        "measured": 69
+        "measured": 18
       },
       "cpu4": {
         "max": 300,
         "target": 300,
-        "measured": 129
+        "measured": 53
       },
       "enforce": false
     },
     "treeExpandAgainInpMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "The second opening's press, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 112 at 1x on a computer; 136 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
+      "source": "The second opening's press, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 40 at 1x on a computer; 72 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
       "cpu1": {
-        "max": 150,
+        "max": 100,
         "target": 100,
-        "measured": 112
+        "measured": 40
       },
       "cpu4": {
-        "max": 180,
+        "max": 100,
         "target": 100,
-        "measured": 136
+        "measured": 72
       },
       "enforce": false
     },
     "treeExpandAgainRenders": {
       "scenario": "pages",
       "owner": "A3",
-      "source": "React renders as the Handbook opens again from the cache. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 529 at 1x on a computer; 589 at 4x on a phone. Target: Renders: only what changed, about 20 a tree row entering (its row, icon and two actions)",
+      "source": "React renders as the Handbook opens again from the cache. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 529 at 1x on a computer; 419 at 4x on a phone. Target: Renders: only what changed, about 20 a tree row entering (its row, icon and two actions)",
       "cpu1": {
         "max": 560,
         "target": 150,
         "measured": 529
       },
       "cpu4": {
-        "max": 620,
+        "max": 440,
         "target": 150,
-        "measured": 589
+        "measured": 419
       }
     },
     "treeShowMoreMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "Show N more at the top of the workspace's pages, until the 40th page shows (35 more on a computer, 32 on a phone). Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 182 at 1x on a computer; 330 at 4x on a phone. Target: Instant: a reveal in place or a switch from cache within 100 ms on a computer and 300 ms on the 4x phone (the brief; Nielsen's 0.1 s; RAIL's 100 ms response). The rival is Notion's sidebar, which opens a page's children without a wait: met only if a level is read ahead (on the pointer's rest, as a row already prefetches its doc)",
+      "source": "Show N more at the top of the workspace's pages, until the 40th page shows (35 more on a computer, 32 on a phone). Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 194 at 1x on a computer; 268 at 4x on a phone. Target: Instant: a reveal in place or a switch from cache within 100 ms on a computer and 300 ms on the 4x phone (the brief; Nielsen's 0.1 s; RAIL's 100 ms response). The rival is Notion's sidebar, which opens a page's children without a wait: met only if a level is read ahead (on the pointer's rest, as a row already prefetches its doc)",
       "cpu1": {
-        "max": 240,
+        "max": 260,
         "target": 100,
-        "measured": 182
+        "measured": 194
       },
       "cpu4": {
-        "max": 430,
+        "max": 300,
         "target": 300,
-        "measured": 330
+        "measured": 268
       },
       "enforce": false
     },
     "treeShowMoreInpMs": {
       "scenario": "pages",
       "owner": "B5",
-      "source": "Show more's press, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 24 at 1x on a computer; 112 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
+      "source": "Show more's press, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 40 at 1x on a computer; 72 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
       "cpu1": {
         "max": 100,
         "target": 100,
-        "measured": 24
+        "measured": 40
       },
       "cpu4": {
-        "max": 150,
+        "max": 100,
         "target": 100,
-        "measured": 112
+        "measured": 72
       },
       "enforce": false
     },
     "treeShowMoreRenders": {
       "scenario": "pages",
       "owner": "A3",
-      "source": "React renders as the top level shows all 40 pages. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 1842 at 1x on a computer; 1090 at 4x on a phone. Target: Renders: only what changed, about 20 a tree row entering (its row, icon and two actions)",
+      "source": "React renders as the top level shows all 40 pages. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 1842 at 1x on a computer; 1260 at 4x on a phone. Target: Renders: only what changed, about 20 a tree row entering (its row, icon and two actions)",
       "cpu1": {
         "max": 1940,
         "target": 700,
         "measured": 1842
       },
       "cpu4": {
-        "max": 1150,
+        "max": 1330,
         "target": 640,
-        "measured": 1090
+        "measured": 1260
       }
     },
     "treeScrollFrameP95Ms": {
       "scenario": "pages",
       "owner": "A3",
-      "source": "Frame time p95 while the tree of 161 rows scrolls 3,000 px down and back (a wheel on a computer, a finger on a phone, which comes back 2,000). Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 16.7 at 1x on a computer; 33.3 at 4x on a phone. Target: Frames while it moves: one refresh on a computer (16.7 ms, read as 16.8 with the timer's jitter), two at 4x (33.4)",
+      "source": "Frame time p95 while the tree of 161 rows scrolls 3,000 px down and back (a wheel on a computer, a finger on a phone, which comes back 2,000). Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 16.7 at 1x on a computer; 16.7 at 4x on a phone. Target: Frames while it moves: one refresh on a computer (16.7 ms, read as 16.8 with the timer's jitter), two at 4x (33.4)",
       "cpu1": {
         "max": 16.8,
         "target": 16.7,
@@ -212,14 +212,14 @@
       "cpu4": {
         "max": 33.4,
         "target": 33.4,
-        "measured": 33.3
+        "measured": 16.7
       },
       "enforce": false
     },
     "treeScrollDroppedPct": {
       "scenario": "pages",
       "owner": "A3",
-      "source": "Dropped frames while the tree scrolls. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 0 at 1x on a computer; 6.5 at 4x on a phone. Target: Dropped frames while it moves: 5% on a computer, 10% at 4x",
+      "source": "Dropped frames while the tree scrolls. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 0 at 1x on a computer; 0 at 4x on a phone. Target: Dropped frames while it moves: 5% on a computer, 10% at 4x",
       "cpu1": {
         "max": 5,
         "target": 5,
@@ -228,18 +228,18 @@
       "cpu4": {
         "max": 10,
         "target": 10,
-        "measured": 6.5
+        "measured": 0
       },
       "enforce": false
     },
     "treeScrollRenders": {
       "scenario": "pages",
       "owner": "A3",
-      "source": "React renders while the tree scrolls: nothing it shows changes. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 451 at 1x on a computer; 774 at 4x on a phone. Target: Renders: a scroll changes nothing, so close to none",
+      "source": "React renders while the tree scrolls: nothing it shows changes. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 190 at 1x on a computer; 774 at 4x on a phone. Target: Renders: a scroll changes nothing, so close to none",
       "cpu1": {
-        "max": 480,
+        "max": 200,
         "target": 50,
-        "measured": 451
+        "measured": 190
       },
       "cpu4": {
         "max": 820,
@@ -251,7 +251,7 @@
     "treeKeyP95Ms": {
       "scenario": "pages",
       "owner": "A3",
-      "source": "Down the tree by twelve presses of the down arrow, the pointer away: key p95. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 48 at 1x on a computer. Target: Keys: p95 32 ms on a computer (docs I20)",
+      "source": "Down the tree by twelve presses of the down arrow, the pointer away: key p95. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 48 at 1x on a computer. Target: Keys: p95 32 ms on a computer (docs I20)",
       "cpu1": {
         "max": 70,
         "target": 32,
@@ -262,7 +262,7 @@
     "rendersPerTreeKey": {
       "scenario": "pages",
       "owner": "A3",
-      "source": "React renders a key moves the focus by: the tree's focus is its root's state, and TreeRow's memo is broken by its inline callbacks, so every row renders. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 5000.4 at 1x on a computer. Target: Renders: a key moves 10 rows' worth at most (the brief)",
+      "source": "React renders a key moves the focus by: the tree's focus is its root's state, and TreeRow's memo is broken by its inline callbacks, so every row renders. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 5000.4 at 1x on a computer. Target: Renders: a key moves 10 rows' worth at most (the brief)",
       "cpu1": {
         "max": 5260,
         "target": 10,
@@ -272,48 +272,48 @@
     "treeDocOpenMs": {
       "scenario": "pages",
       "owner": "A2",
-      "source": "A page at the top of the tree clicked after the pointer rests on its row (a tap on a phone, which closes the sheet), until the doc's text is drawn. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 442 at 1x on a computer; 1384 at 4x on a phone. Target: First open that needs its data: 400 ms on a computer, 1,000 ms on the 4x phone (projects-budgets.proposed.json; RAIL keeps a navigation under 1 s)",
+      "source": "A page at the top of the tree clicked after the pointer rests on its row (a tap on a phone, which closes the sheet), until the doc's text is drawn. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 379 at 1x on a computer; 765 at 4x on a phone. Target: First open that needs its data: 400 ms on a computer, 1,000 ms on the 4x phone (projects-budgets.proposed.json; RAIL keeps a navigation under 1 s)",
       "cpu1": {
-        "max": 580,
+        "max": 400,
         "target": 400,
-        "measured": 442
+        "measured": 379
       },
       "cpu4": {
-        "max": 1800,
+        "max": 1000,
         "target": 1000,
-        "measured": 1384
+        "measured": 765
       },
       "enforce": false
     },
     "treeDocOpenInpMs": {
       "scenario": "pages",
       "owner": "A2",
-      "source": "The row's press, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 48 at 1x on a computer; 392 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
+      "source": "The row's press, its worst input. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 40 at 1x on a computer; 256 at 4x on a phone. Target: INP 100 ms at both speeds (web.dev counts 200 as good; halved to be felt faster)",
       "cpu1": {
         "max": 100,
         "target": 100,
-        "measured": 48
+        "measured": 40
       },
       "cpu4": {
-        "max": 510,
+        "max": 340,
         "target": 100,
-        "measured": 392
+        "measured": 256
       },
       "enforce": false
     },
     "treeDocOpenRenders": {
       "scenario": "pages",
       "owner": "A2",
-      "source": "React renders until the doc's text is drawn and the page settles: on a computer the whole sidebar tree renders again as the active row moves. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, one run at load 33-37 (busy: provisional until 5 quiet rounds): 18032 at 1x on a computer; 4431 at 4x on a phone. Target: Renders: a page switch is a few hundred (Home's target is 600)",
+      "source": "React renders until the doc's text is drawn and the page settles: on a computer the whole sidebar tree renders again as the active row moves. Beta 354028322 on fixtures, 21 Oct 2026, P-cores, median of 5 quiet rounds (load 0.1-0.9): 17831 at 1x on a computer; 4418 at 4x on a phone. Target: Renders: a page switch is a few hundred (Home's target is 600)",
       "cpu1": {
-        "max": 18940,
+        "max": 18730,
         "target": 600,
-        "measured": 18032
+        "measured": 17831
       },
       "cpu4": {
-        "max": 4660,
+        "max": 4640,
         "target": 600,
-        "measured": 4431
+        "measured": 4418
       }
     }
   }

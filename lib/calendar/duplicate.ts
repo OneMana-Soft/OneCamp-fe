@@ -2,7 +2,10 @@ import { parseISO } from "date-fns"
 import type { PickedPerson } from "@/components/common/peoplePicker"
 import { placedByDates } from "@/lib/calendar/allDay"
 import { displayNameOf } from "@/lib/personName"
-import type { CalendarEventInterface } from "@/types/calendar"
+import type { CalendarEventInterface, CalendarEventTask } from "@/types/calendar"
+
+// The call link a copy leaves out, read here, in the copier's own chunk, not on the calendar's first load.
+export { joinLinkOf } from "@/lib/calendar/joinLink"
 
 /** What the new-event dialog opens with: quick create's values, or a copy of an event. */
 export interface EventDraftValues {
@@ -13,6 +16,8 @@ export interface EventDraftValues {
   isAway?: boolean
   guests: PickedPerson[]
   description?: string
+  /** Time for one of your tasks (a task block): the task it is for. */
+  task?: CalendarEventTask | null
 }
 
 /**
@@ -53,5 +58,7 @@ export function duplicateOf(event: CalendarEventInterface, callLink: string | nu
       ...(event.event_guests ?? []).filter((g) => !g.user_uuid && g.email).map((g) => ({ uuid: "", name: g.name || g.email!, email: g.email!.toLowerCase() })),
     ],
     description: callLink ? withoutLink(notes, callLink) : notes,
+    // A copy of a block is time for the same task.
+    ...(event.event_task?.task_uuid ? { task: event.event_task } : {}),
   }
 }

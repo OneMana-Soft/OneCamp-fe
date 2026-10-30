@@ -4,19 +4,24 @@
 // it is, when (in the guest's own zone), who asked, and "Going?", with no
 // account. A button in the email lands here with its answer (?answer=yes),
 // which is sent at once and then dropped from the address, so a reload sends
-// nothing again; the guest can change it, and leave a note for the organiser.
+// nothing again; the guest can change it, leave a note for the organiser,
+// and propose another time for an event that takes one (calendar head 4).
 
 import { use, useEffect, useRef, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "@/hooks/use-toast"
 import { browserTZ } from "@/lib/utils/timeZone"
-import { publicTrouble, retryDelayMs, retryingText, type PublicTrouble } from "@/services/publicApi"
+import { publicTrouble, retryDelayMs, retryingText, sendFailedText, type PublicTrouble } from "@/services/publicApi"
 import { answerInvitation, getInvitation, linkAnswer, type InvitationView } from "@/services/eventInvitationService"
 import { PaperCard, PublicFrame } from "@/components/guest/PublicFrame"
 import { PublicGoneLater as PublicGone } from "@/components/guest/publicGoneLater"
 import { YourAnswer } from "@/components/calendar/rsvp/yourAnswer"
 import { ANSWER_WORD, responseOf } from "@/lib/calendar/answers"
 import { invitationWhen } from "@/lib/calendar/invitationWhen"
+import { callWithInvitation } from "@/lib/calls/invitationKey"
 import type { Answer } from "@/lib/calendar/eventsApi"
+import type { EventProposal } from "@/types/calendar"
 
 export default function InvitationPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -71,19 +76,29 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
     return <PublicGone surface="invitation" noun="invitation" detail="Ask whoever invited you to send it again." />
   }
 
-  // An answer from this page: shown at once by its control, sent here.
-  const send = async (answer: Answer, note?: string) => {
-    const res = await answerInvitation(token, { answer, ...(note === undefined ? {} : { note }) })
+  // An answer from this page: shown at once by its control, sent here, with
+  // another time when one is proposed (null takes it back).
+  const send = async (answer: Answer, note?: string, proposal?: EventProposal | null) => {
+    const res = await answerInvitation(token, {
+      answer,
+      ...(note === undefined ? {} : { note }),
+      ...(proposal === undefined ? {} : { proposal: proposal ?? {} }),
+    })
     if (res.ok) {
       setView(res.data)
       return true
     }
-    if (publicTrouble(res.status) === "gone") setState("missing")
+    // A time the server won't take (400) is said in its words; only a missing invitation is gone.
+    if (res.status !== 400 && publicTrouble(res.status) === "gone") setState("missing")
+    else if (proposal !== undefined) {
+      toast({ title: proposal ? "Couldn't propose that time" : "Couldn't take your proposal back", description: sendFailedText(res), variant: "destructive" })
+    }
     return false
   }
 
   const when = view ? invitationWhen(view.start, view.end, view.all_day, tz) : null
   const organiser = view?.organiser || "The organiser"
+  const proposeFrom = view?.proposable && view.start.at && view.end.at ? { start: new Date(view.start.at), end: new Date(view.end.at) } : undefined
   return (
     <PublicFrame surface="invitation" header={false} mainClassName="flex-none px-4 pt-6 sm:pt-[72px]">
       <PaperCard className="max-w-[560px] rounded-[16px] px-5 pb-8 pt-8 shadow-e1 sm:px-9" data-invitation="">
@@ -111,13 +126,27 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
               {view.repeats ? <p className="mt-1 text-ui-sm text-ink-2">{view.repeats}</p> : null}
               {view.location ? <p className="mt-1 text-ui-sm text-ink-2">{view.location}</p> : null}
             </div>
+            {view.call_address && !view.ended ? (
+              <Button asChild className="mt-4 w-full sm:w-auto">
+                <a href={callWithInvitation(view.call_address, token)} data-invitation-join="">
+                  Join call
+                </a>
+              </Button>
+            ) : null}
 
             {view.ended ? (
               <p className="mt-5 text-ui-sm text-ink-2" data-invitation-ended="">
                 This event has happened.
               </p>
             ) : (
-              <YourAnswer answer={view.you.response} note={view.you.note} organiserName={organiser} onAnswer={send} />
+              <YourAnswer
+                answer={view.you.response}
+                note={view.you.note}
+                organiserName={organiser}
+                onAnswer={send}
+                proposal={view.you.proposal}
+                proposeFrom={proposeFrom}
+              />
             )}
 
             {view.guests?.length ? (

@@ -8,9 +8,10 @@
  */
 
 import { avatarSeed, personHue } from "@/lib/utils/getAvatarColor";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createLocalVideoTrack, type LocalTrack } from "livekit-client";
-import { Captions, ChevronDown, Headphones, Loader2, Lock, Mic, MicOff, Video, VideoOff, Volume2 } from "@/lib/icons";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { LocalTrack, LocalVideoTrack } from "livekit-client";
+import { once } from "@/lib/lazy/once";
+import { Captions, ChevronDown, Headphones, Lock, Mic, MicOff, Video, VideoOff, Volume2 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -26,13 +27,16 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { cn } from "@/lib/utils/helpers/cn";
-import { GREEN_ROOM_GROUND, MicMeter, NamePlate, StageFace, callScreenHeight } from "./CallStage";
-import { CONTROL_KEYS, CONTROL_LABELS, DockButton } from "./VideoControls";
-import { SPEAKING_THRESHOLD } from "./callLevels";
+import { GREEN_ROOM_GROUND, MicMeter, NamePlate, StageFace, callScreenHeight, placeInSentence } from "./CallStage";
+import { CONTROL_KEYS, CONTROL_LABELS, DockButton } from "./DockButton";
+import { SPEAKING_THRESHOLD, levelSource, type LevelSource } from "./callLevels";
 import { readDevicePrefs, writeDevicePref, type DevicePrefs } from "./callDevices";
 import { callKeyAction } from "./callKeys";
 import { callsUnavailableHere } from "./callErrors";
 import { mediaFailure, mediaFailureKind } from "@/lib/media/mediaFailure";
+import { mediaAsker, type MediaAsk } from "@/lib/media/askTogether";
+import { cameraConstraints, micConstraints } from "./greenRoomCamera";
+import { isLive, type GreenRoomTracks } from "./greenRoomHandOver";
 import { captionsWhereText, type CallTranscription } from "./callState";
 
 export interface PreJoinPerson {
@@ -40,15 +44,26 @@ export interface PreJoinPerson {
   name: string;
 }
 
+// LiveKit's client, for the effects on the preview: none of a green room's
+// first load (a guest's room page carried it before anything was clicked).
+// The camera doesn't wait for it: the preview shows the browser's own track
+// as soon as it opens, and LiveKit takes that same track when it comes. A
+// failed load is forgotten (once), so the next ask tries again.
+const loadLiveKit = once(() => import("./greenRoomLiveKit"));
+
+const NO_PREFS: DevicePrefs = {};
+
 interface PreJoinProps {
-  onJoin: (values: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => void;
+  /** Join, with the camera and microphone the green room has open for the call to send (greenRoomHandOver). */
+  onJoin: (values: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string; tracks?: GreenRoomTracks }) => void;
   username: string;
   // When true, the user can type their display name (used by the guest join
   // flow, where there is no account). Join stays disabled until non-empty.
   nameEditable?: boolean;
   // Optional override for the primary button label.
   joinLabel?: string;
-  // Where the call is, after "Call" ("in #engineering", "with Maya Chen"), said above the title, so
+  // Where the call is, after "Call" ("in #engineering", "with Maya Chen"), said above the title, or
+  // a call's own name as it is ("Maya Chen's room", at a link: calls HU13), so
   // nobody joins a call without knowing which one it is.
   place?: string;
   // A way out before joining. Without it the page offered only "Join".
@@ -85,6 +100,14 @@ interface PreJoinProps {
   refusal?: string;
   /** The call's own page, for "Open the call in your browser" where this app can't make calls (the Linux desktop app). */
   openUrl?: string;
+  /** Another way in, under Join: a guest page's "Join as yourself" for someone in the workspace (calls HU13). */
+  extra?: React.ReactNode;
+  /**
+   * Another first way in, drawn in place of the name and Join with the
+   * choices made here: a guest link's "Join as Kai Lin" for someone signed
+   * in to the workspace (calls HU13). Nothing drawn keeps the name and Join.
+   */
+  instead?: (choice: { audioEnabled: boolean; videoEnabled: boolean }) => React.ReactNode;
 }
 
 /** What the preview says when there is no picture. Pure. */
@@ -126,22 +149,49 @@ export function PreJoin({
   joinError,
   refusal,
   openUrl,
+  extra,
+  instead,
 }: PreJoinProps) {
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [name, setName] = useState(username);
-  const [videoTrack, setVideoTrack] = useState<LocalTrack | undefined>(undefined);
+  // The camera as the browser opened it, shown at once, and LiveKit's track
+  // over that same camera once its client comes (the effects need it).
+  const [camera, setCamera] = useState<{ track: MediaStreamTrack; constraints: MediaTrackConstraints } | undefined>(undefined);
+  const [videoTrack, setVideoTrack] = useState<LocalVideoTrack | undefined>(undefined);
+  // What Join handed the call (greenRoomHandOver): from then the call stops
+  // them, so the clean-ups here leave them be. A join that never got a call
+  // (joining ends with the green room still here) gives them back.
+  const [given] = useState(() => new Set<MediaStreamTrack>());
+  useEffect(() => {
+    if (!joining) given.clear()
+  }, [joining, given]);
+  // Whether this green room is still here to take them back (greenRoomOpen).
+  const [roomOpen] = useState(() => ({ current: true }));
+  useEffect(() => {
+    roomOpen.current = true
+    return () => {
+      roomOpen.current = false
+    }
+  }, [roomOpen]);
   // Set when the camera could not be opened (refused, busy, missing), so the
   // preview says why instead of quietly showing "Camera is off".
   const [cameraProblem, setCameraProblem] = useState<CameraProblem | null>(null);
   const [cameraAttempt, setCameraAttempt] = useState(0);
-  const [prefs, setPrefs] = useState<DevicePrefs>({});
+  // Read after the first draw (the page is drawn on the server too). The
+  // camera and the microphone wait for them, so the room opens the devices
+  // picked before in its first ask, not the browser's and then those.
+  const [prefs, setPrefs] = useState<DevicePrefs | null>(null);
   useEffect(() => setPrefs(readDevicePrefs()), []);
+  const prefsRead = prefs !== null;
+  const cameraId = prefs?.videoinput;
+  // The camera and the meter's microphone, asked for together as the room
+  // opens: one request, one prompt (lib/media/askTogether).
+  const [ask] = useState(mediaAsker);
   // The Linux desktop app has no WebRTC: a Join there could only fail.
   const [unavailable, setUnavailable] = useState<string | null>(null);
   useEffect(() => setUnavailable(callsUnavailableHere()), []);
 
-  const trackRef = useRef<LocalTrack | undefined>(undefined);
   // Whether the call can join on one peer connection, asked now so Join needn't wait.
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_LIVEKIT_URL;
@@ -155,46 +205,66 @@ export function PreJoin({
   }, [username, nameEditable])
 
   useEffect(() => {
+    if (!prefsRead || !videoEnabled) return
     let cancelled = false
-    const enableVideo = async () => {
-      if (videoEnabled) {
-        try {
-          const track = await createLocalVideoTrack({
-            deviceId: prefs.videoinput || "",
-            resolution: { width: 1280, height: 720 },
-          });
-          if (cancelled) {
-            track.stop()
-            return
-          }
-          setVideoTrack(track);
-          trackRef.current = track;
-        } catch (e) {
-          if (cancelled) return
-          console.error("Failed to acquire video track", e);
-          // The app's one set of words for a refusal (lib/media); the denied
-          // state also offers how to allow the camera.
-          const f = mediaFailure("camera", e);
-          setCameraProblem({ kind: mediaFailureKind(e) === "denied" ? "denied" : "busy", message: `${f?.title ?? "Your camera couldn't start"}. You can join with audio.` });
-          setVideoEnabled(false);
+    let opened: MediaStreamTrack | undefined
+    const constraints = cameraConstraints(cameraId)
+    ask("video", constraints).then(
+      (track) => {
+        if (cancelled) {
+          track.stop()
+          return
         }
-      } else if (trackRef.current) {
-        trackRef.current.stop();
-        trackRef.current = undefined;
-        setVideoTrack(undefined);
-      }
-    };
-    void enableVideo();
+        opened = track
+        setCamera({ track, constraints })
+      },
+      (e: unknown) => {
+        if (cancelled) return
+        console.error("Failed to acquire video track", e);
+        // The app's one set of words for a refusal (lib/media); the denied
+        // state also offers how to allow the camera.
+        const f = mediaFailure("camera", e);
+        setCameraProblem({ kind: mediaFailureKind(e) === "denied" ? "denied" : "busy", message: `${f?.title ?? "Your camera couldn't start"}. You can join with audio.` });
+        setVideoEnabled(false);
+      },
+    )
     return () => {
       cancelled = true
-      if (trackRef.current) {
-        trackRef.current.stop();
-        trackRef.current = undefined;
-      }
-    };
-  }, [videoEnabled, prefs.videoinput, cameraAttempt]);
+      if (opened && !given.has(opened)) opened.stop()
+      setCamera(undefined)
+    }
+  }, [ask, prefsRead, videoEnabled, cameraId, cameraAttempt, given]);
 
-  const level = useMicLevel(prefs.audioinput);
+  // LiveKit's track over the open camera, once its client comes: the effects
+  // need it. A client that doesn't come leaves the picture as it is; opening
+  // the effects asks for it again, and the call asks as it starts.
+  const [clientAttempt, setClientAttempt] = useState(0);
+  useEffect(() => {
+    if (!camera) return
+    let cancelled = false
+    let wrapped: LocalVideoTrack | undefined
+    loadLiveKit().then(
+      ({ liveKitCamera }) => {
+        if (cancelled) return
+        wrapped = liveKitCamera(camera.track, camera.constraints)
+        setVideoTrack(wrapped)
+      },
+      () => undefined,
+    )
+    return () => {
+      cancelled = true
+      // With its effect's processor; the camera goes with it only when the
+      // camera itself is going (the effect above stops it then too).
+      if (wrapped && !given.has(camera.track)) wrapped.stop()
+      setVideoTrack(undefined)
+    }
+  }, [camera, clientAttempt, given]);
+  const askClientAgain = useCallback(() => {
+    if (!videoTrack) setClientAttempt((n) => n + 1)
+  }, [videoTrack]);
+
+  const { source: mic, track: micTrack } = useMicLevel(ask, prefs, given);
+  const speaking = useOver(mic, SPEAKING_THRESHOLD);
 
   const toggleVideo = () => {
     setCameraProblem(null);
@@ -224,16 +294,31 @@ export function PreJoin({
   }, []);
   const pick = (kind: keyof DevicePrefs, id: string) => {
     writeDevicePref(kind, id);
-    setPrefs((p) => ({ ...p, [kind]: id }));
+    setPrefs((p) => ({ ...(p ?? NO_PREFS), [kind]: id }));
   };
 
-  const showing = videoTrack && videoEnabled
+  // Join hands the call what is open and on, so it asks the browser for
+  // nothing more and the camera's light never goes off and on.
+  const give = (): GreenRoomTracks => {
+    const tracks: GreenRoomTracks = {}
+    if (videoEnabled && camera && isLive(camera.track)) tracks.camera = { ...camera, liveKit: videoTrack }
+    if (audioEnabled && isLive(micTrack)) tracks.mic = { track: micTrack, constraints: micConstraints(prefs?.audioinput) }
+    given.clear()
+    if (tracks.camera) given.add(tracks.camera.track)
+    if (tracks.mic) given.add(tracks.mic.track)
+    tracks.greenRoomOpen = () => roomOpen.current
+    return tracks
+  }
+
+  const showing = camera && videoEnabled
   const message = previewMessage({ videoEnabled, hasTrack: !!showing, problem: cameraProblem?.message ?? null })
   const self = name || username || "You"
+  // Another first way in, in place of the name and Join (calls HU13).
+  const lead = instead?.({ audioEnabled, videoEnabled }) || null
   const selfId = hueId ?? self
   const here = whoIsHere(inCall, live)
   const nameMissing = nameEditable && name.trim() === ""
-  const mutedWhileSpeaking = !audioEnabled && level >= SPEAKING_THRESHOLD
+  const mutedWhileSpeaking = !audioEnabled && speaking
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -245,7 +330,7 @@ export function PreJoin({
           {/* The preview */}
           <div className="dark relative aspect-[4/3] w-full overflow-hidden rounded-[12px] bg-[#0F1012] shadow-e4 md:aspect-video md:rounded-[16px]" data-preview="">
             {showing ? (
-              <VideoTrackPreview track={videoTrack} />
+              <CameraPreview camera={camera.track} track={videoTrack} />
             ) : cameraProblem?.kind === "denied" ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center" data-camera-state="denied">
                 <VideoOff className="size-6 text-[#FF8086]" aria-hidden />
@@ -302,10 +387,10 @@ export function PreJoin({
                 icon={videoEnabled ? <Video /> : <VideoOff />}
                 onClick={toggleVideo}
               />
-              <GreenRoomEffects preview={videoTrack} />
+              <GreenRoomEffects preview={videoTrack} onOpen={askClientAgain} />
             </div>
             <NamePlate name={self} muted={!audioEnabled} className="max-md:hidden">
-              {audioEnabled ? <MicMeter level={level} className="ml-0.5 h-3 w-4" /> : null}
+              {audioEnabled ? <MicMeter source={mic} className="ml-0.5 h-3 w-4" /> : null}
             </NamePlate>
           </div>
 
@@ -320,7 +405,7 @@ export function PreJoin({
                 Words, so ink-2: ink-3 holds only 3:1, and over the phone's glow
                 it read as pale grey. */}
             <p className="min-h-4 text-ui-sm font-medium leading-4 text-ink-2" data-call-place="">
-              {place ? `Call ${place}` : "\u00a0"}
+              {place ? (placeInSentence(place) !== place ? `Call ${place}` : place) : "\u00a0"}
             </p>
             <h1 className="mt-1.5 text-title-1 font-semibold text-balance">Ready to join?</h1>
 
@@ -338,9 +423,9 @@ export function PreJoin({
               </div>
             ) : null}
 
-            <Devices prefs={prefs} onPick={pick} level={audioEnabled ? level : 0} />
+            <Devices prefs={prefs ?? NO_PREFS} onPick={pick} mic={audioEnabled ? mic : SILENT} />
 
-            {nameEditable && (
+            {nameEditable && !lead && (
               // A label above the field, not a placeholder standing in for one.
               <div className="mt-4 flex flex-col gap-1.5">
                 <label htmlFor="prejoin-name" className="text-ui-sm font-medium">Your name</label>
@@ -392,21 +477,16 @@ export function PreJoin({
                   Open the call in your browser
                 </Button>
               </div>
+            ) : lead ? (
+              lead
             ) : (
               <Button
                 size="lg"
                 className="mt-4 w-full"
-                disabled={nameMissing || joining || !!refusal}
-                onClick={() => onJoin({ audioEnabled, videoEnabled, displayName: name.trim() })}
+                disabled={nameMissing || !!refusal} busy={joining}
+                onClick={() => onJoin({ audioEnabled, videoEnabled, displayName: name.trim(), tracks: give() })}
               >
-                {joining ? (
-                  <>
-                    <Loader2 className="motion-safe:animate-spin" aria-hidden />
-                    Joining…
-                  </>
-                ) : (
-                  joinLabel
-                )}
+                {joining ? "Joining…" : joinLabel}
               </Button>
             )}
             {joinError ? (
@@ -417,6 +497,7 @@ export function PreJoin({
                 Cancel
               </Button>
             )}
+            {extra}
           </div>
         </div>
       </div>
@@ -429,7 +510,7 @@ export function PreJoin({
  * with a test chime, on a sunken card. The choices are remembered for the
  * call (callDevices).
  */
-function Devices({ prefs, onPick, level }: { prefs: DevicePrefs; onPick: (kind: keyof DevicePrefs, id: string) => void; level: number }) {
+function Devices({ prefs, onPick, mic }: { prefs: DevicePrefs; onPick: (kind: keyof DevicePrefs, id: string) => void; mic: LevelSource }) {
   const devices = useDevices()
   const [testing, setTesting] = useState(false)
   const test = useCallback(() => {
@@ -446,7 +527,7 @@ function Devices({ prefs, onPick, level }: { prefs: DevicePrefs; onPick: (kind: 
         <Mic className="size-4 text-ink-3" aria-hidden />
         <span className="truncate">Microphone</span>
         <DeviceSelect label="Microphone" devices={devices.audioinput} value={prefs.audioinput} onChange={(id) => onPick("audioinput", id)} />
-        <MicMeter level={level} />
+        <MicMeter source={mic} />
       </div>
       <div className={row} data-device-row="">
         <Video className="size-4 text-ink-3" aria-hidden />
@@ -516,25 +597,32 @@ function useDevices(): Record<"audioinput" | "videoinput" | "audiooutput", Media
 /**
  * The microphone's level, 0 to 1, sampled at most 30 times a second. The
  * stream stays open while muted, so the green room can say "you're muted"
- * when you speak; nothing is sent anywhere.
+ * when you speak; nothing is sent anywhere. The samples go to what listens
+ * (the meters, the muted line), not into state: in state, every one drew
+ * the whole green room again (greenRoomRenders.test.tsx).
  */
-function useMicLevel(deviceId?: string): number {
-  const [level, setLevel] = useState(0)
+/** The meter: the microphone's level, and its track while it is open. A track handed to the call (`given`) is the call's to stop. */
+function useMicLevel(ask: MediaAsk, prefs: DevicePrefs | null, given: ReadonlySet<MediaStreamTrack>): { source: LevelSource; track: MediaStreamTrack | undefined } {
+  const [source] = useState(levelSource)
+  const [track, setTrack] = useState<MediaStreamTrack | undefined>(undefined)
+  const prefsRead = prefs !== null
+  const deviceId = prefs?.audioinput
   useEffect(() => {
-    const md = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined
     const AC = typeof window !== "undefined" ? (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) : undefined
-    if (!md?.getUserMedia || !AC) return
+    if (!prefsRead || !AC) return
     let stream: MediaStream | null = null
     let ctx: AudioContext | null = null
     let raf = 0
     let stopped = false
     let lastAt = 0
-    md.getUserMedia({ audio: deviceId ? { deviceId: { exact: deviceId } } : true })
-      .then((s) => {
+    ask("audio", micConstraints(deviceId))
+      .then((track) => {
         if (stopped) {
-          s.getTracks().forEach((t) => t.stop())
+          track.stop()
           return
         }
+        const s = new MediaStream([track])
+        setTrack(track)
         stream = s
         ctx = new AC()
         const analyser = ctx.createAnalyser()
@@ -548,7 +636,7 @@ function useMicLevel(deviceId?: string): number {
             analyser.getFloatTimeDomainData(buf)
             let sum = 0
             for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
-            setLevel(Math.min(1, Math.sqrt(sum / buf.length) * 2))
+            source.write(Math.min(1, Math.sqrt(sum / buf.length) * 2))
           }
           raf = requestAnimationFrame(tick)
         }
@@ -558,11 +646,23 @@ function useMicLevel(deviceId?: string): number {
     return () => {
       stopped = true
       cancelAnimationFrame(raf)
-      stream?.getTracks().forEach((t) => t.stop())
+      stream?.getTracks().forEach((t) => {
+        if (!given.has(t)) t.stop()
+      })
+      setTrack(undefined)
       void ctx?.close().catch(() => undefined)
+      source.write(0)
     }
-  }, [deviceId])
-  return level
+  }, [ask, prefsRead, deviceId, source, given])
+  return { source, track }
+}
+
+/** A muted microphone's meter: no samples, no bars. */
+const SILENT: LevelSource = levelSource()
+
+/** Whether a level is at or over a line: what listens to it draws only when that flips. */
+function useOver(source: LevelSource, line: number): boolean {
+  return useSyncExternalStore(source.listen, () => source.read() >= line, () => false)
 }
 
 /** A 1.2s two-note chime through the chosen speaker, where the browser can choose one. */
@@ -592,18 +692,26 @@ async function playChime(sinkId?: string): Promise<void> {
   }
 }
 
-// Attached once per track, and let go when it changes: a callback ref here
-// attached the track again on every render of the page.
-function VideoTrackPreview({ track }: { track: LocalTrack }) {
+// The camera in one <video>, as soon as it opens: the browser's track first,
+// then LiveKit's over it. LiveKit's attach finds that same track already
+// shown and leaves the picture be; with an effect on, it shows the track it
+// sends instead. Attached once per track, and let go when it changes: a
+// callback ref here attached the track again on every render of the page.
+function CameraPreview({ camera, track }: { camera: MediaStreamTrack; track: LocalTrack | undefined }) {
   const ref = useRef<HTMLVideoElement>(null)
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    track.attach(el)
-    return () => {
-      track.detach(el)
+    if (track) {
+      track.attach(el)
+      return () => {
+        track.detach(el)
+      }
     }
-  }, [track])
+    const shown = el.srcObject instanceof MediaStream && el.srcObject.getVideoTracks().includes(camera)
+    if (!shown) el.srcObject = new MediaStream([camera])
+    void el.play().catch(() => undefined)
+  }, [camera, track])
   // Fades in when the track is ready.
   return <video ref={ref} muted playsInline className="hub-fade-in h-full w-full -scale-x-100 object-cover" />
 }

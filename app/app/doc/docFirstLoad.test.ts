@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { existsSync, readFileSync } from "fs"
 
-import { chainOf, packageOf, walk } from "../../../scripts/fluidity/reach.mjs"
+import { chainOf, firstScreenEntries, packageOf, walk } from "../../../scripts/fluidity/reach.mjs"
+import { lineProblem } from "../../../scripts/fluidity/routes.mjs"
 
 // What opening a doc downloads on top of Home (docs programme A2; I20: the doc
 // route adds at most 300 KB gzip over Home, and heavy libraries load lazily).
@@ -15,7 +16,14 @@ import { chainOf, packageOf, walk } from "../../../scripts/fluidity/reach.mjs"
 // source reached grows past its ceiling. Both only ever go down: A1 makes the
 // doc-only blocks lazy, and then deletes their lines below.
 
-const HOME = ["app/layout.tsx", "app/app/layout.tsx", "app/app/home/page.tsx"]
+// Home as a person has it before opening a doc: its first screen, and the
+// realtime engine (components/mqtt/RealtimeEngine, fluid-15). The engine is
+// here on purpose, not by mistake: it left the first screen on 21 Oct 2026,
+// but every signed-in page starts it at its first idle moment, 1.5 s after the
+// page mounts at the latest (START_BY_MS in components/mqtt/mqttProvider), so
+// it is loaded on Home before anyone can open a doc from it. What the doc
+// route shares with it costs opening a doc nothing more.
+const HOME = ["app/layout.tsx", "app/app/layout.tsx", "app/app/home/page.tsx", "components/mqtt/RealtimeEngine.tsx"]
 const DOC_ROUTE = "app/app/doc/[doc-id]/page.tsx"
 
 /**
@@ -48,6 +56,8 @@ const NEVER_FILES = [
   "components/minimal-tiptap/extensions/chart-embed/chart-embed-view.tsx",
   "components/minimal-tiptap/extensions/diff-embed/diff-embed-view.tsx",
   "components/minimal-tiptap/extensions/recording-embed/recording-embed-view.tsx",
+  // The connection notice shows only on a problem; its code comes when the page is idle (LazyConnectionPill), 23 Oct 2026.
+  "components/docEditor/ConnectionPill.tsx",
   // The clipboard's Markdown writer (A7's codec) loads on idle or at the first selection.
   "components/minimal-tiptap/extensions/clipboard-markdown/clipboardMarkdownWriter.ts",
   "lib/codec/markdown.ts",
@@ -55,6 +65,16 @@ const NEVER_FILES = [
   "services/docGraphService.ts",
   // The tables service comes with the doc's first new table (docInput), 17 Oct 2026.
   "services/tableService.ts",
+  // A folder, a file or a link at a doc's address opens as itself, a chunk of
+  // its own (docs F1b): a doc's page never carries Docs & Files' views.
+  "components/docFiles/DocNodeView.tsx",
+  "components/docFiles/FolderView.tsx",
+  "components/docFiles/FilePreview.tsx",
+  "services/docFilesService.ts",
+  // The "/table" picker loads when it first opens (lib/lazy/lazyDialog), 23 Oct 2026.
+  "components/docEditor/TableEmbedPickerDialog.tsx",
+  // The phone's Formatting bar loads on a phone only (lib/lazy/lazyPart), 24 Oct 2026.
+  "components/docEditor/DocAccessoryBar.tsx",
 ]
 
 /**
@@ -69,10 +89,12 @@ const NEVER_FILES = [
  */
 const DOC_ROUTE_SOURCE_CEILING: number = JSON.parse(readFileSync("scripts/fluidity/route-ceilings.json", "utf8")).beyondHome[DOC_ROUTE].source
 
-// The one walker of the first-load guards (scripts/fluidity/reach.mjs).
+// The one walker of the first-load guards (scripts/fluidity/reach.mjs), from each
+// first screen's entries: a page with its own folders' layouts and boundaries
+// beyond the shared shell (firstScreenEntries, V-49).
 /** Files reached by static import (with who imported each) and packages (with their first importer). */
 function reach(entries: string[]) {
-  const walked = walk(entries) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+  const walked = walk(firstScreenEntries(entries)) as { files: Map<string, string | null>; packages: Array<[string, string]> }
   const packages = new Map<string, string>()
   for (const [spec, file] of walked.packages) {
     const p = packageOf(spec) as string
@@ -106,9 +128,8 @@ describe("opening a doc", () => {
   it("keeps the source it reaches beyond Home under its ceiling", () => {
     let bytes = 0
     for (const f of docOnlyFiles) bytes += readFileSync(f).length
-    expect(bytes, `the doc route reaches ${bytes} bytes of source beyond Home (ceiling ${DOC_ROUTE_SOURCE_CEILING}); lower the ceiling when it drops`).toBeLessThanOrEqual(
-      DOC_ROUTE_SOURCE_CEILING,
-    )
+    // A route line like the others: its measure plus headroom, ratcheted down when it drops (routes.mjs lineProblem).
+    expect(lineProblem("source", bytes, DOC_ROUTE_SOURCE_CEILING), `the doc route reaches ${bytes} bytes of source beyond Home`).toBeNull()
   })
 
   it("keeps the live session and the prefetch off Home's first load: they load on intent", () => {
@@ -116,6 +137,15 @@ describe("opening a doc", () => {
     expect(home.packages.has("@hocuspocus/provider"), chain(home.files, home.packages.get("@hocuspocus/provider") ?? null)).toBe(false)
     // The sidebar's links start it with import(), which this walk doesn't follow.
     expect(readFileSync("components/navigationBar/desktop/IntentLink.tsx", "utf8")).toMatch(/import\("@\/lib\/docPrefetch"\)/)
+  })
+
+  it("opens a folder, a file or a link as itself, from a chunk of its own, never in the editor (docs F1b)", () => {
+    const page = readFileSync(DOC_ROUTE, "utf8")
+    // Through lazyPart, so a chunk that can't come says so in the page, with Try again.
+    expect(page).toMatch(/lazyPart<.+>\(\(\) => import\("@\/components\/docFiles\/DocNodeView"\)/)
+    expect(doc.files.has("components/docFiles/DocNodeView.tsx"), chain(doc.files, "components/docFiles/DocNodeView.tsx")).toBe(false)
+    // The route asks the doc's info as the doc's page does: one request for both.
+    expect(page).toMatch(/useDocInfo\(/)
   })
 
   it("has a budget for the weight the build adds, held by docs.mjs", () => {

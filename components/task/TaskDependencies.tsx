@@ -20,7 +20,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useFetch } from "@/hooks/useFetch"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useTaskDependencies } from "@/hooks/useTaskDependencies"
-import { Loader2, Plus, X } from "@/lib/icons"
+import { Loader2, Lock, Plus, X } from "@/lib/icons"
+import { HIDDEN_TASK_NAME } from "@/lib/work/hiddenTask"
 import { isClosedStatus } from "@/lib/taskStatus"
 import { DEPENDENCY_KINDS, KIND_LABEL, MAX_LAG, parseLag, wayOf, waySentence, wayShort, type DependencyKind, type DependencyWay } from "@/lib/tasks/dependency"
 import type { TimelineData } from "@/lib/timeline"
@@ -62,7 +63,7 @@ export function TaskDependencies({
     await setDependency(waiting, on, remove, way)
     setBusy(false)
   }
-  const stillOpen = waitingOn.filter((t) => !isClosedStatus(t.task_status)).length
+  const stillOpen = waitingOn.filter((t) => !t.task_hidden && !isClosedStatus(t.task_status)).length
 
   return (
     <div className="mb-4">
@@ -168,9 +169,18 @@ function DependencyGroup({
     <div className="grid">
       <p className="mb-0.5 text-meta text-ink-3">{title}</p>
       {tasks.map((t) => {
+        // One the reader may not see (WA2): no way in, none to take it off.
+        if (t.task_hidden) {
+          return (
+            <div key={t.task_uuid} data-dependency="" data-hidden-task="" className="flex h-[30px] items-center gap-2 text-sm text-ink-3">
+              <Lock aria-hidden className="mx-0.5 size-3" />
+              <span className="flex-1 truncate">{HIDDEN_TASK_NAME}</span>
+            </div>
+          )
+        }
         const status = statusOptionOf(t, options)
         return (
-        <div key={t.task_uuid} className="group -mx-1 flex h-[30px] items-center gap-2 rounded-md px-1 transition-colors hover:bg-hover">
+        <div key={t.task_uuid} data-dependency="" className="group -mx-1 flex h-[30px] items-center gap-2 rounded-md px-1 transition-colors hover:bg-hover">
           {status ? <TaskStatusCell status={status} label="tip" /> : <span className="size-4 shrink-0" />}
           <button
             type="button"
@@ -256,8 +266,8 @@ function DependencyWayEditor({
           {short}
         </button>
       </PopoverTrigger>
-      {/* Short enough for a laptop's screen below the row; it scrolls inside, never off the page. */}
-      <PopoverContent className="max-h-[var(--radix-popover-content-available-height)] w-80 overflow-y-auto" align="end" collisionPadding={8}>
+      {/* Below the row on a laptop's screen, the shared PopoverContent scrolls it inside, never off the page. */}
+      <PopoverContent className="w-80" align="end" collisionPadding={8}>
         <form
           className="grid gap-3"
           onSubmit={(e) => {

@@ -49,7 +49,7 @@ export function useDocThreads(docId: string) {
     const me = self.data?.data
 
     // Live where the doc's page isn't: its comment and thread events come on its topic.
-    useMqttTopic({ topic: info?.doc_mqtt_topic || "" })
+    useMqttTopic({ topic: info?.doc_mqtt_topic || "", onLive: () => void t.refresh() })
 
     // The doc answers again after failing (restored from the trash, back
     // online): its threads are read again too.
@@ -151,8 +151,8 @@ export function useDocThreads(docId: string) {
     // the cards render again only when their own thread changes.
     const { resolve, reopen, reanchor, markRead } = t
     const actions = useMemo(
-        () => ({ reply, resolve, reopen, reanchor, markRead, edit, remove, react, unreact, canModerate }),
-        [reply, resolve, reopen, reanchor, markRead, edit, remove, react, unreact, canModerate],
+        () => ({ reply, resolve, reopen, reanchor, markRead, edit, remove, react, unreact, canModerate, refresh }),
+        [reply, resolve, reopen, reanchor, markRead, edit, remove, react, unreact, canModerate, refresh],
     )
 
     const docError = doc.isError as { response?: { status?: number } } | undefined

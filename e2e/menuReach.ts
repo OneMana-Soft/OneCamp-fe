@@ -15,13 +15,46 @@ import { expect, type Locator, type Page } from "@playwright/test"
 export async function expectReachable(row: Locator) {
   await expect(row).toBeVisible()
   await expect(row).toBeInViewport({ ratio: 0.98 })
-  const met = await row.evaluate((el) => {
+  expect(await metAtCentre(row), "what the pointer meets at the row's centre").toBe("the row")
+}
+
+/**
+ * Rests the pointer on a row of a virtual list once the row is what the
+ * pointer meets at its centre. The list (virtua) turns its rows' pointer
+ * events off while it scrolls, and a conversation re-pins to its end for a
+ * moment after it opens. A hover inside that window met the list instead;
+ * Playwright's retry scrolled the row into view, the list re-pinned, and the
+ * row moved from under the pointer, taking its hover toolbar with it (the More
+ * menu's flake, 27 Oct 2026).
+ */
+export async function hoverWhenReachable(row: Locator) {
+  await expect.poll(() => metAtCentre(row), { message: "what the pointer meets at the row's centre" }).toBe("the row")
+  await row.hover()
+}
+
+/** What the pointer meets at an element's centre: "the row" when it's the element or inside it. */
+function metAtCentre(row: Locator) {
+  return row.evaluate((el) => {
     const r = el.getBoundingClientRect()
     const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
     if (at && (at === el || el.contains(at))) return "the row"
     return at ? `<${at.tagName.toLowerCase()} class="${String(at.getAttribute("class") ?? "").slice(0, 80)}">` : "nothing"
   })
-  expect(met, "what the pointer meets at the row's centre").toBe("the row")
+}
+
+/**
+ * The shared radio item marks the chosen row with the app's one check
+ * (MenuCheck, meet-18), in its 16px slot, and no other row: a production
+ * build's computed style, not jsdom's.
+ */
+export async function radioChecks(menu: Locator) {
+  const chosen = menu.getByRole("menuitemradio", { checked: true })
+  await expect(chosen).toHaveCount(1)
+  const check = chosen.locator('[data-menu-check="on"]')
+  await expect(check).toBeVisible()
+  const box = await check.boundingBox()
+  expect(box && Math.round(box.width)).toBe(16)
+  await expect(menu.locator('[role="menuitemradio"][aria-checked="false"] [data-menu-check]')).toHaveCount(0)
 }
 
 /**
@@ -105,4 +138,101 @@ function measure(root: Locator): Promise<string[]> {
     }
     return out
   })
+}
+
+/** What a person can press, for the reach scan. */
+const CONTROLS =
+  'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="radio"], [role="menuitem"], [role="option"]'
+
+/** A control the scan marked (data-reach-scan), and where its centre is. */
+interface Marked {
+  i: number
+  name: string
+  x: number
+  y: number
+  /** Not shown or not taking the pointer at rest: a hover may show it (a card's toolbar). */
+  hidden: boolean
+}
+
+/**
+ * The controls on the page that something else covers at their centre, each
+ * as `"name" under <what>`: every control drawn in the viewport and, with a
+ * pointer, every one a hover shows. ITEM 0 (23 Oct 2026): a file card's ⋯
+ * and Download sat under the card's stretched click area, so a click opened
+ * the lightbox and Delete could not be reached on a computer, while role
+ * queries and toBeVisible passed. Left out: a control whose centre a box it
+ * sits in clips away (an overflow: scrolled into view, it is what the pointer
+ * meets), and one an overlay (a dialog, a menu, a popover, a toast) is open
+ * over.
+ */
+export async function coveredControls(page: Page, { hover }: { hover: boolean }): Promise<string[]> {
+  const covered: string[] = []
+  for (const control of await page.evaluate(markControls, CONTROLS)) {
+    if (control.hidden) {
+      if (!hover) continue
+      await page.mouse.move(control.x, control.y)
+      const shown = await page.waitForFunction(takesPointer, control.i, { timeout: 750 }).then(
+        () => true,
+        () => false,
+      )
+      if (!shown) continue
+    }
+    const under = await page.evaluate(whatCovers, control)
+    if (under) covered.push(`${control.hidden ? "(on hover) " : ""}"${control.name}" under ${under}`)
+  }
+  return covered
+}
+
+// The three below run in the page, each on its own: none may reach outside itself.
+
+function markControls(selector: string): Marked[] {
+  // A scan before this one marked controls that may still be on the page.
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>("[data-reach-scan]"))) delete el.dataset.reachScan
+  const marked: Marked[] = []
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>(selector))) {
+    if ((el as HTMLButtonElement).disabled || el.closest('[aria-hidden="true"], [inert]')) continue
+    const r = el.getBoundingClientRect()
+    const x = r.left + r.width / 2
+    const y = r.top + r.height / 2
+    if (r.width < 6 || r.height < 6 || x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue
+    const own = getComputedStyle(el)
+    if (own.visibility !== "visible") continue
+    let clipped = false
+    let transparent = false
+    for (let a: HTMLElement | null = el; a; a = a.parentElement) {
+      const cs = getComputedStyle(a)
+      if (cs.opacity === "0") transparent = true
+      if (a !== el && (cs.overflowX !== "visible" || cs.overflowY !== "visible")) {
+        const box = a.getBoundingClientRect()
+        if (x < box.left || x > box.right || y < box.top || y > box.bottom) clipped = true
+      }
+    }
+    if (clipped) continue
+    const i = marked.length
+    el.dataset.reachScan = String(i)
+    const name = (el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent || el.tagName).trim().replace(/\s+/g, " ").slice(0, 40)
+    marked.push({ i, name, x, y, hidden: transparent || own.pointerEvents === "none" })
+  }
+  return marked
+}
+
+function takesPointer(i: number): boolean {
+  const el = document.querySelector(`[data-reach-scan="${i}"]`)
+  if (!el) return true
+  for (let a: Element | null = el; a; a = a.parentElement) if (getComputedStyle(a).opacity === "0") return false
+  return getComputedStyle(el).pointerEvents !== "none"
+}
+
+function whatCovers({ i, x, y }: Marked): string | null {
+  const el = document.querySelector(`[data-reach-scan="${i}"]`)
+  const hit = document.elementFromPoint(x, y)
+  if (!el || !hit || el === hit || el.contains(hit)) return null
+  // A label takes its control's press.
+  const label = hit.closest("label")
+  if (label && (label.contains(el) || label.control === el)) return null
+  const overlay = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper], [data-sonner-toaster]'
+  if (hit.closest(overlay) && !el.closest(overlay)) return null
+  const owner = hit.closest<HTMLElement>('button, a, input, select, textarea, [role], [contenteditable="true"]') ?? (hit as HTMLElement)
+  const name = (owner.getAttribute("aria-label") || owner.getAttribute("title") || owner.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40)
+  return `<${owner.tagName.toLowerCase()}${name ? ` "${name}"` : ""}>`
 }

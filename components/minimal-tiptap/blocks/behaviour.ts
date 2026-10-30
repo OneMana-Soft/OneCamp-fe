@@ -110,8 +110,10 @@ registerBlock({
 // "/": the host's items when it gives them (the chat composer's commands),
 // else what the registry offers this kind of editor (registry/readers.ts
 // slashItemsFor): a doc's blocks and, behind the AI gate, its AI items. A
-// message box also offers its conversation's commands; a doc, a guest's page
-// and a task never do.
+// chat-kind editor also offers the commands of the conversation whose surface
+// it sits in (commandSurfaceOf). A task's description and comment boxes are
+// chat-kind too, and offer none only because no surface is near them. A doc,
+// a guest's page and the task kind never do.
 registerBlock({
   id: "slash",
   editors: EVERY_EDITOR,

@@ -2,8 +2,6 @@ import {UserProfileDataInterface} from "@/types/user";
 import {ChatInfo} from "@/types/chat";
 import {PostsRes} from "@/types/post";
 import {CommentInfoInterface} from "@/types/comment";
-import {TaskInfoInterface} from "@/types/task";
-import {DocInfoInterface} from "@/types/doc";
 
 type ReactionCategoryType =
     | 'frequent'
@@ -56,8 +54,6 @@ export interface ReactionActivity extends GroupedReaction {
     chat: ChatInfo;
     post: PostsRes;
     comment: CommentInfoInterface;         // optional property
-    reaction_task?: TaskInfoInterface;
-    reaction_doc?: DocInfoInterface;
 }
 
 export interface CreateOrUpdatePostReaction {

@@ -45,6 +45,8 @@ const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { load
 const loadImportReviewCard = () => import("@/components/admin/ImportReviewCard")
 const ImportReviewCard = dynamic(loadImportReviewCard, { loading: () => null })
 const ExportCard = dynamic(() => import("@/components/admin/ExportCard"), { loading: AdminCardSkeleton })
+// Earlier imports' access, re-checked: drawn at the tab's end once its own
+// read answers, so its late arrival moves nothing above it.
 const ImportAccessCard = dynamic(() => import("@/components/admin/ImportAccessCard"), { loading: () => null })
 // AI & agents: one section of six sub-pages, each a chunk of its own.
 const AIAgentsSection = dynamic(() => import("@/components/admin/ai/AIAgentsSection"), { loading: AdminCardSkeleton })
@@ -56,6 +58,8 @@ const DefaultChannelsCard = dynamic(() => import("@/components/admin/DefaultChan
 const ScimProvisioningCard = dynamic(() => import("@/components/admin/ScimProvisioningCard"), { loading: AdminCardSkeleton })
 const PermissionsCard = dynamic(() => import("@/components/admin/PermissionsCard"), { loading: AdminCardSkeleton })
 const ProjectsPermissionsCard = dynamic(() => import("@/components/admin/ProjectsPermissionsCard"), { loading: AdminCardSkeleton })
+const CalendarPermissionsCard = dynamic(() => import("@/components/admin/CalendarPermissionsCard"), { loading: AdminCardSkeleton })
+const DocPoliciesCard = dynamic(() => import("@/components/admin/DocPoliciesCard"), { loading: AdminCardSkeleton })
 const TranscriptionSettingsCard = dynamic(() => import("@/components/admin/TranscriptionSettingsCard"), { loading: AdminCardSkeleton })
 const WorkflowsCard = dynamic(() => import("@/components/admin/WorkflowsCard"), { loading: AdminCardSkeleton })
 const AdminAuditLog = dynamic(() => import("@/components/admin/AdminAuditLog"), { loading: AdminCardSkeleton })
@@ -63,6 +67,7 @@ const RetentionCard = dynamic(() => import("@/components/admin/RetentionCard"), 
 const PushNotificationsCard = dynamic(() => import("@/components/admin/PushNotificationsCard"), { loading: AdminCardSkeleton })
 const SystemCheckCard = dynamic(() => import("@/components/admin/SystemCheckCard"), { loading: AdminCardSkeleton })
 const UpdatesCard = dynamic(() => import("@/components/admin/UpdatesCard"), { loading: AdminCardSkeleton })
+const CallQualityCard = dynamic(() => import("@/components/admin/CallQualityCard"), { loading: AdminCardSkeleton })
 
 /**
  * Vertical rhythm between top-level cards on a tab that holds more than one.
@@ -275,12 +280,19 @@ const AdminPage = () => {
                 <div className={ADMIN_SECTION_STACK}>
                   <UpdatesCard />
                   <SystemCheckCard />
+                  {callsAvailable && <CallQualityCard />}
+                </div>
+              </TabsContent>
+              <TabsContent value="docs" className="mt-0">
+                <div className={ADMIN_SECTION_STACK}>
+                  <DocPoliciesCard />
                 </div>
               </TabsContent>
               <TabsContent value="permissions" className="mt-0">
                 <div className={ADMIN_SECTION_STACK}>
                   <PermissionsCard />
                   <ProjectsPermissionsCard />
+                  <CalendarPermissionsCard />
                 </div>
               </TabsContent>
               {callsAvailable && (
@@ -330,7 +342,7 @@ const AdminPage = () => {
                         are decided. Then Slack: chat history is the migration
                         most teams arrive with, and the other providers carry
                         projects and tasks (Notion its pages too). The docs'
-                        export, then the re-check, close it. */}
+                        export, then the earlier imports' re-check, close it. */}
                     {reviewPlace === "first" && <ImportReviewCard />}
                     <SlackImportCard />
                     <ImportCard />

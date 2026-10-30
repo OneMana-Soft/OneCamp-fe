@@ -1,5 +1,6 @@
 import { AudioPresets, supportsAudioOutputSelection, type RoomOptions } from "livekit-client"
 import type { DevicePrefs } from "./callDevices"
+import { CALL_MIC } from "@/lib/calls/callMic"
 
 /**
  * The call's room options, in one place, so a refactor can't drop them
@@ -30,9 +31,7 @@ export function callRoomOptions(prefs: DevicePrefs, canPickSpeaker: boolean = su
     publishDefaults: { audioPreset: AudioPresets.speech },
     audioCaptureDefaults: {
       ...(prefs.audioinput ? { deviceId: prefs.audioinput } : {}),
-      channelCount: 1,
-      sampleRate: { ideal: 48000 },
-      sampleSize: 16,
+      ...CALL_MIC,
     },
     videoCaptureDefaults: prefs.videoinput ? { deviceId: prefs.videoinput } : {},
     ...(canPickSpeaker && prefs.audiooutput ? { audioOutput: { deviceId: prefs.audiooutput } } : {}),

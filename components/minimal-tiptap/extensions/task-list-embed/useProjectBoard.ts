@@ -59,7 +59,7 @@ export function useProjectBoard(projectId: string, opts: { mine?: boolean; enabl
     },
     [mutate],
   )
-  useMqttTopic({ topic: project.state === "ok" ? project.topic ?? "" : "", onMessage })
+  useMqttTopic({ topic: project.state === "ok" ? project.topic ?? "" : "", onMessage, onLive: () => void mutate() })
 
   return {
     project,

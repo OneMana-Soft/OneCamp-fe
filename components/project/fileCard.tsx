@@ -5,54 +5,24 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
+import { MiddleName } from "@/components/ui/middleName"
 import { FileGlyph } from "@/components/fileIcon/fileTypeIcon"
 import { Check, Download, Link, MoreHorizontal, Play, RotateCcw, Trash2, X } from "@/lib/icons"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useMediaFetch } from "@/hooks/useFetch"
 import { downloadFile } from "@/lib/utils/file/downloadFile"
 import { shortDate } from "@/lib/utils/date/shortDate"
+import { fileSize } from "@/lib/utils/format/formatFileSizeForAttachment"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import type { GetMediaURLRes } from "@/types/file"
 
-/** "2.4 MB", "860 KB", "14 KB": one decimal under 10, none above. */
-export function fileSize(bytes: number | undefined): string {
-  if (!bytes || bytes < 0) return ""
-  const units = ["B", "KB", "MB", "GB", "TB"]
-  let i = 0
-  let n = bytes
-  while (n >= 1024 && i < units.length - 1) {
-    n /= 1024
-    i++
-  }
-  return `${i === 0 ? n : n < 10 ? n.toFixed(1).replace(/\.0$/, "") : Math.round(n)} ${units[i]}`
-}
+const UNIT_BYTES: Record<string, number> = { bytes: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }
 
-/**
- * A file name in two parts for a middle cut: the head, which may give way,
- * and the tail ("v3.pdf": the extension and the two characters before it),
- * which always shows. Pure.
- */
-export function nameParts(name: string): [string, string] {
-  const dot = name.lastIndexOf(".")
-  const keep = dot > 0 && name.length - dot <= 8 ? name.length - dot + 2 : 6
-  if (name.length <= keep) return ["", name]
-  return [name.slice(0, name.length - keep), name.slice(name.length - keep)]
-}
-
-/**
- * "Launch-brief-v3-fin…ew.pdf": the middle goes, cut by the width there is,
- * so the start and the extension stay. A count of characters cut it at 24
- * and then the card's own ellipsis cut it again, losing the extension.
- */
-function MiddleName({ name }: { name: string }) {
-  const [head, tail] = nameParts(name)
-  return (
-    <span className="flex min-w-0" data-middle-name="">
-      <span className="truncate">{head}</span>
-      <span className="shrink-0 whitespace-pre">{tail}</span>
-    </span>
-  )
+/** What has been sent, in the total's unit: "0.5" of "2.4 MB". Pure. */
+export function sentOf(bytes: number, total: string): string {
+  const unit = total.split(" ")[1] ?? "bytes"
+  return (bytes / (UNIT_BYTES[unit] ?? 1)).toFixed(unit === "bytes" ? 0 : 1).replace(/\.0$/, "")
 }
 
 function dateOf(iso: string | undefined): string {
@@ -267,8 +237,8 @@ export function UploadingFileCard({
   onRemove: () => void
 }) {
   const done = progress >= 100 && !failed
-  const sent = size ? fileSize((size * Math.min(progress, 100)) / 100) : ""
-  const status = failed ? "Upload failed" : done ? "Uploaded" : size ? `Uploading · ${sent.replace(/ [A-Z]+$/, "")} of ${fileSize(size)}` : `Uploading · ${progress}%`
+  const total = size ? fileSize(size) : ""
+  const status = failed ? "Upload failed" : done ? "Uploaded" : total ? `Uploading · ${sentOf(((size ?? 0) * Math.min(progress, 100)) / 100, total)} of ${total}` : `Uploading · ${progress}%`
   const ring = failed ? (
     <span className="inline-flex size-7 items-center justify-center rounded-[14px] bg-destructive text-ui-sm font-semibold text-destructive-foreground" aria-hidden="true">
       !

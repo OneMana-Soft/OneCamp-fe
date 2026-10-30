@@ -25,7 +25,12 @@ describe("the bar for unsaved changes", () => {
     expect(region.className).toContain("md:bottom-4")
     expect(region.className).not.toMatch(/bottom-\[calc/)
     const layout = readFileSync(join(__dirname, "..", "navigationBar", "mobile", "mobileNavigationBar.tsx"), "utf8")
-    expect(layout).toContain("pb-[calc(4rem+env(safe-area-inset-bottom))]")
+    expect(layout).toContain("pb-[var(--phone-scroll-end)]")
+    // --phone-scroll-end is the tab bar (3.5rem) and its inset, and 0.5rem: 4rem with the inset.
+    const phone = readFileSync(join(__dirname, "..", "..", "app", "phone.css"), "utf8")
+    expect(phone).toMatch(/--m-tab:\s*56px/)
+    expect(phone).toMatch(/--phone-floor:\s*calc\(var\(--m-tab\) \+ env\(safe-area-inset-bottom\)\)/)
+    expect(phone).toMatch(/--phone-scroll-end:\s*calc\(var\(--phone-floor\) \+ 8px\)/)
   })
 
   it("asks before the tab closes with changes unsaved, in every browser's way", () => {

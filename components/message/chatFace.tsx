@@ -8,7 +8,7 @@ import { useBotKind } from "@/hooks/useBotKinds"
 import { isAIBot } from "@/lib/botCopy"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
-import { relayInitials } from "@/lib/relayedAuthor"
+import { relayInitials } from "@/lib/relayInitials"
 import { ArrowDownToLine, ArrowLeftRight, Clock, Plug } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 

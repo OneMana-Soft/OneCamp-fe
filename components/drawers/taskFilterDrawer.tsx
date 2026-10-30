@@ -19,7 +19,8 @@ import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { taskPriorityOptions, taskStatusOptions } from "@/types/task"
+import { taskPriorityOptions, taskStatusOptions } from "@/types/taskScale"
+import { DATE_SORTS } from "@/lib/tasks/sortChoices"
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
@@ -98,14 +99,7 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
         { id: "project", label: "Project" },
     ]
 
-    const sortOptions = [
-        { id: "task_start_date", desc: false, label: "Start: Low to High" },
-        { id: "task_start_date", desc: true, label: "Start: High to Low" },
-        { id: "task_due_date", desc: false, label: "Due: Low to High" },
-        { id: "task_due_date", desc: true, label: "Due: High to Low" },
-        { id: "task_created_date", desc: false, label: "Created: Low to High" },
-        { id: "task_created_date", desc: true, label: "Created: High to Low" },
-    ]
+    const sortOptions = DATE_SORTS
 
 
 
@@ -289,7 +283,7 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
                             </div>
                         </div>
                         <DrawerFooter className="flex shrink-0 flex-row space-x-2 w-full">
-                            <Button type="button" variant="outline" className="flex-1" onClick={handleClear}>Clear Filters</Button>
+                            <Button type="button" variant="outline" className="flex-1" onClick={handleClear}>Clear filters</Button>
                             <Button type="submit" className="flex-1">Apply</Button>
                         </DrawerFooter>
                     </div>

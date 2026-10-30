@@ -32,7 +32,8 @@ vi.mock("react-redux", () => ({
 
 import { ProjectAttachments } from "./ProjectAttachments"
 import { ProjectAttachmentList } from "./projectAttachmentList"
-import { fileSize, nameParts } from "./fileCard"
+import { fileSize } from "@/lib/utils/format/formatFileSizeForAttachment"
+import { sentOf } from "./fileCard"
 import { shownFiles } from "./projectFiles"
 
 afterEach(() => {
@@ -59,6 +60,7 @@ for (const [where, Files] of [
       const pick = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {})
       render(<Files />)
       expect(screen.getByRole("heading", { name: "Drop files here" })).toBeTruthy()
+      expect(screen.getByText("Files added to this project's tasks and comments show up here.")).toBeTruthy()
       fireEvent.click(within(document.querySelector("[data-files-empty]") as HTMLElement).getByRole("button", { name: "Upload" }))
       expect(pick).toHaveBeenCalledOnce()
     })
@@ -66,7 +68,8 @@ for (const [where, Files] of [
     it("with none yet, tells someone who cannot add files where they will show", () => {
       loaded([], false)
       render(<Files />)
-      expect(screen.getByText("Files added to this project show here.")).toBeTruthy()
+      expect(screen.getByRole("heading", { name: "No attachments yet" })).toBeTruthy()
+      expect(screen.getByText("Files added to this project's tasks and comments show up here.")).toBeTruthy()
       expect(screen.queryByRole("button", { name: /Upload/ })).toBeNull()
     })
 
@@ -135,9 +138,11 @@ describe("the desktop Files tab", () => {
     expect(confirm.mock.calls[0][0]).toMatchObject({ title: "Delete the file “brief.pdf”?", destructive: true })
   })
 
-  it("is labelled Files, on a computer and on a phone", () => {
-    expect(readFileSync("components/project/projectTaskDesktop.tsx", "utf8")).toMatch(/value: "attachments", label: "Files"/)
-    expect(readFileSync("components/project/projectListTabs.tsx", "utf8")).toMatch(/value: "attachment", label: "Files"/)
+  // Docs & Files is the project's place for files (docs F1b): this tab holds
+  // what tasks and comments carry, and says so (agreed with PROJ-LEAD-4).
+  it("is labelled Attachments, on a computer and on a phone", () => {
+    expect(readFileSync("components/project/projectTaskDesktop.tsx", "utf8")).toMatch(/value: "attachments", label: "Attachments"/)
+    expect(readFileSync("components/project/projectListTabs.tsx", "utf8")).toMatch(/value: "attachment", label: "Attachments"/)
   })
 })
 
@@ -181,13 +186,17 @@ describe("the files' words", () => {
     expect(shownFiles(f, "image", "newest").map((x) => x.attachment_file_name)).toEqual(["a.png"])
   })
 
-  it("writes sizes short, and keeps a long name's extension", () => {
+  it("writes sizes short", () => {
     expect(fileSize(2_516_582)).toBe("2.4 MB")
     expect(fileSize(880_640)).toBe("860 KB")
-    // The tail always shows; only the head gives way, by the width there is.
-    expect(nameParts("Launch-brief-final-final-v3.pdf")).toEqual(["Launch-brief-final-final-", "v3.pdf"])
-    expect(nameParts("a.png")).toEqual(["", "a.png"])
-    expect(nameParts("README")).toEqual(["", "README"])
+    // As every file's size is written (formatFileSizeForAttachment).
+    expect(fileSize(645)).toBe("645 bytes")
+    expect(fileSize(24_074)).toBe("23.5 KB")
+    expect(fileSize(undefined)).toBe("")
+    // An upload's progress says what has gone in the total's unit.
+    expect(sentOf(503_316, "2.4 MB")).toBe("0.5")
+    expect(sentOf(1_056_964, "2.4 MB")).toBe("1")
+    expect(sentOf(300, "900 bytes")).toBe("300")
   })
 })
 

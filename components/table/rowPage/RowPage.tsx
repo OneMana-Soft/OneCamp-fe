@@ -22,7 +22,8 @@ import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { ensureRowPage, rowPagePath, type RowPage as RowPageInfo } from "@/services/tableService"
+import { rowPagePath, type RowPage as RowPageInfo } from "@/services/tableService"
+import { ensureRowPage } from "@/services/tableCalls"
 
 const RowPageEditor = dynamic(() => import("./RowPageEditor"), { loading: () => <PageLoading /> })
 

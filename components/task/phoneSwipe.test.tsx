@@ -40,6 +40,20 @@ describe("the phone row's swipes", () => {
     expect((container.querySelector("[data-swipe-row]") as HTMLElement).style.transform).toBe("translateX(0px)")
   })
 
+  it("keeps out of a held row's drag: the finger carries the row, and nothing completes", () => {
+    const onToggle = vi.fn()
+    const { container } = render(<TaskListTask taskInfo={task} onToggleStatus={onToggle} isAdmin isAnimating={false} />)
+    // A hold lifted it (components/task/listReorder): lib/ui/dnd marks the document.
+    document.documentElement.setAttribute("data-dragging", "true")
+    try {
+      swipe(container.querySelector("[data-swipe-row]")!, 90)
+    } finally {
+      document.documentElement.removeAttribute("data-dragging")
+    }
+    expect(onToggle).not.toHaveBeenCalled()
+    expect((container.querySelector("[data-swipe-row]") as HTMLElement).style.transform).toBe("translateX(0px)")
+  })
+
   it("reveals Due and More to the left", () => {
     const { container, getByText } = render(<TaskListTask taskInfo={task} onToggleStatus={vi.fn()} isAdmin isAnimating={false} />)
     swipe(container.querySelector("[data-swipe-row]")!, -120)

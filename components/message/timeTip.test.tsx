@@ -20,7 +20,6 @@ vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined
 vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => ({}) }))
 vi.mock("@/hooks/useRelayedAuthor", () => ({ useRelayedAuthor: () => null }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKind: () => undefined, useBotKindMap: () => ({}) }))
-vi.mock("@/services/aiService", () => ({ useTranslateText: () => ({ translateText: async () => null, isSubmitting: false }) }))
 vi.mock("@/components/textInput/textInput", () => ({ default: ({ content }: { content?: string }) => <div data-testid="body">{content}</div> }))
 vi.mock("@/lib/utils/useInternalLinkRouter", () => ({ useInternalLinkRouter: () => undefined }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }), usePathname: () => "/app/channel/c1" }))

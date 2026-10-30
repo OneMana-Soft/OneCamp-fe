@@ -164,7 +164,8 @@ describe("dense type scale", () => {
     const layout = readFileSync(resolve(root, "app/layout.tsx"), "utf8")
     const css = readFileSync(resolve(root, "app/globals.css"), "utf8")
     expect(layout).not.toMatch(/Inter_Tight/)
-    expect(layout).toMatch(/axes:\s*\["opsz"\]/)
+    // Inter's own files carry the optical sizes (app/interFont.test.ts reads their axes).
+    expect(layout).toMatch(/import "\.\/inter\.css"/)
     expect(css).not.toMatch(/--font-display-face/)
     expect(css).toMatch(/--font-display:\s*var\(--font-inter\)/)
     expect(css).toMatch(/font-optical-sizing:\s*auto;/)

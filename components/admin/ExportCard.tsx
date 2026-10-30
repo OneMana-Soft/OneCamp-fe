@@ -3,9 +3,10 @@
 /**
  * ExportCard: an admin exports the workspace's docs (docs programme C4) as a
  * zip of Markdown, in folders that follow the page tree, which an import reads
- * back as the same tree. It holds every doc the admin can open, and the
- * private docs whose owners let them in (each owner decides in the doc's More
- * menu); the rest are left out, and the export says how many. Starting one is
+ * back as the same tree, and its boards (miro-36), each an Excalidraw file
+ * with its pictures in a Boards folder. It holds every doc and board the admin
+ * can open, and the private docs whose owners let them in (each owner decides
+ * in the doc's More menu); the rest are left out, and the export says how many. Starting one is
  * recorded in the audit log, and the zip is kept for a day.
  *
  * The rows are the import card's (design v3, admin §A14): a mark, a name with
@@ -107,12 +108,12 @@ export default function ExportCard() {
 
   return (
     <SettingsSection
-      title="Export the workspace's docs"
-      description="Every doc you can open, and the private docs whose owners let them in, as Markdown files in folders that follow the page tree. Owners decide in each doc's More menu. Starting an export and downloading it are recorded in the audit log, and the zip is kept for a day."
+      title="Export the workspace's docs and boards"
+      description="Every doc you can open, and the private docs whose owners let them in, as Markdown files in folders that follow the page tree; every board you can open, as an Excalidraw file with its pictures, in a Boards folder. Owners decide in each doc's More menu. Starting an export and downloading it are recorded in the audit log, and the zip is kept for a day."
       action={
         <Button variant="outline" className={sectionActionClass} onClick={start} disabled={starting || running}>
           {starting ? <Loader2 className="animate-spin" aria-hidden="true" /> : <FileArchive aria-hidden="true" />}
-          {running ? "Exporting…" : "Export all docs"}
+          {running ? "Exporting…" : "Export all"}
         </Button>
       }
     >
@@ -157,7 +158,7 @@ function ExportRow({ item: e, onDownload }: { item: WorkspaceExport; onDownload:
       <SourceMark name="Docs" glyph={FileArchive} size={28} />
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5">
-          <span className="min-w-0 truncate text-sm font-medium text-foreground">Workspace docs</span>
+          <span className="min-w-0 truncate text-sm font-medium text-foreground">Docs and boards</span>
           <StateWord tone={state.tone} pulse={state.pulse}>
             {state.label}
           </StateWord>

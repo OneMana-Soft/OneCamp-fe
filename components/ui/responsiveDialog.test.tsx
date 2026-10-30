@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 // header and the footer is the one scroller, and the actions stay in the
 // footer, out of what scrolls, however tall the body.
 vi.mock("@/components/ui/overlayMode", async (actual) => ({ ...(await actual<object>()), useSheetMode: () => false }))
-vi.mock("next/dynamic", () => ({ default: () => () => null }))
 
 const { ResponsiveDialog } = await import("./responsive-dialog")
 

@@ -10,7 +10,7 @@ import { join } from "node:path"
 const read = (p: string) => readFileSync(join(__dirname, "..", "..", p), "utf8")
 
 describe("chat's copy", () => {
-  it.each(["components/rightPanel/channelComments.tsx", "components/channel/channelMessages.tsx", "components/mobilePost/mobilePost.tsx", "components/message/deleteConfirm.tsx"])(
+  it.each(["components/rightPanel/channelComments.tsx", "components/conversation/ChannelRows.tsx", "components/mobilePost/mobilePost.tsx", "components/message/deleteConfirm.tsx"])(
     "%s never calls a message a post",
     (f) => expect(read(f)).not.toMatch(/Delete this post\?|"Delete post"/),
   )
@@ -23,7 +23,9 @@ describe("chat's copy", () => {
   it("names a message that could not be drawn in plain words", () => {
     expect(read("components/message/baseMessageCard.tsx")).not.toContain("Editor Error")
   })
-  it.each(["components/combobox/addTeamMemberCombobox.tsx", "components/combobox/addProjectMemberCombobox.tsx"])("%s says Add member", (f) => {
-    expect(read(f)).not.toMatch(/\bAdd Member\b/)
+  // One picker adds someone to a project, a team or a channel (SA-3).
+  it("says Add member when it adds someone", () => {
+    expect(read("components/combobox/addMemberCombobox.tsx")).toContain("Add member")
+    expect(read("components/combobox/addMemberCombobox.tsx")).not.toMatch(/\bAdd Member\b/)
   })
 })

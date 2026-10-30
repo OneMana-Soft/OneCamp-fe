@@ -18,10 +18,11 @@ vi.mock("@/components/textInput/textInput", () => ({
 }))
 vi.mock("@/components/drawers/dragableDrawer", () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
 vi.mock("@/components/command/CommandSurface", () => ({ default: ({ children }: { children?: React.ReactNode }) => <>{children}</> }))
+// The box reads its conversation's command catalog as it draws (LazyCommandSurface).
+vi.mock("@/services/commandService", () => ({ fetchCommandCatalog: async () => ({ commands: [] }) }))
 vi.mock("@/components/ai/ComposerAIButton", () => ({ ComposerAIButton: () => null }))
 vi.mock("@/components/ai/ChannelAgents", () => ({ useChannelAgents: () => [] }))
 vi.mock("@/components/messages/scheduledMessagesBar", () => ({ ScheduledMessagesBar: () => null }))
-vi.mock("@/components/fileUpload/channelFileUpload", () => ({ ChannelFileUpload: () => null }))
 vi.mock("@/components/fileUpload/chatCommentFileUpload", () => ({ ChatCommentFileUpload: () => null }))
 vi.mock("@/context/ScheduleSendContext", () => ({ useScheduleSend: () => undefined }))
 vi.mock("@/hooks/usePublishTyping", () => ({ usePublishTyping: () => ({ publishTyping: () => {} }) }))
@@ -34,7 +35,8 @@ vi.mock("@/lib/celebrate", () => ({ celebrate: () => null }))
 const { default: store } = await import("@/store/store")
 const { createUserChannelList, incrementUserChannelUnread } = await import("@/store/slice/userSlice")
 const { addChannelTyping } = await import("@/store/slice/typingSlice")
-const { MobileChannelTextInput } = await import("@/components/textInput/mobileChannelTextInput")
+const { Composer } = await import("@/components/conversation/Composer")
+const { ComposerHost } = await import("@/components/conversation/ComposerHost")
 const { MobileChatMessageTextInput } = await import("@/components/textInput/mobileChatMessageTextInput")
 
 afterEach(() => {
@@ -47,7 +49,7 @@ const channel = (uuid: string, name: string) => ({ ch_uuid: uuid, ch_name: name,
 describe("a phone's message box with nothing typed yet", () => {
   it("in a channel, stays still while other channels get messages", () => {
     store.dispatch(createUserChannelList({ channelsUser: [channel("c1", "design"), channel("c2", "general")] } as never))
-    render(<Provider store={store}><MobileChannelTextInput channelId="c1" handleSend={() => {}} /></Provider>)
+    render(<Provider store={store}><ComposerHost target={{ kind: "channel", id: "c1" }}><Composer phone handleSend={() => {}} placeholder="Message #design" /></ComposerHost></Provider>)
     const drawn = editorDraws
     expect(drawn).toBeGreaterThan(0)
     for (let i = 0; i < 3; i++) act(() => void store.dispatch(incrementUserChannelUnread({ ch_uuid: "c2" })))

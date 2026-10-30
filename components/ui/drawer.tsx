@@ -4,13 +4,17 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { lastInputWasPointer, watchInputModality } from "@/lib/ui/inputModality"
+import { watchMore } from "@/components/ui/moreMarks"
+import { focusDialogItself } from "@/components/ui/overlayFocus"
 import { PanelsContext, type Panel } from "@/components/ui/sheetPanels"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 /**
  * The phone's sheet (design v3, mobile C5). Every sheet declares how tall it
  * is, which is also how it behaves:
  *
- *   menu    as tall as its content, at most 60dvh, no grabber: an options
+ *   menu    as tall as its content, at most 92dvh, no grabber: an options
  *           menu (channel, doc, task, calendar options). It dims the page.
  *   medium  as tall as its content, at most 92dvh, with the grabber: most
  *           sheets. It dims the page.
@@ -72,6 +76,21 @@ const CLOSE_GRACE_MS = 250
 
 const seconds = (v: string) => (v.trim().endsWith("ms") ? parseFloat(v) / 1000 : parseFloat(v)) || 0
 
+// Open sheets, so a sheet over a sheet keeps the mark (phone.css C9 reads it).
+let openSheets = 0
+
+function markSheetOpen(): () => void {
+  openSheets++
+  document.documentElement.setAttribute("data-sheet", "open")
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    openSheets = Math.max(0, openSheets - 1)
+    if (!openSheets) document.documentElement.removeAttribute("data-sheet")
+  }
+}
+
 /**
  * Radix keeps a closing sheet and its scrim in the page until their close
  * animation reports its end, and Chrome reports nothing when one is
@@ -80,14 +99,22 @@ const seconds = (v: string) => (v.trim().endsWith("ms") ? parseFloat(v) / 1000 :
  * load). So once a close has had its animation's time and a little more,
  * its end is reported here: Escape, a swipe and a tap outside all close
  * through this one path.
+ * It also marks the page while the sheet is open (html[data-sheet]).
  */
 function useCloseSettles<T extends HTMLElement>(forwarded: React.ForwardedRef<T>) {
   const [node, setNode] = React.useState<T | null>(null)
   React.useEffect(() => {
     if (!node) return
     let timer: ReturnType<typeof setTimeout> | undefined
+    let release: (() => void) | null = null
     const watch = () => {
       clearTimeout(timer)
+      const open = node.getAttribute("data-state") === "open"
+      if (open && !release) release = markSheetOpen()
+      else if (!open && release) {
+        release()
+        release = null
+      }
       if (node.getAttribute("data-state") !== "closed") return
       const style = getComputedStyle(node)
       const ms = (seconds(style.animationDuration) + seconds(style.animationDelay)) * 1000 + CLOSE_GRACE_MS
@@ -104,6 +131,7 @@ function useCloseSettles<T extends HTMLElement>(forwarded: React.ForwardedRef<T>
     return () => {
       observer.disconnect()
       clearTimeout(timer)
+      release?.()
     }
   }, [node])
   return React.useCallback(
@@ -123,18 +151,18 @@ const DrawerOverlay = React.forwardRef<
   <DrawerPrimitive.Overlay
     ref={useCloseSettles(ref)}
     data-v3-scrim=""
-    className={cn("fixed inset-0 z-[var(--z-modal-backdrop)] bg-[rgb(10_11_14/0.32)] dark:bg-[rgb(0_0_0/0.55)]", className)}
+    className={cn("fixed inset-0 z-[var(--z-modal)] bg-[rgb(10_11_14/0.32)] dark:bg-[rgb(0_0_0/0.55)]", className)}
     {...props}
   />
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
 // A panel's header, loaded with the first panel (components/ui/sheet-panel).
-const PanelHeader = React.lazy(() => import("@/components/ui/sheet-panel"))
+const PanelHeader = lazyPiece(() => import("@/components/ui/sheet-panel"))
 
 /** How tall each detent may be. dvh, never vh (see below). */
 const DETENT_HEIGHT: Record<SheetDetent, string> = {
-  menu: "max-h-[60dvh]",
+  menu: "max-h-[92dvh]",
   medium: "max-h-[92dvh]",
   half: "h-[max(50dvh,20rem)] max-h-[92dvh]",
   large: "h-[92dvh] max-h-[92dvh]",
@@ -169,9 +197,14 @@ const DrawerContent = React.forwardRef<
      */
     footer?: React.ReactNode
   }
->(({ className, children, overlayClassName, handleClassName, above, header, footer, onEscapeKeyDown, ...props }, ref) => {
+>(({ className, children, overlayClassName, handleClassName, above, header, footer, onEscapeKeyDown, onOpenAutoFocus, onCloseAutoFocus, onFocusCapture, ...props }, ref) => {
   const detent = React.useContext(DetentContext)
   const settles = useCloseSettles(ref)
+  // Where the focus came from as it first went into the sheet: what opened it,
+  // which a key that closes the sheet gives it back to.
+  const opener = React.useRef<HTMLElement | null>(null)
+  // The keys that close it are known for keys (lib/ui/inputModality).
+  React.useEffect(() => watchInputModality(), [])
   // Its panels (components/ui/sheetPanels); focus and scroll come back as the last closes.
   const [stack, setStack] = React.useState<Panel[]>([])
   const [host, setHost] = React.useState<HTMLDivElement | null>(null)
@@ -201,14 +234,35 @@ const DrawerContent = React.forwardRef<
       was.current = null
     }
   }, [host, top])
+  // The header's and footer's hairlines follow the body. A ref: the portal draws it a render after this mounts.
+  const bodyRef = React.useCallback((el: HTMLDivElement | null) => {
+    body.current = el
+    const undo = watchMore(el)
+    return () => {
+      undo?.()
+      body.current = null
+    }
+  }, [])
   const titleId = React.useId()
   return (
     <DrawerPortal>
-      <DrawerOverlay className={overlayClassName} />
+      {/* A tap on the scrim closes the sheet and nothing else. React carries
+          its click up the tree the portal came from, so the scrim of a sheet
+          opened inside a row (a tree row's "⋯") opened the row's page too:
+          the click stops here. Stopped, it no longer reaches the document,
+          where Radix closes a sheet on a finger's tap outside (a mouse's press
+          has closed it already), so the scrim is the sheet's close, as Done
+          is: the dialog's own, vaul's onOpenChange, which a sheet that isn't
+          dismissible refuses. It stays a layer, with no button's type. */}
+      <DrawerClose asChild type={undefined} onClick={(event) => event.stopPropagation()}>
+        <DrawerOverlay className={overlayClassName} />
+      </DrawerClose>
       <DrawerPrimitive.Content
         ref={settles}
         data-v3-sheet=""
         data-overlay="sheet"
+        // Its footer is its foot on a phone (app/overlay.css 8b), with nothing under it.
+        data-overlay-holds-footer={footer ? "" : undefined}
         data-detent={detent}
         className={cn(
           // The pop surface at e4, no border; the r20 top corners are
@@ -233,7 +287,8 @@ const DrawerContent = React.forwardRef<
           // bottom ~34px for its swipe gesture. Without this the last row of every
           // drawer (Apply/Clear in the filter drawers, the last option in every
           // options drawer) sits where the system swipe wins and the tap opens the
-          // app switcher instead. One line here covers all the drawers.
+          // app switcher instead. One line here covers all the drawers; on a
+          // phone a footer keeps the strip instead (app/overlay.css 8b).
           "pb-[env(safe-area-inset-bottom)]",
           // The sheet takes focus when it opens, to hold it inside; it is a
           // surface, not a control, so it draws no ring. After a tap on a
@@ -252,6 +307,31 @@ const DrawerContent = React.forwardRef<
             return
           }
           onEscapeKeyDown?.(event)
+        }}
+        // It takes the focus as it opens, on itself, never its first field (a
+        // tap would throw up a phone's keyboard): vaul leaves the focus where
+        // it was, behind the sheet, unless autoFocus is set, and a keyboard
+        // there was lost (27 Oct). A caller's own choice comes first.
+        onOpenAutoFocus={(event) => {
+          onOpenAutoFocus?.(event)
+          if (!event.defaultPrevented) focusDialogItself(event)
+        }}
+        onFocusCapture={(event) => {
+          const from = event.relatedTarget
+          if (!opener.current && from instanceof HTMLElement && !event.currentTarget.contains(from)) opener.current = from
+          onFocusCapture?.(event)
+        }}
+        // A key that closes it gives the focus back to what opened it; after a
+        // pointer or a tap it stays put, as a menu's does (returnFocusOnlyForKeys):
+        // no ring on the opener, and no field throwing up the keyboard. A
+        // caller's own choice comes first.
+        onCloseAutoFocus={(event) => {
+          const to = opener.current
+          opener.current = null
+          onCloseAutoFocus?.(event)
+          if (event.defaultPrevented) return
+          event.preventDefault()
+          if (to?.isConnected && !lastInputWasPointer()) to.focus({ preventScroll: true })
         }}
         {...props}
       >
@@ -273,8 +353,11 @@ const DrawerContent = React.forwardRef<
             (e2e/phoneSheets.spec.ts). */}
         <InSheet.Provider value>
             <PanelsContext.Provider value={panels}>
+              {/* Its own header keeps 8px over and under what it holds, so a
+                  description clears the hairline under it while the body has
+                  more above (overlay.css #4); a lone title stands where it did. */}
               {header || top ? (
-                <div data-sheet-header="" className="flex min-h-13 shrink-0 flex-col items-center justify-center px-4 text-center">
+                <div data-sheet-header="" data-overlay-header="" className={cn("flex min-h-13 shrink-0 flex-col items-center justify-center px-4 text-center", !top && "py-2")}>
                   {header ? <div className={top ? "hidden" : "contents"}>{header}</div> : null}
                   {top ? (
                     <React.Suspense fallback={<span className="h-11" />}>
@@ -283,15 +366,21 @@ const DrawerContent = React.forwardRef<
                   ) : null}
                 </div>
               ) : null}
-              <div ref={body} data-sheet-body="" className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain">
+              <div ref={bodyRef} data-sheet-body="" className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain">
                 <div data-sheet-base="" className={top ? "hidden" : "contents"}>
                   {children}
                 </div>
-                {top ? <div key={top.key} ref={setHost} data-sheet-panel="" role="region" aria-labelledby={titleId} tabIndex={-1} className="sheet-panel-in flex min-h-0 flex-col outline-none" /> : null}
+                {/* At its content's height: shrunk to the body, its sticky top (a time's box) scrolled away. */}
+                {top ? <div key={top.key} ref={setHost} data-sheet-panel="" role="region" aria-labelledby={titleId} tabIndex={-1} className="sheet-panel-in flex shrink-0 flex-col outline-none" /> : null}
               </div>
-              {/* overlay.css #4: a hairline while an OverlayBody has more below. */}
+              {/* overlay.css #4: a hairline while the body has more below. On
+                  the sheet's own fill, what scrolls fades out above its top
+                  edge (phone.css), not cut at a line; the body's end room
+                  stays in view over it, so its last row clears the fade. Its
+                  foot on a phone is every phone sheet's (overlay.css #8b: its
+                  16px gutter, or the strip); pb-4 is its foot off a phone. */}
               {footer ? (
-                <div data-sheet-footer="" data-overlay-footer="" className="relative shrink-0 px-4 pb-4 pt-3">
+                <div data-sheet-footer="" data-overlay-footer="" className="relative shrink-0 bg-inherit px-4 pb-4 pt-3">
                   {footer}
                 </div>
               ) : null}
@@ -302,27 +391,6 @@ const DrawerContent = React.forwardRef<
   )
 })
 DrawerContent.displayName = "DrawerContent"
-
-/**
- * A group of a sheet's rows (design v3, mobile C7): an r14 card on the sheet,
- * iOS's inset-grouped look, so a menu reads as a tray of cards and not a list
- * on a slab. A menu has at most three: what is used most, what manages, and
- * what destroys, which is alone and last.
- */
-const SheetGroup = ({ className, label, ...props }: React.HTMLAttributes<HTMLDivElement> & { label?: string }) => (
-  <div role="group" aria-label={label} data-sheet-group="" className={cn("sheet-group", className)} {...props} />
-)
-SheetGroup.displayName = "SheetGroup"
-
-/** The Cancel card under a menu's groups: a thumb's-reach way out (iOS's action sheet). */
-const SheetCancel = ({ label = "Cancel", className }: { label?: string; className?: string }) => (
-  <DrawerPrimitive.Close asChild>
-    <button type="button" data-sheet-cancel="" data-press="row" className={cn("sheet-cancel mb-2", className)}>
-      {label}
-    </button>
-  </DrawerPrimitive.Close>
-)
-SheetCancel.displayName = "SheetCancel"
 
 /**
  * Centred: the v3 sheet's header has its title centred (mobile C5), as
@@ -360,7 +428,7 @@ const DrawerTitle = React.forwardRef<
     asChild={asChild}
     // With asChild the child is the title (a heading the sheet's content
     // already draws, as the event card's), and it keeps its own look.
-    className={asChild ? className : cn("text-lg font-semibold leading-tight text-balance", className)}
+    className={asChild ? className : cn("text-lg font-semibold leading-tight [text-wrap-style:balance]", className)}
     {...props}
   />
 ))
@@ -372,15 +440,13 @@ const DrawerDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("text-sm text-muted-foreground text-pretty", className)}
     {...props}
   />
 ))
 DrawerDescription.displayName = DrawerPrimitive.Description.displayName
 
 export {
-  SheetGroup,
-  SheetCancel,
   Drawer,
   DrawerPortal,
   DrawerOverlay,

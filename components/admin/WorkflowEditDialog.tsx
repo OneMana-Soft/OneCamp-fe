@@ -640,8 +640,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={saving}>
-                        {saving && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                    <Button onClick={handleSave} busy={saving}>
                         {isEdit ? "Save changes" : "Create workflow"}
                     </Button>
                 </DialogFooter>

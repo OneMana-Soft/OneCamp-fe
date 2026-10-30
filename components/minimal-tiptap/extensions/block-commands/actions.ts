@@ -84,7 +84,8 @@ blockAction("block.add", "Add a block", Plus, "insert", 5, ["phoneBar"], "addLin
   run: (ctx) => void ctx.editor?.chain().focus().addLineBelow().insertContent("/").run(),
 })
 
-// Move to… shows only while B6's dialog is there; the dialog takes the blocks staged here.
+// Move to… shows only while B6's dialog is there; the dialog takes the blocks
+// staged here. A child page's block has its own, which moves the page (docs C7a).
 registerAction({
   id: "block.moveTo",
   label: "Move to…",
@@ -93,7 +94,7 @@ registerAction({
   order: 30,
   surfaces: ["blockMenu"],
   edition: "both",
-  isVisible: (ctx) => ctx.canEdit && !!dialogFor("doc.moveTo", gate(ctx)),
+  isVisible: (ctx) => ctx.canEdit && !!dialogFor("doc.moveTo", gate(ctx)) && !actionById("subpage.moveTo", gate(ctx))?.isVisible?.(ctx),
   run: (ctx) =>
     void import("@/components/docEditor/blockMove").then((m) => {
       if (ctx.editor && m.stageBlockMove(ctx.docId, ctx.editor, range(ctx))) ctx.bus.emit("openDialog", { id: "doc.moveTo" })

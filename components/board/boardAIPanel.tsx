@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import AiModelPicker from "@/components/ai/AiModelPicker"
 import BoardUIStudio from "@/components/board/boardUIStudio"
+import { newElementId } from "@/lib/board/ids"
 
 interface BoardAIPanelProps {
   boardId: string
@@ -219,9 +220,6 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
     if (open && mode === "compose") textareaRef.current?.focus()
   }, [open, mode])
 
-  const newGenId = () =>
-    typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `g${Date.now()}`
-
   // Convert the laid-out graph into Excalidraw elements and add them to the
   // scene. On a fresh generation new content is offset to the right of existing
   // content; on a refine (opts.replaceGenId) the previous AI elements are marked
@@ -234,7 +232,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
       const { convertToExcalidrawElements } = await import("@excalidraw/excalidraw")
 
       const isUI = !!(graph.components && graph.components.length > 0)
-      const genId = newGenId()
+      const genId = newElementId("gen")
 
       // Start from the current scene. On refine, mark the previous AI elements
       // deleted so the replacement supersedes them (and they sync as removed).
@@ -936,18 +934,9 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
                 <Button variant="ghost" size="sm" onClick={startNewDiagram} disabled={isSubmitting} className="gap-1.5">
                   <Sparkles className="h-3.5 w-3.5" /> New diagram
                 </Button>
-                <Button size="sm" onClick={handleRefine} disabled={isSubmitting || !api} className="shrink-0 gap-1.5">
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Applying
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Apply change
-                    </>
-                  )}
+                <Button size="sm" onClick={handleRefine} disabled={!api} busy={isSubmitting} className="shrink-0 gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {isSubmitting ? "Applying" : "Apply change"}
                 </Button>
               </div>
             </div>

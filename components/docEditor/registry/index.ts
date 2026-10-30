@@ -41,3 +41,4 @@ import '@/components/ai/docAiRegister' // B9: doc AI (AI edition only)
 import '@/components/docEditor/chrome/register' // B6: page chrome and sharing
 import '@/components/minimal-tiptap/extensions/connected/register' // C1: pages, dates, task lists, boards and to-dos that are tasks
 import '@/lib/workspaceExport/register' // C4: a private doc's owner lets it into workspace exports, in More
+import '@/components/minimal-tiptap/extensions/suggest-mode/register' // C5: suggesting, and every kept suggestion shown for review

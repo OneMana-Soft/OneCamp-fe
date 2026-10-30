@@ -25,6 +25,7 @@ vi.stubGlobal("Notification", Object.assign(function Notification() {}, { reques
 const { default: store } = await import("@/store/store")
 const { DESKTOP_OPEN_ROUTE_EVENT } = await import("@/lib/desktopApp")
 const { FCMHandler } = await import("@/components/fcm/FCMHandler")
+const { QUIET_MS, SETTLE_MS } = await import("@/lib/ui/whenQuiet")
 
 beforeEach(() => {
   ;(window as unknown as { __TAURI__?: object }).__TAURI__ = {}
@@ -65,9 +66,9 @@ describe("FCMHandler in the desktop app", () => {
 
   it("leaves a browser tab's web push as it was", async () => {
     delete (window as unknown as { __TAURI__?: object }).__TAURI__
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] })
     render(<Provider store={store}><FCMHandler /></Provider>)
-    await act(() => vi.advanceTimersByTimeAsync(3_000))
+    await act(() => vi.advanceTimersByTimeAsync(SETTLE_MS + QUIET_MS + 100))
     expect(registered).toHaveBeenCalledTimes(1)
     expect(subscribed).toBe(true)
     expect(requestPermission).not.toHaveBeenCalled()

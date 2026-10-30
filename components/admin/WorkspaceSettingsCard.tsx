@@ -19,7 +19,7 @@ import { updateWorkspaceSettings, useWorkspaceSettings, type WorkspaceSettings }
 import { appMutate as globalMutate } from "@/lib/swrMutate"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { AllowListChipInput } from "@/components/admin/AllowListChipInput"
-import { PUBLIC_DOMAIN_LINE, entryProblem, isPublicDomain } from "@/components/admin/allowListEntries"
+import { entryProblem } from "@/components/admin/allowListEntries"
 
 /** Where a value comes from, when that is worth saying after its help. */
 const SOURCE: Record<string, string> = {
@@ -60,7 +60,6 @@ export default function WorkspaceSettingsCard() {
     const edit = (patch: Partial<Draft>) => setEdits({ ...draft, ...patch })
     // Entries the list can't hold: Save waits until they are gone.
     const refused = draft.allowedUsers.filter((e) => entryProblem(e))
-    const hasPublic = draft.allowedUsers.some(isPublicDomain)
     // What a save answered goes into the shared read, so every card shows it.
     const store = (s: WorkspaceSettings) => mutate({ data: s }, { revalidate: false })
 
@@ -133,7 +132,6 @@ export default function WorkspaceSettingsCard() {
             </SettingsCard>
         )
     } else {
-        const listError = accessRefusal || (hasPublic ? PUBLIC_DOMAIN_LINE : "")
         body = (
             <SettingsCard
                 dirty={dirty}
@@ -187,14 +185,9 @@ export default function WorkspaceSettingsCard() {
                             edit({ allowedUsers: next })
                             setAccessRefusal("")
                         }}
-                        invalid={!!accessRefusal}
-                        describedBy={["allowed-users-desc", listError && "allowed-users-refusal", howOpen && howId].filter(Boolean).join(" ")}
+                        refusal={accessRefusal}
+                        describedBy={["allowed-users-desc", howOpen && howId].filter(Boolean).join(" ")}
                     />
-                    {listError && (
-                        <p id="allowed-users-refusal" role="alert" className="mt-2 text-xs text-danger-ink text-pretty">
-                            {listError}
-                        </p>
-                    )}
                     {/* The three lines of help this replaced, one press away. */}
                     <button
                         type="button"

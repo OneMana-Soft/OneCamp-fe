@@ -30,7 +30,8 @@ test("on a phone, a card held and dragged by touch moves to another lane, settin
   const y1 = done.y + 60
   const cdp = await page.context().newCDPSession(page)
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x0, y: y0 }] })
-  await page.waitForTimeout(400)
+  // Held until the card lifts: its copy under the finger shows its name too.
+  await expect(page.getByText("Booth", { exact: true })).toHaveCount(2)
   for (let i = 1; i <= 12; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x0 + ((x1 - x0) * i) / 12, y: y0 + ((y1 - y0) * i) / 12 }] })
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
   await expect.poll(() => server.valuesOf(0).stage, { timeout: 15_000 }).toBe("Done")

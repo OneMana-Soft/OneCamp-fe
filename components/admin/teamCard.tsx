@@ -129,6 +129,7 @@ const TeamsCard = () => {
                 title={`No team matches ${quoted(search)}.`}
                 hint="Check the spelling, or try part of the name."
                 onClear={() => setSearch("")}
+                showAll="Show all teams"
             />
         ) : (
             // No teams at all is a first run, so it is welcomed, with the one

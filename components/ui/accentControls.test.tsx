@@ -87,8 +87,9 @@ describe("the current place in the navigation", () => {
     expect(chip).toMatch(/box-shadow:\s*var\(--e-sel\);/)
     expect(chip).toMatch(/color:\s*var\(--ink\);/)
     expect(chip).not.toMatch(/font-weight/)
-    // The row's own icon; an identity mark inside keeps its colours (D13, app/identityHue.test.ts).
-    expect(rule(".nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon])")).toMatch(/color:\s*var\(--brand\);/)
+    // The row's own icon; an identity mark inside keeps its colours (D13, app/identityHue.test.ts),
+    // as do a Docs & Files node's mark and a chosen row's check (docs F1b).
+    expect(rule(".nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile], [data-node-mark], [data-tree-check]) *, [data-doc-icon])")).toMatch(/color:\s*var\(--brand\);/)
     expect(CSS).not.toMatch(/\.nav-active::before/)
   })
 

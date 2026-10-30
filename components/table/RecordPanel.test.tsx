@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import type { ComponentProps } from "react"
 
 const fill = vi.fn()
 // AI on, unless a test says otherwise (hooks/useClientConfig reads the server's config).
@@ -50,7 +51,7 @@ const fields: TableField[] = [
 const row = (kept?: string[]): TableRow => ({ id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "Booth", summary: "A booth", notes: "" }), ai_kept: kept })
 const panel = (r: TableRow, onChange = vi.fn()) =>
   render(
-    <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn() }} onStep={vi.fn()} onClose={vi.fn()} onChange={onChange} />,
+    <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={onChange} />,
   )
 
 afterEach(() => {
@@ -106,7 +107,7 @@ describe("a row's record with lines of text", () => {
   const lined: TableRow = { id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "Booth\nHall 2", summary: "", notes: "Para one\n\nPara two" }) }
   const open = () => {
     const commitCell = vi.fn().mockResolvedValue(true)
-    render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[lined]} rowId="r1" canManage commit={{ commitCell, linkCell: vi.fn() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+    render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[lined]} rowId="r1" canManage commit={{ commitCell, linkCell: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
     return commitCell
   }
 
@@ -126,8 +127,11 @@ describe("a row's record with lines of text", () => {
     const scroll = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) {
       return this.tagName === "TEXTAREA" ? 64 : 900
     })
-    // The record around it is far taller than the title.
+    // The record around it is far taller than the title, which has no border.
     const client = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "TEXTAREA" ? 64 : 900
+    })
+    const offset = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
       return this.tagName === "TEXTAREA" ? 64 : 900
     })
     open()
@@ -135,6 +139,7 @@ describe("a row's record with lines of text", () => {
     expect(title.style.height).toBe("64px")
     scroll.mockRestore()
     client.mockRestore()
+    offset.mockRestore()
   })
 
   it("keeps the title's lines, and adds one on Shift+Enter", () => {
@@ -155,7 +160,7 @@ describe("a row's record", () => {
   it("shows every option a multi-select holds", () => {
     const tags: TableField = { id: "tags", table_id: "t", name: "Tags", type: "multi_select", config: JSON.stringify({ options: ["A", "B", "C", "D"].map((l) => ({ id: `o_${l}`, label: l })) }), position: 3 }
     const r: TableRow = { id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "Booth", tags: ["A", "B", "C", "D"] }) }
-    render(<RecordPanel tableId="t" tableName="Launch budget" fields={[...fields, tags]} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+    render(<RecordPanel tableId="t" tableName="Launch budget" fields={[...fields, tags]} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
     for (const label of ["A", "B", "C", "D"]) expect(screen.getAllByText(label).length).toBeGreaterThan(0)
     expect(screen.queryByText("+2")).toBeNull()
   })
@@ -173,7 +178,7 @@ describe("a row's record and its fields", () => {
         rows={[{ id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify(values) }]}
         rowId="r1"
         canManage
-        commit={{ commitCell: vi.fn(), linkCell: vi.fn() }}
+        commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }}
         onStep={vi.fn()}
         onClose={vi.fn()}
         onChange={vi.fn()}
@@ -286,5 +291,61 @@ describe("a row's page in its record", () => {
     expect(await screen.findByRole("button", { name: "Back to the side panel" })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Back to the side panel" }))
     expect(screen.getByRole("dialog").hasAttribute("data-record-as-page")).toBe(false)
+  })
+})
+
+// Tables T5c: a view read in windows gives its count, and keeps the rows
+// added here at its end (its tail). A record says its row's place in the
+// whole view and steps by places, reading on as it nears the rows not read.
+describe("a row's record in a view read in windows", () => {
+  const lineRow = (i: number): TableRow => ({ id: `r${i}`, table_id: "t", position: i, created_at: "", updated_at: "", values: JSON.stringify({ item: `Line ${i}` }) })
+  // Places 0 to 2 read, 3 to 8 on their way, and the row added here at place 9.
+  const given = [lineRow(0), lineRow(1), lineRow(2), lineRow(99)]
+  const open = (rowId: string, more: Partial<ComponentProps<typeof RecordPanel>> = {}) => {
+    const onStep = vi.fn()
+    render(
+      <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={given} count={10} tail={1} rowId={rowId} canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }} onStep={onStep} onClose={vi.fn()} onChange={vi.fn()} {...more} />,
+    )
+    return onStep
+  }
+  const button = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement
+
+  it("says its row's place in the whole view, and steps only to rows read", () => {
+    const onStep = open("r2")
+    expect(screen.getByText("Launch budget · 3 of 10")).toBeTruthy()
+    fireEvent.click(button("Previous row (K)"))
+    expect(onStep).toHaveBeenLastCalledWith("r1")
+    // Place 3 is on its way: not the row added here, which is the view's last.
+    expect(button("Next row (J)").disabled).toBe(true)
+  })
+
+  it("says a row added here is the view's last", () => {
+    open("r99")
+    expect(screen.getByText("Launch budget · 10 of 10")).toBeTruthy()
+    expect(button("Next row (J)").disabled).toBe(true)
+  })
+
+  it("asks the view to read on to the next place", () => {
+    const reach = vi.fn()
+    open("r2", { onReach: reach })
+    expect(reach).toHaveBeenCalledWith(3)
+  })
+
+  it("opens a row the view hasn't reached alone: no place, no steps", () => {
+    open("r500", { rows: [lineRow(500)], count: undefined, tail: undefined, alone: true })
+    expect(screen.getByText("Launch budget")).toBeTruthy()
+    expect(screen.queryByText(/ of /)).toBeNull()
+    expect(button("Previous row (K)").disabled).toBe(true)
+    expect(button("Next row (J)").disabled).toBe(true)
+  })
+})
+
+// REGRESSION-HUNT-1 (26 Oct): a record opened while an edit to its row was
+// saving read the row's copy, and showed the old value until the save answered.
+describe("a row's record opened while an edit to it saves", () => {
+  it("shows the edit, not the row's copy", () => {
+    const edits = new Map([["r1", { saving: { notes: "Bring a banner" }, saved: {}, copy: null }]])
+    render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[row()]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+    expect((screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement).value).toBe("Bring a banner")
   })
 })

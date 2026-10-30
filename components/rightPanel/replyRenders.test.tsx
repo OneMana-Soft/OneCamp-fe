@@ -26,7 +26,6 @@ vi.mock("@/components/textInput/textInput", () => ({
     default: ({ content }: { content?: string }) => <div data-testid="body">{content}</div>,
 }))
 vi.mock("@/components/channel/channelMessageAvatar", () => ({ ChannelMessageAvatar: () => <span /> }))
-vi.mock("@/components/ai/SaveToMemoryButton", () => ({ SaveToMemoryButton: () => null }))
 vi.mock("@/components/message/AgentResultCards", () => ({ AgentResultCards: () => null }))
 vi.mock("@/components/message/WorkLinkCards", () => ({ WorkLinkCards: () => null }))
 // Each emoji the reader reacted with is marked (several a person, chat B25).

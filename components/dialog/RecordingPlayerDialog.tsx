@@ -7,17 +7,20 @@ import {RootState} from "@/store/store";
 import {closeUI} from "@/store/slice/uiSlice";
 import {useEffect, useState, useRef, useMemo, type ReactNode} from "react";
 import {useFetch} from "@/hooks/useFetch";
-import { AlertTriangle, Captions, Disc, LoaderCircle, X, Download, Maximize2, Minimize2 } from "@/lib/icons";
+import { AlertTriangle, Captions, Disc, LoaderCircle, X, Download, Maximize2, Minimize2, VideoOff } from "@/lib/icons";
 import {VirtualInfiniteScroll} from "@/components/list/virtualInfiniteScroll";
 import {TranscriptInfoInterface} from "@/types/recording";
 import {useMedia} from "@/context/MediaQueryContext";
 import {cn} from "@/lib/utils/helpers/cn";
 import {Button} from "@/components/ui/button";
-import {formatFileSizeForAttachment} from "@/lib/utils/format/formatFileSizeForAttachment";
+import {MiddleName} from "@/components/ui/middleName";
+import {fileSize} from "@/lib/utils/format/formatFileSizeForAttachment";
 import {formatDateForAttachment} from "@/lib/utils/date/formatDateforAttachment";
 import {formatDuration} from "@/lib/utils/format/formatDuration";
 import {downloadFile} from "@/lib/utils/file/downloadFile";
 import {useRecordingPlayback, type RecordingMedia} from "@/components/dialog/useRecordingPlayback";
+import {nothingToPlay, transcriptLayout} from "@/components/recording/recordingState";
+import {ErrorState} from "@/components/ui/error-state";
 import {SaysLoadFailure} from "@/lib/http/loadFailure";
 import {hasPageAfter} from "@/lib/http/pageCount";
 import {toast} from "@/hooks/use-toast";
@@ -157,8 +160,9 @@ export const RecordingPlayerDialog = () => {
             <div 
                 key={index} 
                 className={cn(
-                    "flex flex-col gap-1 p-2 rounded-md transition-colors cursor-pointer border border-transparent",
-                    isActive ? "bg-primary/10 border-primary/20" : "hover:bg-muted/50"
+                    // An inset ring, not a border: a border's pixel set the words off the heading's line.
+                    "flex flex-col gap-1 p-2 rounded-md transition-colors cursor-pointer",
+                    isActive ? "bg-primary/10 ring-1 ring-inset ring-primary/20" : "hover:bg-muted/50"
                 )}
                 onClick={handleJump}
             >
@@ -177,25 +181,40 @@ export const RecordingPlayerDialog = () => {
         );
     };
 
+    // Nothing to play and nothing to read: the stage says why on its own (DB-28
+    // on V-32). Until the player's own answer comes, the row's status decides,
+    // so the sheet doesn't open with a panel only to drop it. The first page's
+    // lines show as soon as they answer, before the list takes them in.
+    const shownLines: TranscriptInfoInterface[] = transcriptList.length ? transcriptList : (transcriptInfo.data?.data?.recording_transcript ?? []);
+    const transcriptFailed = !!transcriptInfo.isError && shownLines.length === 0;
+    const layout = transcriptLayout(media?.status ?? data.status, {
+        answered: !data.transcriptGetUrl || transcriptInfo.data !== undefined || transcriptFailed,
+        lines: shownLines.length,
+        failed: transcriptFailed,
+    });
+    // The header's facts, joined only where there are some: no size for one
+    // with nothing in it ("0 bytes" before), as its row gives none, and none
+    // for a doc's embed, which knows neither ("0 bytes · " before).
+    const facts = [fileSize(data.fileSize), formatDateForAttachment(data.recordedAt || "")].filter(Boolean).join(" · ");
+
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
             {/* Full screen lifts the dialog surface's 85dvh cap as well as its
                 width: with the cap kept, the player stopped 15% short of the
                 screen and the page showed above and below it, as the file
-                lightbox did. */}
+                lightbox did. Its parts sit flush (gap-0): the surface's own
+                gap left a band of it between the header and the stage. */}
              <DialogContent className={cn(
-                "max-w-[70vw] h-[85vh] p-0 flex flex-col overflow-hidden bg-background border [&>button]:hidden",
+                "max-w-[70vw] h-[85vh] p-0 gap-0 flex flex-col overflow-hidden bg-background border [&>button]:hidden",
                 isFullscreen && "!max-w-none !w-screen !h-dvh !max-h-none !rounded-none border-none"
-            )}>
+            )} data-full-screen={isFullscreen ? "" : undefined}>
                 {/* ... Header ... */}
                  <div className="flex justify-between items-center p-3 border-b bg-muted/20">
-                    <div className="flex flex-col">
-                        <DialogTitle className="text-base font-semibold truncate max-w-[200px] md:max-w-md">
-                           {data.fileName || "Recording"}
+                    <div className="flex min-w-0 flex-col md:max-w-md">
+                        <DialogTitle className="text-base font-semibold">
+                            <MiddleName name={data.fileName || "Recording"} />
                         </DialogTitle>
-                         <span className="text-xs text-muted-foreground">
-                            {formatFileSizeForAttachment(data.fileSize || 0)} • {formatDateForAttachment(data.recordedAt || "")}
-                        </span>
+                        {facts ? <span className="text-xs text-muted-foreground">{facts}</span> : null}
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -237,20 +256,23 @@ export const RecordingPlayerDialog = () => {
                                 />
                             </div>
                         ) : (
-                            <RecordingStageMessage media={media} loadError={playback.loadError} playbackFailed={playback.playbackFailed} onRetry={media ? playback.retry : () => void playback.reload()} />
+                            // While the layout waits for the words, the stage keeps
+                            // its loading state, as while the media answer comes.
+                            <RecordingStageMessage media={layout === "wait" ? null : media} loadError={playback.loadError} playbackFailed={playback.playbackFailed} onRetry={media ? playback.retry : () => void playback.reload()} />
                         )}
                     </div>
                     )}
 
                     {/* Transcript Area */}
+                    {layout === "panel" && (
                     <div className={cn(
                         // Its size snaps when full screen changes: a transitioned
                         // width and height laid the dialog out on every frame.
                         "flex flex-col bg-background transition-colors",
                         transcriptOnly
                             ? "w-full flex-1"
-                            : cn("border-l border-border", isFullscreen && !isMobile ? "w-[350px]" : "w-full md:w-[350px] h-[40vh] md:h-full")
-                    )}>
+                            : cn("border-border", isFullscreen && !isMobile ? "w-[350px] border-l" : "w-full md:w-[350px] h-[40vh] md:h-full md:border-l")
+                    )} data-transcript="">
                         <div className="p-3 border-b font-medium text-sm bg-muted/10 flex justify-between items-center">
                             <span className="flex items-center gap-2">
                                 {transcriptOnly ? <Captions className="size-4 text-ink-3" aria-hidden /> : null}
@@ -263,18 +285,21 @@ export const RecordingPlayerDialog = () => {
                                 </Button>
                             )}
                         </div>
-                        <div className="flex-1 overflow-hidden p-2 relative"> 
-                             {transcriptList.length === 0 && transcriptInfo.isLoading ? (
+                        {/* px-1 and the rows' own p-2 start their text under the heading's. */}
+                        <div className="flex-1 overflow-hidden px-1 py-2 relative">
+                             {shownLines.length === 0 && transcriptInfo.isLoading ? (
                                 <div className="absolute inset-0 flex justify-center items-center text-muted-foreground text-sm">
                                     <LoaderCircle className="animate-spin h-4 w-4 mr-2" /> Loading transcript…
                                 </div>
-                             ) : transcriptList.length === 0 ? (
+                             ) : transcriptFailed ? (
+                                <ErrorState compact subject="the transcript" className="absolute inset-0" onRetry={() => void transcriptInfo.mutate()} />
+                             ) : shownLines.length === 0 ? (
                                 <div className="absolute inset-0 flex justify-center items-center text-muted-foreground text-sm">
                                     No transcript available
                                 </div>
                              ) : (
                                 <VirtualInfiniteScroll
-                                    items={transcriptList}
+                                    items={shownLines}
                                     renderItem={renderTranscriptItem}
                                     onLoadMore={handleLoadMore}
                                     isLoading={transcriptInfo.isLoading}
@@ -284,6 +309,7 @@ export const RecordingPlayerDialog = () => {
                              )}
                         </div>
                     </div>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>
@@ -292,8 +318,9 @@ export const RecordingPlayerDialog = () => {
 
 /**
  * What the stage says when there is no picture (CALL-BUG-16): still loading,
- * a recording that failed or was aborted (it used to open as a black frame
- * with controls), one still being recorded, or a link that wouldn't play.
+ * a recording that failed (it used to open as a black frame with controls),
+ * one that captured nothing, calmly (V-32), one still being recorded, or a
+ * link that wouldn't play.
  */
 export function RecordingStageMessage({
     media,
@@ -318,8 +345,12 @@ export function RecordingStageMessage({
             ) : null}
         </div>
     )
-    if (media?.status === "failed") {
-        return box(<AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />, "This recording couldn't be saved", "Something went wrong while the call was being recorded, so there's nothing to play. You can delete it from the recordings list.")
+    const nothing = nothingToPlay(media?.status)
+    if (nothing) {
+        const icon = nothing.state === "empty"
+            ? <VideoOff className="size-6 text-white/70" aria-hidden />
+            : <AlertTriangle className="size-6 text-[#FFB547]" aria-hidden />
+        return box(icon, nothing.title, nothing.detail)
     }
     if (media?.status === "recording") {
         return box(<Disc className="size-6 text-[#F2555A]" aria-hidden />, "Still recording", "This call is still being recorded. It can be played once the recording stops.")
@@ -336,7 +367,7 @@ export function RecordingStageMessage({
         )
     }
     return (
-        <div role="status" className="flex gap-2 items-center text-white/70">
+        <div role="status" className="flex gap-2 items-center text-white/70" data-recording-state="loading">
             <LoaderCircle className="animate-spin h-5 w-5" aria-hidden />
             <span className="text-sm">Loading the recording…</span>
         </div>

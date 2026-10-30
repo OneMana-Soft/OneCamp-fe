@@ -9,7 +9,9 @@ import { SWRConfig } from "swr"
 // the latest page from the server is all there is. Never on routine sends.
 
 const send = vi.fn(() => new Promise(() => {}))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: () => send() }, OWN_ERRORS: { suppressErrorToast: true } }))
+// How many were unread is known at once: hooks/useUnreadOnOpen has its own test.
+vi.mock("@/hooks/useUnreadOnOpen", () => ({ useUnreadOnOpen: () => 0 }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: () => send() } }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/hooks/useScheduledMessages", () => ({ useScheduleMessage: () => vi.fn() }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
@@ -45,7 +47,7 @@ vi.mock("@/components/chat/chatIdMobile", () => ({ ChatIdMobile: (p: ComposerPro
 const { default: store } = await import("@/store/store")
 const { updateChannelInputText, updateChannelPosts } = await import("@/store/slice/channelSlice")
 const { createOrUpdateChatBody } = await import("@/store/slice/chatSlice")
-const { ChannelView } = await import("./ChannelView")
+const { ChannelConversation: ChannelView } = await import("@/components/conversation/ChannelConversation")
 const { ChatView } = await import("./ChatView")
 
 function withLatest(key: string, page: { has_more: boolean }) {

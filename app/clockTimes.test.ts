@@ -1,8 +1,8 @@
-import { readFileSync, readdirSync, statSync } from "node:fs"
-import { join } from "node:path"
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import { clockTime } from "@/lib/utils/date/clock"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * One clock rule (owner, 12 Oct 2026): a time of day follows the reader's
@@ -28,16 +28,7 @@ const HELPER = "lib/utils/date/clock.ts"
 // Files that still write a time by hand, each with its owner. Empty it.
 const PENDING = new Map<string, string>([])
 
-function files(path: string): string[] {
-  const s = statSync(path)
-  if (s.isFile()) return [path]
-  if (/node_modules|\.next|test-results/.test(path)) return []
-  return readdirSync(path).flatMap((name) => files(join(path, name)))
-}
-
-const sources = ["app", "components", "hooks", "lib", "services"]
-  .flatMap(files)
-  .filter((f) => /\.(tsx?|mjs)$/.test(f) && !/\.test\.tsx?$/.test(f) && f !== HELPER)
+const sources = sourceFiles(["app", "components", "hooks", "lib", "services"], /\.(tsx?|mjs)$/).filter((f) => f !== HELPER)
 
 /** Code without comments, so a doc comment that names a call doesn't count. */
 const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "")

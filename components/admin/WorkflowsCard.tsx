@@ -127,11 +127,12 @@ function WorkflowRow({
         { trigger_type: wf.trigger_type, channel_id: wf.channel_id, keywords, match_type: wf.match_type, actions, task: tc },
         names,
     );
-    const toggle = async (next: boolean) => {
+    const toggle = async (next: boolean): Promise<boolean> => {
         setOn(next);
-        const held = await run(() => setWorkflowActive(wf.id, next));
+        const held = await run(() => setWorkflowActive(wf.id, next), { what: `${wf.name} is ${next ? "on" : "off"}`, undo: () => toggle(!next) });
         if (held) onChanged();
         else setOn(!next);
+        return held;
     };
     return (
         <div

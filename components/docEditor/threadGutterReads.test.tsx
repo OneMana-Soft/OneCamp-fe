@@ -13,8 +13,8 @@ const threads: { current: ThreadView[] } = { current: [] }
 const resolved: { current: Map<string, { state: string; from: number; to: number }> } = { current: new Map() }
 
 vi.mock("@/components/docComments/useDocThreads", () => ({ useDocThreads: () => ({ threads: threads.current }) }))
+vi.mock("@/components/docComments/useOpenComments", () => ({ useOpenComments: () => () => {} }))
 vi.mock("@/components/docComments/commentsUi", () => ({
-    useOpenComments: () => () => {},
     useUi: () => null,
     uiOf: () => ({ hovered: null }),
     setUi: () => {},

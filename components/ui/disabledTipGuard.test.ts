@@ -11,8 +11,8 @@ import { describe, expect, it } from "vitest"
  * control cut it: the new-task dialog's Attach read "a project first", and the
  * top row of a read-only list "project's members can change it", in Chromium,
  * Firefox and WebKit. A reason is now drawn by components/ui/disabledTip.tsx
- * (the app's tooltip, portalled to the page), loaded lazily by Button
- * (disabledReason) and TaskCheck.
+ * (the app's tooltip, portalled to the page), loaded lazily by Button and
+ * Switch (disabledReason) and TaskCheck.
  *
  * It fails when:
  *   1. a stylesheet draws a reason itself: attr(data-disabled-reason), or a
@@ -21,7 +21,13 @@ import { describe, expect, it } from "vitest"
  *      disabledReason }) or a data-disabled-reason attribute) and doesn't
  *      load DisabledTip: the attribute would say why to nobody;
  *   3. a CSS tip (data-tip, work-tip) carries a disabled reason;
- *   4. Button or TaskCheck stops drawing its reason through DisabledTip.
+ *   4. Button, TaskCheck or Switch stops drawing its reason through DisabledTip, or
+ *      hands DisabledTip its control to draw: the control must be drawn at
+ *      once and stay the same node as the tip's code lands, or a pointer or
+ *      focus already on it is lost (22 Oct 2026, e2e/disabledTip.spec.ts:70);
+ *   5. Button, which server components draw (it has no "use client"), calls
+ *      a hook they lack: the build's prerender failed on React.useRef
+ *      (22 Oct 2026), so its control is found by a useId tag instead.
  * The baseline is zero, and each rule is shown biting on a fixture.
  */
 
@@ -35,7 +41,9 @@ export function cssFindings(file: string, src: string): string[] {
 }
 
 /** The tip, loaded when a control first needs it: no first load carries a tooltip for a control that may never be disabled. */
-const LAZY_TIP = /lazy\(\(\) => import\("(?:@\/components\/ui|\.)\/disabledTip"\)\)/
+const LAZY_TIP = /lazyPiece\(\(\) => import\("@\/components\/ui\/disabledTip"\)\)/
+/** A control draws that one piece (components/ui/disabledTipPiece), never a lazy tip of its own. */
+const TIP_PIECE = /import \{ DisabledTipPiece as Tip \} from "@\/components\/ui\/disabledTipPiece"/
 
 /** An ix(kind, { disabledReason }) call: its options carry a reason. */
 function ixWithReason(file: string, src: string): boolean {
@@ -53,12 +61,22 @@ function ixWithReason(file: string, src: string): boolean {
   return found
 }
 
+/** Hooks a server component lacks (React's server build has use, useId, useMemo, useCallback, useDebugValue). */
+const CLIENT_HOOK = /\bReact\.(useRef|useState|useEffect|useLayoutEffect|useInsertionEffect|useImperativeHandle|useReducer|useContext|useSyncExternalStore|useTransition|useDeferredValue|useOptimistic|useActionState)\b|\b(useRef|useState|useEffect|useLayoutEffect|useImperativeHandle|useReducer|useContext|useSyncExternalStore)\(/
+
+/** What a file without "use client" calls that a server component can't. */
+export function serverFindings(file: string, src: string): string[] {
+  if (/^\s*["']use client["']/.test(src)) return []
+  const m = CLIENT_HOOK.exec(src)
+  return m ? [`${file}  has no "use client" and calls ${m[1] ?? m[2]}: a server component drawing it fails`] : []
+}
+
 export function sourceFindings(file: string, src: string): string[] {
   if (/(^|\/)(lib\/ui\/interactive|components\/ui\/disabledTip)\.tsx?$/.test(file)) return []
   const out: string[] = []
   const lines = src.split("\n")
   const handsReason = ixWithReason(file, src) || /["']?data-disabled-reason["']?\s*[=:]/.test(src)
-  if (handsReason && !LAZY_TIP.test(src)) out.push(`${file}  hands a disabled reason to the interaction layer but draws no DisabledTip`)
+  if (handsReason && !TIP_PIECE.test(src)) out.push(`${file}  hands a disabled reason to the interaction layer but draws no DisabledTip`)
   lines.forEach((line, i) => {
     if (/data-tip=\{[^}]*\b[dD]isabledReason\b/.test(line)) out.push(`${file}:${i + 1}  a CSS tip (data-tip) carries a disabled reason`)
   })
@@ -89,15 +107,33 @@ describe("a disabled control says why in the portalled tooltip", () => {
     expect(found, found.join("\n")).toEqual([])
   })
 
-  it("Button and TaskCheck draw their reason through DisabledTip, lazily", () => {
+  it("Button, TaskCheck and Switch draw their control at once, and their reason through DisabledTip beside it, lazily", () => {
     const button = readFileSync(join(ROOT, "components/ui/button.tsx"), "utf8")
-    expect(button).toMatch(LAZY_TIP)
-    expect(button).toMatch(/reason \? <React\.Suspense fallback=\{button\}><Tip reason=\{reason\}>\{button\}<\/Tip><\/React\.Suspense> : button/)
+    expect(readFileSync(join(ROOT, "components/ui/disabledTipPiece.tsx"), "utf8")).toMatch(LAZY_TIP)
+    expect(button).toMatch(TIP_PIECE)
+    expect(button).toMatch(/<>\{button\}\{reason && <React\.Suspense><Tip control=\{tipId\} reason=\{reason\} \/><\/React\.Suspense>\}<\/>/)
     const check = readFileSync(join(ROOT, "components/task/TaskCheck.tsx"), "utf8")
-    expect(check).toMatch(LAZY_TIP)
-    expect(check).toMatch(/disabled && disabledReason \? <Suspense fallback=\{check\}><Tip reason=\{disabledReason\}>\{check\}<\/Tip><\/Suspense> : check/)
-    // And never statically: that would put the tooltip on every route's first load.
-    for (const src of [button, check]) expect(src).not.toMatch(/from "(?:@\/components\/ui|\.)\/(?:disabledTip|tooltip)"/)
+    expect(check).toMatch(TIP_PIECE)
+    expect(check).toMatch(/<>\{check\}\{disabled && disabledReason && <Suspense><Tip control=\{ref\} reason=\{disabledReason\} \/><\/Suspense>\}<\/>/)
+    const toggle = readFileSync(join(ROOT, "components/ui/switch.tsx"), "utf8")
+    expect(toggle).toMatch(TIP_PIECE)
+    expect(toggle).toMatch(/<>\{toggle\}\{reason && <React\.Suspense><Tip control=\{tipId\} reason=\{reason\} \/><\/React\.Suspense>\}<\/>/)
+    for (const src of [button, check, toggle]) {
+      // Never the tip's child, nor its fallback: the chunk landing would draw the control again.
+      expect(src).not.toMatch(/<Tip\b[^>]*>\s*\{(?:button|check|toggle)\}|fallback=\{(?:button|check|toggle)\}/)
+      // And never statically: that would put the tooltip on every route's first load.
+      expect(src).not.toMatch(/from "(?:@\/components\/ui|\.)\/(?:disabledTip|tooltip)"/)
+    }
+  })
+
+  it("Button stays drawable by a server component: no hook one lacks, its control tagged for the tip by useId", () => {
+    const button = readFileSync(join(ROOT, "components/ui/button.tsx"), "utf8")
+    expect(serverFindings("components/ui/button.tsx", button)).toEqual([])
+    expect(button).toMatch(/const tipId = React\.useId\(\)/)
+    expect(button).toMatch(/data-tip-control=\{reason && tipId\}/)
+    // Bites: the first try held a ref.
+    expect(serverFindings("b.tsx", `export const B = () => { const own = React.useRef(null); return <b ref={own} /> }`)).toEqual([expect.stringContaining("calls useRef")])
+    expect(serverFindings("c.tsx", `"use client"\nexport const C = () => { const own = React.useRef(null); return <b ref={own} /> }`)).toEqual([])
   })
 
   it("bites: a pseudo-element tip, a reason with no DisabledTip, a reason in data-tip", () => {
@@ -109,7 +145,8 @@ describe("a disabled control says why in the portalled tooltip", () => {
     ])
     expect(sourceFindings("a.tsx", `export const A = () => <b {...ix("button", {\n  disabledReason: why,\n})} />`)).toEqual([expect.stringContaining("a.tsx  hands a disabled reason")])
     expect(sourceFindings("b.tsx", `export const B = () => <b data-disabled-reason={why} />`)).toEqual([expect.stringContaining("b.tsx  hands a disabled reason")])
-    expect(sourceFindings("c.tsx", `const Tip = lazy(() => import("@/components/ui/disabledTip"))\nexport const C = () => <Tip reason={why}><b {...ix("button", { disabledReason: why })} /></Tip>`)).toEqual([])
+    expect(sourceFindings("c.tsx", `import { DisabledTipPiece as Tip } from "@/components/ui/disabledTipPiece"\nexport const C = () => <Tip reason={why}><b {...ix("button", { disabledReason: why })} /></Tip>`)).toEqual([])
+    expect(sourceFindings("e.tsx", `const Tip = lazyPiece(() => import("@/components/ui/disabledTip"))\nexport const E = () => <b {...ix("button", { disabledReason: why })} />`)).toEqual([expect.stringContaining("e.tsx  hands a disabled reason")])
     expect(sourceFindings("d.tsx", `const tip = x\nexport const D = () => <b data-tip={disabled ? disabledReason : tip} />`)).toEqual([expect.stringContaining("d.tsx:2  a CSS tip")])
   })
 })

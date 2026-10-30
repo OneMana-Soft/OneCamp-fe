@@ -1,11 +1,10 @@
 import { displayNameOf } from "@/lib/personName"
 import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
+import { Composer } from "@/components/conversation/Composer";
 import { PinnedMenuItem } from "@/components/conversation/pins/PinnedMenuItem";
 import { searchWithinHref } from "@/lib/search/within";
 import { useOpenBeside } from "@/hooks/useOpenBeside";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
-import { useScheduleSend } from "@/context/ScheduleSendContext";
-import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl} from "@/services/endPoints";
 import { HEADER_ICON, HuddleBanner, HuddleButton, NotificationSubmenu } from "@/components/channel/conversationHeaderParts";
@@ -14,30 +13,19 @@ import { WithTooltip } from "@/components/common/withTooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Search } from "@/lib/icons";
 import Link from "next/link";
-import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { useUndoSchedule } from "@/components/textInput/useUndoSchedule";
-import { celebrateFirstMessage } from "@/lib/chat/celebrateFirst";
-import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
-import { SendHorizontal, Users, Clapperboard } from "@/lib/icons";
+import { Users, Clapperboard } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import { useGroupNotification } from "@/hooks/useConversationNotification";
-import {memo, useCallback, useEffect, useState} from "react";
-import type { Content } from "@tiptap/react";
-import { useStableCallback } from "@/hooks/useStableCallback";
-import { ComposerReplyPill } from "@/components/message/composerReplyPill";
-
-
-
+import { useEffect, useMemo } from "react";
 import {
     RawUserDMInterface,
 
 } from "@/types/user";
-import {createOrUpdateGroupChatBody, clearGroupChatReplyTarget, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
-import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
-import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
+import { LocallyCreatedGrpInfoInterface } from "@/store/slice/groupChatSlice";
+import { ConversationMessages } from "@/components/conversation/ConversationMessages";
+import { groupList } from "@/components/conversation/GroupRows";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
@@ -45,16 +33,14 @@ import {addUserToUserChatList} from "@/store/slice/userSlice";
 import {AddUserInChatList, updateChatCallStatus} from "@/store/slice/chatSlice";
 import {useRouter} from "next/navigation";
 import {app_grp_call} from "@/types/paths";
-import {usePublishTyping} from "@/hooks/usePublishTyping";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
-import {useUploadFile} from "@/hooks/useUploadFile";
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
-const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
 
-export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: (latestContent?: string)=>boolean | void, unreadCount?: number}) => {
+export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend: (latestContent?: string)=>boolean | void}) => {
+    const list = useMemo(() => groupList(grpId), [grpId])
     const dispatch = useDispatch()
     const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
 
@@ -63,7 +49,6 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     const notification = useGroupNotification(grpId, dmParticipantsInfo.data?.data?.dm_notification_type)
 
     const chatCallActive = useSelector((state: RootState) => state.chat.chatCallStatus[grpId]?.active || false);
-
 
     const router = useRouter();
 
@@ -79,7 +64,6 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     useEffect(() => {
 
         if(grpChatCreatedLocally.grpId || dmParticipantsInfo.data?.data?.dm_grouping_id) {
-
 
             let d =  dmParticipantsInfo.data?.data
 
@@ -97,7 +81,6 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
             dispatch(AddUserInChatList({ usersDm: d }));
         }
 
-
     }, [grpChatCreatedLocally, dmParticipantsInfo.data, dispatch]);
 
     // A call opens beside the group, so the conversation stays in view.
@@ -110,18 +93,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     // A group that isn't there is said once, for a computer and a phone, by
     // GroupChatView (useConversationMissing), before this is drawn.
 
-    // const toggleFavourite = async () => {
-    //         if(isFavorite) {
-    //            await postFav.makeRequest({apiEndpoint: PostEndpointUrl.RemoveFavChannel, appendToUrl:`/${channelId}`, onSuccess : ()=>{
-    //                    setFavorite(false)}})
-    //         } else {
-    //             await postFav.makeRequest({apiEndpoint: PostEndpointUrl.AddFavChannel, appendToUrl:`/${channelId}`, onSuccess : ()=>{setFavorite(true)}})
-    //         }
-    // }
-
-
     const participants = grpChatCreatedLocally.participants || dmParticipantsInfo.data?.data?.dm_participants || []
-
 
     return (
         <div className='flex flex-col h-full relative'>
@@ -182,17 +154,16 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
             <div className="flex-1 overflow-y-auto">
                 <CatchMeUpBanner
                     channelUUID={grpId}
-                    unreadCount={unreadCount || 0}
                     channelName={participants.slice(0, 3).map(u => displayNameOf(u)).join(', ') + (participants.length > 3 ? '…' : '')}
                     isChannel={false}
                     type="group"
                 />
-                <GroupChatMessageList grpId={grpId} unreadOnOpen={unreadCount} />
+                <ConversationMessages list={list} />
             </div>
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] bg-sheet px-5 pb-[18px]">
                 <div className="w-full max-w-[800px]">
-                    <GroupComposer grpId={grpId} handleSend={handleSend} />
+                    <Composer handleSend={handleSend} placeholder={GROUP_COMPOSER_PLACEHOLDER} />
                 </div>
             </div>
 
@@ -200,99 +171,9 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     )
 }
 
-/**
- * The group's message box and what sits on it. Its own component because it is
- * the only part of the conversation that changes as someone types: the draft
- * is read here, so the header and the messages above it no longer re-render
- * with each change to it.
- */
 /** "Maya, Jonas and Priya", or "Maya, Jonas +2" when there are more (C02). */
 function groupTitle(names: string[]): string {
     const first = names.map((n) => n.split(" ")[0])
     if (first.length <= 3) return first.length < 2 ? first.join("") : `${first.slice(0, -1).join(", ")} and ${first[first.length - 1]}`
     return `${first.slice(0, 2).join(", ")} +${first.length - 2}`
 }
-
-const GroupComposer = memo(function GroupComposer({ grpId, handleSend }: {
-    grpId: string
-    handleSend: (latestContent?: string) => boolean | void
-}) {
-    const dispatch = useDispatch()
-    const scheduleSend = useScheduleSend()
-    const uploadFile = useUploadFile()
-    const { publishTyping } = usePublishTyping({ targetType: 'groupChat', targetId: grpId });
-    const chatState = useSelector((state: RootState) => state.groupChat.chatInputState[grpId] || EMPTY_INPUT_STATE);
-    // The same function for the life of the composer, so the editor's action
-    // row (memoised in textInput) keeps its buttons as the parent re-renders.
-    // Draft with AI opens from "+" and ⌘J (C45); Undo takes back a schedule (C44).
-    const [aiOpen, setAiOpen] = useState(false)
-    const openAi = useCallback(() => setAiOpen(true), [])
-    const undoSchedule = useUndoSchedule(scheduleSend?.target)
-    // A group's first message celebrates too (C60), from the new row's avatar.
-    const send = useStableCallback((latestContent?: string) => {
-        if (handleSend(latestContent)) celebrateFirstMessage()
-    })
-    const onChange = useStableCallback((content: Content) => {
-        publishTyping(content as string)
-        dispatch(createOrUpdateGroupChatBody({grpID:grpId, body: content as string}))
-    })
-    const onActionFiles = useStableCallback(async (files: File[]) => {
-        if (!files?.length) return;
-        const valid = uploadFile.validateFiles(files);
-        if (valid.length === 0) return;
-        await uploadFile.makeRequestToUploadToGroupChat(valid as unknown as FileList, grpId);
-    })
-    const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'groupChatFileUpload' })) })
-
-    return (
-        <>
-            <CommandSurface
-                surfaceKey={grpId}
-                dmGroupId={grpId}
-                onComposerText={(text) =>
-                    dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: `<p>${text}</p>` }))
-                }
-                onComposerHtml={(html) =>
-                    dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))
-                }
-            />
-            {chatState.replyToUuid && (
-                <ComposerReplyPill
-                    authorName={chatState.replyToAuthorName}
-                    text={chatState.replyToText}
-                    onCancel={() => dispatch(clearGroupChatReplyTarget({ grpId }))}
-                />
-            )}
-            {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
-            <MinimalTiptapTextInput
-                throttleDelay={300}
-                attachmentOnclick={openUpload}
-                onActionFiles={onActionFiles}
-                variant="chat"
-                output="html"
-                content={chatState.chatBody}
-                contentRevision={chatState.restoredUnsent}
-                placeholder={GROUP_COMPOSER_PLACEHOLDER}
-                editable={true}
-                ButtonIcon={SendHorizontal}
-                hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
-                buttonOnclick={send}
-                onSchedule={scheduleSend?.schedule}
-                editorClassName="focus:outline-none"
-                onChange={onChange}
-                onDraftWithAI={openAi}
-                onUndoSchedule={undoSchedule}
-                aiSlot={
-                    <ComposerAIButton
-                        open={aiOpen}
-                        onOpenChange={setAiOpen}
-                        getText={() => chatState.chatBody || ""}
-                        onResult={(html) => dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))}
-                    />
-                }
-            >
-                <GroupChatFileUpload groupChatID={grpId} />
-            </MinimalTiptapTextInput>
-        </>
-    )
-})

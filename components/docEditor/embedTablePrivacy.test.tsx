@@ -26,7 +26,7 @@ const api = vi.hoisted(() => ({
   info: {} as Record<string, unknown>,
   posts: [] as Array<{ url: string; body: unknown }>,
 }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: vi.fn(async (url: string) => {
       if (url.startsWith("/doc/getDocInfo/")) return { status: 200, data: { msg: "ok", data: { doc_uuid: DOC, doc_title: "Launch plan", ...api.info } } }
@@ -38,7 +38,6 @@ vi.mock("@/lib/axiosInstance", () => ({
       return { data: {} }
     }),
   },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))

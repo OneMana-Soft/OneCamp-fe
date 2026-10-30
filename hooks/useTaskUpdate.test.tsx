@@ -3,6 +3,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { SWRConfig, useSWRConfig } from "swr"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
+import { carryCounts } from "@/lib/board/carryCounts"
 import { timelineKey } from "@/lib/timelineKey"
 import { GetEndpointUrl } from "@/services/endPoints"
 
@@ -152,6 +153,29 @@ describe("a card moved on a board (optimisticUpdateTask)", () => {
     expect(before.project_tasks_todo.map((t) => t.task_uuid)).toEqual(["a", "b"])
     expect(read(mine)?.user_tasks_in_progress?.map((t) => t.task_uuid)).toEqual(["a"])
     expect(read(mine)?.user_tasks_done[0]).toBe(e)
+  })
+
+  // DESIGN-BUILD-3 (F-1 #5's shots, 20 Oct): after a drop, the column the card
+  // left still counted it ("3", "The first 2 of 3 · Show 1 more"), as on beta:
+  // the move changed the columns' lists but not the server's counts of them.
+  it("carries the columns' counts: the one it left counts one less, the one it joined one more", async () => {
+    const [a, b, c, d, e] = [task("a"), task("b"), task("c"), task("d"), task("e")]
+    const { hook, read } = await withLists({
+      [board]: {
+        project_tasks_todo: [{ ...a, task_status: "todo" }, { ...b, task_status: "todo" }, { ...e, task_status: "todo" }],
+        project_tasks_in_progress: [{ ...c, task_status: "inProgress" }, { ...d, task_status: "inProgress" }],
+        project_tasks_done: [],
+        project_column_counts: { todo: 3, inProgress: 2, done: 0 } as never,
+        project_tasks_done_count: 0 as never,
+      },
+    })
+    act(() => hook.current.optimisticUpdateTask({ task_uuid: "a", task_status: "inProgress" }, "p1", 0, { after: "c" }, carryCounts))
+    await waitFor(() => expect(read(board)?.project_tasks_in_progress[0].task_uuid).toBe("a"))
+    expect(read(board)?.project_column_counts).toEqual({ todo: 2, inProgress: 3, done: 0 })
+    act(() => hook.current.optimisticUpdateTask({ task_uuid: "b", task_status: "done" }, "p1", 0, {}, carryCounts))
+    await waitFor(() => expect(read(board)?.project_tasks_done.map((t) => t.task_uuid)).toEqual(["b"]))
+    expect(read(board)?.project_column_counts).toEqual({ todo: 1, inProgress: 3, done: 1 })
+    expect(read(board)?.project_tasks_done_count).toBe(1)
   })
 
   it("reorders within a column", async () => {

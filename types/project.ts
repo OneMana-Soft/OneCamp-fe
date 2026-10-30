@@ -1,5 +1,5 @@
 import {UserProfileDataInterface} from "@/types/user";
-import {TaskInfoInterface} from "@/types/task";
+import type {TaskInfoInterface} from "@/types/task";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {TeamInfoInterface} from "@/types/team";
 import type {WorkAccess} from "@/lib/work/types";
@@ -30,6 +30,8 @@ export interface ProjectInfoInterface {
     project_is_admin: boolean;
     project_is_member: boolean;
     project_access?: WorkAccess;
+    /** Its tasks' key ("Q4"), on the New task form's list. */
+    project_key?: string;
     project_members: UserProfileDataInterface[];
     project_admins: UserProfileDataInterface[];
     project_created_by: UserProfileDataInterface;

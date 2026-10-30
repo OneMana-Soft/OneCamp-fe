@@ -8,7 +8,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 // console.
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get, post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get, post } }))
 // The confirm is answered yes at once.
 vi.mock("@/hooks/useDemoVisitor", async (orig) => ({ ...(await orig<typeof import("@/hooks/useDemoVisitor")>()), useDemoVisitor: () => false }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (o: { onConfirm: () => void }) => o.onConfirm() }))

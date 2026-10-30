@@ -143,7 +143,9 @@ export function ProjectAttachments({ projectId, projectName, canLink = false }: 
     )
 
     return (
-        <div {...dropProps} data-dragging={dragging} data-files-tab="" className="group/files relative flex flex-col pb-4">
+        // data-file-over, not data-dragging: that one is the document's drag
+        // (lib/ui/dnd), and a variant on it restyles the whole page.
+        <div {...dropProps} data-file-over={dragging} data-files-tab="" className="group/files relative flex flex-col pb-4">
             {/* The tab frame's band (components/task/workFrame), flush under
                 the tabs with 28 px controls, as on every other tab. */}
             <div data-work-toolbar="" className={workToolbar}>

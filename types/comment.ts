@@ -3,7 +3,7 @@ import {AttachmentMediaReq} from "@/types/attachment";
 import { GroupedReaction} from "@/types/reaction";
 import {PostsRes} from "@/types/post";
 import {ChatInfo} from "@/types/chat";
-import {TaskInfoInterface} from "@/types/task";
+import type {TaskInfoInterface} from "@/types/task";
 import {DocInfoInterface} from "@/types/doc";
 
 

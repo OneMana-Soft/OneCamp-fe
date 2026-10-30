@@ -6,13 +6,22 @@ vi.mock("@/hooks/use-toast", () => ({
   toast: (t: { title?: string }) => toasts.push(t),
   useToast: () => ({ toast: (t: { title?: string }) => toasts.push(t) }),
 }))
+// The shared pickers have browser tests of their own: here, plain stand-ins.
+vi.mock("@/components/ui/date-field", async (importOriginal) => {
+  const field = (p: { value: string; onChange: (v: string) => void; "aria-label"?: string }) => (
+    <input aria-label={p["aria-label"]} value={p.value} onChange={(e) => p.onChange(e.target.value)} />
+  )
+  return { ...(await importOriginal<typeof import("@/components/ui/date-field")>()), DateField: field, TimeField: field }
+})
 
 import type { CalendarEventInterface, GetEventsResponse } from "@/types/calendar"
 import { GoingControl } from "./goingControl"
-import { GuestFaces, type FaceGuest } from "./guestFaces"
+import { type FaceGuest } from "./guestFaces"
+import { GuestFaces } from "./guestRow"
 import { eventGuests, guestsFold, guestsSummary } from "./eventGuests"
 import { EventGuestList, INVITE_WORDS } from "./guestList"
 import { YourAnswer } from "./yourAnswer"
+import { proposalOf } from "./proposals"
 import { sendAnswer, withAnswer } from "./sendAnswer"
 import { sameGuests, tellOf, type EventShape } from "@/lib/calendar/tellGuests"
 import { TellGuestsPrompt } from "@/components/calendar/tellGuestsDialog"
@@ -83,6 +92,35 @@ describe("an event's guests, as the card and the panel read them", () => {
     const five = eventGuests(meeting([...answered.event_guests!, { user_uuid: "ana", role: "required", response: "accepted" }]), "maya")
     expect(guestsFold(five)).toBe(true)
     expect(guestsSummary(five, false)).toBe("3 going · 1 maybe · 1 not going · 1 no answer")
+  })
+
+  it("carries another time a guest proposed on their face, and the reader's own as theirs", () => {
+    const p = { start: new Date(2026, 9, 21, 9).toISOString(), end: new Date(2026, 9, 21, 10).toISOString() }
+    const g = eventGuests(meeting([
+      { user_uuid: "maya", role: "required", response: "tentative", proposal: p },
+      { email: "alex@example.com", role: "required", response: "declined", proposal: p },
+    ]), "maya")
+    expect(g.myProposal).toEqual(p)
+    expect(g.faces.find((f) => f.key === "maya")?.proposal).toEqual(p)
+    expect(g.faces.find((f) => f.outside)?.proposal).toEqual(p)
+    expect(eventGuests(answered, "maya").myProposal).toBeUndefined()
+  })
+
+  // The public demo blanks every address its shared visitor could read
+  // (helpers/demoPrivacy.go), a guest's by email too, and the organiser's
+  // panel said "Guests 1" over "No guests yet.". They show, by the name they
+  // were invited by or as "Someone", and two of them stay two.
+  it("shows guests by email whose address the server hid", () => {
+    const g = eventGuests(meeting([
+      { email: "", role: "required", response: "tentative", note: "Could we start earlier?" },
+      { email: "", name: "Alex Kim", role: "required", response: "needs_action" },
+    ]), "sam")
+    expect(g.faces.slice(1).map((f) => [f.name, f.outside, f.email, f.detail])).toEqual([
+      ["Someone", true, undefined, undefined],
+      ["Alex Kim", true, undefined, undefined],
+    ])
+    expect(g.faces[1].note).toBe("Could we start earlier?")
+    expect(new Set(g.faces.map((f) => f.key)).size).toBe(3)
   })
 })
 
@@ -189,6 +227,40 @@ describe("the guests in the panel", () => {
     expect(screen.queryByText(INVITE_WORDS.not_sent)).toBeNull()
     expect(screen.queryByText(/going · /)).toBeNull()
   })
+
+  it("shows a guest's proposed time, which whoever may change the event uses or dismisses", async () => {
+    const p = { start: new Date(2026, 9, 21, 9).toISOString(), end: new Date(2026, 9, 21, 10).toISOString() }
+    const ev = meeting([{ user_uuid: "maya", role: "required", response: "tentative", proposal: p }, { user_uuid: "jonas", role: "required", response: "accepted" }])
+    const use = vi.fn().mockResolvedValue(undefined)
+    const dismiss = vi.fn().mockResolvedValue(undefined)
+    const { rerender } = render(<EventGuestList guests={eventGuests(ev, "sam")} organiser ended={false} onUseProposal={use} onDismissProposal={dismiss} />)
+    // Drawn once its chunk is in.
+    const row = (await screen.findByText(/^Proposes/)).closest<HTMLElement>("[data-guest-proposal]")!
+    expect(row.textContent).toMatch(/^Proposes Wed 21 Oct, 9:00\sAM – 10:00\sAM/)
+    fireEvent.click(within(row).getByRole("button", { name: "Use this time" }))
+    await waitFor(() => expect(use).toHaveBeenCalledWith(p))
+    fireEvent.click(within(row).getByRole("button", { name: "Dismiss Maya Chen's proposal" }))
+    await waitFor(() => expect(dismiss).toHaveBeenCalledWith(expect.objectContaining({ key: "maya", proposal: p })))
+    // Read without the right to change the event: the time, with no way to use or dismiss it.
+    rerender(<EventGuestList guests={eventGuests(ev, "jonas")} organiser={false} ended={false} />)
+    expect(document.querySelector("[data-guest-proposal]")?.textContent).toMatch(/^Proposes Wed 21 Oct/)
+    expect(screen.queryByRole("button", { name: "Use this time" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Dismiss/ })).toBeNull()
+    // The proposer's own is with their answer, where they take it back, not on their row.
+    rerender(<EventGuestList guests={eventGuests(ev, "maya")} organiser={false} ended={false} />)
+    expect(document.querySelector("[data-guest-proposal]")).toBeNull()
+  })
+
+  it("uses a hidden address's proposal, with no dismissing, copying or emailing that needs the address", async () => {
+    const p = { start: new Date(2026, 9, 21, 9).toISOString(), end: new Date(2026, 9, 21, 10).toISOString() }
+    const ev = meeting([{ email: "", role: "required", response: "tentative", invite: "not_sent", proposal: p }])
+    render(<EventGuestList guests={eventGuests(ev, "sam")} organiser ended={false} onCopyLink={vi.fn()} onUseProposal={vi.fn().mockResolvedValue(undefined)} onDismissProposal={vi.fn()} />)
+    const row = (await screen.findByText(/^Proposes/)).closest<HTMLElement>("[data-guest-proposal]")!
+    expect(within(row).getByRole("button", { name: "Use this time" })).toBeTruthy()
+    expect(within(row).queryByRole("button", { name: /^Dismiss/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: /answer link/ })).toBeNull()
+    expect(screen.queryByText(/Copy their link/)).toBeNull()
+  })
 })
 
 describe("a guest's own answer in the panel", () => {
@@ -213,6 +285,61 @@ describe("a guest's own answer in the panel", () => {
     expect(note.value).toBe("See you")
     fireEvent.blur(note)
     expect(send).not.toHaveBeenCalled()
+  })
+
+  const from = { start: new Date(2026, 9, 21, 14), end: new Date(2026, 9, 21, 15) }
+
+  it("reads a proposed time as instants from its day and times on the reader's clock, and none while it's incomplete or backwards", () => {
+    expect(proposalOf("2026-10-28", "14:00", "14:45")).toEqual({ start: new Date(2026, 9, 28, 14).toISOString(), end: new Date(2026, 9, 28, 14, 45).toISOString() })
+    expect(proposalOf("", "14:00", "15:00")).toBeNull()
+    expect(proposalOf("2026-10-28", "", "15:00")).toBeNull()
+    expect(proposalOf("2026-10-28", "15:00", "15:00")).toBeNull()
+    expect(proposalOf("2026-10-28", "15:00", "09:00")).toBeNull()
+  })
+
+  it("proposes another time with the answer, the event's own to begin with, and takes it back", async () => {
+    const send = vi.fn().mockResolvedValue(true)
+    const { rerender } = render(<YourAnswer answer="tentative" note="" organiserName="Sam Rivera" onAnswer={send} proposeFrom={from} />)
+    fireEvent.click(screen.getByRole("button", { name: "Propose a new time" }))
+    const form = await screen.findByRole("group", { name: "Propose a new time" })
+    const field = (name: string) => within(form).getByRole("textbox", { name }) as HTMLInputElement
+    expect([field("Day").value, field("From").value, field("Until").value]).toEqual(["2026-10-21", "14:00", "15:00"])
+    fireEvent.change(field("Day"), { target: { value: "2026-10-22" } })
+    fireEvent.change(field("From"), { target: { value: "09:30" } })
+    fireEvent.change(field("Until"), { target: { value: "10:30" } })
+    fireEvent.click(within(form).getByRole("button", { name: "Propose" }))
+    const p = { start: new Date(2026, 9, 22, 9, 30).toISOString(), end: new Date(2026, 9, 22, 10, 30).toISOString() }
+    await waitFor(() => expect(send).toHaveBeenCalledWith("tentative", undefined, p))
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Propose a new time" })).toBeNull())
+    // Once it stands, it shows with the answer, until it's used, dismissed or the event moves.
+    rerender(<YourAnswer answer="tentative" note="" organiserName="Sam Rivera" onAnswer={send} proposeFrom={from} proposal={p} />)
+    await waitFor(() => expect(document.querySelector("[data-your-proposal]")?.textContent).toMatch(/^You proposed Thu 22 Oct, 9:30\sAM – 10:30\sAM/))
+    expect(screen.queryByRole("button", { name: "Propose a new time" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Take it back" }))
+    await waitFor(() => expect(send).toHaveBeenLastCalledWith("tentative", undefined, null))
+  })
+
+  it("keeps the form when the time didn't go, sends no time that ends first, and offers none where the event takes none", async () => {
+    const send = vi.fn().mockResolvedValue(false)
+    const { rerender } = render(<YourAnswer answer="accepted" note="" organiserName="Sam Rivera" onAnswer={send} proposeFrom={from} />)
+    fireEvent.click(screen.getByRole("button", { name: "Propose a new time" }))
+    const form = await screen.findByRole("group", { name: "Propose a new time" })
+    fireEvent.change(within(form).getByRole("textbox", { name: "Until" }), { target: { value: "13:00" } })
+    expect(within(form).getByRole("alert").textContent).toBe("Pick a time that ends after it starts.")
+    fireEvent.click(within(form).getByRole("button", { name: "Propose" }))
+    expect(send).not.toHaveBeenCalled()
+    fireEvent.change(within(form).getByRole("textbox", { name: "Until" }), { target: { value: "16:00" } })
+    fireEvent.click(within(form).getByRole("button", { name: "Propose" }))
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+    // Its sender said why: the time stays to change or send again.
+    expect(screen.getByRole("group", { name: "Propose a new time" })).toBeTruthy()
+    fireEvent.click(within(form).getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("group", { name: "Propose a new time" })).toBeNull()
+    // All day, a whole series or over (no proposeFrom), or not answered yet: no way to propose.
+    rerender(<YourAnswer answer="accepted" note="" organiserName="Sam Rivera" onAnswer={send} />)
+    expect(screen.queryByRole("button", { name: "Propose a new time" })).toBeNull()
+    rerender(<YourAnswer answer="needs_action" note="" organiserName="Sam Rivera" onAnswer={send} proposeFrom={from} />)
+    expect(screen.queryByRole("button", { name: "Propose a new time" })).toBeNull()
   })
 })
 
@@ -250,6 +377,24 @@ describe("sending an answer from the card", () => {
     expect(ok).toBe(false)
     expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ payload: { answer: "declined", scope: "all", note: "Clash" } }))
     expect(mutateEvents).toHaveBeenLastCalledWith()
+  })
+
+  it("sends another time for an instance alone, unasked, says a refusal in the server's words, and {} takes it back", async () => {
+    const makeRequest = vi.fn().mockResolvedValue({})
+    const askScope = vi.fn()
+    const sender = { post: { makeRequest }, askScope, mutateEvents: vi.fn(), selfId: "maya" }
+    const p = { start: new Date(2026, 9, 21, 9).toISOString(), end: new Date(2026, 9, 21, 10).toISOString() }
+    expect(await sendAnswer(sender as never, inst("20"), "tentative", undefined, p)).toBe(true)
+    expect(askScope).not.toHaveBeenCalled()
+    expect(makeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ payload: { answer: "tentative", scope: "this", proposal: p }, showErrorToast: true, failureTitle: "Couldn't propose that time" }))
+    expect(await sendAnswer(sender as never, inst("20"), "tentative", undefined, null)).toBe(true)
+    expect(makeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ payload: { answer: "tentative", scope: "this", proposal: {} }, failureTitle: "Couldn't take your proposal back" }))
+    // A single event's is for all of it; an answer alone stays quiet, its control saying itself.
+    await sendAnswer(sender as never, answered, "accepted", undefined, p)
+    expect(makeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ payload: { answer: "accepted", scope: "all", proposal: p } }))
+    await sendAnswer(sender as never, answered, "accepted")
+    expect(makeRequest).toHaveBeenLastCalledWith(expect.objectContaining({ payload: { answer: "accepted", scope: "all" }, quiet: true }))
+    expect(askScope).not.toHaveBeenCalled()
   })
 })
 

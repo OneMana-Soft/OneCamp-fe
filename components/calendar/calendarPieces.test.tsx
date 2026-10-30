@@ -1,12 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { addDays } from "date-fns"
+import type { CalendarEventInterface } from "@/types/calendar"
 
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn().mockResolvedValue({}), isSubmitting: false }) }))
+const sent = vi.hoisted(() => ({ requests: [] as unknown[], confirms: [] as { title: string; onConfirm: () => unknown }[] }))
+vi.mock("@/hooks/usePost", () => ({
+  usePost: () => ({
+    makeRequest: (r: unknown) => {
+      sent.requests.push(r)
+      return Promise.resolve({})
+    },
+    isSubmitting: false,
+  }),
+}))
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (opts: { title: string; onConfirm: () => unknown }) => sent.confirms.push(opts) }))
 
 import { MonthView } from "./monthView"
 import { EventPopover, whenLabel } from "./eventPopover"
-import { joinLinkOf } from "@/lib/calendar/joinLink"
+import { eventCallChoice, eventCallOf, joinLinkOf } from "@/lib/calendar/joinLink"
 import { QuickCreateCard } from "./quickCreateCard"
 import { CalendarsPanel } from "./calendarsPopover"
 import { CalendarAgenda, nextItemId } from "./calendarAgenda"
@@ -30,6 +41,20 @@ function month(items: Parameters<typeof placeItems>[0], on = { onItemClick: vi.f
 }
 
 describe("the month (C05, C06)", () => {
+  // Head 9 (CR-67 MF2): a daily repeat's dates ahead, beside the task's own
+  // entry on its day, each its own bar: no two keys alike.
+  it("draws each date a daily task comes due ahead as its own bar", async () => {
+    const { tasksAhead } = await import("@/lib/calendar/repeats")
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {})
+    const due = [12, 13, 14, 15, 16].map((d) => iso(d, 0))
+    const ahead = tasksAhead({ checkins: [], tasks: [{ task_uuid: "t9", task_name: "Stand-up notes", rule: "FREQ=DAILY", due }] })
+    const own = { event_uuid: "t9", event_title: "Stand-up notes", event_start_time: iso(12, 0), event_end_time: iso(12, 0), isTask: true }
+    month([own, ...ahead.map((t) => ({ event_uuid: t.task_uuid, event_title: t.task_name, event_start_time: t.task_due_date, event_end_time: t.task_due_date, isTask: true }))])
+    expect(document.querySelectorAll('[data-event-uuid^="t9"]').length).toBeGreaterThanOrEqual(6)
+    expect(errors.mock.calls.some((c) => String(c[0]).includes("same key"))).toBe(false)
+    errors.mockRestore()
+  })
+
   it("marks today with a ring, weekends as sunken, and starts on Monday", () => {
     month([])
     const today = document.querySelector("[data-month-day][data-today]") as HTMLElement
@@ -77,18 +102,32 @@ describe("the event popover (C12)", () => {
     render(<EventPopover event={ev} anchor={anchor} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
     const dialog = screen.getByRole("dialog", { name: "Design review" })
     expect(dialog.className).toMatch(/w-\[360px\]/)
-    expect(dialog.textContent).toMatch(/Thu 15 Oct · 11:00\u00a0AM – 12:00\u00a0PM/)
+    expect(dialog.textContent).toMatch(/Thu 15 Oct · 11\u00a0AM – 12\u00a0PM/)
     expect(dialog.textContent).toMatch(/in 1 hour/)
     expect(screen.getByRole("link", { name: /Join call/ }).getAttribute("href")).toBe("https://meet.example.com/abc")
   })
 
-  it("opens the full panel from the pencil", () => {
+  // V-34: the pencil, Edit event, opens the event in full already editing.
+  it("opens the full panel editing from the pencil", () => {
     const anchor = document.createElement("button")
     document.body.appendChild(anchor)
     const full = vi.fn()
     render(<EventPopover event={ev} anchor={anchor} now={now} onClose={vi.fn()} onOpenFull={full} />)
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
-    expect(full).toHaveBeenCalledWith("e1")
+    expect(full).toHaveBeenCalledWith("e1", { edit: true })
+  })
+
+  // Calendar B8: an event of a calendar you subscribe to is yours to see,
+  // never to change; the card names its calendar and nobody as its organiser.
+  it("offers no edit for an event of a calendar you subscribe to, and names that calendar", () => {
+    const anchor = document.createElement("button")
+    document.body.appendChild(anchor)
+    const held = { ...ev, event_read_only: true, event_calendar_id: "c9", calendar_name: "Holidays in India", calendar_hue: "berry" }
+    render(<EventPopover event={held} anchor={anchor} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const dialog = screen.getByRole("dialog", { name: "Design review" })
+    expect(screen.queryByRole("button", { name: "Edit event" })).toBeNull()
+    expect(dialog.textContent).toContain("Holidays in India")
+    expect(dialog.textContent).not.toMatch(/Organised by/)
   })
 
   it("finds the call link and says now and ended", () => {
@@ -123,8 +162,6 @@ describe("the calendars popover (C01, C04, C19)", () => {
         rows={[{ id: "onecamp", name: "Personal", hue: "sky", on: true, onToggle: toggle }]}
         onBookingPages={vi.fn()}
         googleConnected={false}
-        onConnectGoogle={vi.fn()}
-        onDisconnectGoogle={vi.fn()}
       />,
     )
     expect(document.querySelector("[data-mini-month]")).toBeTruthy()
@@ -204,5 +241,75 @@ describe("the event popover's Join", () => {
     expect(joinLinkOf({ event_description: '<p>Agenda https://docs.example.com/x, then <a href="https://zoom.us/j/1?pwd=a&amp;x=1">Zoom</a></p>' })).toBe("https://zoom.us/j/1?pwd=a&x=1")
     render(<EventPopover event={at(10, 5, 11, "<p>Notes: https://docs.example.com/d/1</p>")} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
     expect(screen.queryByRole("link", { name: /Join call/ })).toBeNull()
+  })
+})
+
+// Calendar B11 (zoom-01, meet-02, zoom-15): an event carries its own call. Its organiser adds it from the card; a
+// member joins it in the app as themselves, and its address is what a copy of the link shares.
+describe("an event's own call", () => {
+  const anchorEl = () => {
+    const a = document.createElement("button")
+    document.body.appendChild(a)
+    return a
+  }
+  const CALL = { slug: "design-review-k3x9p2qa", address: "/r/design-review-k3x9p2qa" }
+  const MAYA = { user_uuid: "5e1f0000-0000-4000-8000-0000000000a2", user_name: "Maya Chen" } as NonNullable<CalendarEventInterface["event_created_by"]>
+  const ev = (over: Partial<CalendarEventInterface> = {}): CalendarEventInterface => ({
+    event_uuid: "e3",
+    event_title: "Design review",
+    event_start_time: new Date(2026, 9, 15, 10, 5).toISOString(),
+    event_end_time: new Date(2026, 9, 15, 11, 0).toISOString(),
+    event_description: "",
+    ...over,
+  })
+  afterEach(() => {
+    sent.requests.length = 0
+    sent.confirms.length = 0
+  })
+
+  it("is joined in the app, and its address is what is shared; a link in the notes is both", () => {
+    const notes = "<p>Join https://meet.example.com/abc</p>"
+    expect(eventCallOf(ev({ event_call: CALL, event_description: notes }), "https://camp.example.com")).toEqual({
+      join: "/app/meet/join/r/design-review-k3x9p2qa",
+      share: "https://camp.example.com/r/design-review-k3x9p2qa",
+      own: true,
+    })
+    expect(eventCallOf(ev({ event_description: notes }), "https://camp.example.com")).toEqual({ join: "https://meet.example.com/abc", share: "https://meet.example.com/abc", own: false })
+    expect(eventCallOf(ev({ event_call: null }), "https://camp.example.com")).toBeNull()
+  })
+
+  it("is offered to whoever may change the event: taken off once it has one, added while it has none, hasn't ended and has no link in its notes", () => {
+    const may = { mayChange: true, google: false, ended: false }
+    expect(eventCallChoice(ev(), may)).toBe("add")
+    expect(eventCallChoice(ev({ event_call: CALL }), may)).toBe("remove")
+    expect(eventCallChoice(ev({ event_call: CALL }), { ...may, ended: true })).toBe("remove")
+    expect(eventCallChoice(ev(), { ...may, ended: true })).toBeNull()
+    expect(eventCallChoice(ev({ event_description: "<p>Join https://meet.example.com/abc</p>" }), may)).toBeNull()
+    expect(eventCallChoice(ev({ event_call: CALL }), { ...may, mayChange: false })).toBeNull()
+    expect(eventCallChoice(ev({ event_call: CALL }), { ...may, google: true })).toBeNull()
+  })
+
+  it("opens from the card in the same tab", () => {
+    render(<EventPopover event={ev({ event_call: CALL })} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    const join = screen.getByRole("link", { name: "Join call" })
+    expect(join.getAttribute("href")).toBe("/app/meet/join/r/design-review-k3x9p2qa")
+    expect(join.getAttribute("target")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Add a call" })).toBeNull()
+  })
+
+  it("is added from the card by its organiser, to an event with no call that hasn't ended", async () => {
+    render(<EventPopover event={ev()} anchor={anchorEl()} now={now} onClose={vi.fn()} onOpenFull={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Add a call" }))
+    await waitFor(() => expect(sent.requests).toHaveLength(1))
+    expect(sent.requests[0]).toMatchObject({ method: "POST", appendToUrl: "/e3/call" })
+  })
+
+  it("isn't offered on someone else's event, a subscribed calendar's, Google's, or one that has ended", () => {
+    const ended = { event_start_time: new Date(2026, 9, 15, 8).toISOString(), event_end_time: new Date(2026, 9, 15, 9).toISOString() }
+    for (const e of [ev({ event_created_by: MAYA }), ev({ event_read_only: true }), ev({ event_uuid: "gcal-e3" }), ev(ended)]) {
+      const { unmount } = render(<EventPopover event={e} anchor={anchorEl()} now={now} selfId="5e1f0000-0000-4000-8000-0000000000ff" onClose={vi.fn()} onOpenFull={vi.fn()} />)
+      expect(screen.queryByRole("button", { name: "Add a call" }), e.event_uuid).toBeNull()
+      unmount()
+    }
   })
 })

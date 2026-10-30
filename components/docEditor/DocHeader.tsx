@@ -27,6 +27,7 @@ import { MORE_GROUPS } from "./actions/doc"
 import { actionGroupsFor } from "./registry/readers"
 import { chordGlyphs, shortcutDialogGroups, shortcutRowsFor } from "./registry/shortcuts"
 import { SlotOutlet } from "./registry/slots"
+import { LazyConnected } from "@/components/workGraph/LazyConnected"
 import type { EditionGate } from "./registry/registry"
 import type { ActionContext } from "./registry/types"
 
@@ -67,8 +68,8 @@ export interface DocHeaderProps {
  * (about 340 components a key in a 12-block doc, I20).
  */
 function DocSaveDot({ source }: { source: DocSaveSource }) {
-  const { state, savedAt, waiting } = useDocSaveDot(source)
-  return <SaveDot state={state} savedAt={savedAt} live={source.live} waiting={waiting} />
+  const { state, savedAt } = useDocSaveDot(source)
+  return <SaveDot state={state} savedAt={savedAt} live={source.live} />
 }
 
 export function DocHeader(props: DocHeaderProps) {
@@ -95,6 +96,7 @@ export function DocHeader(props: DocHeaderProps) {
       <SlotOutlet slot="modes" gate={props.gate} docId={doc.doc_uuid} editor={props.editor} />
       <SlotOutlet slot="rightCluster" gate={props.gate} docId={doc.doc_uuid} editor={props.editor} />
       <ActiveUsersBar users={users} maxShown={4} />
+      <LazyConnected kind="doc" id={doc.doc_uuid} title={doc.doc_title} tip="Connected" className="size-7 rounded-lg" />
       <Tooltip>
         <TooltipTrigger asChild>
           <button

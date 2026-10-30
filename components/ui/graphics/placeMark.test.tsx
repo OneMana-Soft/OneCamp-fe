@@ -21,14 +21,14 @@ describe("a listed thing's mark", () => {
     expect(mark({ kind: "channel", id: "c1", isPrivate: true }).querySelector("svg")?.getAttribute("class")).toMatch(/lucide-lock/)
     expect(mark({ kind: "doc", id: "d1" }).querySelector("[data-doc-icon]")).toBeTruthy()
     expect(mark({ kind: "person", label: "Maya Chen" }).querySelector("[data-hue]")).toBeTruthy()
-    for (const kind of ["team", "board", "message", "reply", "file"] as const) expect(mark({ kind }).querySelector("svg")?.getAttribute("class"), kind).toMatch(/text-ink-3/)
+    for (const kind of ["team", "board", "message", "reply", "file", "event"] as const) expect(mark({ kind }).querySelector("svg")?.getAttribute("class"), kind).toMatch(/text-ink-3/)
   })
 
   it("tints its row in the hue placeHue gives the place, and none for a kind with no identity", () => {
     expect(placeMarkHue({ kind: "channel", id: "c1" })).toBe(placeHue("channel", "c1"))
     expect(placeMarkHue({ kind: "project", id: "p1" })).toBe(placeHue("project", "p1"))
     expect(placeMarkHue({ kind: "person", label: "Maya Chen" })).toBe(placeHue("person", null, { person: "Maya Chen" }))
-    for (const kind of ["task", "team", "board", "message", "reply", "file"] as const) expect(placeMarkHue({ kind })).toBeUndefined()
+    for (const kind of ["task", "team", "board", "message", "reply", "file", "event"] as const) expect(placeMarkHue({ kind })).toBeUndefined()
   })
 
   it("is the one the palette draws: no glyph map of its own", () => {

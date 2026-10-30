@@ -183,8 +183,8 @@ describe("a phone's sheet", () => {
 describe("the layout's rules (app/overlay.css)", () => {
   const rules = css("app/overlay.css")
 
-  it("makes a floating root that holds a body a column that never scrolls, a popover's at most the room left", () => {
-    expect(rules).toMatch(/\[data-overlay="float"\]\[data-overlay-holds-body\] \{\s*display: flex;\s*flex-direction: column;\s*overflow: hidden;/)
+  it("makes a root that holds a body (a floating one, a dialog's phone sheet) a column that never scrolls, a popover's at most the room left", () => {
+    expect(rules).toMatch(/\n\[data-overlay="float"\]\[data-overlay-holds-body\],\n\[data-overlay="dialog"\]\[data-overlay-holds-body\] \{\s*display: flex;\s*flex-direction: column;\s*overflow: hidden;/)
     expect(rules).toMatch(/\[data-radix-popper-content-wrapper\] > \[data-overlay="float"\]\[data-overlay-holds-body\] \{\s*max-height: var\(--radix-popover-content-available-height\);/)
   })
 
@@ -195,6 +195,25 @@ describe("the layout's rules (app/overlay.css)", () => {
 
   it("makes the body the one scroller, up and down only", () => {
     expect(rules).toMatch(/\[data-overlay-body\] \{[^}]*overflow-x: hidden;[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/)
+  })
+
+  // The composer's Send later form opened its time list behind the menu that
+  // asked for it: Radix stacks a popover by its content's z-index, and the
+  // menus' layer is over the popovers'. e2e/momentFields holds it in a browser.
+  it("lays a popover asked for from a menu or another popover over it", () => {
+    expect(rules).toMatch(/\[data-radix-popper-content-wrapper\] ~ \[data-radix-popper-content-wrapper\] > \[data-overlay="float"\] \{\s*z-index: calc\(var\(--z-dropdown\) \+ 1\);/)
+  })
+
+  // The page's scrim under a phone's float sheet asked for --z-modal-backdrop,
+  // a layer bfe9e9d65 folded into --z-modal (23 Oct 2026), and fell to z-index:
+  // auto: the bars and a table's sticky header stayed bright over it and took
+  // the tap that should close the sheet. The sheet takes the modal layer on a
+  // phone, so the scrim stands one under it. e2e/phoneMenuTap holds it in a
+  // browser; app/zLayers.test holds every layer's name.
+  it("dims the page one layer under a phone's float sheet", () => {
+    expect(rules).toMatch(/\[data-radix-popper-content-wrapper\]\[data-overlay-wrapper\] \{[^}]*z-index: var\(--z-modal\) !important;/)
+    expect(rules).toMatch(/\n {2}\[data-overlay="float"\] \{[^}]*z-index: var\(--z-modal\);/)
+    expect(rules).toMatch(/html\[data-float\] body::after \{[^}]*z-index: calc\(var\(--z-modal\) - 1\);/)
   })
 
   it("keeps the bar quiet in an overlay: no track, a thumb on hover or while scrolling, in each engine", () => {
@@ -252,7 +271,7 @@ describe("the marks a body sets for the layout", () => {
     sheet: has("[data-sheet-body]", "> [data-overlay-body]", "> [data-sheet-base] > [data-overlay-body]"),
   }
   const NEW = {
-    root: '[data-overlay="float"][data-overlay-holds-body]',
+    root: '[data-overlay="float"][data-overlay-holds-body], [data-overlay="dialog"][data-overlay-holds-body]',
     popper: '[data-radix-popper-content-wrapper] > [data-overlay="float"][data-overlay-holds-body]',
     box: "[data-overlay] > [data-overlay-column]:not([data-overlay-body], [data-sheet-base]), [data-overlay] > * > [data-overlay-column]:not([data-overlay-body], [data-sheet-base])",
     sheet: "[data-sheet-body][data-overlay-holds-body]",
@@ -292,6 +311,29 @@ describe("the marks a body sets for the layout", () => {
     // The ones that matter, by name: the popover's root, its box, the sheet's body.
     const { container } = render(<div id="r8" data-overlay="float"><div id="p8"><form id="f8"><OverlayBody id="b8" /></form></div></div>)
     expect(same(container)).toMatchObject({ root: { new: ["r8"] }, box: { new: ["p8", "f8"] } })
+  })
+
+  // A dialog (components/ui/dialog; a sheet of its own on a phone, app/phone.css C5d) scrolled as one, its header and
+  // close going up out of sight: it now holds its body as a floating root does. A drawer is a column already, and its sheet's
+  // body is what holds one.
+  it("marks a dialog as the root that holds its body, and never a drawer", () => {
+    const { container } = render(
+      <>
+        <div id="d1" role="dialog" data-v3-sheet="" data-overlay="dialog">
+          <div id="h1" data-overlay-header="" />
+          <form id="f1">
+            <OverlayBody id="b1" />
+          </form>
+        </div>
+        <div id="d2" role="dialog" data-v3-sheet="" data-overlay="sheet">
+          <div id="s2" data-sheet-body="">
+            <OverlayBody id="b2" />
+          </div>
+        </div>
+      </>,
+    )
+    expect([...container.querySelectorAll("[data-overlay-holds-body]")].map((e) => e.id)).toEqual(["d1", "s2"])
+    expect([...container.querySelectorAll("[data-overlay-column]")].map((e) => e.id)).toEqual(["f1", "s2"])
   })
 
   it("keeps a mark while another body still needs it, and takes it off with the last", () => {

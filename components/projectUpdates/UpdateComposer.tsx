@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { Button } from "@/components/ui/button"
+import { busyWith } from "@/lib/ui/busyWith"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -141,6 +142,7 @@ export function UpdateComposer({
   // Closing keeps where the goal ended: a value typed before choosing an ending isn't sent.
   const valueChanged = !closing && moved !== undefined && Number.isFinite(moved) && moved !== startValue
   const canPost = !!body.trim() || closing || valueChanged
+  const { busy: posting, disabled: waiting } = busyWith(busy, "post")
 
   // A new update starts from the draft; the person edits from there.
   useEffect(() => {
@@ -160,14 +162,6 @@ export function UpdateComposer({
       live = false
     }
   }, [draft, editing, initialHealth])
-
-  // The note grows with its text instead of scrolling in a small box.
-  useEffect(() => {
-    const el = area.current
-    if (!el) return
-    el.style.height = "auto"
-    el.style.height = `${Math.min(el.scrollHeight + 2, window.innerHeight * 0.6)}px`
-  }, [body])
 
   // Once drafted, the cursor waits at the top, on a line of its own above the
   // draft, where the summary goes.
@@ -323,7 +317,7 @@ export function UpdateComposer({
             disabled={busy === "draft" || busy === "ai"}
             rows={8}
             placeholder={copy.placeholder}
-            className="min-h-40 resize-y font-sans text-sm leading-relaxed"
+            className="max-h-[60dvh] min-h-40 font-sans text-sm leading-relaxed"
           />
           {(busy === "draft" || busy === "ai") && (
             <div className="absolute inset-0 flex items-center justify-center rounded-md bg-background/60 text-sm text-muted-foreground backdrop-blur-[1px]">
@@ -372,8 +366,7 @@ export function UpdateComposer({
         <Button type="button" variant="ghost" size="sm" onClick={onDone} disabled={busy === "post"}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" variant={closing ? "secondary" : "default"} disabled={!canPost || busy !== null}>
-          {busy === "post" && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+        <Button type="submit" size="sm" variant={closing ? "secondary" : "default"} disabled={!canPost || waiting} busy={posting}>
           {editing ? "Save" : closing ? "Close the goal" : copy.post}
         </Button>
       </div>

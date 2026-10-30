@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test"
-import { SAM, stubBackend } from "./stubbedApp"
+import { expect, test } from "@playwright/test"
+import { SAM, stubBackend, tidy } from "./stubbedApp"
 
 // A Slack workspace read through Slack's API (chat item 2), in a real browser
 // with no backend: the import history shows a read under way and one that has
@@ -41,14 +41,6 @@ const views = [
   { name: "1280", viewport: { width: 1280, height: 860 }, phone: false },
   { name: "390", viewport: { width: 390, height: 844 }, phone: true },
 ] as const
-
-async function tidy(tab: Page) {
-  for (let i = 0; i < 2; i++) {
-    const gotIt = tab.getByRole("button", { name: "Got it" }).first()
-    if (!(await gotIt.isVisible().catch(() => false))) break
-    await gotIt.click().catch(() => {})
-  }
-}
 
 for (const view of views) {
   for (const scheme of ["light", "dark"] as const) {

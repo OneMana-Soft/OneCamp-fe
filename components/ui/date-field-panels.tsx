@@ -75,8 +75,12 @@ export function DatePanel({ day, from, to, clearable, sheet, onPick, onClear }: 
       // Into the month, from wherever the opening left it (the popover's own
       // first focus is the typed-date box).
       if (day && !day.closest('[role="grid"]')?.contains(document.activeElement)) day.focus({ preventScroll: true })
+      // In a short sheet the chosen week comes into view, not the month's first, past row.
+      if (sheet) day?.closest("tr")?.scrollIntoView?.({ block: "nearest" })
     }, 0)
     return () => window.clearTimeout(t)
+    // Once, as the picker opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const quick = QUICK_DAYS.map((q) => {
     const d = new Date(today)

@@ -26,6 +26,10 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || `http://localhost:${PORT}`
 
 export default defineConfig({
   testDir: "./e2e",
+  // e2e/cookieScope runs on its own (run.sh starts two workspaces behind a TLS
+  // front, with its own config): here it could only skip, and a gate fails on
+  // any skip.
+  testIgnore: process.env.COOKIE_SCOPE_E2E ? undefined : "**/cookieScope/**",
   fullyParallel: true,
   forbidOnly: isCI, // .only must not land in CI
   retries: isCI ? 2 : 0,

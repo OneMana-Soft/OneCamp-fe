@@ -26,10 +26,13 @@ let focusUntil: Date | null = null
 let pausedUntil: Date | null = null
 let themeSet: string[] = []
 const started: number[] = []
+const ended: number[] = []
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil, focusUntil }) }))
 const dispatched: unknown[] = []
 vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => (a: unknown) => dispatched.push(a) }))
-vi.mock("@/hooks/useStartFocus", () => ({ useStartFocus: () => ({ startFocus: async () => (started.push(1), true), starting: false }) }))
+vi.mock("@/hooks/useFocusTime", () => ({
+    useFocusTime: () => ({ start: async () => (started.push(1), true), end: async () => (ended.push(1), true), busy: false }),
+}))
 vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("@/components/navigationBar/mobile/phoneSelfAvatar", () => ({
     PhoneSelfAvatar: ({ focus, paused }: { focus?: boolean; paused?: boolean }) => <span data-avatar="" data-focus={focus || undefined} data-paused={paused || undefined} />,
@@ -54,6 +57,7 @@ beforeEach(() => {
     pausedUntil = null
     themeSet = []
     started.length = 0
+    ended.length = 0
 })
 afterEach(cleanup)
 
@@ -166,6 +170,18 @@ describe("the More sheet's You section", () => {
         expect(document.querySelector("[data-you-status]")?.textContent).toMatch(/^In focus until /)
         expect(document.querySelector("[data-avatar]")?.hasAttribute("data-focus")).toBe(true)
         expect(screen.queryByRole("button", { name: /^Start focus time/ })).toBeNull()
+    })
+
+    // The owner (23 Oct 2026): "End focus button is not working". In focus, the
+    // row opened the pause sheet, which can't end focus time: the phone had no End.
+    it("ends focus time from the row while you are in it", async () => {
+        focusUntil = new Date(Date.now() + 30 * 60_000)
+        open()
+        fireEvent.click(screen.getByRole("button", { name: /^End focus time.*In focus until / }))
+        await Promise.resolve()
+        expect(ended).toEqual([1])
+        expect(started).toEqual([])
+        expect(screen.queryByTestId("pause-sheet")).toBeNull()
     })
 
     it("says notifications are paused, and badges your avatar", () => {

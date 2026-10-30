@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { drawnSelected } from "@/components/minimal-tiptap/utils"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
 import { Globe, Loader2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -83,7 +84,7 @@ export function BookmarkView({ node, editor, getPos, selected, updateAttributes 
         className={cn(
           "group/bookmark flex min-h-[88px] overflow-hidden rounded-[12px] bg-raised text-ink no-underline shadow-e1 outline-none transition-shadow duration-[140ms] ease-[var(--ease-out)] hover:shadow-e2",
           "focus-visible:ring-2 focus-visible:ring-brand",
-          selected && "ring-2 ring-brand ring-offset-2 ring-offset-sheet",
+          drawnSelected(editor, selected) && "ring-2 ring-brand ring-offset-2 ring-offset-sheet",
         )}
       >
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-4 py-3">

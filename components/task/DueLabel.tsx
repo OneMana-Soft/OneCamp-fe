@@ -1,5 +1,5 @@
 import { Clock } from "@/lib/icons"
-import { shortDate } from "@/lib/utils/date/shortDate"
+import { shortDate } from "@/lib/utils/date/dateWords"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /** A stored date as a Date, or null when there is none (empty, the zero epoch, unreadable). */
@@ -18,13 +18,24 @@ export function daysFromToday(d: Date, now: Date = new Date()): number {
   return Math.round((startOf(d) - startOf(now)) / DAY)
 }
 
+// A list says the same few days again and again, and the date's words
+// (date-fns' format) were the dearest part of a phone row's due date: each
+// day is worded once, for this year or another (fluid-17).
+const worded = new Map<string, string>()
+
 /** "Today", "Tomorrow", "Yesterday" within a day; else "14 Oct", or "14 Oct 2027" in another year. */
 export function dueWords(d: Date, now: Date = new Date()): string {
   const days = daysFromToday(d, now)
   if (days === 0) return "Today"
   if (days === 1) return "Tomorrow"
   if (days === -1) return "Yesterday"
-  return shortDate(d, now)
+  const day = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()} ${now.getFullYear()}`
+  let words = worded.get(day)
+  if (words === undefined) {
+    if (worded.size > 500) worded.clear()
+    worded.set(day, (words = shortDate(d, now)))
+  }
+  return words
 }
 
 export type DueState = "none" | "today" | "overdue" | "upcoming" | "done"
@@ -83,9 +94,11 @@ export function DueLabel({
       </span>
     )
   }
+  // Beside the panel's own dates, a later day would be said twice: only tomorrow says more.
+  if (variant === "panel" && state === "upcoming" && words !== "Tomorrow") return null
   return (
     <span data-due={state} className={cn(base, state === "done" ? "text-ink-3" : "text-ink-2", className)}>
-      {words}
+      {variant === "panel" && words === "Tomorrow" ? "Due tomorrow" : words}
     </span>
   )
 }

@@ -116,7 +116,7 @@ const UpdateDocTitleDialog: React.FC<UpdateDocDialogProps> = ({
                         </Button>
                         <Button
                             type="submit"
-                            disabled={!isValid || isSubmitting}
+                            disabled={!isValid} busy={isSubmitting}
                         >
                             {isSubmitting ? "Saving…" : "Save"}
                         </Button>

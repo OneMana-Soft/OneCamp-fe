@@ -97,6 +97,16 @@ export function PeoplePicker({
     allowEmail && isEmailAddress(typed) && !value.some((p) => p.email === typed) ? { uuid: "", name: typed, email: typed } : null
   const options = byEmail ? [...matches, byEmail] : matches
 
+  // The names offered sit in flow under the field, so a dialog's or sheet's
+  // body grows round them and scrolls them into view above its pinned
+  // footer; laid over the body, they were clipped by it, and on a phone the
+  // footer covered them (the hand-on dialog, 23 Oct).
+  const listRef = React.useRef<HTMLUListElement>(null)
+  const offered = options.length > 0
+  React.useEffect(() => {
+    if (offered) listRef.current?.scrollIntoView({ block: "nearest" })
+  }, [offered])
+
   return (
     <div className="grid gap-2">
       {showChosen && value.length > 0 && (
@@ -117,7 +127,7 @@ export function PeoplePicker({
           ))}
         </ul>
       )}
-      <div className="relative">
+      <div>
         <Input
           id={id}
           value={query}
@@ -149,7 +159,7 @@ export function PeoplePicker({
           }}
         />
         {options.length > 0 && (
-          <ul id={listId} role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 grid gap-0.5 rounded-md border bg-popover p-1 shadow-e3">
+          <ul ref={listRef} id={listId} role="listbox" className="mt-1 grid gap-0.5 rounded-md border bg-popover p-1 shadow-e3">
             {options.map((m, i) => (
               <li key={pickedKey(m)} role="option" aria-selected={i === Math.min(active, options.length - 1)}>
                 <button

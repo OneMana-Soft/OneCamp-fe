@@ -4,7 +4,9 @@
 // conversations in the sidebar, typing in the composer, and reading back a
 // long channel, each held to chat-budgets.json beside this file. The run
 // exits non-zero when an enforced budget is missed. (PLATFORM-LEAD built the
-// scenario on 17 Oct 2026; CHAT-LEAD owns the budgets.)
+// scenario on 17 Oct 2026; CHAT-LEAD owns the budgets.) The cold open and
+// every switch also count the frames in which the conversation, which has
+// messages, has its empty state on screen (channelEmptyFlashFrames).
 //
 // It runs a production build (`next start`) against a fake server side
 // (fakeApp.mjs) with a synthetic workspace: six channels, one of them 2,000
@@ -72,9 +74,53 @@ function watcher() {
     }
     requestAnimationFrame(tick)
   }
+  // Frames in which a conversation that has messages says it has none
+  // (fluid-03; DESIGN-BUILD-3, 21 Oct 2026): its empty state ("This is the
+  // start of #…", the fill placement, [data-conversation-empty]) laid out on
+  // screen, at any opacity: it mounts in the render where the first read's
+  // answer has come but the list's store is still empty, at opacity 0 as its
+  // fade-in starts, so how much of it a person sees is the device's speed
+  // (CHAT-LEAD: seen at 390, where the fade got further). Every conversation
+  // in the fixtures has messages, so every such frame is a flash. The start of
+  // a history (the start placement, above its first message) isn't counted.
+  // `mounts` counts its arrivals in the page, a frame or not (a diagnosis).
+  window.__emptyAfter = () => {
+    if (window.__emptyFlash) {
+      window.__emptyFlash.done = true
+      window.__emptyFlash.observer?.disconnect()
+    }
+    const W = window.__flu.frameWatch(() => {
+      for (const el of document.querySelectorAll("[data-conversation-empty]")) {
+        const r = el.getBoundingClientRect()
+        if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && el.checkVisibility({ visibilityProperty: true })) return true
+      }
+      return false
+    })
+    W.mounts = 0
+    W.observer = new MutationObserver((list) => {
+      for (const m of list) for (const n of m.addedNodes) if (n.nodeType === 1 && (n.matches("[data-conversation-empty]") || n.querySelector("[data-conversation-empty]"))) W.mounts++
+    })
+    // The document itself: a cold open's watch starts before <html> exists.
+    W.observer.observe(document, { childList: true, subtree: true })
+    window.__emptyFlash = W
+  }
   // A cold open counts from the navigation's start.
-  if (/^\/app\/(channel|chat)\//.test(location.pathname)) window.__rowAfter(0)
+  if (/^\/app\/(channel|chat)\//.test(location.pathname)) {
+    window.__rowAfter(0)
+    window.__emptyAfter()
+  }
 }
+/** The empty state's frames and mounts since the open began, and the watch stopped. */
+const emptyFlash = (page) =>
+  page
+    .evaluate(() => {
+      const W = window.__emptyFlash
+      if (!W) return null
+      W.done = true
+      W.observer?.disconnect()
+      return { frames: W.hits, mounts: W.mounts }
+    })
+    .catch(() => null)
 async function rowTime(page, ms = 30000) {
   const end = Date.now() + ms
   while (Date.now() < end) {
@@ -113,7 +159,8 @@ for (let r = 0; r < RUNS; r++) {
     await page.goto(`${BASE}/app/channel/${target.id}`, { waitUntil: "commit", timeout: 120000 })
     const first = await rowTime(page, 60000)
     await page.waitForTimeout(1500)
-    if (ONLY.has("open")) result.open.push({ run: r, firstRowMs: first })
+    const openFlash = await emptyFlash(page)
+    if (ONLY.has("open")) result.open.push({ run: r, firstRowMs: first, emptyFlashFrames: openFlash?.frames ?? null, emptyMounts: openFlash?.mounts ?? null })
 
     // ---- switching: channel, DM, channel, ... through the sidebar ----
     if (ONLY.has("switch") && !PHONE) {
@@ -126,6 +173,7 @@ for (let r = 0; r < RUNS; r++) {
           const a = document.querySelector(`a[href="${h}"]`)
           const t = performance.now()
           window.__rowAfter(t)
+          window.__emptyAfter()
           if (a) a.click()
           return a ? t : null
         }, href)
@@ -134,9 +182,11 @@ for (let r = 0; r < RUNS; r++) {
           continue
         }
         const ms = await rowTime(page)
+        // 300 ms on: the empty state's fade-out (200 ms) is over.
         await page.waitForTimeout(300)
+        const flash = await emptyFlash(page)
         const m = await since(page, before)
-        result.switches.push({ run: r, kind: href.startsWith("/app/chat/") ? "dm" : "channel", ms, renders: m.renders, longMs: m.longMs, cls: m.cls })
+        result.switches.push({ run: r, kind: href.startsWith("/app/chat/") ? "dm" : "channel", ms, renders: m.renders, longMs: m.longMs, cls: m.cls, emptyFlashFrames: flash?.frames ?? null, emptyMounts: flash?.mounts ?? null })
       }
     }
 
@@ -277,6 +327,18 @@ if (result.switches.length) {
   // The demo's switches moved the page (CLS 0.13 on 17 Oct): a switch's shift.
   M.switchCls = p95(result.switches.map((s) => s.cls))
 }
+// Each run's worst open (the cold one, and every switch) by its empty
+// flashes: a person sees the worst, and the target is none.
+const flashes = new Map()
+for (const o of [...result.open, ...result.switches]) if (typeof o.emptyFlashFrames === "number") flashes.set(o.run, Math.max(flashes.get(o.run) ?? 0, o.emptyFlashFrames))
+if (flashes.size) M.channelEmptyFlashFrames = median([...flashes.values()])
+// The same by its arrivals in the page (a MutationObserver), visible or not:
+// the render that draws it is the defect, and how long a person sees it is
+// the device's speed (21 Oct 2026: 2 an open on live batch 4, never laid out
+// on screen at a frame in the harness's runs). The budget is held to this.
+const mounts = new Map()
+for (const o of [...result.open, ...result.switches]) if (typeof o.emptyMounts === "number") mounts.set(o.run, Math.max(mounts.get(o.run) ?? 0, o.emptyMounts))
+if (mounts.size) M.channelEmptyMounts = median([...mounts.values()])
 if (result.typing.length) {
   M.keyP95Ms = median(result.typing.map((t) => t.keyP95))
   M.rendersPerKey = median(result.typing.map((t) => t.rendersPerKey))

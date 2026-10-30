@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Loader2, Sparkles } from "@/lib/icons"
+import { Sparkles } from "@/lib/icons"
 import { TemplateKind, publishTemplate } from "@/services/marketplaceService"
 
 // PublishTemplateDialog is a reusable dialog for publishing something the user
@@ -112,8 +112,8 @@ export function PublishTemplateDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Publish"}
+          <Button onClick={submit} busy={busy}>
+            Publish
           </Button>
         </div>
       </DialogContent>

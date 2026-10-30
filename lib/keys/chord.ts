@@ -1,9 +1,7 @@
 /**
- * Key chords in Tiptap's notation ('Mod-l', 'Shift-f', '?', 'Mod-Enter'): read
- * against a key event, and written as the shortcut list writes them. Free of
- * the editor, so a page that binds keys from a table (the calendar's) doesn't
- * bring the editor with it; the doc's registry (registry/actionKeys.ts)
- * exports the same chordMatches.
+ * Key chords in Tiptap's notation ('Mod-l', 'Shift-f', '?'), read against a
+ * key event and written as the keys list writes them, free of the editor
+ * (the doc's registry re-exports chordMatches).
  */
 
 /** Whether this is a Mac (or an iPhone or iPad), where Mod is ⌘. */
@@ -11,8 +9,15 @@ export function isMacLike(): boolean {
   return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 }
 
-/** Whether a key event is this chord (Tiptap's notation: 'Mod-l', 'Shift-f', '?'). Pure. */
-export function chordMatches(e: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>, chord: string, mac: boolean): boolean {
+/**
+ * Whether a key event is this chord. A Mac's ⌥ types a symbol (⌥Y is ¥), so
+ * there a key is also read by its place, which `code` names as on a US
+ * keyboard: on a German Mac, ⌥ with the key labelled Z (Y's place) answers
+ * ⌥Y. Browsers give no layout's letter for an ⌥ chord in a key event; only
+ * Chromium's navigator.keyboard.getLayoutMap() maps places to letters, and it
+ * answers asynchronously. Pure.
+ */
+export function chordMatches(e: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'> & { code?: string }, chord: string, mac: boolean): boolean {
   const parts = chord.split(/-(?!$)/)
   const key = parts.pop()!
   const want = new Set(parts)
@@ -23,7 +28,8 @@ export function chordMatches(e: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey
   const letter = /^[a-z]$/i.test(key)
   // A shifted symbol ("?") is a key of its own: Shift counts for letters and named keys.
   if ((letter || key.length > 1) && e.shiftKey !== want.has('Shift')) return false
-  return letter ? e.key.toLowerCase() === key.toLowerCase() : e.key === key
+  if (letter ? e.key.toLowerCase() === key.toLowerCase() : e.key === key) return true
+  return mac && e.altKey && e.code?.replace(/^(Key|Digit)/, '').toLowerCase() === key.toLowerCase()
 }
 
 const ARROWS: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }

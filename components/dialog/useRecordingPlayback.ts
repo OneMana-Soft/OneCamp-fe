@@ -10,12 +10,13 @@
 // a fresh link and carries on from the same moment, playing if it was.
 //
 // A failed or aborted recording used to open as a black frame with controls.
-// The server now says which state a recording is in, and the player says it.
+// The server now says which state a recording is in, and the player says it:
+// one that captured nothing is "empty", not failed (V-32).
 
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 
-export type RecordingStatus = "ready" | "failed" | "recording" | "transcript_only"
+export type RecordingStatus = "ready" | "failed" | "empty" | "recording" | "transcript_only"
 
 export interface RecordingMedia {
   url?: string
@@ -24,7 +25,7 @@ export interface RecordingMedia {
   expiresAt?: number
 }
 
-const STATUSES: RecordingStatus[] = ["ready", "failed", "recording", "transcript_only"]
+const STATUSES: RecordingStatus[] = ["ready", "failed", "empty", "recording", "transcript_only"]
 
 function readExpiry(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v)) return v

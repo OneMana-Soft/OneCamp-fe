@@ -51,6 +51,9 @@ export function toLocalInputValue(d: Date): string {
   return format(d, "yyyy-MM-dd'T'HH:mm")
 }
 
+/** A first offer of a moment: `d` on the next quarter hour, the time list's step (every zone's offset is whole quarters). */
+export const quarterUp = (d: Date) => new Date(Math.ceil(d.getTime() / 900_000) * 900_000)
+
 /** How soon and how far ahead a message may be sent later: the server's own window (business/ScheduledMessage MinLead, MaxLead). */
 export const SEND_LATER_MIN_LEAD_MS = 30_000
 export const SEND_LATER_MAX_LEAD_MS = 120 * 24 * 60 * 60 * 1000

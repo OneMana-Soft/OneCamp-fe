@@ -40,6 +40,16 @@ async function open(page: Page, testInfo: TestInfo, path: string, panes: string[
 const sheet = (page: Page, k: string) => page.locator(`[data-split-sheet="${k}"]`)
 const handle = (page: Page, k: string) => page.locator(`[data-split-handle="${k}"] [data-drag-handle]`)
 const box = async (l: Locator) => (await l.boundingBox())!
+
+/** The carry's ghost reads `words` and lies wholly inside the window (design r5: it carries the swap, and never runs off an edge). */
+async function expectGhost(page: Page, words: string) {
+  await expect(page.locator(".split-ghost")).toHaveText(words)
+  const v = page.viewportSize()!
+  await expect.poll(async () => {
+    const g = await box(page.locator(".split-ghost"))
+    return [g.x >= 0, g.y >= 0, g.x + g.width <= v.width, g.y + g.height <= v.height]
+  }).toEqual([true, true, true, true])
+}
 /**
  * The views left to right, by where their sheets are, in one read of the page
  * (a box per view waited on each sheet, and on a loaded machine the poll timed
@@ -114,8 +124,10 @@ test.describe("on a computer", () => {
     await expect(handle(page, "main")).toBeAttached({ timeout: 90_000 })
     const grip = await box(handle(page, "main"))
     const target = await box(sheet(page, key(B)))
-    await drag(page, { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 }, { x: target.x + target.width / 2, y: target.y + target.height / 2 }, async () => {
+    // Carried by its bar, the pointer stays near the top, as a hand's does.
+    await drag(page, { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 }, { x: target.x + target.width / 2, y: grip.y + grip.height / 2 }, async () => {
       await expect(page.locator(".split-drop-swap")).toBeVisible()
+      await expectGhost(page, "Swap with Pricing notes")
     })
     await expect.poll(() => row(page, ["main", key(A), key(B)])).toEqual([key(B), key(A), "main"])
   })
@@ -156,8 +168,12 @@ test.describe("on a computer", () => {
     await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)))
     await page.keyboard.press("ArrowLeft")
     await expect(page.locator(".split-drop-swap")).toBeVisible()
+    await expectGhost(page, "Swap with Pricing notes")
+    // The live region says what the ghost does.
+    await expect(page.locator("[data-announce]").first()).toHaveText("Swap with Pricing notes.")
     await page.keyboard.press("ArrowLeft")
     await expect(page.locator('[data-drop-line="col"]')).toBeVisible()
+    await expectGhost(page, "Launch plan")
     await page.keyboard.press("Space")
     await expect.poll(() => row(page, views)).toEqual(["main", key(A), key(B)])
   })

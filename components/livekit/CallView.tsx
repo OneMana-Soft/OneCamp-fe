@@ -8,8 +8,13 @@
 import { displayNameOf } from "@/lib/personName"
 import { useCallback } from "react"
 import { PreJoin } from "@/components/livekit/PreJoin"
-import { VideoConference } from "@/components/livekit/VideoConference"
+import { LazyVideoConference as VideoConference } from "@/components/livekit/LazyCall"
+import dynamic from "next/dynamic"
+
+// Invite's panel, loaded once someone who may let people in is in the call.
+const ConversationInvite = dynamic(() => import("@/components/livekit/ConversationInvite").then((m) => m.ConversationInvite), { ssr: false })
 import { CallEndScreen } from "@/components/livekit/CallEndScreen"
+import { placeInSentence } from "@/components/livekit/CallStage"
 import { useCallLifecycle } from "@/components/livekit/useCallLifecycle"
 import { peopleInCall, peopleOfSession } from "@/components/livekit/callState"
 import { useCallSession } from "@/components/livekit/useCallSession"
@@ -83,8 +88,11 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
     ),
   )
   const phase = life.phase === "prejoin" || life.phase === "joining" ? "waiting" : life.phase === "in-call" ? "in-call" : "over"
-  const read = useCallSession(callRefOf(kind, id, self.data?.data.user_uuid), phase)
+  const callRef = callRefOf(kind, id, self.data?.data.user_uuid)
+  const read = useCallSession(callRef, phase)
   const sessionId = read?.session?.id
+  // Invite (HU13), for someone in the call who may let people in.
+  const invite = callRef && read?.you?.can.includes("admit") ? <ConversationInvite callRef={callRef} /> : undefined
   // The conversation the call belongs to, beside it: the dock's Chat.
   const chat = useCallChat(kind, id)
 
@@ -95,7 +103,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
     [call, id],
   )
 
-  const backLabel = kind === "channel" && place ? `Back to ${place.replace(/^in /, "")}` : "Back"
+  const backLabel = kind === "channel" && place ? `Back to ${placeInSentence(place)}` : "Back"
   if (life.phase === "left" || life.phase === "removed" || life.phase === "failed") {
     return <CallEndScreen call={life} onBack={onLeave} backLabel={backLabel} embedded={embedded} />
   }
@@ -135,8 +143,11 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
       embedded={embedded}
       audio={life.choice.audio}
       video={life.choice.video}
+      tracks={life.choice.tracks}
       sessionId={sessionId}
+      lobby={read?.waiting}
       transcriptionConfig={transcriptionConfig}
+      extraStatus={invite}
     />
   )
 }

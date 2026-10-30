@@ -20,6 +20,7 @@ import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags"
 import { getGroupingId } from "@/lib/utils/getGroupingId"
 import { followsOnReply } from "@/lib/conversation/threadFollow"
 import { mentionPlaceAttrs } from "@/lib/conversation/mentionPlace"
+import { ThreadCommandSurface, threadSurfaceKey } from "@/components/command/ThreadCommandSurface"
 import { openUI } from "@/store/slice/uiSlice"
 import {
     clearChannelCommentMsgInputState, createChannelComment, createOrUpdateChannelCommentMsg, setChannelCommentAlsoSend,
@@ -185,7 +186,8 @@ export const ThreadReplyBox = memo(function ThreadReplyBox({ kind, conversation,
     })
 
     return (
-        <div className="shrink-0 px-3 pb-3 pt-1" data-command-surface={conversation} {...mentionPlaceAttrs(kind, kind === "dm" ? getGroupingId(conversation, selfProfile.data?.data?.user_uuid || "") : conversation, true)}>
+        <div className="shrink-0 px-3 pb-3 pt-1" data-command-surface={threadSurfaceKey(thread)} {...mentionPlaceAttrs(kind, kind === "dm" ? getGroupingId(conversation, selfProfile.data?.data?.user_uuid || "") : conversation, true)}>
+            <ThreadCommandSurface kind={kind} conversation={conversation} thread={thread} />
             <MinimalTiptapTextInput
                 throttleDelay={300}
                 attachmentOnclick={openUpload}

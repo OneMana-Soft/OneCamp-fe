@@ -9,11 +9,13 @@
 //
 // The stage is always dark (VideoConference sets `dark`), so the camp tokens
 // here resolve to their dark cuts.
+//
+// Nothing here imports LiveKit: the green rooms (PreJoin, a member's door)
+// draw from this file, and a page that hasn't joined yet shouldn't load the
+// call's client. A tile's pieces that read LiveKit live with it (StageTile).
 
 import { personHue } from "@/lib/utils/getAvatarColor"
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
-import { useIsMuted, type TrackReferenceOrPlaceholder } from "@livekit/components-react"
-import { ParticipantKind, Track } from "livekit-client"
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
@@ -22,20 +24,12 @@ import { Captions, MicOff, Lock } from "@/lib/icons"
 import { type CampHue } from "@/lib/campHue"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { cn } from "@/lib/utils/helpers/cn"
+import { useNow } from "@/hooks/useNow"
 import { CALL_SURFACE } from "./callSurface"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
-import { RING_OFF, formatElapsed, guestName, levelToBars, ringOpacity, type RingState } from "./callLevels"
+import { RING_OFF, formatElapsed, levelToBars, ringOpacity, type LevelSource, type RingState } from "./callLevels"
 import { captionsLabel, captionsWhereText, type CallTranscription } from "./callState"
-
-/** Whether a tile shows a face rather than a picture: a camera with nothing to show. Pure. */
-export function cameraIsOff(trackRef: Pick<TrackReferenceOrPlaceholder, "source" | "publication">, muted: boolean): boolean {
-  return trackRef.source === Track.Source.Camera && (!trackRef.publication || muted)
-}
-
-/** An agent in a call is a LiveKit agent participant: drawn as the agent square, never a person. */
-export function isAgentParticipant(p: { kind?: ParticipantKind } | undefined): boolean {
-  return p?.kind === ParticipantKind.AGENT
-}
+import { PersonTag } from "./personTag"
 
 /**
  * A face with no picture (C3, C5): the person's avatar gradient at 30% of the
@@ -89,19 +83,6 @@ export function StageFace({
   )
 }
 
-/**
- * A person whose camera is off, in their own colour, inside a LiveKit tile.
- * LiveKit's placeholder was the same grey silhouette for everybody.
- */
-export function CameraOffFace({ trackRef, size = "md" }: { trackRef: TrackReferenceOrPlaceholder; size?: "sm" | "md" | "lg" }) {
-  const muted = useIsMuted(trackRef)
-  if (!cameraIsOff(trackRef, muted)) return null
-  const who = trackRef.participant
-  const { name } = guestName(who.identity || "", who.name || who.identity || "Guest")
-  // A small tile's plate already says the name.
-  return <StageFace identity={who.identity} name={name} agent={isAgentParticipant(who)} showName={size !== "sm"} />
-}
-
 /** Three mini bars on a name plate, from the level, each a beat behind the last: a voice's ripple. */
 export function LevelBars({ level, className }: { level: number; className?: string }) {
   const reduced = typeof window !== "undefined" && prefersReducedMotion()
@@ -121,8 +102,9 @@ export function LevelBars({ level, className }: { level: number; className?: str
 
 /**
  * The name plate (C5): bottom-left of a tile, a dark pill with the name, a
- * mic-off glyph when muted or level bars when speaking, a Guest or Agent tag,
- * and connection bars only when the connection is poor.
+ * mic-off glyph when muted or level bars when speaking, a Guest, Agent or
+ * Invited tag (PersonTag), and connection bars only when the connection is
+ * poor.
  */
 export function NamePlate({
   name,
@@ -131,6 +113,7 @@ export function NamePlate({
   speaking = false,
   guest = false,
   agent = false,
+  invited = false,
   poor = false,
   children,
   className,
@@ -141,6 +124,7 @@ export function NamePlate({
   speaking?: boolean
   guest?: boolean
   agent?: boolean
+  invited?: boolean
   poor?: boolean
   children?: ReactNode
   className?: string
@@ -154,8 +138,9 @@ export function NamePlate({
       )}
     >
       <span className="min-w-0 truncate">{name}</span>
-      {guest ? <span className="inline-flex h-4 items-center rounded-[5px] bg-camp-sun-tint px-1.5 text-micro text-camp-sun-ink">Guest</span> : null}
-      {agent ? <span className="inline-flex h-4 items-center rounded-[5px] bg-agent-muted px-1.5 text-micro text-agent-ink">Agent</span> : null}
+      {guest ? <PersonTag kind="Guest" /> : null}
+      {agent ? <PersonTag kind="Agent" /> : null}
+      {invited ? <PersonTag kind="Invited" /> : null}
       {muted ? <MicOff className="size-3 shrink-0 text-[#FF8086]" aria-label="Muted" /> : speaking ? <LevelBars level={level} /> : null}
       {poor ? (
         <span aria-label="Poor connection" className="flex h-2.5 items-end gap-px">
@@ -217,16 +202,21 @@ export function useRing(level: number): number {
 
 /**
  * The green room's 5-bar meter (C2), 20 x 14: bars 3px wide in the ok green,
- * lit by levelToBars. Reduced motion: one bar, on or off.
+ * lit by levelToBars. Reduced motion: one bar, on or off. It listens to the
+ * microphone's samples itself, and draws only when a bar comes or goes.
  */
-export function MicMeter({ level, className }: { level: number; className?: string }) {
-  const prev = useRef(0)
+export function MicMeter({ source, className }: { source: LevelSource; className?: string }) {
   const [bars, setBars] = useState(0)
   useEffect(() => {
-    const next = levelToBars(level, prev.current)
-    prev.current = next.level
-    setBars(next.bars)
-  }, [level])
+    let prev = 0
+    const sample = () => {
+      const next = levelToBars(source.read(), prev)
+      prev = next.level
+      setBars(next.bars)
+    }
+    sample()
+    return source.listen(sample)
+  }, [source])
   const reduced = typeof window !== "undefined" && prefersReducedMotion()
   return (
     <span aria-hidden data-mic-meter="" data-bars={bars} className={cn("flex h-3.5 w-5 items-end gap-px", className)}>
@@ -241,21 +231,31 @@ export function MicMeter({ level, className }: { level: number; className?: stri
   )
 }
 
-/** The elapsed time since `since`, ticking every second. */
+/** The elapsed time since `since`, ticking every second: the call's clock, and the recording's. */
 export function useElapsed(since: number | null): string {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (since === null) return
-    const t = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(t)
-  }, [since])
+  const now = useNow(since !== null)
   return since === null ? "" : formatElapsed(now - since)
 }
 
 const STAGE_PILL = "flex h-7 items-center gap-2 rounded-[14px] bg-[#1F2024] px-2.5 text-meta font-medium ring-1 ring-white/[0.09]"
 
-/** "in #engineering" reads as a sentence elsewhere; a pill is a label. */
-const placeLabel = (place?: string) => place?.replace(/^(in|with) /, "")
+/** Where the stage's top row ends, from the call's top: its pills sit 12px in (top-3), 28px tall (h-7). */
+export const TOP_ROW_END = 12 + 28
+
+/** Where the call is, said in a sentence: "an instant meeting", "#engineering", "Sam Rivera" (from "in an instant meeting"). Pure. */
+export function placeInSentence(place?: string): string | undefined {
+  return place?.replace(/^(in|with) /, "")
+}
+
+/**
+ * Where the call is, as a pill's label: "#engineering", "Sam Rivera", and
+ * "Instant meeting" or "Your room", not "an instant meeting", which read as
+ * a description (DESIGN-BUILD-23). Pure.
+ */
+export function placeLabel(place?: string): string | undefined {
+  const label = placeInSentence(place)?.replace(/^(an?|the) /, "")
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : label
+}
 
 /** Top-left of the stage (C4): "#engineering · 24:10", the time tabular. */
 export function PlacePill({ place, since }: { place?: string; since: number | null }) {
@@ -426,16 +426,26 @@ export interface CaptionEntry {
   text: string
 }
 
+/** Over the dock as drawn (its top + 12 px from the page's foot), from the stage's foot. */
+export const CAPTIONS_BOTTOM = "calc(var(--call-dock-floor, 84px) - var(--call-stage-foot, 0px))"
+/** A bar over the dock lifts the captions by its room, by transform. Pure. */
+export const captionsLift = (lift: number) => (lift > 0 ? `translateY(${-Math.round(lift)}px)` : undefined)
+
 /**
  * Live captions (C9): one dark block above the dock, each speaker's name in
  * their own colour over 18/26 text, two speakers and three lines at most.
- * Read out as they change.
+ * Read out as they change. Never under the dock or a bar over it (`lift`).
  */
-export function CaptionsOverlay({ entries, idleMessage }: { entries: CaptionEntry[]; idleMessage: string }) {
+export function CaptionsOverlay({ entries, idleMessage, lift = 0, boxRef }: { entries: CaptionEntry[]; idleMessage: string; lift?: number; boxRef?: Ref<HTMLDivElement> }) {
   const shown = entries.slice(-2)
   return (
-    <div aria-live="polite" className="pointer-events-none absolute bottom-[84px] left-1/2 z-[var(--z-fixed)] w-full max-w-[720px] -translate-x-1/2 px-4">
-      <div className="rounded-[12px] bg-[rgb(11_12_14/0.84)] px-3.5 py-2.5" data-captions="">
+    <div aria-live="polite" style={{ bottom: CAPTIONS_BOTTOM }} className="pointer-events-none absolute left-1/2 z-[var(--z-fixed)] w-full max-w-[720px] -translate-x-1/2 px-4">
+      <div
+        ref={boxRef}
+        style={{ transform: captionsLift(lift) }}
+        className="rounded-[12px] bg-[rgb(11_12_14/0.84)] px-3.5 py-2.5 transition-transform duration-200 ease-out motion-reduce:transition-none"
+        data-captions=""
+      >
         {shown.length === 0 ? (
           <p className="text-ui text-ink-2">{idleMessage}</p>
         ) : (
@@ -508,7 +518,8 @@ export const GREEN_ROOM_GROUND =
  * and where the call is. It replaced a generic spinner.
  */
 export function CallConnecting({ place, embedded }: { place?: string; embedded?: boolean }) {
-  const label = placeLabel(place)
+  // In a sentence: "Connecting to an instant meeting…".
+  const label = placeInSentence(place)
   return (
     <div role="status" aria-label="Connecting to the call" className={cn("dark flex h-full w-full flex-col items-center justify-center gap-4 bg-[#0B0C0E]", callScreenHeight(embedded))} data-call-connecting="">
       <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden>

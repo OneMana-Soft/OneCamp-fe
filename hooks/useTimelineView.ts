@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, type RefObject } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react"
 import { dayAt, firstView, offsetOf, type Range, type ViewAnchor } from "@/lib/timeline"
 
 type Spans = Parameters<typeof firstView>[0]
@@ -13,8 +13,9 @@ type Spans = Parameters<typeof firstView>[0]
  * a drag's own included. Shared by a project's timeline and the projects'.
  *
  * nameWidth is the sticky column the grid scrolls under; ready is when the
- * rows and the remembered zoom are in; paused (a drag under way) holds the
- * view still while the timeline is resized.
+ * rows and the remembered zoom are in, and the scroller (scrollRef) may come
+ * after it: the view is placed and watched from when it does; paused (a drag
+ * under way) holds the view still while the timeline is resized.
  */
 /** The CSS variable the timeline's scroller keeps its horizontal scroll in. */
 export const SCROLL_X = "--timeline-scroll-x"
@@ -66,15 +67,29 @@ export function useTimelineView({
     el.style.setProperty(SCROLL_X, `${el.scrollLeft}px`)
   }
 
+  // The scroller itself, as state, from scrollerRef on the caller's scroller
+  // (which fills scrollRef too): placing it and watching its width start when
+  // it mounts, whatever else holds its drawing back. A project's timeline
+  // draws it only once its milestones are in too, which can be after ready;
+  // keyed on ready alone, it was then never placed or watched, and a task's
+  // panel opening beside it moved its centre day (V-63b, 29 Oct 2026).
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null)
+  const scrollerRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollRef.current = el
+      setScroller(el)
+    },
+    [scrollRef],
+  )
+
   const rangeFrom = range.from.getTime()
   useLayoutEffect(() => {
-    const el = scrollRef.current
-    if (el && ready) place(el)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the grid's first day or scale changes
-  }, [rangeFrom, dayWidth, ready])
+    if (scroller && ready) place(scroller)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the scroller comes, or the grid's first day or scale changes
+  }, [scroller, rangeFrom, dayWidth, ready])
 
   useEffect(() => {
-    const el = scrollRef.current
+    const el = scroller
     if (!el || !ready || typeof ResizeObserver === "undefined") return
     let width = el.clientWidth
     const watch = new ResizeObserver(() => {
@@ -84,8 +99,8 @@ export function useTimelineView({
     })
     watch.observe(el)
     return () => watch.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-made when the grid changes, as the layout effect is
-  }, [rangeFrom, dayWidth, ready])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-made when the scroller or the grid changes, as the layout effect is
+  }, [scroller, rangeFrom, dayWidth, ready])
 
   const goToday = () => {
     const el = scrollRef.current
@@ -95,5 +110,5 @@ export function useTimelineView({
     el.scrollTo({ left: Math.max(0, offsetOf(today, range, dayWidth) + dayWidth / 2 - visibleGrid() / 3), behavior: reduce ? "auto" : "smooth" })
   }
 
-  return { onScroll, goToday }
+  return { onScroll, goToday, scrollerRef }
 }

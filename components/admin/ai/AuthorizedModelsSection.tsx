@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import { InstantSwitch } from "@/components/ui/instantSwitch"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -171,7 +171,7 @@ const ModelLimitsEditor: React.FC<{
           <Button size="sm" variant="outline" onClick={detect} disabled={saving || detecting}>
             {detecting ? "Detecting…" : "Detect"}
           </Button>
-          <Button size="sm" onClick={save} disabled={saving || detecting}>
+          <Button size="sm" onClick={save} disabled={detecting} busy={saving}>
             {saving ? "Saving…" : "Save"}
           </Button>
           <Button
@@ -239,16 +239,15 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
     }
   }
 
+  // A failure says why here and rejects: the switch springs back.
   const handleToggle = async (m: AuthorizedModel, enabled: boolean) => {
-    setBusy(true)
     try {
       await setAuthorizedModelEnabled(m.id, enabled, OWN_ERRORS)
-      setModels((list) => list.map((x) => (x.id === m.id ? { ...x, enabled } : x)))
     } catch (e) {
       toast({ title: enabled ? "Couldn't turn the model on" : "Couldn't turn the model off", description: apiErrorMessage(e), variant: "destructive" })
-    } finally {
-      setBusy(false)
+      throw e
     }
+    setModels((list) => list.map((x) => (x.id === m.id ? { ...x, enabled } : x)))
   }
 
   const handleRevoke = async (m: AuthorizedModel) => {
@@ -300,7 +299,7 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
           <Label className="text-xs">Label (optional)</Label>
           <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Friendly name" />
         </div>
-        <Button onClick={handleAdd} disabled={busy || !providerId} className="shrink-0">
+        <Button onClick={handleAdd} disabled={!providerId} busy={busy} className="shrink-0">
           <Plus />
           Authorise
         </Button>
@@ -352,10 +351,11 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
                     <SlidersHorizontal className="h-3.5 w-3.5" />
                     {m.context_window_tokens > 0 ? `${formatTokens(m.context_window_tokens)} context` : "Limits"}
                   </Button>
-                  <Switch
+                  <InstantSwitch
                     checked={m.enabled}
                     disabled={busy}
-                    onCheckedChange={(v) => handleToggle(m, v)}
+                    onSave={(v) => handleToggle(m, v)}
+                    what={(v) => `${m.label || m.model} is ${v ? "offered" : "no longer offered"}`}
                     aria-label={`Offer ${m.label || m.model}`}
                   />
                   <Button

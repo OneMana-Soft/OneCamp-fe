@@ -448,6 +448,7 @@ const edited = new Map()
 export function resetWorkspace() {
   edited.clear()
   columnOrder.clear()
+  tableViews.clear()
 }
 function tableRow(t, g) {
   const id = rowId(t, g)
@@ -456,6 +457,72 @@ function tableRow(t, g) {
   return { id, table_id: t.id, values: JSON.stringify(values), position: g, created_by: null, created_at: T0, updated_at: T0 }
 }
 const tableOf = (path) => TABLES.find((t) => path.includes(t.id))
+
+// A view's windows, as POST /tables/{id}/query answers them (business/RowQuery;
+// TABLES-LEAD-5's windows, 22 Oct 2026, FLUIDITY-LEAD-8): the spec's rows in
+// its order (its filter, then its sorts with blanks last, then the table's
+// order), by an offset cursor, or its count. Worked out once per spec and kept
+// until a write, as e2e/tables/tableServer.ts does: a deep scroll asks many
+// windows of one view. A build that doesn't read the bundle's row_query never
+// asks (live c5ce78ab1 doesn't).
+const collate = new Intl.Collator("en", { numeric: true }).compare
+const tableViews = new Map()
+let tableWrites = 0
+function valuesOf(t, g) {
+  const v = { ...rowValues(g), ...(edited.get(rowId(t, g)) ?? {}) }
+  v[fid(11)] = Math.round(Number(v[fid(1)]) * Number(v[fid(2)]) * 100) / 100
+  return v
+}
+const textIn = (v, field) => {
+  const x = v[String(field).replace(/^field:/, "")]
+  return x === undefined || x === null ? "" : String(x).trim().toLowerCase()
+}
+function passes(v, f) {
+  if ("op" in f) {
+    if (f.op === "not") return !f.filters.every((g) => passes(v, g))
+    return f.op === "and" ? f.filters.every((g) => passes(v, g)) : f.filters.some((g) => passes(v, g))
+  }
+  const want = f.values?.[0]
+  if (want && "number" in want) {
+    const n = Number(v[String(f.field).replace(/^field:/, "")])
+    if (!Number.isFinite(n)) return f.operator === "is_not"
+    return { is: n === want.number, is_not: n !== want.number, gt: n > want.number, lt: n < want.number, gte: n >= want.number, lte: n <= want.number }[f.operator] ?? true
+  }
+  const have = textIn(v, f.field)
+  const w = want && "text" in want ? String(want.text).trim().toLowerCase() : ""
+  if (f.operator === "contains") return have.includes(w)
+  if (f.operator === "is") return have === w
+  if (f.operator === "is_not") return have !== w
+  if (f.operator === "empty") return have === ""
+  if (f.operator === "not_empty") return have !== ""
+  return true
+}
+/** A view's row numbers in its order; null for the table's own order. A run warms the one it times. */
+export function tableView(t, spec = {}) {
+  const sorts = spec.sorts ?? []
+  if (!spec.filter && !sorts.length) return null
+  const key = `${t.id} ${tableWrites} ${JSON.stringify(spec)}`
+  if (tableViews.has(key)) return tableViews.get(key)
+  const out = []
+  for (let g = 0; g < t.rows; g++) {
+    const v = valuesOf(t, g)
+    if (spec.filter && !passes(v, spec.filter)) continue
+    out.push({ g, keys: sorts.map((x) => textIn(v, x.field)) })
+  }
+  out.sort((a, b) => {
+    for (let k = 0; k < sorts.length; k++) {
+      const x = a.keys[k]
+      const y = b.keys[k]
+      if ((x === "") !== (y === "")) return x === "" ? 1 : -1
+      const c = collate(x, y)
+      if (c !== 0) return sorts[k].desc ? -c : c
+    }
+    return a.g - b.g
+  })
+  const order = Int32Array.from(out, (x) => x.g)
+  tableViews.set(key, order)
+  return order
+}
 const tableMeta = (t) => ({ id: t.id, name: t.name, description: "", icon: null, visibility: "workspace", created_by: ME.user_uuid, created_at: T0, updated_at: T0 })
 function bundle(t) {
   const rows = []
@@ -470,6 +537,7 @@ function bundle(t) {
       mqtt_topic: `table/${t.id}`,
       rows_truncated: t.rows > 500,
       row_count: t.rows,
+      row_query: { indexed: true, sorts_text: true },
     },
   }
 }
@@ -477,6 +545,27 @@ function bundle(t) {
 export function tableFixtures() {
   return [
     [/\/tables\/?$/, (path, url, req) => (req.method() === "GET" ? ok(TABLES.map(tableMeta)) : undefined)],
+    [
+      /\/tables\/[^/]+\/query$/,
+      (path, url, req) => {
+        const t = tableOf(path)
+        if (!t || req.method() !== "POST") return undefined
+        let q = {}
+        try {
+          q = req.postDataJSON() ?? {}
+        } catch {
+          /* not JSON */
+        }
+        const order = tableView(t, q.spec ?? {})
+        const total = order ? order.length : t.rows
+        if (q.count) return ok({ rows: [], total })
+        const at = Number(q.cursor || 0)
+        const n = Math.min(Number(q.n) || 500, 500)
+        const rows = []
+        for (let k = at; k < Math.min(total, at + n); k++) rows.push(tableRow(t, order ? order[k] : k))
+        return ok({ rows, ...(at + n < total ? { next: String(at + n) } : {}) })
+      },
+    ],
     [
       /\/tables\/[^/]+\/rows$/,
       (path, url, req) => {
@@ -505,6 +594,7 @@ export function tableFixtures() {
         }
         const values = body.values ?? {}
         edited.set(id, how === "patch" ? { ...(edited.get(id) ?? {}), ...values } : values)
+        tableWrites++
         return ok(tableRow(t, Number(id.slice(-12))))
       },
     ],

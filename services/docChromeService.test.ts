@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const hoisted = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn(), patched: [] as unknown[], mutated: [] as unknown[], graph: vi.fn() }))
 
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: hoisted.post, get: hoisted.get } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: hoisted.post, get: hoisted.get } }))
 vi.mock("@/lib/swrMutate", () => ({
   appMutate: (k: unknown) => {
     hoisted.mutated.push(k)

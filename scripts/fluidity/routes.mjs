@@ -26,7 +26,7 @@ import { dirname, join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { gzipSync } from "node:zlib"
 
-import { reach, sourceBytes } from "./reach.mjs"
+import { ROUTE_SEGMENTS, isPageFile, reach, routeReach, sourceBytes } from "./reach.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)
@@ -37,6 +37,12 @@ const opt = (n, d) => {
 const has = (n) => args.includes(`--${n}`)
 
 export const CEILINGS_FILE = join(here, "route-ceilings.json")
+/**
+ * An entry segment of the client reference manifest: "[project]/app/<folder>/<layout, error, …, page>",
+ * or a metadata entry, "[project]/app/<folder>/<name>--metadata" (Next 16), whose chunk the page's HTML
+ * lists too.
+ */
+const SEGMENT = new RegExp(`^\\[project\\]\\/app(.*)\\/(${[...ROUTE_SEGMENTS, "page"].join("|")}|[^/]+--metadata)$`)
 
 /**
  * The file a client manifest's route key names: "/app/home/page" ->
@@ -50,14 +56,14 @@ export function pageFileOf(key) {
   return `app${key}.tsx`
 }
 
-/** Every page.tsx under app/, as repository paths. */
+/** Every page under app/ (reach.mjs isPageFile), as repository paths. */
 export function pageFiles(root = "app") {
   const out = []
   const visit = (d) => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
       const p = join(d, e.name)
       if (e.isDirectory()) visit(p)
-      else if (e.name === "page.tsx") out.push(p.split(sep).join("/"))
+      else if (isPageFile(e.name)) out.push(p.split(sep).join("/"))
     }
   }
   visit(root)
@@ -66,9 +72,11 @@ export function pageFiles(root = "app") {
 
 /**
  * Each route's first-load gzip bytes in the build at `next`: a Map from its
- * page file to { bytes, files }. The runtime (rootMainFiles, no polyfills:
- * those load only in old browsers), then every layout on the route's path and
- * the page.
+ * page file to { bytes, files, chunks }. The runtime (rootMainFiles, no polyfills:
+ * those load only in old browsers), then every entry segment on the route's
+ * path (reach.mjs ROUTE_SEGMENTS: layouts and boundaries, and each metadata
+ * entry, whose chunk the HTML lists as well) and the page: what its HTML
+ * lists (V-49).
  */
 export function routeWeights(next = ".next") {
   const bm = JSON.parse(readFileSync(join(next, "build-manifest.json"), "utf8"))
@@ -100,15 +108,15 @@ export function routeWeights(next = ".next") {
       const dir = key.replace(/\/page$/, "")
       const files = new Set(runtime.map((f) => f.replace(/^\//, "")))
       for (const [segment, chunks] of Object.entries(manifest.entryJSFiles ?? {})) {
-        const m2 = /^\[project\]\/app(.*)\/(layout|page)$/.exec(segment)
+        const m2 = SEGMENT.exec(segment)
         if (!m2) continue
         const at = m2[1]
-        // The root layout, each layout above the page, and the page itself.
+        // The root's segments, each one above the page, and the page's own.
         if (at === "" || dir === at || dir.startsWith(`${at}/`)) for (const c of chunks) files.add(c.replace(/^\//, ""))
       }
       let bytes = 0
       for (const f of files) bytes += sizeOf(f)
-      out.set(pageFileOf(key), { bytes, files: files.size })
+      out.set(pageFileOf(key), { bytes, files: files.size, chunks: [...files].sort() })
     }
   }
   return out
@@ -119,9 +127,40 @@ export function readCeilings(file = CEILINGS_FILE) {
   return JSON.parse(readFileSync(file, "utf8"))
 }
 
-/** A ceiling with room for the work queued behind it: `pct` over, rounded up to `step`. */
-export function roomy(value, pct, step) {
-  return Math.ceil((value * (1 + pct / 100)) / step) * step
+/** A kilobyte, as every route line counts one. */
+export const KB = 1024
+
+/**
+ * The room a route line keeps above its measure (main's V-49 amendment, 29 Oct
+ * 2026): max(2 KB, 1%) for a source line, in bytes, and max(1 KB, 1%) for a
+ * gzip line, in KB. Exact lines froze every route: a feature that added a byte
+ * had to find equal savings on its route first.
+ */
+export function headroom(kind, measure) {
+  return kind === "source" ? Math.max(2 * KB, Math.ceil(measure / 100)) : Math.max(1, Math.ceil(measure / 100))
+}
+
+/** A source line's measure: a page's route (routeReach), any other file's own reach. */
+export function sourceMeasure(file) {
+  return sourceBytes(isPageFile(file) ? routeReach(file) : reach(file))
+}
+
+/** A route line for a measure: the measure plus its headroom. */
+export function lineFor(kind, measure) {
+  return measure + headroom(kind, measure)
+}
+
+/**
+ * What's wrong with a route line against its measure, or null. A measure over
+ * its line; or a line more than twice its headroom above its measure, slack
+ * that a route which shrank left behind, to ratchet down to lineFor. Lines
+ * never rise: growth past the headroom needs main's yes.
+ */
+export function lineProblem(kind, measure, line) {
+  if (measure > line) return `${measure} is over its line ${line}`
+  const room = headroom(kind, measure)
+  if (line - measure > 2 * room) return `the line ${line} is more than twice its headroom (${room}) above the measure ${measure}: ratchet this line down to ${lineFor(kind, measure)}`
+  return null
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
@@ -138,7 +177,8 @@ if (isMain) {
   for (const [file, w] of [...weights].sort((a, b) => b[1].bytes - a[1].bytes)) {
     const c = ceilings[file]
     const kb = Math.round(w.bytes / 1024)
-    rows.push({ metric: `${file} gzipKB`, scenario: "routes", value: kb, max: c?.gzipKB ?? null, target: c?.target?.gzipKB ?? null, owner: c?.owner ?? "", ok: c?.gzipKB === undefined ? null : kb <= c.gzipKB, enforced: true })
+    const problem = c?.gzipKB === undefined ? null : lineProblem("gzipKB", kb, c.gzipKB)
+    rows.push({ metric: `${file} gzipKB`, scenario: "routes", value: kb, max: c?.gzipKB ?? null, target: c?.target?.gzipKB ?? null, owner: c?.owner ?? "", ok: c?.gzipKB === undefined ? null : !problem, problem, enforced: true })
   }
   // A line with no route in this build: stale, unless it's a page only the AI
   // edition has and this is the edition without AI (no file for it at all).
@@ -146,18 +186,16 @@ if (isMain) {
 
   if (has("propose")) {
     const proposal = {}
-    for (const file of pageFiles()) {
+    // Every line, page and non-page, and any new page: its measure plus its
+    // headroom (lineFor), never above the line it has (lines never rise).
+    for (const file of [...new Set([...Object.keys(ceilings), ...pageFiles()])].filter((f) => existsSync(f)).sort()) {
       const w = weights.get(file)
       const was = ceilings[file] ?? {}
-      const source = sourceBytes(reach(file))
       const gzipKB = w ? Math.round(w.bytes / 1024) : undefined
       proposal[file] = {
         ...was,
-        // The room rule (route-ceilings.json's header): the measure plus
-        // 2,000 B, rounded up to the next 1,000, for a new route and for a
-        // line lowered after its route shrinks; never above the line it has.
-        source: Math.min(was.source ?? Infinity, Math.ceil((source + 2000) / 1000) * 1000),
-        ...(gzipKB !== undefined ? { gzipKB: Math.min(was.gzipKB ?? Infinity, roomy(gzipKB, 1.5, 1)) } : {}),
+        source: Math.min(was.source ?? Infinity, lineFor("source", sourceMeasure(file))),
+        ...(gzipKB !== undefined ? { gzipKB: Math.min(was.gzipKB ?? Infinity, lineFor("gzipKB", gzipKB)) } : {}),
       }
     }
     console.log(JSON.stringify(proposal, null, 2))
@@ -167,7 +205,7 @@ if (isMain) {
   const w = Math.max(...rows.map((r) => r.metric.length)) + 2
   console.log("route (first-load script, gzip KB)".padEnd(w), "KB".padStart(6), "ceiling".padStart(8), "target".padStart(7), " verdict")
   for (const r of rows) {
-    const v = r.ok === null ? "NO CEILING" : r.ok ? "ok" : "OVER"
+    const v = r.ok === null ? "NO CEILING" : r.ok ? "ok" : r.problem
     console.log(r.metric.padEnd(w), String(r.value).padStart(6), String(r.max ?? "-").padStart(8), String(r.target ?? "").padStart(7), "", v)
   }
   for (const f of stale) console.log(`${f}: a ceiling with no route in this build (renamed or gone? take its line out)`)
@@ -178,7 +216,7 @@ if (isMain) {
     const over = rows.filter((r) => r.ok === false)
     const none = rows.filter((r) => r.ok === null)
     if (over.length || none.length || stale.length) {
-      if (over.length) console.log(`\n${over.length} route(s) over their ceiling: make what they bring lazy (next/dynamic, import()) rather than raising it.`)
+      if (over.length) console.log(`\n${over.length} route line(s) failed: a route over its line makes what it brings lazy (next/dynamic, import()) rather than raising it; a line with slack is ratcheted down as it says.`)
       if (none.length) console.log(`${none.length} route(s) with no ceiling: add each to scripts/fluidity/route-ceilings.json (routes.mjs --propose prints the line).`)
       process.exit(1)
     }

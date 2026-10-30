@@ -8,9 +8,17 @@ interface DocumentViewerProps {
     type: string
     url?: string
     content?: string
+    /** What stands in for a file it can't show (the stage's card): never a blank page. */
+    fallback?: React.ReactNode
 }
 
-const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) => {
+/**
+ * A browser that shows no PDF in a page (a phone's Chrome, a headless one)
+ * says so (navigator.pdfViewerEnabled): its frame would stay blank.
+ */
+const noPdfViewer = () => typeof navigator !== "undefined" && navigator.pdfViewerEnabled === false
+
+const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content, fallback }) => {
     const [textContent, setTextContent] = useState<string | undefined>(content)
     const [htmlContent, setHtmlContent] = useState<string | undefined>(undefined)
     const [loading, setLoading] = useState(false)
@@ -25,9 +33,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
     const file = url?.split("?")[0]
     const signedUrl = useStableCallback(() => url)
 
+    const cantShowPdf = type === "pdf" && noPdfViewer()
+
     useEffect(() => {
         const at = signedUrl()
-        if (!file || !at) return;
+        if (!file || !at || cantShowPdf) return;
         let live = true
         let made: string | undefined
 
@@ -50,6 +60,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
                 // Text-based files
                 else if (['txt', 'text', 'csv', 'json', 'xml', 'log', 'md'].includes(type) && !content) {
                     const res = await fetch(at);
+                    // A refusal's page is not the file's text.
+                    if (!res.ok) throw new Error(String(res.status));
                     const text = await res.text();
                     setTextContent(text);
                 }
@@ -58,6 +70,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
                 // when the user opens a .docx attachment.
                 else if (['docx', 'doc'].includes(type)) {
                     const res = await fetch(at);
+                    if (!res.ok) throw new Error(String(res.status));
                     const arrayBuffer = await res.arrayBuffer();
                     const mammoth = await import("mammoth");
                     const result = await mammoth.convertToHtml({ arrayBuffer });
@@ -66,6 +79,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
                 // Excel — same lazy-load story; xlsx is ~900 KB.
                 else if (['xlsx', 'xls'].includes(type)) {
                     const res = await fetch(at);
+                    if (!res.ok) throw new Error(String(res.status));
                     const arrayBuffer = await res.arrayBuffer();
                     const XLSX = await import("xlsx");
                     const workbook = XLSX.read(arrayBuffer);
@@ -87,7 +101,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
             live = false
             if (made) URL.revokeObjectURL(made)
         }
-    }, [type, file, content, signedUrl]);
+    }, [type, file, content, signedUrl, cantShowPdf]);
+
+    // A file it can't show is its card, with Download.
+    if (fallback && (cantShowPdf || error)) return <>{fallback}</>
 
     if (type === "pdf" && pdfUrl) {
         return (
@@ -110,10 +127,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
         )
     }
 
-    if (error) {
+    if (error || cantShowPdf) {
         return (
              <div className="flex flex-col items-center justify-center p-8 text-muted-foreground bg-card/50 rounded-lg border border-border/50 border-dashed h-[60vh]">
-                <p className="font-medium text-danger-ink">{error}</p>
+                <p className="font-medium text-danger-ink">{error ?? "This browser can't show a PDF here."}</p>
                 <a href={url} download className="text-primary hover:underline font-medium mt-2">
                     Download to view
                 </a>

@@ -41,8 +41,8 @@ describe("the call effects' files", () => {
   })
 
   it("are copied before every build and dev server, and kept out of git", () => {
-    expect(pkg.scripts.build).toMatch(/^node scripts\/calls-assets\.mjs && next build/)
-    expect(pkg.scripts.dev).toMatch(/^node scripts\/calls-assets\.mjs && next dev/)
+    expect(pkg.scripts.build).toMatch(/^node scripts\/vendor-assets\.mjs && next build/)
+    expect(pkg.scripts.dev).toMatch(/^node scripts\/vendor-assets\.mjs && next dev/)
     expect(read(".gitignore")).toContain("/public/calls/vendor/")
   })
 

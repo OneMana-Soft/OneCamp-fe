@@ -1,11 +1,11 @@
-import { readFileSync, readdirSync, statSync } from "node:fs"
-import { join } from "node:path"
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import { avatarHueClass } from "@/components/ui/graphics/hues"
 import { hueFor } from "@/lib/campHue"
 import { displayNameOf } from "@/lib/personName"
 import { avatarSeed, getAvatarFallbackClass, personHue } from "@/lib/utils/getAvatarColor"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * One colour per person, on every screen (design v3 §3.9).
@@ -30,9 +30,12 @@ import { avatarSeed, getAvatarFallbackClass, personHue } from "@/lib/utils/getAv
 // that the something is not a person; a person goes through personHue.
 const NON_PERSON_HUE = new Set([
   "lib/campHue.ts", // the hash itself
+  "lib/boardHues.ts", // a board's fallback notes
   "lib/utils/getAvatarColor.ts", // the person functions, built on it
   "lib/projectHue.ts", // projects: their own hue, shared out among the reader's
   "lib/tags.ts", // tags
+  "components/board/tagHues.ts", // a board's tags, a hue picked for one or its name's (miro-07 5)
+  "components/table/layouts/TableTimeline.tsx", // a table: its own hue on bars its view leaves uncoloured (B4)
   "components/ui/graphics/IdentityMark.tsx", // the mark, keyed by its caller
   "components/ui/chip.tsx", // option and tag chips
   "components/colorIcon/colorIcon.tsx", // projects, channels
@@ -42,7 +45,7 @@ const NON_PERSON_HUE = new Set([
   "components/tags/TagPicker.tsx", // tags
   "components/recording/recordingListRecording.tsx", // places
   "components/calendar/calendarTones.ts", // projects, events
-  "components/message/WorkLinkCards.tsx", // projects, docs, tables
+  "components/message/workLinkCardsBody.tsx", // projects, docs, tables
   "components/task/taskListTask.tsx", // tags
   "components/home/GreetingComposition.tsx", // events (people via personHue)
   "components/home/Greeting.tsx", // events
@@ -56,23 +59,14 @@ const NON_PERSON_HUE = new Set([
   "components/table/DataTableBoard.tsx", // tables
   "app/admin-setup/page.tsx", // setup steps
   "app/app/tables/[table-id]/page.tsx", // tables
-  "app/f/[token]/page.tsx", // forms
+  "lib/forms/forms.ts", // forms (formHue)
   "app/app/(showcase)/playful-dev/PlayfulShowcase.tsx", // the palette itself
 ])
 
 // A hueFor argument that names a person, in any file.
 const PERSONISH = /\b(user|author|actor|person|participant|identity|selfId|sender|guest|owner|assignee|member|viewer|email|mention|collaborator|inviter|who)\w*/i
 
-function files(path: string): string[] {
-  const s = statSync(path)
-  if (s.isFile()) return [path]
-  if (/node_modules|\.next|test-results/.test(path)) return []
-  return readdirSync(path).flatMap((name) => files(join(path, name)))
-}
-
-const sources = ["app", "components", "hooks", "lib"]
-  .flatMap(files)
-  .filter((f) => /\.(tsx?|mjs)$/.test(f) && !/\.test\.tsx?$/.test(f))
+const sources = sourceFiles(["app", "components", "hooks", "lib"], /\.(tsx?|mjs)$/)
 
 /** Code without comments, so a doc comment that names a call doesn't count. */
 const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
@@ -152,7 +146,7 @@ describe("one colour per person", () => {
       for (const a of callArgs(src, "avatarSeed")) if (id(a)) offenders.push(`${f}: avatarSeed(${a}) is given an id`)
       // lib/celebrate cycles the hues for a burst's sparks: nobody's colour.
       // lib/projectHue shares the hues out among projects, from each one's hueFor.
-      if (!["lib/campHue.ts", "lib/celebrate.ts", "lib/projectHue.ts"].includes(f) && /CAMP_HUES\s*\[|%\s*CAMP_HUES\.length/.test(src)) offenders.push(`${f}: picks a camp hue by its own hash`)
+      if (!["lib/campHue.ts", "lib/boardHues.ts", "lib/celebrate.ts", "lib/projectHue.ts"].includes(f) && /CAMP_HUES\s*\[|%\s*CAMP_HUES\.length/.test(src)) offenders.push(`${f}: picks a camp hue by its own hash`)
       if (/charCodeAt/.test(src) && /avatar/i.test(src)) offenders.push(`${f}: hashes text in a file that draws avatars`)
     }
     expect(offenders).toEqual([])

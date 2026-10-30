@@ -106,6 +106,17 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
         [optimisticSetTaskField, cache]
     )
 
+    // Tasks moved in a project's one order: their new ranks re-sort its lists
+    // and board in place (lib/tasks/rankCache, a chunk: the layout's reach).
+    const handleTaskChangedMessage = useCallback(
+        (messageStr: string) => {
+            const m: { project_uuid?: string; ranks?: Record<string, number> } | undefined = JSON.parse(messageStr)?.data
+            if (!m?.project_uuid || !m.ranks || typeof m.ranks !== "object") return
+            void import("@/lib/tasks/rankCache").then((r) => r.rerankProjectCaches(cache.keys() as Iterable<string>, appMutate as never, m.project_uuid!, m.ranks!, undefined, store), () => undefined)
+        },
+        [cache]
+    )
+
     const handleTaskCommentMessage = useCallback(
         (messageStr: string) => {
 
@@ -243,5 +254,6 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
         handleTaskCommentReactionMessage,
         handleTaskDatesMessage,
         handleTaskFieldMessage,
-    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage, handleTaskDatesMessage, handleTaskFieldMessage])
+        handleTaskChangedMessage,
+    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage, handleTaskDatesMessage, handleTaskFieldMessage, handleTaskChangedMessage])
 }

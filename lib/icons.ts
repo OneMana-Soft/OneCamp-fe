@@ -1,6 +1,6 @@
 /**
  * Icon Registry
- * Centralized icon exports for consistent imports across the app.
+ * Centralized icon exports for the app.
  * All icons come from lucide-react. To add a new icon, export it here
  * and import from @/lib/icons instead of lucide-react directly.
  *
@@ -17,15 +17,15 @@
  * - System: settings, theme, search
  */
 
-// ─── Navigation ─────────────────────────────────────────────
+// Navigation
 // Chat, design v3 (11 Oct 2026): the huddle, the bridge relay's arrows, a
 // reply's connector, Record's stop, and the archive and remind actions.
 export { Headphones, ArrowDownToLine, AlarmClock, Archive, Square, CornerUpLeft, Cpu, Hand } from "lucide-react";
 export { ArrowLeftRight, Columns2 } from "lucide-react";
 // Docs: the four-column row in "/" (B1).
-export { Columns4 } from "lucide-react";
+export { Columns4, Compass } from "lucide-react";
 // A project's timeline tab, and its Unscheduled list.
-export { ChartGantt, CalendarOff } from "lucide-react";
+export { ChartGantt, CalendarOff, CalendarRange } from "lucide-react";
 // Goals: the view, a goal's page and its link from a project.
 export { Target } from "lucide-react";
 // Calls: spotlight, co-hosts.
@@ -88,6 +88,7 @@ export {
   FileText,
   Flag,
   Megaphone,
+  DoorOpen,
   UserPlus,
   Users,
   User,
@@ -109,7 +110,7 @@ export {
   ArrowUpDown,
 } from "lucide-react";
 
-// ─── Actions ────────────────────────────────────────────────
+// Actions
 export {
   Plus,
   X,
@@ -138,7 +139,7 @@ export {
   CircleStop,
 } from "lucide-react";
 
-// ─── Status ─────────────────────────────────────────────────
+// Status
 export {
   Loader2,
   LoaderCircle,
@@ -152,7 +153,7 @@ export {
   XCircle,
 } from "lucide-react";
 
-// ─── Communication ──────────────────────────────────────────
+// Communication
 export {
   SendHorizontal,
   Send,
@@ -170,10 +171,11 @@ export {
   VideoOff,
   Mic,
   MicOff,
+  MicVocal,
   BellOff,
 } from "lucide-react";
 
-// ─── Editor / Content ───────────────────────────────────────
+// Editor / Content
 export {
   Type,
   Bold,
@@ -213,12 +215,14 @@ export {
   Milestone,
   Route,
   Network,
+  Waypoints,
+  UserRoundSearch,
   Smartphone,
   Eraser,
   Activity,
 } from "lucide-react";
 
-// ─── Media / Files ──────────────────────────────────────────
+// Media / Files
 // A doc's pictures, embeds and files (docs B4): crop, replace, align, a resize grip.
 export { Crop, Replace, AlignCenter, StretchHorizontal, GripHorizontal } from "lucide-react";
 export {
@@ -244,7 +248,7 @@ export {
   SkipForward,
 } from "lucide-react";
 
-// ─── GitHub / Dev ───────────────────────────────────────────
+// GitHub / Dev
 export {
   Github,
   GitBranch,
@@ -260,7 +264,7 @@ export {
   Terminal,
 } from "lucide-react";
 
-// ─── Calendar / Time ────────────────────────────────────────
+// Calendar / Time
 export {
   Calendar as CalendarIcon,
   CalendarDays,
@@ -269,7 +273,7 @@ export {
   History,
 } from "lucide-react";
 
-// ─── Social / Reactions ─────────────────────────────────────
+// Social / Reactions
 export {
   Star,
   Crown,
@@ -282,7 +286,7 @@ export {
   Trophy,
 } from "lucide-react";
 
-// ─── System / Settings ──────────────────────────────────────
+// System / Settings
 export {
   Settings,
   Settings2,
@@ -312,7 +316,7 @@ export {
   Wrench,
 } from "lucide-react";
 
-// ─── Layout / UI ────────────────────────────────────────────
+// Layout / UI
 export {
   MoreHorizontal,
   MoreVertical,

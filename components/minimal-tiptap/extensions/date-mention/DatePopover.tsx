@@ -80,7 +80,7 @@ export default function DatePopover({ anchor, editor, getPos, node, updateAttrib
   // phone held upright, on the right held sideways).
   const remindButton =
     when && !mine ? (
-      <Button size={sheet ? "lg" : "sm"} variant={sheet ? "default" : "secondary"} className={sheet ? "h-11 w-full sm:w-auto sm:flex-1" : undefined} disabled={busy} onClick={remindMe}>
+      <Button size={sheet ? "lg" : "sm"} variant={sheet ? "default" : "secondary"} className={sheet ? "h-11 w-full sm:w-auto sm:flex-1" : undefined} busy={busy} onClick={remindMe}>
         <Bell aria-hidden="true" />
         {reminder ? "Remind me too" : "Remind me"} · {reminderWords(when)}
       </Button>

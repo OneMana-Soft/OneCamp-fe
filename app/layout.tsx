@@ -10,10 +10,9 @@ import "./phone.css";
 // The one overlay layout (components/ui/overlay): a header, a body that is the
 // only scroller and a pinned footer, and the quiet bar inside overlays.
 import "./overlay.css";
-import { Inter } from "next/font/google";
-import { cn } from "@/lib/utils/helpers/cn";
+import "./inter.css";
 import { ClientProviders } from "@/components/providers/ClientProviders";
-import { CHUNK_RECOVERY_SCRIPT } from "@/lib/chunkRecovery";
+import { CHUNK_RECOVERY_SCRIPT } from "@/lib/chunkRecoveryScript";
 import { APP_BOOT_CSS, APP_BOOT_SCRIPT } from "@/lib/appBoot";
 import { AppBootScreen } from "@/components/protectedRoute/Splash";
 import { splashLinks } from "@/lib/pwa/splash";
@@ -22,15 +21,11 @@ import { THEME_COLOR_METAS } from "@/lib/pwa/grounds";
 // One face for the whole app (design v3, "Type"): Inter, variable, with its
 // optical-size axis, so a 14px label takes the text cut and a 30px title the
 // display cut (globals.css). It retired Inter Tight, the display face, whose
-// built-in tightening collided words at 14px. Self-hosted at build time by
-// next/font, which matters for a product customers run on their own machines
-// behind their own firewall: nothing here calls out to Google at runtime.
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-  axes: ["opsz"],
-});
+// built-in tightening collided words at 14px. Its files are in public/fonts
+// (app/inter.css), which matters for a product customers run on their own
+// machines behind their own firewall: neither the build nor a page calls out
+// to Google. Latin is preloaded; other scripts load when a page draws them.
+const INTER_LATIN = "/fonts/inter/inter-latin.dd8a4575.woff2";
 
 // metadataBase makes the generated card URLs absolute. Without it Next emits a
 // relative og:image, which every social scraper drops, so the card would exist
@@ -42,7 +37,6 @@ const inter = Inter({
 // render and look fine. An install that has not set this gets relative URLs and
 // a plain link preview, which is the honest failure.
 const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-
 
 // The API's origin. Every page's first call goes there (the session check on
 // the start page, the profile in the app), and a new connection to it costs
@@ -118,9 +112,9 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
-      className={inter.variable}
     >
       <head>
+        <link rel="preload" href={INTER_LATIN} as="font" type="font/woff2" crossOrigin="anonymous" />
         {/* Calls to the API carry credentials, so the warmed connection must too. */}
         {apiOrigin && <link rel="preconnect" href={apiOrigin} crossOrigin="use-credentials" />}
         <link rel="manifest" href="/manifest.json" />
@@ -141,12 +135,7 @@ export default function RootLayout({
         {/* Before the app runs: a page from before a deploy reloads into the new build. */}
         <script dangerouslySetInnerHTML={{ __html: CHUNK_RECOVERY_SCRIPT }} />
       </head>
-      <body
-        className={cn(
-          inter.className,
-          "antialiased bg-background text-foreground"
-        )}
-      >
+      <body className="antialiased bg-background text-foreground">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground focus:text-sm"

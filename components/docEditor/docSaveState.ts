@@ -4,9 +4,11 @@ import * as React from "react"
 import * as Y from "yjs"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 
-import type { SaveState } from "@/components/docEditor/SaveDot"
+import { disconnected, type SaveState } from "@/components/docEditor/SaveDot"
+import { docSaveState, type CollabStatus } from "@/components/docEditor/saveRule"
 
-type CollabStatus = "connecting" | "connected" | "disconnected" | "synced" | "offline"
+export { docSaveState }
+
 
 /**
  * SAVED MEANS STORED (invariant I8). The dot used to say "saved" once the
@@ -157,37 +159,6 @@ export function useSlowSave(pending: boolean, afterMs = 700): boolean {
   return slow
 }
 
-/**
- * The save dot's state (content.md D12), from what the page knows. Pure.
- *
- * - A live (collaborative) doc: offline when the socket says so; connecting
- *   until its first sync (the reader is on the saved copy, never "saving");
- *   saving while this tab's edits are not yet stored; otherwise saved.
- * - A reader's copy: nothing to save. (The body is never saved over HTTP: the
- *   collaboration server stores it.)
- */
-export function docSaveState({
-  live,
-  collabStatus,
-  synced,
-  everSynced,
-  slowSave,
-}: {
-  live: boolean
-  collabStatus?: CollabStatus
-  synced?: boolean
-  everSynced?: boolean
-  slowSave?: boolean
-}): SaveState {
-  if (live) {
-    if (collabStatus === "offline") return "offline"
-    if (!synced && !everSynced) return "connecting"
-    if (collabStatus === "disconnected") return "offline"
-    return slowSave ? "saving" : "saved"
-  }
-  return "saved"
-}
-
 /** What the doc's save dot is worked out from: the session, which changes far less often than a key. */
 export interface DocSaveSource {
   /** The session's provider; null for a copy with nothing to save (a reader's). */
@@ -207,7 +178,7 @@ export function useDocSaveDot({ provider, live, collabStatus, synced, everSynced
   const progress = useSaveProgress(live ? provider : null)
   const slowSave = useSlowSave(progress.pending)
   const state = docSaveState({ live, collabStatus, synced, everSynced, slowSave })
-  // How many changes wait is said only offline; while online it changes with
-  // every key and would draw the dot again for nothing.
-  return { state, savedAt: progress.persistedAt, waiting: state === "offline" ? progress.waiting : 0 }
+  // How many changes wait is said only while disconnected; while connected it
+  // changes with every key and would draw the dot again for nothing.
+  return { state, savedAt: progress.persistedAt, waiting: disconnected(state) ? progress.waiting : 0 }
 }

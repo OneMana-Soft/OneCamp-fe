@@ -30,6 +30,7 @@ import { encodeRelative, relativeAt, resolveRelative } from "@/lib/proposals/cor
 import { isRemote, yBindingOf } from "@/lib/proposals/review"
 import { proposalsOf } from "@/components/minimal-tiptap/extensions/proposals"
 import type { BlockContext } from "@/components/docEditor/registry/types"
+import { isTouchScreen } from "@/lib/ui/touchScreen"
 import { clearSpaceRest, openAiBar, spaceRestsAt } from "./docAiStore"
 
 interface Pin {
@@ -150,16 +151,14 @@ export function seenSelection(view: EditorView): { from: number; to: number } {
  */
 export const SPACE_HINT = "Press space for AI, / for blocks, @ for people"
 
-/** A touch screen's keyboard may send no space key: the phone's bar has Ask AI instead. */
-const touch = () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches
-
 function hintFor(editor: Editor, state: EditorState): DecorationSet | null {
   if (!editor.isEditable || !state.selection.empty) return null
   const $from = state.selection.$from
   if ($from.depth !== 1 || $from.parent.type.name !== "paragraph" || $from.parent.content.size > 0) return null
   // While an answer is shown for review, the line says nothing over it.
   const reviewing = Object.keys(proposalsOf(state).active).length > 0
-  if (!reviewing && touch()) return null
+  // A touch screen's keyboard may send no space key: the phone's bar has Ask AI instead.
+  if (!reviewing && isTouchScreen()) return null
   const start = $from.before(1)
   return DecorationSet.create(state.doc, [Decoration.node(start, start + $from.parent.nodeSize, { "data-placeholder": reviewing ? "" : SPACE_HINT })])
 }

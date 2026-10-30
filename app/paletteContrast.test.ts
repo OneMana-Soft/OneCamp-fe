@@ -185,6 +185,22 @@ describe.each(["light", "dark"] as const)("%s: the camp hues", (mode) => {
       expect(ratio, `--camp-${hue} on --${ground}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
     }
   })
+
+  // A status glyph on a tint (a calendar block, a tinted chip, a chip toned for
+  // its day) draws its hue in the ink (StatusGlyph's onTint): on another hue's
+  // tint the strong cut fell short, a task's sun at 2.44:1 on a lake block. The
+  // ink stays a mark at 3:1 on every one of them, at the 80% the calendar draws
+  // its block's lead in (HueBlock).
+  it.each(CAMP_HUES)("%s: the ink is a visible mark on every tint a status glyph sits on", (hue) => {
+    const tints: Array<[string, RGB]> = [
+      ...CAMP_HUES.map((h): [string, RGB] => [`--camp-${h}-tint`, rgb(`camp-${h}-tint`, mode)]),
+      ["--destructive at 10% over the page", over(rgb("destructive", mode), rgb("background", mode), 0.1)],
+    ]
+    for (const [name, tint] of tints) {
+      const ratio = contrastRatio(over(rgb(`camp-${hue}-ink`, mode), tint, 0.8), tint)
+      expect(ratio, `--camp-${hue}-ink at 80% on ${name}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
+    }
+  })
 })
 
 describe("the neutrals are cool graphite, never warm", () => {
@@ -411,5 +427,26 @@ describe("every theme keeps the frame readable", () => {
     for (const mode of ["light", "dark"] as const) {
       expect(distance(rgb("raised", mode), rgb("frame", mode)), `${mode}: the raised chip is lost on the frame`).toBeGreaterThanOrEqual(0.03)
     }
+  })
+})
+
+/**
+ * The board canvas's ground isn't a token: Excalidraw draws it, the scene's
+ * white, and in dark that white through its own THEME_FILTER. What holds the
+ * canvas's place while it loads (CanvasPending) paints --board-ground, so the
+ * token must be the colour Excalidraw draws, or the board arrives a shade off
+ * (the sheet held #131416 where #121212 was drawn). The filter is read from
+ * Excalidraw's own declaration, so an upgrade that changes it fails here.
+ */
+describe("the board's ground is the one Excalidraw draws", () => {
+  const constants = readFileSync(join(__dirname, "..", "node_modules", "@excalidraw", "excalidraw", "dist", "types", "excalidraw", "constants.d.ts"), "utf8")
+  const filter = /THEME_FILTER = "([^"]+)"/.exec(constants)?.[1] ?? ""
+
+  it.each(["light", "dark"] as const)("in %s", (mode) => {
+    // invert(p) takes white to 1 - p, a grey, and hue-rotate leaves a grey as it is.
+    const invert = /^invert\((\d+(?:\.\d+)?)%\) hue-rotate\(\d+deg\)$/.exec(filter)
+    expect(invert, `Excalidraw's dark filter changed shape: "${filter}"`).not.toBeNull()
+    const grey = Math.round(255 * (mode === "dark" ? 1 - Number(invert![1]) / 100 : 1))
+    expect(token("board-ground", mode).toLowerCase()).toBe(rgbToHex({ r: grey, g: grey, b: grey }))
   })
 })

@@ -30,16 +30,11 @@ import { describe, expect, it } from "vitest"
  */
 const KNOWN: Record<string, string[]> = {
   "app/globals.css": [
-    // PLATFORM-LEAD-2: the app shell's page lock, set by the layout instead of found by :has().
-    "html:has([data-app-shell])",
-    "body:has([data-app-shell])",
-    // The sidebar's active icons: an :is() of eight icons, then a :not(), keyed on neither.
-    ".nav-active :is(svg.lucide-house, svg.lucide-inbox, svg.lucide-bell, svg.lucide-bookmark, svg.lucide-message-square, svg.lucide-calendar, svg.lucide-folder, svg.lucide-file-text):not([data-doc-icon])",
   ],
   "app/interaction.css": [
     // The interaction layer's hover, press, reveal and edge-fade states.
-    '[data-interactive]:hover:not([data-interactive="card"], [data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"], [data-interactive="block"], [data-interactive="toggle"], [data-interactive="cell"], [data-interactive="item"], [aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"]):not(:has([data-interactive]:hover))',
-    ':is([data-interactive="message"], [data-interactive="row"][data-quiet]):hover:not([aria-disabled="true"]):not(:has([data-interactive]:hover))',
+    '[data-interactive]:hover:not([data-interactive="card"], [data-interactive="field"], [data-interactive="link"], [data-interactive="avatar"], [data-interactive="block"], [data-interactive="toggle"], [data-interactive="cell"], [data-interactive="item"], [aria-disabled="true"], :disabled, [data-disabled=""], [data-disabled="true"]):not(:has([data-interactive]:hover)):where(:not([data-list-moving] [data-interactive]))',
+    ':is([data-interactive="message"], [data-interactive="row"][data-quiet]):hover:not([aria-disabled="true"]):not(:has([data-interactive]:hover)):where(:not([data-list-moving] [data-interactive]))',
     ':is([data-interactive="button"], [data-interactive="icon"], [data-interactive="chip"]):active:not([aria-disabled="true"], :disabled, [aria-busy="true"])',
     '[data-reveal] [data-tools]:is([data-state="open"], :has([data-state="open"]))',
     '[data-edge-fade] > :not([aria-hidden="true"])',

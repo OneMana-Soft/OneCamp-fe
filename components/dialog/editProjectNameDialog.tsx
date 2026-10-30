@@ -141,11 +141,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                     <DialogFooter>
                         <Button
                             type="submit"
-                            disabled={
-                                !isValid ||
-                                isSubmitting ||
-                                (p_name == originalTeamName)
-                            }
+                            disabled={!isValid || p_name == originalTeamName} busy={isSubmitting}
                         >
                             {isSubmitting ? "Updating…" : "Rename"}
                         </Button>

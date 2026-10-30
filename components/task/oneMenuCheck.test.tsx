@@ -15,7 +15,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 vi.mock("@/components/tags/TagPicker", () => ({
   useProjectTags: () => ({ tags: [{ name: "Bug", count: 3 }, { name: "Design", count: 1 }] }),
 }))
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k }) }))
+vi.mock("@/lib/utils/i18n", () => ({ useTranslation: () => ({ t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k }), useWord: (_key: string, fallback: string) => fallback }))
 
 const { TagFilter } = await import("@/components/tags/TagFilter")
 const { StatusMenuContent } = await import("@/components/task/StatusMenu")
@@ -81,10 +81,15 @@ describe("no list draws a check of its own", () => {
   // reader unless its row does. Counted per file, so a new one fails, and so
   // does a list moved onto MenuCheck that is still counted here.
   it("shows no check only on the chosen row, but where it isn't a list's or isn't moved yet", () => {
+    // A check drawn as plain markup (lib/iconMarkup, a grid cell at rest) is
+    // the same check: {on && iconMarkup(Check, …)}.
     const shownWhenChosen = (src: string) =>
-      (src.match(/&&\s*<Check\b/g)?.length ?? 0) + (src.match(/\?\s*<Check\b[^>]*\/>\s*:\s*(null|undefined)\b/g)?.length ?? 0)
+      (src.match(/&&\s*(<Check\b|iconMarkup\(Check\b)/g)?.length ?? 0) +
+      (src.match(/\?\s*<Check\b[^>]*\/>\s*:\s*(null|undefined)\b/g)?.length ?? 0)
     // Not a list's check: the shared check itself, a subtask's own checkbox, a
-    // done task's mark on its timeline bar, a checkbox cell's value, a tip's
+    // done task's mark on its timeline bar, a checkbox cell's value, a checkbox
+    // group's value on its header (a box of fixed size that its words say as
+    // "Ticked" or "Not ticked"), a tip's
     // "tried" mark, a colour swatch's tick (a status's, an event's), a guest's answer on their face, and
     // the Yes of an event's "Going?" control, which says it with a check
     // (STEP4_PLAN §4 #5; a segmented control, not a list).
@@ -95,7 +100,8 @@ describe("no list draws a check of its own", () => {
       "components/ui/menuCheck.tsx": 1,
       "components/task/subtasksSection.tsx": 1,
       "components/project/timeline/TimelineBar.tsx": 1,
-      "components/table/gridCells.tsx": 1,
+      "components/table/cellFaces.tsx": 1,
+      "components/table/groups/GroupHeaders.tsx": 1,
       "components/onboarding/KeyboardTip.tsx": 1,
       "components/ui/paletteColorPicker.tsx": 1,
     }
@@ -110,7 +116,7 @@ describe("no list draws a check of its own", () => {
       "components/docEditor/BlockSheet.tsx": 1,
       "components/docEditor/DocHeader.tsx": 1,
       "components/docEditor/SelectionBar.tsx": 1,
-      "components/entityLink/EntityLinkPicker.tsx": 1,
+      "components/entityLink/EntityLinkSearch.tsx": 1,
       "components/minimal-tiptap/extensions/simple-table/TableMenu.tsx": 2,
       "components/searchDropdown/selectUserToMessageDropdown/selectUserToMessageDropdown.tsx": 1,
       "components/table/cellPickers.tsx": 1,
@@ -156,7 +162,9 @@ describe("no list draws a check of its own", () => {
       "components/project/ProjectAttachments.tsx",
     ]) {
       const src = readFileSync(f, "utf8")
-      expect(src, f).toMatch(/<MenuCheck checked=/)
+      // Its own, or the combobox's row with `checked` (components/ui/combobox
+      // ends a list of one's chosen row with it).
+      expect(src, f).toMatch(/<MenuCheck checked=|<ComboboxItem\b[\s\S]*?\bchecked=\{/)
       expect(src, f).not.toMatch(/<Check\b/)
     }
     // Some of the chosen tasks carry a tag: its row shows the dash.

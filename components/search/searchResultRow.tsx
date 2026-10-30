@@ -24,12 +24,13 @@ import { ChannelTile } from "@/components/ui/graphics/ChannelTile"
 import { resultHue } from "@/lib/search/resultHue"
 import { DocIcon } from "@/components/docEditor/DocIcon"
 import { PrincipalTag } from "@/components/ui/principalTag"
-import { Eye, FileText, LayoutDashboard, Link, Paperclip, Users } from "@/lib/icons"
+import { CalendarDays, Eye, FileText, LayoutDashboard, Link, Paperclip, Users } from "@/lib/icons"
 import { displayNameOf } from "@/lib/personName"
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { getHighlightedTitle, isResultPreviewable, Snippet } from "@/lib/utils/helpers/search"
 import { highlightText } from "@/lib/search/highlight"
 import { resultTime } from "@/lib/search/scopes"
+import { eventWhen } from "@/lib/search/eventWhen"
 import type { SearchResult } from "@/services/searchService"
 
 /** A task's status, as one of the glyph set's six. */
@@ -88,7 +89,7 @@ export function SearchLead({ result }: { result: SearchResult }) {
         </span>
       )
     default: {
-      const Glyph = result.type === "team" ? Users : result.type === "board" ? LayoutDashboard : result.type === "attachment" ? Paperclip : FileText
+      const Glyph = { team: Users, board: LayoutDashboard, attachment: Paperclip, event: CalendarDays }[result.type as string] ?? FileText
       return (
         <span data-search-lead={result.type} className="grid size-6 place-items-center text-ink-3 [&_svg]:size-4">
           <Glyph />
@@ -166,6 +167,11 @@ function SearchMeta({ result }: { result: SearchResult }) {
     case "attachment":
       push(result.attachment?.attachment_channel_name ? `File in #${result.attachment.attachment_channel_name}` : result.attachment?.attachment_doc_title ? `File in ${result.attachment.attachment_doc_title}` : "File")
       break
+    case "event":
+      push(result.event?.event_repeats ? "Repeating event" : "Event")
+      push(eventWhen(result.event))
+      push(result.event?.event_location)
+      break
   }
   // From a channel that was archived: its members still find its history.
   if (inArchivedChannel(result)) push(<span data-search-archived="" className="text-ink-3">Archived</span>)
@@ -182,7 +188,7 @@ function SearchMeta({ result }: { result: SearchResult }) {
 }
 
 /** The fields whose passage says why a result matched when its title didn't. */
-const BODY_FIELDS: Partial<Record<SearchResult["type"], string>> = { doc: "doc_body", task: "task_desc" }
+const BODY_FIELDS: Partial<Record<SearchResult["type"], string>> = { doc: "doc_body", task: "task_desc", event: "event_notes" }
 
 function BodyMatch({ result }: { result: SearchResult }) {
   const field = BODY_FIELDS[result.type]

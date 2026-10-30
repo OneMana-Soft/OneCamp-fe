@@ -2,10 +2,75 @@
 // Every way of moving one plans here first: Move to… (a sheet on a phone), a
 // page dropped on a breadcrumb, and the docs tree's drag and keys. The
 // server's preview (POST /doc/move/preview) says what the move would do, and
-// refuses whatever the move would.
+// refuses whatever the move would. Move to… moves here too (moveAll), with
+// the Undo that puts things back where they were.
 
-import { previewDocMove } from "@/services/docGraphService"
-import type { DocMovePreview, DocMoveTarget } from "@/types/docGraph"
+import { moveDoc, previewDocMove } from "@/services/docGraphService"
+import type { DocMovePreview, DocMoveRequest, DocMoveResult, DocMoveTarget, DocSpace } from "@/types/docGraph"
+
+/**
+ * Something being moved, and where it is now: under a page or a folder, or
+ * (null) at the top of its space; after the sibling it follows there (null:
+ * first), when its row knows. Undo puts it back there, or at the end of where
+ * it was when its place among its siblings isn't known.
+ */
+export interface MoveItem {
+  id: string
+  title: string
+  from: string | null
+  after?: string | null
+}
+
+/** A place on the way down: a page or a folder, or (null) the top of the space. */
+export interface MoveStop {
+  id: string | null
+  title: string
+}
+
+/** Where Undo puts an item: back where it was, keeping its own access. Pure. */
+export function placeBack(item: MoveItem, space: DocSpace): DocMoveRequest {
+  return {
+    doc_uuid: item.id,
+    ...(item.from ? { parent_uuid: item.from } : { space }),
+    ...(item.after ? { after_uuid: item.after } : { place: item.after === null ? "first" : "last" }),
+    access: "keep",
+  }
+}
+
+/** What moveAll did: what moved before any failure, and how to put that back (null once one took its new parent's access). */
+export interface Moved {
+  moved: MoveItem[]
+  results: DocMoveResult[]
+  error?: unknown
+  undo: (() => Promise<void>) | null
+}
+
+/**
+ * Moves items one after another, each where to says, and stops at the first
+ * the server refuses. Undo puts each back where it was (placeBack), the last
+ * first: an item's after is a sibling that isn't moving, so a run of
+ * neighbours lands back in its order. A page that took its new parent's
+ * access can't be put back by a move, so then there's no Undo.
+ */
+export async function moveAll(items: MoveItem[], to: (item: MoveItem) => DocMoveRequest, space: DocSpace): Promise<Moved> {
+  const moved: MoveItem[] = []
+  const results: DocMoveResult[] = []
+  let error: unknown
+  try {
+    for (const item of items) {
+      results.push(await moveDoc(to(item)))
+      moved.push(item)
+    }
+  } catch (e) {
+    error = e
+  }
+  const undo = !results.some((r) => r.access === "adopt")
+    ? async () => {
+        for (const item of [...moved].reverse()) await moveDoc(placeBack(item, space))
+      }
+    : null
+  return { moved, results, error, undo }
+}
 
 /** What to do before a move. */
 type MovePlan =

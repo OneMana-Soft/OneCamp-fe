@@ -19,8 +19,8 @@ import EvidenceReceipts from "@/components/admin/EvidenceReceipts"
 import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
 import { usePlan } from "@/hooks/usePlan"
 import { Button } from "@/components/ui/button"
+import { SearchInput } from "@/components/ui/search-input"
 import { Chip } from "@/components/ui/chip"
-import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
     DropdownMenu,
@@ -49,7 +49,6 @@ import {
     Plug,
     RefreshCw,
     ScrollText,
-    Search,
     Shield,
     ShieldCheck,
     ShieldX,
@@ -578,18 +577,13 @@ export default function AdminAuditLog({ pageSize = PAGE }: { pageSize?: number }
         // No title of its own: the page frame names the section (the one-title rule).
         <section id="audit-log" aria-label="Audit log" data-audit-log="" className="space-y-3">
             <div data-audit-toolbar="" className="flex min-h-11 flex-wrap items-center gap-2">
-                <div className="relative min-w-0 flex-1 md:w-[260px] md:flex-none">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
-                    <Input
-                        type="search"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search the log…"
-                        aria-label="Search the log"
-                        autoComplete="off"
-                        className="h-8 pl-8"
-                    />
-                </div>
+                <SearchInput
+                    value={search}
+                    onValueChange={setSearch}
+                    placeholder="Search the log…"
+                    aria-label="Search the log"
+                    className="min-w-0 flex-1 md:w-[260px] md:flex-none"
+                />
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="secondary" size="sm" className="h-11 md:h-7" aria-label="Filter audit entries by category">
@@ -703,7 +697,7 @@ export default function AdminAuditLog({ pageSize = PAGE }: { pageSize?: number }
                     description={`In the ${entries.length} entries read so far.`}
                     action={
                         <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
-                            Clear search
+                            Show every entry
                         </Button>
                     }
                 />

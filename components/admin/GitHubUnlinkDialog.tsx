@@ -1,7 +1,6 @@
 "use client"
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { buttonVariants } from "@/components/ui/button"
 import { RefreshCw, AlertTriangle } from "@/lib/icons";
 
 interface LinkData {
@@ -50,7 +49,7 @@ export default function GitHubUnlinkDialog({ open, onOpenChange, onConfirm, link
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={isSubmitting} className={buttonVariants({ variant: "destructive" })}>
+          <AlertDialogAction onClick={onConfirm} disabled={isSubmitting} variant="dangerSolid">
             {isSubmitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
             {isSubmitting ? "Unlinking…" : "Unlink repository"}
           </AlertDialogAction>

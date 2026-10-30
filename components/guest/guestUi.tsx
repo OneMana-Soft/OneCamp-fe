@@ -7,7 +7,7 @@
 // browser, per link.
 
 import { useEffect, useId, useRef, useState } from "react"
-import { Loader2, Send } from "@/lib/icons"
+import { Send } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -235,8 +235,8 @@ export function GuestComposer({ placeholder, onSend, name, onRename, quiet = fal
           maxLength={4000}
           className="max-h-40 min-h-10 resize-none"
         />
-        <Button size="icon-sm" variant={quiet ? "outline" : "default"} onClick={send} disabled={busy || !text.trim()} aria-label="Send" className="shrink-0">
-          {busy ? <Loader2 className="animate-spin" /> : <Send />}
+        <Button size="icon-sm" variant={quiet ? "outline" : "default"} onClick={send} disabled={!text.trim()} busy={busy} aria-label="Send" className="shrink-0">
+          <Send />
         </Button>
       </div>
       {error && <p role="alert" className="mx-auto mt-1 max-w-3xl text-xs text-danger-ink">{error}</p>}

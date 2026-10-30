@@ -102,11 +102,11 @@ describe("the members list", () => {
     expect(screen.queryByText(/no members match/i)).toBeNull()
   })
 
-  it("says nobody matches when everyone is loaded, and offers to clear the search", async () => {
+  it("says nobody matches when everyone is loaded, and offers everyone back", async () => {
     render(<UserCard />)
     await type("zzzz")
     expect(screen.getByRole("heading", { name: /no one matches “zzzz”\./i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /clear search/i }))
+    fireEvent.click(screen.getByRole("button", { name: "Show everyone" }))
     expect((search() as HTMLInputElement).value).toBe("")
   })
 

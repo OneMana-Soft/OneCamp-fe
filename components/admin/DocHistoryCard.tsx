@@ -42,10 +42,9 @@ function HistoryRow({ info }: { info: PolicyInfo }) {
   const { status, run } = useSaveStatus()
   const shown = pending ?? saved
   const choices = CHOICES.includes(saved) ? CHOICES : [...CHOICES, saved].sort((a, b) => a - b)
-  const choose = async (next: number) => {
-    if (next === saved) return
+  const choose = async (next: number): Promise<boolean> => {
     setPending(next)
-    await run(async () => {
+    const held = await run(async () => {
       const res = await axiosInstance.put<{ data: PolicyInfo }>(`${ADMIN_POLICIES_KEY}/${HISTORY_DAYS}`, { value: next }, OWN_ERRORS)
       const after = res.data.data
       await appMutate<{ data: PolicyInfo[] }>(
@@ -53,10 +52,10 @@ function HistoryRow({ info }: { info: PolicyInfo }) {
         (d) => (d ? { ...d, data: d.data.map((p) => (p.key === HISTORY_DAYS ? after : p)) } : d),
         { revalidate: false },
       )
-    })
+    }, { what: `Doc history: ${lengthWords(next)}`, undo: () => choose(saved) })
     setPending(null)
+    return held
   }
-  const id = "doc-history-days"
   return (
     <SettingRow
       label="Keep doc history for"
@@ -65,11 +64,11 @@ function HistoryRow({ info }: { info: PolicyInfo }) {
           {historyMeaning(shown)}
         </span>
       }
-      controlId={id}
+      controlId="doc-history-days"
       status={status}
     >
-      <Select value={String(shown)} onValueChange={(v) => void choose(Number(v))} disabled={status.state === "saving"}>
-        <SelectTrigger id={id} aria-label="Keep doc history for" className="w-36">
+      <Select value={String(shown)} onValueChange={(v) => Number(v) !== saved && void choose(Number(v))} disabled={status.state === "saving"}>
+        <SelectTrigger id="doc-history-days" aria-label="Keep doc history for" className="w-36">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

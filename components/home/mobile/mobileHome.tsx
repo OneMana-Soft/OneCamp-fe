@@ -23,15 +23,15 @@ import { homeGreeting } from "@/lib/utils/homeGreeting"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { adminFromSidenav, ChecklistPlace } from "@/components/home/setupChecklistPlace"
-import { NoChannelsYet } from "@/components/home/NoChannelsYet"
 import { RootState } from "@/store/store"
-import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
+import { useFetchOnlyOnce } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
+import type { UserProfileInterface } from "@/types/user"
+import { GlanceLine, glanceNext, glanceOf, todayEyebrow } from "@/components/home/GlanceLine"
 import { Greeting } from "@/components/home/Greeting"
 import { NeedsMe } from "@/components/home/NeedsMe"
-import { useHomeNeeds } from "@/components/home/useHomeNeeds"
 import { useTodayEvents } from "@/components/home/useTodayEvents"
-import { clockTime } from "@/lib/utils/date/clock"
-import { needsCounts } from "@/components/home/needsMe"
+import { NeedsGoneContext, useNeedsGoneState } from "@/components/home/needsGone"
 import { useRiseOnce, riseProps } from "@/lib/hub/motion"
 import { cn } from "@/lib/utils/helpers/cn"
 import BriefingCard from "@/components/ai/BriefingCard"
@@ -42,12 +42,13 @@ import { AgentWorkCard } from "@/components/ai/AgentWorkCard"
 // The setup checklist, a chunk of its own: only an admin with steps left sees
 // it. Its place is held while it comes (setupChecklistPlace).
 const SetupChecklist = dynamic(() => import("@/components/home/SetupChecklist"), { ssr: false, loading: ChecklistPlace })
+// Only a member in no channel sees it (H7), so it comes in its own chunk then.
+const NoChannelsYet = dynamic(() => import("@/components/home/NoChannelsYet").then((m) => m.NoChannelsYet), { ssr: false })
 const TodayStrip = dynamic(() => import("@/components/home/TodayAgenda").then((m) => m.TodayStrip), { ssr: false })
 const ProjectsStrip = dynamic(() => import("@/components/home/ProjectsStrip"), { ssr: false })
 
 export function MobileHome() {
     const userSidebar = useSelector((state: RootState) => state.users.userSidebar)
-    const pending = useSelector((state: RootState) => state.pendingAction.actions)
     // Already fetched and deduped by the layout; a cache read, as on desktop.
     const sidenav = useSidenav()
     const self = sidenav.data?.data
@@ -55,54 +56,58 @@ export function MobileHome() {
     const aiAvailable = useAIAvailable()
     const rise = useRiseOnce("/app/home")
     const r = (i: number) => riseProps(rise, i)
-    const needs = useHomeNeeds()
+    const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const today = useTodayEvents()
-    const counts = needsCounts(needs.items)
-    const greetingLine = homeGreeting(new Date().getHours(), self?.user_full_name, self?.user_name)
+    // What the list below shows, which it tells this page as it draws: the
+    // line says exactly that, and Done takes a task off both (needsGone).
+    const needsGone = useNeedsGoneState()
+    const glance = glanceOf(needsGone.shown)
+    // From the member's own profile, as on a computer: /user/sidebarNav doesn't select user_full_name.
+    const greetingLine = homeGreeting(new Date().getHours(), selfProfile.data?.data)
     const noChannel = Boolean(self) && (self?.user_channels ?? []).length === 0 && (userSidebar.userChannels ?? []).length === 0
 
     return (
-        <div className="flex flex-col gap-6 px-4 pb-6 pt-4" data-home="phone">
-            <Greeting
-                phone
-                eyebrow={todayEyebrow()}
-                title={greetingLine}
-                rise={rise}
-                now={today.now}
-                events={today.events}
-                chats={userSidebar.userChats ?? []}
-                selfId={needs.selfId}
-                agent={aiAvailable}
-                summary={
-                    <GlanceLine
-                        className="line-clamp-2 text-ui"
-                        loading={needs.loading}
-                        counts={{
-                            tasksDue: counts.due - counts.overdue,
-                            overdue: counts.overdue,
-                            mentions: needs.items.filter((i) => i.id.startsWith("mention:")).length,
-                            agentRequests: pending.length,
-                        }}
-                        next={today.next ? { title: today.next.event_title, time: clockTime(today.next.event_start_time) } : null}
-                    />
-                }
-            />
-
-            {/* No search bar of its own: the phone top bar's search opens the palette. */}
-            {isAdmin ? <SetupChecklist isAdmin={isAdmin} /> : null}
-
-            <div {...r(3)} className={cn(r(3).className)}>
-                <NeedsMe
-                    footer={<WhileYouWereAwayCard />}
-                    noChannels={noChannel ? <NoChannelsYet /> : undefined}
-                    withAI={(p) => <AttentionCard {...p} />}
+        <NeedsGoneContext.Provider value={needsGone}>
+            <div className="flex flex-col gap-6 px-4 pb-6 pt-4" data-home="phone">
+                <Greeting
+                    phone
+                    eyebrow={todayEyebrow()}
+                    title={greetingLine}
+                    rise={rise}
+                    now={today.now}
+                    events={today.events}
+                    chats={userSidebar.userChats ?? []}
+                    selfId={selfProfile.data?.data?.user_uuid}
+                    agent={aiAvailable}
+                    summary={
+                        <GlanceLine
+                            stacked
+                            className="text-ui"
+                            loading={glance.loading}
+                            counts={glance.counts}
+                            unnamed={glance.unnamed}
+                            failed={glance.failed}
+                            next={glanceNext(today.next, today.now)}
+                        />
+                    }
                 />
-            </div>
 
-            <TodayStrip />
-            <AgentWorkCard />
-            <ProjectsStrip />
-            <BriefingCard />
-        </div>
+                {/* No search bar of its own: the phone top bar's search opens the palette. */}
+                {isAdmin ? <SetupChecklist isAdmin={isAdmin} /> : null}
+
+                <div {...r(3)} className={cn(r(3).className)}>
+                    <NeedsMe
+                        footer={<WhileYouWereAwayCard />}
+                        noChannels={noChannel ? <NoChannelsYet /> : undefined}
+                        withAI={(p) => <AttentionCard {...p} />}
+                    />
+                </div>
+
+                <TodayStrip />
+                <AgentWorkCard />
+                <ProjectsStrip />
+                <BriefingCard />
+            </div>
+        </NeedsGoneContext.Provider>
     )
 }

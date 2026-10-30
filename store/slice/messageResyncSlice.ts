@@ -26,10 +26,18 @@ import { createSlice } from "@reduxjs/toolkit"
  */
 interface MessageResyncState {
     nonce: number
+    /**
+     * Bumped when a connection's subscriptions are answered: each mounted
+     * conversation then reads what came after its newest message, once
+     * (useMessageCatchUp). A message sent between its first read and that
+     * answer was in neither.
+     */
+    catchUpNonce: number
 }
 
 const initialState: MessageResyncState = {
     nonce: 0,
+    catchUpNonce: 0,
 }
 
 const messageResyncSlice = createSlice({
@@ -42,9 +50,12 @@ const messageResyncSlice = createSlice({
         triggerMessageResync: (state) => {
             state.nonce += 1
         },
+        triggerMessageCatchUp: (state) => {
+            state.catchUpNonce += 1
+        },
     },
 })
 
-export const { triggerMessageResync } = messageResyncSlice.actions
+export const { triggerMessageResync, triggerMessageCatchUp } = messageResyncSlice.actions
 
 export default messageResyncSlice

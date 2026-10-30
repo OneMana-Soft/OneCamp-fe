@@ -2,7 +2,7 @@
 
 import { displayNameOf } from "@/lib/personName"
 import { Fragment } from "react"
-import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, Users, FolderKanban, Hash, LayoutDashboard } from "@/lib/icons"
+import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, Users, FolderKanban, Hash, LayoutDashboard, CalendarDays } from "@/lib/icons"
 import { SearchResult } from "@/services/searchService"
 import { ChatUserAvatar } from "@/components/chat/chatUserAvatar"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
@@ -14,6 +14,7 @@ import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { fragmentEdges, highlightRuns, highlightText } from "@/lib/search/highlight"
 import { useBotKindMap } from "@/hooks/useBotKinds"
 import { relayKindOf, splitPlainRelayLabel, type RelayedAuthor } from "@/lib/relayedAuthor"
+import { eventWhen } from "@/lib/search/eventWhen"
 
 /**
  * A highlighter fragment as text with its matches marked. Built from text runs
@@ -48,6 +49,7 @@ const TITLE_FIELD: Record<SearchResult["type"], string> = {
     project: "project_name",
     channel: "ch_name",
     team: "team_name",
+    event: "event_title",
 }
 
 /** A hit's title as plain text: stored bodies are escaped HTML ("everyone&#39;s"). */
@@ -57,13 +59,14 @@ export const getTitle = (result: SearchResult): string => {
         case "post": return removeHtmlTags(result.post?.post_body)
         case "doc": return removeHtmlTags(result.doc?.doc_title) || "Untitled doc"
         case "board": return removeHtmlTags(result.board?.board_title) || "Untitled board"
-        case "task": return removeHtmlTags(result.task?.task_name)
+        case "task": return withTaskKey(result, removeHtmlTags(result.task?.task_name))
         case "comment": return removeHtmlTags(result.comment?.comment_body)
         case "attachment": return removeHtmlTags(result.attachment?.attachment_file_name || result.attachment?.attachment_name) || "Attachment"
         case "user": return displayNameOf(result.user) || ""
         case "project": return removeHtmlTags(result.project?.project_name)
         case "channel": return removeHtmlTags(result.channel?.ch_name)
         case "team": return removeHtmlTags(result.team?.team_name)
+        case "event": return removeHtmlTags(result.event?.event_title) || "Untitled event"
         default: return ""
     }
 }
@@ -89,12 +92,13 @@ const contextText = (result: SearchResult): string => {
         case "project": return result.project?.project_team_name ? `Project · ${result.project.project_team_name}` : "Project"
         case "channel": return "Channel"
         case "team": return "Team"
+        case "event": return join(eventWhen(result.event), result.event?.event_location) || "Event"
         default: return ""
     }
 }
 
 // The id fields a hit of each kind carries, in the order they're trusted.
-const ID_FIELDS = ["uuid", "id", "chat_id", "post_id", "comment_id", "comment_uuid", "attachment_id", "doc_uuid", "board_uuid", "task_id", "user_id", "project_id", "ch_id", "team_id"]
+const ID_FIELDS = ["uuid", "id", "chat_id", "post_id", "comment_id", "comment_uuid", "attachment_id", "doc_uuid", "board_uuid", "task_id", "user_id", "project_id", "ch_id", "team_id", "event_uuid"]
 
 /**
  * Keys for a list of search hits that stay with each hit, not with its
@@ -133,6 +137,7 @@ export function hitHueId(result: SearchResult): string | undefined {
         case "channel": return result.channel?.ch_id
         case "team": return result.team?.team_id
         case "user": return result.user?.user_id
+        case "event": return result.event?.event_calendar_id
         default: return undefined
     }
 }
@@ -149,6 +154,7 @@ const HIT_GLYPH: Record<SearchResult["type"], typeof Search> = {
     channel: Hash,
     team: Users,
     user: Search,
+    event: CalendarDays,
 }
 
 /**
@@ -226,7 +232,19 @@ export const getHighlightedTitle = (result: SearchResult) => <HitTitle result={r
 const plainHighlightedTitle = (result: SearchResult) => {
     const fragment = titleFragment(result)
     if (!fragment) return <span>{getTitle(result)}</span>
-    return <Snippet fragment={fragment} full={titleFull(result)} />
+    const key: string | undefined = result.type === "task" ? result.task?.task_key : undefined
+    return (
+        <>
+            {key && <span>{key} · </span>}
+            <Snippet fragment={fragment} full={titleFull(result)} />
+        </>
+    )
+}
+
+/** A task hit reads with its key first: "Q4-12 · Pricing page copy" (STEP4 #8). */
+function withTaskKey(result: SearchResult, title: string): string {
+    const key: string | undefined = result.task?.task_key
+    return key ? `${key} · ${title}` : title
 }
 
 /** The fields whose fragments say why a hit matched when its title doesn't. */
@@ -234,6 +252,7 @@ const CONTEXT_FIELDS: Partial<Record<SearchResult["type"], string[]>> = {
     doc: ["doc_body"],
     task: ["task_desc"],
     user: ["user_email"],
+    event: ["event_notes"],
 }
 
 /**

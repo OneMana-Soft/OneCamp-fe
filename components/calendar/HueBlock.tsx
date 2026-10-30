@@ -3,7 +3,7 @@
 import * as React from "react"
 
 import { Moon, Plane } from "@/lib/icons"
-import { StatusGlyph, type StatusKind } from "@/components/ui/graphics"
+import { StatusGlyph, type StatusKind } from "@/components/ui/graphics/glyphs"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -69,13 +69,13 @@ export function taskGlyphStatus(status: string | undefined): StatusKind {
 }
 
 /** The classes a block is drawn with (also used by the drag ghost and tests). Pure. */
-export function hueBlockClasses(item: CalendarItemLike, { past, live, selected, quiet }: { past?: boolean; live?: boolean; selected?: boolean; quiet?: boolean } = {}): string {
+export function hueBlockClasses(item: CalendarItemLike, { past, live, quiet }: { past?: boolean; live?: boolean; selected?: boolean; quiet?: boolean } = {}): string {
   const kind = kindOf(item)
   if (kind === "away") {
     return cn("border border-dashed border-line-3 bg-transparent text-ink-3", past && "opacity-55")
   }
   if (kind === "focus") {
-    return cn("focus-hatch text-ink-2", past && "opacity-55", selected && "ring-[1.5px] ring-ink-3 shadow-e2")
+    return cn("focus-hatch text-ink-2 data-[selected]:shadow-e2 data-[selected]:ring-[1.5px] data-[selected]:ring-ink-3", past && "opacity-55")
   }
   return cn(
     HUE_CLASS[hueOf(item)],
@@ -83,7 +83,7 @@ export function hueBlockClasses(item: CalendarItemLike, { past, live, selected, 
     quiet ? "[--fill:35%] hover:[--fill:60%]" : "[--fill:60%] hover:[--fill:80%]",
     past && "[--fill:33%] text-ink-2 hover:[--fill:45%]",
     live && "[--fill:100%] ring-1 ring-inset ring-hue/35",
-    selected && "ring-[1.5px] ring-hue shadow-e2",
+    "data-[selected]:shadow-e2 data-[selected]:ring-[1.5px] data-[selected]:ring-hue",
   )
 }
 
@@ -99,23 +99,23 @@ export function dragPlaceholderClasses(item: CalendarItemLike): string {
   )
 }
 
-export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function HueBlock(
-  { item, variant, past, live, selected, quiet, continued, as = "button", className, children, ...rest },
-  ref,
-) {
-  // Again when the reader's projects arrive: they share the hues out (lib/projectHue).
-  useProjectHues()
+/**
+ * A block's element as HueBlock draws it, for a caller that draws many and
+ * keeps each block one component of its own (the week's TimedBlock, which
+ * reads the project hues itself): through HueBlock, a block is two.
+ */
+export function hueBlock({ item, variant, past, live, selected, quiet, continued, as = "button", className, children, ...rest }: HueBlockProps, ref?: React.Ref<HTMLElement>) {
   const kind = kindOf(item)
   const Comp = as as "button"
   const lead =
-    kind === "task" ? (
-      <StatusGlyph status={taskGlyphStatus(item.task_status)} size={12} className="shrink-0" />
+    kind === "task" || kind === "block" ? (
+      <StatusGlyph status={taskGlyphStatus(kind === "task" ? item.task_status : item.event_task?.task_status)} size={12} onTint className="shrink-0" />
     ) : kind === "focus" ? (
       <Moon className="size-3 shrink-0" aria-hidden="true" />
     ) : kind === "away" ? (
       <Plane className="size-3 shrink-0" aria-hidden="true" />
     ) : null
-  const bar = kind === "event" || kind === "focus"
+  const bar = kind === "event" || kind === "focus" || kind === "block"
   return (
     <Comp
       ref={ref as React.Ref<HTMLButtonElement>}
@@ -123,7 +123,7 @@ export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function Hu
       data-hue-block={kind}
       // Which item it is, for the calendar's keys and its menu (E, Delete, a right-click).
       data-event-uuid={item.event_uuid}
-      data-hue={kind === "event" || kind === "task" ? hueOf(item) : undefined}
+      data-hue={kind === "event" || kind === "task" || kind === "block" ? hueOf(item) : undefined}
       data-past={past || undefined}
       data-live={live || undefined}
       data-selected={selected || undefined}
@@ -148,4 +148,10 @@ export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function Hu
       {children}
     </Comp>
   )
+}
+
+export const HueBlock = React.forwardRef<HTMLElement, HueBlockProps>(function HueBlock(props, ref) {
+  // Again when the reader's projects arrive: they share the hues out (lib/projectHue).
+  useProjectHues()
+  return hueBlock(props, ref)
 })

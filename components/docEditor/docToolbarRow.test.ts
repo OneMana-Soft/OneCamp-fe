@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import "@/components/docEditor/registry"
+// C5's actions register as its overlay's chunk loads beside the editor (suggest-mode/contributions.ts).
+import "@/components/minimal-tiptap/extensions/suggest-mode/contributions"
 import { actionGroupsFor } from "@/components/docEditor/registry/readers"
 import { createDocCommandBus } from "@/components/docEditor/registry/commandBus"
 import type { ActionContext } from "@/components/docEditor/registry/types"
@@ -26,7 +28,8 @@ describe("the doc's formatting", () => {
     expect(actionGroupsFor("selection", ctx, SELECTION_GROUPS).map((g) => [g.group, g.actions.map((a) => a.label)])).toEqual([
       ["ai", ["Ask AI"]],
       ["marks", ["Bold", "Italic", "Underline", "Strikethrough", "Inline code"]],
-      ["comment", ["Comment"]],
+      // C5's Suggest edit beside Comment (minimal-tiptap/extensions/suggest-mode/contributions.ts).
+      ["comment", ["Comment", "Suggest edit"]],
     ])
     // The bar's own pieces sit between them: Turn into after Ask AI, the link after the marks. The colour is
     // B2's registered colour.open (group "style", before Comment), not a button of the bar's own.
@@ -75,8 +78,9 @@ describe("the doc's formatting", () => {
     expect(readFileSync("components/docEditor/useDocEditor.ts", "utf8")).toMatch(/shouldRerenderOnTransaction:\s*false/)
   })
 
-  it("docks a bar above the phone's keyboard instead", () => {
-    expect(src).toMatch(/canEdit && isMobile && !focusMode && \(?\s*<DocAccessoryBar/)
+  it("docks a bar above the phone's keyboard instead, whose code only a phone fetches", () => {
+    expect(src).toMatch(/canEdit && isMobile && !focusMode && \(?\s*<AccessoryBar\.Part/)
+    expect(src).toMatch(/lazyPart\(\(\) => import\('@\/components\/docEditor\/DocAccessoryBar'\)/)
   })
 })
 

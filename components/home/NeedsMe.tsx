@@ -43,7 +43,7 @@ export function NeedsMe({
   withAI?: (props: NeedsAIProps) => ReactNode
 }) {
   const base = useHomeNeeds()
-  const ai = useFeatureState(FEATURE_AI)
+  const ai = useFeatureState(FEATURE_AI, { onFailure: "unavailable" })
   if (ai === "available" && withAI) {
     return <>{withAI({ base: base.items, baseLoading: base.loading, footer, noChannels, className })}</>
   }

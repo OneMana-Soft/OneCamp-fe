@@ -293,16 +293,8 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
             </p>
           )}
 
-          <Button onClick={() => generate(prompt, device)} disabled={busy} className="w-full gap-1.5">
-            {busy ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Designing…
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" /> {html ? "Regenerate" : "Generate design"}
-              </>
-            )}
+          <Button onClick={() => generate(prompt, device)} busy={busy} className="w-full gap-1.5">
+            <Sparkles className="h-4 w-4" /> {busy ? "Designing…" : html ? "Regenerate" : "Generate design"}
           </Button>
 
           <div className="flex items-center justify-between gap-2">

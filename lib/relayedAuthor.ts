@@ -1,5 +1,7 @@
 import { decodeHtmlEntities } from "@/lib/utils/decodeHtmlEntities"
-import { getNameInitials } from "@/lib/utils/getNameInitials"
+
+// Kept apart so every face (ChatFace) has it without the label parsing here.
+export { relayInitials } from "@/lib/relayInitials"
 
 /**
  * A relayed person's message, read as their own.
@@ -107,14 +109,6 @@ export function splitPlainRelayLabel(text: string | null | undefined, kind: Rela
   return { name: nameFromLabel(label, kind), body: text.slice(m[0].length), kind }
 }
 
-/**
- * A relayed person's initials, from their name without anything in brackets:
- * "Priya (Acme)" is "P", not "P(". Pure.
- */
-export function relayInitials(name: string): string {
-  const bare = name.replace(/\([^)]*\)/g, " ").replace(/[^\p{L}\p{N}\s]/gu, " ")
-  return getNameInitials(bare) || "?"
-}
 
 /**
  * A relayed name and the organisation it carries in brackets: "Priya (Acme)"

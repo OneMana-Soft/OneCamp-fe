@@ -1,9 +1,10 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useDispatch } from "react-redux";
 import { useMedia } from "@/context/MediaQueryContext";
+import { opensEditing } from "@/lib/calendar/editParam";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { app_calendar_path } from "@/types/paths";
 import EventInfoPanel from "@/components/rightPanel/eventInfoPanel";
@@ -16,6 +17,8 @@ import EventInfoPanel from "@/components/rightPanel/eventInfoPanel";
  * over /app/calendar. If a desktop user lands here directly (deep link,
  * refresh) we open the right panel for the event and replace the URL
  * with /app/calendar so Back doesn't bounce through an empty stub.
+ * ?edit=1 (calendarRoute's edit: the card's pencil, Edit event) opens the
+ * event editing, on the page or in the panel.
  *
  * `handledRef` guards against StrictMode double-invocation re-firing
  * the redirect.
@@ -26,15 +29,16 @@ export default function MobileEventPage() {
     const dispatch = useDispatch();
     const { isMobile, isDesktop } = useMedia();
     const eventId = params.eventId as string;
+    const editing = opensEditing(useSearchParams());
     const handledRef = useRef(false);
 
     useEffect(() => {
         if (isDesktop && !handledRef.current && eventId) {
             handledRef.current = true;
-            dispatch(openRightPanel({ eventUUID: eventId }));
+            dispatch(openRightPanel({ eventUUID: eventId, ...(editing ? { eventEditAt: Date.now() } : {}) }));
             router.replace(app_calendar_path);
         }
-    }, [isDesktop, eventId, dispatch, router]);
+    }, [isDesktop, eventId, editing, dispatch, router]);
 
     if (!eventId) return null;
 
@@ -47,7 +51,7 @@ export default function MobileEventPage() {
     return (
         <div className="flex flex-col h-full bg-background">
             <main className="flex-1 overflow-y-auto">
-                <EventInfoPanel eventUUID={eventId} onClose={handleClose} />
+                <EventInfoPanel eventUUID={eventId} onClose={handleClose} editRequest={editing ? 1 : undefined} />
             </main>
         </div>
     );

@@ -7,47 +7,85 @@
  *
  * Whoever runs the call runs it from here too (Call Control): each person's
  * part beside their name, their actions in a menu, and the call's own (mute
- * all, ask all to unmute, the lock, people joining muted) above the list.
- * Only what the server allows is offered (lib/calls/control).
+ * all, ask all to unmute, the lock, people joining muted, what everyone else
+ * may do) above the list. Only what the server allows is offered
+ * (lib/calls/control). Whoever may let people in sees who waits in the lobby
+ * first (CallLobbySection).
  */
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { HUE_CLASS, avatarHueClass } from "@/components/ui/graphics/hues"
-import { MicOff, Mic, VideoOff, X } from "@/lib/icons"
-import { callActions, personActions, type CallPart, type PersonAction } from "@/lib/calls/control"
-import { personHue } from "@/lib/utils/getAvatarColor"
-import { getNameInitials } from "@/lib/utils/getNameInitials"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils/helpers/cn"
-import { PersonActionsMenu } from "./callHosting"
+import { ToolSwitch } from "./ToolSwitch"
+import { CALL_PANEL_TOOL, CALL_SIDE_PANEL } from "./sidePanel"
+import { ChevronRight, MicOff, Mic, VideoOff, X, Hand } from "@/lib/icons"
+import { callActions, holdSwitches, personActions, type CallPart, type HoldSwitch, type PersonAction } from "@/lib/calls/control"
+import type { CallHold } from "@/lib/calls/holds"
+import { ix } from "@/lib/ui/interactive"
+import { heldSummary } from "./callHolds"
+import { CALL_SURFACE } from "./callSurface"
+import type { Knock } from "@/lib/calls/lobby"
+import { CallLobbySection } from "./CallLobbySection"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { avatarSeed } from "@/lib/utils/getAvatarColor"
+import { PersonActionsMenu, type CallAct } from "./callHosting"
 import { personTags, type CallPerson } from "./callPeople"
+import { HandBadge } from "./HandBadge"
+import { feedbackLabel, placeIn } from "@/lib/calls/hands"
+import { InviteWordShown } from "./invite"
+import { qualityNote, type QualityVerdict } from "./callQualityNotes"
 
-const TOOL =
-  "inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-white/[0.06] px-2.5 text-ui-sm font-medium text-[#EEEEF0] transition-colors hover:bg-white/[0.10] active:bg-white/[0.14] focus-visible:outline-2 focus-visible:outline-brand [@media(pointer:coarse)]:h-11 [&_svg]:size-4"
+const NOTHING_HELD: ReadonlySet<CallHold> = new Set()
 
 const TOOL_ICONS: Partial<Record<PersonAction["action"], React.ReactNode>> = {
   mute_all: <MicOff aria-hidden />,
   ask_all_unmute: <Mic aria-hidden />,
+  lower_all_hands: <Hand aria-hidden />,
 }
 
-/** A lasting setting of the call as a switch row: its name, a line of help, the switch. */
-function ToolSwitch({ label, help, checked, onChange }: { label: string; help?: string; checked: boolean; onChange: (on: boolean) => void }) {
-  const id = React.useId()
+/**
+ * "Let everyone" as one row that says what's off for everyone and opens Meet's
+ * switches (a sheet on a phone), so the panel stays a list of people first:
+ * five switches above it put the first person halfway down a phone
+ * (DESIGN-BUILD-18, 26 Oct).
+ */
+function LetEveryone({ switches, onHold }: { switches: HoldSwitch[]; onHold: (what: CallHold, held: boolean) => void }) {
+  const titleId = React.useId()
+  const summaryId = React.useId()
+  const summary = heldSummary(switches.filter((s) => !s.on).map((s) => s.what))
   return (
-    <div className="mt-2 flex min-h-8 items-center justify-between gap-3 [@media(pointer:coarse)]:min-h-11" data-call-switch="">
-      <span className="flex min-w-0 flex-col">
-        <label htmlFor={id} className="cursor-pointer text-ui-sm text-ink-2">
-          {label}
-        </label>
-        {help ? (
-          <span id={`${id}-help`} className="text-meta text-ink-3">
-            {help}
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Let everyone"
+          aria-describedby={summaryId}
+          // A step out on each side, so its hover is a row's and its words stay in line with the switches'.
+          className="-mx-1.5 mt-2 flex min-h-8 w-[calc(100%+0.75rem)] items-center justify-between gap-3 rounded-[8px] px-1.5 text-left [@media(pointer:coarse)]:min-h-11"
+          data-call-holds=""
+          {...ix("row")}
+        >
+          <span className="flex min-w-0 flex-col">
+            <span className="text-ui-sm text-ink-2">Let everyone</span>
+            {/* The line wraps to two rather than cutting a word, at every width (DESIGN-BUILD-19, 26 Oct). */}
+            <span id={summaryId} className="line-clamp-2 text-meta text-ink-3">
+              {summary}
+            </span>
           </span>
-        ) : null}
-      </span>
-      <Switch id={id} aria-describedby={help ? `${id}-help` : undefined} checked={checked} onCheckedChange={onChange} />
-    </div>
+          <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="left" align="start" aria-labelledby={titleId} className={cn(CALL_SURFACE, "w-72 max-w-[calc(100vw-24px)] p-3")} data-call-holds-switches="">
+        {/* A phone's sheet is headed as a person's is; beside the panel it's a group label. */}
+        <p id={titleId} className="text-micro text-ink-3 max-sm:pt-1 max-sm:text-ui-sm max-sm:font-medium max-sm:text-[#EEEEF0]">
+          Let everyone
+        </p>
+        {switches.map((h) => (
+          <ToolSwitch key={h.what} label={h.label} checked={h.on} onChange={(on) => onHold(h.what, !on)} />
+        ))}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -64,6 +102,13 @@ export default function CallPeoplePanel({
   settings = { locked: false, muteOnEntry: false },
   onAction,
   onMuteOnEntry,
+  lobby,
+  onLobbyAction,
+  invite,
+  quality,
+  held = NOTHING_HELD,
+  onHold,
+  hasChat = false,
 }: {
   people: CallPerson[]
   onClose: () => void
@@ -72,38 +117,68 @@ export default function CallPeoplePanel({
   settings?: { locked: boolean; muteOnEntry: boolean }
   onAction?: (a: PersonAction, target?: CallPerson) => void
   onMuteOnEntry?: (on: boolean) => void
+  /** Who waits in the lobby, with the server's list (CALLS-2). */
+  lobby?: readonly Knock[]
+  onLobbyAction?: CallAct
+  /** The call's Invite, for whoever may let people in, at the head: where Zoom's Participants and Meet's People put it (calls HU13). */
+  invite?: React.ReactNode
+  /** Why the call stutters for each person, by identity, for whoever runs it (calls A5). */
+  quality?: ReadonlyMap<string, QualityVerdict>
+  /** What the call holds for everyone who doesn't run it (meet-12). */
+  held?: ReadonlySet<CallHold>
+  /** Holds one thing for everyone, or lets them again: the "Let everyone" switches. */
+  onHold?: (what: CallHold, held: boolean) => void
+  /** Whether the call has a chat to hold: a conversation's call (its thread). */
+  hasChat?: boolean
 }) {
   const titleId = React.useId()
+  // The panel takes focus as it opens, on its heading with no ring, as a dialog does (focusSelf).
+  const headingRef = React.useRef<HTMLHeadingElement>(null)
+  React.useEffect(() => headingRef.current?.focus({ preventScroll: true }), [])
   const toolsId = React.useId()
-  const tools = me && onAction ? callActions(me, settings ?? { locked: false, muteOnEntry: false }) : []
+  // Raised hands come first in the list, in the queue's order (peopleOf).
+  const queue = people.filter((p) => p.hand !== null).map((p) => p.identity)
+  const tools = me && onAction ? callActions(me, { ...(settings ?? { locked: false, muteOnEntry: false }), hands: queue.length, held }) : []
   // One-shot actions are buttons; the lock and joining muted, which last, are switches.
   const lockable = tools.some((t) => t.action === "lock" || t.action === "unlock")
   const muteOnEntry = tools.some((t) => t.action === "mute_on_entry")
-  const buttons = tools.filter((t) => t.action === "mute_all" || t.action === "ask_all_unmute")
+  const buttons = tools.filter((t) => t.action === "mute_all" || t.action === "ask_all_unmute" || t.action === "lower_all_hands")
+  // What everyone who doesn't run the call may do: a switch each, on while they may (Meet's host management).
+  const letEveryone = me && onHold ? holdSwitches(me, held, hasChat) : []
+  // Who waits in the lobby, for whoever may let them in.
+  const act = me?.can.has("admit") ? onLobbyAction : undefined
+  const lobbySection =
+    act && lobby && lobby.length > 0 ? (
+      <CallLobbySection waiting={lobby} onDecide={(ticket, name, admit) => act(admit ? "admit" : "deny", { ticket, name })} onAdmitAll={() => act("admit_all")} />
+    ) : null
   return (
     <aside
-      aria-label="Participants"
+      aria-label="People"
       data-call-people=""
-      className="hub-panel-in flex h-full w-full flex-col overflow-hidden bg-[#131416] text-foreground @3xl:my-3 @3xl:mr-3 @3xl:h-[calc(100%-24px-84px)] @3xl:w-[320px] @3xl:rounded-[14px] @3xl:shadow-e3 @7xl:h-[calc(100%-24px-100px)]"
+      className={CALL_SIDE_PANEL}
     >
       <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 py-3">
-        <h2 id={titleId} className="flex items-baseline gap-2 text-heading leading-tight">
-          In the call
+        <h2 ref={headingRef} tabIndex={-1} id={titleId} className="flex items-baseline gap-2 text-heading leading-tight outline-none">
+          People
           <span className="text-ui-sm font-medium tabular-nums text-ink-3">{people.length}</span>
         </h2>
-        <Button data-tone="light" aria-label="Close participants" variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-lg text-ink-3 hover:text-foreground">
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {invite ? <InviteWordShown.Provider value>{invite}</InviteWordShown.Provider> : null}
+          <Button data-tone="light" aria-label="Close People" variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-lg text-ink-3 hover:text-foreground">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
-      {buttons.length > 0 || lockable || muteOnEntry ? (
+      {lobbySection}
+      {buttons.length > 0 || lockable || muteOnEntry || letEveryone.length > 0 ? (
         <div className="shrink-0 border-b border-white/[0.06] px-3 pt-2 pb-2.5" role="group" aria-labelledby={toolsId} data-call-tools="">
           <p id={toolsId} className="mb-1.5 text-micro text-ink-3">
             Run the call
           </p>
           {buttons.length > 0 ? (
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {buttons.map((t) => (
-                <button key={t.action} type="button" className={TOOL} onClick={() => onAction?.(t)}>
+                <button key={t.action} type="button" className={cn(CALL_PANEL_TOOL, "[&_svg]:size-4")} onClick={() => onAction?.(t)}>
                   {TOOL_ICONS[t.action]}
                   {t.label}
                 </button>
@@ -120,29 +195,40 @@ export default function CallPeoplePanel({
             />
           ) : null}
           {muteOnEntry && onMuteOnEntry ? <ToolSwitch label="People join muted" checked={!!settings?.muteOnEntry} onChange={(on) => onMuteOnEntry(on)} /> : null}
+          {letEveryone.length > 0 && onHold ? <LetEveryone switches={letEveryone} onHold={onHold} /> : null}
         </div>
       ) : null}
       <ul aria-labelledby={titleId} className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {people.map((p) => {
-          const hue = personHue(p.name || p.identity)
-          const tags = personTags(p)
+          const tags = personTags(p, held)
           const actions =
-            me && onAction ? personActions(me, { identity: p.identity, role: p.role, guest: p.guest, micOn: p.micOn, cameraOn: p.cameraOn, sharing: p.sharing }, spotlit) : []
+            me && onAction
+              ? personActions(me, { identity: p.identity, role: p.role, guest: p.guest, micOn: p.micOn, cameraOn: p.cameraOn, sharing: p.sharing, handUp: p.hand !== null, allowed: p.allowed }, spotlit, held)
+              : []
+          const place = placeIn(queue, p.identity)
           return (
             <li key={p.identity} className="flex min-h-11 items-center gap-2.5 rounded-[10px] px-2 py-1.5" data-person-row="">
-              <span aria-hidden className={cn(HUE_CLASS[hue], avatarHueClass(hue), "grid size-7 shrink-0 place-items-center rounded-full text-micro font-semibold leading-none")}>
-                {getNameInitials(p.name)}
-              </span>
-              <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                <span data-person-name="" className="truncate text-ui-sm font-medium text-[#EEEEF0]">
-                  {p.name}
+              <IdentityMark variant="avatar" size={28} id={avatarSeed(p.name || p.identity)} label={p.name || p.identity} />
+              {/* The name keeps its line; a sign that stays sits under it, so it never squeezes the name. */}
+              <span className="flex min-w-0 flex-1 flex-col items-start">
+                <span className="flex w-full min-w-0 items-center gap-1.5">
+                  <span data-person-name="" className="truncate text-ui-sm font-medium text-[#EEEEF0]">
+                    {p.name}
+                  </span>
+                  {tags ? (
+                    <span className="shrink-0 text-meta text-ink-3" data-person-tags="">
+                      {tags}
+                    </span>
+                  ) : null}
                 </span>
-                {tags ? (
-                  <span className="shrink-0 text-meta text-ink-3" data-person-tags="">
-                    {tags}
+                {p.feedback ? (
+                  <span data-person-feedback="" className="mt-0.5 rounded-[6px] bg-white/[0.08] px-1.5 py-0.5 text-micro font-medium text-[#EEEEF0]">
+                    {feedbackLabel(p.feedback)}
                   </span>
                 ) : null}
+                <QualityNote verdict={quality?.get(p.identity)} />
               </span>
+              {place !== null ? <HandBadge place={place} /> : null}
               <span className="flex shrink-0 items-center gap-1.5 text-ink-3 [&_svg]:size-4">
                 {!p.micOn ? (
                   <span className="text-[#FF8086]">
@@ -168,5 +254,18 @@ export default function CallPeoplePanel({
         })}
       </ul>
     </aside>
+  )
+}
+
+/** Under a name: why the call is suffering for them, when it is. */
+function QualityNote({ verdict }: { verdict?: QualityVerdict }) {
+  const note = qualityNote(verdict)
+  if (!note) return null
+  return (
+    <span data-person-quality="" title={note.detail} className="mt-0.5 inline-flex items-center gap-1 whitespace-nowrap text-micro font-medium text-[#F5B544]">
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-[#F5B544]" />
+      {note.label}
+      <span className="sr-only">: {note.detail}</span>
+    </span>
   )
 }

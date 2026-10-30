@@ -8,7 +8,10 @@ import { TimeList } from "@/components/ui/date-time-picker"
 // light block across a dark list. Each time is a row of the interaction layer,
 // whose selected row (its tint and its leading bar) comes from tokens in both
 // themes; the paint over it is gone, and the chosen time's weight is its cue
-// that isn't colour.
+// that isn't colour. DESIGN-BUILD-3, 21 Oct: in the accent, the chosen time
+// was a second orange thing beside Pause, Set reminder or Schedule, where the
+// month marks its chosen day in ink. It is the neutral tone's row now, with
+// an ink check, as Select marks its chosen item.
 
 afterEach(cleanup)
 
@@ -24,6 +27,17 @@ describe("the chosen time in the time list", () => {
     expect(chosen.className).toContain("font-medium")
   })
 
+  it("is ink, not the accent: the neutral tone and a check, as Select's chosen item", () => {
+    render(<TimeList value={9 * 60} onPick={vi.fn()} />)
+    const chosen = screen.getByRole("option", { selected: true })
+    expect(chosen.getAttribute("data-tone")).toBe("neutral")
+    expect(chosen.querySelector("[data-menu-check]")?.getAttribute("data-menu-check")).toBe("on")
+    const other = screen.getAllByRole("option", { selected: false })[0]
+    expect(other.getAttribute("data-tone")).toBeNull()
+    // The other rows keep the check's slot, empty, so every time's end lines up.
+    expect(other.querySelector("[data-menu-check]")?.getAttribute("data-menu-check")).toBe("off")
+  })
+
   it("keeps its duration in the list's own quiet ink", () => {
     render(<TimeList value={9 * 60} since={8 * 60} onPick={vi.fn()} />)
     const chosen = screen.getByRole("option", { selected: true })
@@ -34,5 +48,14 @@ describe("the chosen time in the time list", () => {
     render(<TimeList value={9 * 60} onPick={vi.fn()} />)
     const other = screen.getAllByRole("option", { selected: false })[0]
     expect(other.className).not.toContain("font-medium")
+  })
+})
+
+describe("the neutral tone (app/interaction.css)", () => {
+  it("tints and marks in ink", async () => {
+    const { readFileSync } = await import("node:fs")
+    const { join } = await import("node:path")
+    const css = readFileSync(join(__dirname, "../../app/interaction.css"), "utf8")
+    expect(css).toMatch(/\[data-interactive\]\[data-tone="neutral"\] \{\s*--ix-tint: var\(--ink\);\s*--ix-mark: var\(--ink\);/)
   })
 })

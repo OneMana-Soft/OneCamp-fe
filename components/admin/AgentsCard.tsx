@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
 import { StatusWord } from "@/components/ui/statusWord"
 import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
+import { InstantSwitch } from "@/components/ui/instantSwitch"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -259,16 +259,8 @@ const AgentsCard = ({
   const agents = data?.data || []
 
   const handleToggle = async (a: Agent, next: boolean) => {
-    setBusyId(a.id)
-    try {
-      await setAgentActive(a.id, next)
-      toast({ title: next ? `${a.name} is running` : `${a.name} is paused` })
-      mutate()
-    } catch {
-      // interceptor surfaces the error
-    } finally {
-      setBusyId(null)
-    }
+    await setAgentActive(a.id, next)
+    void mutate()
   }
 
   const handleDelete = async (a: Agent) => {
@@ -437,10 +429,11 @@ const AgentsCard = ({
                   </div>
                   <div className="agent-card-foot">
                     <label className="flex flex-1 cursor-pointer items-center gap-2 text-xs font-medium">
-                      <Switch
+                      <InstantSwitch
                         checked={a.is_active}
                         disabled={busyId === a.id}
-                        onCheckedChange={(v) => handleToggle(a, v)}
+                        onSave={(v) => handleToggle(a, v)}
+                        what={(v) => (v ? `${a.name} is running` : `${a.name} is paused`)}
                         aria-label={`${a.name} can act`}
                       />
                       <span aria-hidden="true">Can act</span>

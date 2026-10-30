@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useListMoving } from "@/lib/ui/scrollState"
 import { SeparatorPill } from "@/components/separator/separatorPill"
 import { debounceUtil } from "@/lib/utils/helpers/debounce"
 import type { RowMeta, VirtualizedListProps } from "@/types/virtual"
@@ -38,19 +39,22 @@ function MessageRowImpl<T>({ data, priority, isLast, continued, arrived, renderI
 const MemoizedMessageItem = React.memo(MessageRowImpl) as typeof MessageRowImpl
 
 
-/** The room the list leaves under its last message for a phone's floating composer (its pb-[150px]). */
-const PHONE_COMPOSER_ROOM = 150
 /** The gap between the pill and the composer on a phone (the pill's bottom-3 elsewhere). */
 const PILL_GAP = 12
+/** The unread banner's pill ends 42px down (top-2.5, h-8); 8px clear under it. */
+const BANNER_BOTTOM = 42, BANNER_GAP = 8
 
 /**
  * Where a phone's "Jump to latest" hangs: PILL_GAP above the composer's card,
- * as an offset from the list's padding edge. Below md the composer floats over
- * the list's last 150px, and a sticky offset counts from above that padding,
- * so the pill hung about 100px over the conversation, across the author's name
- * of a message (QA F-27). Measured while it shows, as the card grows with the
- * tools and the formatting row. Undefined at md and up, or with no composer.
- * Wherever the card is, the pill's foot lands PILL_GAP above its top.
+ * or above the command answers showing over it (a Giphy card), as an offset
+ * from the list's padding edge. Below md the composer floats over the room the
+ * list pads under its last message (phone.css --phone-composer-room), and a
+ * sticky offset counts from above that padding, so the pill hung about 100px
+ * over the conversation, across the author's name of a message (QA F-27).
+ * Measured while it shows: as the card grows with the tools and the formatting
+ * row, as answers come and go, and as the room follows the sheet. Undefined at
+ * md and up, or with no composer. Wherever the card is, the pill's foot lands
+ * PILL_GAP above its top.
  */
 function usePillAboveComposer(scroller: React.RefObject<HTMLElement | null>, shown: boolean): number | undefined {
     const [offset, setOffset] = useState<number>()
@@ -58,7 +62,7 @@ function usePillAboveComposer(scroller: React.RefObject<HTMLElement | null>, sho
         const list = scroller.current
         const phone = typeof window !== "undefined" && window.matchMedia?.("(max-width: 767.98px)").matches
         // The phone's floating card, or (640 to 767px wide) the computer's
-        // composer under the list, which the 150px still pads.
+        // composer under the list, which the room still pads.
         const card =
             document.querySelector<HTMLElement>("[data-phone-composer]") ??
             document.querySelector<HTMLElement>("[data-composer-sheet]") ??
@@ -67,14 +71,22 @@ function usePillAboveComposer(scroller: React.RefObject<HTMLElement | null>, sho
             setOffset(undefined)
             return
         }
+        const sheet = card.closest<HTMLElement>("[data-composer-sheet]")
         const measure = () => {
-            const above = list.getBoundingClientRect().bottom - card.getBoundingClientRect().top
-            setOffset(Math.round(above + PILL_GAP - PHONE_COMPOSER_ROOM))
+            // A command's answers show above the card, in its sheet.
+            const answers = sheet?.querySelector<HTMLElement>("[data-command-answers]")
+            const top = Math.min(card.getBoundingClientRect().top, answers?.getBoundingClientRect().top ?? Infinity)
+            const room = parseFloat(getComputedStyle(list).paddingBottom) || 0
+            setOffset(Math.round(list.getBoundingClientRect().bottom - top + PILL_GAP - room))
         }
         measure()
         if (typeof ResizeObserver === "undefined") return
         const observer = new ResizeObserver(measure)
         observer.observe(card)
+        // The sheet grows and shrinks as answers come and go, and the list's
+        // room (its padding, so its content box) follows the sheet.
+        if (sheet) observer.observe(sheet)
+        observer.observe(list)
         return () => observer.disconnect()
     }, [scroller, shown])
     return offset
@@ -107,6 +119,7 @@ export const MessageListVirtua = <T,>({
                                           anchor,
                                           timeOf,
                                           onMarkRead,
+                                          unreadKnown = true,
                                       }: Omit<VirtualizedListProps<T>, 'onScroll'> & {
                                           initialTopMostItemIndex?: number,
                                           initialScrollOffsetFromTop?: number,
@@ -150,8 +163,11 @@ export const MessageListVirtua = <T,>({
                                           timeOf?: (item: T) => string | undefined,
                                           /** Marks the conversation read, from the unread banner (chat B27). */
                                           onMarkRead?: () => void,
+                                          /** Whether the unread count is known. */
+                                          unreadKnown?: boolean,
                                       }) => {
     const scrollerRef = useRef<HTMLDivElement>(null)
+    useListMoving(scrollerRef)
     const contentRef = useRef<HTMLDivElement>(null)
     const [visibleDateIndex, setVisibleDateIndex] = useState<number>(-1)
     const [isScrolledToBottom, setIsScrolledToBottom] = useState(true)
@@ -380,14 +396,27 @@ export const MessageListVirtua = <T,>({
 
     // WHERE A CONVERSATION OPENS (chat B27, D-SD6). At the newest message,
     // with the line drawn from the marker; but with more than a screen
-    // unread, at the first unread, its line at the top, and a banner that
-    // says how many since when, with Jump and Mark as read. Once, as it opens;
-    // never over a link's message or the place the reader left it.
+    // unread, at the first unread, its line under a banner that says how many
+    // since when, with Jump and Mark as read. Once, as it opens; never over a
+    // link's message or the place the reader left it.
     const [banner, setBanner] = useState(false)
     const [lineRead, setLineRead] = useState(false)
     const opened = useRef(false)
+    const bannerRef = useRef<HTMLDivElement>(null)
+    const placeLine = useRef<number | null>(null)
+    // The line clear of the banner, under the last read message (at most a third of a screen).
+    const toUnreadLine = useCallback((at: number) => {
+        const v = ref.current
+        if (!v) return
+        const pill = bannerRef.current?.getBoundingClientRect()
+        const clear = (pill?.height ? pill.bottom - (scrollerRef.current?.getBoundingClientRect().top ?? 0) : BANNER_BOTTOM) + BANNER_GAP
+        let read = at - 1
+        while (read >= 0 && items[read].type !== "item") read--
+        const context = read < 0 ? 0 : Math.min(v.getItemOffset(at) - v.getItemOffset(read), v.viewportSize / 3)
+        v.scrollToIndex(at, { align: "start", offset: -(clear + context) })
+    }, [items, ref])
     useLayoutEffect(() => {
-        if (opened.current || anchor || restoring || !ref.current || items.length === 0) return
+        if (opened.current || anchor || restoring || !ref.current || items.length === 0 || !unreadKnown) return
         opened.current = true
         const at = items.findIndex((i) => i.type === "unread")
         if (at < 0) return
@@ -396,11 +425,18 @@ export const MessageListVirtua = <T,>({
             if (!v || v.getItemOffset(at) >= v.scrollOffset) return
             atBottomRef.current = false
             setIsScrolledToBottom(false)
-            v.scrollToIndex(at, { align: "start" })
+            toUnreadLine(at)
+            placeLine.current = at
             setBanner(true)
         })
         return () => cancelAnimationFrame(frame)
-    }, [items, anchor, restoring, ref])
+    }, [items, anchor, restoring, ref, unreadKnown, toUnreadLine])
+    // Then by the banner's measured edge.
+    useLayoutEffect(() => {
+        if (!banner || placeLine.current === null) return
+        toUnreadLine(placeLine.current)
+        placeLine.current = null
+    }, [banner, toUnreadLine])
     // Reaching the end has read it: the banner goes.
     useEffect(() => {
         if (isScrolledToBottom) setBanner(false)
@@ -489,7 +525,7 @@ export const MessageListVirtua = <T,>({
             // end, just above the composer, as chat reads (the content's
             // mt-auto); a longer one scrolls as before. Its focus ring sits
             // inside it, where the panes around it can't clip it.
-            className={cn(containerClassName, "flex touch-pan-y flex-col w-full min-w-0 flex-1 min-h-0 md:pb-0 pb-[150px] focus-visible:outline-offset-[calc(var(--ix-ring)*-1)]")}
+            className={cn(containerClassName, "flex touch-pan-y flex-col w-full min-w-0 flex-1 min-h-0 md:pb-0 pb-[var(--phone-composer-room)] focus-visible:outline-offset-[calc(var(--ix-ring)*-1)]")}
             style={{
                 overflowY: "auto", overflowX: "hidden", overflowAnchor: "none", WebkitOverflowScrolling: "touch", touchAction: "pan-y"
             }}
@@ -517,11 +553,12 @@ export const MessageListVirtua = <T,>({
             </div>
             {banner && (
                 <UnreadBanner
+                    pillRef={bannerRef}
                     count={unreadCount}
                     since={unreadSince}
                     onJump={() => {
                         const at = items.findIndex((i) => i.type === "unread")
-                        if (at >= 0) ref.current?.scrollToIndex(at, { align: "start" })
+                        if (at >= 0) toUnreadLine(at)
                     }}
                     onMarkRead={onMarkRead && (() => {
                         onMarkRead()
@@ -719,17 +756,19 @@ export const MessageListVirtua = <T,>({
  * The unread banner (chat B27, D-SD6): a conversation opened onto more than a
  * screen of unread says how many since when, with Jump (back to the line) and
  * Mark as read. A sticky strip of no height at the list's top, as the day pill.
+ * A phone says it short; no phrase wraps; a finger's reach is 44px (phone.css F3).
  */
-function UnreadBanner({ count, since, onJump, onMarkRead }: { count: number; since?: string; onJump: () => void; onMarkRead?: () => void }) {
-    const words = `${count} new ${count === 1 ? "message" : "messages"}${since ? ` since ${clockTime(new Date(since))}` : ""}`
+function UnreadBanner({ count, since, onJump, onMarkRead, pillRef }: { count: number; since?: string; onJump: () => void; onMarkRead?: () => void; pillRef: React.Ref<HTMLDivElement> }) {
+    const time = since ? ` since ${clockTime(new Date(since))}` : ""
     return (
         <div className="sticky top-0 z-[var(--z-sticky)] h-0 overflow-visible" data-unread-banner="">
             <div role="status" className="absolute inset-x-0 top-2.5 flex justify-center px-4">
-                <div className="flex h-8 items-center gap-1 rounded-xl bg-sheet pl-3 pr-1 text-ui-sm text-ink shadow-e2 ring-1 ring-line">
-                    <span className="font-medium tabular-nums">{words}</span>
-                    <button type="button" onClick={onJump} {...ix("button")} className="ml-1 h-6 rounded-md px-2 font-medium text-brand-text">Jump</button>
+                <div ref={pillRef} className="flex min-h-8 flex-wrap items-center justify-center gap-x-1 whitespace-nowrap rounded-xl bg-sheet py-1 pl-3 pr-1 text-ui-sm text-ink shadow-e2 ring-1 ring-line">
+                    <span className="font-medium tabular-nums sm:hidden">{count} new{time}</span>
+                    <span className="hidden font-medium tabular-nums sm:inline">{count} new {count === 1 ? "message" : "messages"}{time}</span>
+                    <button type="button" onClick={onJump} {...ix("button")} data-touch-target="" className="ml-1 h-6 rounded-md px-2 font-medium text-brand-text">Jump</button>
                     {onMarkRead && (
-                        <button type="button" onClick={onMarkRead} {...ix("button")} className="h-6 rounded-md px-2 font-medium text-ink-2">Mark as read</button>
+                        <button type="button" onClick={onMarkRead} {...ix("button")} data-touch-target="" className="h-6 rounded-md px-2 font-medium text-ink-2">Mark as read</button>
                     )}
                 </div>
             </div>

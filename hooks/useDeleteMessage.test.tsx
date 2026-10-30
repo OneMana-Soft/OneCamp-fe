@@ -157,12 +157,10 @@ describe("deleting a message", () => {
   })
 })
 
-describe("every message list and phone thread page", () => {
+describe("every message list (its rows' actions) and phone thread page", () => {
   const read = (p: string) => readFileSync(join(__dirname, "..", p), "utf8")
   it.each([
-    "components/channel/channelMessages.tsx",
-    "components/chat/chatMessages.tsx",
-    "components/groupChat/groupChatMessages.tsx",
+    "hooks/useRowActions.ts",
     "components/mobilePost/mobilePost.tsx",
     "components/mobileChatMessage/mobileChat.tsx",
     "components/mobileChatMessage/mobileGroupChat.tsx",

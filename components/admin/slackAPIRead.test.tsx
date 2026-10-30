@@ -18,7 +18,9 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { max_bytes: 5 * 1
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast: (...a: unknown[]) => toast(...a) }))
 
-const { SlackImportUploadDialog, isSlackToken } = await import("./SlackImportUploadDialog")
+const { SlackImportUploadDialog } = await import("./SlackImportUploadDialog")
+const { slackTokenKind } = await import("@/services/slackImportService")
+const isSlackToken = (s: string) => !!slackTokenKind(s)
 const { JobRow } = await import("./SlackImportCard")
 const { SLACK_READ_SCOPES, slackReadManifest } = await import("./slackTokenHelp")
 
@@ -136,5 +138,35 @@ describe("a read in the import history", () => {
     expect(screen.getByText("9,400 messages")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Plan" }))
     expect(handlers.onPlan).toHaveBeenCalled()
+  })
+
+  // A member bringing their own DMs: the admins see whose, how far and how
+  // many, and nothing to plan, run or read of it (the server keeps its plan,
+  // notes and digest to the member, and refuses a plan or run by hand).
+  it("shows a member's own DMs as theirs, without a way into what's in them", () => {
+    const member = { options: { member_dms: true }, member_name: "Bo Diddley", errors_total: 2 }
+    const { unmount } = render(
+      <JobRow job={row({ ...member, status: "validating", stage: "validating", progress: { read: { conversations: 4, of: 4, messages: 31, replies: 0, files: 0 } } }) as never} {...handlers} />,
+    )
+    expect(screen.getByText("Bo Diddley's own DMs")).toBeTruthy()
+    expect(screen.getByText("4 conversations")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Plan" })).toBeNull()
+    expect(screen.queryByText("2 errors")).toBeNull()
+    unmount()
+    render(<JobRow job={row({ ...member, status: "completed", stage: "finalize", items_imported: 31, chunks_done: 3, chunks_total: 3, progress: { read: { conversations: 4, of: 4, messages: 31, replies: 0, files: 0 } } }) as never} {...handlers} />)
+    expect(screen.getByText("4 conversations")).toBeTruthy()
+    expect(screen.getByText("31 messages")).toBeTruthy()
+    expect(screen.getByText(/^Brought /)).toBeTruthy()
+    // An import's counters don't apply to a read of DMs.
+    expect(screen.queryByText(/items?$/)).toBeNull()
+    expect(screen.queryByText(/parts?$/)).toBeNull()
+    cleanup()
+    render(<JobRow job={row({ ...member, status: "failed", stage: "failed", plan: { job_id: "job-9" } }) as never} {...handlers} />)
+    expect(screen.queryByRole("button", { name: /Run again|Plan again/ })).toBeNull()
+    render(<JobRow job={row({ ...member, member_name: undefined, status: "pending", stage: "waiting" }) as never} {...handlers} />)
+    expect(screen.getByText("A member's own DMs")).toBeTruthy()
+    expect(screen.getByText("Waiting")).toBeTruthy()
+    // Waiting isn't read: it says when it was queued.
+    expect(screen.getByText(/^Queued /)).toBeTruthy()
   })
 })

@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
+import { InstantSwitch } from "@/components/ui/instantSwitch"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, Trash2, RefreshCw, Copy, Eye, EyeOff, CheckCircle2, XCircle, ChevronDown, Pencil, Terminal } from "@/lib/icons";
@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { NeutralChip, RowMenu, StateWord } from "@/components/admin/connectParts"
-import { deliveryState, eventChips, parseEvents, pausedWhy, shortUrl } from "@/components/admin/webhookParts"
+import { deliveryState, eventChips, parseEvents, pausedWhy, sendsNothingWhy, shortUrl, TICK_AN_EVENT } from "@/components/admin/webhookParts"
 import { AddressReveal, incomingUrl } from "@/components/admin/webhookAddress"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
@@ -56,6 +56,7 @@ interface WebhookItem {
   last_triggered_at?: string
   failure_count: number
   scope_type?: string
+  scope_entity_id?: string
   paused_at?: string
   paused_reason?: string
   created_at: string
@@ -124,6 +125,37 @@ function DeliveryToolbar({ icon: Icon, label, action }: { icon: React.ComponentT
       </span>
       {action}
     </div>
+  )
+}
+
+/**
+ * A line under a webhook's address saying why it isn't sending as set up, with
+ * the one action that puts it right: Resume when it is paused, Edit when it
+ * names no kinds of event.
+ */
+function RowNotice({ mark, why, act, label, onAct, disabled }: {
+  mark: "paused" | "nokinds"
+  why: string
+  act: string
+  label: string
+  onAct: () => void
+  disabled?: boolean
+}) {
+  return (
+    <p data-webhook-notice={mark} className="flex flex-wrap items-center gap-x-2 text-2xs text-warning-ink">
+      <span>{why}</span>
+      <Button
+        variant="link"
+        size="sm"
+        // A 24px target for a finger; the word stays small.
+        className="-my-1 h-6 px-1 text-2xs"
+        disabled={disabled}
+        aria-label={label}
+        onClick={onAct}
+      >
+        {act}
+      </Button>
+    </p>
   )
 }
 
@@ -224,7 +256,8 @@ const WebhooksCard = () => {
   }
 
   // The switch saves on change with the same fields the edit dialog sends, so
-  // nothing else about the webhook is cleared by a partial update.
+  // nothing else about the webhook is cleared by a partial update. The row
+  // ticks and the toast offers it back; a failure rejects, and it springs back.
   const setActive = async (webhook: WebhookItem, on: boolean) => {
     setActiveOverride((m) => ({ ...m, [webhook.id]: on }))
     setSaving((m) => ({ ...m, [webhook.id]: true }))
@@ -239,13 +272,14 @@ const WebhooksCard = () => {
         events: events.length > 0 ? events : undefined,
         is_active: on,
       })
-      await mutate()
-    } catch {
+    } catch (e) {
       // Back to what it was; the interceptor's toast carries the reason.
       setActiveOverride((m) => ({ ...m, [webhook.id]: !on }))
+      throw e
     } finally {
       setSaving((m) => ({ ...m, [webhook.id]: false }))
     }
+    void mutate()
   }
 
   const fetchLogs = async (webhookId: string, page: number, replace: boolean) => {
@@ -299,11 +333,13 @@ const WebhooksCard = () => {
   const urlBase = incomingUrl("")
   const loaded = !isLoading && !isError && !!webhookData
 
+  // With its scope: the dialog shows what the webhook is sent events from.
   const openEdit = (webhook: WebhookItem) =>
     dispatch(openUI({ key: "webhookEdit", data: {
       id: webhook.id, name: webhook.name, description: webhook.description,
       type: webhook.type, target_url: webhook.target_url, channel_id: webhook.channel_id,
       bot_name: webhook.bot_name, events: webhook.events, is_active: webhook.is_active,
+      scope_type: webhook.scope_type, scope_entity_id: webhook.scope_entity_id,
     }}))
   const openDelete = (webhook: WebhookItem) =>
     dispatch(openUI({ key: "webhookDelete", data: { id: webhook.id, name: webhook.name, type: webhook.type, last_triggered_at: webhook.last_triggered_at } }))
@@ -368,6 +404,7 @@ const WebhooksCard = () => {
                   : shortUrl(`${urlBase}••••••••`)
             const open = showLogs === webhook.id
             const why = webhook.type === "outgoing" ? pausedWhy(webhook) : null
+            const nothing = sendsNothingWhy(webhook)
             return (
             <li key={webhook.id} data-webhook-row="" className="cx-wh-item">
               <div className="cx-wh-row">
@@ -384,33 +421,26 @@ const WebhooksCard = () => {
                     {address}
                   </p>
                   {why && (
-                    <p data-webhook-paused="" className="flex flex-wrap items-center gap-x-2 text-2xs text-warning-ink">
-                      <span>{why}</span>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        // A 24px target for a finger; the word stays small.
-                        className="-my-1 h-6 px-1 text-2xs"
-                        disabled={saving[webhook.id]}
-                        aria-label={`Resume ${webhook.name}`}
-                        onClick={() => void resume(webhook)}
-                      >
-                        Resume
-                      </Button>
-                    </p>
+                    <RowNotice
+                      mark="paused"
+                      why={why}
+                      act="Resume"
+                      label={`Resume ${webhook.name}`}
+                      onAct={() => void resume(webhook)}
+                      disabled={saving[webhook.id]}
+                    />
+                  )}
+                  {nothing && (
+                    <RowNotice mark="nokinds" why={nothing} act="Edit" label={`Edit ${webhook.name}`} onAct={() => openEdit(webhook)} />
                   )}
                 </div>
-                {webhook.type === "outgoing" && (
+                {webhook.type === "outgoing" && events.shown.length > 0 && (
                   <div data-webhook-events="" className="cx-wh-events">
-                    {events.shown.length === 0 ? (
-                      <NeutralChip>Every event</NeutralChip>
-                    ) : (
-                      events.shown.map((ev) => (
-                        <NeutralChip key={ev} className="font-mono">
-                          {ev}
-                        </NeutralChip>
-                      ))
-                    )}
+                    {events.shown.map((ev) => (
+                      <NeutralChip key={ev} className="font-mono">
+                        {ev}
+                      </NeutralChip>
+                    ))}
                     {events.more > 0 && (
                       <span data-webhook-more="" className="text-2xs font-medium tabular-nums text-muted-foreground">
                         +{events.more}
@@ -421,12 +451,15 @@ const WebhooksCard = () => {
                 <StateWord tone={state.tone} className="cx-wh-state">
                   {state.word}
                 </StateWord>
-                <Switch
+                <InstantSwitch
                   checked={active}
-                  disabled={saving[webhook.id]}
-                  aria-busy={saving[webhook.id] || undefined}
+                  // With no kinds it is sent nothing, on or off; the server
+                  // refuses any change until one is ticked, and it says so.
+                  disabled={saving[webhook.id] || nothing !== null}
+                  disabledReason={nothing ? TICK_AN_EVENT : undefined}
                   aria-label={`${webhook.name} is on`}
-                  onCheckedChange={(v) => void setActive(webhook, v)}
+                  onSave={(v) => setActive(webhook, v)}
+                  what={(v) => (v ? `${webhook.name} is on` : `${webhook.name} is paused`)}
                   className="cx-wh-switch shrink-0"
                 />
                 <div className="cx-wh-actions">

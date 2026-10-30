@@ -1,4 +1,4 @@
-import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
+import { holdLoaded, keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import { createSlice } from "@reduxjs/toolkit";
 import {CancelTokenSource} from "axios";
 import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, restoreCase, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
@@ -351,26 +351,12 @@ const channelSlice = createSlice({
 
         updateChannelPosts: (state, action: {payload: UpdateChannelPosts}) => {
             const { channelId, posts } = action.payload;
-
-            state.channelPosts[channelId] = [...posts];
-            keepRecentlyLoaded(state.channelPosts, state.loadedOrder, channelId);
-
+            holdLoaded(state.channelPosts, state.loadedOrder, channelId, posts);
         },
 
-        // SYNC (window-reconcile): reconcile the loaded conversation against a
-        // freshly-fetched "latest" window after an idle gap (MQTT reconnect or
-        // tab foreground). Within the contiguous time-range the window covers,
-        // the server is authoritative, so this applies the THREE things an
-        // add-only merge misses:
-        //   • adds    — posts created while idle appear,
-        //   • edits   — a post whose server copy changed is refreshed in place,
-        //   • deletes — a post removed while idle (absent from the window but
-        //               inside its time-range) is dropped.
-        // Everything OUTSIDE the window's range is untouched: older paginated
-        // history is preserved, and optimistic local posts (post_added_locally,
-        // or newer than the window) are never removed — so there's no empty
-        // flash and no lost unconfirmed sends. Reference-stable: an idle
-        // reconnect with nothing changed is a no-op.
+        // A fresh latest window, authoritative over the time it covers: adds,
+        // edits and deletes; older pages and unsent posts kept; no-op when
+        // nothing changed (lib/utils/deletionTombstone reconcileLatestWindow).
         mergeChannelPosts: (state, action: {payload: UpdateChannelPosts}) => {
             const { channelId, posts, authoritativeThrough } = action.payload;
             if (!posts) return;

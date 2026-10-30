@@ -8,12 +8,13 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await import
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 beforeEach(() => {
   makeRequest.mockReset()
-  makeRequest.mockResolvedValue({ slots: [
-    { start: "2026-10-12T04:30:00Z", end: "2026-10-12T05:00:00Z" },
-    { start: "2026-10-12T05:30:00Z", end: "2026-10-12T06:00:00Z" },
-  ], busy: {} })
+  makeRequest.mockResolvedValue({ suggestions: [
+    { start: "2026-10-12T04:30:00Z", end: "2026-10-12T05:00:00Z", free: ["me", "u1"], reason: "Everyone's free" },
+    { start: "2026-10-12T05:30:00Z", end: "2026-10-12T06:00:00Z", free: ["me", "u1"], reason: "Everyone's free" },
+    { start: "2026-10-12T03:00:00Z", end: "2026-10-12T03:30:00Z", free: ["me"], away: ["u1"], reason: "1 of 2 free · outside Jonas's hours" },
+  ] })
 })
-vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }) }))
+vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }), useFetch: () => ({ data: undefined, mutate: () => {} }) }))
 vi.mock("@/components/common/peoplePicker", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/common/peoplePicker")>()),
   PeoplePicker: () => <input aria-label="Guests" />,
@@ -46,6 +47,41 @@ describe("a new event", () => {
     expect(chip[0].className).toMatch(/rounded-md/)
     expect(chip[0].className).not.toMatch(/rounded-full/)
     expect(screen.getByText(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/)).toBeTruthy()
+  })
+
+  // Calendar A3: ranked times in each person's hours, a time most can meet saying why.
+  it("asks for ranked times, and says why a time suits only some", async () => {
+    render(<FindTimeSuggestions participants={["u1"]} durationMinutes={30} onPick={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Find a time" }))
+    const partial = await screen.findByRole("button", { name: /1 of 2 free · outside Jonas's hours$/ })
+    expect(partial.getAttribute("data-partial")).toBe("true")
+    expect(partial.textContent).toMatch(/1 of 2$/)
+    expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ apiEndpoint: "/event/suggestTimes" }))
+    // Each day's times in time order, though ranked best first.
+    const times = screen.getAllByRole("button", { name: /AM|PM/ }).map((b) => b.getAttribute("aria-label"))
+    expect(times[0]).toMatch(/1 of 2 free/)
+  })
+
+  // F2's follow-up (DESIGN-BUILD-8): the server counts only the calendars it
+  // could read, so a time it offers may clash with someone it couldn't. The
+  // strip says so in the calendar's words, never as free.
+  it("says whose Google calendar couldn't be read, beside the times it offers", async () => {
+    makeRequest.mockResolvedValue({ suggestions: [{ start: "2026-10-12T04:30:00Z", end: "2026-10-12T05:00:00Z", free: ["me", "u1", "u2"], reason: "Everyone's free" }], unread: ["u1"] })
+    render(<FindTimeSuggestions participants={["u1", "u2"]} durationMinutes={30} onPick={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Find a time" }))
+    expect(await screen.findByText("Couldn't load one person's Google calendar, so their busy times aren't shown.")).toBeTruthy()
+  })
+
+  it("says the times count only yours when the workspace keeps when people are busy private", async () => {
+    makeRequest.mockResolvedValue({ suggestions: [{ start: "2026-10-12T04:30:00Z", end: "2026-10-12T05:00:00Z", free: ["me"], reason: "You're free" }], private: ["u1", "u2"] })
+    render(<FindTimeSuggestions participants={["u1", "u2"]} durationMinutes={30} onPick={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Find a time" }))
+    const note = await screen.findByText("Your workspace keeps when people are busy private, so these times count only yours.")
+    // The line above it says whose free times these are, never everyone's,
+    // and the note explaining it reads in the line's own quieter ink.
+    expect(screen.getByText("When you're free this week, in your working hours.")).toBeTruthy()
+    expect(screen.queryByText("When everyone is free this week, in each person's working hours.")).toBeNull()
+    expect(note.closest("p")?.className).toContain("text-ink-3")
   })
 
   // EV-58: Duplicate opens the dialog with a copy's notes and kind.

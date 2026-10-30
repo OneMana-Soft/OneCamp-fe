@@ -135,6 +135,20 @@ describe("Live Entity Chips", () => {
     opened.mockRestore()
   })
 
+  it("names a task by its key, quietly before its name, and reads it with the name", async () => {
+    answer = async () => [task({ key: "Q4-12" })]
+    render(<EntityChip kind="task" id={TASK} />)
+    await settle()
+    expect(screen.getByText("Q4-12")).toBeInTheDocument()
+    expect(screen.getByLabelText("Task: Q4-12 Write the launch post")).toBeInTheDocument()
+    cleanup()
+    resetLiveEntities()
+    answer = async () => [task()]
+    render(<EntityChip kind="task" id={TASK} />)
+    await settle()
+    expect(screen.getByLabelText("Task: Write the launch post")).toBeInTheDocument()
+  })
+
   it("reads a task again when its project's topic says it changed, and no other", async () => {
     answer = async () => [task()]
     render(<EntityChip kind="task" id={TASK} />)
@@ -255,6 +269,26 @@ describe("Live Entity Chips", () => {
     await settle()
     expect(screen.getByText("Today").closest("[data-entity-chip]")?.className).toContain("bg-camp-sun-tint")
     expect(screen.getByText("Old").closest("[data-entity-chip]")?.className).toContain("text-danger-ink")
+  })
+
+  // A chip toned for its day is a tint, where the status glyph's strong cut
+  // falls short of a mark's 3:1: there it draws in its hue's ink step.
+  it("draws the status of a task due today or past due in its ink, and of one with no day in its strong cut", async () => {
+    const today = dayKey(new Date())
+    const THIRD = "7a5c0000-0000-4000-8000-000000000004"
+    answer = async () => [task({ due: today }), { ...task({ due: "2020-01-01", name: "Old" }), id: OTHER }, { ...task({ name: "Someday" }), id: THIRD }]
+    render(
+      <>
+        <EntityChip kind="task" id={TASK} />
+        <EntityChip kind="task" id={OTHER} />
+        <EntityChip kind="task" id={THIRD} />
+      </>,
+    )
+    await settle()
+    const glyphOf = (name: string) => screen.getByText(name).closest("[data-entity-chip]")?.querySelector("[data-status-glyph]")?.innerHTML
+    expect(glyphOf("Write the launch post")).toMatch(/fill="var\(--camp-sun-ink\)"/)
+    expect(glyphOf("Old")).toMatch(/fill="var\(--camp-sun-ink\)"/)
+    expect(glyphOf("Someday")).toMatch(/fill="var\(--camp-sun\)"/)
   })
 
   it("takes a kind once: a second registration of a name is a mistake", () => {

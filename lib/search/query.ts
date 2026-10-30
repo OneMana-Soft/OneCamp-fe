@@ -13,6 +13,8 @@
  * text it is given.
  */
 
+import { isGoSpace } from "@/lib/utils/goText"
+
 export type Span = [number, number]
 
 export type NodeKind = "and" | "or" | "not" | "word" | "phrase" | "clause"
@@ -91,10 +93,7 @@ const span = (src: Source, start: number, end: number): Span => [src.u16[start],
 const slice = (src: Source, start: number, end: number): string => src.text.slice(src.u16[start], src.u16[end])
 
 // Go's unicode.IsSpace, exactly.
-function isSpace(cp: number): boolean {
-  if (cp <= 0xff) return cp === 9 || cp === 10 || cp === 11 || cp === 12 || cp === 13 || cp === 32 || cp === 0x85 || cp === 0xa0
-  return cp === 0x1680 || (cp >= 0x2000 && cp <= 0x200a) || cp === 0x2028 || cp === 0x2029 || cp === 0x202f || cp === 0x205f || cp === 0x3000
-}
+const isSpace = isGoSpace
 
 const LPAREN = 0x28
 const RPAREN = 0x29
@@ -823,6 +822,44 @@ export function setModifier(text: string, field: string, value: string): string 
 /** The text with field:value added beside any already there (a chip that adds a value). */
 export function addModifier(text: string, field: string, value: string): string {
   return tidy(`${text} ${modifierText(field, value)}`)
+}
+
+/** A modifier at the top of a text, as a chip shows it: its field and values, whether it is negated, and its stretch. */
+export interface TopModifier {
+  field: string
+  values: string[]
+  negated: boolean
+  span: Span
+}
+
+/** The modifiers among the terms joined by AND at the top of a text, negated ones too (-from:@sam), in order. */
+export function topModifierList(text: string): TopModifier[] {
+  const root = parse(text).root
+  const terms = !root ? [] : root.kind === "and" ? root.children! : [root]
+  const out: TopModifier[] = []
+  for (const n of terms) {
+    const negated = n.kind === "not" && n.children?.length === 1
+    const c = negated ? n.children![0] : n
+    if (c.kind === "clause" && c.form === "mod") out.push({ field: c.field ?? "", values: c.values ?? [], negated, span: n.span })
+  }
+  return out
+}
+
+/** The text without its top modifiers: the words a reader that knows no filters searches for (the AI's answer, Who knows). */
+export function freeWords(text: string): string {
+  return topModifierList(text).reduceRight((t, m) => removeSpan(t, m.span), text).trim()
+}
+
+/**
+ * The text with field:value in place of every modifier on any of fields, or
+ * with none of them when value is empty: a date chip replaces on:, during:,
+ * before: and after: alike, negated ones too.
+ */
+export function replaceModifiers(text: string, fields: string[], field: string, value: string): string {
+  const found = topModifierList(text).filter((m) => fields.some((f) => asciiFold(m.field, f)))
+  let out = text
+  for (const m of [...found].reverse()) out = out.slice(0, m.span[0]) + out.slice(m.span[1])
+  return tidy(value ? `${out} ${modifierText(field, value)}` : out)
 }
 
 /** The modifier the caret is in, if any: its field and the stretch its value takes (empty right after the colon). */

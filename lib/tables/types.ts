@@ -80,3 +80,10 @@ export interface TrashItem {
   kind: "row" | "field"
   id: string
 }
+
+/** A formula's or a rollup's sums the server refused to work out (a 422, in its words): those columns say why, never their loaded rows' (airtable-03). */
+export interface RefusedSums {
+  why: string
+  /** The fields, as the spec names them ("field:<id>"). */
+  fields: readonly string[]
+}

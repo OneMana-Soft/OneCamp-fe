@@ -24,7 +24,20 @@ import { describe, expect, it } from "vitest"
  *      show (aria-disabled and data-disabled-reason say why instead);
  *   9. a raw :hover rule in a stylesheet sits outside @media (hover: hover),
  *      where it sticks after a tap on a phone;
- *  10. the 60% tap flash (a:active, button:active opacity) is back.
+ *  10. the 60% tap flash (a:active, button:active opacity) is back;
+ *  11. a native date or time box stands where DateField or TimeField should;
+ *  12. a primary is disabled while its own action runs (saving, sending), or
+ *      a Button sets its own aria-busy: disabled is "you can't do this yet",
+ *      the field's look, and Button's busy keeps the brand and blocks a
+ *      second press; a menu's trigger, which only opens its menu, is never
+ *      busy;
+ *  13. a busy reads a state that several actions share (busy={!!busy} over
+ *      "restore" or "purge", a row's id) as a whole, or a Button is disabled
+ *      by the same whole state while busy with its own: busy is for its own
+ *      action, disabled while another runs (busyWith, lib/ui/busyWith.ts);
+ *  14. a busy Button draws a spinner of its own, or anything dims a busy
+ *      control: the layer spins in its leading icon's place, at full
+ *      strength.
  *
  * Each rule is shown biting on a fixture, so it keeps working once the app is
  * clean. BASELINE holds what later adoption steps (§9.5) still owe, by file:
@@ -129,6 +142,8 @@ const ADOPTED = [
   "components/ui/dropdown-menu.tsx",
   "components/ui/select.tsx",
   "components/ui/command.tsx",
+  "components/ui/combobox.tsx",
+  "components/ui/comboboxMenu.tsx",
   "components/ui/CommandList.tsx",
   "components/ui/checkbox.tsx",
   "components/ui/switch.tsx",
@@ -160,8 +175,8 @@ function rule1(file: string, src: string): Finding[] {
   const sf = parse(file, src)
   const out: Finding[] = []
   const adopted = ADOPTED.includes(file)
-  // A toggle primitive draws its own checked fill, on itself or its thumb.
-  const toggleFile = adopted && /\bix\("toggle"\)/.test(src)
+  // A toggle primitive draws its own checked fill, on itself or its thumb, with options to ix() or none.
+  const toggleFile = adopted && /\bix\("toggle"[,)]/.test(src)
   eachTag(sf, (el) => {
     const kind = attrOf(el, "data-interactive")?.initializer
     const spread = attrsOf(el).some((a) => ts.isJsxSpreadAttribute(a) && /\bix\(/.test(a.expression.getText(sf)))
@@ -211,11 +226,13 @@ const INERT_TAGS = new Set(["div", "span", "p", "li", "ul", "ol", "section", "he
 /** Fields and controls whose focus shows somewhere this file can't see, with the reason. */
 const FIELD_FOCUS: Array<[file: string, snippet: string, why: string]> = [
   ["components/ui/command.tsx", "flex h-10 w-full rounded-md bg-transparent py-3", "the palette's and a combobox's search: focus stays in it while its list is open"],
+  ["components/ui/comboboxMenu.tsx", "h-full min-w-0 flex-1 bg-transparent text-base outline-none", "a combobox's filter, focused as its menu opens and kept there while it is"],
   ["components/docEditor/BlockMenuPopover.tsx", "h-full min-w-0 flex-1 bg-transparent text-ui text-ink", "the block menu's search, focused as the menu opens and kept there while it is"],
   ["components/docEditor/technical/LanguagePicker.tsx", "h-full w-full bg-transparent text-ui-sm text-ink", "the language picker's search, focused as the picker opens"],
   ["components/minimal-tiptap/extensions/math/MathEditor.tsx", "doc-math-field", "the equation box, focused as its popover opens; .doc-math-field draws its own ring (code.css)"],
-  ["components/table/gridCells.tsx", "peer h-full w-full bg-transparent text-ui text-ink", "a cell's editor: the cell rings itself while it holds focus (table.css .v3-grid td:focus-within)"],
-  ["components/table/gridCells.tsx", "outline-none", "a grid cell: the cell rings itself while it holds focus (table.css .v3-grid td:focus-within)"],
+  ["components/table/cellFaces.tsx", "peer h-full w-full bg-transparent text-ui text-ink", "a cell's editor: the cell rings itself while it holds focus (table.css .v3-grid td:focus-within), and the record panel's row rises (focus-within:bg-raised)"],
+  ["components/table/cellFaces.tsx", "outline-none", "a grid cell: the cell rings itself while it holds focus (table.css .v3-grid td:focus-within)"],
+  ["components/table/kindCells.tsx", "outline-none", "a grid cell of tables B1's kinds: the cell rings itself while it holds focus (table.css .v3-grid td:focus-within)"],
   ["components/table/cellPickers.tsx", "h-7 w-full bg-transparent text-ui text-ink", "a select cell's search, focused as its list opens"],
   ["components/table/cellPickers.tsx", "h-7 min-w-0 flex-1 bg-transparent text-ui font-normal", "a relation's search, focused as its picker opens"],
   ["components/task/taskRowParts.tsx", "h-8 min-w-0 flex-1 bg-transparent text-sm", "a picker's filter, focused as the picker opens"],
@@ -225,6 +242,8 @@ const FIELD_FOCUS: Array<[file: string, snippet: string, why: string]> = [
   ["components/calendar/form/eventForm.tsx", "w-full bg-transparent font-display text-title-2", "the Event Form's borderless title, focused as the dialog or the panel's edit opens"],
   ["components/task/taskCreateForm.tsx", "w-full bg-transparent px-4 py-1 text-title-2", "the dialog's borderless title, focused as the dialog opens"],
   ["components/ai/DocAiBar.tsx", "h-10 min-w-0 flex-1 bg-transparent text-ui text-ink", "the doc AI bar's prompt, focused as the bar opens and kept there while it is"],
+  ["components/ui/input-group.tsx", "h-full w-full min-w-0 flex-1 self-stretch rounded-[inherit] bg-transparent", "an input group's text: the group draws the field's halo while it holds focus (field-surface, :has(…:focus-visible))"],
+  ["components/ui/input-group.tsx", "min-h-[60px] w-full min-w-0 flex-1 resize-none rounded-[inherit] bg-transparent", "an input group's text area: the group draws the field's halo while it holds focus"],
 ]
 const FIELD_TAGS = new Set(["input", "textarea", "select", "Input", "Textarea", "CommandPrimitive.Input"])
 /** Focus-trapping surfaces: they take focus only to hand it on, and draw none of their own. */
@@ -399,14 +418,166 @@ function rule8(file: string, src: string): Finding[] {
   return out
 }
 
-/** D14 (PG2-06): no native date or time box in app code; DateField and TimeField stand in. */
+/**
+ * D14 (PG2-06): no native date or time box in app code; DateField, TimeField
+ * and DateTimeField stand in. A datetime-local, month or week box is one too:
+ * four datetime-local boxes (Pause until, Remind me, Schedule send, Send
+ * later) stood while the rule looked only for date and time (SHADCN-AUDIT).
+ */
+const NATIVE_DATE_TYPES = new Set(["date", "time", "datetime-local", "month", "week"])
+
 function rule11(file: string, src: string): Finding[] {
-  if (!file.endsWith(".tsx") || !/\btype=\{?["'`](?:date|time)["'`]/.test(src)) return []
+  if (!file.endsWith(".tsx") || !/\btype=\{?["'`](?:date|time|datetime-local|month|week)["'`]/.test(src)) return []
   const sf = parse(file, src)
   const out: Finding[] = []
   eachTag(sf, (el) => {
     const type = attrOf(el, "type")?.initializer?.getText(sf).replace(/[{}"'`\s]/g, "")
-    if (type === "date" || type === "time") out.push(`${file}:${lineOf(sf, el)} <${el.tagName.getText(sf)} type="${type}">`)
+    if (type && NATIVE_DATE_TYPES.has(type)) out.push(`${file}:${lineOf(sf, el)} <${el.tagName.getText(sf)} type="${type}">`)
+  })
+  return out
+}
+
+/**
+ * A flag that says a control's own action is under way. A primary disabled by
+ * one turned to the field's look mid-press, which read as unavailable or
+ * failed (main's ruling, 23 Oct 2026): Button's busy keeps the brand. Data
+ * still loading (loading) is "not yet", and stays disabled.
+ */
+const BUSY_FLAG = /^(?:is)?(?:busy|saving|submitting|sending|creating|posting|pending|starting|restoring|planning|linking|joining|deleting|removing|uploading|importing|exporting|publishing|inviting|generating|working|mutating)$|^busy/i
+
+const MENU_TRIGGER = /^(?:DropdownMenu|Popover|ContextMenu|Menubar)Trigger$/
+
+/** Whether a tag is the asChild child of a menu's trigger. */
+function inMenuTrigger(sf: ts.SourceFile, el: Tag): boolean {
+  const up = (ts.isJsxOpeningElement(el) ? el.parent : el).parent
+  return ts.isJsxElement(up) && MENU_TRIGGER.test(up.openingElement.tagName.getText(sf)) && !!attrOf(up.openingElement, "asChild")
+}
+
+function rule12(file: string, src: string): Finding[] {
+  if (!file.endsWith(".tsx") || !src.includes("<Button")) return []
+  const sf = parse(file, src)
+  const out: Finding[] = []
+  eachTag(sf, (el) => {
+    if (el.tagName.getText(sf) !== "Button") return
+    // Saying busy itself, a Button still took a form's Enter: its busy prop blocks that too.
+    if (attrOf(el, "aria-busy")) {
+      out.push(`${file}:${lineOf(sf, el)} <Button aria-busy>`)
+      return
+    }
+    // A menu's trigger only opens its menu, so it is never busy: while
+    // another action runs it waits, disabled (CR-20, 24 Oct 2026).
+    if (inMenuTrigger(sf, el)) {
+      if (attrOf(el, "busy")) out.push(`${file}:${lineOf(sf, el)} <Button busy> in a menu's trigger`)
+      return
+    }
+    const variant = attrOf(el, "variant")?.initializer?.getText(sf)
+    if (variant && !variant.includes("default")) return
+    const disabled = attrOf(el, "disabled")?.initializer
+    if (!disabled || !ts.isJsxExpression(disabled) || !disabled.expression) return
+    const names: string[] = []
+    const visit = (n: ts.Node) => {
+      if (ts.isIdentifier(n)) names.push(n.text)
+      n.forEachChild(visit)
+    }
+    visit(disabled.expression)
+    const flag = names.find((n) => BUSY_FLAG.test(n))
+    if (flag) out.push(`${file}:${lineOf(sf, el)} <Button disabled={…${flag}…}>`)
+  })
+  return out
+}
+
+/** What a test that holds for anything a state names (!!x, Boolean(x), x !== null, x != undefined) tests, else undefined. */
+function wholeStateOf(e: ts.Expression, sf: ts.SourceFile): string | undefined {
+  while (ts.isParenthesizedExpression(e)) e = e.expression
+  if (ts.isPrefixUnaryExpression(e) && e.operator === ts.SyntaxKind.ExclamationToken && ts.isPrefixUnaryExpression(e.operand) && e.operand.operator === ts.SyntaxKind.ExclamationToken) {
+    return e.operand.operand.getText(sf)
+  }
+  if (ts.isCallExpression(e) && e.expression.getText(sf) === "Boolean" && e.arguments.length === 1) return e.arguments[0].getText(sf)
+  if (ts.isBinaryExpression(e) && (e.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken || e.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsToken)) {
+    const nothing = (n: ts.Expression) => n.kind === ts.SyntaxKind.NullKeyword || (ts.isIdentifier(n) && n.text === "undefined")
+    if (nothing(e.right)) return e.left.getText(sf)
+    if (nothing(e.left)) return e.right.getText(sf)
+  }
+  return undefined
+}
+
+/** The operands of a chain of ||: each is enough on its own. */
+function eitherOf(e: ts.Expression): ts.Expression[] {
+  while (ts.isParenthesizedExpression(e)) e = e.expression
+  return ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.BarBarToken ? [...eitherOf(e.left), ...eitherOf(e.right)] : [e]
+}
+
+/**
+ * A state that several actions share names the one under way: a union
+ * ("restore" | "purge"), a row's id, a create's key. Read as a whole, it made
+ * a control busy with another's action (CR-19 on the busy codemod, 24 Oct
+ * 2026), or disabled, the field's look, mid-press with its own.
+ */
+function rule13(file: string, src: string): Finding[] {
+  if (!file.endsWith(".tsx") || !src.includes("busy=")) return []
+  const sf = parse(file, src)
+  const out: Finding[] = []
+  const valueOf = (el: Tag, name: string) => {
+    const init = attrOf(el, name)?.initializer
+    return init && ts.isJsxExpression(init) ? init.expression : undefined
+  }
+  eachTag(sf, (el) => {
+    const busy = valueOf(el, "busy")
+    if (!busy) return
+    const whole = eitherOf(busy)
+      .map((e) => wholeStateOf(e, sf))
+      .find(Boolean)
+    if (whole) {
+      out.push(`${file}:${lineOf(sf, el)} busy={…${whole}…}`)
+      return
+    }
+    const own = new Set<string>()
+    const visit = (n: ts.Node) => {
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken) own.add(n.left.getText(sf)).add(n.right.getText(sf))
+      n.forEachChild(visit)
+    }
+    visit(busy)
+    // Button's disabled is the field's look; a row of its own (StarterRow) draws its own.
+    const disabled = el.tagName.getText(sf) === "Button" ? valueOf(el, "disabled") : undefined
+    const mine = disabled && eitherOf(disabled).map((e) => wholeStateOf(e, sf)).find((s) => s !== undefined && own.has(s))
+    if (mine) out.push(`${file}:${lineOf(sf, el)} disabled={…${mine}…} while busy with its own`)
+  })
+  return out
+}
+
+/**
+ * A busy Button spins by itself, at full strength (app/interaction.css): the
+ * spinner takes its leading icon's place, or stands before its label. Callers
+ * drew their own, at four sizes, in three icons and with margins of their own,
+ * and some hid the label; and dimmed to 70%, a busy primary's label fell to
+ * 2.94:1 and read as unavailable (DESIGN-BUILD-10, 24 Oct 2026).
+ */
+const SPINNER_TAG = /^(?:Loader2|LoaderCircle|Spinner)$/
+const SPINS = /(?:^|\s)(?:[^\s:]+:)*animate-spin(?=\s|$)/
+const DIMS_BUSY = /(?:^|\s)(?:[^\s:]+:)*aria-busy:(?:[^\s:]+:)*opacity-/
+// A Button, or a control that renders one (AlertDialogAction is a Button asChild,
+// so it spins by itself): the confirm dialog drew a second spinner in one.
+const BUSY_BUTTON_TAG = /^(?:Button|AlertDialogAction)$/
+
+function rule14(file: string, src: string): Finding[] {
+  if (!file.endsWith(".tsx") || !src.includes("busy")) return []
+  const sf = parse(file, src)
+  const out: Finding[] = []
+  eachClassConstant(sf, (node, text) => {
+    if (DIMS_BUSY.test(text)) out.push(`${file}:${lineOf(sf, node)} dims a busy control`)
+  })
+  eachTag(sf, (el) => {
+    if (DIMS_BUSY.test(classesOf(el))) out.push(`${file}:${lineOf(sf, el)} dims a busy control`)
+    if (!ts.isJsxOpeningElement(el) || !BUSY_BUTTON_TAG.test(el.tagName.getText(sf))) return
+    const busy = !!attrOf(el, "busy") || !!attrOf(el, "aria-busy") || attrsOf(el).some((a) => ts.isJsxSpreadAttribute(a) && a.expression.getText(sf).startsWith("busyWith("))
+    if (!busy) return
+    const visit = (n: ts.Node) => {
+      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && (SPINNER_TAG.test(n.tagName.getText(sf)) || SPINS.test(classesOf(n)))) {
+        out.push(`${file}:${lineOf(sf, n)} <${n.tagName.getText(sf)}> spins inside a busy Button`)
+      }
+      n.forEachChild(visit)
+    }
+    el.parent.children.forEach(visit)
   })
   return out
 }
@@ -469,7 +640,10 @@ const RULES: Record<string, { run: (file: string, src: string) => Finding[]; css
   rule8: { run: rule8, say: "disabled inside a tooltip's trigger: use aria-disabled and data-disabled-reason (Button's disabledReason)" },
   rule9: { run: rule9, css: true, say: "a raw :hover outside @media (hover: hover): it sticks after a tap" },
   rule10: { run: (f, s) => (f === "app/globals.css" ? rule10(f, s) : []), css: true, say: "the 60% tap flash is back: phone.css F2 is the one press response" },
-  rule11: { run: rule11, say: "a native date or time box (D14): DateField or TimeField (components/ui/date-field)" },
+  rule11: { run: rule11, say: "a native date or time box (D14): DateField or TimeField (components/ui/date-field), DateTimeField (components/ui/date-time-field)" },
+  rule12: { run: rule12, say: "a Button busy with its own action: busy={…} (it keeps the brand and blocks a second press), not disabled, which is for \"you can't do this yet\", nor its own aria-busy" },
+  rule13: { run: rule13, say: "a busy over a state that several actions share: busy with its own action only, and disabled while another runs: busyWith(state, own) (lib/ui/busyWith.ts)" },
+  rule14: { run: rule14, say: "a busy Button's spinner or dim of its own: drop it, the layer spins in the leading icon's place at full strength (app/interaction.css)" },
 }
 
 function findings(rule: string): Finding[] {
@@ -504,6 +678,11 @@ describe("each rule bites (fixtures)", () => {
     expect(rule1("x.tsx", `<button data-interactive="row" className="hover:text-foreground bg-raised" />`)).toEqual([])
     expect(rule1("x.tsx", `<Switch className="data-[state=checked]:bg-primary" />`)).toEqual([])
     expect(rule1("x.tsx", `<div className="hover:bg-hover" />`)).toEqual([])
+    // An adopted toggle's thumb draws its own checked fill, whether ix("toggle") takes options or not.
+    const thumb = `<Thumb className={cn("data-[state=checked]:bg-primary-foreground")} />`
+    expect(rule1("components/ui/switch.tsx", `<Root {...ix("toggle", { disabledReason: why })}>${thumb}</Root>`)).toEqual([])
+    expect(rule1("components/ui/switch.tsx", `<Root {...ix("toggle")}>${thumb}</Root>`)).toEqual([])
+    expect(rule1("components/ui/switch.tsx", `<Root {...ix("button")}>${thumb}</Root>`)).toHaveLength(1)
   })
 
   it("2: a weight behind a selected variant", () => {
@@ -577,5 +756,51 @@ describe("each rule bites (fixtures)", () => {
     expect(rule11("x.tsx", `<input type={"date"} />`)).toHaveLength(1)
     expect(rule11("x.tsx", `<input type="text" />`)).toEqual([])
     expect(rule11("x.tsx", `<TimeField id="t" value={t} onChange={setT} />`)).toEqual([])
+    expect(rule11("x.tsx", `<input type="datetime-local" value={v} />`)).toHaveLength(1)
+    expect(rule11("x.tsx", `<Input type="month" />`)).toHaveLength(1)
+    expect(rule11("x.tsx", `<input type={'week'} />`)).toHaveLength(1)
+    expect(rule11("x.tsx", `<DateTimeField value={v} onChange={setV} />`)).toEqual([])
+  })
+
+  it("12: a primary disabled while its own action runs", () => {
+    expect(rule12("x.tsx", `<Button disabled={saving}>Save</Button>`)).toHaveLength(1)
+    expect(rule12("x.tsx", `<Button type="submit" disabled={!name || post.isSubmitting}>Create</Button>`)).toHaveLength(1)
+    expect(rule12("x.tsx", `<Button variant={demo ? "secondary" : "default"} disabled={busy}>Sign in</Button>`)).toHaveLength(1)
+    expect(rule12("x.tsx", `<Button disabled={!name} busy={saving}>Save</Button>`)).toEqual([])
+    expect(rule12("x.tsx", `<Button variant="outline" disabled={busy}>Cancel</Button>`)).toEqual([])
+    expect(rule12("x.tsx", `<Button disabled={loading || !ready}>Next</Button>`)).toEqual([])
+    expect(rule12("x.tsx", `<Button variant="ghost" aria-busy={saving || undefined}>Save</Button>`)).toHaveLength(1)
+    expect(rule12("x.tsx", `<DropdownMenuTrigger asChild><Button aria-label="More" disabled={!!busy}>v</Button></DropdownMenuTrigger>`)).toEqual([])
+    expect(rule12("x.tsx", `<DropdownMenuTrigger asChild><Button aria-label="More" busy={making}>v</Button></DropdownMenuTrigger>`)).toHaveLength(1)
+    expect(rule12("x.tsx", `<TooltipTrigger asChild><Button disabled={saving}>Save</Button></TooltipTrigger>`)).toHaveLength(1)
+  })
+
+  it("13: busy with its own action only, over a state that several actions share", () => {
+    expect(rule13("x.tsx", `<Button onClick={onRun} busy={busy !== undefined}>Run</Button>`)).toHaveLength(1)
+    expect(rule13("x.tsx", `<Button busy={!!busy}>Restore</Button>`)).toHaveLength(1)
+    expect(rule13("x.tsx", `<Button busy={isSubmitting || Boolean(creating)}>New board</Button>`)).toHaveLength(1)
+    expect(rule13("x.tsx", `<TrashLine busy={busy != null} onRestore={go} />`)).toHaveLength(1)
+    expect(rule13("x.tsx", `<Button disabled={!!b} busy={b === "approve"}>Approve</Button>`)).toHaveLength(1)
+    expect(rule13("x.tsx", `<Button disabled={!canPost || busy !== null} busy={busy === "post"}>Post</Button>`)).toHaveLength(1)
+    expect(rule13("x.tsx", `<Button {...busyWith(busy, "run")}>Run</Button>`)).toEqual([])
+    expect(rule13("x.tsx", `<Button disabled={!canPost || post.disabled} busy={post.busy}>Post</Button>`)).toEqual([])
+    expect(rule13("x.tsx", `<Button busy={busy === "run"} disabled={busy === "setup"}>Run</Button>`)).toEqual([])
+    expect(rule13("x.tsx", `<Button disabled={b !== undefined && b !== "approve"} busy={b === "approve"}>Approve</Button>`)).toEqual([])
+    expect(rule13("x.tsx", `<Button disabled={!name} busy={saving}>Save</Button>`)).toEqual([])
+    expect(rule13("x.tsx", `<StarterRow busy={busy === t.id} disabled={!!busy} />`)).toEqual([])
+  })
+
+  it("14: a busy Button's own spinner, and a dim while busy", () => {
+    expect(rule14("x.tsx", `<Button busy={saving}>{saving && <Loader2 className="animate-spin" />} Save</Button>`)).toHaveLength(1)
+    expect(rule14("x.tsx", `<Button busy={busy}>{busy ? <Loader2 /> : <Send />}</Button>`)).toHaveLength(1)
+    // The confirm dialog's action is a Button too, busy by aria-busy: it drew two spinners.
+    expect(rule14("x.tsx", `<AlertDialogAction aria-busy={busy || undefined}>{busy && <Loader2 className="absolute animate-spin" />}</AlertDialogAction>`)).toHaveLength(1)
+    expect(rule14("x.tsx", `<Button {...busyWith(busy, "run")}><RefreshCw className={cn(busy && "motion-safe:animate-spin")} /> Run</Button>`)).toHaveLength(1)
+    expect(rule14("x.tsx", `<Button busy={busy}><span className={cn(busy && "invisible")}>Invite</span>{busy ? <LoaderCircle className="absolute" /> : null}</Button>`)).toHaveLength(1)
+    expect(rule14("x.tsx", `const v = cva("inline-flex aria-busy:pointer-events-none aria-busy:opacity-70")`)).toHaveLength(1)
+    expect(rule14("x.tsx", `<button aria-busy={busy} className="aria-busy:opacity-50" />`)).toHaveLength(1)
+    expect(rule14("x.tsx", `<Button busy={saving}><Check /> {saving ? "Saving…" : "Save"}</Button>`)).toEqual([])
+    expect(rule14("x.tsx", `<Button variant="ghost" onClick={refresh}><RefreshCw className={cn(busy && "animate-spin")} /> Refresh</Button>`)).toEqual([])
+    expect(rule14("x.tsx", `<div aria-busy={busy}>{busy && <Loader2 className="animate-spin" />}</div>`)).toEqual([])
   })
 })

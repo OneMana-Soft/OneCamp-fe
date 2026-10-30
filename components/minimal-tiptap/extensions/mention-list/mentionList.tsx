@@ -1,8 +1,10 @@
 import { MentionOptions } from "@tiptap/extension-mention";
-import { forwardRef, lazy, Suspense, useImperativeHandle, useRef } from "react";
+import { forwardRef, Suspense, useImperativeHandle, useRef } from "react";
 import { chipAllowed, suggestionPopup } from "../suggestion-popup";
 import { UserProfileDataInterface, UserListInterfaceResp } from "@/types/user";
 import axiosInstance from "@/lib/axiosInstance";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
+import { PieceUnavailable } from "@/lib/lazy/pieceUnavailable";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { pickPeople } from "@/lib/personName";
 import { mentionCounts } from "@/lib/mentionedOften";
@@ -98,13 +100,19 @@ function rankForDoc(people: UserProfileDataInterface[], here: Set<string>, count
 export const inDoc = (editor: Editor) => (editor.storage as { mentionInDoc?: MentionInDocStorage }).mentionInDoc
 
 const loadView = () => import("./mentionListView")
-const MentionListView = lazy(() => loadView().then((m) => ({ default: m.MentionList })))
+const MentionListView = lazyPiece(() => loadView().then((m) => ({ default: m.MentionList })), {
+  // Its code can't come (no network): the list says so in its place and holds no key, so Enter and Tab are the text's.
+  failed: function MentionListUnavailable({ ref, retry }) {
+    useImperativeHandle(ref, () => ({ onKeyDown: () => false }), [])
+    return <PieceUnavailable what="the list" retry={retry} />
+  },
+})
 const HELD_KEYS = new Set(["Enter", "Tab", "ArrowUp", "ArrowDown"])
 
 export const mentionSuggestionOptions: MentionOptions["suggestion"] = {
 
   items: async ({ query, editor }): Promise<MentionPick[]> => {
-    void loadView()
+    MentionListView.warm()
     const doc = inDoc(editor)
     // A day the query names first ("tod", "fri", "12/10": D4), with a reminder on it.
     const dates = doc?.dateRows(editor, query) ?? []

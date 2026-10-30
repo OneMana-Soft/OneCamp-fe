@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 let fetched: { data?: unknown; isLoading: boolean } = { isLoading: false }
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ ...fetched, mutate: vi.fn() }) }))
@@ -9,8 +9,11 @@ const confirm = vi.fn()
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
+let kept: Record<string, unknown> | undefined
+vi.mock("@/lib/preferences/usePreference", () => ({ usePreferences: () => kept }))
 
-import { BookingSettings, deletePageWords, sampleTimes } from "./bookingSettings"
+import { BookingSettings, deletePageWords } from "./bookingSettings"
+import { sampleTimes } from "./bookingEditor"
 
 afterEach(() => {
   cleanup()
@@ -18,6 +21,7 @@ afterEach(() => {
   makeRequest.mockReset()
   toast.mockReset()
   confirm.mockReset()
+  kept = undefined
 })
 
 const page = { id: "b1", slug: "sam-rivera", title: "Intro call with Sam", description: "", duration_minutes: 30, buffer_minutes: 10, min_notice_minutes: 240, max_days_ahead: 30, active: true, hours: { days: [1, 2, 3], start: "09:00", end: "17:00", tz: "UTC" } }
@@ -53,15 +57,33 @@ describe("the booking settings page", () => {
     expect(screen.getByRole("heading", { name: "No booking pages yet" })).toBeTruthy()
   })
 
-  it("edits beside a live preview of the public page", () => {
+  // The editor is a chunk of its own: the list comes first, the editor when a page opens.
+  it("edits beside a live preview of the public page", async () => {
     fetched = { isLoading: false, data: { data: [page] } }
     render(<BookingSettings />)
+    expect(document.querySelector("[data-booking-preview]")).toBeNull()
     fireEvent.click(screen.getByText("Intro call with Sam"))
-    const preview = document.querySelector("[data-booking-preview]") as HTMLElement
+    const preview = await screen.findByRole("complementary", { name: "Preview" })
     expect(preview.textContent).toContain("Intro call with Sam")
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Office hours" } })
     expect(preview.textContent).toContain("Office hours")
     expect(preview.textContent).toContain("9:00\u00a0AM")
+  })
+
+  // Calendar A3b: a new page starts from the hours the person keeps.
+  it("starts a new page from the person's working hours, or nine to five without them", async () => {
+    fetched = { isLoading: false, data: { data: [] } }
+    kept = { zone: "Europe/Berlin", "calendar.working_hours": { "2": [{ start: "10:00", end: "12:00" }, { start: "13:00", end: "18:00" }], "4": [{ start: "10:00", end: "16:00" }] } }
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByRole("button", { name: /New booking page/ }))
+    const pressed = within(await screen.findByRole("group", { name: "Days" })).getAllByRole("button").filter((b) => b.getAttribute("aria-pressed") === "true")
+    expect(pressed.map((b) => b.textContent)).toEqual(["Tue", "Thu"])
+    expect(screen.getByRole("complementary", { name: "Preview" }).textContent).toContain("10:00\u00a0AM")
+    cleanup()
+    kept = { zone: null, "calendar.working_hours": null }
+    render(<BookingSettings />)
+    fireEvent.click(screen.getByRole("button", { name: /New booking page/ }))
+    expect((await screen.findByRole("complementary", { name: "Preview" })).textContent).toContain("9:00\u00a0AM")
   })
 
   it("offers the first times that fit the hours, the length and the gap", () => {

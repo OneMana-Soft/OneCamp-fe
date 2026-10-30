@@ -1,13 +1,13 @@
 "use client"
 
 import { addressOrHandleOf, displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
-import { Check, Search, X } from "@/lib/icons";
+import { Check, X } from "@/lib/icons";
 import {GetEndpointUrl} from "@/services/endPoints"
 import {
     UserListInterfaceResp,
     UserProfileDataInterface,
 } from "@/types/user"
-import {Input} from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import type { UserProfileInterface } from "@/types/user";
@@ -113,16 +113,7 @@ export function SelectUserToMessageDropdown({
     // column. Who is chosen sits above as neutral chips with a ×.
     return (
         <div className="flex flex-col gap-3">
-            <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-3"/>
-                <Input
-                    placeholder={placeholder}
-                    aria-label="Search people"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8"
-                />
-            </div>
+            <SearchInput placeholder={placeholder} aria-label="Search people" value={searchQuery} onValueChange={setSearchQuery} />
             {selectedUsers.length > 0 && (
                 <div data-picked="" className="flex flex-wrap gap-1.5">
                     {selectedUsers.map((user) => (

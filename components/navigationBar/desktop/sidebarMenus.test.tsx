@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 const push = vi.fn()
@@ -40,7 +40,13 @@ vi.mock("@/components/shortcuts/ShortcutsDialog", () => ({ openShortcuts: vi.fn(
 let mayInvite = true
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: (c: string) => c === "invitation.create" && mayInvite }) }))
 
-import { SidebarFoot } from "@/components/navigationBar/desktop/SidebarFoot"
+import { SidebarFoot, warmProfileMenu } from "@/components/navigationBar/desktop/SidebarFoot"
+
+// The profile menu's body is a chunk of its own (ProfileMenuBody): fetched
+// here first, as hovering its trigger fetches it, so it opens drawn.
+beforeAll(async () => {
+  await warmProfileMenu()
+})
 import { SidebarHeader } from "@/components/navigationBar/desktop/SidebarHeader"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
@@ -160,7 +166,8 @@ describe("the sidebar's foot", () => {
     render(<TooltipProvider><SidebarFoot /></TooltipProvider>)
     open("Profile and settings")
     expect(screen.getByRole("menuitem", { name: /Sign out/ }).hasAttribute("data-danger")).toBe(false)
-    const src = readFileSync(join(__dirname, "SidebarFoot.tsx"), "utf8")
+    // The menu's body is its own chunk (ProfileMenuBody), drawn from the first open.
+    const src = readFileSync(join(__dirname, "ProfileMenuBody.tsx"), "utf8")
     expect(src).toMatch(/pausePresets\(new Date\(\)\)\.map\(\(p\) =>[\s\S]{0,260}pauseEndsLine\(p, clockTime\)/)
   })
 

@@ -42,6 +42,7 @@ export const TimelineTaskRow = memo(function TimelineTaskRow({
   return (
     <div className="group/trow absolute left-0 flex" style={{ top, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
       <div
+        data-sticky-lead=""
         className="sticky left-0 z-10 flex shrink-0 items-center gap-2.5 border-r border-line bg-sheet px-5 transition-colors group-hover/trow:bg-[color-mix(in_oklab,var(--sheet),var(--ink)_4%)]"
         style={{ width: nameWidth }}
       >
@@ -94,6 +95,7 @@ export const TimelineGroupRow = memo(function TimelineGroupRow({
         onClick={() => onToggle(id)}
         // At least the names column, and wider when its name needs it: a group's
         // header spans the chart too, so "In progress 10" is never cut (T-1).
+        data-sticky-lead=""
         className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-line bg-sunken px-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         style={{ minWidth: nameWidth }}
       >

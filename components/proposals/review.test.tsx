@@ -13,6 +13,7 @@ const create = vi.fn()
 vi.mock("@/services/proposalService", () => ({
   createProposal: (...a: unknown[]) => create(...a),
   decideProposal: (...a: unknown[]) => decide(...a),
+  decideAndApply: async (id: string, input: unknown, apply: () => unknown) => (await decide(id, input), apply()),
   reopenProposal: (...a: unknown[]) => reopen(...a),
   conflictsOf: (e: { response?: { status?: number; data?: { conflicts?: string[] } } }) =>
     e?.response?.status === 409 ? (e.response.data?.conflicts ?? []) : null,

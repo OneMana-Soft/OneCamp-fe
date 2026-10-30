@@ -16,6 +16,9 @@ import TitleBand from "./TitleBand"
 import { SCREENS, putOnScreen } from "@/lib/testing/screens"
 import { createTitleStore } from "../docTitleStore"
 import { setFacts } from "./pageFacts"
+import { registerSlot } from "../registry/registry"
+
+registerSlot({ slot: "titleChips", id: "test.suggestions", edition: "both", load: async () => ({ default: () => <button type="button">2 suggestions</button> }) })
 
 const editors: Editor[] = []
 beforeEach(() => {
@@ -93,13 +96,20 @@ describe("the title band (D-2, T4)", () => {
     expect(tab.defaultPrevented).toBe(false)
   })
 
-  it("shows a phone the path above the doc and its lock, with the icon and cover as buttons", () => {
+  it("shows a phone the path above the doc and the header's title chips, with the icon and cover as buttons", async () => {
     hoisted.mobile = true
-    render(<Band doc={{ doc_lock_level: "hard" }} docId="tb3" />)
+    render(<Band docId="tb3" />)
     expect(screen.getByRole("navigation", { name: "Pages above this doc" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Locked" })).toBeTruthy()
+    // The chips the header draws on a computer (the lock, the suggestions waiting): a phone has no header.
+    expect(await screen.findByRole("button", { name: "2 suggestions" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Add an icon" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Add a cover" })).toBeTruthy()
+  })
+
+  it("leaves the title chips to the header on a computer", async () => {
+    render(<Band docId="tb6" />)
+    await act(async () => {})
+    expect(screen.queryByRole("button", { name: "2 suggestions" })).toBeNull()
   })
 })
 

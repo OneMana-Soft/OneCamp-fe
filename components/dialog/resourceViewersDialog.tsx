@@ -22,14 +22,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { focusDialogItself } from "@/components/ui/overlayFocus"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { RESOURCE_ROW, ResourceListEmpty, ResourceListSkeleton } from "@/components/dialog/resourceListParts"
 import { ErrorState } from "@/components/ui/error-state"
-import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { refusalReason } from "@/lib/utils/apiError"
 import { Button } from "@/components/ui/button"
 import { Eye, Loader2 } from "@/lib/icons"
-import { useRelativeTime } from "@/hooks/useRelativeTime"
+import { midSentence, useRelativeTime } from "@/hooks/useRelativeTime"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { InsightsStrip, RecentChanges, useViewInsights } from "@/components/dialog/viewInsights"
+import type { CampHue } from "@/lib/campHue"
 
 const PAGE_SIZE = 50
 
@@ -43,6 +46,10 @@ interface ResourceViewersDialogProps {
   resourceId: string
   /** Noun shown in the empty/subtitle copy, e.g. "board" or "document". */
   noun?: string
+  /** The resource's last 28 days, shown above the list when given. */
+  insightsEndpoint?: string
+  /** The resource's area hue, for the 28 days' line (the docs area's for a doc). */
+  hue?: CampHue
 }
 
 function ResourceViewersDialog({
@@ -52,6 +59,8 @@ function ResourceViewersDialog({
   idParam,
   resourceId,
   noun = "item",
+  insightsEndpoint,
+  hue,
 }: ResourceViewersDialogProps) {
   const [viewers, setViewers] = React.useState<ResourceViewer[]>([])
   const [total, setTotal] = React.useState(0)
@@ -62,6 +71,9 @@ function ResourceViewersDialog({
   const pageIndexRef = React.useRef(0)
   // Only the newest read counts: a slow first page never lands over a resource opened since.
   const readRef = React.useRef(0)
+
+  // The last 28 days and the newest changes, when the resource has them (docs C6-3).
+  const insights = useViewInsights(insightsEndpoint, idParam, resourceId, open)
 
   const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const currentUserUuid = selfProfile?.data?.user_uuid
@@ -106,18 +118,20 @@ function ResourceViewersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md outline-none" onOpenAutoFocus={focusDialogItself}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Eye className="h-4 w-4" />
             Viewed by {total > 0 ? total : ""}
           </DialogTitle>
-          <DialogDescription>People who have opened this {noun}, most recent first.</DialogDescription>
+          <DialogDescription>Everyone who has opened this {noun}, most recent first.</DialogDescription>
         </DialogHeader>
+
+        {insights && <InsightsStrip load={insights} hue={hue} />}
 
         <div className="max-h-[60vh] overflow-y-auto">
           {failedFirst ? (
-            <ErrorState compact subject={`who viewed this ${noun}`} detail={refusalOf(load.error)} onRetry={() => void fetchPage(0)} />
+            <ErrorState compact subject={`who viewed this ${noun}`} detail={refusalReason(load.error)} onRetry={() => void fetchPage(0)} />
           ) : load.state === "loading" && viewers.length === 0 ? (
             <ResourceListSkeleton label="Loading viewers" />
           ) : viewers.length === 0 ? (
@@ -129,7 +143,7 @@ function ResourceViewersDialog({
               ))}
               {failedMore && (
                 <div role="alert" className="flex items-center justify-between gap-2 px-2 pt-2 text-xs text-muted-foreground">
-                  <span>{refusalOf(load.error) ?? "Couldn't load more viewers. Nothing has been lost."}</span>
+                  <span>{refusalReason(load.error) ?? "Couldn't load more viewers. Nothing has been lost."}</span>
                   <Button variant="ghost" size="sm" onClick={() => void fetchPage(pageIndexRef.current + 1)}>
                     Try again
                   </Button>
@@ -151,6 +165,7 @@ function ResourceViewersDialog({
               )}
             </>
           )}
+          <RecentChanges load={insights} />
         </div>
       </DialogContent>
     </Dialog>
@@ -158,12 +173,6 @@ function ResourceViewersDialog({
 }
 
 type Load = { state: "loading" } | { state: "ready" } | { state: "failed"; error: unknown; page: number }
-
-/** The server's own reason for a refusal (no access, the doc gone), said in place of a guess about the connection. */
-function refusalOf(error: unknown): string | undefined {
-  const status = apiErrorStatus(error)
-  return status && status < 500 ? apiErrorMessage(error) || undefined : undefined
-}
 
 function ViewerRow({ viewer, isSelf }: { viewer: ResourceViewer; isSelf: boolean }) {
   const relative = useRelativeTime(viewer.last_viewed_at)
@@ -178,7 +187,7 @@ function ViewerRow({ viewer, isSelf }: { viewer: ResourceViewer; isSelf: boolean
           {name}
           {isSelf && <span className="ml-1 text-xs font-normal text-muted-foreground">(you)</span>}
         </div>
-        <div className="text-xs text-muted-foreground">Viewed {relative || "just now"}</div>
+        <div className="text-xs text-muted-foreground">Viewed {midSentence(relative) || "just now"}</div>
       </div>
     </div>
   )

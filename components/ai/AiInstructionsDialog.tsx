@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Sparkles } from "@/lib/icons"
+import { Sparkles } from "@/lib/icons"
 import { getMyAIInstructions, setMyAIInstructions } from "@/services/aiModelService"
 
 const MAX_LEN = 2000
@@ -97,8 +97,7 @@ const AiInstructionsDialog: React.FC<{
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={loading || saving || !dirty} className="gap-1.5">
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          <Button onClick={save} disabled={loading || !dirty} busy={saving} className="gap-1.5">
             Save
           </Button>
         </DialogFooter>

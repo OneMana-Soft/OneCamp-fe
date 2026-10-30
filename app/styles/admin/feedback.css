@@ -76,38 +76,6 @@
     }
   }
 
-  /* The body that scrolls inside itself (DialogBody, opt-in): a hairline
-     under the header and over the footer only while there is more to see. */
-  .v3-dlg-body {
-    position: relative;
-    margin-inline: calc(var(--dlg-pad, 20px) * -1);
-  }
-  .v3-dlg-body-scroll {
-    max-height: 70dvh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 0 var(--dlg-pad, 20px);
-  }
-  .v3-dlg-body::before,
-  .v3-dlg-body::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: var(--line);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 140ms var(--ease-out);
-    z-index: 1;
-  }
-  .v3-dlg-body::before { top: 0; }
-  .v3-dlg-body::after { bottom: 0; }
-  .v3-dlg-body[data-above="true"]::before,
-  .v3-dlg-body[data-below="true"]::after {
-    opacity: 1;
-  }
-
   /* ---------- The confirm (H3) ---------- */
   /* The tile's glyph pops 80ms after the dialog opens. */
   .v3-confirm-tile > svg {

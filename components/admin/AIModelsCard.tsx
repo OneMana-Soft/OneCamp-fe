@@ -2412,9 +2412,9 @@ function CodePRSection({
         </p>
       </div>
 
-      <SettingRow label="If a change goes beyond the task" controlId={`${id}-policy`}>
+      <SettingRow label="If a change goes beyond the task" controlId="code-pr-policy">
         <Select value={policy} onValueChange={setPolicy}>
-          <SelectTrigger id={`${id}-policy`} className="w-full @xl:w-72">
+          <SelectTrigger id="code-pr-policy" className="w-full @xl:w-72">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

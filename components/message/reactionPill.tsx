@@ -12,6 +12,8 @@ interface reactionPillProps {
     emojiId: string
     reactionUserNames: string[]
     onClickEmoji: (emojiId: string) => void
+    /** Who reacted, with nothing to press: the reader can't react here. */
+    readOnly?: boolean
     isSelected: boolean
     /** The reader's own name, said as "you" in who reacted. */
     selfName?: string
@@ -42,7 +44,7 @@ export function reactedBy(names: string[], selfName?: string): string {
  * pops in on the spring; your +1 springs it, anyone's rolls the count; one
  * that reaches zero shrinks away. Hovering says who, after 300 ms.
  */
-export const ReactionPill = ({ emojiId, reactionUserNames, onClickEmoji, isSelected, selfName, motion, burst = false }: reactionPillProps) => {
+export const ReactionPill = ({ emojiId, reactionUserNames, onClickEmoji, isSelected, selfName, motion, burst = false, readOnly = false }: reactionPillProps) => {
     const ref = useRef<HTMLButtonElement>(null)
 
     useEffect(() => {
@@ -66,7 +68,8 @@ export const ReactionPill = ({ emojiId, reactionUserNames, onClickEmoji, isSelec
     const emojiString = emoji?.skins[0].native
     const count = reactionUserNames.length || 0
     const who = reactedBy(reactionUserNames, selfName)
-    const label = `${emoji?.name ?? "Reaction"}: ${count} ${count === 1 ? "person" : "people"}${who ? ` (${who})` : ""}. ${isSelected ? "Remove your reaction" : "Add your reaction"}`
+    const said = `${emoji?.name ?? "Reaction"}: ${count} ${count === 1 ? "person" : "people"}${who ? ` (${who})` : ""}`
+    const label = readOnly ? said : `${said}. ${isSelected ? "Remove your reaction" : "Add your reaction"}`
 
     return (
         <Tooltip delayDuration={300}>
@@ -77,16 +80,22 @@ export const ReactionPill = ({ emojiId, reactionUserNames, onClickEmoji, isSelec
                     data-reaction=""
                     data-no-ripple="true"
                     onTouchStart={(e) => e.stopPropagation()}
-                    onClick={onClickEmojiHandle}
+                    onClick={readOnly ? undefined : onClickEmojiHandle}
+                    // Where the reader can't react, the pill says who did and does nothing.
+                    aria-disabled={readOnly || undefined}
                     aria-label={label}
-                    aria-pressed={isSelected}
+                    aria-pressed={readOnly ? undefined : isSelected}
                     className={cn(
                         "inline-flex h-[26px] items-center gap-1.5 rounded-[13px] px-2 text-meta font-medium leading-none",
-                        "transition-[background-color,box-shadow,scale] duration-[140ms] ease-out active:scale-[0.96] active:duration-[90ms]",
+                        "transition-[background-color,box-shadow,scale] duration-[140ms] ease-out",
                         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:h-8",
                         isSelected
-                            ? "bg-brand-muted text-brand-text ring-1 ring-inset ring-brand/35 hover:bg-[color-mix(in_oklab,var(--brand)_18%,var(--brand-muted))] dark:bg-brand/14"
-                            : "bg-hover text-ink-2 ring-1 ring-inset ring-line hover:bg-press hover:ring-line-3",
+                            ? "bg-brand-muted text-brand-text ring-1 ring-inset ring-brand/35 dark:bg-brand/14"
+                            : "bg-hover text-ink-2 ring-1 ring-inset ring-line",
+                        // With nothing to press, the pill doesn't answer a hover or a press.
+                        readOnly
+                            ? "cursor-default"
+                            : cn("active:scale-[0.96] active:duration-[90ms]", isSelected ? "hover:bg-[color-mix(in_oklab,var(--brand)_18%,var(--brand-muted))]" : "hover:bg-press hover:ring-line-3"),
                         motion === "pop" && "animate-react-pop",
                         motion === "out" && "pointer-events-none animate-react-out",
                     )}

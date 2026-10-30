@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
-import { addDays, addMonths, differenceInCalendarDays, endOfWeek, format, isSameDay, isSameMonth, parseISO, startOfDay, startOfWeek } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search, X } from "@/lib/icons";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from "react";
+import { addDays, addMonths, format, isSameDay, isSameMonth, parseISO, startOfWeek } from "date-fns";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search, SlidersHorizontal, X } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { FitLabel } from "@/components/common/FitLabel";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -10,8 +10,8 @@ import { DayCell } from "@/components/ui/dayCell";
 import { ErrorState } from "@/components/ui/error-state";
 import { calendarAwayDetail } from "@/lib/calendar/unavailable";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ToastAction } from "@/components/ui/toast";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
+import { usePreferences } from "@/lib/preferences/usePreference";
 import { useAssignedTasks } from "@/hooks/useAssignedTasks";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { usePost } from "@/hooks/usePost";
@@ -19,64 +19,67 @@ import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useSheetMode } from "@/components/ui/overlayMode";
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
-import { CalendarGet } from "@/services/endpoints/calendar";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { CalendarGet, CalendarPost } from "@/services/endpoints/calendar";
+import { checkInChannel, repeatsPath, taskOfAhead } from "@/lib/calendar/repeatsPath";
+import type { RepeatsView } from "@/lib/calendar/repeats";
 import type { UserProfileInterface } from "@/types/user";
 import type { CalendarEventInterface, CreateEventPayload, GetEventsResponse } from "@/types/calendar";
+import type { TaskInfoInterface } from "@/types/task";
 import { cn } from "@/lib/utils/helpers/cn";
 import { useDispatch, useSelector } from "react-redux";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
 import { closeRightPanel, openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import type { RootState } from "@/store/store";
 import { app_calendar_path } from "@/types/paths";
 import { calendarPlace, calendarRoute } from "@/lib/calendar/route";
+import { useTabInAddress } from "@/components/task/tabInAddress";
+import { addressLater } from "@/lib/navigation/addressLater";
 import { calendarKeyHint, calendarKeyRow, type CalendarCommand } from "@/lib/calendar/keys";
 import { isMacLike } from "@/lib/keys/chord";
 import { isTyping } from "@/lib/goKeys";
 import { useStableCallback } from "@/hooks/useStableCallback";
-import { WeekView, type CalendarDraft } from "@/components/calendar/weekView";
+import { WeekView, gutterWidth, type CalendarDraft } from "@/components/calendar/weekView";
 import type { MonthItem } from "@/components/calendar/monthView";
-import { CalendarAgenda } from "@/components/calendar/calendarAgenda";
-import { joinLinkOf } from "@/lib/calendar/joinLink";
 import type { EventMenuAt } from "@/components/calendar/eventMenu";
 import type { EventDraftValues } from "@/lib/calendar/duplicate";
-import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
-import type { CalendarRow } from "@/components/calendar/calendarsPopover";
-import { lazyView } from "@/components/task/LazyView";
+import type { OtherCalendarsState } from "@/components/calendar/otherCalendarsLayer";
+import type { OpenHow } from "@/components/calendar/eventPopover";
+import { lazyView } from "@/lib/lazy/lazyView";
+import { browserTZ } from "@/lib/utils/timeZone";
 import { useWhenIdle } from "@/hooks/useWhenIdle";
 import { useMinute } from "@/components/calendar/NowLine";
 import { HueBlock } from "@/components/calendar/HueBlock";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
-import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
+import { OWN_HUE, otherHue } from "@/components/calendar/calendarTones";
 import { agendaDays, agendaEmptyTitle, agendaTitles, agendaWindowFrom, nextAgendaWindow, previousAgendaWindow, type AgendaWindow } from "@/lib/utils/calendarAgenda";
-import { dayKey, dayListTime, itemsByDay, layoutWeek, monthGridRange, placeItems, WEEK_STARTS_ON } from "@/components/calendar/calendarLayout";
+import { dayKey, dayListTime, itemsByDay, placeItems } from "@/components/calendar/calendarLayout";
+import { askedRange, gridDays, shownRange, spanWords, stepAnchor, weekNumber } from "@/lib/calendar/viewRange";
+import { useCalendarChoices, type ViewChoices } from "@/lib/calendar/choices";
+import { useGoogleSyncBroken } from "@/lib/calendar/googleSyncBroken";
 import { placeAllByDates } from "@/lib/calendar/allDay";
 import { dayAndTime } from "@/lib/utils/date/clock";
 import { ScopePromptView, useScopePrompt } from "@/components/calendar/scopePrompt";
 import { isInstanceId } from "@/lib/calendar/instanceId";
 import type { RepeatScope } from "@/lib/calendar/repeat";
 import { apiErrorMessage } from "@/lib/utils/apiError";
+import { usePrintRoot } from "@/lib/ui/printRoot";
+import { spanLabel } from "@/lib/calendar/spanLabel";
 
-export type CalendarView = "day" | "week" | "month" | "agenda";
-const VIEWS: { id: CalendarView; label: string }[] = [
+export type CalendarView = "day" | "week" | "month" | "agenda" | "custom" | "year";
+const VIEWS: { id: CalendarView & CalendarCommand; label: string }[] = [
     { id: "day", label: "Day" },
     { id: "week", label: "Week" },
     { id: "month", label: "Month" },
     { id: "agenda", label: "Agenda" },
+    { id: "year", label: "Year" },
 ];
 /** A move as it was before: what its Undo puts back. */
 type Move = { uuid: string; start: string; end: string; scope?: RepeatScope };
 const PIN_KEY = "onecamp-calendar-pinned";
 
-// What opens on first use, each a chunk of its own, so the route brings the
-// grid alone (PM-3): quick create, the full dialog, the Calendars panel (and
-// the day's mini month), Go to with the parser, an event's pop card and its
-// right-click menu, the month view (the week or the agenda opens first),
-// Duplicate's copy of an event, and a repeating event's scope question and
-// changes. Their code is fetched
-// when the page has a quiet moment, and when the pointer heads for one, so
-// by the time it opens it is in and draws at once (lazyView holds no
-// fallback on screen once a chunk is loaded).
+// Each opens on first use from a chunk of its own, so the route brings the grid alone (PM-3), fetched ahead when quiet or pointed at.
 const QuickCreate = lazyView(() => import("@/components/calendar/quickCreateCard"));
 const EventDialog = lazyView(() => import("@/components/calendar/createCalendarEventDialog"));
 const Calendars = lazyView(() => import("@/components/calendar/calendarsPopover"));
@@ -84,12 +87,29 @@ const GoTo = lazyView(() => import("@/components/calendar/goToDate"));
 const Menu = lazyView(() => import("@/components/calendar/eventMenu"));
 const Card = lazyView(() => import("@/components/calendar/eventPopover"));
 const Month = lazyView(() => import("@/components/calendar/monthView"));
+/** The agenda: a phone's first view, asked for while the events load; a computer's when idle or pointed at. */
+const Agenda = lazyView(() => import("@/components/calendar/calendarAgenda"));
 /** Duplicate's copier (⌘D and the menu), fetched ahead with the dialog it fills. */
 const Copier = { warm: () => import("@/lib/calendar/duplicate") };
 /** A booked meeting's question before it moves, and Delete's question and request: only an action asks them. */
 const Booked = { warm: () => import("@/lib/calendar/bookedMeeting") };
 const Deleting = { warm: () => import("@/lib/calendar/confirmDelete") };
+const Undo = { warm: () => import("@/components/calendar/undoToast") };
 const Series = lazyView(() => import("@/components/calendar/seriesChanges"));
+const OtherLayer = lazyView(() => import("@/components/calendar/otherCalendarsLayer"));
+const Options = lazyView(() => import("@/components/calendar/viewOptions"));
+const Week = lazyView(() => import("@/components/calendar/yourWeek/weekButton"));
+
+/**
+ * Whether the header's Your week button is out of sight, having given its room
+ * to the period's title (weekButton, V-43b). The header's container query
+ * decides; this reads what it decided, so the width is written once.
+ */
+const weekButtonHidden = (header: HTMLElement | null) => {
+    const b = header?.querySelector("[data-week-button]");
+    return !!b && getComputedStyle(b).display === "none";
+};
+const Year = lazyView(() => import("@/components/calendar/yearView"));
 /** Fetches a surface's code ahead of its first use; a failure here says nothing, the surface asks when it opens. */
 const ahead = (surface: { warm: () => Promise<unknown> }) => () => void surface.warm().catch(() => {});
 
@@ -125,11 +145,11 @@ function useWide(): boolean {
  * that fits ("12 – 18 Oct 2026", then "12 – 18 Oct", then "12–18 Oct"), so
  * it drops the year or tightens before it ever truncates. Pure.
  */
-export function periodTitles(view: CalendarView, anchor: Date): string[] {
+export function periodTitles(view: CalendarView, anchor: Date, choices: Partial<ViewChoices> = {}): string[] {
     if (view === "day") return [format(anchor, "EEEE d MMMM yyyy"), format(anchor, "EEE d MMM yyyy"), format(anchor, "EEE d MMM"), format(anchor, "d MMM")];
-    if (view === "week") {
-        const s = startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON });
-        const e = endOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON });
+    if (view === "year") return [format(anchor, "yyyy")];
+    if (view === "week" || view === "custom") {
+        const { start: s, end: e } = shownRange(view, anchor, choices);
         if (isSameMonth(s, e)) return [`${format(s, "d")} – ${format(e, "d MMM yyyy")}`, `${format(s, "d")} – ${format(e, "d MMM")}`, `${format(s, "d")}–${format(e, "d MMM")}`];
         // A week across the new year names both years while there is room.
         if (s.getFullYear() !== e.getFullYear()) return [`${format(s, "d MMM yyyy")} – ${format(e, "d MMM yyyy")}`, `${format(s, "d MMM")} – ${format(e, "d MMM yyyy")}`, `${format(s, "d MMM")} – ${format(e, "d MMM")}`, `${format(s, "d MMM")}–${format(e, "d MMM")}`];
@@ -149,16 +169,13 @@ export function CalendarApp() {
     // Whether an overlay is a sheet: the one rule (components/ui/overlayMode),
     // a phone in landscape too, where isMobile (the layout's width) is false.
     const sheet = useSheetMode();
-    const router = useRouter();
+    const router = useAppRouter();
     const wide = useWide();
     const now = useMinute();
     const { toast } = useToast();
     const confirm = useConfirm();
     const post = usePost();
-    // A change to one instance of a repeating event asks which of the series
-    // it is for (D-CAL-6), and goes through the calendar's own API. Only the
-    // one store answers with instances (lib/calendar/instanceId), so an
-    // instance's id says repeats are on.
+    // A change to one instance asks which of the series it is for (D-CAL-6), through the calendar's own API.
     const { ask: askScope, prompt: scopePrompt } = useScopePrompt();
 
     // Where it opens: the place its address names (a reload, Back, a link to a
@@ -166,10 +183,15 @@ export function CalendarApp() {
     const [opened] = useState(() => calendarPlace(new URLSearchParams(typeof window === "undefined" ? "" : window.location.search)));
     const [anchor, setAnchor] = useState(() => opened.date ?? new Date());
     const [view, setView] = useState<CalendarView>(opened.view ?? "week");
+    // The choices kept on this device (lib/calendar/choices): calendars hidden, how views are laid out.
+    const kept = useCalendarChoices();
+    // A link's custom length is for this visit; one chosen here replaces it.
+    const [linkSpan, setLinkSpan] = useState(opened.span);
+    const choices = useMemo(() => (linkSpan ? { ...kept.view, span: linkSpan } : kept.view), [kept.view, linkSpan]);
     // Phones open on the agenda until the person picks a view themselves; a
     // phone has no week grid, so a week there is its day.
     const [viewChosen, setViewChosen] = useState(!!opened.view);
-    const shownView: CalendarView = !viewChosen && isMobile ? "agenda" : isMobile && view === "week" ? "day" : view;
+    const shownView: CalendarView = !viewChosen && isMobile ? "agenda" : isMobile && (view === "week" || view === "custom") ? "day" : view;
     // Which way the period moved, for its slide.
     const [dir, setDir] = useState<1 | -1>(1);
     // The desktop agenda's window once it has been paged; until then it runs
@@ -178,12 +200,21 @@ export function CalendarApp() {
     const deskAgenda = shownView === "agenda" && !isMobile;
     const agendaWindow = useMemo(() => agendaPage ?? agendaWindowFrom(anchor), [agendaPage, anchor]);
 
-    const [showEvents, setShowEvents] = useState(true);
-    const [showGoogle, setShowGoogle] = useState(true);
-    const [showTasks, setShowTasks] = useState(true);
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [calendarsOpen, setCalendarsOpen] = useState(false);
+    const [optionsOpen, setOptionsOpen] = useState(false);
+    // Your week leads View options while its header button has given its room
+    // to the title. Decided here, at open, for the options and for the room
+    // their placeholder keeps while their code loads (V-56).
+    const [optionsWithWeek, setOptionsWithWeek] = useState(false);
+    const headerRef = useRef<HTMLElement>(null);
+    const openOptions = useCallback((open: boolean) => {
+        if (open) setOptionsWithWeek(weekButtonHidden(headerRef.current));
+        setOptionsOpen(open);
+    }, []);
+    // A dialog the Calendars panel opens, held here to outlive it.
+    const [dialog, setDialog] = useState<{ open: (close: () => void) => ReactNode } | null>(null);
     const [pinned, setPinned] = useState(false);
     useEffect(() => {
         try {
@@ -214,7 +245,7 @@ export function CalendarApp() {
     // A phone opens the full form alone, as a sheet (no quick create), the
     // event's card as a sheet, and its month view; Calendars and Go to are the
     // wide layout's.
-    useWhenIdle(() => [...(sheet ? [] : [QuickCreate]), ...(isMobile ? [] : [Calendars, GoTo, Menu]), EventDialog, Card, Month, Copier, Series, ScopePromptView, Booked, Deleting].forEach((surface) => ahead(surface)()));
+    useWhenIdle(() => [...(sheet ? [] : [QuickCreate]), ...(isMobile ? [] : [Calendars, GoTo, Menu, Options, Year]), EventDialog, Card, Month, Agenda, Copier, Series, ScopePromptView, Booked, Deleting, Undo].forEach((surface) => ahead(surface)()));
     // Quick create and the dialog stay mounted from their first use on, so
     // each keeps its state and plays its closing motion.
     const [quickUsed, setQuickUsed] = useState(false);
@@ -224,11 +255,16 @@ export function CalendarApp() {
     const [cardUsed, setCardUsed] = useState(false);
     if (selected && !cardUsed) setCardUsed(true);
 
-    // What is asked for: always the month grid around the date. A week or a
-    // day of that month is part of the same answer, so switching views asks
-    // for nothing and waits for nothing. A new month keeps the last one on
-    // screen until its answer comes.
-    const { start: gridStart, end: gridEnd } = useMemo(() => monthGridRange(anchor), [anchor]);
+    // One read for the month grid around the date and a custom range past it (askedRange): switching views asks for nothing.
+    const monthKey = format(anchor, "yyyy-MM");
+    const shownNow = shownRange(shownView, anchor, choices);
+    const shownKey = `${+shownNow.start}-${+shownNow.end}`;
+    // By the range alone, as the grids take it: a card opening draws neither (C3).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const shown = useMemo(() => shownNow, [shownKey]);
+    const asked = askedRange(shownView, anchor, choices);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- by the range alone, so a step within it keeps every list made from it (fluid-10)
+    const { start: gridStart, end: gridEnd } = useMemo(() => asked, [`${+asked.start}-${+asked.end}`]);
     const rangeQuery = `startDate=${gridStart.toISOString()}&endDate=${gridEnd.toISOString()}`;
     const keep = { keepPreviousData: true };
     // The calendar says a failed load itself (over the grid, with Try
@@ -238,68 +274,68 @@ export function CalendarApp() {
     );
     // Every task of the grid, page by page: it asked for 100 and showed them as the month (FE-F-1).
     const { data: tasksRes, isLoading: isLoadingTasks, isError: tasksError, mutate: mutateTasks } = useAssignedTasks(rangeQuery, OWN_ERRORS);
+    // Check-ins and repeating tasks ahead (head 9); quiet when it fails.
+    const { data: repeatsRes, mutate: mutateRepeats } = useFetch<{ data: RepeatsView }>(repeatsPath(gridStart, gridEnd), undefined, keep, OWN_ERRORS);
+    const [repeated, setRepeated] = useState<{ events: CalendarEventInterface[]; tasks: TaskInfoInterface[] }>({ events: [], tasks: [] });
+    useEffect(() => {
+        const view = repeatsRes?.data;
+        if (view) void import("@/lib/calendar/repeats").then((m) => setRepeated({ events: m.checkInEvents(view), tasks: m.tasksAhead(view) }));
+    }, [repeatsRes]);
     const { data: gcalStatus, mutate: mutateGcalStatus } = useFetch<{ data: { isConnected: boolean; accountEmail?: string } }>(GetEndpointUrl.GoogleCalendarStatus);
     const { data: bookingRes } = useFetch<{ data: unknown[] }>(calendarsOpen || railShown ? CalendarGet.GetBookingPages : "");
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const selfId = selfProfile?.data?.data?.user_uuid;
+    // Your working hours (calendar A3), drawn where your zone is the grid's.
+    const prefs = usePreferences();
+    const workHours = prefs?.zone === browserTZ() ? (prefs?.["calendar.working_hours"] as Record<string, { start: string; end: string }[]> | null) : null;
+    // Zones you keep beside yours (head 6): a column each.
+    const keptZones = prefs?.["calendar.zones"];
+    const zones = Array.isArray(keptZones) ? (keptZones as { zone: string; label?: string }[]) : undefined;
     const loading = isLoadingEvents || isLoadingTasks;
+    // Other calendars beside your own (A6), from their own chunk.
+    const [others, setOthers] = useState<OtherCalendarsState>();
     // A failed load is not a free month: every view says so, in one place.
-    const failed = !loading && !!(eventsError || tasksError);
+    const ownFailed = !!(eventsError || tasksError);
+    const failed = !loading && ownFailed;
+    // Nor is a teammate whose calendar couldn't be read free (F2), but that is
+    // partial data: your own week stays drawn and live, and one row above it
+    // says their times are missing. Both failing is said once, as yours.
+    const othersFailed = !ownFailed && !!others?.error;
     // R, and Try again: asked again, with the dot by the period meanwhile.
     const [refreshing, setRefreshing] = useState(false);
     const refresh = useCallback(() => {
         if (refreshing) return;
         setRefreshing(true);
-        void Promise.allSettled([mutateEvents(), mutateTasks()]).finally(() => setRefreshing(false));
-    }, [refreshing, mutateEvents, mutateTasks]);
+        void Promise.allSettled([mutateEvents(), mutateTasks(), mutateRepeats(), others?.refresh()]).finally(() => setRefreshing(false));
+    }, [refreshing, mutateEvents, mutateTasks, mutateRepeats, others]);
     const googleConnected = !!gcalStatus?.data?.isConnected;
     // Which Google account it is ("" for a link made before the server said).
     const googleAccount = gcalStatus?.data?.accountEmail || undefined;
+    const googleBroken = useGoogleSyncBroken(googleConnected);
 
-    // Back from Google's consent screen: the server's connectors callback lands
-    // here with ?connector=success|error (CAL-BUG-8). Said once, then dropped
-    // from the address.
+    // Back from Google's consent screen (CAL-BUG-8), said by a chunk of its own.
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const status = params.get("connector");
-        const provider = params.get("provider");
-        if (!status || (provider && provider !== "google_calendar")) return;
-        if (status === "success") {
-            void Promise.resolve(mutateGcalStatus()).then((res) => {
-                const who = res?.data?.accountEmail;
-                toast({ title: "Google Calendar is connected", description: who ? `Connected as ${who}.` : "Its events show here now.", tone: "success" });
-            });
-            void mutateEvents();
-        } else if (status === "error") {
-            toast({ title: "Couldn't connect Google Calendar", description: "The sign-in didn't finish. Try again from Calendars.", variant: "destructive" });
-        }
-        window.history.replaceState({}, document.title, window.location.pathname);
+        if (window.location.search.includes("connector=")) void import("@/lib/calendar/googleReturn").then((m) => m.sayGoogleReturn(mutateGcalStatus, mutateEvents, toast));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on landing
     }, []);
 
-    const handleConnectGCal = async () => {
-        const res = await post.makeRequest<undefined, { url: string }>({ method: "GET", apiEndpoint: GetEndpointUrl.GoogleCalendarAuthUrl as unknown as string });
-        if (res?.url) window.location.href = res.url;
-    };
-    const handleUnlinkGCal = async () => {
-        await post.makeRequest({ apiEndpoint: PostEndpointUrl.GoogleCalendarUnlink });
-        mutateGcalStatus();
-        mutateEvents((cur: GetEventsResponse | undefined) => (cur?.data ? { ...cur, data: cur.data.filter((e) => !e.event_uuid.startsWith("gcal-")) } : cur), { revalidate: true });
-    };
-    // Disconnecting takes every Google event off this calendar, so it asks first.
-    const askUnlinkGCal = () =>
-        confirm({
-            title: "Disconnect Google Calendar?",
-            description: "Its events leave this calendar, and new OneCamp events stop going to Google. You can connect it again at any time.",
-            confirmText: "Disconnect Google Calendar",
-            destructive: true,
-            onConfirm: handleUnlinkGCal,
-        });
-
+    // Your own rows are choices like any calendar's (A6), so a phone hides them too.
+    const hidden = others?.hidden ?? kept.hidden;
+    const showEvents = !hidden.includes("onecamp");
+    const showGoogle = !hidden.includes("google");
+    const showTasks = !hidden.includes("tasks");
+    const otherEvents = others?.events;
     // Google all-day events are placed by their dates from here on (CAL-BUG-2).
-    const allEvents = useMemo(() => placeAllByDates(eventsRes?.data || []), [eventsRes]);
-    const events = useMemo(() => allEvents.filter((e) => (e.event_uuid.startsWith("gcal-") ? showGoogle : showEvents)), [allEvents, showEvents, showGoogle]);
+    const allEvents = useMemo(() => placeAllByDates([...(eventsRes?.data || []), ...(otherEvents || [])]), [eventsRes, otherEvents]);
+    // Each calendar's events as its row says (A6).
+    const events = useMemo(() => {
+        const shown = allEvents.filter((e) => (e.event_uuid.startsWith("gcal-") ? showGoogle : !!others || showEvents));
+        const dressed = others ? others.dress(shown, showEvents) : shown;
+        // Check-ins: drawn, never moved (canMove reads allEvents).
+        return showEvents ? [...dressed, ...repeated.events] : dressed;
+    }, [allEvents, showEvents, showGoogle, others, repeated]);
     const tasks = useMemo(() => tasksRes?.data?.user_tasks || [], [tasksRes]);
+    const gridTasks = useMemo(() => [...tasks, ...repeated.tasks], [tasks, repeated]);
     const q = searchQuery.trim().toLowerCase();
     // Search dims what doesn't match on the grids (content.md C02); the agenda lists only matches.
     const matches = useCallback((title: string) => !q || title.toLowerCase().includes(q), [q]);
@@ -307,7 +343,7 @@ export function CalendarApp() {
     const placed = useMemo(() => {
         const items: MonthItem[] = events.map((e) => ({ ...e, isTask: false }));
         if (showTasks) {
-            for (const t of tasks) {
+            for (const t of gridTasks) {
                 const startStr = t.task_start_date || t.task_due_date;
                 const endStr = t.task_due_date || t.task_start_date;
                 if (!startStr || !endStr) continue;
@@ -315,20 +351,19 @@ export function CalendarApp() {
             }
         }
         return placeItems(items);
-    }, [events, tasks, showTasks]);
+    }, [events, gridTasks, showTasks]);
     const byDay = useMemo(() => itemsByDay(placed, gridStart, gridEnd), [placed, gridStart, gridEnd]);
-    const weeks = useMemo(() => {
-        if (shownView !== "month") return [];
-        const out = [];
-        for (let ws = gridStart; ws <= gridEnd; ws = addDays(ws, 7)) {
-            out.push({ weekStart: ws, days: Array.from({ length: 7 }, (_, i) => addDays(ws, i)), tracks: layoutWeek(ws, placed) });
-        }
-        return out;
-    }, [shownView, gridStart, gridEnd, placed]);
+    // The month, or a custom range of weeks, on the month's grid.
+    const monthly = shownView === "month" || (shownView === "custom" && choices.span.endsWith("w"));
 
-    const monthKey = format(anchor, "yyyy-MM");
+    // The days a time grid draws (a hidden weekend left out), and the weeks' numbers when shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- by the range's key: a step within it draws the same days
+    const drawn = useMemo(() => gridDays(shownView, anchor, choices), [shownView, shownKey, choices.weekends]);
+    const weekLabel = useMemo(() => (choices.weekNumbers ? (d: Date) => `W${weekNumber(d, choices.weekStartsOn)}` : undefined), [choices.weekNumbers, choices.weekStartsOn]);
     const monthBlank = shownView === "month" && !loading && !failed && ![...byDay.keys()].some((k) => k.startsWith(monthKey));
-    const weekStart = startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON });
+    const weekStart = useMemo(() => startOfWeek(anchor, { weekStartsOn: choices.weekStartsOn }), [anchor, choices.weekStartsOn]);
+    const shownWeek = useRef(weekStart);
+    shownWeek.current = weekStart;
     const weekCount = (pred: (it: MonthItem) => boolean) => {
         const seen = new Set<string>();
         for (let i = 0; i < 7; i++) for (const it of byDay.get(dayKey(addDays(weekStart, i))) || []) if (pred(it)) seen.add(it.event_uuid);
@@ -355,8 +390,8 @@ export function CalendarApp() {
             setSelected(null);
             return;
         }
-        goTo(shownView === "day" ? addDays(anchor, s) : shownView === "week" ? addDays(anchor, 7 * s) : addMonths(anchor, s));
-    }, [deskAgenda, agendaWindow, shownView, anchor, goTo]);
+        goTo(stepAnchor(shownView, anchor, s, choices));
+    }, [deskAgenda, agendaWindow, shownView, anchor, goTo, choices]);
     const pickView = useCallback((v: CalendarView) => {
         setView(v);
         setViewChosen(true);
@@ -381,16 +416,21 @@ export function CalendarApp() {
 
     // ---- opening and changing events ----------------------------------------
 
-    const openFull = useCallback((uuid: string) => {
+    // An event opened in full: at its page on a phone, beside the calendar on a
+    // computer. `edit` opens it editing (the card's pencil, Edit event: V-34).
+    const openFull = useCallback((uuid: string, how?: OpenHow) => {
         setSelected(null);
+        const channel = checkInChannel(uuid);
+        if (channel) return void import("@/lib/conversation/route").then((m) => router.push(m.route({ conversation: { kind: "channel", id: channel } })));
         if (isMobile) {
-            router.push(calendarRoute({ event: uuid }));
+            router.push(calendarRoute({ event: uuid, edit: how?.edit }));
             return;
         }
         // The panel loads the event by its id, showing the calendar's copy meanwhile.
-        dispatch(openRightPanel({ eventUUID: uuid }));
+        dispatch(openRightPanel({ eventUUID: uuid, ...(how?.edit ? { eventEditAt: Date.now() } : {}) }));
     }, [isMobile, router, dispatch]);
-    const openTask = useCallback((uuid: string) => {
+    const openTask = useCallback((id: string) => {
+        const uuid = taskOfAhead(id);
         if (isMobile) router.push(`/app/task/${uuid}`);
         else dispatch(openRightPanel({ taskUUID: uuid }));
     }, [isMobile, router, dispatch]);
@@ -400,64 +440,60 @@ export function CalendarApp() {
     // The event an address names opens whatever the panel had: the address
     // wins. On a phone it opens at its own page, and the address drops it
     // first, so Back comes to the calendar rather than to the event again.
+    const inAddress = useTabInAddress();
     const openNamed = useCallback((uuid: string) => {
         if (!isMobile) return openFull(uuid);
-        const here = new URL(window.location.href);
-        here.searchParams.delete("event");
-        window.history.replaceState(null, "", here.pathname + here.search);
+        inAddress({ event: null });
         openFull(uuid);
-    }, [isMobile, openFull]);
+    }, [isMobile, openFull, inAddress]);
     useEffect(() => {
         if (opened.event) openNamed(opened.event);
         // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on opening
     }, []);
 
-    // The address says where you are: the day, the view once one is chosen,
-    // and the event open beside the calendar. It is written as the place
-    // changes, never on opening (the place is then what the address said, or
-    // the panel's event a link opened). history.replaceState, not the
-    // router's replace, which fetched the page again: Next follows it itself.
+    // The address says where you are, written once the place is still a second (fluid-10);
+    // a press, a key, a move or leaving writes it at once (lib/navigation/addressLater; F4).
     const rightPanel = useSelector((s: RootState) => s.rightPanel.rightPanelState);
     const panelEvent = !isMobile && rightPanel.isOpen ? rightPanel.data.eventUUID || null : null;
-    const shownPlace = `${dayKey(anchor)} ${viewChosen ? view : ""} ${panelEvent ?? ""}`;
+    const span = viewChosen && view === "custom" ? choices.span : null;
+    const shownPlace = `${dayKey(anchor)} ${viewChosen ? view : ""} ${panelEvent ?? ""} ${span}`;
     const writtenPlace = useRef(shownPlace);
     const ourAddress = useRef<string | null>(null);
     useEffect(() => {
         if (shownPlace === writtenPlace.current || window.location.pathname !== app_calendar_path) return;
-        writtenPlace.current = shownPlace;
-        const here = new URLSearchParams(window.location.search);
-        const url = calendarRoute({ date: anchor, view: viewChosen ? view : null, event: panelEvent }, here);
-        const search = new URL(url, window.location.href).searchParams.toString();
-        if (search === here.toString()) return;
-        ourAddress.current = search;
-        window.history.replaceState(null, "", url);
-    }, [shownPlace, anchor, view, viewChosen, panelEvent]);
+        return addressLater(() => {
+            writtenPlace.current = shownPlace;
+            const search = inAddress({ date: dayKey(anchor), view: viewChosen ? view : null, event: panelEvent, span });
+            if (search !== null) ourAddress.current = search;
+        }, 1000);
+    }, [shownPlace, anchor, view, viewChosen, panelEvent, span, inAddress]);
 
     // A link to a day or an event while the calendar is open, or Back: the
     // calendar goes where the address now says.
     const followAddress = useCallback((place: ReturnType<typeof calendarPlace>) => {
         if (place.date && dayKey(place.date) !== dayKey(anchor)) goTo(place.date);
         if (place.view && (place.view !== view || !viewChosen)) pickView(place.view);
+        if (place.span && place.span !== choices.span) setLinkSpan(place.span);
         if (place.event && place.event !== panelEvent) openNamed(place.event);
-    }, [anchor, view, viewChosen, panelEvent, goTo, pickView, openNamed]);
+    }, [anchor, view, viewChosen, panelEvent, goTo, pickView, openNamed, choices.span]);
     const clickItem = useCallback((item: { event_uuid: string; isTask?: boolean }, el: HTMLElement) => {
         if (item.isTask) return openTask(item.event_uuid);
+        if (checkInChannel(item.event_uuid)) return openFull(item.event_uuid);
         setDraft(null);
         setSelected((cur) => (cur?.uuid === item.event_uuid ? null : { uuid: item.event_uuid, el }));
-    }, [openTask]);
-    const selectedEvent = selected ? allEvents.find((e) => e.event_uuid === selected.uuid) ?? null : null;
+    }, [openTask, openFull]);
 
-    // Only your own OneCamp events move; a Google event is changed in Google.
+    // Only your own OneCamp events move: not Google's, nor another calendar's.
     const canMove = useCallback((uuid: string) => {
-        if (uuid.startsWith("gcal-")) return false;
+        if (uuid.startsWith("gcal-") || (others && !others.ownIds.has(uuid))) return false;
         const e = allEvents.find((x) => x.event_uuid === uuid);
-        return !!e && (!e.event_created_by || e.event_created_by.user_uuid === selfId);
-    }, [allEvents, selfId]);
+        return !!e && !e.event_read_only && (!e.event_created_by || e.event_created_by.user_uuid === selfId);
+    }, [allEvents, selfId, others]);
 
     /** An event's new times, through the existing update call. */
     const sendTimes = useCallback((e: CalendarEventInterface, start: Date, end: Date) =>
         post.makeRequest<CreateEventPayload>({
-            apiEndpoint: (PostEndpointUrl.UpdateCalendarEvent + `/${e.event_uuid}`) as string,
+            apiEndpoint: (CalendarPost.UpdateCalendarEvent + `/${e.event_uuid}`) as string,
             payload: {
                 title: e.event_title,
                 description: e.event_description,
@@ -479,12 +515,22 @@ export function CalendarApp() {
         return true;
     });
 
-    /**
-     * A move or a resize: drawn at once, sent, and put back if it fails. Once
-     * it lands, a toast says where it went, with Undo; an undo says where it
-     * went back to. A booked meeting asks first, naming its guest and whether
-     * they'll be told (CAL-BUG-4).
-     */
+    /** A move or resize: drawn at once, put back if it fails; a toast with Undo. A booked meeting asks first (CAL-BUG-4). */
+    // A task carried onto the hours: a block of its time (the events API loads on this first use).
+    const blockTime = useCallback(async (taskUUID: string, start: Date, end: Date, title = "") => {
+        try {
+            const api = await import("@/lib/calendar/eventsApi");
+            const zone = api.readerZone();
+            const made = (await post.makeRequest(api.createApiEventRequest({ kind: "task_block", task_uuid: taskUUID, title, start: { at: start.toISOString(), zone }, end: { at: end.toISOString(), zone } }))) as { title?: string } | undefined;
+            await mutateEvents();
+            if (made?.title) toast({ title: `Time blocked for “${made.title}”`, description: spanLabel(start, end) });
+            return !!made;
+        } catch {
+            // The request said what went wrong.
+            return false;
+        }
+    }, [post, mutateEvents, toast]);
+
     const changeTimes = useCallback(async (uuid: string, start: Date, end: Date, undoing = false, confirmed = false, scoped?: RepeatScope): Promise<void> => {
         const e = allEvents.find((x) => x.event_uuid === uuid);
         if (!e) return;
@@ -539,15 +585,9 @@ export function CalendarApp() {
         }
         const move: Move = { uuid, start: before.start, end: before.end, scope };
         lastMove.current = move;
-        toast({
-            title: `Moved “${e.event_title}”`,
-            description: dayAndTime(start, end),
-            action: (
-                <ToastAction altText="Undo the move" onClick={() => undoMove(move)}>
-                    Undo
-                </ToastAction>
-            ),
-        });
+        // Its Undo comes with its chunk; if that can't load, Z still undoes.
+        const action = await Undo.warm().then((m) => m.undoAction(() => undoMove(move)), () => undefined);
+        toast({ title: `Moved “${e.event_title}”`, description: dayAndTime(start, end), action });
     }, [allEvents, mutateEvents, sendTimes, post, toast, confirm, undoMove, askScope]);
 
     const moveDays = useCallback((item: MonthItem, days: number) => {
@@ -607,21 +647,17 @@ export function CalendarApp() {
         confirm({ ...deleteEventConfirm(ev), destructive: true, onConfirm: () => removeEvent(ev) });
     }, [canMove, toast, confirm, removeEvent, askScope, post, panelEvent, dispatch, mutateEvents]);
 
-    // Duplicate (⌘D and the menu): the full dialog with a copy, never the call
-    // link (EV-58). The copy's code is a chunk, asked for beside the dialog's
-    // so neither waits for the other; one that failed to load is asked for
-    // again next time, and says so now.
+    // Duplicate (⌘D, the menu): the dialog with a copy, never the call link (EV-58); its code a chunk beside the dialog's.
     const duplicate = useCallback((ev: CalendarEventInterface) => {
         setSelected(null);
         setDraft(null);
         ahead(EventDialog)();
         // A copier that failed to come (offline) says so; the next press asks for it again.
         Copier.warm().then(
-            ({ duplicateOf }) => openDialog(duplicateOf(ev, joinLinkOf(ev), selfId)),
+            ({ duplicateOf, joinLinkOf }) => openDialog(duplicateOf(ev, joinLinkOf(ev), selfId)),
             () => toast({ title: `Couldn't copy “${ev.event_title}”`, description: "Check your connection and try again.", variant: "destructive" }),
         );
     }, [selfId, openDialog, toast]);
-    const { copy } = useCopyToClipboard();
 
     // An event's menu: a right-click on it, or the menu key on its block.
     // Tasks and empty time keep the browser's own menu.
@@ -635,11 +671,13 @@ export function CalendarApp() {
         setMenu({ at: { ...(pointer ?? { x: box.left, y: box.bottom }), from }, event, open: true });
         return true;
     };
+    // The calendar prints alone (View options › Print, or the browser's own).
+    const printRoot = usePrintRoot();
     const onContextMenu = (e: ReactMouseEvent) => {
         const from = (e.target as HTMLElement).closest?.<HTMLElement>("[data-event-uuid]");
         if (from && openMenu(from, e.clientX || e.clientY ? { x: e.clientX, y: e.clientY } : undefined)) e.preventDefault();
     };
-    const menuItems = (ev: CalendarEventInterface) => [
+    const menuItems = (ev: CalendarEventInterface, copy: (text: string, message: string) => unknown) => [
         { label: "Open", onSelect: () => openFull(ev.event_uuid) },
         { label: "Duplicate", onSelect: () => duplicate(ev) },
         { label: "Copy link", onSelect: () => void copy(new URL(calendarRoute({ event: ev.event_uuid }), window.location.origin).toString(), "Link copied") },
@@ -660,12 +698,7 @@ export function CalendarApp() {
         return tasks.some((t) => t.task_uuid === uuid) ? { task: uuid } : null;
     };
 
-    /**
-     * The calendar's keys, from one table (lib/calendar/keys): the one the
-     * shortcut list shows and the toolbar's hints name. Each command says
-     * whether it took the key; a key taken goes no further, so it never lands
-     * in a field it opened (C typed a "c" into the new title).
-     */
+    /** The calendar's keys, from one table (lib/calendar/keys). A key taken goes no further, so it never lands in a field it opened. */
     const runKey = useStableCallback((command: CalendarCommand): boolean => {
         const took = (run: () => void) => {
             run();
@@ -683,6 +716,8 @@ export function CalendarApp() {
             week: () => took(() => pickView("week")),
             month: () => took(() => pickView("month")),
             agenda: () => took(() => pickView("agenda")),
+            custom: () => took(() => pickView("custom")),
+            year: () => took(() => pickView("year")),
             newEvent: () => took(newEvent),
             open: () => {
                 const it = picked();
@@ -716,31 +751,13 @@ export function CalendarApp() {
 
     // ---- what the toolbar says ----------------------------------------------
 
-    const titles = deskAgenda ? agendaTitles(agendaWindow) : periodTitles(shownView, anchor);
-    const unit = shownView === "day" ? "day" : shownView === "week" ? "week" : "month";
+    const titles = useMemo(() => (deskAgenda ? agendaTitles(agendaWindow) : periodTitles(shownView, anchor, choices)), [deskAgenda, agendaWindow, shownView, anchor, choices]);
+    const unit = shownView === "custom" ? spanWords(choices.span) : shownView === "day" || shownView === "week" || shownView === "year" ? shownView : "month";
     const viewIndex = VIEWS.findIndex((v) => v.id === shownView);
-    const periodKey = `${shownView}:${shownView === "day" ? dayKey(anchor) : shownView === "week" ? dayKey(weekStart) : deskAgenda ? dayKey(agendaWindow.from) : monthKey}`;
+    const stepBy = useStableCallback(step);
+    const toToday = useStableCallback(() => goTo(new Date()));
+    const periodKey = `${shownView}:${deskAgenda ? dayKey(agendaWindow.from) : shownView === "month" ? monthKey : dayKey(shown.start)}`;
 
-    const only = (ev: boolean, g: boolean, t: boolean) => () => {
-        setShowEvents(ev);
-        setShowGoogle(g);
-        setShowTasks(t);
-    };
-    const rows: CalendarRow[] = [
-        { id: "onecamp", name: "Personal", hue: CALENDAR_HUE.onecamp, on: showEvents, count: weekCount((i) => !i.isTask && !i.event_uuid.startsWith("gcal-")), onToggle: () => setShowEvents((v) => !v), onOnly: only(true, false, false) },
-        ...(googleConnected
-            ? [{ id: "google", name: "Google Calendar", hue: CALENDAR_HUE.google, on: showGoogle, count: weekCount((i) => i.event_uuid.startsWith("gcal-")), onToggle: () => setShowGoogle((v) => !v), onOnly: only(false, true, false) }]
-            : []),
-        {
-            id: "tasks",
-            name: "Assigned tasks",
-            on: showTasks,
-            count: weekCount((i) => !!i.isTask),
-            marks: [...new Set(tasks.map((t) => t.task_project?.project_uuid).filter(Boolean) as string[])].slice(0, 3),
-            onToggle: () => setShowTasks((v) => !v),
-            onOnly: only(false, false, true),
-        },
-    ];
     const panel = (
         <Calendars.View
             fallback={<div role="status" aria-label="Loading your calendars" className="h-[420px]" />}
@@ -754,7 +771,7 @@ export function CalendarApp() {
                         if (shownView === "month" || shownView === "agenda") pickView("day");
                         setCalendarsOpen(false);
                     }}
-                    rows={rows}
+                    rows={m.ownRows({ hidden, others, google: googleConnected, weekCount, tasks })}
                     bookingCount={bookingRes?.data?.length}
                     onBookingPages={() => {
                         setCalendarsOpen(false);
@@ -762,51 +779,263 @@ export function CalendarApp() {
                     }}
                     googleConnected={googleConnected}
                     googleAccount={googleAccount}
-                    onConnectGoogle={handleConnectGCal}
-                    onDisconnectGoogle={askUnlinkGCal}
-                    busy={post.isSubmitting}
+                    refreshGoogle={mutateGcalStatus}
+                    mutateEvents={mutateEvents}
+                    confirm={confirm}
                     canPin={wide}
                     pinned={pinned}
                     onTogglePin={togglePin}
+                    onImported={refresh}
+                    others={others}
+                    onDialog={(open) => {
+                        setCalendarsOpen(false);
+                        setDialog({ open });
+                    }}
+                    countOf={(id) => weekCount((i) => i.event_calendar_id === id)}
                 />
             )}
         />
     );
 
     // A task sits on its due day in a list; drawn on every day it spans, one task filled a week.
-    const agendaItems = (day: Date) =>
-        (byDay.get(dayKey(day)) || []).filter((item) => (!item.isTask || isSameDay(parseISO(item.event_end_time), day)) && matches(item.event_title));
+    const agendaItems = useCallback(
+        (day: Date) => (byDay.get(dayKey(day)) || []).filter((item) => (!item.isTask || isSameDay(parseISO(item.event_end_time), day)) && matches(item.event_title)),
+        [byDay, matches],
+    );
+    // The agenda's days keep while an event's card opens, so the agenda isn't drawn for it (C3).
+    const agendaShown = useMemo(
+        () => (shownView !== "agenda" ? [] : isMobile ? agendaDays(gridStart, gridEnd, agendaItems) : agendaDays(agendaWindow.from, agendaWindow.to, agendaItems, now, false)),
+        [shownView, isMobile, gridStart, gridEnd, agendaWindow, agendaItems, now],
+    );
+    const hasItems = useCallback((d: Date) => byDay.has(dayKey(d)), [byDay]);
 
-    const dayItems = byDay.get(dayKey(anchor)) || [];
-    const dayRail = (
-        <div className="flex flex-col gap-4 p-4">
-            <Calendars.View
-                fallback={<div aria-hidden="true" className="h-[258px]" />}
-                render={(m) => <m.MiniMonth anchor={anchor} view="day" hasItems={(d) => byDay.has(dayKey(d))} onPick={goTo} />}
-            />
-            <div>
-                <h2 className="pb-1.5 text-meta font-medium text-ink-2">
-                    {isSameDay(anchor, now) ? "Today" : format(anchor, "EEEE")} · {dayItems.length} {dayItems.length === 1 ? "item" : "items"}
-                </h2>
-                <div className="grid gap-0.5">
-                    {dayItems.map((it) => (
-                        <HueBlock key={it.event_uuid} item={it} variant="row" past={parseISO(it.event_end_time) < now} onClick={(e) => clickItem(it, e.currentTarget)} className="w-full">
-                            <span className="min-w-0 flex-1 truncate">{it.event_title}</span>
-                            {!it.isTask ? (
-                                <span className="shrink-0 text-meta font-[450] tabular-nums opacity-75">
-                                    {dayListTime(it, anchor)}
-                                </span>
-                            ) : null}
-                        </HueBlock>
-                    ))}
-                    {dayItems.length === 0 ? <p className="text-ui-sm text-ink-3">A clear day.</p> : null}
+    // Kept while an event's card opens, so neither is drawn for it (C3).
+    const dayRail = useMemo(() => {
+        const dayItems = byDay.get(dayKey(anchor)) || [];
+        return (
+            <div className="flex flex-col gap-4 p-4">
+                <Calendars.View
+                    fallback={<div aria-hidden="true" className="h-[258px]" />}
+                    render={(m) => <m.MiniMonth anchor={anchor} view="day" hasItems={hasItems} onPick={goTo} />}
+                />
+                <div>
+                    <h2 className="pb-1.5 text-meta font-medium text-ink-2">
+                        {isSameDay(anchor, now) ? "Today" : format(anchor, "EEEE")} · {dayItems.length} {dayItems.length === 1 ? "item" : "items"}
+                    </h2>
+                    <div className="grid gap-0.5">
+                        {dayItems.map((it) => (
+                            <HueBlock key={it.event_uuid} item={it} variant="row" past={parseISO(it.event_end_time) < now} onClick={(e) => clickItem(it, e.currentTarget)} className="w-full">
+                                <span className="min-w-0 flex-1 truncate">{it.event_title}</span>
+                                {!it.isTask ? (
+                                    <span className="shrink-0 text-meta font-[450] tabular-nums">
+                                        {dayListTime(it, anchor)}
+                                    </span>
+                                ) : null}
+                            </HueBlock>
+                        ))}
+                        {dayItems.length === 0 ? <p className="text-ui-sm text-ink-3">A clear day.</p> : null}
+                    </div>
                 </div>
             </div>
-        </div>
+        );
+    }, [byDay, anchor, now, hasItems, goTo, clickItem]);
+
+    // The toolbar's parts that don't change with the period are kept as they
+    // were, so a new period draws its title and grid alone (fluid-10).
+    const steps = useMemo(
+        () => (
+            <>
+                <div className="ml-1 flex shrink-0 items-center" data-touch-group="">
+                    <Button variant="ghost" size="icon-sm" onClick={() => stepBy(-1)} aria-label={`Previous ${unit}`} title={`Previous ${unit} · ${calendarKeyHint("previous")}`}>
+                        <ChevronLeft />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" onClick={() => stepBy(1)} aria-label={`Next ${unit}`} title={`Next ${unit} · ${calendarKeyHint("next")}`}>
+                        <ChevronRight />
+                    </Button>
+                </div>
+                <Button variant="secondary" size="xs" onClick={toToday} title={`Today · ${calendarKeyHint("today")}`}>
+                    Today
+                </Button>
+            </>
+        ),
+        [unit, stepBy, toToday],
     );
+    const viewLink = useStableCallback(() => new URL(calendarRoute({ date: anchor, view: viewChosen ? view : null, span }), location.origin).toString());
+    const pickSpan = useCallback(() => {
+        setLinkSpan(undefined);
+        pickView("custom");
+    }, [pickView]);
+    // Print: the options close first, so the page is clear behind the print dialog.
+    const printView = useCallback(() => {
+        setOptionsOpen(false);
+        requestAnimationFrame(() => window.print());
+    }, []);
+    const ownEvents = eventsRes?.data;
+    const otherLayer = useMemo(() => <OtherLayer.View fallback={null} render={(m) => <m.default from={gridStart} to={gridEnd} own={ownEvents} onChange={setOthers} />} />, [gridStart, gridEnd, ownEvents]);
+    const openPanel = calendarsOpen ? panel : null;
+    const actions = useMemo(
+        () => (
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                {/* Search: an icon that opens into a field; matches stay, the rest dim. */}
+                {searchOpen ? (
+                    <div className="content-view-in flex h-7 w-56 items-center gap-1.5 rounded-lg bg-raised px-2 shadow-e1 focus-within:focus-halo">
+                        <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                        <input
+                            autoFocus
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            data-escape-own=""
+                            onKeyDown={(e) => {
+                                if (e.key === "Escape") {
+                                    setSearchQuery("");
+                                    setSearchOpen(false);
+                                }
+                            }}
+                            placeholder="Search events"
+                            aria-label="Search events"
+                            className="min-w-0 flex-1 bg-transparent text-ui-sm text-ink outline-none placeholder:text-ink-3"
+                        />
+                        <button
+                            type="button"
+                            aria-label="Close search"
+                            data-touch-target=""
+                            onClick={() => {
+                                setSearchQuery("");
+                                setSearchOpen(false);
+                            }}
+                            className="text-ink-3 hover:text-ink"
+                        >
+                            <X className="size-3.5" />
+                        </button>
+                    </div>
+                ) : (
+                    <Button variant="ghost" size="icon-sm" className="@max-[52rem]/calhead:hidden" aria-label="Search events" title={`Search · ${calendarKeyHint("search")}`} onClick={() => setSearchOpen(true)}>
+                        <Search />
+                    </Button>
+                )}
+                {!railShown ? (
+                    <Popover open={calendarsOpen} onOpenChange={setCalendarsOpen}>
+                        <PopoverTrigger asChild>
+                            <Button variant="ghost" size="sm" data-calendars-trigger="" aria-label={googleBroken ? "Calendars, Google needs connecting again" : "Calendars"} onPointerEnter={ahead(Calendars)} onFocus={ahead(Calendars)}>
+                                {/* Google stopped answering (C9): a danger dot. */}
+                                <span className="relative flex">
+                                    <CalendarDays />
+                                    {googleBroken ? <span aria-hidden="true" data-google-broken="" className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-destructive ring-2 ring-sheet" /> : null}
+                                </span>
+                                {/* On a narrow sheet the icon and its colours carry it, so the period keeps its room. */}
+                                <span className="hidden @[61rem]/calhead:inline">Calendars</span>
+                                {/* The calendars on show, as their colours. */}
+                                <span className="flex items-center gap-0.5" aria-hidden="true">
+                                    {showEvents ? <IdentityMark hue={OWN_HUE} variant="dot" size={6} className="!size-1.5" /> : null}
+                                    {googleConnected && showGoogle ? <IdentityMark hue={otherHue("google")} variant="dot" size={6} className="!size-1.5" /> : null}
+                                </span>
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="content-float w-[300px] rounded-xl bg-pop p-3 shadow-e3">
+                            {openPanel}
+                        </PopoverContent>
+                    </Popover>
+                ) : null}
+                {/* The view switch: five buttons over one sliding thumb, narrower (the search,
+                    which / opens, aside) under 52rem of header, initials under 46rem (calendar.css). */}
+                <div role="group" aria-label="View" data-calendar-views="" className="relative flex rounded-lg bg-sunken p-0.5 [--seg:64px] @max-[52rem]/calhead:[--seg:52px]">
+                    <span
+                        aria-hidden="true"
+                        data-thumb=""
+                        className="calendar-thumb absolute bottom-0.5 left-0.5 top-0.5 rounded-md bg-raised shadow-e1"
+                        style={{ width: "var(--seg)", transform: `translateX(calc(var(--seg) * ${Math.max(viewIndex, 0)}))`, opacity: viewIndex < 0 ? 0 : undefined }}
+                    />
+                    {VIEWS.map((v) => (
+                        <button
+                            key={v.id}
+                            type="button"
+                            aria-pressed={shownView === v.id}
+                            onClick={() => pickView(v.id)}
+                            onPointerEnter={v.id === "month" ? ahead(Month) : v.id === "agenda" ? ahead(Agenda) : undefined}
+                            title={`${v.label} · ${calendarKeyHint(v.id)}`}
+                            style={{ width: "var(--seg)" }}
+                            data-touch-target=""
+                            className={cn(
+                                "relative h-6 rounded-md text-ui-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
+                                shownView === v.id ? "text-ink" : "text-ink-3 hover:text-ink",
+                            )}
+                        >
+                            <span className="calendar-view-name">{v.label}</span>
+                        </button>
+                    ))}
+                </div>
+                <Week.View fallback={<i className="w-8 @max-[40rem]/calhead:hidden" data-week-button="" />} render={(m) => <m.WeekButton week={shownWeek} />} />
+                {/* View options: the custom view (named here while it shows) and the layout. */}
+                <Popover open={optionsOpen} onOpenChange={openOptions}>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="View options"
+                            aria-pressed={shownView === "custom"}
+                            title="View options"
+                            data-view-options-trigger=""
+                            // Chosen (a custom view) and open are states, not actions: icon and words in ink, never the accent.
+                            data-tone="neutral"
+                            className="aria-pressed:text-ink data-[state=open]:text-ink"
+                            onPointerEnter={ahead(Options)}
+                            onFocus={ahead(Options)}
+                        >
+                            <SlidersHorizontal />
+                            {shownView === "custom" ? <span className="tabular-nums">{spanWords(choices.span)}</span> : null}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="content-float w-[300px] rounded-xl bg-pop p-0 shadow-e3">
+                        {/* While its code loads, the card keeps the loaded view's height: 565 px with Your week
+                            (in its own 180 px loading box), 330 px without. calendarHeaderFit's "View options
+                            while its code loads" holds both, so the card never grows as it lands (V-56). */}
+                        {optionsOpen ? <Options.View fallback={<div className={optionsWithWeek ? "h-[565px]" : "h-[330px]"} />} render={(m) => <m.ViewOptions span={choices.span} onSpan={pickSpan} link={viewLink} onPrint={printView} week={shownWeek} withWeek={optionsWithWeek} />} /> : null}
+                    </PopoverContent>
+                </Popover>
+                <Button
+                    size="sm"
+                    onClick={newEvent}
+                    title={`New event · ${calendarKeyHint("newEvent")}`}
+                    aria-label="New event"
+                    data-new-event=""
+                    onPointerEnter={ahead(EventDialog)}
+                    onFocus={ahead(EventDialog)}
+                    className="@max-[57rem]/calhead:w-8 @max-[57rem]/calhead:px-0"
+                >
+                    <Plus />
+                    {/* Under 57rem of header (a tablet's 768 beside the rail) the words go
+                        and the plus stays, so the period's title keeps "12–18 Oct": it
+                        was cut to "12–18 …" there. */}
+                    <span className="hidden @[57rem]/calhead:inline">New event</span>
+                    {/* The hint goes first when the sheet narrows (kbd sets its own display, so a wrapper hides it). */}
+                    <span className="hidden @[60rem]/calhead:contents">
+                        <kbd className="kbd" aria-hidden="true">
+                            {calendarKeyHint("newEvent")}
+                        </kbd>
+                    </span>
+                </Button>
+            </div>
+        ),
+        [searchOpen, searchQuery, railShown, calendarsOpen, openPanel, showEvents, googleConnected, googleBroken, showGoogle, shownView, viewIndex, pickView, newEvent, optionsOpen, openOptions, optionsWithWeek, choices.span, viewLink, pickSpan, printView],
+    );
+    // The week's inputs keep while an event's card opens, so the week isn't drawn for it (C3):
+    // its days are `drawn`, kept by the range they show.
+    const clickById = useCallback((uuid: string, el: HTMLElement) => clickItem({ event_uuid: uuid }, el), [clickItem]);
+    const menuAt = useStableCallback((_: unknown, el: HTMLElement) => void openMenu(el));
+    const openItem = useCallback((it: MonthItem) => (it.isTask ? openTask(it.event_uuid) : openFull(it.event_uuid)), [openTask, openFull]);
+    const canMoveItem = useCallback((it: MonthItem) => canMove(it.event_uuid), [canMove]);
+    // From the year: a day opens its day, a month's name its month.
+    const openDay = useCallback((d: Date) => {
+        goTo(d);
+        pickView("day");
+    }, [goTo, pickView]);
+    const openMonth = useCallback((d: Date) => {
+        goTo(d);
+        pickView("month");
+    }, [goTo, pickView]);
 
     return (
-        <div className="relative flex h-full w-full overflow-hidden bg-sheet" data-calendar="" onContextMenu={onContextMenu}>
+        <div ref={printRoot} className="relative flex h-full w-full overflow-hidden bg-sheet" data-calendar="" data-print-root="" onContextMenu={onContextMenu}>
             <main className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
                 <h1 className="sr-only">Calendar</h1>
                 {isMobile ? (
@@ -815,20 +1044,15 @@ export function CalendarApp() {
                         anchor={anchor}
                         view={shownView}
                         now={now}
-                        hasItems={(d) => byDay.has(dayKey(d))}
-                        onToday={() => goTo(new Date())}
-                        onPickDay={(d) => {
-                            goTo(d);
-                            pickView("day");
-                        }}
+                        hasItems={hasItems}
+                        goTo={goTo}
                         onView={pickView}
+                        weekStart={weekStart}
                         onNew={newEvent}
-                        onStep={(s) => goTo(addDays(anchor, 7 * s))}
-                        onStepMonth={(s) => goTo(addMonths(anchor, s))}
                         loading={loading || refreshing}
                     />
                 ) : (
-                    <header className="@container/calhead relative z-20 flex h-[52px] shrink-0 items-center gap-2 border-b border-line bg-sheet px-4" data-calendar-header="">
+                    <header ref={headerRef} className="@container/calhead relative z-20 flex h-[52px] shrink-0 items-center gap-2 border-b border-line bg-sheet px-4" data-calendar-header="">
                         {/* Where you are: the period, then back, forward and today. The
                             group takes the room the actions leave, and the period says as
                             much of itself as fits there (no "Oct 20…"). */}
@@ -837,173 +1061,75 @@ export function CalendarApp() {
                             {loading || refreshing ? (
                                 <LoadingDot className="ml-0.5" />
                             ) : null}
-                            <div className="ml-1 flex shrink-0 items-center" data-touch-group="">
-                                <Button variant="ghost" size="icon-sm" onClick={() => step(-1)} aria-label={`Previous ${unit}`} title={`Previous ${unit} · ${calendarKeyHint("previous")}`}>
-                                    <ChevronLeft />
-                                </Button>
-                                <Button variant="ghost" size="icon-sm" onClick={() => step(1)} aria-label={`Next ${unit}`} title={`Next ${unit} · ${calendarKeyHint("next")}`}>
-                                    <ChevronRight />
-                                </Button>
-                            </div>
-                            <Button variant="secondary" size="xs" onClick={() => goTo(new Date())} title={`Today · ${calendarKeyHint("today")}`}>
-                                Today
-                            </Button>
+                            {steps}
                         </div>
 
-                        <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                            {/* Search: an icon that opens into a field; matches stay, the rest dim. */}
-                            {searchOpen ? (
-                                <div className="content-view-in flex h-7 w-56 items-center gap-1.5 rounded-lg bg-raised px-2 shadow-e1 focus-within:focus-halo">
-                                    <Search className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
-                                    <input
-                                        autoFocus
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        data-escape-own=""
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Escape") {
-                                                setSearchQuery("");
-                                                setSearchOpen(false);
-                                            }
-                                        }}
-                                        placeholder="Search events"
-                                        aria-label="Search events"
-                                        className="min-w-0 flex-1 bg-transparent text-ui-sm text-ink outline-none placeholder:text-ink-3"
-                                    />
-                                    <button
-                                        type="button"
-                                        aria-label="Close search"
-                                        data-touch-target=""
-                                        onClick={() => {
-                                            setSearchQuery("");
-                                            setSearchOpen(false);
-                                        }}
-                                        className="text-ink-3 hover:text-ink"
-                                    >
-                                        <X className="size-3.5" />
-                                    </button>
-                                </div>
-                            ) : (
-                                <Button variant="ghost" size="icon-sm" className="@max-[40rem]/calhead:hidden" aria-label="Search events" title={`Search · ${calendarKeyHint("search")}`} onClick={() => setSearchOpen(true)}>
-                                    <Search />
-                                </Button>
-                            )}
-                            {!railShown ? (
-                                <Popover open={calendarsOpen} onOpenChange={setCalendarsOpen}>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="ghost" size="sm" data-calendars-trigger="" aria-label="Calendars" onPointerEnter={ahead(Calendars)} onFocus={ahead(Calendars)}>
-                                            <CalendarDays />
-                                            {/* On a narrow sheet the icon and its colours carry it, so the period keeps its room. */}
-                                            <span className="hidden @[50rem]/calhead:inline">Calendars</span>
-                                            {/* The calendars on show, as their colours. */}
-                                            <span className="flex items-center gap-0.5" aria-hidden="true">
-                                                {showEvents ? <IdentityMark hue={CALENDAR_HUE.onecamp} variant="dot" size={6} className="!size-1.5" /> : null}
-                                                {googleConnected && showGoogle ? <IdentityMark hue={CALENDAR_HUE.google} variant="dot" size={6} className="!size-1.5" /> : null}
-                                            </span>
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent align="end" className="content-float w-[300px] rounded-xl bg-pop p-3 shadow-e3">
-                                        {panel}
-                                    </PopoverContent>
-                                </Popover>
-                            ) : null}
-                            {/* The view switch: four buttons over one sliding thumb, narrower (the search,
-                                which / opens, aside) under 40rem of header, so the period stays whole. */}
-                            <div role="group" aria-label="View" data-calendar-views="" className="relative flex rounded-lg bg-sunken p-0.5 [--seg:64px] @max-[40rem]/calhead:[--seg:52px]">
-                                <span
-                                    aria-hidden="true"
-                                    data-thumb=""
-                                    className="calendar-thumb absolute bottom-0.5 left-0.5 top-0.5 rounded-md bg-raised shadow-e1"
-                                    style={{ width: "var(--seg)", transform: `translateX(calc(var(--seg) * ${Math.max(viewIndex, 0)}))` }}
-                                />
-                                {VIEWS.map((v) => (
-                                    <button
-                                        key={v.id}
-                                        type="button"
-                                        aria-pressed={shownView === v.id}
-                                        onClick={() => pickView(v.id)}
-                                        onPointerEnter={v.id === "month" ? ahead(Month) : undefined}
-                                        title={`${v.label} · ${calendarKeyHint(v.id)}`}
-                                        style={{ width: "var(--seg)" }}
-                                        data-touch-target=""
-                                        className={cn(
-                                            "relative h-6 rounded-md text-ui-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand",
-                                            shownView === v.id ? "text-ink" : "text-ink-3 hover:text-ink",
-                                        )}
-                                    >
-                                        {v.label}
-                                    </button>
-                                ))}
-                            </div>
-                            <Button
-                                size="sm"
-                                onClick={newEvent}
-                                title={`New event · ${calendarKeyHint("newEvent")}`}
-                                aria-label="New event"
-                                data-new-event=""
-                                onPointerEnter={ahead(EventDialog)}
-                                onFocus={ahead(EventDialog)}
-                                className="@max-[46rem]/calhead:w-8 @max-[46rem]/calhead:px-0"
-                            >
-                                <Plus />
-                                {/* Under 46rem of header (a tablet's 768 beside the rail) the words go
-                                    and the plus stays, so the period's title keeps "12–18 Oct": it
-                                    was cut to "12–18 …" there. */}
-                                <span className="hidden @[46rem]/calhead:inline">New event</span>
-                                {/* The hint goes first when the sheet narrows (kbd sets its own display, so a wrapper hides it). */}
-                                <span className="hidden @[60rem]/calhead:contents">
-                                    <kbd className="kbd" aria-hidden="true">
-                                        {calendarKeyHint("newEvent")}
-                                    </kbd>
-                                </span>
-                            </Button>
-                        </div>
+                        {actions}
                     </header>
                 )}
+
+                {/* The calendars beside yours, when their read failed: in the page's flow, never over your week. */}
+                {others ? <OtherLayer.View fallback={null} render={(m) => <m.OthersFailedRow shown={othersFailed} retrying={refreshing} onRetry={refresh} />} /> : null}
 
                 <div className="custom-scrollbar relative min-h-0 flex-1 overflow-auto overscroll-contain bg-sheet" aria-busy={loading || undefined} onPointerEnter={() => [QuickCreate, Card].forEach((surface) => ahead(surface)())}>
                     {failed ? (
                         // Over the grid, where an empty view says it is empty.
                         <div className="absolute inset-0 z-40 flex items-start justify-center bg-sheet/90 pt-16" data-calendar-failed="">
-                            <ErrorState subject="your calendar" onRetry={refresh} detail={calendarAwayDetail(eventsError)} />
+                            <ErrorState subject="your calendar" onRetry={refresh} retrying={refreshing} detail={calendarAwayDetail(eventsError)} />
                         </div>
                     ) : null}
                     {/* One wrapper per period: a new period slides in from the side it came from. */}
                     <div key={periodKey} className={cn("h-full", dir > 0 ? "content-period-next" : "content-period-prev")} data-period={periodKey}>
-                        {shownView === "agenda" ? (
-                            loading && !eventsRes ? (
-                                <AgendaSkeleton />
-                            ) : failed ? null : (
-                                <CalendarAgenda
-                                    desktop={!isMobile}
-                                    now={now}
-                                    days={isMobile ? agendaDays(gridStart, gridEnd, agendaItems) : agendaDays(agendaWindow.from, agendaWindow.to, agendaItems, now, false)}
-                                    onOpen={(item, el) => clickItem(item, el)}
-                                    onNewEvent={newEvent}
-                                    emptyTitle={isMobile ? undefined : agendaEmptyTitle(agendaWindow, now)}
+                        {shownView === "year" ? (
+                            <Year.View
+                                fallback={<div className="h-full" aria-busy="true" />}
+                                render={(m) => <m.YearView year={anchor} byDay={byDay} today={dayKey(now)} weekStartsOn={choices.weekStartsOn} onDay={openDay} onMonth={openMonth} />}
+                            />
+                        ) : shownView === "agenda" ? (
+                            failed ? null : (
+                                <Agenda.View
+                                    fallback={<AgendaSkeleton />}
+                                    render={(m) =>
+                                        loading && !eventsRes ? (
+                                            <AgendaSkeleton />
+                                        ) : (
+                                            <m.CalendarAgenda
+                                                desktop={!isMobile}
+                                                now={now}
+                                                days={agendaShown}
+                                                onOpen={clickItem}
+                                                onNewEvent={newEvent}
+                                                emptyTitle={isMobile ? undefined : agendaEmptyTitle(agendaWindow, now)}
+                                            />
+                                        )
+                                    }
                                 />
                             )
-                        ) : shownView === "week" || shownView === "day" ? (
-                            // The week scrolls sideways only below its gutter and seven 90 px
-                            // days (686 px): at 760 a tablet's 712 px sheet hid Sunday,
+                        ) : !monthly ? (
+                            // Days scroll sideways only below the gutter and 90 px a day
+                            // (686 px for a week): at 760 a tablet's 712 px sheet hid Sunday,
                             // today's column, off the right edge.
-                            <div className={cn("h-full", shownView === "week" && "min-w-[686px]")}>
+                            <div className="h-full" style={{ minWidth: drawn.length > 1 ? gutterWidth(zones?.length ?? 0) + 90 * drawn.length : undefined }}>
                                 <WeekView
-                                    weekStart={shownView === "day" ? startOfDay(anchor) : weekStart}
-                                    dayCount={shownView === "day" ? 1 : 7}
+                                    workHours={workHours}
+                                    zones={zones}
+                                    weekStart={drawn[0]}
+                                    days={drawn}
+                                    weekLabel={weekLabel?.(shown.start)}
+                                    density={choices.density}
                                     events={events}
-                                    tasks={tasks}
+                                    tasks={gridTasks}
                                     showEvents
                                     showTasks={showTasks}
                                     draft={draft}
                                     onDraft={onDraft}
-                                    onEventClick={(uuid, el) => clickItem({ event_uuid: uuid }, el)}
+                                    onEventClick={clickById}
                                     onEventOpen={openFull}
-                                    onEventMenu={(_, el) => void openMenu(el)}
+                                    onEventMenu={menuAt}
                                     onTaskClick={openTask}
-                                    onEventChange={(uuid, s, e) => void changeTimes(uuid, s, e)}
+                                    onTaskBlock={blockTime}
+                                    onEventChange={changeTimes}
                                     canMove={canMove}
-                                    selectedId={selected?.uuid ?? null}
                                     matches={q ? matches : undefined}
                                     rail={shownView === "day" && !isMobile ? dayRail : undefined}
                                     loading={loading}
@@ -1014,18 +1140,21 @@ export function CalendarApp() {
                             <Month.View
                                 fallback={<div className="h-full" aria-busy="true" data-month-loading="" />}
                                 render={(m) => (
-                            <m.MonthView
-                                month={anchor}
-                                weeks={weeks}
+                            <m.MonthGrid
+                                month={shownView === "month" ? anchor : undefined}
+                                from={shown.start}
+                                to={shown.end}
+                                placed={placed}
+                                weekends={choices.weekends}
+                                weekLabel={weekLabel}
                                 byDay={byDay}
                                 now={now}
                                 onItemClick={clickItem}
-                                onItemOpen={(it) => (it.isTask ? openTask(it.event_uuid) : openFull(it.event_uuid))}
-                                onItemMenu={(_, el) => void openMenu(el)}
+                                onItemOpen={openItem}
+                                onItemMenu={menuAt}
                                 onDraft={onDraft}
                                 onMoveDays={moveDays}
-                                canMove={(it) => canMove(it.event_uuid)}
-                                selectedId={selected?.uuid ?? null}
+                                canMove={canMoveItem}
                                 matches={q ? matches : undefined}
                                 blank={monthBlank}
                                 onNewEvent={newEvent}
@@ -1048,9 +1177,11 @@ export function CalendarApp() {
             {menu ? (
                 <Menu.View
                     fallback={null}
-                    render={(m) => <m.EventMenu at={menu.at} open={menu.open} items={menuItems(menu.event)} onClose={() => setMenu((cur) => cur && { ...cur, open: false })} />}
+                    render={(m) => <m.EventMenu at={menu.at} open={menu.open} items={menuItems(menu.event, m.copyToClipboard)} onClose={() => setMenu((cur) => cur && { ...cur, open: false })} />}
                 />
             ) : null}
+            {dialog?.open(() => setDialog(null))}
+            {otherLayer}
             {goToAt ? (
                 <GoTo.View
                     fallback={null}
@@ -1070,7 +1201,7 @@ export function CalendarApp() {
             {cardUsed ? (
                 <Card.View
                     fallback={null}
-                    render={(m) => <m.EventPopover event={selectedEvent} anchor={selected?.el ?? null} now={now} onClose={() => setSelected(null)} onOpenFull={openFull} selfId={selfId} phone={sheet} askScope={askScope} mutateEvents={mutateEvents} holdOpen={!!scopePrompt} />}
+                    render={(m) => <m.OpenCard uuid={selected?.uuid} events={events} allEvents={allEvents} anchor={selected?.el ?? null} now={now} onClose={() => setSelected(null)} onOpenFull={openFull} onOpenTask={openTask} selfId={selfId} phone={sheet} askScope={askScope} mutateEvents={mutateEvents} holdOpen={!!scopePrompt} />}
                 />
             ) : null}
             {quickUsed ? (
@@ -1083,11 +1214,7 @@ export function CalendarApp() {
                             onDraftChange={(d) => {
                                 setDraft(d);
                                 // The parse moved the draft: show its period. The card follows the ghost on its own.
-                                if (shownView === "day" && !isSameDay(d.start, anchor)) setAnchor(d.start);
-                                if (shownView === "week") {
-                                    const off = differenceInCalendarDays(d.start, weekStart);
-                                    if (off < 0 || off > 6) setAnchor(d.start);
-                                }
+                                if (!monthly && (d.start < shown.start || d.start > shown.end)) setAnchor(d.start);
                             }}
                             onClose={() => setDraft(null)}
                             onCreated={() => {
@@ -1098,6 +1225,7 @@ export function CalendarApp() {
                                 setDraft(null);
                                 openDialog(v);
                             }}
+                            onBlockTime={(t, start, end, title) => blockTime(t.task_uuid, start, end, title)}
                         />
                     )}
                 />
@@ -1121,13 +1249,8 @@ export function CalendarApp() {
     );
 }
 
-/**
- * Tells the calendar when something else changes its address: a link to a
- * day or an event while it is open, or Back. The calendar's own writes come
- * back here too, and are passed over: the one it made last, and any already
- * overtaken by a newer one. A component of its own, so that a change of the
- * address re-renders it alone, not the calendar's grid.
- */
+/** Tells the calendar when something else changes its address (a link, Back), passing over its own writes. Its own component, so the grid doesn't re-render. */
+
 function FollowAddress({ ours, onChange }: { ours: RefObject<string | null>; onChange: (place: ReturnType<typeof calendarPlace>) => void }) {
     const search = useSearchParams()?.toString() ?? "";
     const seen = useRef(search);
@@ -1145,18 +1268,16 @@ function FollowAddress({ ours, onChange }: { ours: RefObject<string | null>; onC
  * one row, a strip of the week's days under it, and the views as a segmented
  * row. The agenda is the default; tapping a day opens its grid.
  */
-function PhoneBar({
+const PhoneBar = memo(function PhoneBar({
     titles,
     anchor,
     view,
     now,
     hasItems,
-    onToday,
-    onPickDay,
+    goTo,
     onView,
+    weekStart: start,
     onNew,
-    onStep,
-    onStepMonth,
     loading,
 }: {
     titles: string[];
@@ -1164,18 +1285,15 @@ function PhoneBar({
     view: CalendarView;
     now: Date;
     hasItems: (d: Date) => boolean;
-    onToday: () => void;
-    onPickDay: (d: Date) => void;
+    goTo: (d: Date) => void;
     onView: (v: CalendarView) => void;
+    weekStart: Date;
     onNew: () => void;
-    onStep: (s: 1 | -1) => void;
-    /** The month view has no week strip, so the month's own arrows sit by its title. */
-    onStepMonth: (s: 1 | -1) => void;
     loading: boolean;
 }) {
-    const start = startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON });
     const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
-    const phoneViews: CalendarView[] = ["agenda", "day", "month"];
+    // Year too: reached by Y or 6, it is a view the switch shows as the one on.
+    const phoneViews: CalendarView[] = ["agenda", "day", "month", "year"];
     return (
         <header className="shrink-0 border-b border-line bg-sheet" data-calendar-header="" data-phone-bar="">
             <div className="flex h-12 items-center gap-1.5 px-3">
@@ -1184,46 +1302,43 @@ function PhoneBar({
                     <LoadingDot />
                 ) : null}
                 {view === "month" ? (
-                    // The week strip carries the arrows everywhere else; a month
-                    // had none, so it couldn't be left on a phone. A touch group
-                    // (app/phone.css F3b): 16 px apart under a finger, so each
-                    // arrow's 44 px reach (F3) stops at the other's; side by
-                    // side, a tap on Previous went to Next.
+                    // A month's arrows on a phone: a touch group 16 px apart (app/phone.css F3b), so a tap lands on its own arrow.
                     <div className="flex shrink-0 items-center" data-month-step="" data-touch-group="">
-                        <Button variant="ghost" size="icon-sm" aria-label="Previous month" onClick={() => onStepMonth(-1)}>
+                        <Button variant="ghost" size="icon-sm" aria-label="Previous month" onClick={() => goTo(addMonths(anchor, -1))}>
                             <ChevronLeft />
                         </Button>
-                        <Button variant="ghost" size="icon-sm" aria-label="Next month" onClick={() => onStepMonth(1)}>
+                        <Button variant="ghost" size="icon-sm" aria-label="Next month" onClick={() => goTo(addMonths(anchor, 1))}>
                             <ChevronRight />
                         </Button>
                     </div>
                 ) : null}
-                <Button variant="secondary" size="sm" onClick={onToday}>
+                <Button variant="secondary" size="sm" onClick={() => goTo(new Date())}>
                     Today
                 </Button>
+                <Week.View fallback={<i className="w-8" />} render={(m) => <m.WeekButton week={{ current: start }} />} />
                 <Button size="icon" aria-label="New event" onClick={onNew}>
                     <Plus />
                 </Button>
             </div>
             {view !== "month" ? (
                 <div className="flex items-center px-1 pb-2">
-                    <Button variant="ghost" size="icon-sm" aria-label="Previous week" onClick={() => onStep(-1)}>
+                    <Button variant="ghost" size="icon-sm" aria-label="Previous week" onClick={() => goTo(addDays(anchor, -7))}>
                         <ChevronLeft />
                     </Button>
                     <div className="grid flex-1 grid-cols-7" data-week-strip="">
                         {days.map((d) => (
                             <div key={d.toISOString()} className="flex flex-col items-center gap-0.5">
                                 <span className="text-micro font-medium text-ink-3">{format(d, "EEEEE")}</span>
-                                <DayCell date={d} today={isSameDay(d, now)} selected={view === "day" && isSameDay(d, anchor)} dot={hasItems(d)} onClick={() => onPickDay(d)} aria-label={format(d, "EEEE d MMMM")} data-touch-target="" />
+                                <DayCell date={d} today={isSameDay(d, now)} selected={view === "day" && isSameDay(d, anchor)} dot={hasItems(d)} onClick={() => { goTo(d); onView("day"); }} aria-label={format(d, "EEEE d MMMM")} data-touch-target="" />
                             </div>
                         ))}
                     </div>
-                    <Button variant="ghost" size="icon-sm" aria-label="Next week" onClick={() => onStep(1)}>
+                    <Button variant="ghost" size="icon-sm" aria-label="Next week" onClick={() => goTo(addDays(anchor, 7))}>
                         <ChevronRight />
                     </Button>
                 </div>
             ) : null}
-            <div role="group" aria-label="View" data-calendar-views="" className="mx-3 mb-2 grid grid-cols-3 rounded-lg bg-sunken p-0.5">
+            <div role="group" aria-label="View" data-calendar-views="" className="mx-3 mb-2 grid grid-cols-4 rounded-lg bg-sunken p-0.5">
                 {phoneViews.map((v) => (
                     <button
                         key={v}
@@ -1231,15 +1346,15 @@ function PhoneBar({
                         aria-pressed={view === v}
                         onClick={() => onView(v)}
                         data-touch-target=""
-                        className={cn("h-8 rounded-md text-ui-sm font-medium capitalize outline-none focus-visible:ring-2 focus-visible:ring-brand", view === v ? "bg-raised text-ink shadow-e1" : "text-ink-3")}
+                        className={cn("h-8 rounded-md text-ui-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-brand", view === v ? "bg-raised text-ink shadow-e1" : "text-ink-3")}
                     >
-                        {v}
+                        {v[0].toUpperCase() + v.slice(1)}
                     </button>
                 ))}
             </div>
         </header>
     );
-}
+});
 
 /** Loading, said as a breathing dot beside the period (content.md C02), never a bar. */
 function LoadingDot({ className }: { className?: string }) {

@@ -106,7 +106,14 @@ describe("its uses", () => {
     const { readFileSync } = await import("node:fs")
     expect(readFileSync("components/navigationBar/tablet/TabletListPanel.tsx", "utf8")).toMatch(/<OverlaySheet open onClose=\{onClose\} label="Channels"/)
     const layout = readFileSync("app/app/LayoutContent.tsx", "utf8")
-    expect(layout).toMatch(/<OverlaySheet[\s\S]*?escape="own"[\s\S]*?data-panel-over=""/)
+    // The right panel's ONE sheet (components/rightPanel/RightPanelSheet): over the page on a tablet or a narrow
+    // window (LayoutContent), and on a phone's bottom edge (TaskInPlace). Neither draws a sheet of its own.
+    const sheet = readFileSync("components/rightPanel/RightPanelSheet.tsx", "utf8")
+    const inPlace = readFileSync("components/rightPanel/TaskInPlace.tsx", "utf8")
+    expect(sheet).toMatch(/<OverlaySheet[\s\S]*?escape="own"[\s\S]*?data-panel-over=\{over \? "" : undefined\}/)
+    expect(layout).toMatch(/<RightPanelSheet[^>]*\bover>/)
+    expect(inPlace).toMatch(/<RightPanelSheet[^>]*shape="shell-panel-phone"/)
+    for (const caller of [layout, inPlace]) expect(caller).not.toMatch(/<OverlaySheet/)
     expect(layout).not.toMatch(/className="shell-scrim"/)
   })
 })

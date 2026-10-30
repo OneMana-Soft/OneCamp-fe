@@ -7,7 +7,7 @@ import * as React from "react"
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { Button } from "@/components/ui/button"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { Tile, type TileProps } from "@/components/ui/graphics/Tile"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +18,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Building2, Check, ChevronDown, Clock, Globe, Link, Loader2, Lock, ShieldCheck, Users, X } from "@/lib/icons"
+import { Building2, Check, ChevronDown, Clock, Globe, Link, Lock, ShieldCheck, Users, X } from "@/lib/icons"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDate } from "@/lib/utils/date/shortDate"
@@ -131,33 +131,30 @@ export function withoutOwner<T extends { user_uuid: string }>(list: T[] | undefi
 
 export type GeneralAccess = "restricted" | "public" | "public_comment"
 
-/**
- * The general-access tile: a lock on the hover ground (private), a building
- * on the sky tint (the workspace); the anyone-with-the-link card has the globe
- * on moss. The colour carries the meaning, so a new choice's tile pops in.
- */
+/** A neutral tile on an access card: the hover ground, since the card is sunken and the tile's tint would match it. */
+export function AccessTile({ className, ...rest }: Omit<TileProps, "hue">) {
+  return <Tile hue="ink" {...rest} className={cn("bg-hover", className)} />
+}
+
+/** General access: a lock or a building; a new choice pops in. */
 export function GeneralAccessMark({ value }: { value: GeneralAccess }) {
   return value === "restricted" ? (
-    <span key="lock" className="content-pop-in flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-hover text-ink-2 [&>svg]:size-4" data-access-tile="restricted">
+    <AccessTile key="lock" data-access-tile="restricted" className="content-pop-in">
       <Lock aria-hidden="true" />
-    </span>
+    </AccessTile>
   ) : (
-    <span key="ws" className="content-pop-in inline-flex shrink-0" data-access-tile="workspace">
-      <Tile hue="sky" size="md">
-        <Building2 aria-hidden="true" />
-      </Tile>
-    </span>
+    <AccessTile key="ws" data-access-tile="workspace" className="content-pop-in">
+      <Building2 aria-hidden="true" />
+    </AccessTile>
   )
 }
 
-/** The anyone-with-the-link tile: the globe on moss. */
+/** The anyone-with-the-link tile: the globe, neutral. */
 export function LinkAccessTile() {
   return (
-    <span className="inline-flex shrink-0" data-access-tile="link">
-      <Tile hue="moss" size="md">
-        <Globe aria-hidden="true" />
-      </Tile>
-    </span>
+    <AccessTile data-access-tile="link">
+      <Globe aria-hidden="true" />
+    </AccessTile>
   )
 }
 
@@ -213,9 +210,9 @@ export function AccessCard({
         <div className="min-w-0 flex-1">
           {options && onChange && !disabled ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex max-w-full items-center gap-1 rounded-sm text-ui font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand">
-                <span className="truncate">{label}</span>
-                <ChevronDown className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+              <DropdownMenuTrigger className="inline-flex max-w-full items-start gap-1 rounded-sm text-left text-ui font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand">
+                <span className="line-clamp-2 text-pretty">{label}</span>
+                <ChevronDown className="mt-[3px] size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-72">
                 {options.map((o) => (
@@ -230,7 +227,7 @@ export function AccessCard({
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <span className="block truncate text-ui font-medium text-ink">{label}</span>
+            <span className="line-clamp-2 text-pretty text-ui font-medium text-ink">{label}</span>
           )}
           <span className="mt-0.5 block text-ui-sm text-ink-2">{description}</span>
         </div>
@@ -351,7 +348,8 @@ export function ShareTokenInvite({
     <div className="relative">
       <div className="flex items-start gap-2">
         <div
-          className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 rounded-lg bg-raised py-1 pl-1.5 pr-1 shadow-e1 focus-within:focus-halo"
+          className="@container flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 rounded-lg bg-raised py-1 pl-1.5 pr-1 shadow-e1 focus-within:focus-halo"
+          data-share-field-row=""
           onClick={() => inputRef.current?.focus()}
         >
           {picked.map((u) => (
@@ -398,11 +396,12 @@ export function ShareTokenInvite({
             aria-expanded={shown.length > 0}
             aria-controls={listId}
             aria-activedescendant={shown[active] ? `${listId}-${shown[active].user_uuid}` : undefined}
-            className="h-6 min-w-24 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3 max-sm:text-base"
+            className="h-6 min-w-24 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3 @max-[420px]:basis-full max-sm:text-base"
           />
+          {roles.length > 1 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="ml-auto h-6 shrink-0 gap-1 px-1.5 text-ui-sm font-medium text-ink-2" aria-label={`Role: ${roleLabel}`}>
+              <Button variant="ghost" size="sm" className="ml-auto h-6 shrink-0 gap-1 px-1.5 text-ui-sm font-medium text-ink-2 @max-[420px]:ml-0" aria-label={`Role: ${roleLabel}`}>
                 {roleLabel}
                 <ChevronDown className="size-3.5" aria-hidden="true" />
               </Button>
@@ -416,11 +415,11 @@ export function ShareTokenInvite({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
         {picked.length > 0 ? (
-          <Button size="sm" onClick={() => void invite()} disabled={busy} className="relative shrink-0" data-share-invite="">
-            <span className={cn(busy && "invisible")}>Invite</span>
-            {busy ? <Loader2 className="absolute size-3.5 animate-spin" aria-label="Inviting" /> : null}
+          <Button size="sm" onClick={() => void invite()} busy={busy} className="shrink-0" data-share-invite="">
+            Invite
           </Button>
         ) : (
           <kbd className="kbd mt-2 shrink-0 max-sm:hidden" aria-hidden="true">⏎</kbd>
@@ -470,13 +469,15 @@ export function ShareTokenInvite({
 /**
  * The dialog's shell (D18 on the v3 dialog: r16, e4, 20 px in): the title
  * "Share “…”" at 17/24, the description, the body, then a hairline and the
- * footer with Copy link (secondary) and Done (ghost). On a phone the dialog
- * component makes it a sheet; the footer stays put above the safe area.
+ * footer with Copy link (secondary) and Done (ghost), straight in the dialog
+ * after its body. On a phone the dialog component makes it a sheet, and the
+ * footer, marked as the sheet's, is its foot: the one rule for every phone
+ * sheet's footer stands Done off it (app/overlay.css 8b), never a foot of its own.
  */
-export function ShareFooter({ onDone, href }: { onDone: () => void; href?: string }) {
+export function ShareFooter({ onDone, href, link = true }: { onDone: () => void; href?: string; /** false where there is no link to copy (a calendar). */ link?: boolean }) {
   return (
-    <div className="sticky bottom-0 flex items-center justify-between border-t border-line bg-sheet px-5 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-      <CopyLinkButton href={href} />
+    <div data-sheet-footer="" className={cn("sticky bottom-0 flex items-center border-t border-line bg-sheet px-5 py-3", link ? "justify-between" : "justify-end")}>
+      {link ? <CopyLinkButton href={href} /> : null}
       <Button variant="ghost" size="sm" onClick={onDone}>
         Done
       </Button>
@@ -525,7 +526,7 @@ export function UntilNote({ until }: { until?: string | null }) {
  * with what each lets them do, when their access ends, and Remove access.
  * Plain text for whoever can't change it.
  */
-export function LevelMenu({
+export function LevelMenu<L extends GrantLevel>({
   value,
   levels,
   who,
@@ -534,11 +535,11 @@ export function LevelMenu({
   onRemove,
   canEdit,
 }: {
-  value: GrantLevel
-  levels: GrantLevel[]
+  value: L
+  levels: L[]
   /** Whose level it is, for the button's name. */
   who: string
-  onChange?: (level: GrantLevel) => void
+  onChange?: (level: L) => void
   onUntil?: (until: string | null) => void
   onRemove?: () => void
   canEdit: boolean
@@ -716,7 +717,7 @@ export function InviteRow({
   return (
     <div className="relative" data-share-invite-row="">
       <div className="flex items-start gap-2">
-        <div className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 rounded-lg bg-raised py-1 pl-1.5 pr-1 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50" onClick={() => inputRef.current?.focus()}>
+        <div className="@container flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1 rounded-lg bg-raised py-1 pl-1.5 pr-1 shadow-e1 focus-within:ring-1 focus-within:ring-brand/50" data-share-field-row="" onClick={() => inputRef.current?.focus()}>
           {picked.map((p) => (
             <span key={p.id} className="content-pop-in inline-flex h-[22px] max-w-full items-center gap-1 rounded-md bg-sunken pl-0.5 pr-1 text-ui-sm text-ink" data-share-chip={p.kind}>
               {p.kind === "user" ? (
@@ -765,11 +766,11 @@ export function InviteRow({
             aria-expanded={options.length > 0}
             aria-controls={listId}
             aria-activedescendant={options[active] ? `${listId}-${options[active].id}` : undefined}
-            className="h-6 min-w-24 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3 max-sm:text-base"
+            className="h-6 min-w-24 flex-1 bg-transparent px-1 text-ui text-ink outline-none placeholder:text-ink-3 @max-[420px]:basis-full max-sm:text-base"
           />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="ml-auto h-6 shrink-0 gap-1 px-1.5 text-ui-sm font-medium text-ink-2" aria-label={`Level: ${ACCESS_LEVEL_LABEL[shownLevel]}${until ? `, until ${shortDate(new Date(until))}` : ""}`} data-share-invite-level="">
+              <Button variant="ghost" size="sm" className="ml-auto h-6 shrink-0 gap-1 px-1.5 text-ui-sm font-medium text-ink-2 @max-[420px]:ml-0" aria-label={`Level: ${ACCESS_LEVEL_LABEL[shownLevel]}${until ? `, until ${shortDate(new Date(until))}` : ""}`} data-share-invite-level="">
                 {ACCESS_LEVEL_LABEL[shownLevel]}
                 {until ? <Clock className="size-3 text-ink-3" aria-hidden="true" /> : null}
                 <ChevronDown className="size-3.5" aria-hidden="true" />
@@ -803,9 +804,8 @@ export function InviteRow({
           </DropdownMenu>
         </div>
         {picked.length > 0 ? (
-          <Button size="sm" onClick={() => void invite()} disabled={busy} className="relative shrink-0" data-share-invite="">
-            <span className={cn(busy && "invisible")}>Invite</span>
-            {busy ? <Loader2 className="absolute size-3.5 animate-spin" aria-label="Inviting" /> : null}
+          <Button size="sm" onClick={() => void invite()} busy={busy} className="shrink-0" data-share-invite="">
+            Invite
           </Button>
         ) : (
           <kbd className="kbd mt-2 shrink-0 max-sm:hidden" aria-hidden="true">

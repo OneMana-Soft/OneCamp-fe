@@ -1,6 +1,7 @@
 import { afterEach, describe, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { SWRConfig } from "swr"
+import { AtAddress } from "@/lib/testing/nextAddress"
 import type { ReactNode } from "react"
 import { expectSecretAskedAgain } from "@/lib/testing/secretReentryKit"
 
@@ -30,7 +31,9 @@ import AppsCard from "@/components/admin/AppsCard"
 import { listApps, updateApp } from "@/services/appService"
 
 const fresh = ({ children }: { children: ReactNode }) => (
-  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
+  <AtAddress url="/app/admin?tab=apps">
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
+  </AtAddress>
 )
 
 const linear = {

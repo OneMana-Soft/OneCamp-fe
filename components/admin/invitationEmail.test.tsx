@@ -20,7 +20,7 @@ const post = vi.hoisted(() => ({ makeRequest: vi.fn(), isSubmitting: false }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => post }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: vi.fn() } }))
 
 const { default: EmailSettingsCard } = await import("./EmailSettingsCard")
 

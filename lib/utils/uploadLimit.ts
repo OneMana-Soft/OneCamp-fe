@@ -14,9 +14,7 @@
 // So these are pure functions with no React and no config coupling: every caller
 // asks the same question and gets the same answer, and the answer is unit-tested.
 
-/** BYTES_PER_KB / KB_PER_MB keep the unit maths readable and in one place. */
-const BYTES_PER_KB = 1024
-const KB_PER_MB = 1024
+import { formatFileSizeForAttachment } from '@/lib/utils/format/formatFileSizeForAttachment'
 
 /**
  * exceedsUploadLimit reports whether a payload is over the workspace cap.
@@ -55,18 +53,6 @@ export function approxDataUrlBytes(dataUrl: string): number {
 }
 
 /**
- * formatUploadBytes renders a human-friendly size ("12.4 MB"). Kept here so a
- * message built by these helpers never depends on a React hook.
- */
-export function formatUploadBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
-  if (bytes < BYTES_PER_KB) return `${Math.round(bytes)} B`
-  const kb = bytes / BYTES_PER_KB
-  if (kb < KB_PER_MB) return `${kb.toFixed(1)} KB`
-  return `${(kb / KB_PER_MB).toFixed(1)} MB`
-}
-
-/**
  * uploadLimitMessage is the one wording used wherever something is refused for
  * being too large. It always states the actual size and the actual cap, because
  * "file too large" without either leaves the person guessing what to change.
@@ -74,7 +60,8 @@ export function formatUploadBytes(bytes: number): string {
  */
 export function uploadLimitMessage(bytes: number, limitMb: number, label?: string): string {
   const subject = label && label.trim() !== '' ? `${label.trim()} is` : 'That file is'
-  return `${subject} ${formatUploadBytes(bytes)}, over the ${limitMb} MB upload limit for this workspace.`
+  // A size as the file's row says it ("645 bytes", "12.4 MB").
+  return `${subject} ${formatFileSizeForAttachment(bytes)}, over the ${limitMb} MB upload limit for this workspace.`
 }
 
 // --- Embedded payload handling -------------------------------------------------

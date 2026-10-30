@@ -2,68 +2,37 @@
 
 import {useCallback, useEffect, useState} from "react";
 import { useLayoutOnce } from "@/components/task/useLayoutOnce";
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import { useTabInAddress } from "@/components/task/keptTabs"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import {
     clearMyTask,
-    type filterInterface,
-    type sortingAndFilterOptionInterface,
-    type sortInterface, updateMyTaskList, updateMyTaskListTaskStatus,
+    type sortingAndFilterOptionInterface, updateMyTaskList, updateMyTaskListTaskStatus,
 } from "@/store/slice/taskFilterSlice"
 import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
-import {CreateTaskInterface, TaskInfoInterface} from "@/types/task"
+import type { CreateTaskInterface, TaskInfoInterface } from "@/types/task"
 import { canEditTask } from "@/lib/work/access"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { PhoneListSkeleton } from "@/components/task/phoneListSkeleton"
-import { TaskListTask } from "@/components/task/taskListTask"
+import { PHONE_ROW_PX, TaskListTask } from "@/components/task/taskListTask"
 import {usePost} from "@/hooks/usePost";
 import {useAnimationState} from "@/hooks/useAnimationState";
 import {UserInfoRawInterface} from "@/types/user";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import { ErrorState } from "@/components/ui/error-state"
-import { Button } from "@/components/ui/button"
-import { openUI } from "@/store/slice/uiSlice"
 import { EmptyState } from "@/components/ui/empty-state"
-import { SpotTasks } from "@/components/ui/graphics/spots"
+import { NothingAssigned } from "@/components/myTask/nothingAssigned"
 import { Search } from "@/lib/icons"
 import { PHONE_PAGE_SIZE } from "@/lib/tasks/grouping"
+import { taskListQuery } from "@/lib/tasks/listQuery"
 import { hasPageAfter } from "@/lib/http/pageCount"
 
-interface getURLPramInput {
-    sortQuery?: sortInterface[]
-    filterQuery?: filterInterface[]
-    pageSize: number
-    pageIndex: number
-    searchText?: string
-}
-const getURLPram = ({ sortQuery, searchText, filterQuery, pageSize, pageIndex }: getURLPramInput) => {
-    const params = new URLSearchParams()
-
-    if (sortQuery && sortQuery.length > 0) {
-        params.set("sorting", JSON.stringify(sortQuery))
-    }
-
-    if (filterQuery && filterQuery.length > 0) {
-        params.set("filters", JSON.stringify(filterQuery))
-    }
-
-    params.set("pageSize", pageSize.toString())
-    params.set("pageIndex", pageIndex.toString())
-
-    if (searchText) {
-        params.set("taskSearchString", searchText)
-    }
-
-    return params.toString()
-}
 
 const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: [] }
 
 export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
-    const router = useRouter()
-    const pathname = usePathname()
     const searchParams = useSearchParams()
 
     const post = usePost()
@@ -88,11 +57,10 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
         urlParams ? GetEndpointUrl.GetUserTaskList + "?" + urlParams : "",
     )
 
-    useEffect(() => {
-        const params = new URLSearchParams(searchParams.toString())
-        params.set("page", pageIndex.toString())
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-    }, [pageIndex, pathname, router])
+    // The page in the address, without a navigation: router.replace fetched
+    // the route again on every page a scroll loaded (fluid-17).
+    const pageInAddress = useTabInAddress()
+    useEffect(() => pageInAddress("page", String(pageIndex)), [pageIndex, pageInAddress])
 
     // Reset Redux on mount so we don't display stale `myTaskList`
     // entries from a prior visit. Without this, the SWR fetch
@@ -109,45 +77,33 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     })
 
     useEffect(() => {
-        const u = getURLPram({
+        const u = taskListQuery({
             pageIndex,
             pageSize,
-            searchText: searchQuery,
-            sortQuery: taskFiltersAndSorts.sort,
-            filterQuery: taskFiltersAndSorts.filters,
-        })
+            search: searchQuery,
+            sort: taskFiltersAndSorts.sort,
+            filters: taskFiltersAndSorts.filters,
+        }).toString()
 
         setUrlParams(u)
     }, [pageIndex])
 
-    useEffect(() => {
-        if (taskFiltersAndSorts.filters || taskFiltersAndSorts.sort) {
-            dispatch(clearMyTask())
-        }
-        setPageIndex(0)
-
-        const u = getURLPram({
-            pageIndex: 0,
-            pageSize,
-            searchText: searchQuery,
-            sortQuery: taskFiltersAndSorts.sort,
-            filterQuery: taskFiltersAndSorts.filters,
-        })
-
-        setUrlParams(u)
-    }, [taskFiltersAndSorts])
-
+    // A new sort, filter or search reads the list again from its first page,
+    // with all three: a search's own read used to leave the sort and filters out.
     useEffect(() => {
         dispatch(clearMyTask())
         setPageIndex(0)
-        const u = getURLPram({
+
+        const u = taskListQuery({
             pageIndex: 0,
             pageSize,
-            searchText: searchQuery,
-        })
+            search: searchQuery,
+            sort: taskFiltersAndSorts.sort,
+            filters: taskFiltersAndSorts.filters,
+        }).toString()
 
         setUrlParams(u)
-    }, [searchQuery])
+    }, [taskFiltersAndSorts, searchQuery])
 
     useEffect(() => {
         if (
@@ -223,7 +179,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     }
 
     // Before the empty guard. A failed fetch also leaves taskListState empty, and
-    // the empty copy here says "You're all caught up" — which to someone with
+    // the empty copy here says nothing is assigned — which to someone with
     // forty open tasks is the most misleading sentence the app could produce.
     if (userInfo.isError) {
         return (
@@ -239,28 +195,11 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
             taskFiltersAndSorts.filters.length > 0
         return (
             <div className="flex flex-col items-center justify-center py-20 px-4 w-full h-full min-h-[50vh]">
-                <EmptyState
-                    icon={isFiltered ? Search : undefined}
-                    illustration={isFiltered ? undefined : <SpotTasks />}
-                    title={isFiltered ? "No tasks found" : "No tasks yet"}
-                    description={
-                        isFiltered
-                            ? "No tasks match your current search or filters."
-                            : "You're all caught up. Create a task to get started."
-                    }
-                    action={
-                        !isFiltered && (
-                            <Button
-                                onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}
-                                variant="outline"
-                                size="sm"
-                                className="pointer-coarse:h-11"
-                            >
-                                Create a task
-                            </Button>
-                        )
-                    }
-                />
+                {isFiltered ? (
+                    <EmptyState icon={Search} title="No tasks found" description="No tasks match your current search or filters." />
+                ) : (
+                    <NothingAssigned />
+                )}
             </div>
         );
     }
@@ -276,6 +215,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
             // "Loading more…" alone at the top of an empty page.
             loadingComponent={(taskListState?.length ?? 0) === 0 ? <PhoneListSkeleton /> : undefined}
             keyExtractor={handleItemKey}
+            itemSize={PHONE_ROW_PX}
         />
     )
 }

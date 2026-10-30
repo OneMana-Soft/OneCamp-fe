@@ -21,6 +21,14 @@
 
 @custom-variant fixed (&:is(.layout-fixed *));
 
+/* While a list moves, the rows it carries under a resting pointer don't
+   light: a look under settled: waits while the list's scroller is marked
+   data-list-moving (lib/ui/scrollState). The mark is read against the
+   element's own class, so it restyles only what uses the variant. Read
+   against anything wider (a group's hover, every element), it restyled the
+   whole list each time a scroll began and ended. */
+@custom-variant settled (&:where(:not([data-list-moving] &)));
+
 @theme inline {
   /* An entrance holds nothing once it ends (18 Oct 2026): tw-animate-css fills
      animate-in forwards, so every menu, popover and sheet kept the last frame,
@@ -171,6 +179,8 @@
      bg-raised, bg-pop, text-ink-2, text-ink-3, bg-hover, bg-press, border-line. */
   --color-frame: var(--frame);
   --color-sheet: var(--sheet);
+  /* The board canvas's ground: bg-board-ground (--board-ground below). */
+  --color-board-ground: var(--board-ground);
   --color-sunken: var(--sunken);
   --color-raised: var(--raised);
   --color-pop: var(--pop);
@@ -303,7 +313,7 @@
   --animate-count-out: count-out 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-panel-in: panel-in 240ms cubic-bezier(0.65, 0, 0.35, 1) both;
   --animate-pop-in: pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-toolbar-in: toolbar-in 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-toolbar-in: fade-in 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-preview-lift: preview-lift 220ms cubic-bezier(0.3, 1.35, 0.5, 1) both;
   --animate-glow-settle: glow-settle 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-highlight-settle: glow-settle 1600ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -361,30 +371,43 @@
                        the page)
        corner    300   the corner cards (CornerStack: the demo prompt, the
                        timer, the keyboard tip, the install prompt, slash
-                       answers): over the page, under anything opened on
-                       top of it, so they never cover a menu's items
-       modal-backdrop 400  a dialog's, sheet's or drawer's scrim, which
-                       covers the corner cards too
-       modal     500   dialogs, sheets, drawers, the command palette
+                       answers) and the connection pill: over the page,
+                       under anything opened on top of it, so they never
+                       cover a menu's items
+       modal     500   dialogs, sheets, drawers, the command palette, and
+                       each one's scrim, which covers the corner cards too.
+                       One level, so layers stack in the order they open:
+                       a sheet over a dialog dims the one under it
+                       (app/phone.css C5b), as a confirm (660) does. On a
+                       phone a popover's, menu's or select's sheet stands
+                       here too, and the page's scrim under it one under
+                       (app/overlay.css 8)
        popover   600   popovers, also inside a dialog
        dropdown  650   menus and selects, also inside a dialog or popover
+       confirm   660   a confirm and its dim, over the popover or menu that
+                       asked it (an event card's Remove call: the card
+                       stays open under its question). A confirm holds no
+                       popover, menu or sheet of its own
        tooltip   700
-       toast     800   toasts, the offline notice, the boot screens
+       toast     800   toasts, the boot screens
        devtools  9999  devtools only */
   --z-base: 0;
   --z-sticky: 100;
   --z-fixed: 200;
   --z-corner: 300;
-  --z-modal-backdrop: 400;
   --z-modal: 500;
   --z-popover: 600;
   --z-dropdown: 650;
+  --z-confirm: 660;
   --z-tooltip: 700;
   --z-toast: 800;
   --z-devtools: 9999;
 }
 
 :root {
+  /* A floating bar's height (FloatingBar: a table's, a doc's, a board's
+     selection bar), read where room is made for one (table.css). */
+  --float-bar: 34px;
   --scroll-bar-color: rgba(20, 22, 30, 0.18);
   --scroll-bar-bg-color: transparent;
   /* RADII (design v3, "Spacing, density and radii"): 4 kbd (rounded-xs),
@@ -419,6 +442,13 @@
   --sunken: #F8F9FA;
   --raised: #FFFFFF;
   --pop: #FFFFFF;
+  /* The board canvas's ground as Excalidraw draws it: the scene's white, and
+     in dark that white through Excalidraw's own dark filter (THEME_FILTER,
+     invert(93%) hue-rotate(180deg)), #121212, a step off the dark sheet.
+     What holds the canvas's place while it loads (CanvasPending) paints it,
+     so the board arrives in the colour it was held in. paletteContrast.test
+     pins it to Excalidraw's filter; guestBoard.spec to the drawn canvas. */
+  --board-ground: #FFFFFF;
   /* The task panel: the sheet in light, a step of its own in dark. */
   --panel: #FFFFFF;
 
@@ -650,6 +680,7 @@
 
   --frame: #0B0C0E;
   --sheet: #131416;
+  --board-ground: #121212;
   --sunken: #0F1012;
   --raised: #1B1C1F;
   --pop: #1F2024;
@@ -871,11 +902,6 @@
   from { opacity: 0; transform: translateY(8px) scale(0.985); }
   to { opacity: 1; transform: none; }
 }
-/* The hover toolbar's first reveal: 2px and .98 to rest, in 120 ms. */
-@keyframes toolbar-in {
-  from { opacity: 0; transform: translateY(2px) scale(0.98); }
-  to { opacity: 1; transform: none; }
-}
 /* A ground that settles: drawn on a layer of its own, whose opacity fades. */
 @keyframes glow-settle {
   from { opacity: 1; }
@@ -1068,6 +1094,24 @@
   contain-intrinsic-size: auto var(--row-h, 40px);
 }
 
+/* A number field typed, never stepped: no browser up and down arrows
+   (NumberUnitInput, a rollup's first N; app/noSpinnerGuard.test.ts). */
+@utility no-spinner {
+  appearance: textfield;
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    appearance: none;
+  }
+}
+
+/* Every number field, not one at a time (DB-30, 29 Oct): twelve still showed
+   the browser's arrows, and a new one would have too. Keys still step it. */
+@layer base {
+  input[type="number"] {
+    @apply no-spinner;
+  }
+}
+
 /* A knob or thumb that travels (a switch) lands with a slight overshoot. */
 @utility transition-spring {
   transition-property: transform, translate, scale, rotate;
@@ -1189,18 +1233,27 @@
       color: var(--ink-3);
     }
     @media (hover: hover) {
-      &:hover:not(:disabled):not(:focus-visible) {
+      &:hover:not(:disabled):not(:focus-visible):not([data-disabled]):not([data-slot="input-group"]:focus-within) {
         box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 25%, var(--line-3)), 0 1px 2px rgb(16 18 26 / 0.05);
       }
     }
+    /* An input group (components/ui/input-group) is the field round its
+       text: it takes the field's states from the text inside it, focus by
+       :focus-within and the rest from the data-invalid and data-disabled
+       InputGroup sets from its text, never by a :has() in the key
+       (app/selectorKeyGuard.test.ts). :where() keeps the group's focus at a
+       field's weight, so invalid, below it, still wins while focused. */
+    &:where([data-slot="input-group"]):focus-within,
     &:focus-visible,
     &[data-state="open"] {
       outline: none;
       box-shadow: var(--ix-halo);
     }
+    &[data-invalid],
     &[aria-invalid="true"] {
       box-shadow: var(--ix-halo-danger);
     }
+    &[data-disabled],
     &:disabled {
       cursor: not-allowed;
       background-color: var(--sunken);
@@ -1414,7 +1467,8 @@ body {
      replaced spent brand-muted, which is reserved for "about you". */
   mark {
     background-color: color-mix(in oklab, var(--camp-sun) 24%, transparent);
-    color: inherit;
+    /* The matched word in ink, whatever the passage's own: ink-2 under sun read 3.87:1 in dark (DB-24). */
+    color: var(--ink);
     font-weight: 510;
     border-radius: 3px;
     padding: 0 1px;
@@ -1443,8 +1497,9 @@ body {
      would rubber-band the whole shell). That lock used to be on every page,
      which left public pages (a form, a booking page, a shared doc) unable to
      scroll on a phone: the Submit button was simply out of reach. It now
-     applies only where app/app/layout.tsx puts its [data-app-shell] marker. */
-  html:has([data-app-shell]) {
+     applies only while app/app/layout.tsx marks <html> (AppShellMark): a mark,
+     not html:has(), which is matched again on every change to the document. */
+  html[data-app-shell] {
     overflow: hidden;
     height: 100dvh;
   }
@@ -1481,7 +1536,7 @@ body {
     overscroll-behavior: none;
   }
 
-  body:has([data-app-shell]) {
+  html[data-app-shell] body {
     overflow: hidden;
     height: 100dvh;
     position: fixed;
@@ -2041,17 +2096,19 @@ html[data-media-collapsed="true"] [data-message-media] {
     color: var(--ink);
   }
   /* A row's own icon takes these; an identity mark inside it (a project's or
-     a channel's tile, a doc's glyph) keeps its own colours (D13). */
-  .nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) {
+     a channel's tile, a doc's glyph, a Docs & Files node's mark) keeps its
+     own colours (D13), as does a chosen row's check, white on the accent. */
+  .nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile], [data-node-mark], [data-tree-check]) *, [data-doc-icon]) {
     color: var(--brand);
   }
-  .nav-active :is(svg.lucide-house, svg.lucide-inbox, svg.lucide-bell, svg.lucide-bookmark, svg.lucide-message-square, svg.lucide-calendar, svg.lucide-folder, svg.lucide-file-text):not([data-doc-icon]) {
+  /* Keyed on svg (app/selectorKeyGuard.test.ts): the same icons, the same specificity. */
+  .nav-active svg:is(.lucide-house, .lucide-inbox, .lucide-bell, .lucide-bookmark, .lucide-message-square, .lucide-calendar, .lucide-folder, .lucide-file-text):not([data-doc-icon], [data-node-mark] *) {
     fill: color-mix(in oklab, var(--brand) 20%, transparent);
   }
   .nav-idle {
     color: var(--ink-2);
   }
-  .nav-idle svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) {
+  .nav-idle svg.lucide:not(:is([data-project-tile], [data-channel-tile], [data-node-mark], [data-tree-check]) *, [data-doc-icon]) {
     color: var(--ink-3);
   }
   /* Hover and press tint in the row's own hue (data-hue): the interaction
@@ -2061,7 +2118,7 @@ html[data-media-collapsed="true"] [data-message-media] {
     .nav-idle:hover {
       color: var(--ink);
     }
-    .nav-idle:hover svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) {
+    .nav-idle:hover svg.lucide:not(:is([data-project-tile], [data-channel-tile], [data-node-mark], [data-tree-check]) *, [data-doc-icon]) {
       color: var(--ink);
     }
   }
@@ -2117,12 +2174,107 @@ html[data-media-collapsed="true"] [data-message-media] {
   @page { margin: 16mm; }
 }
 
+/* PRINTING ONE PART OF A PAGE (the calendar's view, B1). An element marked
+   data-print-root prints alone, on as many pages as it runs to: each box
+   around it is unwrapped (no fixed height, no scrolling, no frame), and
+   whatever sits beside those boxes (the sidebar, panels, menus, toasts) is
+   left out. Paper is light in any theme, the light :root values as the
+   invoice's, and colours print as drawn. A doc's sheet does the same in its
+   own print.css (P11). Pages with none print as they always did.
+   The boxes around the root carry data-print-path while it is on the page
+   (lib/ui/printRoot), and every rule keys on that mark, not on a :has()
+   (app/selectorKeyGuard.test.ts). What sits beside a box is any child of
+   it: a rule only for print, which no screen ever tries. */
+@media print {
+  html[data-print-path] {
+    --sheet: #FFFFFF;
+    --raised: #FFFFFF;
+    --sunken: #F8F9FA;
+    --ink: #16171B;
+    --ink-2: #5B5D65;
+    --ink-3: #67696F;
+    --line: rgba(20, 22, 30, 0.075);
+    --background: #FFFFFF;
+    --foreground: #16171B;
+    --card: #FFFFFF;
+    --card-foreground: #16171B;
+    --muted: #F8F9FA;
+    --muted-foreground: #5B5D65;
+    --border: rgba(20, 22, 30, 0.075);
+    /* Every area's hue, light (the accent is the workspace's theme's). */
+    --agent: #5B63D6;
+    --agent-foreground: #FFFFFF;
+    --agent-muted: #EEEFFC;
+    --agent-ink: #3B3FA6;
+    --camp-sun: #B98200;
+    --camp-sun-tint: #FFF6D6;
+    --camp-sun-ink: #7A5200;
+    --camp-moss: #2F9E5B;
+    --camp-moss-tint: #E6F6EC;
+    --camp-moss-ink: #1D6A3C;
+    --camp-lake: #0E97A6;
+    --camp-lake-tint: #E1F5F6;
+    --camp-lake-ink: #0B5C65;
+    --camp-sky: #3B7DDD;
+    --camp-sky-tint: #E7EFFC;
+    --camp-sky-ink: #1E4E9A;
+    --camp-dusk: #7B61D9;
+    --camp-dusk-tint: #EFEBFC;
+    --camp-dusk-ink: #4B3699;
+    --camp-berry: #D9467C;
+    --camp-berry-tint: #FCE8EF;
+    --camp-berry-ink: #962556;
+    /* !important: the theme writes color-scheme on <html> itself, and a dark
+       scheme gives the page Chrome's dark canvas, which fills the margins. */
+    color-scheme: light !important;
+  }
+  /* What the boxes draw beyond themselves (the frame's glow and grain) isn't
+     the root's, and an unwrapped box would paint it across the page. */
+  [data-print-path]::before,
+  [data-print-path]::after {
+    display: none !important;
+  }
+  [data-print-path] {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+  [data-print-path] > * {
+    display: none !important;
+  }
+  /* Two attributes outrank the one above: the boxes, and the root (a block). */
+  [data-print-path] > [data-print-path],
+  [data-print-path] > [data-print-root] {
+    display: block !important;
+  }
+  [data-print-root] {
+    position: static !important;
+    height: auto !important;
+    overflow: visible !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
 /* THE ON-SCREEN KEYBOARD (lib/ui/visualViewport.ts). While it is up, the
    app's frame (data-app-viewport, on both shells) is fitted to the part of
    the screen left visible: its height is the visual viewport's, and it moves
    with iOS's pan, so the top bar stays on screen and a composer on the bottom
    edge sits on the keyboard instead of behind it. The transform also makes
-   the frame the box its fixed children (the phone composer) are placed in.
+   the frame the box its fixed children (the phone composer, a doc's
+   Formatting bar) are placed in: their bottom is the keyboard's top, so they
+   are raised by nothing more (lib/ui/visualViewport's keyboardDock, V-72).
    Unlayered, so it outranks the frame's own h-dvh. With the keyboard down
    none of this applies and the frame is the plain 100dvh it always was. */
 html[data-keyboard="open"] [data-app-viewport] {
@@ -2575,12 +2727,14 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   .shell-status-in { display: inline-block; animation: shell-rise 180ms var(--ease-out) both; }
 
   /* The foot pill (T3): offline, live updates paused, a new version. */
+  /* 36px on one line; a second line (what's waiting) grows it rather than cut it. */
   .shell-footpill {
-    height: 36px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 6px 0 10px;
+    padding: 6px 6px 6px 10px;
+    line-height: 16px;
     margin: 0 0 8px;
     border-radius: 10px;
     background: var(--raised);
@@ -2598,6 +2752,10 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     background: var(--brand);
     box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 20%, transparent);
     animation: shell-breathe 2s ease-in-out infinite;
+  }
+  .shell-footpill-dot[data-quiet] {
+    background: var(--ink-3);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ink-3) 20%, transparent);
   }
 
   /* The 6px breathing dot of a call in progress. */
@@ -2741,8 +2899,8 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
      bar is its handle and tints on hover (no shift), a grip glyph fading in
      at its left; the page's handle is a 32x4 grip riding its sheet's top
      edge, half in the gutter, over no header (a 44x24 target); the held
-     view's ghost, the slot it left, the swap target with its chip under the
-     target's bar, the incoming column's faint slot by the drop line; the
+     view's ghost (over a swap it says the swap: design r5), the slot it
+     left, the swap target, the incoming column's faint slot by the line; the
      tabs of views tucked away for want of width; and the ring that says
      "here it is". */
   @media (hover: hover) {
@@ -2767,9 +2925,9 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   html[data-dragging] .split-grip > i { background: var(--brand); }
   .split-ghost {
     position: fixed; left: 0; top: 0; z-index: var(--z-toast);
-    display: flex; align-items: center; gap: 8px; max-width: 260px; height: 40px; padding: 0 14px;
+    display: flex; align-items: center; gap: 8px; max-width: 280px; height: 40px; padding: 0 14px;
     border-radius: 10px; background: var(--raised); box-shadow: var(--e3);
-    font-size: 13px; font-weight: 590; color: var(--ink); pointer-events: none; will-change: transform;
+    font-size: 13px; font-weight: 590; color: var(--ink); pointer-events: none; will-change: translate;
   }
   /* A carry's marks (data-split-mark), in one layer made with it, each shown
      by its data-on, the rule keyed on the mark's own attribute.
@@ -2785,16 +2943,11 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     position: fixed; z-index: var(--z-sticky); border-radius: var(--radius-lg); pointer-events: none;
     background: color-mix(in srgb, var(--brand) 4%, transparent); outline: 1.5px dashed var(--ink-4); outline-offset: -1.5px;
   }
-  .split-drop-swap { position: fixed; z-index: var(--z-popover); display: flex; justify-content: center; align-items: flex-start; padding-top: 56px; border-radius: var(--radius-lg); pointer-events: none; }
+  .split-drop-swap { position: fixed; z-index: var(--z-popover); border-radius: var(--radius-lg); pointer-events: none; }
   .split-drop-slot {
     position: fixed; z-index: var(--z-popover); border-radius: var(--radius-lg); pointer-events: none;
     background: color-mix(in oklab, var(--brand) 5%, transparent); outline: 1.5px dashed color-mix(in oklab, var(--brand) 40%, transparent); outline-offset: -1.5px;
     animation: shell-fade-in 120ms var(--ease-out) both;
-  }
-  .split-drop-chip {
-    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 9999px;
-    background: var(--brand); color: var(--brand-foreground, #fff); font-size: 12px; font-weight: 590; box-shadow: var(--e2);
-    animation: shell-pill-in 160ms var(--ease-out) both;
   }
   .split-tucked-chip {
     display: inline-flex; flex: none; min-width: 0; max-width: 156px; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 5px;
@@ -2811,13 +2964,16 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   }
   /* The views tab in the order they sit in, not their DOM order (Chromium). */
   [data-split-row] { reading-flow: flex-visual; }
-  /* A narrow doc header (the page among three views at 1440) gives the title
-     the root crumb's room: "…launch plan", not "l…". Important: over the
-     crumb's own display utility, a later layer. */
+  /* A narrow doc header (the page among three views at 1440, or a panel open
+     beside it at ~560px) gives the title the root crumb's room: "…launch
+     plan", not "l…". The title chips keep their count, not their words, so
+     the header's actions stay in it. Important: over the crumb's own display
+     utility, a later layer. */
   [data-doc-header] { container: doc-header / inline-size; }
-  @container doc-header (max-width: 460px) {
+  @container doc-header (max-width: 640px) {
     [data-doc-breadcrumbs][data-titled] > [data-crumb-root],
     [data-doc-breadcrumbs][data-titled] > [data-crumb-root] + svg { display: none !important; }
+    [data-doc-header] [data-chip-word] { display: none; }
   }
 
   /* Rings drawn by the shell: a face's 2px frame ring (group DMs), the
@@ -2982,7 +3138,7 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     box-shadow: inset 2px 0 0 var(--brand);
     color: var(--ink);
   }
-  .tablet-list .nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) { color: var(--brand); }
+  .tablet-list .nav-active svg.lucide:not(:is([data-project-tile], [data-channel-tile], [data-node-mark], [data-tree-check]) *, [data-doc-icon]) { color: var(--brand); }
   .tablet-list[data-tablet-list="overlay"] {
     position: fixed;
     z-index: calc(var(--z-fixed) + 1);
@@ -3012,6 +3168,23 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     bottom: 8px;
     width: min(452px, calc(100vw - 72px - 24px));
     box-shadow: var(--e4);
+  }
+  /* A task over the page on a phone (asana-12 (a)): with no network a task
+     opens here, not on its page, as the right panel opens it on a laptop.
+     Its box is the shared sheet's, from phone.css C5d's one rule (on the
+     bottom edge at the screen's width, 640 at most, r20 top corners). Its
+     own: its place over the page, 92dvh, the panel's ground, and its rise in
+     the sheet's own time and curve. */
+  .shell-panel-phone {
+    position: fixed;
+    z-index: calc(var(--z-fixed) + 1);
+    height: 92dvh;
+    background: var(--panel, var(--sheet));
+    box-shadow: var(--e4);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .shell-panel-phone { animation: sheet-frame-rise var(--t-sheet) var(--ease-push); }
   }
   @media (prefers-reduced-motion: reduce) {
     .tablet-list[data-tablet-list="overlay"] { animation-name: shell-fade-in; animation-duration: 120ms; }
@@ -3196,6 +3369,11 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   .toast-tile-error {
     background: color-mix(in oklab, var(--destructive) 12%, transparent);
     color: var(--danger-ink);
+  }
+  /* Work at risk but not lost (a doc's changes waiting offline): amber. */
+  .toast-tile-warning {
+    background: var(--camp-sun-tint);
+    color: var(--warning-ink);
   }
   .toast-tile-info,
   .toast-tile-loading {
@@ -3392,7 +3570,22 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
 }
 /* The corner stacks (shell T4, components/ui/CornerStack.tsx): 16px inside
    the sheet's edge (the shell sets --shell-left-inset and
-   --shell-right-inset), 8px between cards, a composer's height up. */
+   --shell-right-inset), 8px between cards, a composer's height up.
+
+   A page's foot, on a phone (V-68): any page with bars of its own along the
+   bottom publishes how far up from the screen's foot the highest one's top
+   sits, as --mobile-drawer-h on <html> (among them the board's docked bars,
+   app/app/board/[board-id]/page.tsx; a conversation's box sheet,
+   components/drawers/dragableDrawer; a task's comment box,
+   components/task/taskCommentComposer; and a doc's Formatting bar over the
+   keyboard, components/docEditor/DocAccessoryBar). Nothing that floats covers
+   that foot: the toasts and the offline notice sit above it through
+   --phone-floor (app/phone.css C9), and the corner stacks rise 8px over it
+   when it reaches past their place. A page that publishes nothing keeps them
+   where they were. While the keyboard is up (html[data-keyboard="open"],
+   lib/ui/visualViewport) the corner stacks go under it, as the tab bar does:
+   over a foot that sits on the keyboard they would cover the line being
+   typed. They come back when it closes. */
 @layer components {
   .corner-stack {
     --corner-lift: 136px;
@@ -3418,7 +3611,10 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   }
   @media (max-width: 767.98px) {
     .corner-stack {
-      bottom: calc(4rem + env(safe-area-inset-bottom) + 8.5rem);
+      bottom: max(calc(4rem + env(safe-area-inset-bottom) + 8.5rem), calc(var(--mobile-drawer-h, 0px) + 8px));
+    }
+    html[data-keyboard="open"] .corner-stack {
+      visibility: hidden;
     }
     .corner-stack-left,
     .corner-stack-right {
@@ -3719,7 +3915,7 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
 .palette-scrim {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal-backdrop);
+  z-index: var(--z-modal);
   background: rgb(10 11 14 / 0.32);
 }
 .dark .palette-scrim {
@@ -3984,7 +4180,7 @@ padding: 0;
 }
 /* A kind's glyph is ink-3; an identity mark (a project's or a channel's tile,
    a doc's glyph) keeps its own colours (D13). */
-.palette-row svg.lucide:not(:is([data-project-tile], [data-channel-tile]) *, [data-doc-icon]) {
+.palette-row svg.lucide:not(:is([data-project-tile], [data-channel-tile], [data-node-mark]) *, [data-doc-icon]) {
   color: var(--ink-3);
 }
 .palette-mark {
@@ -4327,4 +4523,21 @@ button.palette-source:focus-visible {
   [data-drawer-tile] {
     border-radius: 9px;
   }
+}
+
+/* A scroller with a sticky column at its start (a timeline's names, a table's
+   gutter and frozen column): what scrolls under that column comes into view (by
+   a key, a tap, scrollIntoView) beside it, by a scroll margin as wide as the
+   column (--scroll-lead, set with data-scroll-lead on the scroller). It is never
+   a scroll padding on the scroller. With a padding, the column itself counted
+   as out of view, so its taking the focus sent the scroller back to its start
+   (V-63, V-59). The column's parts are data-sticky-lead, with no margin, so
+   their focus moves nothing. Two rules, not a :not() as the key
+   (app/selectorKeyGuard.test.ts). */
+[data-scroll-lead] * {
+  scroll-margin-inline-start: var(--scroll-lead);
+}
+[data-scroll-lead] [data-sticky-lead],
+[data-scroll-lead] [data-sticky-lead] * {
+  scroll-margin-inline-start: 0;
 }

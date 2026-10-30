@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 // Read receipts save the moment they are switched, with the row's saved tick
 // (design v3, admin §1.3: never a toast for a routine save). A save that fails
@@ -11,7 +11,7 @@ const { state, post, toast } = vi.hoisted(() => ({
   toast: vi.fn(),
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => state.fetch }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post } }))
 vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
 
 import { ReadReceiptsCard } from "./ReadReceiptsCard"
@@ -46,5 +46,17 @@ describe("switching read receipts", () => {
     expect(post.mock.calls[0][2]).toEqual({ suppressErrorToast: true })
     expect(document.querySelector("[data-saved-tick]")).not.toBeNull()
     expect(document.getElementById("notifications-read-receipts")).not.toBeNull()
+  })
+
+  it("offers the change back, and an Undo that fails says so", async () => {
+    post.mockResolvedValueOnce({}).mockRejectedValueOnce({ response: { status: 500, data: { msg: "Try again." } } })
+    render(<ReadReceiptsCard />)
+    await act(async () => void fireEvent.click(screen.getByRole("switch", { name: "Send and see read receipts" })))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Read receipts: Off" })))
+
+    const [{ action }] = toast.mock.calls[0] as [{ action: { props: { onClick: () => Promise<void> } } }]
+    await act(() => action.props.onClick())
+    expect(post.mock.calls.map((c) => c[1])).toEqual([{ read_receipts: false }, { read_receipts: true }])
+    expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Couldn't undo that" }))
   })
 })

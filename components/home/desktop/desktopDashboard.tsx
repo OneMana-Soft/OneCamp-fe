@@ -29,15 +29,12 @@ import { closeRightPanel, openRightPanel } from "@/store/slice/desktopRightPanel
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { adminFromSidenav, ChecklistPlace } from "@/components/home/setupChecklistPlace"
-import { NoChannelsYet } from "@/components/home/NoChannelsYet"
-import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
+import { GlanceLine, glanceNext, glanceOf, todayEyebrow } from "@/components/home/GlanceLine"
 import { Greeting } from "@/components/home/Greeting"
 import { NeedsMe } from "@/components/home/NeedsMe"
 import { JumpBackIn, CreateTiles } from "@/components/home/HomeLists"
-import { useHomeNeeds } from "@/components/home/useHomeNeeds"
 import { useTodayEvents } from "@/components/home/useTodayEvents"
-import { clockTime } from "@/lib/utils/date/clock"
-import { needsCounts } from "@/components/home/needsMe"
+import { NeedsGoneContext, useNeedsGoneState } from "@/components/home/needsGone"
 import { HubSectionHeader } from "@/components/ui/hubRow"
 import { riseProps, useRiseOnce } from "@/lib/hub/motion"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -49,6 +46,8 @@ import { AgentWorkCard } from "@/components/ai/AgentWorkCard"
 // The setup checklist, a chunk of its own: only an admin with steps left sees
 // it. Its place is held while it comes (setupChecklistPlace).
 const SetupChecklist = dynamic(() => import("@/components/home/SetupChecklist"), { ssr: false, loading: ChecklistPlace })
+// Only a member in no channel sees it (H7), so it comes in its own chunk then.
+const NoChannelsYet = dynamic(() => import("@/components/home/NoChannelsYet").then((m) => m.NoChannelsYet), { ssr: false })
 
 // The agenda and the projects load on their own (app/firstLoad.test.ts), each
 // holding its section's height so nothing moves when it lands.
@@ -100,7 +99,6 @@ export function DesktopDashboard() {
     const dispatch = useDispatch()
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const userSidebar = useSelector((state: RootState) => state.users.userSidebar)
-    const pending = useSelector((state: RootState) => state.pendingAction.actions)
     // Already fetched and deduped by the layout; this mount is a cache read,
     // not a second request.
     const sidenav = useSidenav()
@@ -112,16 +110,13 @@ export function DesktopDashboard() {
     const below = useAfterFirstPaint()
     const r = (i: number) => riseProps(rise, i)
 
-    const needs = useHomeNeeds()
     const today = useTodayEvents()
-    const counts = needsCounts(needs.items)
-    const mentions = needs.items.filter((i) => i.id.startsWith("mention:")).length
+    // What the list below shows, which it tells this page as it draws: the
+    // line says exactly that, and Done takes a task off both (needsGone).
+    const needsGone = useNeedsGoneState()
+    const glance = glanceOf(needsGone.shown)
 
-    const greetingLine = homeGreeting(
-        new Date().getHours(),
-        selfProfile.data?.data?.user_full_name,
-        selfProfile.data?.data?.user_name,
-    )
+    const greetingLine = homeGreeting(new Date().getHours(), selfProfile.data?.data)
 
     const handleAiToggle = () => {
         if (isAiOpen) dispatch(closeRightPanel())
@@ -132,82 +127,81 @@ export function DesktopDashboard() {
     const noChannel = loaded && (sidenav.data?.data?.user_channels ?? []).length === 0 && (userSidebar.userChannels ?? []).length === 0
 
     return (
-        <div className="h-full w-full overflow-y-auto" data-home="">
-            <div className="mx-auto w-full max-w-[944px] px-6 pb-16 pt-10">
-                <Greeting
-                    eyebrow={todayEyebrow()}
-                    title={greetingLine}
-                    rise={rise}
-                    now={today.now}
-                    events={today.events}
-                    chats={userSidebar.userChats ?? []}
-                    selfId={needs.selfId}
-                    agent={aiAvailable}
-                    summary={
-                        <GlanceLine
-                            loading={needs.loading}
-                            counts={{
-                                tasksDue: counts.due - counts.overdue,
-                                overdue: counts.overdue,
-                                mentions,
-                                agentRequests: pending.length,
-                            }}
-                            next={today.next ? { title: today.next.event_title, time: clockTime(today.next.event_start_time), href: "/app/calendar" } : null}
-                        />
-                    }
-                />
-
-                {isAdmin ? (
-                    <div className="mt-6 empty:hidden">
-                        <SetupChecklist isAdmin={isAdmin} />
-                    </div>
-                ) : null}
-
-                {/* The two answers. Under 1,100px they stack, what needs me first. */}
-                <div
-                    {...r(4)}
-                    data-home-answers=""
-                    className={cn(
-                        "mt-8 grid grid-cols-1 gap-8",
-                        !today.unavailable && "min-[1100px]:grid-cols-[1.35fr_1fr]",
-                        r(4).className,
-                    )}
-                >
-                    <NeedsMe
-                        footer={<WhileYouWereAwayCard />}
-                        noChannels={noChannel ? <NoChannelsYet /> : undefined}
-                        withAI={(p) => <AttentionCard {...p} />}
+        <NeedsGoneContext.Provider value={needsGone}>
+            <div className="h-full w-full overflow-y-auto" data-home="">
+                <div className="mx-auto w-full max-w-[944px] px-6 pb-16 pt-10">
+                    <Greeting
+                        eyebrow={todayEyebrow()}
+                        title={greetingLine}
+                        rise={rise}
+                        now={today.now}
+                        events={today.events}
+                        chats={userSidebar.userChats ?? []}
+                        selfId={selfProfile.data?.data?.user_uuid}
+                        agent={aiAvailable}
+                        summary={
+                            <GlanceLine
+                                loading={glance.loading}
+                                counts={glance.counts}
+                                unnamed={glance.unnamed}
+                                failed={glance.failed}
+                                next={glanceNext(today.next, today.now, { href: "/app/calendar" })}
+                            />
+                        }
                     />
-                    {!today.unavailable ? <TodayAgenda /> : null}
+
+                    {isAdmin ? (
+                        <div className="mt-6 empty:hidden">
+                            <SetupChecklist isAdmin={isAdmin} />
+                        </div>
+                    ) : null}
+
+                    {/* The two answers. Under 1,100px they stack, what needs me first. */}
+                    <div
+                        {...r(4)}
+                        data-home-answers=""
+                        className={cn(
+                            "mt-8 grid grid-cols-1 gap-8",
+                            !today.unavailable && "min-[1100px]:grid-cols-[1.35fr_1fr]",
+                            r(4).className,
+                        )}
+                    >
+                        <NeedsMe
+                            footer={<WhileYouWereAwayCard />}
+                            noChannels={noChannel ? <NoChannelsYet /> : undefined}
+                            withAI={(p) => <AttentionCard {...p} />}
+                        />
+                        {!today.unavailable ? <TodayAgenda /> : null}
+                    </div>
+
+                    {/* Agents at work: present only while a job runs. */}
+                    {below ? <AgentWorkCard className="mt-6" /> : null}
+
+                    <div {...r(5)} className={cn("mt-8", r(5).className)}>
+                        <ProjectsStrip draw={rise} />
+                    </div>
+
+                    {/* Every section draws its own shape while it loads (design
+                        review PG1-04): this row waits a frame for the first paint,
+                        and was an empty band till then. */}
+                    <div {...r(6)} className={cn("mt-8 grid min-h-[176px] grid-cols-1 gap-8 lg:grid-cols-[1.35fr_1fr]", r(6).className)}>
+                        {below ? (
+                            <>
+                                <JumpBackIn />
+                                <CreateTiles aiAvailable={aiAvailable} aiOpen={Boolean(isAiOpen)} onToggleAI={handleAiToggle} />
+                            </>
+                        ) : (
+                            <>
+                                <SectionSkeleton title="Jump back in" rows={2} />
+                                <SectionSkeleton title="Create" rows={2} />
+                            </>
+                        )}
+                    </div>
+
+                    {/* Last: it arrives late and may be tall, so it must never push anything. */}
+                    <div className="mt-10 empty:hidden">{below ? <BriefingCard /> : null}</div>
                 </div>
-
-                {/* Agents at work: present only while a job runs. */}
-                {below ? <AgentWorkCard className="mt-6" /> : null}
-
-                <div {...r(5)} className={cn("mt-8", r(5).className)}>
-                    <ProjectsStrip draw={rise} />
-                </div>
-
-                {/* Every section draws its own shape while it loads (design
-                    review PG1-04): this row waits a frame for the first paint,
-                    and was an empty band till then. */}
-                <div {...r(6)} className={cn("mt-8 grid min-h-[176px] grid-cols-1 gap-8 lg:grid-cols-[1.35fr_1fr]", r(6).className)}>
-                    {below ? (
-                        <>
-                            <JumpBackIn />
-                            <CreateTiles aiAvailable={aiAvailable} aiOpen={Boolean(isAiOpen)} onToggleAI={handleAiToggle} />
-                        </>
-                    ) : (
-                        <>
-                            <SectionSkeleton title="Jump back in" rows={2} />
-                            <SectionSkeleton title="Create" rows={2} />
-                        </>
-                    )}
-                </div>
-
-                {/* Last: it arrives late and may be tall, so it must never push anything. */}
-                <div className="mt-10 empty:hidden">{below ? <BriefingCard /> : null}</div>
             </div>
-        </div>
+        </NeedsGoneContext.Provider>
     )
 }

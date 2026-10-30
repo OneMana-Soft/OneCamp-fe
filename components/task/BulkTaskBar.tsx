@@ -23,6 +23,11 @@ import { priorities } from "@/types/table"
 import { ProjectsGet } from "@/services/endpoints/projects"
 import { MAX_TAG_LENGTH, splitTags, tagTone } from "@/lib/tags"
 import { notDone, tagState, tasksCount, whyNotDone, type BulkChange } from "@/lib/bulkTasks"
+import type { CycleChoice } from "@/lib/work/backlog"
+import { useProjectMilestones } from "@/hooks/useProjectMilestones"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { targetWords } from "@/lib/work/milestones"
 import type { ListField } from "@/lib/listKeys"
 import type { SelectionStore } from "@/lib/listSelection"
 import type { StatusOption } from "@/lib/taskStatus"
@@ -36,14 +41,17 @@ const FIELDS: { field: ListField; label: string; key: string }[] = [
   { field: "tags", label: "Tags", key: "T" },
   { field: "priority", label: "Priority", key: "P" },
   { field: "due", label: "Due date", key: "D" },
+  { field: "cycle", label: "Cycle", key: "⇧C" },
+  { field: "milestone", label: "Milestone", key: "⇧M" },
 ]
 
 const kbd = "kbd"
 
 /**
  * The selection's toolbar: how many are selected and what to change about
- * them, the pickers S, A, T and P open from the keyboard. Changes only the
- * tasks this person may change (a project's admins), and says so for the rest.
+ * them, the pickers S, A, T and P open from the keyboard (and Shift+C, the
+ * cycles of a project's backlog; Shift+M, a project's milestones). Changes only the tasks this person may
+ * change (a project's admins), and says so for the rest.
  */
 export function BulkTaskBar({
   store,
@@ -51,6 +59,7 @@ export function BulkTaskBar({
   canEdit,
   listProjectId,
   statusOptions,
+  cycles,
   picker,
   onPicker,
   placement,
@@ -62,6 +71,8 @@ export function BulkTaskBar({
   listProjectId?: string
   /** That project's statuses, built-in and its own. */
   statusOptions?: StatusOption[]
+  /** The project's open cycles, on its backlog: the selection moves into one, or back to the backlog. */
+  cycles?: CycleChoice[]
   picker: ListField | null
   onPicker: (field: ListField | null) => void
   /** Under a table that scrolls with the page, or over a board that fills it. */
@@ -119,7 +130,7 @@ export function BulkTaskBar({
           </span>
         )}
         {editable.length > 0 &&
-          FIELDS.map(({ field, label, key }) => {
+          FIELDS.filter(({ field }) => (field !== "cycle" || cycles) && (field !== "milestone" || !!listProjectId)).map(({ field, label, key }) => {
             const needsProject = field === "assignee" && !project
             return (
               <Popover key={field} open={picker === field && !needsProject} onOpenChange={(o) => onPicker(o ? field : null)}>
@@ -174,6 +185,24 @@ export function BulkTaskBar({
                       }}
                     />
                   )}
+                  {field === "cycle" && cycles && (
+                    <OptionList
+                      placeholder="Move to…"
+                      items={[
+                        ...cycles.map((c) => ({ value: c.id, search: `${c.label} ${c.dates}`, node: <ChoiceItem label={c.label} detail={c.dates} /> })),
+                        { value: "", search: "Backlog", node: <span>Backlog</span> },
+                      ]}
+                      onPick={(value) => run({ field: "cycle", value }, `${moved(editable.length)} to ${cycles.find((c) => c.id === value)?.label ?? "the backlog"}`)}
+                    />
+                  )}
+                  {field === "milestone" && project && (
+                    <MilestoneList
+                      projectId={project}
+                      onPick={(value, name) =>
+                        run({ field: "milestone", value }, value ? `Put ${tasksCount(editable.length)} in ${name}` : `Took ${tasksCount(editable.length)} out of their milestone`)
+                      }
+                    />
+                  )}
                   {field === "tags" && <TagList projectId={project} tasks={editable} onPick={(tag, add) => run({ field: "tags", tag, add }, add ? `Tagged ${tasksCount(editable.length)} “${tag}”` : `Took “${tag}” off ${tasksCount(editable.length)}`)} />}
                 </PopoverContent>
               </Popover>
@@ -218,6 +247,39 @@ function report(r: BulkResult, done: string) {
     return
   }
   if (r.changed > 0) toast({ title: done })
+}
+
+/** A cycle as the picker offers it: its name, and when it runs. */
+function ChoiceItem({ label, detail }: { label: string; detail?: string }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
+      <span className="truncate">{label}</span>
+      {detail ? <span className="shrink-0 text-meta tabular-nums text-ink-3">{detail}</span> : null}
+    </span>
+  )
+}
+
+/** "No milestone", then the project's milestones, read as the picker opens, each with its target day: the panel's Milestone row's order. */
+function MilestoneList({ projectId, onPick }: { projectId: string; onPick: (id: string, name: string) => void }) {
+  const { read, milestones } = useProjectMilestones(projectId)
+  if (read.isError && milestones === undefined) return <ErrorState compact subject="the milestones" onRetry={() => void read.mutate()} />
+  if (milestones === undefined)
+    return (
+      <div role="status" aria-label="Reading the milestones" className="p-2">
+        <SkeletonRows rows={3} />
+      </div>
+    )
+  const items = milestones.map((m) => {
+    const target = targetWords(m)?.text
+    return { value: m.id, search: `${m.name} ${target ?? ""}`, node: <ChoiceItem label={m.name} detail={target} /> }
+  })
+  return (
+    <OptionList
+      placeholder={milestones.length ? "Put in…" : "This project has no milestones yet"}
+      items={[{ value: "", search: "No milestone", node: <span>No milestone</span> }, ...items]}
+      onPick={(value) => onPick(value, milestones.find((m) => m.id === value)?.name ?? "")}
+    />
+  )
 }
 
 /** A searchable list of choices, focused as it opens so the keyboard carries on. */

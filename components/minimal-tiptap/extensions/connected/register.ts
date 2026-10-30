@@ -1,5 +1,6 @@
 import { registerBlock } from "@/components/docEditor/registry/registry"
 import { DOC_EDITORS } from "../../blocks/kinds"
+import { once } from "@/lib/lazy/once"
 
 /**
  * Connected work (docs programme C1): what a doc's schema holds of it and
@@ -9,12 +10,11 @@ import { DOC_EDITORS } from "../../blocks/kinds"
  * (I4) and none of the asking: no "[[", and nothing more in the "@" list.
  */
 
-let c: Promise<typeof import("./chunk")> | null = null
-const chunk = () => (c ??= import("./chunk").catch((e) => ((c = null), Promise.reject(e))))
+const chunk = once(() => import("./chunk"))
 type Part = "Subpage" | "DateMention" | "TaskListEmbed" | "BoardEmbed" | "TaskItemLink" | "PageLink" | "MentionInDoc"
 const load = (...names: Part[]) => () => chunk().then((m) => names.map((name) => m[name]))
 
-registerBlock({ id: "subpage", editors: DOC_EDITORS, edition: "both", load: load("Subpage"), schema: [{ kind: "node", name: "subpage", attrs: ["docId", "title"] }] })
+registerBlock({ id: "subpage", editors: DOC_EDITORS, edition: "both", label: "Page", load: load("Subpage"), schema: [{ kind: "node", name: "subpage", attrs: ["docId", "title"] }] })
 registerBlock({ id: "dateMention", editors: DOC_EDITORS, edition: "both", load: load("DateMention"), schema: [{ kind: "node", name: "dateMention", attrs: ["date", "reminder"] }] })
 registerBlock({ id: "taskListEmbed", editors: DOC_EDITORS, edition: "both", load: load("TaskListEmbed"), schema: [{ kind: "node", name: "taskListEmbed", attrs: ["projectId", "show"] }] })
 registerBlock({ id: "boardEmbed", editors: DOC_EDITORS, edition: "both", load: load("BoardEmbed"), schema: [{ kind: "node", name: "boardEmbed", attrs: ["projectId"] }], wide: true })

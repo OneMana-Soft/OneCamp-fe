@@ -31,6 +31,7 @@ export function PublicGone({
   back,
   more,
   frame = true,
+  credit,
 }: {
   surface: PublicSurface
   /** What the link opened, in the visitor's words: "form", "booking page", "shared project". */
@@ -48,6 +49,8 @@ export function PublicGone({
    * app's own shell, where a signed-in 404 keeps the sidebar.
    */
   frame?: boolean
+  /** PublicFrame's credit. */
+  credit?: boolean
 }) {
   const body = (
     <LoadFailureState
@@ -69,7 +72,7 @@ export function PublicGone({
     )
   }
   return (
-    <PublicFrame surface={surface} mainClassName="px-4 pt-6 sm:pt-12">
+    <PublicFrame surface={surface} credit={credit} mainClassName="px-4 pt-6 sm:pt-12">
       <PaperCard className="flex max-w-[520px] flex-col items-center rounded-[16px] px-6 py-6 text-center shadow-e1 sm:px-12" data-public-gone="">
         {body}
       </PaperCard>

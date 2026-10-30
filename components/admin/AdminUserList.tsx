@@ -16,6 +16,7 @@ import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import { DataInventoryButton } from "@/components/admin/DataInventoryButton"
 import { useAdminScroller } from "@/components/admin/adminScroll"
+import { useListMoving } from "@/lib/ui/scrollState"
 import { DotWord, PeopleRows, PersonRow, PersonTag, RowMenu, relativeShort } from "@/components/admin/PeopleFrame"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 
@@ -135,6 +136,7 @@ function VirtualMembers({
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [startMargin, setStartMargin] = useState(0)
+  useListMoving(scroller)
 
   useLayoutEffect(() => {
     const el = scroller.current

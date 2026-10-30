@@ -25,6 +25,15 @@ describe("a board's own states", () => {
   })
 
   it("lets the template card wait for the drawing, and step aside for the AI composer", () => {
-    expect(src).toMatch(/<BoardTools [^>]*synced=\{synced\}[^>]*quiet=\{aiOpen\}/)
+    // The board's tools come in one lazy chunk (components/board/boardWorkbench), which hands both on.
+    expect(src).toMatch(/<BoardWorkbench [^>]*synced=\{synced\}[^>]*quiet=\{aiOpen\}/)
+    const workbench = readFileSync("components/board/boardWorkbench.tsx", "utf8")
+    expect(workbench).toMatch(/<BoardTools [^>]*synced=\{synced\}[^>]*quiet=\{quiet \|\| pickerOpen\}/)
+  })
+
+  it("shows the board's own grid, which only someone who can edit it sets (miro-02 1)", () => {
+    expect(src).toMatch(/useBoardGrid\(excalApi, provider \?\? null, synced, hasEditAccess\)/)
+    expect(src).toMatch(/<DropdownMenuCheckboxItem checked=\{gridOn === true\} disabled=\{!hasEditAccess \|\| gridOn === null\} onCheckedChange=\{setGrid\}>/)
+    expect(src).not.toMatch(/gridModeEnabled/)
   })
 })

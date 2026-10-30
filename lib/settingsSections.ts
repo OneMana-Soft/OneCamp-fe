@@ -70,7 +70,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     href: "/app/settings/api-tokens",
     label: "API tokens",
-    description: "Keys for scripts and outside tools that act as you.",
+    description: "Keys for scripts and outside tools that act as you, with a member's powers.",
     icon: Key,
     hue: "ink",
   },

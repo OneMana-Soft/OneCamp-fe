@@ -30,6 +30,17 @@ describe("the task header's path", () => {
     expect(open).toHaveBeenCalled()
   })
 
+  // WA2b: a sub-task whose parent is restricted, and kept from the reader,
+  // names the parent "A task you can't see": never its name (the server sends
+  // none), and no way into it.
+  it("names a parent the reader can't see without a way into it", () => {
+    render(<RightPanelTaskHeader {...base} parent={{ name: "A task you can't see" }} />)
+    const path = screen.getByRole("navigation", { name: "Where this task sits" })
+    expect(within(path).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Q4 launch", "A task you can't see"])
+    expect(within(path).queryByRole("button", { name: /the task this one is part of/ })).toBeNull()
+    expect(within(path).getByText("A task you can't see").closest("[data-hidden-task]")).toBeTruthy()
+  })
+
   // In the panel (452 px) the path has about 100 px beside Mark complete and
   // the panel's buttons, and on a phone about 180: the two names cut each
   // other short ("Pricin…"). Under 40rem of header, a subtask's project is its
@@ -61,10 +72,12 @@ describe("the task header's path", () => {
     Object.defineProperty(el, "clientWidth", { configurable: true, value: client })
   }
   const parentCrumb = () => screen.getByRole("button", { name: /^Open Pricing page copy/ })
+  // The parent's words, inside its crumb beside the glyph that stands for them where the header is narrow.
+  const parentName = () => screen.getByText("Pricing page copy")
 
   it("shows a parent's name the header cuts short whole, in a tip under its crumb", async () => {
     render(<RightPanelTaskHeader {...base} parent={{ name: "Pricing page copy", onOpen: () => {} }} />)
-    widths(parentCrumb(), 118, 61)
+    widths(parentName(), 118, 61)
     fireEvent.focus(parentCrumb())
     const tip = await screen.findByRole("tooltip")
     expect(tip.textContent).toBe("Pricing page copy")
@@ -78,10 +91,19 @@ describe("the task header's path", () => {
     expect((await screen.findByRole("tooltip")).textContent).toBe("Q4 launch")
   })
 
+  it("shows a name clamped to its first line whole, in a tip under its crumb", async () => {
+    render(<RightPanelTaskHeader {...base} parent={{ name: "Pricing page copy", onOpen: () => {} }} />)
+    // A clamped name keeps its width and runs past its one line.
+    Object.defineProperty(parentName(), "scrollHeight", { configurable: true, value: 40 })
+    Object.defineProperty(parentName(), "clientHeight", { configurable: true, value: 20 })
+    fireEvent.focus(parentCrumb())
+    expect((await screen.findByRole("tooltip")).textContent).toBe("Pricing page copy")
+  })
+
   it("shows no tip for a name that fits", async () => {
     render(<RightPanelTaskHeader {...base} parent={{ name: "QA", onOpen: () => {} }} />)
     const crumb = screen.getByRole("button", { name: /^Open QA/ })
-    widths(crumb, 18, 18)
+    widths(screen.getByText("QA"), 18, 18)
     fireEvent.focus(crumb)
     await act(async () => {})
     expect(screen.queryByRole("tooltip")).toBeNull()
@@ -89,7 +111,7 @@ describe("the task header's path", () => {
 
   it("closes its tip on Escape", async () => {
     render(<RightPanelTaskHeader {...base} parent={{ name: "Pricing page copy", onOpen: () => {} }} />)
-    widths(parentCrumb(), 118, 61)
+    widths(parentName(), 118, 61)
     fireEvent.focus(parentCrumb())
     await screen.findByRole("tooltip")
     fireEvent.keyDown(parentCrumb(), { key: "Escape" })

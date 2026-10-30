@@ -4,7 +4,16 @@
  * optionally, otherwise. The shapes are the server's JSON.
  */
 
-export type RuleTrigger = "task_created" | "task_status_changed" | "task_assigned" | "task_field_changed"
+export type RuleTrigger =
+  | "task_created"
+  | "task_status_changed"
+  | "task_assigned"
+  | "task_field_changed"
+  | "schedule"
+  | "task_due_soon"
+  | "task_overdue"
+  | "form_submitted"
+  | "approval_decided"
 
 export type RuleActionType =
   | "set_status"
@@ -16,6 +25,7 @@ export type RuleActionType =
   | "notify"
   | "reply"
   | "create_task"
+  | "ask_agent"
 
 export type AssignHow = "person" | "round_robin" | "least_loaded" | "creator" | "actor" | "nobody"
 export type NotifyWhom = "assignee" | "creator" | "actor" | "people"
@@ -33,6 +43,8 @@ export interface RuleAction {
   text?: string
   task_name?: string
   project_id?: string
+  /** ask_agent: the AI teammate asked (its principal's user id); none asks OneCamp AI. */
+  agent_id?: string
 }
 
 export type ConditionField = "priority" | "status" | "assignee" | "tags" | "name" | "due" | "creator"
@@ -62,9 +74,23 @@ export interface RuleConditions {
 export interface RuleTriggerConfig {
   to_status?: string
   fields?: WatchedField[]
-  /** The zone of whoever saved the rule: where its due dates are days. */
+  /** The zone of whoever saved the rule: where its due dates are days and its schedule keeps time. */
   tz?: string
+  /** A schedule: its repeat rule (lib/rules/schedule), its first day ("2026-10-20"), and whether it acts for each task. */
+  repeat?: string
+  from?: string
+  each_task?: boolean
+  /** A schedule's or a due trigger's time of day, "09:00". */
+  at?: string
+  /** Due soon: how many days before the due day (0 is the day itself). */
+  days?: number
+  /** A form's rule: the project's form it runs on (package 9 R4). */
+  form_id?: string
+  /** An answered approval's rule: how the request must end; none is any ending (package 9 R2b). */
+  outcome?: ApprovalOutcome
 }
+
+export type ApprovalOutcome = "approved" | "changes" | "rejected"
 
 export interface Rule {
   id: string
@@ -80,6 +106,8 @@ export interface Rule {
   last_run_at?: string | null
   last_error?: string | null
   paused_reason?: string | null
+  /** A schedule's next run, while it is on. */
+  next_run_at?: string | null
   updated_at: string
 }
 
@@ -93,6 +121,8 @@ export interface RuleTemplate {
   conditions: RuleConditions
   actions: RuleAction[]
   else_actions?: RuleAction[]
+  /** Only the AI edition offers it ("ask an agent"). */
+  needs_ai?: boolean
 }
 
 export interface RuleDraft {
@@ -132,6 +162,8 @@ export interface RuleRun {
   finished_at?: string | null
   undone_by?: string | null
   undone_at?: string | null
+  /** A schedule run for each task: how many tasks its conditions held for. */
+  matched?: number | null
 }
 
 export interface RulesPayload {
@@ -139,6 +171,8 @@ export interface RulesPayload {
   can_manage: boolean
   templates: RuleTemplate[]
   max: number
+  /** Whether this build can ask an agent (the AI edition). */
+  agents?: boolean
 }
 
 /** The most actions a branch takes, as the server allows. */

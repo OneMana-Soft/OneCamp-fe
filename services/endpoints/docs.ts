@@ -12,6 +12,7 @@ export enum DocsGet {
     GetSourceLinks = "/link/source", // append /{source_type}/{source_uuid}
     GetRefLinks = "/link/ref", // append /{ref_type}/{ref_uuid}
     GetDocViewers = "/doc/getViewers",
+    GetDocInsights = "/doc/getInsights",
 }
 
 export enum DocsPost {

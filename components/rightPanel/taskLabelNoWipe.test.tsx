@@ -27,8 +27,10 @@ vi.mock("@/hooks/usePost", () => ({
     isSubmitting: false,
   }),
 }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: () => new Promise(() => {}), post: () => new Promise(() => {}), interceptors: { request: { use: () => 0 }, response: { use: () => 0 } } },
+  // The panel's own reads (its Type row's picker) ask for no error toast.
+  OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),

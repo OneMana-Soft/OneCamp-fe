@@ -5,7 +5,7 @@ vi.mock("@/hooks/use-toast", () => {
   const toast = vi.fn()
   return { useToast: () => ({ toast }) }
 })
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: vi.fn(), post: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: vi.fn(), post: vi.fn() } }))
 
 import { usePost } from "@/hooks/usePost"
 

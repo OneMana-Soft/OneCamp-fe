@@ -18,7 +18,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 // phone docks a bar above its keyboard. The real doc input, rendered: a
 // toolbar row put back into it (the comment composer's, say) fails here.
 
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
     default: { get: vi.fn(async () => ({ status: 200, data: {} })), post: vi.fn(async () => ({ data: {} })) },
 }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))

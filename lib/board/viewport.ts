@@ -22,6 +22,11 @@ export function sceneToLocal(v: BoardView, sceneX: number, sceneY: number) {
   return { left: (sceneX + v.scrollX) * v.zoom, top: (sceneY + v.scrollY) * v.zoom }
 }
 
+/** Whether any of a box on the canvas (its corners as sceneToLocal gives them) is in view. */
+export function boxInView(v: Pick<BoardView, "width" | "height">, left: number, top: number, right: number, bottom: number) {
+  return right >= 0 && bottom >= 0 && left <= v.width && top <= v.height
+}
+
 /** A point on the page (a click), in the scene. */
 export function clientToScene(v: BoardView, clientX: number, clientY: number) {
   return { x: (clientX - v.offsetLeft) / v.zoom - v.scrollX, y: (clientY - v.offsetTop) / v.zoom - v.scrollY }

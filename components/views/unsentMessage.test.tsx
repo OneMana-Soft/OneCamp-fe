@@ -12,7 +12,9 @@ import { Provider } from "react-redux"
 // composer and what the views read are stand-ins.
 
 const send = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...args: unknown[]) => send(...args) }, OWN_ERRORS: { suppressErrorToast: true } }))
+// How many were unread is known at once: hooks/useUnreadOnOpen has its own test.
+vi.mock("@/hooks/useUnreadOnOpen", () => ({ useUnreadOnOpen: () => 0 }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...args: unknown[]) => send(...args) } }))
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 vi.mock("@/hooks/useScheduledMessages", () => ({ useScheduleMessage: () => vi.fn() }))
@@ -52,7 +54,7 @@ import store from "@/store/store"
 import { addChannelUploadedFiles, setChannelReplyTarget, updateChannelInputText } from "@/store/slice/channelSlice"
 import { createOrUpdateChatBody, setChatReplyTarget } from "@/store/slice/chatSlice"
 import { createOrUpdateGroupChatBody, setGroupChatReplyTarget } from "@/store/slice/groupChatSlice"
-import { ChannelView } from "./ChannelView"
+import { ChannelConversation as ChannelView } from "@/components/conversation/ChannelConversation"
 import { ChatView } from "./ChatView"
 import { GroupChatView } from "./GroupChatView"
 import { NOT_SENT_TOAST } from "@/lib/chat/unsentMessage"

@@ -1,16 +1,18 @@
 "use client";
 
+import { memo } from "react";
 import { differenceInCalendarDays, differenceInMinutes, format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SpotCalendar } from "@/components/ui/graphics";
+import { SpotCalendar } from "@/components/ui/graphics/spots";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { Button } from "@/components/ui/button";
 import { hueOf, kindOf } from "@/components/calendar/calendarTones";
 import { allDayItem, daySpan, daySpanWords } from "@/components/calendar/calendarLayout";
 import { allDayLastDay } from "@/lib/calendar/allDay";
-import { joinLinkOf } from "@/lib/calendar/joinLink";
+import { eventCallOf } from "@/lib/calendar/joinLink";
 import { cn } from "@/lib/utils/helpers/cn";
-import { clockRange, clockTime } from "@/lib/utils/date/clock";
+import { clockTime } from "@/lib/utils/date/clock";
+import { spanLabel } from "@/lib/calendar/spanLabel";
 
 // The agenda (content.md C17): the days that have something on them, one row
 // per event or task. The phone's default view, and a desktop view of its own,
@@ -44,7 +46,7 @@ function itemDetail(item: AgendaItem, day: Date): string {
   // A task sits under its due day, so the heading already says when.
   if (item.isTask) return isSameDay(end, day) ? "Task due" : `Task, due ${format(end, "d MMM")}`;
   if (item.event_is_away) return isSameDay(start, day) ? `Away until ${format(subMinutes(end, 1), "d MMM")}` : "Away";
-  const times = clockRange(start, end);
+  const times = spanLabel(start, end);
   // A focus block is usually called "Focus time": say it once.
   if (item.event_is_focus) return item.event_title.trim().toLowerCase() === "focus time" ? times : `Focus time, ${times}`;
   if (allDayItem(item, start, end)) {
@@ -81,7 +83,8 @@ function nextLabel(start: Date, end: Date, now: Date): string {
   return `Next · ${format(start, "EEE")}`;
 }
 
-export function CalendarAgenda({
+// Kept while an event's card opens (C3).
+export const CalendarAgenda = memo(function CalendarAgenda({
   days,
   onOpen,
   desktop = false,
@@ -137,7 +140,9 @@ export function CalendarAgenda({
                 const isNext = item.event_uuid === next && isSameDay(start, day);
                 const live = isNext && start <= now && now < end;
                 const span = daySpan(item, start, end, day);
-                const link = item.event_description ? joinLinkOf(item) : null;
+                // Its own call (calendar B11), else the link in its notes.
+                const call = eventCallOf(item, window.location.origin);
+                const link = call?.join ?? null;
                 const soon = !!link && differenceInMinutes(start, now) <= 10 && now < end;
                 const i = n++;
                 return (
@@ -178,7 +183,7 @@ export function CalendarAgenda({
                       </span>
                       {link && (live || soon) ? (
                         <Button asChild variant="secondary" size="xs" onClick={(e) => e.stopPropagation()}>
-                          <a href={link} target="_blank" rel="noopener noreferrer">
+                          <a href={link} {...(call?.own ? {} : { target: "_blank", rel: "noopener noreferrer" })}>
                             Join
                           </a>
                         </Button>
@@ -193,4 +198,4 @@ export function CalendarAgenda({
       })}
     </div>
   );
-}
+});

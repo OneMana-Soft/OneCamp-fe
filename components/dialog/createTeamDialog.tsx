@@ -110,7 +110,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={closeModal}>Cancel</Button>
-              <Button type="submit" disabled={!isValid || isSubmitting || !name.available}>
+              <Button type="submit" disabled={!isValid || !name.available} busy={isSubmitting}>
                 {isSubmitting ? "Creating…" : "Create team"}
               </Button>
             </DialogFooter>

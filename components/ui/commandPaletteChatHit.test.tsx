@@ -39,7 +39,6 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
 }))
 vi.mock("@/components/ai/PaletteAsk", () => ({ default: () => null }))
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pause: vi.fn(), resume: vi.fn() }) }))
-vi.mock("@/hooks/useTrackPageVisit", () => ({ useTrackPageVisit: () => {} }))
 vi.mock("@/hooks/useSplitView", () => ({ useSplitActions: () => () => {} }))
 vi.mock("@/components/shortcuts/ShortcutsDialog", () => ({ openShortcuts: () => {} }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => ({}) }))

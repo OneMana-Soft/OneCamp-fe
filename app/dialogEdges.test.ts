@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join, relative } from "node:path"
 
 import { describe, expect, it } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * Dialogs keep their edges.
@@ -19,15 +20,6 @@ import { describe, expect, it } from "vitest"
  */
 
 const ROOT = process.cwd()
-function files(dir: string, out: string[] = []): string[] {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name.startsWith(".")) continue
-    const p = join(dir, e.name)
-    if (e.isDirectory()) files(p, out)
-    else if (/\.tsx$/.test(e.name) && !/\.(test|spec)\./.test(e.name)) out.push(p)
-  }
-  return out
-}
 
 /**
  * The className of every <DialogContent …> opening tag in a source file. A
@@ -46,7 +38,7 @@ function dialogClasses(src: string): string[] {
   return out
 }
 
-const SOURCES = [...files(join(ROOT, "components")), ...files(join(ROOT, "app"))].map((p) => ({ path: relative(ROOT, p), src: readFileSync(p, "utf8") }))
+const SOURCES = sourceFiles(["components", "app"], /\.tsx$/).map((p) => ({ path: relative(ROOT, p), src: readFileSync(p, "utf8") }))
 
 describe("dialog edges", () => {
   it("a padding-less dialog with the v3 footer zeroes --dlg-pad", () => {

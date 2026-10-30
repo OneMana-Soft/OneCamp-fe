@@ -4,7 +4,7 @@ import React, { forwardRef, useImperativeHandle, useRef } from "react"
 import { suggestionPopup, type SuggestionListExtras } from "../suggestion-popup"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import { storedRecents } from "@/lib/utils/storedRecents"
-import { Code, Sparkles, Bold, Italic, Strikethrough, Zap } from "@/lib/icons";
+import { Code, Sparkles, Bold, Italic, Strikethrough } from "@/lib/icons";
 import { Underline as UnderlineIcon, Eraser } from "@/lib/icons";
 
 export interface SlashCommandItem {
@@ -108,19 +108,18 @@ export const CHAT_COMMANDS: SlashCommandItem[] = [
 // the runner handles. A doc registers none; its own items run through its
 // command bus (components/docEditor/registry).
 
-export interface BackendCommandEntry {
-  command: string        // canonical name without leading slash
-  description: string
-  usage_hint?: string
-  app_name?: string
-  icon_url?: string
-  is_builtin: boolean
+/**
+ * A surface's commands: its menu rows for a query, mapped, ranked and capped
+ * by the composer (components/command/commandItems.ts, which a doc never
+ * reaches), and the exact names a sent "/name" runs.
+ */
+export interface BackendCommands {
+  items: (query: string) => SlashCommandItem[]
+  names: (query: string) => { command: string }[]
 }
 
-type BackendCommandProvider = (query: string) => BackendCommandEntry[]
-
 // By surface: a composer's commands are its conversation's (FE-BUG-11).
-const backendCommandProviders = new Map<string, BackendCommandProvider>()
+const backendCommandProviders = new Map<string, BackendCommands>()
 
 const providerFor = (surface?: string | null) => backendCommandProviders.get(surface || "")
 const SURFACE = "data-command-surface"
@@ -153,12 +152,12 @@ const onProvidersChange = (listener: () => void) => {
 }
 
 /** Registers a surface's provider (null removes it); returns its removal. */
-export function setBackendCommandProvider(provider: BackendCommandProvider | null, surface = "") {
+export function setBackendCommands(provider: BackendCommands | null, surface = "") {
   if (provider) backendCommandProviders.set(surface, provider)
   else backendCommandProviders.delete(surface)
   providerListeners.forEach((listener) => listener())
   return () => {
-    if (provider && backendCommandProviders.get(surface) === provider) setBackendCommandProvider(null, surface)
+    if (provider && backendCommandProviders.get(surface) === provider) setBackendCommands(null, surface)
   }
 }
 
@@ -169,52 +168,6 @@ export function setBackendCommandProvider(provider: BackendCommandProvider | nul
  */
 export function withoutChatCommands(items: SlashCommandItem[]): SlashCommandItem[] {
   return items.filter((item) => !item.id.startsWith("cmd-"))
-}
-
-/** Map a backend catalog entry to a SlashCommandItem that dispatches an event. */
-function toBackendItem(entry: BackendCommandEntry): SlashCommandItem {
-  const hint = entry.usage_hint ? ` ${entry.usage_hint}` : ""
-  return {
-    id: `cmd-${entry.command}`,
-    title: `/${entry.command}${hint}`,
-    description: entry.app_name ? `${entry.description} · ${entry.app_name}` : entry.description,
-    icon: Zap,
-    section: "Commands",
-    command: ({ editor, range }) => {
-      // Slack/Notion-grade UX:
-      //  • A command that needs arguments → insert "/command " into the
-      //    composer and leave the cursor after it, so the user types the args
-      //    and presses Enter (send-time interception then runs it).
-      //  • A no-argument command (e.g. /active, /shortcuts) → run immediately,
-      //    so a single click does the thing — no second keystroke.
-      if (commandNeedsArgs(entry.usage_hint)) {
-        editor
-          .chain()
-          .focus()
-          .deleteRange(range)
-          .insertContent(`/${entry.command} `)
-          .run()
-        return
-      }
-      editor.chain().focus().deleteRange(range).run()
-      window.dispatchEvent(
-        new CustomEvent("chat-slash-command", {
-          detail: { command: entry.command, typed: entry.command, surface: commandSurfaceOf(editor) },
-        }),
-      )
-    },
-  }
-}
-
-// commandNeedsArgs decides whether selecting a command should wait for the user
-// to type arguments (insert "/command ") vs run immediately. A usage hint that
-// contains a required placeholder ("<...>"), a mention/channel token ("@"/"#"),
-// or a quoted example ('"') means the command expects input. Empty or
-// purely-optional hints ("[name]") run immediately.
-function commandNeedsArgs(usageHint?: string): boolean {
-  const h = (usageHint || "").trim()
-  if (!h) return false
-  return /[<@#"]/.test(h)
 }
 
 /**
@@ -229,7 +182,7 @@ function resolveBackendCommandName(query: string, surface: string | null): strin
   const name = (query || "").trim().toLowerCase()
   if (!name) return null
   try {
-    const entries = provider(name)
+    const entries = provider.names(name)
     const exact = entries.find((e) => e.command.toLowerCase() === name)
     return exact ? exact.command : null
   } catch {
@@ -268,6 +221,14 @@ export function maybeDispatchSlashCommand(
     }),
   )
   return true
+}
+
+/** A command's message (Giphy's Send, /shrug, /me), which its surface's box posts and marks `taken` (textInput). */
+export const COMMAND_POST = "chat-command-post"
+export interface CommandPost {
+  surface: string
+  html: string
+  taken: boolean
 }
 
 /**
@@ -330,13 +291,10 @@ export function slashScore(item: SlashCommandItem, query: string): number {
   return 0
 }
 
-/** The most commands a chat composer's provider adds to the menu. */
-const BACKEND_LIMIT = 50
-
 /** A surface's backend (app and core) commands for a query: none without a provider (a doc has none). */
-function backendItemsOf(provider: BackendCommandProvider | undefined, query: string): SlashCommandItem[] {
+function backendItemsOf(provider: BackendCommands | undefined, query: string): SlashCommandItem[] {
   try {
-    return provider ? provider(query.trim().toLowerCase()).slice(0, BACKEND_LIMIT).map(toBackendItem) : []
+    return provider ? provider.items(query.trim().toLowerCase()) : []
   } catch {
     return []
   }
@@ -487,7 +445,9 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
       ref={listRef}
       comboboxFor={props.comboboxFor}
       label={commands ? "Commands" : "Insert a block"}
-      header={query ? `/ ${query}` : commands ? "Commands" : "Blocks"}
+      // A conversation's commands are named by their group ("Commands"), so
+      // its menu has no header of its own until something is typed.
+      header={query ? `/ ${query}` : commands ? undefined : "Blocks"}
       query={query}
       items={items}
       footer={items.length > 0}

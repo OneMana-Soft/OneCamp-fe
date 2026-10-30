@@ -9,14 +9,13 @@ import { useToast } from "@/hooks/use-toast"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
-import { formatDuration, parseDuration } from "@/lib/tasks/time"
+import { formatDuration, parseWorkDuration } from "@/lib/tasks/time"
 import { InlineEdit } from "@/components/task/inlineEdit"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Bar } from "@/components/ui/progress"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { GetEndpointUrl } from "@/services/endPoints"
-import { ProjectsPost } from "@/services/endpoints/projects"
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 /** The most an estimate can be: a thousand hours, as the server allows. */
 const MAX_ESTIMATE_MINUTES = 1000 * 60
@@ -52,8 +51,7 @@ export function TaskEstimateField({
   // Escape puts the value back without calling this (InlineEdit).
   const save = async (draft: string) => {
     const text = draft.trim()
-    // A bare number is hours, as estimates are said: "8" is a day's work, not 8 minutes.
-    const next = text === "" ? 0 : parseDuration(/^\d+(\.\d+)?$/.test(text) ? `${text}h` : text, MAX_ESTIMATE_MINUTES)
+    const next = text === "" ? 0 : parseWorkDuration(text, MAX_ESTIMATE_MINUTES)
     if (next === null) {
       toast({ variant: "destructive", title: "That isn't an estimate", description: "Write it like 2h, 1h 30m, 45m or 1.5h, up to 1000 hours." })
       return
@@ -61,7 +59,7 @@ export function TaskEstimateField({
     if (next === (minutes ?? 0)) return
     patch(next)
     try {
-      await axiosInstance.post(ProjectsPost.UpdateTaskEstimate, { task_uuid: taskUUID, task_estimate_minutes: next }, OWN_ERRORS)
+      await axiosInstance.post(PostEndpointUrl.UpdateTaskEstimate, { task_uuid: taskUUID, task_estimate_minutes: next }, OWN_ERRORS)
     } catch (err) {
       patch(minutes ?? 0)
       toast({ variant: "destructive", title: "The estimate wasn't saved", description: apiErrorMessage(err, "Try again in a moment.") })

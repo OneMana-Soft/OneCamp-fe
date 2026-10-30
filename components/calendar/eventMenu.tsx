@@ -2,6 +2,7 @@
 
 import { Fragment, type ElementType } from "react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+export { copyToClipboard } from "@/hooks/useCopyToClipboard";
 
 /** Something to do with an event, as a menu row: the calendar's event menu, and the event page's More actions. */
 export interface EventMenuItem {

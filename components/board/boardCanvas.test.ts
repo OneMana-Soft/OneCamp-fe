@@ -9,8 +9,8 @@ const effect = (marker: string) => src.slice(src.indexOf(marker), src.indexOf("}
 
 describe("the board canvas", () => {
   it("puts the drawing and the camera on the scene only once Excalidraw has loaded it", () => {
-    expect(src).toMatch(/whenSceneReady\(\(\) => api\.getAppState\(\)\.isLoading/)
-    expect(effect("if (!api || !sceneReady) return")).toMatch(/hydrateFromY\(\)/)
+    expect(src).toMatch(/const sceneReady = useSceneReady\(api\)/)
+    expect(effect("if (!api || !sceneReady) return")).toMatch(/followShared\(api, yElements as unknown as SharedElements/)
     expect(src).toMatch(/if \(!api \|\| !synced \|\| !sceneReady\) return/)
     expect(src).toMatch(/if \(!api \|\| !sceneReady \|\| viewportRestoredRef\.current\) return/)
   })
@@ -19,16 +19,23 @@ describe("the board canvas", () => {
     const change = src.slice(src.indexOf("const handleChange = React.useCallback("))
     const skip = change.indexOf("if (signature === lastSignatureRef.current) return")
     expect(skip).toBeGreaterThan(0)
-    expect(change.indexOf("yDoc.transact(() => {\n        for (const el of allEls)")).toBeGreaterThan(skip)
+    expect(change.indexOf("storeWithMakers(yAuthors, yElements as never, sceneNow")).toBeGreaterThan(skip)
     expect(change.indexOf("scheduleThumbnail()")).toBeGreaterThan(skip)
   })
 
   it("takes what others drew as seen, so opening a board sends nothing back and uploads no thumbnail", () => {
     // Both places that put the shared drawing on the canvas do it through the
     // one binding (lib/board/binding: outside the person's undo history), and
-    // remember its fingerprint right after, inside the remote-change guard.
+    // remember its fingerprint right after. Following the document (W-4): each
+    // merge marks the canvas, then remembers.
+    const follow = effect("if (!api || !sceneReady) return")
+    const merged = follow.slice(follow.indexOf("onMerged: () => {"))
+    expect(merged.indexOf("markRemoteMerge()")).toBeGreaterThan(0)
+    expect(merged.indexOf("lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted() as never)")).toBeGreaterThan(merged.indexOf("markRemoteMerge()"))
+    expect(src).not.toMatch(/hydrateFromY/)
+    // The sync's once-more, inside the remote-change guard.
     const applies = [...src.matchAll(/if \(applyShared\(api, yElements\.values\(\) as never\) > 0\) markRemoteMerge\(\)/g)]
-    expect(applies).toHaveLength(2)
+    expect(applies).toHaveLength(1)
     for (const a of applies) {
       const before = src.slice(Math.max(0, a.index! - 400), a.index!)
       expect(before.lastIndexOf("applyingRemoteRef.current = true")).toBeGreaterThan(-1)
@@ -43,7 +50,7 @@ describe("the board canvas", () => {
     const synced = effect("if (!api || !synced || !sceneReady) return")
     expect(synced).toMatch(/mark\.dataset\.boardSynced = "true"/)
     expect(synced).toMatch(/mark\.dataset\.boardElements = String\(liveCount\(scene as never\)\)/)
-    expect(src).toMatch(/<div ref=\{wrapRef\} className="h-full w-full" data-board-canvas="">/)
+    expect(src).toMatch(/<div ref=\{wrapRef\} className="relative h-full w-full" data-board-canvas="">/)
     // A teammate's change that reached the scene moves data-board-remote.
     expect(src).toMatch(/wrapRef\.current\.dataset\.boardRemote = String\(remoteMergesRef\.current\)/)
   })

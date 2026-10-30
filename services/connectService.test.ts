@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 // root, the global error toast said the same failure again over it.
 
 const http = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: http, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: http }))
 
 const { getConsent, approveConsent, denyConsent } = await import("@/services/connectService")
 

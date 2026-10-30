@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   addressOrHandleOf,
   displayNameOf,
+  firstNameOf,
+  greetingNameOf,
   handleOf,
   matchesPerson,
   personKeywords,
@@ -38,6 +40,16 @@ describe("displayNameOf: the one name rule", () => {
   })
 })
 
+describe("firstNameOf", () => {
+  it("is a name's first word, and nothing for no name", () => {
+    expect(firstNameOf("  Sam   Rivera ")).toBe("Sam")
+    expect(firstNameOf("Priya")).toBe("Priya")
+    expect(firstNameOf("   ")).toBe("")
+    expect(firstNameOf(undefined)).toBe("")
+    expect(firstNameOf(null)).toBe("")
+  })
+})
+
 describe("secondaryNameOf", () => {
   it("is the full name when it says something the shown name does not", () => {
     expect(secondaryNameOf({ user_name: "sam", user_full_name: "Samuel Rivera" })).toBe("Samuel Rivera")
@@ -46,6 +58,21 @@ describe("secondaryNameOf", () => {
     expect(secondaryNameOf({ user_name: "", user_full_name: "Samuel Rivera" })).toBe("")
     expect(secondaryNameOf({ user_name: "samuel rivera", user_full_name: "Samuel Rivera" })).toBe("")
     expect(secondaryNameOf({ user_name: "Sam" })).toBe("")
+  })
+})
+
+describe("greetingNameOf: the name a salutation uses", () => {
+  it("is the full name's first word, a given name, over the display name", () => {
+    expect(greetingNameOf({ user_name: "sam", user_full_name: "Sam Rivera" })).toBe("Sam")
+    expect(greetingNameOf({ user_full_name: "  Maya   Chen " })).toBe("Maya")
+  })
+  it("is the display name's first word when there is no full name", () => {
+    expect(greetingNameOf({ user_name: "Priya Nair", user_full_name: " " })).toBe("Priya")
+  })
+  it("is no name at all without either, never the address", () => {
+    expect(greetingNameOf({ user_email_id: "lee@example.com" })).toBe("")
+    expect(greetingNameOf({ user_name: "", user_full_name: "" })).toBe("")
+    expect(greetingNameOf(null)).toBe("")
   })
 })
 

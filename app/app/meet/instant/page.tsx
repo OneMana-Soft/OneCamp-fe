@@ -4,6 +4,7 @@ import { displayNameOf } from "@/lib/personName"
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PreJoin } from "@/components/livekit/PreJoin";
+import { JoinByCode } from "@/components/livekit/JoinByCode";
 import { joinLanguage } from "@/components/livekit/callState";
 import { handOffMeeting, meetingPagePath, rememberGuestLink } from "@/components/livekit/instantMeeting";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -61,6 +62,7 @@ export default function InstantMeetingPage() {
                 // A new meeting: nobody is in it yet.
                 inCall={[]}
                 onCancel={handleCancel}
+                extra={<JoinByCode />}
             />
             {starting && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/60">

@@ -62,5 +62,7 @@ export function useTodayEvents() {
     error: Boolean(res.isError) && !unavailable,
     unavailable,
     retry: () => void res.mutate(),
+    /** The calendar's copy of today's events (the same request): an answer shows in it at once. */
+    mutate: res.mutate,
   }
 }

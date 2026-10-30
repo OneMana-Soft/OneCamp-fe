@@ -21,7 +21,7 @@ let current: typeof saved = saved
 
 // The server refuses a save made from a version that isn't the one it holds.
 const posted: { url: string; body: unknown }[] = []
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     post: async (url: string, body: { updated_at?: string }) => {
       posted.push({ url, body })

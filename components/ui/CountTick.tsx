@@ -18,8 +18,11 @@ import { cn } from "@/lib/utils/helpers/cn"
  * (hub.md §1.1, `count`, which took "99+") and the work area's were two files
  * whose names differed only in case. A value may be text, such as "99+".
  */
-export function CountTick({ value, className, format }: { value: number | string; className?: string; format?: (n: number) => string }) {
-  const text = format && typeof value === "number" ? format(value) : String(value)
+/** Thousands grouped as the reader's locale writes them: "2,505". */
+const grouped = (n: number) => n.toLocaleString()
+
+export function CountTick({ value, className, format = grouped }: { value: number | string; className?: string; format?: (n: number) => string }) {
+  const text = typeof value === "number" ? format(value) : String(value)
   const prev = useRef(text)
   const [from, setFrom] = useState<string | null>(null)
   // A change since the last render is played once: the old text is kept for

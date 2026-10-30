@@ -22,7 +22,7 @@ import {
     File as FileIcon, Inbox as InboxIcon } from "@/lib/icons"
 import { Plug } from "lucide-react"
 import { useLogout } from "@/hooks/useLogout"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useTheme } from "next-themes"
 import { ThemeSwatches } from "@/components/navigationBar/appearanceControl"
 import { useCapabilities } from "@/hooks/useCapabilities"
@@ -43,7 +43,7 @@ import { displayNameOf } from "@/lib/personName"
 import { useStatusIsExpired } from "@/hooks/useStatusIsExpired"
 import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData"
 import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction"
-import { useStartFocus } from "@/hooks/useStartFocus"
+import { useFocusTime } from "@/hooks/useFocusTime"
 import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { PhoneSelfAvatar } from "@/components/navigationBar/mobile/phoneSelfAvatar"
 import { DrawerItem } from "@/components/drawers/drawerItem"
@@ -110,7 +110,7 @@ function DrawerSection({ label }: { label: string }) {
 
 export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDrawerProps) {
     const { logout } = useLogout()
-    const router = useRouter()
+    const router = useAppRouter()
     const dispatch = useDispatch()
     const { theme, setTheme } = useTheme()
     const { can } = useCapabilities()
@@ -124,7 +124,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const [pauseUsed, setPauseUsed] = useState(false)
     if (handoff === "pause" && !pauseUsed) setPauseUsed(true)
     const { pausedUntil, focusUntil } = usePauseNotifications()
-    const { startFocus, starting } = useStartFocus()
+    const focus = useFocusTime()
     const me = selfProfile.data?.data
 
     // Your status text, as the rest of the app reads it: Redux's copy, and
@@ -194,18 +194,10 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerItem
                         icon={Focus}
                         neutralTile
-                        label={focusUntil ? statusLine : "Start focus time"}
-                        description={focusUntil ? undefined : "1 hour, notifications held"}
-                        disabled={starting}
-                        onClick={() => {
-                            if (focusUntil) {
-                                // Focus comes from a calendar event and ends with
-                                // it; the pause dialog says so.
-                                handTo("pause")
-                                return
-                            }
-                            void startFocus().then((ok) => ok && closeDrawer())
-                        }}
+                        label={focusUntil ? "End focus time" : "Start focus time"}
+                        description={focusUntil ? statusLine : "1 hour, notifications held"}
+                        disabled={focus.busy}
+                        onClick={() => void (focusUntil ? focus.end() : focus.start()).then((ok) => ok && closeDrawer())}
                     />
                     <DrawerItem
                         icon={BellOff}

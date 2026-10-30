@@ -8,8 +8,6 @@ import type { AddressInfo } from "node:net"
 // that takes longer. The default is shortened here (the client reads it from
 // its own defaults), so the test waits milliseconds, not 30 seconds.
 
-vi.mock("@/store/store", () => ({ default: { dispatch: vi.fn() } }))
-vi.mock("@/store/slice/refreshSlice", () => ({ updateRefreshTokenStatus: vi.fn() }))
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }))
 vi.mock("@/lib/sessionEnd", () => ({ endSession: vi.fn() }))
 vi.mock("@/lib/http/loadFailure", () => ({ tellReadFailure: vi.fn() }))

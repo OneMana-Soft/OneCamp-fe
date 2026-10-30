@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
-import { AccessCard, CopyLinkButton, GeneralAccessMark, InviteRow, ShareTokenInvite, ShareUserRow, generalAccessLine, withoutOwner } from "./shareParts"
+import { AccessCard, AccessTile, CopyLinkButton, GeneralAccessMark, InviteRow, ShareTokenInvite, ShareUserRow, generalAccessLine, withoutOwner } from "./shareParts"
 
 afterEach(cleanup)
 
@@ -15,7 +15,7 @@ const ROLES = [{ value: "editor", label: "Can edit" }, { value: "viewer", label:
 // The share dialog in v3 (content.md D18): sentence case, one primary (Invite,
 // and only once someone is picked), Copy link secondary, access as cards.
 describe("the share dialogs' source", () => {
-  for (const f of ["components/dialog/shareParts.tsx", "components/dialog/docShareDialog.tsx", "components/dialog/boardShareDialog.tsx"]) {
+  for (const f of ["components/dialog/shareParts.tsx", "components/dialog/docShareDialog.tsx", "components/dialog/boardShareDialog.tsx", "components/calendar/sharing/shareCalendarDialog.tsx"]) {
     it(`${f} has no uppercase eyebrow and no second primary`, () => {
       const src = readFileSync(f, "utf8")
       expect(src).not.toMatch(/\buppercase\b|eyebrowClass/)
@@ -89,6 +89,23 @@ describe("the invite row", () => {
   })
 })
 
+// DESIGN-BUILD-3, 20 Oct 2026: at 390 the level picker cut the field's
+// placeholder mid-word ("Add people by name or e"). Under about 420px of
+// row, the field takes its own line and the picker sits under it.
+describe("the invite row on a narrow dialog", () => {
+  const field = () => screen.getByRole("combobox")
+  const container = () => field().closest("[data-share-field-row]") as HTMLElement
+  it("puts the level under the field in a narrow container, for every share dialog", () => {
+    render(<ShareTokenInvite search={vi.fn()} roles={ROLES} defaultRole="editor" existing={new Set()} onInvite={vi.fn()} />)
+    expect(container().className).toMatch(/(^|\s)@container(\s|$)/)
+    expect(field().className).toMatch(/@max-\[420px\]:basis-full/)
+    cleanup()
+    render(<InviteRow searchPeople={vi.fn()} teams={[]} levels={["edit", "view"]} defaultLevel="view" existing={new Set()} onInvite={vi.fn()} />)
+    expect(container().className).toMatch(/(^|\s)@container(\s|$)/)
+    expect(field().className).toMatch(/@max-\[420px\]:basis-full/)
+  })
+})
+
 describe("a person with access", () => {
   it("is a row whose role is a menu (Remove access lives there); the owner's is plain text", () => {
     render(
@@ -119,11 +136,16 @@ describe("general access", () => {
     expect(generalAccessLine("restricted", "board")).toMatch(/^Only the people above/)
   })
 
-  it("is a card that renders a Tile, sky for the workspace, never the accent", () => {
+  it("is a card whose workspace tile is neutral ink, never a hue or the accent: the workspace names no area", () => {
     const { container } = render(<AccessCard tile={<GeneralAccessMark value="public" />} label="Everyone in the workspace" description="x" />)
     expect(container.querySelector("[data-access-card]")?.className).toMatch(/bg-sunken/)
     expect(container.innerHTML).not.toMatch(/primary/)
-    expect(container.querySelector("[class*='hue-sky']")).toBeTruthy()
+    const tile = container.querySelector('[data-access-tile="workspace"]')!
+    // The shared Tile in ink, on the hover ground so it shows on the sunken card.
+    expect(tile.className).toContain("hue-ink")
+    expect(tile.className).toMatch(/bg-hover/)
+    expect(tile.className).not.toMatch(/bg-hue-tint/)
+    expect(container.querySelector("[class*='hue-']:not(.hue-ink)")).toBeNull()
   })
 
   it("offers Copy link as a secondary button", () => {
@@ -131,5 +153,15 @@ describe("general access", () => {
     const b = screen.getByRole("button", { name: "Copy link" })
     expect(b.className).toMatch(/bg-raised|shadow-e1/)
     expect(b.className).not.toMatch(/bg-primary/)
+  })
+})
+
+describe("the access tile", () => {
+  it("takes the hover ground on the sunken access card, so the neutral tile still shows there", () => {
+    const { container } = render(<AccessTile data-access-tile="link" className="content-pop-in" />)
+    const tile = container.querySelector("[data-access-tile]")!
+    expect(tile.className).toMatch(/\bbg-hover\b/)
+    expect(tile.className).not.toMatch(/bg-hue-tint/)
+    expect(tile.className).toMatch(/content-pop-in/)
   })
 })

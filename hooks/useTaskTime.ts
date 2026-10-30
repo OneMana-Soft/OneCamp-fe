@@ -4,7 +4,7 @@
 // timer, which the floating chip and every task panel share by SWR key so a
 // start or stop anywhere shows everywhere.
 
-import { useEffect, useState } from "react"
+import { useNow } from "@/hooks/useNow"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { appMutate } from "@/lib/swrMutate"
@@ -29,12 +29,7 @@ interface TaskTime {
 
 /** Seconds since a moment, ticking once a second while shown. */
 export function useElapsed(startedAt?: string | null) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!startedAt) return
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
-  }, [startedAt])
+  const now = useNow(!!startedAt)
   return startedAt ? Math.max(0, (now - new Date(startedAt).getTime()) / 1000) : 0
 }
 

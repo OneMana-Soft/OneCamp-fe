@@ -79,6 +79,31 @@ describe("a recorded call", () => {
     expect(none.querySelector("[data-duration-badge]")).toBeNull()
   })
 
+  // V-32. One that captured nothing ("empty") or broke ("failed") has nothing to play: its row says which, its
+  // thumbnail shows no play triangle, and it offers See why in place of Play. It still opens the player, which
+  // says why, and it can be deleted.
+  it("says when a recording has nothing to play, and offers See why, not Play", () => {
+    for (const [status, words] of [["empty", "Nothing recorded"], ["failed", "Couldn't be saved"]] as const) {
+      const onOpen = vi.fn()
+      const { container, unmount } = render(
+        <RecordingListRecording recordingInfo={rec({ recording_status: status, recording_duration: 0, recording_size: 0 } as never)} currentUserId="me" onOpen={onOpen} onDelete={() => {}} />,
+      )
+      const row = screen.getByRole("button", { name: `Open the recording, #engineering, 10 Oct, 10:00\u00a0AM, ${words}` })
+      expect(row.textContent).toContain(`${words} · Started by Sam Rivera`)
+      expect(container.querySelector("[data-thumb-play]")).toBeNull()
+      expect(container.querySelector(`[data-thumb-nothing="${status}"]`)).not.toBeNull()
+      expect(screen.queryByRole("button", { name: "Play" })).toBeNull()
+      expect(screen.getByRole("button", { name: "Delete recording" })).toBeTruthy()
+      fireEvent.click(screen.getByRole("button", { name: "See why" }))
+      expect(onOpen).toHaveBeenCalledTimes(1)
+      fireEvent.click(row)
+      expect(onOpen).toHaveBeenCalledTimes(2)
+      unmount()
+    }
+    render(<RecordingListRecording recordingInfo={rec({ recording_status: "ready" } as never)} currentUserId="me" onOpen={() => {}} />)
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy()
+  })
+
   it("tags a recording that has a transcript", () => {
     render(<RecordingListRecording recordingInfo={rec({ recording_transcript: [{}] as never })} currentUserId="me" />)
     expect(screen.getByText("Transcript")).toBeTruthy()

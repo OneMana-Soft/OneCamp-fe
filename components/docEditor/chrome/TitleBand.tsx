@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import type { Editor } from "@tiptap/react"
-import { ImageIcon, Lock, Smile } from "@/lib/icons"
+import { ImageIcon, Smile } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
@@ -10,7 +10,8 @@ import { anchorTo } from "@/components/ui/anchor"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { toast } from "@/hooks/use-toast"
-import { useDocBus } from "@/components/docEditor/registry/commandBus"
+import { SlotOutlet } from "@/components/docEditor/registry/slots"
+import { useEditionGate } from "@/components/docEditor/registry/gate"
 import { useTitle, type TitleStore } from "@/components/docEditor/docTitleStore"
 import { cn } from "@/lib/utils/helpers/cn"
 import { rememberDocIcon } from "@/lib/docLook"
@@ -66,7 +67,9 @@ async function save(change: Parameters<typeof setDocLook>[0], failed: string) {
  * The title band's controls (B6, D-2): "Add icon" and "Add cover" while the
  * page is pointed at (always on a touch screen), the icon's picker from the
  * icon itself, the cover's controls, the title the first line suggests ("Tab
- * to use …", T4), and on a phone the pages above the doc and its lock.
+ * to use …", T4), and on a phone the pages above the doc. Without the
+ * header (a phone or a tablet), it draws the header's title chips: the lock,
+ * the suggestions waiting.
  * DocTitle draws the icon and the cover with the doc and keeps this row's
  * space; this loads beside the editor.
  */
@@ -90,11 +93,11 @@ export default function TitleBand({
   /** The title's side padding, which the band's row lines up with. */
   padded: string
 }) {
-  const { isMobile } = useMedia()
+  const { isMobile, isDesktop } = useMedia()
   // Its pickers: sheets on a phone held either way (components/ui/overlayMode);
   // isMobile lays out the band.
   const sheet = useSheetMode()
-  const bus = useDocBus()
+  const gate = useEditionGate()
   const facts = usePageFacts(docId)
   const title = useTitle(store)
   const row = React.useRef<HTMLDivElement>(null)
@@ -193,6 +196,9 @@ export default function TitleBand({
   const ctl = "doc-band-ctl h-7 gap-1.5 px-2 text-ui-sm text-ink-3 hover:text-ink [&_svg]:size-4"
   const iconPicker = <DocIconPicker value={icon} title={title} onPick={pickIcon} onRemove={removeIcon} />
 
+  // DocView draws the header only on a computer; elsewhere its chips come here.
+  const chips = isDesktop ? null : <SlotOutlet slot="titleChips" gate={gate} docId={docId} editor={editor} />
+
   return (
     <>
       {/* A touch group (app/phone.css F3b): under a finger, Add icon and Add
@@ -203,17 +209,7 @@ export default function TitleBand({
             <div className="min-w-0 flex-1">
               <PathLine docId={docId} />
             </div>
-            {lock ? (
-              <button
-                type="button"
-                onClick={() => bus.emit("openDialog", { id: "doc.lock" })}
-                className="tag inline-flex shrink-0 items-center gap-1 bg-hover text-ink-2 outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                data-doc-lock-chip={lock}
-              >
-                <Lock aria-hidden="true" className="size-3" />
-                {lock === "soft" && !held ? "Unlocked for you" : "Locked"}
-              </button>
-            ) : null}
+            {chips}
             {canStyle && !icon ? (
               <Button variant="ghost" size="icon-sm" className="size-8 shrink-0 text-ink-3" aria-label="Add an icon" onClick={addIcon}>
                 <Smile aria-hidden="true" className="size-4" />
@@ -240,6 +236,7 @@ export default function TitleBand({
               </Button>
             ) : null}
             <div className="flex-1" />
+            {chips}
           </>
         )}
         {suggestion && titleFocused && !isMobile ? (

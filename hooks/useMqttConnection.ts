@@ -31,6 +31,18 @@ interface UseMqttConnectionProps {
      * until a new `config` prop is passed in.
      */
     onAuthFailure?: () => void
+    /**
+     * Once a connection, when the broker has answered the subscribe it makes
+     * on connecting. A page read its conversations before then, so a message
+     * sent between that read and this answer is in neither: the page reads
+     * what came after its newest message, once.
+     */
+    onSubscribed?: () => void
+    /**
+     * Each time a topic goes live on a connection (the broker answered its
+     * subscription): a page that read before then reads again (F5).
+     */
+    onTopicLive?: (topic: string) => void
     userUuid?: string
     dynamicTopicManager?: {
         getTopicsToSubscribe: () => string[]
@@ -48,6 +60,8 @@ export const useMqttConnection = ({
                                       onReconnect,
                                       onError,
                                       onAuthFailure,
+                                      onSubscribed,
+                                      onTopicLive,
                                       userUuid,
                                       dynamicTopicManager,
                                   }: UseMqttConnectionProps) => {
@@ -135,9 +149,16 @@ export const useMqttConnection = ({
             ),
     )
 
+    // When each topic went live on this connection (its subscription
+    // answered), for the pages that read before then (onTopicLive).
+    const liveAt = useRef(new Map<string, number>())
+    const latestOnTopicLiveRef = useRef(onTopicLive)
+
     // What a subscribe's answer means for those tries: a refused topic is tried
     // again later, if still wanted while connected; a granted one starts over.
-    // Each caller still logs the answer itself.
+    // It goes live only if still wanted: a page that let go before the answer
+    // would leave it live for no one, and the next page on it would take it as
+    // live before it opened. Each caller still logs the answer itself.
     const settleSubscribe = useCallback(
         (topics: string[], err: SubscribeAnswer[0], granted?: SubscribeAnswer[1], suback?: SubscribeAnswer[2]) => {
             if (isUnmounted.current) return
@@ -148,6 +169,10 @@ export const useMqttConnection = ({
                     if (clientRef.current?.connected && isWanted(topic)) retries.refused(topic)
                 } else if (answered) {
                     retries.subscribed(topic)
+                    if (isWanted(topic) && !liveAt.current.has(topic)) {
+                        liveAt.current.set(topic, performance.now())
+                        latestOnTopicLiveRef.current?.(topic)
+                    }
                 }
             }
         },
@@ -246,9 +271,10 @@ export const useMqttConnection = ({
             clearTimeout(connectionStabilityTimeoutRef.current)
             connectionStabilityTimeoutRef.current = null
         }
-        // Nothing is tried again on a connection that's gone; the next one
-        // subscribes to everything afresh.
+        // Nothing is tried again, nor live, on a connection that's gone; the
+        // next one subscribes to everything afresh.
         retries.reset()
+        liveAt.current.clear()
 
         connectionPending.current = false
         updateConnectionState({
@@ -354,11 +380,14 @@ export const useMqttConnection = ({
     const latestHandleErrorRef = useRef(handleError)
     const latestConnectionStateRef = useRef(connectionState)
     const latestOnMessageRef = useRef(onMessage)
+    const latestOnSubscribedRef = useRef(onSubscribed)
 
     useEffect(() => {
         latestHandleErrorRef.current = handleError
         latestConnectionStateRef.current = connectionState
         latestOnMessageRef.current = onMessage
+        latestOnSubscribedRef.current = onSubscribed
+        latestOnTopicLiveRef.current = onTopicLive
     })
 
     // Trying a refused topic again: only on a live connection, and only a
@@ -390,9 +419,14 @@ export const useMqttConnection = ({
         [], // Fully stable: uses refs
     )
 
+    // `answered` runs once the broker answers (a refused topic among them too:
+    // the rest are subscribed), or at once when there is nothing to ask for.
     const subscribeToTopics = useCallback(
-        (client: MqttClient, topics: string[]) => {
-            if (!topics.length) return
+        (client: MqttClient, topics: string[], answered?: () => void) => {
+            if (!topics.length) {
+                answered?.()
+                return
+            }
 
             const subscriptions: ISubscriptionMap = {}
             topics.forEach((topic) => {
@@ -408,6 +442,7 @@ export const useMqttConnection = ({
             client.subscribe(subscriptions, (err, granted, suback) => {
                 // Refused topics are tried again later (settleSubscribe).
                 settleSubscribe(topics, err, granted, suback)
+                if (!isUnmounted.current) answered?.()
                 if (err) {
                     // SubackPacket with non-zero reason codes (e.g. "Not
                     // authorized" 0x87) lands here. The connection itself
@@ -487,9 +522,16 @@ export const useMqttConnection = ({
     const unsubscribeFromTopic = useCallback((topic: string) => {
         // Remove from pending subscriptions if it's queued
         pendingSubscriptions.current.delete(topic)
-        // No longer wanted: not tried again if it was refused.
         wantedDynamicTopics.current.delete(topic)
+        // A topic the connection holds from its settings (a project's, a
+        // conversation's) stays: the page lets go only of its own want, and
+        // the app's router still reads the topic's messages.
+        if (heldConfigTopics.current.has(topic)) {
+            return
+        }
+        // No longer wanted: not tried again if it was refused, nor live.
         retries.forget(topic)
+        liveAt.current.delete(topic)
 
         if (!clientRef.current) {
             return
@@ -620,8 +662,10 @@ export const useMqttConnection = ({
 
                     client.on("connect", () => {
                         // A new connection subscribes to everything afresh, so
-                        // tries at refused topics start over.
+                        // tries at refused topics start over, and nothing is
+                        // live until the broker answers.
                         retries.reset()
+                        liveAt.current.clear()
                         handleConnect()
                         // The latest settings' topics, not those this
                         // connection was first made with: a conversation
@@ -634,7 +678,9 @@ export const useMqttConnection = ({
                         // none of them, and they went deaf.
                         const dynamicTopics = [...wantedDynamicTopics.current, ...(dynamicTopicManager?.getTopicsToSubscribe() || [])]
                         const allTopics = [...new Set([...configTopics, ...dynamicTopics])]
-                        subscribeToTopics(client, allTopics)
+                        // Live from the broker's answer on: the page reads
+                        // what came between its own read and now (onSubscribed).
+                        subscribeToTopics(client, allTopics, () => latestOnSubscribedRef.current?.())
                     })
 
                     client.on("reconnect", () => {
@@ -803,7 +849,10 @@ export const useMqttConnection = ({
         heldConfigTopics.current = next
         if (added.length) subscribeToTopics(client, added)
         if (gone.length) {
-            for (const topic of gone) retries.forget(topic)
+            for (const topic of gone) {
+                retries.forget(topic)
+                liveAt.current.delete(topic)
+            }
             client.unsubscribe(gone, (err) => {
                 if (err) console.warn("[MQTT] Unsubscribe from topics no longer ours failed:", err.message)
             })
@@ -832,6 +881,9 @@ export const useMqttConnection = ({
         }
     }, [clearReconnectTimeout, retries])
 
+    /** When `topic` went live on this connection, if it is live. */
+    const topicLiveAt = useCallback((topic: string) => liveAt.current.get(topic), [])
+
     return {
         connectionState,
         connect,
@@ -841,5 +893,6 @@ export const useMqttConnection = ({
         client: clientRef.current,
         subscribeToTopic,
         unsubscribeFromTopic,
+        topicLiveAt,
     }
 }

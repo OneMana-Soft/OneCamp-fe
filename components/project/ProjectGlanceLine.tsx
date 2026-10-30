@@ -5,7 +5,6 @@ import { useEffect, useRef } from "react"
 import { CountTick } from "@/components/ui/CountTick"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { GetTaskStatusQueryParamByStatus } from "@/lib/utils/getTaskStatusQueryParamByStatus"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { projectGlance, type ProjectGlance } from "@/lib/utils/projectGlance"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -23,8 +22,9 @@ import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 export type GlanceKind = "open" | "overdue" | "week" | "done"
 
 export function ProjectGlanceLine({ projectId, className, onGlance, onPick }: { projectId: string; className?: string; onGlance?: (g: ProjectGlance) => void; /** Each count filters the list to what it counts (work.md W16). */ onPick?: (kind: GlanceKind) => void }) {
-  const query = GetTaskStatusQueryParamByStatus({ assigneeFilter: [], priorityFilter: [] })
-  const { data } = useFetch<ProjectInfoRawInterface>(projectId ? `${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}?${query}` : "")
+  // The board's address as projectTaskKanban sends it with nothing narrowing
+  // it: no "?" at all. The empty query this added was a second cache entry.
+  const { data } = useFetch<ProjectInfoRawInterface>(projectId ? `${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}` : "")
   const p = data?.data
   // The server's count of open tasks, column by column (PROJ-BUG-8), once the
   // project's statuses say which columns are open.
@@ -45,6 +45,16 @@ export function ProjectGlanceLine({ projectId, className, onGlance, onPick }: { 
         open,
       )
     : null
+  // A project bigger than the board loads: its dates' counts from the server,
+  // exact, in the reader's day (PR1); one the board holds whole asks nothing.
+  const exact = useFetch<{ data: { overdue: number; due_this_week: number } }>(
+    g?.partial ? `/project/${projectId}/glance?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}` : "",
+  ).data?.data
+  if (g && exact) {
+    g.overdue = exact.overdue
+    g.dueSoon = exact.due_this_week
+    g.partial = false
+  }
   const told = useRef("")
   useEffect(() => {
     if (!g || !onGlance) return

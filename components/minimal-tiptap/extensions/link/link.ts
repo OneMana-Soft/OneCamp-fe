@@ -9,6 +9,9 @@ import { Plugin } from '@tiptap/pm/state'
 import { isSafeHref } from '@/lib/utils/safeHref'
 import { contentClasses } from '@/lib/contentClasses'
 
+/** The doc's link look (typography.css a.link): the link mark's class, and that of a link drawn in a link's place. */
+export const LINK_CLASS = 'link'
+
 /** Whether a link leaves the app: an http(s) address on another origin. Pure for a given origin. */
 export function externalHref(href: string | null | undefined, origin = typeof window !== 'undefined' ? window.location.origin : ''): boolean {
   if (!href || !/^https?:\/\//i.test(href)) return false
@@ -98,7 +101,7 @@ export const Link = TiptapLink.extend({
       ...this.parent?.(),
       openOnClick: false,
       HTMLAttributes: {
-        class: 'link'
+        class: LINK_CLASS
       },
       // setLink, toggleLink, links made as you type and links in pasted text
       // all ask this, so they allow only what parsing and rendering allow.

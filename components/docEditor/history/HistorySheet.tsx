@@ -13,7 +13,7 @@
 
 import "./history.css"
 import * as React from "react"
-import { ChevronLeft, History, Loader2, Plus, RotateCcw, X } from "@/lib/icons"
+import { ChevronLeft, History, Plus, RotateCcw, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
 import { useSheetMode } from "@/components/ui/overlayMode"
@@ -258,7 +258,7 @@ export default function HistorySheet({ docId, onClose }: { docId: string; onClos
     <ConfirmAlertDialog
       open={confirming}
       onOpenChange={setConfirming}
-      title={selected.name?.trim() ? `Restore "${selected.name.trim()}"?` : `Restore the version from ${whenInSentence(selected)}?`}
+      title={selected.name?.trim() ? `Restore “${selected.name.trim()}”?` : `Restore the version from ${whenInSentence(selected)}?`}
       description="The doc goes back to this version for everyone, at once. What it says now is kept as a version first, so you can restore that if you change your mind."
       confirmText="Restore version"
       icon={RotateCcw}
@@ -413,8 +413,7 @@ function SaveVersion({ docId, onSaved, compact }: { docId: string; onSaved(v: Do
   )
   const formId = React.useId()
   const button = (
-    <Button type="submit" form={formId} size={compact ? "lg" : "sm"} disabled={busy} aria-busy={busy || undefined} className={cn("gap-1.5", compact && "h-11 w-full")}>
-      {busy && <Loader2 className="animate-spin" />}
+    <Button type="submit" form={formId} size={compact ? "lg" : "sm"} busy={busy} className={cn("gap-1.5", compact && "h-11 w-full")}>
       Save version
     </Button>
   )
@@ -439,7 +438,7 @@ function SaveVersion({ docId, onSaved, compact }: { docId: string; onSaved(v: Do
         autoFocus
         className="h-8 w-full rounded-md bg-sunken px-2.5 text-ui text-ink outline-none ring-1 ring-inset ring-line focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:text-base"
       />
-      <p className="text-meta text-ink-3">A named version is kept until you unname it.</p>
+      <p className="text-meta text-ink-3">Named versions are kept until you remove the name.</p>
       {error && (
         <p role="alert" className="text-meta text-danger-ink">
           {error}

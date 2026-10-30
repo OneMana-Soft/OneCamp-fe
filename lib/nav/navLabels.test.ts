@@ -62,7 +62,8 @@ describe("the shell names each place once, in sentence case", () => {
 
   it("signs out with the words that sign in", () => {
     const menus = [
-      "components/navigationBar/desktop/SidebarFoot.tsx",
+      // The profile menu's body, a chunk of its own from the first open (fluid-15).
+      "components/navigationBar/desktop/ProfileMenuBody.tsx",
       "components/ui/CommandPalette.tsx",
       "components/drawers/userProfileDrawer.tsx",
     ].map((f) => readFileSync(join(root, f), "utf8"))

@@ -7,8 +7,8 @@
  *
  * The time the cookie was issued is kept in localStorage, which every tab
  * shares as they share the cookie: a tab whose cookie is near or past its end
- * refreshes before its next request leaves (sessionIsStale). With no time
- * kept (the first load after signing in) the load's own time stands. QA SH-16.
+ * refreshes before its next request leaves (sessionIsStale). A tab that knows
+ * of no session has no clock, so it never refreshes. QA SH-16, audit S3.
  */
 
 /** The access cookie lasts five minutes (server: authCookieExpiryTime). */
@@ -37,32 +37,23 @@ function keepIssuedAt(at: number): void {
   }
 }
 
-let issuedAt = Date.now()
+let issuedAt: number | null = null
 if (typeof window !== "undefined") {
-  const kept = readIssuedAt()
-  if (kept === null) keepIssuedAt(issuedAt)
-  else issuedAt = kept
-  // Another tab's refresh is this tab's too.
+  issuedAt = readIssuedAt()
+  // Another tab's refresh is this tab's too; its sign-out clears storage.
   window.addEventListener("storage", (e) => {
-    if (e.key !== ISSUED_AT_KEY) return
-    const at = readIssuedAt()
-    if (at !== null) issuedAt = at
+    if (e.key === ISSUED_AT_KEY || e.key === null) issuedAt = readIssuedAt()
   })
 }
 
 /** Whether the access cookie is near or past its end, by the last refresh any tab made. */
 export function sessionIsStale(now: number = Date.now()): boolean {
-  return now - issuedAt >= PROACTIVE_AFTER_MS
+  return issuedAt !== null && now - issuedAt >= PROACTIVE_AFTER_MS
 }
 
-const refreshed = new Set<() => void>()
-
-/** Hears every refresh this tab makes or takes from another tab; the returned function stops. */
-export function onSessionRefreshed(listener: () => void): () => void {
-  refreshed.add(listener)
-  return () => {
-    refreshed.delete(listener)
-  }
+/** The app saw the member: a tab with no clock (signed in without a reload) starts it, for every tab. */
+export function sessionHeld(): void {
+  if (issuedAt === null) keepIssuedAt(Date.now())
 }
 
 let inflight: Promise<void> | null = null
@@ -85,7 +76,7 @@ export function refreshSession(): Promise<void> {
   if (inflight) return inflight
   // What this tab knew when it asked: a newer refresh by another tab, still
   // fresh, is the one it needs.
-  const knew = issuedAt
+  const knew = issuedAt ?? 0
   inflight = import("./sessionRefreshRun")
     .then(({ runRefresh }) =>
       runRefresh({
@@ -96,17 +87,11 @@ export function refreshSession(): Promise<void> {
           issuedAt = at
         },
         keep: keepIssuedAt,
+        forget: () => {
+          issuedAt = null
+        },
       }),
     )
-    .then(() => {
-      for (const listener of [...refreshed]) {
-        try {
-          listener()
-        } catch (e) {
-          console.error("A session refresh listener failed", e)
-        }
-      }
-    })
     .finally(() => {
       inflight = null
     })

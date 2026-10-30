@@ -1,12 +1,11 @@
 "use client"
-import dynamic from "next/dynamic"
+import { lazyPart } from "@/lib/lazy/lazyPart"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { useDispatch, useSelector } from "react-redux"
-import * as Menu from "@radix-ui/react-dropdown-menu"
+import { useSelector } from "react-redux"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { displayNameOf } from "@/lib/personName"
-import { BellOff, ChevronRight, CircleUser, Focus, Keyboard, LogOut, Settings, SlidersHorizontal, X } from "@/lib/icons"
+import { SlidersHorizontal } from "@/lib/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
@@ -15,30 +14,22 @@ import { useStatusIsExpired } from "@/hooks/useStatusIsExpired"
 import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData"
 import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import { useFocusTime, focusProgress } from "@/hooks/useFocusTime"
-import { useLogout } from "@/hooks/useLogout"
-import { usePost } from "@/hooks/usePost"
 import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction"
 import { getNameInitials } from "@/lib/utils/format/getNameIntials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
-import { formatSendAt } from "@/lib/messages/schedulePresets"
-import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
 import { cn } from "@/lib/utils/helpers/cn"
-import { openUI } from "@/store/slice/uiSlice"
-import { clearUserEmojiStatus } from "@/store/slice/userSlice"
 import type { RootState } from "@/store/store"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
 import { USER_STATUS_ONLINE, type UserProfileInterface } from "@/types/user"
 import { pauseLeftLabel } from "@/lib/notifications/pause"
-// The pause menu loads with its first open: the shell carried it on every page.
-const PauseNotificationsDialog = dynamic(() => import("@/components/notifications/PauseNotificationsDialog").then((m) => m.PauseNotificationsDialog), { ssr: false })
-import { AppearanceControl } from "@/components/navigationBar/appearanceControl"
-import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
-import { returnFocusOnlyForKeys, watchInputModality } from "@/lib/ui/inputModality"
 import { clockTime } from "@/lib/utils/date/clock"
 import { ix } from "@/lib/ui/interactive"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { runWhenSettled } from "@/lib/ui/whenQuiet"
+import { warmProfileSections } from "@/components/profile/profileSections"
 
 /** The person's own status: the emoji and words, unless it has expired. */
-function useOwnStatus(userUUID: string | undefined) {
+export function useOwnStatus(userUUID: string | undefined) {
   const status = useSelector((s: RootState) => (userUUID ? s.users.usersStatus[userUUID]?.emojiStatus : undefined))
   const cached = status?.status_user_emoji_id ? status : null
   const expired = useStatusIsExpired(cached)
@@ -60,7 +51,7 @@ export function minutesLeft(until: Date, now: number): string {
 
 
 /** A face with presence, and in focus the ring that closes as the block ends. */
-function FootAvatar({
+export function FootAvatar({
   profile,
   size,
   focus,
@@ -213,167 +204,64 @@ export function SidebarFoot() {
 
 
 /**
- * The profile menu (design v3, shell M2): 264px, r12, e3, rising from the
- * foot. Your face and email, your status as a field (a click edits it, × clears
- * it), focus, the pause presets as a submenu, profile, settings, the keyboard
- * list, Appearance (hub P2: mode and theme colour), and Sign out, in ink.
+ * The profile menu: its trigger, and its body (ProfileMenuBody) from the first
+ * open on. The body is a chunk of its own, fetched when the trigger is pointed
+ * at or focused, so a cold load runs none of its hooks (fluid-15).
  */
+const profileMenu = lazyPart(() => import("@/components/navigationBar/desktop/ProfileMenuBody").then((m) => m.ProfileMenuBody), {
+  placeholder: MenuComing,
+  failed: MenuFailed,
+})
+/** Fetches the menu's code ahead of its first open: for the shell when the page is quiet, and for tests. */
+export const warmProfileMenu = profileMenu.warm
+
 export function ProfileMenu({ children }: { children: React.ReactNode }) {
-  const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-  const profile = self.data?.data
-  const dispatch = useDispatch()
-  const router = useRouter()
-  const { logout } = useLogout()
-  const { pausedUntil, pause, resume } = usePauseNotifications()
-  const focus = useFocusTime()
-  const status = useOwnStatus(profile?.user_uuid)
-  const post = usePost()
-  const [pauseOpen, setPauseOpen] = useState(false)
-  // Mounted from its first open on, so it can animate away.
-  const [pauseUsed, setPauseUsed] = useState(false)
-  if (pauseOpen && !pauseUsed) setPauseUsed(true)
-  useEffect(() => watchInputModality(), [])
-
-  const clearStatus = () => {
-    if (!profile?.user_uuid) return
-    dispatch(clearUserEmojiStatus({ userUUID: profile.user_uuid }))
-    void post.makeRequest({ apiEndpoint: PostEndpointUrl.ClearEmojiStatus, showErrorToast: true })
-  }
-
-  const left = focus.focusUntil ? minutesLeft(focus.focusUntil, Date.now()) : ""
-
+  const [used, setUsed] = useState(false)
+  const warm = () => void profileMenu.warm()
+  // Settings opens from here, and its code came at the press (fluid-14): the
+  // menu's body and Your profile's sections come once the first screen has
+  // settled. Their route's payload is the right panel's preload (PRELOAD_ROUTES).
+  useEffect(() => runWhenSettled([() => profileMenu.warm(), () => warmProfileSections()]), [])
   return (
-    <>
-      <Menu.Root>
-        <Menu.Trigger asChild>{children}</Menu.Trigger>
-        <Menu.Portal>
-          <Menu.Content side="top" align="start" sideOffset={6} collisionPadding={8} aria-label="Profile and settings" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop z-[var(--z-dropdown)]">
-            <div className="flex items-center gap-2.5 px-2 pb-2.5 pt-2">
-              <FootAvatar profile={profile} size={36} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{displayNameOf(profile)}</div>
-                <div className="truncate text-2xs text-ink-3">{profile?.user_email_id}</div>
-                {/* Your status as a chip under your name (hub P2); the field
-                    below edits or clears it. */}
-                {status?.text ? (
-                  <span data-account-status="" className="hub-chip-rest mt-1 inline-flex h-[22px] max-w-full items-center gap-1 rounded-[11px] px-2 text-meta text-ink-2">
-                    {status.emoji ? <span aria-hidden>{status.emoji}</span> : null}
-                    <span className="truncate">{status.text}</span>
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            {/* The status as a field: a click opens it to edit, × clears it. */}
-            <div className="mx-1 mb-1.5 flex h-8 items-center gap-2 rounded-md bg-sunken pl-2 pr-1 shell-field-ring [@media(pointer:coarse)]:h-11">
-              <Menu.Item
-                {...ix("item")}
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-xs data-[highlighted]:text-ink"
-                onSelect={() => dispatch(openUI({ key: "userStatusUpdate", data: { userUUID: "" } }))}
-              >
-                {status ? (
-                  <>
-                    {status.emoji && <span className="text-sm leading-none">{status.emoji}</span>}
-                    <span className="truncate text-ink">{status.text || "Status set"}</span>
-                  </>
-                ) : (
-                  <span className="truncate text-ink-3">Set a status</span>
-                )}
-              </Menu.Item>
-              {status && (
-                <Menu.Item asChild onSelect={(e) => { e.preventDefault(); clearStatus() }}>
-                  <button type="button" aria-label="Clear status" {...ix("item")} className="grid size-6 place-items-center rounded-[6px] text-ink-3 data-[highlighted]:text-ink">
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
-                </Menu.Item>
-              )}
-            </div>
-            <div className="shell-menu-sep" />
-            {focus.focusUntil ? (
-              <Menu.Item className="shell-menu-item" onSelect={() => void focus.end()}>
-                <Focus aria-hidden="true" />
-                End focus time
-                <span className="shell-menu-meta">{left} left</span>
-              </Menu.Item>
-            ) : (
-              <Menu.Item className="shell-menu-item" onSelect={() => void focus.start(60)}>
-                <Focus aria-hidden="true" />
-                Start focus time
-                <span className="shell-menu-meta">1 h</span>
-                <span data-kbd-hint="" className="kbd ml-1.5">F</span>
-              </Menu.Item>
-            )}
-            <Menu.Sub>
-              <Menu.SubTrigger className="shell-menu-item">
-                <BellOff aria-hidden="true" />
-                {pausedUntil ? "Notifications paused" : "Pause notifications"}
-                {/* How long is left, as the hub's pill (pauseLeftLabel). */}
-                {pausedUntil ? (
-                  <span data-pause-pill="" title={`Paused until ${formatSendAt(pausedUntil)}`} className="ml-auto inline-flex h-5 items-center rounded-[10px] bg-camp-sun-tint px-2 text-micro font-medium tabular-nums text-camp-sun-ink">
-                    {pauseLeftLabel(pausedUntil).replace("Paused · ", "")} left
-                  </span>
-                ) : null}
-                <ChevronRight className={cn("!h-3.5 !w-3.5", pausedUntil ? "!ml-1" : "!ml-auto")} aria-hidden="true" />
-              </Menu.SubTrigger>
-              <Menu.Portal>
-                <Menu.SubContent sideOffset={6} alignOffset={-4} collisionPadding={8} className="shell-menu shell-pop z-[var(--z-dropdown)] !w-[264px]">
-                  {pausedUntil && (
-                    <>
-                      <Menu.Item className="shell-menu-item" onSelect={() => void resume()}>Resume notifications</Menu.Item>
-                      <div className="shell-menu-sep" />
-                    </>
-                  )}
-                  {/* The pause dialog's own presets (lib/notifications/pause), each
-                      saying when it ends: "For 1 hour", until 8:10 PM. */}
-                  {pausePresets(new Date()).map((p) => (
-                    <Menu.Item key={p.label} className="shell-menu-item" onSelect={() => void pause(p.at)}>
-                      {p.label}
-                      <span className="shell-menu-meta tabular-nums">{pauseEndsLine(p, clockTime)}</span>
-                    </Menu.Item>
-                  ))}
-                  <Menu.Item className="shell-menu-item" onSelect={() => setPauseOpen(true)}>Custom…</Menu.Item>
-                  <div className="shell-menu-sep" />
-                  <Menu.Item className="shell-menu-item" onSelect={() => router.push("/app/settings/notifications")}>Notification schedule…</Menu.Item>
-                </Menu.SubContent>
-              </Menu.Portal>
-            </Menu.Sub>
-            <div className="shell-menu-sep" />
-            <Menu.Item className="shell-menu-item" onSelect={() => dispatch(openUI({ key: "selfUserProfile" }))}>
-              <CircleUser aria-hidden="true" />
-              Your profile
-            </Menu.Item>
-            <Menu.Item className="shell-menu-item" onSelect={() => router.push("/app/settings")}>
-              <Settings aria-hidden="true" />
-              Settings
-              <span data-kbd-hint="" className="kbd ml-auto">,</span>
-            </Menu.Item>
-            <Menu.Item className="shell-menu-item" onSelect={() => openShortcuts()}>
-              <Keyboard aria-hidden="true" />
-              Keyboard shortcuts
-              <span data-kbd-hint="" className="kbd ml-auto">?</span>
-            </Menu.Item>
-            {/* Appearance (hub P2): Light, Dark and System as one sliding
-                segmented control, and the six theme colours under it. */}
-            <div className="shell-menu-sep" />
-            <AppearanceControl
-              more={
-                <Menu.Item asChild onSelect={() => router.push("/app/settings/profile#profile-appearance")}>
-                  <button type="button" data-more-colours="" {...ix("item")} className="shrink-0 rounded-sm px-1 text-meta text-ink-3 hover:text-foreground data-[highlighted]:text-foreground">
-                    More colours
-                  </button>
-                </Menu.Item>
-              }
-            />
-            <div className="shell-menu-sep" />
-            {/* Sign out ends nothing and loses nothing: neutral ink, as Linear
-                and Slack draw it. Danger ink is for what destroys (hub critic). */}
-            <Menu.Item className="shell-menu-item" onSelect={logout}>
-              <LogOut aria-hidden="true" />
-              Sign out
-            </Menu.Item>
-          </Menu.Content>
-        </Menu.Portal>
-      </Menu.Root>
-      {pauseOpen || pauseUsed ? <PauseNotificationsDialog open={pauseOpen} onOpenChange={setPauseOpen} /> : null}
-    </>
+    <DropdownMenu onOpenChange={(open) => open && setUsed(true)}>
+      <DropdownMenuTrigger asChild onPointerEnter={warm} onFocus={warm}>
+        {children}
+      </DropdownMenuTrigger>
+      {used ? <profileMenu.Part /> : null}
+    </DropdownMenu>
+  )
+}
+
+/** The menu's room while its code comes, in its rows' shape: it opens at once, and fills in without a jump. */
+function MenuComing() {
+  return (
+    <DropdownMenuContent side="top" align="start" sideOffset={6} aria-label="Profile and settings" aria-busy="true" className="shell-menu shell-pop">
+      <div role="status" aria-label="Loading the menu" className="h-[264px] overflow-hidden px-2 pt-2">
+        <SkeletonRows rows={7} lines={1} />
+      </div>
+    </DropdownMenuContent>
+  )
+}
+
+/**
+ * The menu's code couldn't come: it says so, as the invite form does (no read
+ * of the app's failed, so it doesn't say one did), and tries again.
+ */
+function MenuFailed({ retry }: { retry: () => void }) {
+  return (
+    <DropdownMenuContent side="top" align="start" sideOffset={6} aria-label="Profile and settings" className="shell-menu shell-pop">
+      <p role="alert" className="px-2 pb-1 pt-2 text-ui-sm text-ink-2">
+        Couldn&apos;t open the menu. Check your connection.
+      </p>
+      <DropdownMenuItem
+        className="shell-menu-item"
+        onSelect={(e) => {
+          e.preventDefault()
+          retry()
+        }}
+      >
+        Try again
+      </DropdownMenuItem>
+    </DropdownMenuContent>
   )
 }

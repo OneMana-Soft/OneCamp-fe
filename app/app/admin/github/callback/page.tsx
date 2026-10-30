@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotError, SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { moveLater } from "@/lib/navigation/moveLater"
 
 const INTEGRATIONS = "/app/admin?tab=integrations"
 const START_AGAIN = "Start again from Admin, Integrations."
@@ -39,6 +40,15 @@ const GitHubCallbackPage = () => {
   // The code is good for one exchange: a second POST (an effect run twice)
   // was refused and could turn a success into "Couldn't connect".
   const started = useRef(false)
+  // Taken on to Integrations unless the admin makes a move of their own first,
+  // even while it connects (moveLater); then the page says where to go.
+  const [takenOn, setTakenOn] = useState(true)
+  const sendOn = useRef<ReturnType<typeof moveLater> | undefined>(undefined)
+  useEffect(() => {
+    const later = moveLater(() => router.push(INTEGRATIONS), () => setTakenOn(false))
+    sendOn.current = later
+    return later.stop
+  }, [router])
 
   useEffect(() => {
     if (started.current) return
@@ -65,9 +75,7 @@ const GitHubCallbackPage = () => {
       try {
         await axiosInstance.post(PostEndpointUrl.GitHubCallback, { code, state: state || "" })
         setStatus("success")
-        setTimeout(() => {
-          router.push(INTEGRATIONS)
-        }, 2000)
+        sendOn.current?.go(2000)
       } catch (err) {
         setStatus("error")
         setErrorMsg(apiErrorMessage(err, `GitHub didn't finish connecting. ${START_AGAIN}`))
@@ -104,10 +112,10 @@ const GitHubCallbackPage = () => {
           headingLevel={1}
           illustration={<SpotPlug size={64} hue={ADMIN_GROUP_HUE.connections} />}
           title="GitHub is connected"
-          description="Taking you back to Admin, Integrations, to link a repository."
+          description={takenOn ? "Taking you back to Admin, Integrations, to link a repository." : "Link a repository in Admin, Integrations."}
           action={
-            <Button asChild variant="outline" size="sm">
-              <Link href={INTEGRATIONS}>Go back now</Link>
+            <Button asChild variant={takenOn ? "outline" : "default"} size="sm">
+              <Link href={INTEGRATIONS}>{takenOn ? "Go back now" : "Open Integrations"}</Link>
             </Button>
           }
         />

@@ -11,8 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 // (which reads document.cookie in a browser) runs as it does in the app. The
 // API is a function: tests never reach the network (vitest.setup.ts).
 
-vi.mock("@/store/store", () => ({ default: { dispatch: vi.fn() } }))
-vi.mock("@/store/slice/refreshSlice", () => ({ updateRefreshTokenStatus: vi.fn() }))
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }))
 vi.mock("@/lib/sessionEnd", () => ({ endSession: vi.fn() }))
 vi.mock("@/lib/http/loadFailure", () => ({ tellReadFailure: vi.fn() }))

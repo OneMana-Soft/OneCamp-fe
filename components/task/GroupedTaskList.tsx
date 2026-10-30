@@ -6,20 +6,23 @@ import { useDispatch, useSelector } from "react-redux"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ToastAction } from "@/components/ui/toast"
 import { CountTick } from "@/components/ui/CountTick"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { LabelChip } from "@/components/ui/chip"
 import { DueLabel } from "@/components/task/DueLabel"
 import { TaskCheck, TaskTitle } from "@/components/task/TaskCheck"
+import { TaskKeyCell, keyWidth } from "@/components/task/TaskKeyCell"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
 import { statusKindOf } from "@/components/task/taskStatusCell"
-import { BlockedBadge } from "@/components/task/BlockedBadge"
+import { BlockedBadge, RestrictedMark } from "@/components/task/BlockedBadge"
 import { FieldValueView } from "@/components/task/fieldValue"
 import { formatFieldValue, type TaskField } from "@/lib/tasks/fields"
 import { PriorityMenu, StatusMenu, TaskAvatar } from "@/components/task/taskRowParts"
 import { useBulkTaskUpdate } from "@/hooks/useBulkTaskUpdate"
+import { useStableCallback } from "@/hooks/useStableCallback"
+import { isBusyPointer, useScrolling } from "@/lib/ui/scrollState"
+import { ReorderGrip, ReorderHost, useReorderLayer, type ListReorder } from "@/components/task/reorderSlot"
 import { useToast } from "@/hooks/use-toast"
 import { ListSelectionContext, useRowState, useSelectedIds } from "@/hooks/useListSelection"
 import { ChevronDown, GitBranch, MessageSquare, Plus, Sun } from "@/lib/icons"
@@ -59,7 +62,7 @@ const SETTLE_MS = 240
  * the row waits 600 ms (the undo window) and travels into Done by FLIP.
  */
 export function GroupedTaskList({
-  tasks,
+  tasks: given,
   options,
   grouping,
   props,
@@ -75,6 +78,7 @@ export function GroupedTaskList({
   fields = NO_FIELDS,
   nameOf,
   partial = false,
+  reorder,
 }: {
   /** The project's custom fields; the ones Display shows get a cell (work.md W35). */
   fields?: TaskField[]
@@ -98,11 +102,15 @@ export function GroupedTaskList({
   sortedBy?: RowProp
   /** Only some of the list's tasks have loaded (more pages to come): a group's count is of those, and says so (lib/tasks/grouping groupCount). */
   partial?: boolean
+  /** Rows move in the project's manual order (L-1; the drag loads when the page is idle). */
+  reorder?: ListReorder
 }) {
   const box = React.useRef<HTMLDivElement>(null)
   const store = React.useContext(ListSelectionContext)
   const anySelected = useSelectedIds(store).size > 0
   const update = useBulkTaskUpdate(projectId)
+  // The rows' hover reads whether a scroll is under way.
+  useScrolling()
   const { toast } = useToast()
 
   // A row that changed group waits in the old one for a beat (pinned), then
@@ -113,7 +121,13 @@ export function GroupedTaskList({
   const timers = React.useRef(new Map<string, number>())
   React.useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), [])
 
+  // A moved row shows in its place at once, until the tasks come back in that order (L-1).
+  const [placed, setPlaced] = React.useState<{ from: TaskInfoInterface[]; to: TaskInfoInterface[] } | null>(null)
+  const tasks = placed?.from === given ? placed.to : given
+  const onPlaced = useStableCallback((to: TaskInfoInterface[]) => setPlaced({ from: given, to }))
+
   const groups = React.useMemo(() => groupTasks(tasks, grouping, options, { pinned }), [tasks, grouping, options, pinned])
+  const Layer = useReorderLayer(!!reorder)
 
   // Done is collapsed on My Tasks (the last 7 days); open, capped, in a project.
   const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set(grouping === "when" ? ["done"] : []))
@@ -143,28 +157,21 @@ export function GroupedTaskList({
     )
   }, [])
 
-  const groupKeyOf = React.useCallback(
-    (task: TaskInfoInterface) => groups.find((g) => g.tasks.some((t) => t.task_uuid === task.task_uuid))?.key,
-    [groups],
-  )
+  // The rows' handlers never change (F-1 #1), so a row re-renders only for its
+  // own task or state; they read the groups when called.
+  const setStatus = useStableCallback((task: TaskInfoInterface, value: string, hold: number) => {
+    const key = groups.find((g) => g.tasks.some((t) => t.task_uuid === task.task_uuid))?.key
+    if (key) setPinned((p) => new Map(p).set(task.task_uuid, key))
+    void update([task], { field: "status", value, options }).then((r) => {
+      if (r.failed) toast({ title: "Couldn't change the status", description: "It's back where it was.", tone: "error" })
+    })
+    settle(task.task_uuid, hold)
+  })
 
-  const setStatus = React.useCallback(
-    (task: TaskInfoInterface, value: string, hold: number) => {
-      const key = groupKeyOf(task)
-      if (key) setPinned((p) => new Map(p).set(task.task_uuid, key))
-      void update([task], { field: "status", value, options }).then((r) => {
-        if (r.failed) toast({ title: "Couldn't change the status", description: "It's back where it was.", tone: "error" })
-      })
-      settle(task.task_uuid, hold)
-    },
-    [groupKeyOf, options, settle, toast, update],
-  )
+  const onStatusPick = useStableCallback((task: TaskInfoInterface, v: string) => setStatus(task, v, STATUS_HOLD))
+  const onPriorityPick = useStableCallback((task: TaskInfoInterface, v: string) => void update([task], { field: "priority", value: v }))
 
-  // Stable, so a row re-renders only when its own task or state changes.
-  const onStatusPick = React.useCallback((task: TaskInfoInterface, v: string) => setStatus(task, v, STATUS_HOLD), [setStatus])
-  const onPriorityPick = React.useCallback((task: TaskInfoInterface, v: string) => void update([task], { field: "priority", value: v }), [update])
-
-  const onComplete = React.useCallback(
+  const onComplete = useStableCallback(
     (task: TaskInfoInterface, done: boolean) => {
       const before = statusValueOf(task)
       if (done) {
@@ -176,20 +183,21 @@ export function GroupedTaskList({
         }), 900)
       }
       setStatus(task, done ? "done" : "todo", done ? SETTLE_HOLD : STATUS_HOLD)
-      if (done) {
-        toast({
-          title: "Done",
-          description: task.task_name,
-          duration: 5000,
-          action: (
-            <ToastAction altText="Undo" onClick={() => setStatus({ ...task, task_status: "done", task_custom_status: "" }, before, STATUS_HOLD)}>
-              Undo
-            </ToastAction>
-          ),
-        })
-      }
+      // The toast's parts come with the app's toaster, not this list's first screen.
+      if (done)
+        void import("@/components/ui/toast").then(({ ToastAction }) =>
+          toast({
+            title: "Done",
+            description: task.task_name,
+            duration: 5000,
+            action: (
+              <ToastAction altText="Undo" onClick={() => setStatus({ ...task, task_status: "done", task_custom_status: "" }, before, STATUS_HOLD)}>
+                Undo
+              </ToastAction>
+            ),
+          }),
+        )
     },
-    [setStatus, toast],
   )
 
   const toggleGroup = (key: string) =>
@@ -215,8 +223,9 @@ export function GroupedTaskList({
     )
   }
 
-  return (
-    <div ref={box} data-grouped-list="" aria-label="Tasks" className="relative">
+  const keyW = keyWidth(tasks)
+  const list = (
+    <div ref={box} data-grouped-list="" data-task-sequence="" aria-label="Tasks" className="relative" style={keyW ? ({ "--key-w": `${keyW}ch` } as React.CSSProperties) : undefined}>
       {groups.map((g) => {
         const isCollapsed = collapsed.has(g.key)
         const cap = g.closed ? CLOSED_SHOWN : OPEN_SHOWN
@@ -254,6 +263,7 @@ export function GroupedTaskList({
                   <TaskRow
                     key={t.task_uuid}
                     task={t}
+                    keyed={keyW > 0}
                     options={options}
                     props={props}
                     editable={canEdit(t)}
@@ -272,7 +282,7 @@ export function GroupedTaskList({
                   <button
                     type="button"
                     onClick={() => setMore((m) => new Set(m).add(g.key))}
-                    className="flex h-9 w-full items-center border-b border-line pl-[54px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
+                    className="flex h-9 w-full items-center border-b border-line pl-[66px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                   >
                     Show {hidden} more
                   </button>
@@ -283,6 +293,12 @@ export function GroupedTaskList({
         )
       })}
     </div>
+  )
+  return (
+    <ReorderHost>
+      {list}
+      {Layer && reorder && <Layer {...reorder} tasks={tasks} groups={groups} grouping={grouping} options={options} canEdit={canEdit} box={box} onPlaced={onPlaced} />}
+    </ReorderHost>
   )
 }
 
@@ -340,7 +356,7 @@ function InlineAdd({ group, onSubmit, onCancel }: { group: TaskGroup; onSubmit: 
   return (
     <form
       data-inline-add=""
-      className={cn(ROW_H, "flex items-center gap-2.5 border-b border-line pl-[46px] pr-4")}
+      className={cn(ROW_H, "flex items-center gap-2.5 border-b border-line pl-[58px] pr-4")}
       onSubmit={async (e) => {
         e.preventDefault()
         const n = name.trim()
@@ -379,6 +395,7 @@ function InlineAdd({ group, onSubmit, onCancel }: { group: TaskGroup; onSubmit: 
 /** The desktop task row (work.md W19). Memoised: a key press re-renders the rows it changes and no other. */
 const TaskRow = React.memo(function TaskRow({
   task,
+  keyed,
   options,
   props,
   editable,
@@ -395,6 +412,7 @@ const TaskRow = React.memo(function TaskRow({
   fields: TaskField[]
   nameOf?: (id: string) => string | undefined
   task: TaskInfoInterface
+  keyed: boolean
   options: StatusOption[]
   props: RowProp[]
   editable: boolean
@@ -411,15 +429,17 @@ const TaskRow = React.memo(function TaskRow({
   const { highlighted, selected } = useRowState(task.task_uuid)
   const opened = useSelector((s: RootState) => s.rightPanel.rightPanelState.isOpen && s.rightPanel.rightPanelState.data.taskUUID === task.task_uuid)
   const [statusOpen, setStatusOpen] = React.useState(false)
-  // The row's hover-only controls (the select box, the priority picker) join
-  // the tree once the row is pointed at or focused, as chat's message toolbar
-  // does: a list of 60 rows draws none of them until someone reaches a row.
-  const [live, setLive] = React.useState(false)
+  // The select box is in the tree only while the row is pointed at or has
+  // focus (F-1 #2); the priority picker's menu, only while it is open.
+  const [pointed, setPointed] = React.useState(false)
+  const [focused, setFocused] = React.useState(false)
+  const live = pointed || focused
   const status = statusOptionOf(task, options) ?? options[0]
   const done = isClosedStatus(task.task_status)
   const has = (p: RowProp) => props.includes(p)
   const tags = has("labels") ? splitTags(task.task_label) : []
   const open = () => dispatch(openRightPanel({ taskUUID: task.task_uuid }))
+  const Grip = React.useContext(ReorderGrip)
 
   return (
     <div
@@ -431,8 +451,14 @@ const TaskRow = React.memo(function TaskRow({
       data-opened={opened || undefined}
       aria-current={opened || undefined}
       tabIndex={-1}
-      onPointerEnter={live ? undefined : () => setLive(true)}
-      onFocus={live ? undefined : () => setLive(true)}
+      // Not while a scroll or a drag carries rows under the pointer; a move wakes it.
+      onPointerEnter={() => !isBusyPointer() && setPointed(true)}
+      onPointerMove={pointed ? undefined : () => !isBusyPointer() && setPointed(true)}
+      onPointerLeave={() => setPointed(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false)
+      }}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest("button,a,input,[role=menuitem],[role=checkbox]")) return
         open()
@@ -444,7 +470,7 @@ const TaskRow = React.memo(function TaskRow({
         ROW_H,
         // Drawn only near the screen: a list of thousands costs its visible rows (globals.css).
         "row-lazy",
-        "group/row relative flex cursor-pointer items-center gap-2.5 border-b border-line pl-1.5 pr-4 outline-none transition-colors duration-[140ms]",
+        "group/row relative flex cursor-pointer items-center gap-2.5 border-b border-line pl-[18px] pr-4 outline-none transition-colors duration-[140ms]",
         "hover:bg-hover active:bg-press",
         selected && "bg-sel",
         opened && "bg-[color-mix(in_oklab,var(--brand-muted)_75%,transparent)] hover:bg-[color-mix(in_oklab,var(--brand-muted)_75%,transparent)]",
@@ -452,8 +478,9 @@ const TaskRow = React.memo(function TaskRow({
     >
       {/* The opened row's 2px brand edge, scaling in. */}
       {opened && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-brand [animation:work-grow-y_140ms_var(--ease-out)_both] [transform-origin:center]" />}
-      {/* The keyboard's cursor: an inset ring, clear of the hairlines. */}
-      {highlighted && !opened && <span aria-hidden="true" data-kbd-cursor="" className="pointer-events-none absolute inset-0.5 rounded-md ring-cursor" />}
+      {/* The keyboard's cursor: an inset ring, clear of the hairlines, for the keys' focus only (a mouse's press highlights without it). */}
+      {highlighted && !opened && <span aria-hidden="true" data-kbd-cursor="" className="pointer-events-none absolute inset-0.5 hidden rounded-md ring-cursor group-focus-visible/row:block group-has-[:focus-visible]/row:block" />}
+      {Grip && <Grip task={task} editable={editable} />}
       <span className={cn("flex w-4 shrink-0 justify-center transition-opacity duration-[140ms]", selected || anySelected ? "opacity-100" : "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto")} data-row-select="">
         {live || selected || anySelected ? (
           <Checkbox checked={selected} onCheckedChange={() => store?.toggle(task.task_uuid)} aria-label={`Select ${task.task_name}`} />
@@ -462,7 +489,7 @@ const TaskRow = React.memo(function TaskRow({
         )}
       </span>
       {has("priority") && (
-        editable && live ? (
+        editable ? (
           <PriorityMenu current={task.task_priority} onPick={(v) => onPriority(task, v)}>
             <button type="button" aria-label={`Priority of ${task.task_name}`} className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm hover:bg-hover">
               <TaskPriorityCell priority={task.task_priority} label="tip" />
@@ -488,10 +515,12 @@ const TaskRow = React.memo(function TaskRow({
           </StatusMenu>
         )}
       </span>
+      {keyed && <TaskKeyCell task={task} />}
       <span className="flex min-w-0 flex-1 items-center gap-2">
         <TaskTitle done={done} justDone={justDone} className="text-sm font-[450]">
           {task.task_name}
         </TaskTitle>
+        <RestrictedMark restricted={task.task_restricted} />
         {has("badges") && <RowBadges task={task} />}
       </span>
       {has("project") && task.task_project?.project_uuid && (
@@ -581,7 +610,7 @@ export function GroupedListSkeleton() {
             <Skeleton className="h-3 w-20" />
           </div>
           {[0, 1, 2].map((r) => (
-            <div key={r} className={cn(ROW_H, "flex items-center gap-2.5 border-b border-line pl-[46px] pr-4")}>
+            <div key={r} className={cn(ROW_H, "flex items-center gap-2.5 border-b border-line pl-[58px] pr-4")}>
               <Skeleton className="size-4 rounded-[5px]" />
               <Skeleton className={cn("h-3.5", widths[(g + r) % 3])} />
             </div>

@@ -4,6 +4,7 @@ import { Extension } from "@tiptap/core"
 import { Plugin, PluginKey } from "@tiptap/pm/state"
 import { blocksFor } from "@/components/docEditor/registry/registry"
 import type { CodecRule } from "@/lib/codec/types"
+import { once } from "@/lib/lazy/once"
 
 /**
  * WHAT A COPY FROM A DOC PASTES AS TEXT: Markdown (L17).
@@ -27,21 +28,9 @@ export const registryRules = (): CodecRule[] => blocksFor("doc", { ai: true }).f
 
 type Writer = typeof import("./clipboardMarkdownWriter")
 let writer: Writer | null = null
-let loading: Promise<Writer> | null = null
 
-/** The Markdown writer, fetched once; a failed fetch is tried again next time. */
-export function loadClipboardWriter(): Promise<Writer> {
-  if (!loading) {
-    loading = import("./clipboardMarkdownWriter").then(
-      (m) => (writer = m),
-      (e) => {
-        loading = null
-        throw e
-      },
-    )
-  }
-  return loading
-}
+/** The Markdown writer, fetched once; a failed fetch is tried again next time (lib/lazy/once). */
+export const loadClipboardWriter = once(() => import("./clipboardMarkdownWriter").then((m) => (writer = m)))
 
 /** Fetches the writer, unless offline: then it waits for the connection (and a copy stays plain text). */
 const fetchWriter = () => {

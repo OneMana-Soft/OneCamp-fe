@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { listKey, rangeOf, stepAcross, stepIn } from "./listKeys"
+import { LIST_FIELDS, PROJECT_FIELDS, listKey, rangeOf, stepAcross, stepIn } from "./listKeys"
 
 const k = (key: string, mods: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }> = {}) => ({ key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...mods })
 
@@ -15,6 +15,20 @@ describe("list keys", () => {
     expect(listKey(k("l"))).toEqual({ type: "edit", field: "tags" })
     expect(listKey(k("d"))).toEqual({ type: "edit", field: "due" })
     expect(listKey(k("ArrowRight"))).toEqual({ type: "column", by: 1 })
+  })
+  it("moves into a cycle with Shift+C, as Linear does, and leaves C alone to make a task", () => {
+    expect(listKey(k("C", { shiftKey: true }))).toEqual({ type: "edit", field: "cycle" })
+    expect(listKey(k("c"))).toBeNull()
+    // Caps Lock: a C without Shift is C, not Shift+C.
+    expect(listKey(k("C"))).toBeNull()
+    expect(LIST_FIELDS).not.toContain("cycle")
+  })
+  it("puts the selection in a milestone with Shift+M, on a project's lists only", () => {
+    expect(listKey(k("M", { shiftKey: true }))).toEqual({ type: "edit", field: "milestone" })
+    expect(listKey(k("m"))).toBeNull()
+    expect(listKey(k("M"))).toBeNull()
+    expect(LIST_FIELDS).not.toContain("milestone")
+    expect(PROJECT_FIELDS).toEqual([...LIST_FIELDS, "milestone"])
   })
   it("leave modified keys to others", () => {
     expect(listKey(k("k", { ctrlKey: true }))).toBeNull()

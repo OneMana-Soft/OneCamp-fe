@@ -19,3 +19,18 @@ export const EMBED_FRAME_ORIGINS = [
   "https://open.spotify.com",
   "https://platform.twitter.com",
 ] as const
+
+/** The built-in embeds' sites by name, as Settings lists them (lib/embeds/providers.ts byHost). */
+export const EMBED_SITE_NAMES = [
+  "YouTube",
+  "Vimeo",
+  "Loom",
+  "Figma",
+  "Google Docs, Sheets, Slides, Forms and Maps",
+  "GitHub Gist",
+  "CodePen",
+  "Excalidraw",
+  "Miro",
+  "Spotify",
+  "X",
+] as const

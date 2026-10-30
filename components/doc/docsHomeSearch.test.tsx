@@ -14,9 +14,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("tab=workspace"),
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
 }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: async () => ({ data: { data: { docs: [], count: 3, next_cursor: "" } } }) },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/hooks/useHydrateUserSidebar", () => ({ useSidenav: () => ({ data: { data: { user_uuid: "me" } } }) }))
 vi.mock("@/components/doc/useCreateDoc", () => ({ useCreateDoc: () => ({ create: vi.fn(), busy: null }) }))

@@ -220,8 +220,7 @@ export function ProjectRatesDialog({
               ) : (
                 <span />
               )}
-              <Button type="submit" disabled={busy}>
-                {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              <Button type="submit" busy={busy}>
                 Save rates
               </Button>
             </DialogFooter>

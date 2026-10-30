@@ -199,6 +199,8 @@ export interface BlockSpec {
    */
   globalAttrs?: Array<{ name: string; on: string[] }>
   slash?: SlashEntry[]
+  /** What one of its blocks is called where it is chosen (the block menu's title), when no "/" entry names it. */
+  label?: string
   turnInto?: TurnIntoEntry | TurnIntoEntry[]
   shortcuts?: ShortcutRow[]
   /** [selector, className] for the saved-copy snapshot (snapshotHtml.ts). */
@@ -337,13 +339,15 @@ export type ShellSlot =
   | 'presence'
   /** Over the doc's editor, once per editor (A9's review bar). Its component is given the editor. */
   | 'editorOverlay'
+  /** Under the doc's body, once its live copy is in (C7a's Pages inside). Its component is given the editor. */
+  | 'foot'
   /** Components with no UI of their own, run once for every open doc: live meta events (A6). */
   | 'session'
 
 /** What a slot's component is given. */
 export interface SlotProps {
   docId: string
-  /** The doc's editor, for the slots that work on it (editorOverlay, gutter); null until it exists. */
+  /** The doc's editor, for the slots that work on it (editorOverlay, gutter, foot); null until it exists. */
   editor?: Editor | null
 }
 

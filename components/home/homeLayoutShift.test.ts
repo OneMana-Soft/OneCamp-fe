@@ -38,8 +38,9 @@ describe("home layout while things load", () => {
       expect(src.lastIndexOf("<BriefingCard")).toBeGreaterThan(src.lastIndexOf("<ProjectsStrip"))
     })
 
+    // It waits for the list below, which says what it shows (glanceOf).
     it(`${name}: the summary waits for the counts`, () => {
-      expect(read(file)).toMatch(/<GlanceLine[\s\S]*?loading=\{needs\.loading\}/)
+      expect(read(file)).toMatch(/<GlanceLine[\s\S]*?loading=\{glance\.loading\}/)
     })
   }
 

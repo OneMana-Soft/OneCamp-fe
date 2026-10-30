@@ -370,6 +370,13 @@
     pointer-events: auto;
     transform: translateY(-50%);
   }
+  /* A row with a tab stop of its own (What needs me now's J and K, design-01)
+     shows where the keyboard is: the interaction layer's inset ring, as a row
+     of that layer has it (app/interaction.css). */
+  [data-hub-row][tabindex]:not([data-interactive]):focus-visible {
+    outline: var(--ix-ring) solid var(--ring);
+    outline-offset: calc(var(--ix-ring) * -1);
+  }
   @media (hover: hover) {
     .hub-row:hover .hub-row-tools {
       opacity: 1;
@@ -556,6 +563,13 @@
   .hub-field:focus-within {
     box-shadow: var(--e1), var(--ix-halo);
   }
+}
+/* The feed's toolbar band (the Inbox's who filter, components/activity/
+   activityFeedFrame): rows scroll up under it, so while the list has more
+   above (its scroller's data-more-above, components/ui/moreMarks) it draws
+   the hairline an overlay's header draws (app/overlay.css, rule 4). */
+[data-feed-frame]:has(> [data-feed-body] [data-more-above]) > [data-feed-toolbar] {
+  box-shadow: inset 0 -1px 0 var(--line);
 }
 
 /* ---------- presence (hub.md P4, V3 §3.9) ----------

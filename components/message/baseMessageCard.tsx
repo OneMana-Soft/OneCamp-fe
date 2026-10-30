@@ -11,12 +11,13 @@ import { PrincipalTag } from "@/components/ui/principalTag"
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
 import { RelayedAvatar } from "@/components/message/relayedAvatar"
 import { RelayedPersonCard } from "@/components/message/relayedPersonCard"
-import { Languages, Loader2 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
-import { useTranslateText } from "@/services/aiService"
+import { useMessageAddOn } from "@/lib/addOns/messages"
+import type { AttachmentSource } from "@/lib/addOns/core"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTouchReveal } from "@/hooks/useTouchReveal"
+import { whenListStill } from "@/lib/ui/scrollState"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
 import type { UserProfileDataInterface, UserProfileInterface } from "@/types/user"
@@ -218,12 +219,11 @@ export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
 interface BaseMessageCardProps {
   message: BaseMessage
   mediaGetUrl: string
-  // Optional source context that enables the "Analyze with AI" action in the
-  // attachment lightbox. srcRef is the identifier the FE already holds
-  // (channel uuid, the other user's uuid for a DM, or the group id); the
-  // server resolves it to the real src_value and enforces access. Omitted for
-  // surfaces the vision backend doesn't support (task/project/profile).
-  analyzeContext?: { srcKey: string; srcRef: string }
+  // Where its attachments were posted, for the viewer's add-ons: srcRef is
+  // the id the page already holds (the channel's, the other person's for a
+  // DM, the group's); the server resolves it and checks access. Omitted where
+  // the server reads no attachments (a task, a project, a profile).
+  source?: AttachmentSource
   rightPanelConfig: RightPanelConfig
   hoverOptionsConfig: {
     chatUUID?: string
@@ -266,7 +266,7 @@ const HOVER_INTENT_MS = 60
 export const BaseMessageCard = React.memo(({
   message,
   mediaGetUrl,
-  analyzeContext,
+  source,
   rightPanelConfig,
   hoverOptionsConfig,
   isAdmin,
@@ -287,6 +287,7 @@ export const BaseMessageCard = React.memo(({
   // The pointer has rested on this message, or focus is inside it.
   const [actionsWanted, setActionsWanted] = useState(false)
   const intent = useRef(0)
+  const pointerIn = useRef(false)
   useEffect(() => () => window.clearTimeout(intent.current), [])
   // An edit in place: a save that fails opens the box again holding what
   // was typed (hooks/useEditInPlace, F-06).
@@ -342,26 +343,8 @@ export const BaseMessageCard = React.memo(({
     return d.data.postUUID === message.uuid || d.data.chatMessageUUID === message.uuid
   })
 
-  // Inline AI translation (Notion/Slack-style). One click translates the
-  // message into the viewer's browser language and shows it beneath the
-  // original, with a toggle back to the source text.
-  const { translateText, isSubmitting: translating } = useTranslateText()
-  const [translation, setTranslation] = useState<string | null>(null)
-  const [showTranslation, setShowTranslation] = useState(false)
-  const handleTranslate = useCallback(async () => {
-    if (translation) {
-      setShowTranslation((v) => !v)
-      return
-    }
-    const text = (bodyText || "").trim()
-    if (!text) return
-    const target = typeof navigator !== "undefined" ? navigator.language : "English"
-    const res = await translateText(text, target)
-    if (res?.translation) {
-      setTranslation(res.translation)
-      setShowTranslation(true)
-    }
-  }, [translation, bodyText, translateText])
+  // What an edition adds to a message (lib/addOns): its menu items, and what shows under the body.
+  const addOn = useMessageAddOn(bodyText || "")
 
   // Several emoji a person, each once (lib/chat/reactions, D-M7).
   const reacted = useMessageReactions(message.reactions, selfId, addReaction, removeReaction)
@@ -379,12 +362,12 @@ export const BaseMessageCard = React.memo(({
         dispatch(
           openUI({
             key: "attachmentLightbox",
-            data: { allMedia: message.attachments, media: attachment, mediaGetUrl, analyzeContext },
+            data: { allMedia: message.attachments, media: attachment, mediaGetUrl, source },
           }),
         )
       }
     },
-    [message.attachments, mediaGetUrl, analyzeContext, dispatch],
+    [message.attachments, mediaGetUrl, source, dispatch],
   )
 
   const handleOpenThread = useCallback(() => {
@@ -451,11 +434,16 @@ export const BaseMessageCard = React.memo(({
       data-message-row=""
       data-for-me={forMe || undefined}
       data-failed={failed || undefined}
-      onPointerEnter={() => {
+      onPointerEnter={(e) => {
+        const row = e.currentTarget
+        pointerIn.current = true
         window.clearTimeout(intent.current)
-        intent.current = window.setTimeout(() => setActionsWanted(true), HOVER_INTENT_MS)
+        // A row its list carries under a resting pointer builds them once
+        // the list settles, and only if the pointer is on it then.
+        intent.current = window.setTimeout(() => whenListStill(row, () => pointerIn.current && setActionsWanted(true)), HOVER_INTENT_MS)
       }}
       onPointerLeave={() => {
+        pointerIn.current = false
         window.clearTimeout(intent.current)
         setActionsWanted(false)
       }}
@@ -475,8 +463,9 @@ export const BaseMessageCard = React.memo(({
         continued && !isMessageEditEnabled ? "py-px" : "py-1.5",
         "transition-colors duration-[140ms] ease-out",
         // Hover is the ink overlay, colour only: a row never moves under the
-        // pointer. Keyboard focus inside adds the 2px accent bar.
-        !forMe && !isMessageEditEnabled && "hover:bg-hover has-[:focus-visible]:bg-hover",
+        // pointer, and one a moving list carries under it waits for the list
+        // to settle. Keyboard focus inside adds the 2px accent bar.
+        !forMe && !isMessageEditEnabled && "settled:hover:bg-hover has-[:focus-visible]:bg-hover",
         !forMe && (busy || touchReveal.revealed) && "bg-hover",
         // For you: the accent's soft ground at 70% and a 2px bar on the edge.
         forMe && "bg-brand-muted/70 dark:bg-[color-mix(in_oklab,var(--brand)_10%,transparent)]",
@@ -592,38 +581,7 @@ export const BaseMessageCard = React.memo(({
             )}
           </div>
 
-          {/* Inline AI translation (C33): a sunken card beneath the original,
-              with the way back to it. Plain text (the model returns prose). */}
-          {!isMessageEditEnabled && (translating || (translation && showTranslation)) && (
-            <div className="mt-2 max-w-[760px] rounded-[10px] bg-sunken px-3 py-2 animate-fade-in">
-              <div className="mb-0.5 flex items-center gap-1.5 text-meta font-medium text-ink-3">
-                <Languages className="size-3" aria-hidden="true" />
-                {translating ? "Translating…" : "Translated"}
-                {translation && !translating && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <button type="button" onClick={() => setShowTranslation(false)} className="text-ink-3 underline-offset-2 hover:text-ink hover:underline">
-                      Show original
-                    </button>
-                  </>
-                )}
-              </div>
-              {translating && !translation ? (
-                <Loader2 className="size-3.5 animate-spin text-ink-3" />
-              ) : (
-                <p className="whitespace-pre-line text-body text-ink">{translation}</p>
-              )}
-            </div>
-          )}
-          {!isMessageEditEnabled && translation && !showTranslation && (
-            <button
-              type="button"
-              onClick={() => setShowTranslation(true)}
-              className="mt-1 text-meta font-medium text-brand-text underline-offset-2 hover:underline"
-            >
-              Show translation
-            </button>
-          )}
+          {!isMessageEditEnabled && addOn.below}
 
           {/* Under the body, in order (C07): link cards, attachments, the
               agent's provenance, the thread, reactions, then send status. */}
@@ -699,7 +657,7 @@ export const BaseMessageCard = React.memo(({
               messageText={bodyText}
               authorName={authorName}
               onReply={onReply}
-              onTranslate={bodyText ? handleTranslate : undefined}
+              addOns={addOn.actions}
               {...hoverOptionsConfig}
             />
           </div>

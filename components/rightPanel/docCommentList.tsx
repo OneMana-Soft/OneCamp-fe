@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { DocAccessNote } from "@/components/docEditor/DocAccessNote"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotComment } from "@/components/ui/graphics/hubSpots"
@@ -14,6 +15,10 @@ import { ThreadCard } from "@/components/docComments/ThreadCard"
 import { NewThreadCard, ThreadsSkeleton, ThreadsToolbar, useThreadList } from "@/components/docComments/ThreadsPanelParts"
 import { useMatches, usePlaces, useUi } from "@/components/docComments/commentsUi"
 import { useDocThreads } from "@/components/docComments/useDocThreads"
+import { guestsSpoke, useGuestConversation } from "@/components/docComments/useGuestConversation"
+
+// The doc's conversation with its guests, loaded off the first load: most docs have none.
+const GuestConversation = dynamic(() => import("@/components/docComments/GuestConversation").then((m) => m.GuestConversation), { ssr: false })
 
 /**
  * A doc's comments beside it (docs programme B7; content.md D16): its threads
@@ -31,6 +36,8 @@ export const DocCommentList = ({ docId }: { docId: string }) => {
     const places = usePlaces(docId)
     const pending = useUi(docId, (ui) => ui.pending)
     const view = useThreadList(docId, t, places)
+    // "No comments yet" only when the whole panel is: not over guests' comments.
+    const guests = guestsSpoke(useGuestConversation(docId))
 
     // How many exact matches each changed thread's words have, for "Reattach here".
     const matches = useMatches(docId)
@@ -86,7 +93,7 @@ export const DocCommentList = ({ docId }: { docId: string }) => {
                         description="Resolve a thread when it's settled. It's kept here, and can be reopened."
                         className="py-8"
                     />
-                ) : view.list.length === 0 && !pending ? (
+                ) : view.list.length === 0 && !pending && guests === false ? (
                     <EmptyState
                         // The v3 spot, not a lone outline icon (QA DSA-18).
                         illustration={<SpotComment size={64} />}
@@ -103,6 +110,7 @@ export const DocCommentList = ({ docId }: { docId: string }) => {
                         <ThreadCard key={th.id} docId={docId} thread={th} actions={t.actions} place={places.get(th.id)} matches={matches.get(th.id)} />
                     ))
                 )}
+                {!t.isDeleted ? <GuestConversation docId={docId} /> : null}
             </div>
 
             {!t.canComment && !t.isDeleted && t.level !== "none" && (

@@ -1,11 +1,22 @@
 "use client"
 
 import * as React from "react"
+import type { AxiosRequestConfig } from "axios"
 import { Plus } from "@/lib/icons"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from "@/components/ui/combobox"
+import { ErrorState } from "@/components/ui/error-state"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { ProjectsGet } from "@/services/endpoints/projects"
 import { MAX_TAGS, MAX_TAG_LENGTH, joinTags, splitTags } from "@/lib/tags"
 import { hueFor } from "@/lib/campHue"
@@ -17,10 +28,15 @@ export interface ProjectTag {
   count: number
 }
 
-/** The tags in use in a project, most used first (GET /project/{id}/tags). */
-export function useProjectTags(projectId: string | undefined) {
-  const { data, mutate } = useFetch<{ data: ProjectTag[] }>(projectId ? `${ProjectsGet.ProjectTime}/${projectId}/tags` : "")
-  return { tags: data?.data ?? [], refresh: mutate }
+/**
+ * The tags in use in a project, most used first (GET /project/{id}/tags).
+ * `requestConfig` is the read's own, as useFetch's: a caller that draws
+ * `failed` itself passes OWN_ERRORS.
+ */
+export function useProjectTags(projectId: string | undefined, requestConfig?: AxiosRequestConfig) {
+  const { data, isError, mutate } = useFetch<{ data: ProjectTag[] }>(projectId ? `${ProjectsGet.ProjectTime}/${projectId}/tags` : "", undefined, undefined, requestConfig)
+  // failed: the read failed and nothing read before it is left to show.
+  return { tags: data?.data ?? [], failed: Boolean(isError) && !data, refresh: mutate }
 }
 
 /**
@@ -41,7 +57,7 @@ export function TagPicker({
 }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
-  const { tags: known, refresh } = useProjectTags(canEdit && open ? projectId : undefined)
+  const { tags: known, failed, refresh } = useProjectTags(canEdit && open ? projectId : undefined, OWN_ERRORS)
   const current = splitTags(label)
   const has = (t: string) => current.some((c) => c.toLowerCase() === t.toLowerCase())
   const typed = query.trim().slice(0, MAX_TAG_LENGTH)
@@ -58,7 +74,8 @@ export function TagPicker({
   if (!canEdit) return <TagPills label={label} />
 
   return (
-    <Popover
+    <Combobox
+      multiple
       open={open}
       onOpenChange={(o) => {
         setOpen(o)
@@ -66,7 +83,7 @@ export function TagPicker({
         else void refresh()
       }}
     >
-      <PopoverTrigger asChild>
+      <ComboboxTrigger asChild>
         <button
           type="button"
           aria-label={current.length ? `Labels: ${current.join(", ")}. Change labels` : "Add labels"}
@@ -75,39 +92,45 @@ export function TagPicker({
         >
           {current.length ? <TagPills label={label} /> : "Add labels"}
         </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64 rounded-lg p-1 shadow-e3" align="start">
-        <Command shouldFilter>
-          <CommandInput placeholder="Find or create a label…" value={query} onValueChange={setQuery} maxLength={MAX_TAG_LENGTH} className="h-8" />
-          <CommandList>
-            <CommandEmpty>{typed ? null : "No tags in this project yet."}</CommandEmpty>
-            {typed && !exists && !full && (
-              <CommandGroup>
-                <CommandItem value={`__new__${typed}`} onSelect={() => toggle(typed)} className="h-[30px] gap-2 rounded-md">
-                  <Plus className="h-3.5 w-3.5 text-ink-3" />
-                  <span className="truncate">Create &ldquo;{typed}&rdquo;</span>
-                </CommandItem>
-              </CommandGroup>
-            )}
-            {options.length > 0 && (
-              <CommandGroup heading="Labels in this project">
-                {options.map((t) => {
-                  const on = has(t.name)
-                  return (
-                    <CommandItem key={t.name} checked={on} value={t.name} onSelect={() => toggle(t.name)} disabled={!on && full} className="h-[30px] gap-2 rounded-md">
-                      {/* The label's own hue as a dot (W06), never a tinted pill. */}
-                      <span aria-hidden className={cn(HUE_CLASS[hueFor(t.name)], "size-1.5 shrink-0 rounded-full bg-hue")} />
-                      <span className="truncate">{t.name}</span>
-                      {t.count > 0 && <span className="ml-auto text-xs tabular-nums text-ink-3">{t.count}</span>}
-                    </CommandItem>
-                  )
-                })}
-              </CommandGroup>
-            )}
-          </CommandList>
-          {full && <p className="border-t px-3 py-2 text-xs text-muted-foreground">A task can have up to {MAX_TAGS} tags.</p>}
-        </Command>
-      </PopoverContent>
-    </Popover>
+      </ComboboxTrigger>
+      <ComboboxContent label="Labels">
+        {failed ? (
+          // Not knowing the project's labels, it can't tell a new one from one
+          // that exists: a read that failed offers Try again, never Create.
+          <ErrorState compact subject="this project's labels" onRetry={() => void refresh()} />
+        ) : (
+          <>
+            <ComboboxInput placeholder="Find or create a label…" value={query} onValueChange={setQuery} maxLength={MAX_TAG_LENGTH} />
+            <ComboboxList>
+              <ComboboxEmpty>{typed ? null : "No tags in this project yet."}</ComboboxEmpty>
+              {typed && !exists && !full && (
+                <ComboboxGroup>
+                  <ComboboxItem value={`__new__${typed}`} onSelect={() => toggle(typed)}>
+                    <Plus className="h-3.5 w-3.5 text-ink-3" />
+                    <span className="truncate">Create &ldquo;{typed}&rdquo;</span>
+                  </ComboboxItem>
+                </ComboboxGroup>
+              )}
+              {options.length > 0 && (
+                <ComboboxGroup heading="Labels in this project">
+                  {options.map((t) => {
+                    const on = has(t.name)
+                    return (
+                      <ComboboxItem key={t.name} checked={on} value={t.name} onSelect={() => toggle(t.name)} disabled={!on && full}>
+                        {/* The label's own hue as a dot (W06), never a tinted pill. */}
+                        <span aria-hidden className={cn(HUE_CLASS[hueFor(t.name)], "size-1.5 shrink-0 rounded-full bg-hue")} />
+                        <span className="truncate">{t.name}</span>
+                        {t.count > 0 && <span className="ml-auto text-xs tabular-nums text-ink-3">{t.count}</span>}
+                      </ComboboxItem>
+                    )
+                  })}
+                </ComboboxGroup>
+              )}
+            </ComboboxList>
+            {full && <p className="border-t border-line px-2 pt-1.5 text-xs text-ink-3">A task can have up to {MAX_TAGS} tags.</p>}
+          </>
+        )}
+      </ComboboxContent>
+    </Combobox>
   )
 }

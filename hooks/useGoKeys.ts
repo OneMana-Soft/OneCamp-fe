@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { armGo, disarmGo, goArmed, goTarget, isTyping, pageTakesG } from "@/lib/goKeys"
 
 /** G then a letter goes to a page (lib/goKeys); never while typing. */
 export function useGoKeys(enabled: boolean) {
-  const router = useRouter()
+  const router = useAppRouter()
   useEffect(() => {
     if (!enabled) return
     const onKey = (e: KeyboardEvent) => {

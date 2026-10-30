@@ -1,3 +1,4 @@
+import type { HTMLAttributes } from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
 import { healthOf } from "@/lib/projectUpdates"
@@ -18,6 +19,22 @@ const SIGNAL: Record<string, { dot: string; ring: string }> = {
   off_track: { dot: "var(--destructive)", ring: "color-mix(in oklab, var(--destructive) 20%, transparent)" },
   on_hold: { dot: "var(--ink-3)", ring: "color-mix(in oklab, var(--ink-3) 20%, transparent)" },
   done: { dot: "var(--camp-sky)", ring: "color-mix(in oklab, var(--camp-sky) 20%, transparent)" },
+}
+
+/**
+ * A health's 8 px signal dot with its 2 px ring (W09), as the health word draws
+ * it; a forecast held up carries at_risk's (components/project/ForecastChip).
+ */
+export function SignalDot({ health, ...rest }: { health: string } & HTMLAttributes<HTMLSpanElement>) {
+  const signal = SIGNAL[health] ?? SIGNAL.on_hold
+  return (
+    <span
+      aria-hidden="true"
+      {...rest}
+      className="size-2 shrink-0 rounded-full [animation:work-glyph-in_220ms_var(--ease-spring)_both]"
+      style={{ background: signal.dot, boxShadow: `0 0 0 2px ${signal.ring}` }}
+    />
+  )
 }
 
 /**
@@ -44,16 +61,10 @@ export function HealthWord({
 }) {
   const none = !health
   const h = none ? null : healthOf(health)
-  const signal = h ? SIGNAL[h.value] ?? SIGNAL.on_hold : null
   const body = (
     <>
-      {signal ? (
-        <span
-          aria-hidden="true"
-          data-health-dot={h?.value}
-          className="size-2 shrink-0 rounded-full [animation:work-glyph-in_220ms_var(--ease-spring)_both]"
-          style={{ background: signal.dot, boxShadow: `0 0 0 2px ${signal.ring}` }}
-        />
+      {h ? (
+        <SignalDot health={h.value} data-health-dot={h.value} />
       ) : (
         <span aria-hidden="true" data-health-dot="none" className="size-2 shrink-0 rounded-full border border-dashed border-ink-4" />
       )}

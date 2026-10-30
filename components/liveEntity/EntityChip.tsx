@@ -1,15 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
-import { CHIP_TONE } from "@/components/ui/chip"
+import { useAppRouter } from "@/lib/navigation/appRouter"
+import { CHIP_TONE } from "@/lib/ui/chipTone"
 import { entityKind, followHref, onMiddleClick, refreshEntity, useLiveEntity, useToday } from "@/lib/liveEntity"
 import { useHoverIntent } from "@/lib/hub/hoverIntent"
 import { Lock } from "@/lib/icons"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { cn } from "@/lib/utils/helpers/cn"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
-const CardPopover = React.lazy(() => import("./EntityCardPopover"))
+const CardPopover = lazyPiece(() => import("./EntityCardPopover"))
 
 /**
  * A thing named in a line (Live Entity Chips, docs C1): a task, a page, a
@@ -26,7 +27,7 @@ export function EntityChip({ kind, id, selected, className }: { kind: string; id
   const spec = entityKind(kind)
   const live = useLiveEntity(kind, id)
   const today = useToday()
-  const router = useRouter()
+  const router = useAppRouter()
   // Its card, and whether the keyboard asked for it (then the card takes the focus, and gives it back).
   const [card, setCard] = React.useState<{ at: HTMLElement; keyed: boolean } | null>(null)
   const keyed = React.useRef(false)
@@ -58,10 +59,11 @@ export function EntityChip({ kind, id, selected, className }: { kind: string; id
   let label: string
   switch (live.state) {
     case "ok":
-      label = `${spec.noun[0].toUpperCase()}${spec.noun.slice(1)}: ${view?.title ?? ""}`
+      label = `${spec.noun[0].toUpperCase()}${spec.noun.slice(1)}: ${view?.tag ? `${view.tag} ` : ""}${view?.title ?? ""}`
       body = (
         <>
           {view?.lead ?? <Icon className="size-3.5 text-ink-3" aria-hidden="true" />}
+          {view?.tag ? <span className={cn("shrink-0 font-normal tabular-nums", quiet)}>{view.tag}</span> : null}
           <span className="min-w-0 truncate">{view?.title}</span>
           {view?.trailing ? <span className={cn("shrink-0 font-normal", view.tone ? "" : quiet)}>{view.trailing}</span> : null}
         </>

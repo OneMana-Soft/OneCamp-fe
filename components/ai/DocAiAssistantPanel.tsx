@@ -45,9 +45,9 @@ import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ix } from "@/lib/ui/interactive";
 import { Button } from "@/components/ui/button";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { SkeletonRows } from "@/components/ui/skeletonRows";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -576,9 +576,9 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
 
                 {!working && run.text && (
                   <div className="mt-3 space-y-3">
-                    <div className="field-surface relative overflow-hidden rounded-[10px]">
-                      <Input
-                        type="text"
+                    {/* One field round the ask and its send: the halo shows while it has focus. */}
+                    <InputGroup className="rounded-[10px]">
+                      <InputGroupInput
                         value={refinePrompt}
                         onChange={(e) => setRefinePrompt(e.target.value)}
                         onKeyDown={(e) => {
@@ -589,19 +589,14 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                         }}
                         aria-label="Ask for a change to the answer"
                         placeholder="Ask for a change, like ‘make it formal’"
-                        className="w-full border-none bg-transparent px-3.5 py-2.5 text-ui-sm text-ink shadow-none outline-none ring-0 focus-visible:ring-0"
+                        className="px-3.5 md:text-ui-sm"
                       />
-                      <Button
-                        aria-label="Change the answer"
-                        variant="ghost"
-                        size="icon"
-                        disabled={!refinePrompt.trim()}
-                        onClick={refine}
-                        className="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 text-ink-2"
-                      >
-                        <CornerDownLeft className="size-4" />
-                      </Button>
-                    </div>
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupButton aria-label="Change the answer" size="icon-sm" disabled={!refinePrompt.trim()} onClick={refine} className="text-ink-2">
+                          <CornerDownLeft className="size-4" />
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
 
                     {placed ? (
                       <p className="flex items-center gap-1.5 text-ui-sm text-ink-2" role="status">

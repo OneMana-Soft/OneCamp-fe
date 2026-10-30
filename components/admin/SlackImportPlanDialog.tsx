@@ -84,7 +84,10 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
   const [attempt, setAttempt] = useState(0)
 
   // The options. Defaults match the backend's.
-  const [skipSubtypes, setSkipSubtypes] = useState(true)
+  // A channel's history (joins, leaves, topics, renames, archives) comes across
+  // as the quiet lines OneCamp writes for them (chat B28), unless the operator
+  // skips it. Slack's other notices never come across (the backend's leftOut).
+  const [skipSubtypes, setSkipSubtypes] = useState(false)
   const [channelPrefix, setChannelPrefix] = useState("")
   const [maxFileMB, setMaxFileMB] = useState("1024") // 1 GB default
   // The options the counts on screen were made with.
@@ -100,6 +103,8 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
   })
   const optionsKey = JSON.stringify(currentOptions())
   const stale = !!plan && !planning && plannedWith !== "" && plannedWith !== optionsKey
+  // Run import waits, held, until the plan is read; it is busy with its own run only.
+  const planReady = !!plan && !planning
 
   // Run the planning pass when the dialog opens, and again when asked.
   useEffect(() => {
@@ -253,7 +258,7 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
               <SettingsList>
                 <SwitchRow
                   label="Skip system messages"
-                  description={"Leaves out “Priya joined the channel”, topic changes and the like."}
+                  description={"Leaves out each channel’s joins, leaves, topic changes, renames and archiving. Kept, they arrive as quiet lines in its history, which never notify anyone or count as unread."}
                   checked={skipSubtypes}
                   disabled={running}
                   onChange={setSkipSubtypes}
@@ -328,18 +333,9 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
           <Button variant="outline" onClick={() => handleClose(false)} disabled={running}>
             Close
           </Button>
-          <Button onClick={handleRun} disabled={planning || running || !plan || !!capError}>
-            {running ? (
-              <>
-                <LoaderCircle className="h-4 w-4 mr-1.5 animate-spin" />
-                Starting…
-              </>
-            ) : (
-              <>
-                <PlayCircle className="h-4 w-4 mr-1.5" />
-                Run import
-              </>
-            )}
+          <Button onClick={handleRun} disabled={!planReady || !!capError} busy={running}>
+            <PlayCircle className="h-4 w-4 mr-1.5" />
+            {running ? "Starting…" : "Run import"}
           </Button>
         </DialogFooter>
       </DialogContent>

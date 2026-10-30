@@ -2,20 +2,11 @@
 
 import * as React from "react"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { CALENDAR_HUE } from "@/components/calendar/calendarTones"
+import { OWN_HUE } from "@/components/calendar/calendarTones"
 import type { CampHue } from "@/lib/campHue"
+import { CAMP_SWATCHES } from "@/components/ui/campSwatches"
 import { Check } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
-
-/** The swatches, in the order STEP5_PLAN §3 C draws them, each named. */
-const SWATCHES: { hue: CampHue; name: string }[] = [
-  { hue: "moss", name: "Moss" },
-  { hue: "sun", name: "Sun" },
-  { hue: "lake", name: "Lake" },
-  { hue: "sky", name: "Sky" },
-  { hue: "dusk", name: "Dusk" },
-  { hue: "berry", name: "Berry" },
-]
 
 /**
  * An event's own colour in the Event Form (STEP5_PLAN §3 C, the week in
@@ -29,10 +20,10 @@ const SWATCHES: { hue: CampHue; name: string }[] = [
  * ink on the hollow one).
  */
 export function HueRow({ value, onChange }: { value: string; onChange: (hue: string) => void }) {
-  const calendarHue = CALENDAR_HUE.onecamp
+  const calendarHue = OWN_HUE
   const choices: { hue: string; name: string; drawn: CampHue; calendar?: boolean }[] = [
-    { hue: "", name: `Calendar colour (${SWATCHES.find((s) => s.hue === calendarHue)?.name ?? calendarHue})`, drawn: calendarHue, calendar: true },
-    ...SWATCHES.map((s) => ({ hue: s.hue as string, name: s.name, drawn: s.hue })),
+    { hue: "", name: `Calendar colour (${CAMP_SWATCHES.find((s) => s.hue === calendarHue)?.name ?? calendarHue})`, drawn: calendarHue, calendar: true },
+    ...CAMP_SWATCHES.map((s) => ({ hue: s.hue as string, name: s.name, drawn: s.hue })),
   ]
   const buttons = React.useRef<(HTMLButtonElement | null)[]>([])
   const at = Math.max(0, choices.findIndex((c) => c.hue === value))

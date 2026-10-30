@@ -54,7 +54,9 @@ const CommandSurface: React.FC<CommandSurfaceContext> = (ctx) => {
     return (
         <>
         {marker}
-        <div className="flex flex-col gap-2 px-1 pb-2">
+        {/* Marked for a phone's "Jump to latest", which hangs above the answers
+            when they show over the box (MessageListVirtua). */}
+        <div data-command-answers="" className="flex flex-col gap-2 px-1 pb-2">
             {cards.map((card) => {
                 const resp = card.response
                 // The originating command name is stored on the card (poll, giphy,

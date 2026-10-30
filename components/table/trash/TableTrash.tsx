@@ -9,6 +9,7 @@
 import * as React from "react"
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
 import { Button } from "@/components/ui/button"
+import { busyWith } from "@/lib/ui/busyWith"
 import { EmptyState } from "@/components/ui/empty-state"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, RotateCcw } from "@/lib/icons"
@@ -37,7 +38,7 @@ function deletedLine(at: string, by: string | undefined, now: Date): string {
   return `Deleted${when}${by ? ` by ${by}` : ""}`
 }
 
-function TrashLine({ name, at, by, glyph, busy, onRestore }: { name: string; at?: string; by?: string; glyph?: React.ReactNode; busy: boolean; onRestore: () => void }) {
+function TrashLine({ name, at, by, glyph, busy, disabled, onRestore }: { name: string; at?: string; by?: string; glyph?: React.ReactNode; busy: boolean; disabled: boolean; onRestore: () => void }) {
   const d = at ? new Date(at) : null
   return (
     <li data-trash-item="" className={cn("flex min-h-12 items-center gap-2.5 rounded-lg px-2 py-1.5", TOUCH_ROW)}>
@@ -50,13 +51,17 @@ function TrashLine({ name, at, by, glyph, busy, onRestore }: { name: string; at?
           </p>
         ) : null}
       </div>
-      <Button size="sm" variant="secondary" onClick={onRestore} disabled={busy} className="shrink-0 gap-1.5" aria-label={`Restore ${name}`}>
-        {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
+      <Button size="sm" variant="secondary" onClick={onRestore} busy={busy} disabled={disabled} className="shrink-0 gap-1.5" aria-label={`Restore ${name}`}>
         Restore
       </Button>
     </li>
   )
 }
+
+type Restoring = { rows?: string[]; fields?: string[] }
+
+/** What busy names while these come back: their ids, joined, so a line's is its own id. */
+const busyKeyOf = (what: Restoring) => [...(what.rows ?? []), ...(what.fields ?? [])].join(",")
 
 export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: string; fields: TableField[]; onClose: () => void; onRestored: () => void }) {
   const { toast } = useToast()
@@ -88,9 +93,8 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
     }
   }
 
-  const restore = async (what: { rows?: string[]; fields?: string[] }, said: string) => {
-    const key = [...(what.rows ?? []), ...(what.fields ?? [])].join(",")
-    setBusy(key)
+  const restore = async (what: Restoring, said: string) => {
+    setBusy(busyKeyOf(what))
     try {
       await restoreFromTrash(tableId, what)
       setTrash((t) =>
@@ -113,6 +117,7 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
 
   const rows = trash?.rows ?? []
   const columns = trash?.fields ?? []
+  const everyRow: Restoring = { rows: rows.map((r) => r.id) }
   const empty = !!trash && rows.length === 0 && columns.length === 0
   return (
     <ResponsiveDialog
@@ -144,7 +149,7 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
                 <div className="flex h-8 items-center justify-between px-2">
                   <h3 className="text-meta font-medium text-ink-3">Rows</h3>
                   {rows.length > 1 ? (
-                    <Button size="xs" variant="ghost" disabled={!!busy} onClick={() => void restore({ rows: rows.map((r) => r.id) }, `${rowsText(rows.length)} restored`)}>
+                    <Button size="xs" variant="ghost" {...busyWith(busy, busyKeyOf(everyRow))} onClick={() => void restore(everyRow, `${rowsText(rows.length)} restored`)}>
                       Restore all {rows.length.toLocaleString()}
                     </Button>
                   ) : null}
@@ -152,7 +157,7 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
                 <ul>
                   {rows.map((r) => {
                     const name = trashRowName(r, fields)
-                    return <TrashLine key={r.id} name={name} at={r.deleted_at} by={r.deleted_by_name} busy={busy !== null} onRestore={() => void restore({ rows: [r.id] }, `Restored “${name}”`)} />
+                    return <TrashLine key={r.id} name={name} at={r.deleted_at} by={r.deleted_by_name} {...busyWith(busy, r.id)} onRestore={() => void restore({ rows: [r.id] }, `Restored “${name}”`)} />
                   })}
                 </ul>
                 {trash.more ? (
@@ -178,7 +183,7 @@ export function TableTrash({ tableId, fields, onClose, onRestored }: { tableId: 
                         at={c.field.deleted_at ?? undefined}
                         by={c.deleted_by_name}
                         glyph={<G className="size-3.5" aria-hidden />}
-                        busy={busy !== null}
+                        {...busyWith(busy, c.field.id)}
                         onRestore={() => void restore({ fields: [c.field.id] }, `Restored the column “${c.field.name}”`)}
                       />
                     )

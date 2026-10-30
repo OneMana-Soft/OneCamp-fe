@@ -16,7 +16,7 @@ import { ToastAction } from "@/components/ui/toast"
 import { Bell } from "@/lib/icons"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { joinLinkOf } from "@/lib/calendar/joinLink"
+import { eventCallOf } from "@/lib/calendar/joinLink"
 import { snoozeReminderRequest } from "@/lib/calendar/eventsApi"
 import { clockTime } from "@/lib/utils/date/clock"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -156,7 +156,9 @@ export async function showReminder(notice: ReminderNotice, now: number = Date.no
     const res = await axiosInstance.get(`${GetEndpointUrl.GetEvent}/${encodeURIComponent(ref)}`, OWN_ERRORS)
     const event = res.data?.data as CalendarEventInterface | undefined
     if (!event) return
-    const link = joinLinkOf(event)
+    // Its own call (calendar B11), else the link in its notes.
+    const call = eventCallOf(event, window.location.origin)
+    const link = call?.join
     const where = event.event_location?.trim() || undefined
     if (!link && !where) return
     shown.update({
@@ -166,7 +168,7 @@ export async function showReminder(notice: ReminderNotice, now: number = Date.no
       description: body(link && where === link ? undefined : where),
       action: link ? (
         <ToastAction asChild altText="Join the call">
-          <a href={link} target="_blank" rel="noopener noreferrer" data-reminder-join="">
+          <a href={link} {...(call?.own ? {} : { target: "_blank", rel: "noopener noreferrer" })} data-reminder-join="">
             Join
           </a>
         </ToastAction>

@@ -56,6 +56,31 @@
     {"name": "a link", "kind": "url", "in": "https://example.com/a", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "https://example.com/a"},
     {"name": "an address", "kind": "email", "in": "maya@example.com", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "maya@example.com"},
 
+    {"name": "a status by its option's label", "kind": "status", "in": "To do", "want": "To do"},
+    {"name": "a status by its option's id", "kind": "status", "in": "o_todo000001", "want": "To do"},
+    {"name": "a status that isn't one of its options", "kind": "status", "in": "Doing", "error": true},
+
+    {"name": "people by their ids, each once", "kind": "people", "in": ["6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b", {"id": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b"}], "want": [{"id": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b", "type": "user"}]},
+    {"name": "a name isn't a person in the workspace", "kind": "people", "in": "Maya Iyer", "error": true},
+
+    {"name": "a phone number as it was written", "kind": "phone", "in": " +91 98765 43210 ", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "+91 98765 43210"},
+    {"name": "a phone number with an extension", "kind": "phone", "in": "555-0100 ext 12", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "555-0100 ext 12"},
+    {"name": "words aren't a phone number", "kind": "phone", "in": "call me", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "error": true},
+
+    {"name": "a clock is a duration", "kind": "duration", "in": "1:30", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 5400},
+    {"name": "units are a duration", "kind": "duration", "in": "1h 30m", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 5400},
+    {"name": "hours with their minutes unmarked", "kind": "duration", "in": "1h30", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 5400},
+    {"name": "a number alone is minutes", "kind": "duration", "in": "90", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 5400},
+    {"name": "minutes in German signs", "kind": "duration", "in": "1,5", "typed": true, "locale": "de-DE", "signs": {"decimal": ",", "group": "."}, "want": 90},
+    {"name": "a writer's number is seconds", "kind": "duration", "in": 90, "want": 90},
+    {"name": "a word isn't a duration", "kind": "duration", "in": "soon", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "error": true},
+
+    {"name": "a rating is whole stars", "kind": "rating", "in": "4", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": 4},
+    {"name": "more stars than the most isn't a rating", "kind": "rating", "in": "6", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "error": true},
+    {"name": "half a star isn't a rating", "kind": "rating", "in": 2.5, "error": true},
+
+    {"name": "a long text keeps its lines", "kind": "long_text", "in": "First line\nSecond line", "typed": true, "locale": "en-US", "signs": {"decimal": ".", "group": ","}, "want": "First line\nSecond line"},
+
     {"name": "a link to an item keeps its id and type alone", "kind": "relation", "config": {"relation_target": "any"}, "in": [{"id": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b", "type": "doc", "label": "Plan"}], "want": [{"id": "6f1d2c3b-4a59-4e6f-8a7b-9c0d1e2f3a4b", "type": "doc"}]},
     {"name": "a link with no id is refused", "kind": "relation", "config": {"relation_target": "doc"}, "in": [{"label": "Salaries", "type": "doc"}], "error": true},
 

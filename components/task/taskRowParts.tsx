@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { MenuOnDemand } from "@/components/ui/menuOnDemand"
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
@@ -14,8 +15,9 @@ import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { isBuiltInStatus, type StatusOption } from "@/lib/taskStatus"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { UserProfileDataInterface } from "@/types/user"
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 import { MenuCheck } from "@/components/ui/menuCheck"
+import { NO_PRIORITY, TASK_PRIORITIES } from "@/types/taskScale"
 
 /**
  * A task's assignee as design v3 draws it (work.md W19): a person's gradient
@@ -23,7 +25,17 @@ import { MenuCheck } from "@/components/ui/menuCheck"
  * nobody, a dashed ring that shows while the row is pointed at.
  */
 export function TaskAvatar({ user, size = 22, className }: { user?: UserProfileDataInterface | null; size?: number; className?: string }) {
-  const { src } = useUserAvatar(user?.user_profile_object_key)
+  // Most people have no photo, and the photo's hook (an SWR subscription)
+  // cost a phone's row 0.23 ms at 4x for nothing (fluid-17): only a photo asks.
+  if (user?.user_uuid && user.user_profile_object_key) return <TaskAvatarPhoto user={user} size={size} className={className} />
+  return <TaskFace user={user} size={size} className={className} />
+}
+
+function TaskAvatarPhoto(props: { user: UserProfileDataInterface; size: number; className?: string }) {
+  return <TaskFace {...props} src={useUserAvatar(props.user.user_profile_object_key).src} />
+}
+
+function TaskFace({ user, size, className, src }: { user?: UserProfileDataInterface | null; size: number; className?: string; src?: string }) {
   if (!user || !user.user_uuid) {
     return (
       <span
@@ -117,36 +129,51 @@ export function StatusMenu({
   )
 }
 
-const PRIORITIES = [
-  { value: "", label: "No priority", level: 0 },
-  { value: "urgent", label: "Urgent", level: 4 },
-  { value: "high", label: "High", level: 3 },
-  { value: "medium", label: "Medium", level: 2 },
-  { value: "low", label: "Low", level: 1 },
-] as const
+const PRIORITIES = [NO_PRIORITY, ...TASK_PRIORITIES]
 
-/** The priority picker (work.md W02): keys 0 to 4, the current one checked. */
-export function PriorityMenu({ current, onPick, children, withUrgent = false }: { current: string; onPick: (value: string) => void; children: React.ReactNode; withUrgent?: boolean }) {
-  const items = PRIORITIES.filter((p) => withUrgent || p.value !== "urgent")
+/**
+ * The priority picker (work.md W02): keys 0 to 4, the current one checked. In
+ * the tree only while it is open, since every row of a list has one (F-1 #2):
+ * its button is the trigger, and the menu joins when it is pressed.
+ */
+export function PriorityMenu({
+  current,
+  onPick,
+  children,
+}: {
+  current: string
+  onPick: (value: string) => void
+  /** The button that opens it. */
+  children: React.ReactElement<React.ButtonHTMLAttributes<HTMLButtonElement>>
+}) {
+  const items = PRIORITIES
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-52 p-1" onKeyDown={(e) => {
-        const p = items.find((x) => String(x.level) === e.key)
-        if (p) {
-          e.preventDefault()
-          onPick(p.value)
-        }
-      }}>
-        {items.map((p) => (
-          <DropdownMenuItem key={p.value || "none"} onSelect={() => onPick(p.value)} aria-current={(current || "") === p.value || undefined} className="h-[30px] gap-2 rounded-md text-sm font-[450]">
-            <PriorityGlyph level={p.level} />
-            <span className="min-w-0 flex-1">{p.label}</span>
-            <MenuCheck checked={(current || "") === p.value} className="text-ink-2" />
-            <span className="kbd">{p.level}</span>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <MenuOnDemand
+      menu={(onDemand) => (
+        <DropdownMenuContent
+          {...onDemand}
+          align="start"
+          className="w-52 p-1"
+          onKeyDown={(e) => {
+            const p = items.find((x) => String(x.level) === e.key)
+            if (p) {
+              e.preventDefault()
+              onPick(p.value)
+            }
+          }}
+        >
+          {items.map((p) => (
+            <DropdownMenuItem key={p.value || "none"} onSelect={() => onPick(p.value)} aria-current={(current || "") === p.value || undefined} className="h-[30px] gap-2 rounded-md text-sm font-[450]">
+              <PriorityGlyph level={p.level} />
+              <span className="min-w-0 flex-1">{p.label}</span>
+              <MenuCheck checked={(current || "") === p.value} className="text-ink-2" />
+              <span className="kbd">{p.level}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      )}
+    >
+      {children}
+    </MenuOnDemand>
   )
 }

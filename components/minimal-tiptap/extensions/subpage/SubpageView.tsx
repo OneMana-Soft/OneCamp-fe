@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { drawnSelected } from "@/components/minimal-tiptap/utils"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { DocIcon } from "@/components/docEditor/DocIcon"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
@@ -25,7 +26,7 @@ export function SubpageView({ node, editor, selected }: NodeViewProps) {
   const docId: string = node.attrs.docId || ""
   const guest = useGuestReader()
   const live = useLiveEntity<DocChipData>("doc", guest ? null : docId)
-  const router = useRouter()
+  const router = useAppRouter()
 
   // A page "/page" just made opens as soon as its block is drawn, its title ready to type.
   React.useEffect(() => {
@@ -96,7 +97,7 @@ export function SubpageView({ node, editor, selected }: NodeViewProps) {
           "my-0.5 flex min-h-[34px] select-none items-center gap-2 rounded-lg px-1.5 py-1 text-ink",
           acts && "cursor-pointer transition-colors duration-[140ms] ease-[var(--ease-out)] hover:bg-hover motion-reduce:transition-none",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand",
-          selected && "bg-sel ring-2 ring-brand/40",
+          drawnSelected(editor, selected) && "bg-sel ring-2 ring-brand/40",
         )}
       >
         <span className="inline-flex size-[18px] shrink-0 items-center justify-center">{lead}</span>

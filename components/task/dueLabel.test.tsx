@@ -1,7 +1,15 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render } from "@testing-library/react"
 
+// How often a date is put into words (date-fns' format), for the list's own test.
+const formats = vi.hoisted(() => ({ n: 0 }))
+vi.mock("date-fns", async (orig) => {
+  const real = await orig<typeof import("date-fns")>()
+  return { ...real, format: (...a: Parameters<typeof real.format>) => (formats.n++, real.format(...a)) }
+})
+
 import { DueLabel, dueWords } from "@/components/task/DueLabel"
+import { dueByWords } from "@/components/task/dueByWords"
 
 afterEach(cleanup)
 
@@ -16,6 +24,24 @@ describe("the due label", () => {
     expect(dueWords(at(10), now)).toBe("Yesterday")
     expect(dueWords(at(14), now)).toBe("14 Oct")
     expect(dueWords(at(14, 2027), now)).toBe("14 Oct 2027")
+  })
+
+  // fluid-17: a phone's list of 380 rows put every row's date into words again.
+  it("words a day once, however many rows show it", () => {
+    formats.n = 0
+    const { container } = render(<>{Array.from({ length: 50 }, (_, i) => <DueLabel key={i} date={at(20)} now={now} />)}</>)
+    expect(container.querySelectorAll("[data-due]")[49].textContent).toBe("20 Oct")
+    expect(formats.n).toBeLessThanOrEqual(1)
+  })
+
+  // R2b's design review, 23 Oct: a client's card wrote an answer's deadline as a bare "25 Oct" and
+  // "3:07 AM" beside the task's own due date, so it read as a second due date, split over two lines.
+  it("says a deadline as a phrase after what waits for it, with its time, the day's words mid-sentence", () => {
+    expect(dueByWords(at(11), now)).toBe("by today, 3:00 PM")
+    expect(dueByWords(at(12), now)).toBe("by tomorrow, 3:00 PM")
+    expect(dueByWords(at(10), now)).toBe("by yesterday, 3:00 PM")
+    expect(dueByWords(at(14), now)).toBe("by 14 Oct, 3:00 PM")
+    expect(dueByWords(at(14, 2027), now)).toBe("by 14 Oct 2027, 3:00 PM")
   })
 
   it("tints only Today, in sun", () => {
@@ -46,5 +72,14 @@ describe("the due label", () => {
 
   it("draws nothing for no date", () => {
     expect(render(<DueLabel date="0001-01-01T00:00:00Z" />).container.innerHTML).toBe("")
+  })
+
+  // design-23: beside the panel's dates, a later due date was said again in grey ("29 Oct → 31 Oct  31 Oct").
+  it("in the panel, says only what the dates beside it don't: Due tomorrow, and nothing for a later day", () => {
+    expect(render(<DueLabel date={at(12)} now={now} variant="panel" />).container.textContent).toBe("Due tomorrow")
+    cleanup()
+    expect(render(<DueLabel date={at(20)} now={now} variant="panel" />).container.querySelector("[data-due]")).toBeNull()
+    cleanup()
+    expect(render(<DueLabel date={at(11)} now={now} variant="panel" />).container.textContent).toBe("Due today")
   })
 })

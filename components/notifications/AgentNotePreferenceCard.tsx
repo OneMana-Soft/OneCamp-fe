@@ -9,7 +9,7 @@
 
 import * as React from "react"
 import { SettingsCardError, SettingsList, SettingsRowsSkeleton, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { useSaveStatus } from "@/components/ui/saveStatus"
+import { switchOffer, useSaveStatus } from "@/components/ui/saveStatus"
 import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { getAgentNoteEnabled, setAgentNoteEnabled } from "@/services/agentNoteService"
@@ -60,10 +60,11 @@ export function AgentNotePreferenceCard() {
     )
   }
 
-  const change = async (next: boolean) => {
+  const change = async (next: boolean): Promise<boolean> => {
     setEnabled(next)
-    const held = await run(() => setAgentNoteEnabled(next))
+    const held = await run(() => setAgentNoteEnabled(next), switchOffer("Daily note", next, change))
     if (!held) setEnabled(!next)
+    return held
   }
 
   return (

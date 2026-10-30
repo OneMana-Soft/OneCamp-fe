@@ -27,7 +27,7 @@ vi.mock("@/hooks/useFetch", () => ({
     },
   }),
 }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { put, get: vi.fn(), post: vi.fn() }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { put, get: vi.fn(), post: vi.fn() } }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn(async () => undefined), patchCached: vi.fn() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))

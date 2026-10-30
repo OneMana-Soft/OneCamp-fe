@@ -4,8 +4,8 @@ import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "@/lib/utils/helpers/cn"
-import {useMedia} from "@/context/MediaQueryContext";
-import {useLongPress} from "@/hooks/useLongPress";
+import { isTouchScreen } from "@/lib/ui/touchScreen"
+import { useLongPress } from "@/hooks/useLongPress"
 import type { HandedOn } from "@/lib/keys/escape"
 
 /** The provider, with the 300ms window in which moving between tooltips skips the delay. */
@@ -13,107 +13,53 @@ const TooltipProvider = ({ skipDelayDuration = 300, ...props }: React.ComponentP
   <TooltipPrimitive.Provider skipDelayDuration={skipDelayDuration} {...props} />
 )
 
-interface TooltipMobileContextType {
-    isMobile: boolean
-    longPressProps: any
-    isOpen: boolean
-    setIsOpen: (open: boolean) => void
-    isLongPressRef: React.MutableRefObject<boolean>
-}
-
-const TooltipMobileContext = React.createContext<TooltipMobileContextType>({
-    isMobile: false,
-    longPressProps: {},
-    isOpen: false,
-    setIsOpen: () => {},
-    isLongPressRef: { current: false }
-})
+/** Where a tooltip's long press listens: its trigger. */
+const Press = React.createContext<React.RefObject<HTMLElement | null> | null>(null)
 
 /**
- * How long a tooltip waits (design v3, admin §8 H6): 400ms, and none when the
- * pointer moves on from another tooltip within 300ms (the provider's
- * skipDelayDuration). Set on each root, so it holds under the app's provider
- * too; a caller's own delayDuration still wins.
+ * A tooltip follows the input, not the width (21 Oct 2026). With a mouse it
+ * waits 400ms (design v3, admin §8 H6), none when the pointer moves on from
+ * another within the provider's 300ms, and keyboard focus shows it. On a
+ * touch screen (lib/ui/touchScreen: a phone either way up, a tablet) only a
+ * long press shows it, never a tap or the focus a closing menu gives back:
+ * read by width, a phone held sideways put More's label over Save version.
+ * A caller's open and onOpenChange still decide, for a long press as well.
  */
-const TOOLTIP_DELAY_MS = 400
-
-const Tooltip = ({ children, delayDuration = TOOLTIP_DELAY_MS, ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) => {
-    const { isMobile } = useMedia()
-    const [isOpen, setIsOpen] = React.useState(false)
-    const isLongPressRef = React.useRef(false)
-
-    const onLongPress = React.useCallback(() => {
-        if (isMobile) {
-            isLongPressRef.current = true
-            setIsOpen(true)
-        }
-    }, [isMobile])
- 
-    const longPressProps = useLongPress(onLongPress, { threshold: 500 })
-
-    const rootProps = isMobile ? {
-        open: isOpen,
-        onOpenChange: (newOpen: boolean) => {
-            if (!newOpen) {
-                setIsOpen(false)
-                props.onOpenChange?.(false)
-            }
-        }
-    } : {}
-
-    const contextValue = React.useMemo(() => ({
-        isMobile,
-        longPressProps,
-        isOpen,
-        setIsOpen,
-        isLongPressRef
-    }), [isMobile, longPressProps, isOpen, setIsOpen])
-
-    return (
-        <TooltipMobileContext.Provider value={contextValue}>
-            <TooltipPrimitive.Root delayDuration={delayDuration} {...props} {...rootProps}>
-                {children}
-            </TooltipPrimitive.Root>
-        </TooltipMobileContext.Provider>
-    )
+const Tooltip = ({ children, delayDuration = 400, open, defaultOpen = false, onOpenChange, ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) => {
+  const [own, setOwn] = React.useState(defaultOpen)
+  const set = (next: boolean) => {
+    if (open === undefined) setOwn(next)
+    onOpenChange?.(next)
+  }
+  // One callback for the press, reading the latest `set`.
+  const latest = React.useRef(set)
+  React.useEffect(() => {
+    latest.current = set
+  })
+  const press = useLongPress(React.useCallback(() => latest.current(true), []), { threshold: 500 })
+  return (
+    <Press.Provider value={press.ref as React.RefObject<HTMLElement | null>}>
+      <TooltipPrimitive.Root delayDuration={delayDuration} {...props} open={open ?? own} onOpenChange={(next) => (next && isTouchScreen() ? undefined : set(next))}>
+        {children}
+      </TooltipPrimitive.Root>
+    </Press.Provider>
+  )
 }
 
 const TooltipTrigger = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
->(({ className, onClick, ...props }, ref) => {
-    const { isMobile, longPressProps, isLongPressRef } = React.useContext(TooltipMobileContext)
-
-    const mergedRef = React.useCallback((element: any) => {
-        // Handle external ref
-        if (typeof ref === 'function') ref(element)
-        else if (ref) (ref as any).current = element
-
-        // Handle long press ref
-        if (isMobile && longPressProps.ref) {
-            if (typeof longPressProps.ref === 'function') longPressProps.ref(element)
-            else if (longPressProps.ref) (longPressProps.ref as any).current = element
-        }
-    }, [isMobile, longPressProps.ref, ref])
-
-    const handleClick = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-        if (isMobile && isLongPressRef.current) {
-             e.preventDefault()
-             e.stopPropagation()
-             isLongPressRef.current = false
-             return
-        }
-        onClick?.(e)
-    }, [isMobile, isLongPressRef, onClick])
-
-    return (
-        <TooltipPrimitive.Trigger
-            ref={mergedRef}
-            className={className}
-            onClick={handleClick}
-            {...props}
-        />
-    )
+>((props, ref) => {
+  const press = React.useContext(Press)
+  const refs = React.useCallback(
+    (el: HTMLButtonElement | null) => {
+      if (press) press.current = el
+      if (typeof ref === "function") ref(el)
+      else if (ref) ref.current = el
+    },
+    [press, ref],
+  )
+  return <TooltipPrimitive.Trigger ref={refs} {...props} />
 })
 TooltipTrigger.displayName = TooltipPrimitive.Trigger.displayName
 

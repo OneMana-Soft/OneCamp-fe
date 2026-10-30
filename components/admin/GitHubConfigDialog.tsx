@@ -197,7 +197,7 @@ export default function GitHubConfigDialog({
 
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={() => void handleSave()} disabled={saving || loading || loadFailed || !clientId.trim()}>
+                    <Button onClick={() => void handleSave()} disabled={loading || loadFailed || !clientId.trim()} busy={saving}>
                         {saving ? "Saving…" : "Save credentials"}
                     </Button>
                 </DialogFooter>

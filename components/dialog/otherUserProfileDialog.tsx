@@ -9,6 +9,7 @@
  *
  * This file fetches and places; components/profile/profileCard.tsx draws.
  */
+import { ConnectedTrigger } from "@/components/workGraph/ConnectedTrigger"
 import { addressOrHandleOf, displayNameOf, handleOf } from "@/lib/personName"
 import * as React from "react"
 import { useEffect, useMemo, useState } from "react"
@@ -152,9 +153,12 @@ const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState
                 actions = (
                     // Secondary, not the accent (hub.md P1): a glance at someone
                     // is no place for the one primary of a screen.
-                    <Button variant="secondary" size="sm" className="flex-1" onClick={() => go(`/app/chat/${userUUID}`)}>
-                        <MessageSquare className="size-3.5" /> {isBot ? botCopy.action : "Message"}
-                    </Button>
+                    <>
+                        <Button variant="secondary" size="sm" className="flex-1" onClick={() => go(`/app/chat/${userUUID}`)}>
+                            <MessageSquare className="size-3.5" /> {isBot ? botCopy.action : "Message"}
+                        </Button>
+                        <ConnectedTrigger kind="person" id={userUUID} title={name} showLabel onNavigate={close} className="flex-1 bg-secondary text-ink" />
+                    </>
                 )
         }
         // A bot that is no agent has nothing to message: no button at all.
@@ -229,10 +233,10 @@ const OtherProfileDialog: React.FC<OtherProfileDialogProps> = ({ dialogOpenState
                 aria-label={name ? `${name}'s profile` : "Profile"}
                 // Never taller than the room on its side: an agent's card is
                 // long, and from a name mid-screen it ran off the top (1440x900)
-                // or the bottom (1024x768) with its name or its actions cut.
-                // It scrolls inside instead.
+                // or the bottom (1024x768) with its name or its actions cut. The
+                // shared PopoverContent holds it to that room, scrolling inside.
                 data-fits-viewport=""
-                className="hub-pop max-h-[var(--radix-popover-content-available-height)] w-[320px] overflow-y-auto overscroll-contain rounded-xl bg-pop p-0 shadow-e3"
+                className="hub-pop w-[320px] rounded-xl bg-pop p-0 shadow-e3"
             >
                 {card}
             </PopoverContent>

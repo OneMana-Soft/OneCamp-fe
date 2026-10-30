@@ -14,7 +14,7 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn(async () => undefined) }))
 const put = vi.hoisted(() => vi.fn())
-vi.mock("@/lib/axiosInstance", () => ({ default: { put }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { put } }))
 
 const { default: ProjectsPermissionsCard } = await import("./ProjectsPermissionsCard")
 

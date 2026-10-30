@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
 import { cx, HUE_CLASS, type MarkHue } from "./hues"
+import { areaHue } from "@/lib/areas"
 
 /**
  * Spot illustrations (the playful layer, "The graphic language"): empty
@@ -93,8 +94,8 @@ export function SpotDocs({ hue = "dusk", ...props }: SpotProps) {
   )
 }
 
-/** A clear calendar: a sheet on two binder rings, today marked. */
-export function SpotCalendar({ hue = "berry", ...props }: SpotProps) {
+/** A clear calendar: a sheet on two binder rings, today marked; in the calendar's hue unless given one. */
+export function SpotCalendar({ hue = areaHue("calendar"), ...props }: SpotProps) {
   return (
     <Spot hue={hue} {...props}>
       <circle cx="48" cy="52" r="32" className="fill-hue-tint"/>

@@ -5,6 +5,14 @@ import { isHiddenRef, isNumeric, parseRowValues, type TableField, type TableRow 
 import { hiddenText, listText } from "@/lib/tables/cellFormat"
 import { csvLine } from "@/lib/csv"
 import { plainNumberOf } from "@/lib/format/number"
+import { durationFormat, durationText, idText } from "@/lib/fieldTypes/kindsMore"
+
+/** A B1 kind's cell as a spreadsheet reads it best: a duration as its clock, an id as it's shown (DEAL-12). */
+function kindCsv(f: TableField, v: unknown): string | null {
+  if (f.type === "duration" && typeof v === "number") return durationText(v, durationFormat(f))
+  if (f.type === "autonumber") return idText(f, v)
+  return null
+}
 
 function cellText(v: unknown): string {
   if (v === undefined || v === null) return ""
@@ -30,7 +38,7 @@ export function toCsv(fields: TableField[], rows: TableRow[]): string {
   const lines = [csvLine(fields.map((f) => f.name))]
   for (const r of rows) {
     const v = parseRowValues(r)
-    lines.push(csvLine(fields.map((f, i) => (numeric[i] ? plainNumberOf(v[f.id]) : null) ?? cellText(v[f.id]))))
+    lines.push(csvLine(fields.map((f, i) => kindCsv(f, v[f.id]) ?? (numeric[i] ? plainNumberOf(v[f.id]) : null) ?? cellText(v[f.id]))))
   }
   return lines.join("\r\n")
 }

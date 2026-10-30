@@ -44,7 +44,9 @@ function visitOf(state: RootState, entity: string, id: string): { title: string;
  * It reads the store when the address changes, and listens to it only until
  * the page's name is there. It used to subscribe to the task list and the
  * sidebar's four lists for the life of the app, and the always-mounted
- * command palette that calls it re-rendered on every unread count.
+ * command palette that called it re-rendered on every unread count.
+ *
+ * The shell calls it, through PageVisits below, on every signed-in page.
  */
 export function useTrackPageVisit() {
   const pathname = usePathname()
@@ -83,4 +85,15 @@ export function useTrackPageVisit() {
     })
     return unsubscribe
   }, [pathname, dispatch, store])
+}
+
+/**
+ * The visits, tracked on every signed-in page (app/app/layout). The palette
+ * tracked them while it was mounted with every page; it mounts on its first
+ * use now, and what came before that use went unrecorded: Recent in the
+ * palette, a split view's titles, the AI's recent channel.
+ */
+export function PageVisits(): null {
+  useTrackPageVisit()
+  return null
 }

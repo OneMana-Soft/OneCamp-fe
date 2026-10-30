@@ -44,13 +44,14 @@ const summary = (id: string, over: Partial<GoalSummary> = {}): GoalSummary => ({
 })
 
 let list: GoalSummary[] = []
+let goalsLoading = false
 const goalHook = {
   goal: undefined as GoalDetail | undefined,
   postCheckIn: vi.fn().mockResolvedValue({ checkin: { id: "c1" } }),
   draft: vi.fn().mockResolvedValue({ text: "Now at 410 teams: 50% of the way.", health: "at_risk" }),
 }
 vi.mock("@/hooks/useGoals", () => ({
-  useGoals: () => ({ goals: list, isLoading: false, isError: false, create: vi.fn(), refresh: vi.fn() }),
+  useGoals: () => ({ goals: goalsLoading ? undefined : list, isLoading: goalsLoading, isError: false, create: vi.fn(), refresh: vi.fn() }),
   useGoal: () => ({
     goal: goalHook.goal,
     isLoading: false,
@@ -77,9 +78,22 @@ afterEach(() => {
   cleanup()
   localStorage.clear()
   toast.mockReset()
+  goalsLoading = false
 })
 
 describe("the goals list", () => {
+  it("holds the list's place while the goals are read: rows a goal row high, on a desk and on a phone", () => {
+    goalsLoading = true
+    const { unmount } = render(<GoalsView compact={false} />)
+    const desk = screen.getByRole("status", { name: "Loading goals" })
+    expect(desk.children).toHaveLength(6)
+    expect(desk.children[0].className).toContain("h-8")
+    expect(desk.children[1].className).toContain("h-14")
+    unmount()
+    render(<GoalsView compact />)
+    expect(screen.getByRole("status", { name: "Loading goals" }).children[0].className).toContain("h-16")
+  })
+
   it("shows open goals with their sub-goals under them, and which need a check-in", () => {
     list = [
       summary("Win 50 customers", { measure: "subgoals", subgoals: 1 }),

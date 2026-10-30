@@ -12,7 +12,8 @@ import {getFriendlyFileExtension} from "@/lib/utils/format/getFriendlyFileExtens
 import {formatFileSizeForAttachment} from "@/lib/utils/format/formatFileSizeForAttachment";
 import { Download } from "@/lib/icons";
 import { LinkCardBody, NEUTRAL_TILE, hueTileClass, linkCardClass } from "@/components/message/LinkCard";
-import { fileKind, fileTypeHue, splitForMiddle } from "@/lib/utils/file/fileTypeHue";
+import { fileKind, fileTypeHue } from "@/lib/utils/file/fileTypeHue";
+import { MiddleName } from "@/components/ui/middleName";
 import { VoiceClipCard, isVoiceClip } from "@/components/clips/VoiceClipCard";
 import { viewableDocumentType } from "@/lib/utils/file/getAttachmentType";
 import { useMedia } from "@/context/MediaQueryContext";
@@ -68,7 +69,7 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                     // /collapse hides it (app/globals.css), as Slack hides inline media.
                     data-message-media=""
                     className={cn(
-                        only ? "flex w-fit max-w-full" : "grid w-full max-w-[480px] grid-cols-2 gap-1",
+                        only ? "flex w-full max-w-full" : "grid w-full max-w-[480px] grid-cols-2 gap-1",
                         three && "grid-rows-2",
                     )}
                 >
@@ -158,7 +159,6 @@ function NonRenderableAttachment({ attachment, mediaGetUrl, onOpen }: NonRendera
     const { isMobile } = useMedia()
     const name = attachment.attachment_file_name
     const hue = fileTypeHue(name, attachment.attachment_raw_type)
-    const [head, tail] = splitForMiddle(name)
     const viewable = viewableDocumentType(name)
     const opens = !!viewable && !(viewable === "pdf" && isMobile)
 
@@ -173,7 +173,7 @@ function NonRenderableAttachment({ attachment, mediaGetUrl, onOpen }: NonRendera
         <LinkCardBody
             icon={<FileTypeIcon name={name} fileType={attachment.attachment_raw_type} size={18}/>}
             iconClassName={hue ? hueTileClass(hue) : NEUTRAL_TILE}
-            title={<span data-file-name="" className="flex min-w-0"><span className="truncate">{head}</span><span className="shrink-0 whitespace-pre">{tail}</span></span>}
+            title={<MiddleName name={name}/>}
             detail={`${getFriendlyFileExtension(attachment.attachment_raw_type, name)} · ${formatFileSizeForAttachment(attachment.attachment_size || 0)}`}
             trailing={trailing}
         />
@@ -228,6 +228,7 @@ function NonRenderableAttachment({ attachment, mediaGetUrl, onOpen }: NonRendera
                 type="button"
                 onClick={download}
                 data-no-ripple="true"
+                data-touch-target=""
                 aria-label={`Download ${name}`}
                 className={cn(downloadGlyph, "relative z-[1] hover:bg-hover hover:text-ink focus-visible:opacity-100")}
             >

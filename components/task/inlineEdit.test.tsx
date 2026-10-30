@@ -32,6 +32,15 @@ describe("a value typed in the task panel, through an input method", () => {
     expect(screen.queryByRole("textbox")).toBeNull()
   })
 
+  it("takes the Enter that saves, so it doesn't press the value it hands the focus back to", () => {
+    const { box, onCommit } = edit()
+    // fireEvent answers false when the handler took the key (preventDefault):
+    // no keypress follows, and Chrome clicks a focused button on Enter's.
+    expect(fireEvent.keyDown(box, { key: "Enter" })).toBe(false)
+    expect(onCommit).toHaveBeenCalledWith("かいぎ")
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Add notes" }))
+  })
+
   it("keeps what was typed on the Escape that drops a word", () => {
     const { box, onCommit } = edit()
     fireEvent.keyDown(box, { key: "Escape", isComposing: true })

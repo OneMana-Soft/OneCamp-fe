@@ -25,16 +25,24 @@ const src = (f: string) => readFileSync(join(process.cwd(), "components/table", 
 
 describe("grid scroll cost", () => {
   it("keeps the virtualizer in GridBody, so scrolling renders only the rows", () => {
+    // One window for the grid and the phone's list (viewWindow), each called
+    // in the memo body that draws the rows.
+    expect(src("viewWindow.ts").match(/useVirtualizer\(/g) || []).toHaveLength(1)
     const grid = src("DataTableGrid.tsx")
-    const calls = grid.match(/useVirtualizer\(/g) || []
-    expect(calls).toHaveLength(1)
+    expect(grid).not.toMatch(/useVirtualizer\(/)
+    expect(grid.match(/useViewWindow\(/g) || []).toHaveLength(1)
     const body = grid.slice(grid.indexOf("const GridBody = React.memo("))
-    expect(body.indexOf("useVirtualizer(")).toBeGreaterThan(-1)
-    expect(body.indexOf("useVirtualizer(")).toBeLessThan(body.indexOf("const GridRow = React.memo("))
+    expect(body.indexOf("useViewWindow(")).toBeGreaterThan(-1)
+    expect(body.indexOf("useViewWindow(")).toBeLessThan(body.indexOf("function GridRow("))
+    const list = src("TableRowList.tsx")
+    expect(list).not.toMatch(/useVirtualizer\(/)
+    const listBody = list.slice(list.indexOf("const ListBody = React.memo("))
+    expect(listBody.indexOf("useViewWindow(")).toBeGreaterThan(-1)
+    expect(listBody.indexOf("useViewWindow(")).toBeLessThan(listBody.indexOf("function ListRow("))
   })
 
   it("never measures rows (each is a preset height)", () => {
-    expect(src("DataTableGrid.tsx")).not.toMatch(/measureElement/)
+    for (const f of ["DataTableGrid.tsx", "TableRowList.tsx", "viewWindow.ts"]) expect(src(f), f).not.toMatch(/measureElement/)
   })
 
   it("mounts no popover in a closed cell", () => {

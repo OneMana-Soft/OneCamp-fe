@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import { vi } from "vitest"
 import { startOfDay } from "date-fns"
+import { useRef } from "react"
 
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
 import { TimelineHeader } from "@/components/project/timeline/TimelineHeader"
@@ -102,5 +103,39 @@ describe("names stuck at the timeline's left edge", () => {
     el.scrollLeft = 120
     result.current.onScroll()
     expect(el.style.getPropertyValue(SCROLL_X)).toBe("120px")
+  })
+})
+
+describe("the timeline's view", () => {
+  // V-63 at 1280 (29 Oct 2026): a project's timeline draws its scroller only once its milestones are in too, and
+  // they can come after its rows and its zoom (ready). The view was never placed then, and its width never
+  // watched, so a task's panel opening beside it moved its centre day (11-28 to 11-14 on the live demo).
+  it("places the scroller and watches its width when the scroller comes after ready", async () => {
+    const { useTimelineView } = await vi.importActual<typeof import("@/hooks/useTimelineView")>("@/hooks/useTimelineView")
+    const watched: Element[] = []
+    const real = globalThis.ResizeObserver
+    globalThis.ResizeObserver = class {
+      observe(target: Element) {
+        watched.push(target)
+      }
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+    try {
+      const today = new Date(2026, 9, 12)
+      const range = timelineRange(tasks as never, startOfDay(today), "week")
+      function View({ drawn }: { drawn: boolean }) {
+        const scrollRef = useRef<HTMLDivElement>(null)
+        const { scrollerRef } = useTimelineView({ scrollRef, range, dayWidth: 12, nameWidth: 260, spans: [] as never, today, ready: true })
+        return drawn ? <div ref={scrollerRef} data-testid="scroller" /> : <div data-testid="loading" />
+      }
+      const { rerender } = render(<View drawn={false} />)
+      rerender(<View drawn />)
+      const scroller = screen.getByTestId("scroller")
+      expect(watched, "the scroller's width isn't watched").toContain(scroller)
+      expect(scroller.scrollLeft, "the scroller isn't placed at its first view").toBeGreaterThan(0)
+    } finally {
+      globalThis.ResizeObserver = real
+    }
   })
 })

@@ -35,7 +35,7 @@ describe("the store's root reducer", () => {
   })
 
   it("still rebuilds every slice on reset", () => {
-    store.dispatch(openUI({ key: "channelFileUpload" }))
+    store.dispatch(openUI({ key: "attachmentLightbox" }))
     const before = store.getState()
     store.dispatch({ type: RESET_STORE_ACTION })
     const after = store.getState()

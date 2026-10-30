@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 
 import axiosInstance from "@/lib/axiosInstance"

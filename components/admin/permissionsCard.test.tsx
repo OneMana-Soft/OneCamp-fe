@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 // Member permissions. A failed load left the card blank under its heading,
 // beside a toast that soon left, so an admin saw no permissions and nothing to
@@ -18,7 +18,8 @@ vi.mock("@/services/capabilityService", async (orig) => ({
   setCapabilityPolicy: api.set,
 }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn() }))
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }))
+const toast = vi.hoisted(() => vi.fn())
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 
 const { default: PermissionsCard } = await import("./PermissionsCard")
 
@@ -68,6 +69,23 @@ describe("member permissions", () => {
     const group = (await screen.findAllByRole("radiogroup"))[0]
     await act(async () => void fireEvent.click(radio(group, "Everyone")))
     expect(api.set).toHaveBeenCalledWith("workflow.manage", "all_members")
+    expect(radio(group, "Admins").getAttribute("data-state")).toBe("checked")
+  })
+
+  it("offers a choice back, and Undo saves the one before", async () => {
+    api.list.mockResolvedValue([{ capability: "workflow.manage", policy: "admins_only" }])
+    api.set.mockResolvedValue(undefined)
+    render(<PermissionsCard />)
+    const group = (await screen.findAllByRole("radiogroup"))[0]
+    await act(async () => void fireEvent.click(radio(group, "Everyone")))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/: Everyone$/) })))
+
+    const [{ action }] = toast.mock.calls[0] as [{ action: { props: { onClick: () => Promise<void> } } }]
+    await act(() => action.props.onClick())
+    expect(api.set.mock.calls).toEqual([
+      ["workflow.manage", "all_members"],
+      ["workflow.manage", "admins_only"],
+    ])
     expect(radio(group, "Admins").getAttribute("data-state")).toBe("checked")
   })
 })

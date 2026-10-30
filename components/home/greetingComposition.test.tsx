@@ -1,5 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest"
-import { cleanup, render } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render } from "@testing-library/react"
+
+let reduced = false
+vi.mock("@/lib/reducedMotion", () => ({ prefersReducedMotion: () => reduced }))
 
 import { GreetingComposition, orbitPlayState } from "@/components/home/GreetingComposition"
 import { dayArcPoint, hueForHour } from "@/components/home/homeTime"
@@ -46,6 +49,59 @@ describe("the composition", () => {
   it("shows a crescent after dark", () => {
     const { container } = render(<GreetingComposition now={at(21)} />)
     expect(container.querySelector('[data-sun="night"]')).not.toBeNull()
+  })
+})
+
+// The orbits' cost (fluid, 21 Oct 2026). A CSS transform on an SVG group is
+// laid out and painted on the main thread on every frame, for as long as Home
+// is open: the two orbits and each orbiter's counter-turn did that, without
+// end. Each ring and each counter-turn is a layer of its own now, which the
+// compositor turns, and they settle after a few turns.
+describe("the orbits", () => {
+  const draw = () =>
+    render(<GreetingComposition people={people} agent events={[{ id: "e1" }, { id: "e2" }]} now={at(10)} />).container
+  const style = (el: Element) => el.getAttribute("style") ?? ""
+
+  it("turn each ring as a layer of its own, never an SVG group", () => {
+    const rings = [...draw().querySelectorAll("[data-orbit-ring]")]
+    expect(rings.map((r) => r.tagName)).toEqual(["DIV", "DIV"])
+    for (const r of rings) expect(style(r)).toMatch(/animation-name: hub-orbit/)
+  })
+
+  it("keep each person and the agent upright on a layer of their own", () => {
+    const orbiters = [...draw().querySelectorAll('[data-orbiter="person"], [data-orbiter="agent"]')]
+    expect(orbiters).toHaveLength(4)
+    for (const o of orbiters) {
+      const turn = o.closest("[data-counter-turn]")
+      expect(turn?.tagName).toBe("DIV")
+      expect(style(turn!)).toMatch(/animation-name: hub-orbit-back/)
+    }
+  })
+
+  it("settle after a few turns, never turning for ever", () => {
+    const turning = [...draw().querySelectorAll("[data-orbit-ring], [data-counter-turn]")]
+    expect(turning.length).toBeGreaterThan(2)
+    for (const t of turning) expect(style(t)).toMatch(/animation-iteration-count: [1-4];/)
+  })
+
+  // DESIGN-BUILD-3 (21 Oct 2026): once the turns end, the layers give their memory back.
+  it("rest when their turns end: no turning, nothing kept for it", () => {
+    const container = draw()
+    const outer = container.querySelector('[data-orbit-ring="outer"]')!
+    fireEvent.animationEnd(outer)
+    for (const t of container.querySelectorAll("[data-orbit-ring], [data-counter-turn]")) {
+      expect(style(t)).not.toMatch(/animation-name|will-change/)
+    }
+  })
+
+  it("don't turn with reduced motion", () => {
+    reduced = true
+    try {
+      const turning = [...draw().querySelectorAll("[data-orbit-ring], [data-counter-turn]")]
+      expect(turning.map(style).filter((s) => /animation-name/.test(s))).toEqual([])
+    } finally {
+      reduced = false
+    }
   })
 })
 

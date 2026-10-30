@@ -6,10 +6,6 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 vi.mock("@/hooks/useFetch", () => ({ useMediaFetch: () => ({ data: { url: "https://files.example/brief.pdf" } }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
-vi.mock("@/services/aiService", () => ({
-  useAnalyzeImage: () => ({ analyzeImage: vi.fn(), isSubmitting: false }),
-  useAnalyzeDocument: () => ({ analyzeDocument: vi.fn(), isSubmitting: false }),
-}))
 vi.mock("@/components/attachments/documentViewer", () => ({ default: () => <div /> }))
 vi.mock("@/components/attachments/videoPlayer", () => ({ default: () => <div /> }))
 vi.mock("@/components/fileUpload/AudioPlayer", () => ({ AudioPlayer: () => <div /> }))

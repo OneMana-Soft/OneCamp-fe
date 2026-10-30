@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { pinTestClock } from "@/lib/testing/testClock"
+import { putOnScreen, SCREENS } from "@/lib/testing/screens"
 import { Label } from "@/components/ui/label"
 
 import { DateField, TimeField } from "./date-field"
@@ -78,7 +79,7 @@ describe("the time field", () => {
     const list = await screen.findByRole("listbox", { name: "Time" }, LOAD)
     const options = Array.from(list.querySelectorAll("[role='option']"))
     expect(options[0].textContent).toBe(screen.getByText(/^12:15|^12:15 PM/).textContent)
-    expect(options[0].querySelectorAll("span")).toHaveLength(1)
+    expect(options[0].querySelector(".text-meta"), "no duration beside it").toBeNull()
   })
 
   // On a phone it was a popover with a 160px scroller of its own, over
@@ -218,6 +219,18 @@ describe("the one date picker", () => {
       expect(document.querySelector("[data-vaul-drawer]")?.querySelector("[data-date-panel]")).not.toBeNull()
     } finally {
       window.matchMedia = real
+    }
+  })
+
+  // DESIGN-BUILD-21's SF-b: a filter's day opened a sheet headed "Value", its label's word for its part.
+  it("names its sheet for what it picks, where its label names only a part", { timeout: 20000 }, async () => {
+    const undo = putOnScreen(SCREENS["a phone in portrait"])
+    try {
+      render(<DateField aria-label="Value" pickerTitle="Due" value="2026-11-01" onChange={() => {}} />)
+      fireEvent.click(screen.getByRole("button", { name: "Value, Sun 1 Nov 2026" }))
+      expect(await screen.findByRole("heading", { name: "Due" }, LOAD)).toBeTruthy()
+    } finally {
+      undo()
     }
   })
 })

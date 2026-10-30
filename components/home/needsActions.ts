@@ -8,15 +8,21 @@ import { PostEndpointUrl } from "@/services/endPoints"
 import type { NeedsActions } from "@/components/home/NeedsMeSection"
 import type { NeedsItem } from "@/components/home/needsMe"
 
-/** Ticks a task done, as the task list does. */
-export async function markTaskDone(item: NeedsItem): Promise<void> {
+/** Sets a task's status, as the task list does. */
+export async function setTaskStatus(item: NeedsItem, status: string): Promise<void> {
   if (!item.taskUuid) throw new Error("the task is gone")
   await axiosInstance.post(PostEndpointUrl.UpdateTaskStatus, {
-    task_status: "done",
+    task_status: status,
     task_uuid: item.taskUuid,
     task_project_uuid: item.projectUuid,
   })
 }
+
+/** Ticks a task done. */
+export const markTaskDone = (item: NeedsItem) => setTaskStatus(item, "done")
+
+/** Done's Undo: the task back in the status it had. */
+export const markTaskUndone = (item: NeedsItem) => setTaskStatus(item, item.statusValue || "todo")
 
 /** Answers a mention in its thread, as the thread's own composer does. */
 export async function replyInThread(item: NeedsItem, text: string): Promise<void> {
@@ -29,5 +35,5 @@ export async function replyInThread(item: NeedsItem, text: string): Promise<void
   })
 }
 
-export const SHARED_ACTIONS: NeedsActions = { onDone: markTaskDone, onReply: replyInThread }
+export const SHARED_ACTIONS: NeedsActions = { onDone: markTaskDone, onUndoDone: markTaskUndone, onReply: replyInThread }
 

@@ -17,7 +17,8 @@ import { useFetch } from "@/hooks/useFetch"
 import { cn } from "@/lib/utils/helpers/cn"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { ProjectsGet } from "@/services/endpoints/projects"
-import { burndownChart, cycleDates, cycleLabel, loadNote, paceNote, velocityChart, type BurndownUnit, type BurndownView, type Cycle } from "@/lib/tasks/cycles"
+import { cycleDates, cycleLabel, type Cycle } from "@/lib/tasks/cycles"
+import { burndownChart, burndownUnits, loadNote, paceNote, velocityChart, type BurndownUnit, type BurndownView } from "@/lib/tasks/cycleBurndown"
 
 export const burndownKey = (projectId: string, cycleId: string, tz: string = browserTZ()) =>
   `${ProjectsGet.ProjectCycles}/${projectId}/cycles/${cycleId}/burndown?tz=${encodeURIComponent(tz)}`
@@ -59,7 +60,7 @@ export function CycleBurndownDialog({
 
 export function CycleBurndown({ projectId, cycleId }: { projectId: string; cycleId: string }) {
   const { data, isError, mutate } = useFetch<{ data: BurndownView }>(burndownKey(projectId, cycleId))
-  const [unit, setUnit] = React.useState<BurndownUnit>("tasks")
+  const [unit, setUnit] = React.useState<BurndownUnit | null>(null)
   const view = data?.data
 
   if (!view) {
@@ -74,8 +75,9 @@ export function CycleBurndown({ projectId, cycleId }: { projectId: string; cycle
   }
 
   const { burndown: b, velocity: v, cycle } = view
-  const canHours = b.estimated > 0
-  const shown: BurndownUnit = canHours ? unit : "tasks"
+  const units = burndownUnits(b)
+  // A project that estimates in points counts in them, until the reader picks another unit.
+  const shown: BurndownUnit = unit && units.includes(unit) ? unit : units.includes("points") ? "points" : "tasks"
   const pace = paceNote(b, shown, cycle.state)
   const load = cycle.state === "current" || cycle.state === "upcoming" ? loadNote(b, v, shown) : null
 
@@ -86,11 +88,12 @@ export function CycleBurndown({ projectId, cycleId }: { projectId: string; cycle
           <Stat label="In the cycle" value={b.tasks} />
           <Stat label="Done" value={b.done} />
           <Stat label="Still to do" value={b.open} />
-          {canHours && <Stat label="With an estimate" value={`${b.estimated} of ${b.tasks}`} />}
+          {units.includes("hours") && <Stat label="With an estimate" value={`${b.estimated} of ${b.tasks}`} />}
+          {units.includes("points") && <Stat label="With points" value={`${b.pointed ?? 0} of ${b.tasks}`} />}
         </dl>
-        {canHours && (
+        {units.length > 1 && (
           <div className="flex rounded-md bg-press p-0.5" role="group" aria-label="Count in">
-            {(["tasks", "hours"] as const).map((u) => (
+            {units.map((u) => (
               <button
                 key={u}
                 type="button"

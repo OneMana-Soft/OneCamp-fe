@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { NodeLink } from "@/components/docFiles/NodeLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { PanelLeft, Search, Trash2, X } from "@/lib/icons";
@@ -14,6 +14,11 @@ import { tabPageKey } from "@/components/doc/DocListTab";
 import { UnderlineTabs } from "@/components/doc/underlineTabs";
 import { useCreateDoc } from "@/components/doc/useCreateDoc";
 import { PhoneBarActions } from "@/components/navigationBar/mobile/phoneBarActions";
+import { warmPagesSheet } from "@/components/docTree/pagesSheetWarm";
+import { SHEET_QUERY } from "@/components/ui/overlayMode";
+import { useWhenIdle } from "@/hooks/useWhenIdle";
+import { lazyPart } from "@/lib/lazy/lazyPart";
+import { OverlayUnavailable } from "@/lib/lazy/overlayUnavailable";
 import { useSidenav } from "@/hooks/useHydrateUserSidebar";
 import { useFetch } from "@/hooks/useFetch";
 import { useStoredState } from "@/hooks/useStoredState";
@@ -25,10 +30,21 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { DocGraphEndpoint, listKey, type Envelope } from "@/services/docGraphService";
 import { searchable } from "@/services/docHomeService";
 import type { DocList, DocListSort, DocSpace, DocTrash } from "@/types/docGraph";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 
-const PagesSheet = React.lazy(() => import("@/components/docTree/PagesSheet"));
+/**
+ * The phone's Pages sheet, a chunk of its own, warmed on the home's quiet
+ * (fluid-06, Fix 3). Drawn the moment it's asked for once its code is in
+ * (lib/lazy/lazyPart): behind Suspense, React held the fallback 300 ms after
+ * the tap even with the code in (its reveal throttle), and the sheet opened
+ * in 434 ms on a 4x phone.
+ */
+const pagesSheet = lazyPart<{ onClose: () => void }>(() => import("@/components/docTree/PagesSheet").then((m) => m.default), {
+    placeholder: () => null,
+    failed: ({ onClose }) => <OverlayUnavailable title="Pages didn't open" onClose={onClose} />,
+});
 // Search's results load with the first search (I20): the page opens without them.
-const DocSearchResults = React.lazy(() => import("@/components/doc/DocSearchResults").then((m) => ({ default: m.DocSearchResults })));
+const DocSearchResults = lazyPiece(() => import("@/components/doc/DocSearchResults").then((m) => ({ default: m.DocSearchResults })));
 
 const isView = (v: unknown): v is DocsView => v === "grid" || v === "list";
 
@@ -175,7 +191,14 @@ export function DocListTabs() {
     }, [create, busy, newDocSpace]);
 
     const tabs = DOC_TABS.map((t) => ({ value: t, label: DOC_TAB_LABEL[t], count: counts[t] }));
-    const [pagesOpen, setPagesOpen] = React.useState(false);
+    // The phone's Pages sheet, ready before it's tapped (fluid-06, Fix 3):
+    // its code and its groups' first levels, on the page's first quiet moment.
+    useWhenIdle(() => {
+        if (typeof window.matchMedia === "function" && window.matchMedia(SHEET_QUERY).matches) {
+            void pagesSheet.warm();
+            void warmPagesSheet();
+        }
+    });
 
     return (
         <div className="flex h-full min-h-0 flex-col" data-docs-page="">
@@ -193,14 +216,14 @@ export function DocListTabs() {
                 </div>
                 <div className="flex items-end gap-2">
                     <UnderlineTabs tabs={tabs} value={searching ? "" : tab} onValueChange={onTab} label="Docs" className="mt-4 min-w-0 flex-1 gap-4 max-sm:mt-0" />
-                    <Link
+                    <NodeLink
                         href="/app/doc/trash"
                         className="mb-1.5 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-ui-sm text-ink-2 outline-none hover:bg-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
                     >
                         <Trash2 className="size-3.5" aria-hidden="true" />
                         <span className="max-sm:sr-only">Trash</span>
                         {trash !== undefined && trash > 0 && <span className="text-meta tabular-nums text-ink-3">{trash}</span>}
-                    </Link>
+                    </NodeLink>
                 </div>
                 {/* A phone searches in a full-width field under the tabs. */}
                 <div className="pt-3 sm:hidden">
@@ -233,18 +256,28 @@ export function DocListTabs() {
             ) : (
                 <DocGridSkeleton withCreateCard />
             )}
-            {/* The phone's Pages: the sidebar's page tree, in a sheet. */}
+            <PagesButton />
+        </div>
+    );
+}
+
+/**
+ * The phone's Pages: the sidebar's page tree, in a sheet. Its own state, so
+ * the sheet opens and closes without the docs home drawing itself again in
+ * the tap (fluid-06: a hundred of the 545 renders the open cost).
+ */
+function PagesButton() {
+    const [open, setOpen] = React.useState(false);
+    const close = React.useCallback(() => setOpen(false), []);
+    return (
+        <>
             <PhoneBarActions>
-                <button type="button" onClick={() => setPagesOpen(true)} aria-label="Pages">
+                <button type="button" onClick={() => setOpen(true)} aria-label="Pages">
                     <PanelLeft aria-hidden="true" />
                 </button>
             </PhoneBarActions>
-            {pagesOpen && (
-                <React.Suspense fallback={null}>
-                    <PagesSheet onClose={() => setPagesOpen(false)} />
-                </React.Suspense>
-            )}
-        </div>
+            {open && <pagesSheet.Part onClose={close} />}
+        </>
     );
 }
 

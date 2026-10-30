@@ -1,10 +1,10 @@
 import { registerBlock } from "@/components/docEditor/registry/registry"
 import type { BlockSpec } from "@/components/docEditor/registry/types"
 import { DOC_EDITORS } from "../../blocks/kinds"
+import { once } from "@/lib/lazy/once"
 
 // B4's blocks: their schema and loader. The chunk adds the rest (contrib.ts).
-let c: Promise<typeof import("./chunk")> | null = null
-const chunk = () => (c ??= import("./chunk").catch((e) => ((c = null), Promise.reject(e))))
+const chunk = once(() => import("./chunk"))
 const block = (id: string, attrs: string[]): BlockSpec => ({
   id,
   editors: DOC_EDITORS,

@@ -31,6 +31,11 @@ const POST = "aaaa0000-0000-4000-8000-00000000000a"
 const { default: store, RESET_STORE_ACTION } = await import("@/store/store")
 const { openRightPanel } = await import("@/store/slice/desktopRightPanelSlice")
 const { FCMHandler, FCM_RESYNC_MS } = await import("@/components/fcm/FCMHandler")
+const { QUIET_MS, SETTLE_MS } = await import("@/lib/ui/whenQuiet")
+
+// The SDK waits for the first screen's settle and a quiet page (lib/ui/whenQuiet).
+const fakeClock = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "performance"] })
+const settle = () => act(() => vi.advanceTimersByTimeAsync(SETTLE_MS + QUIET_MS + 100))
 
 const at = (path: string) => window.history.pushState({}, "", path)
 const push = (data: Record<string, string>) => act(() => onPush?.({ data: { title: "Maya Chen", body: "hi", ...data } }))
@@ -53,16 +58,22 @@ afterEach(() => {
 })
 
 describe("a push while the app is open", () => {
-  // The listener subscribes once the page is idle and the SDK has come.
+  // The listener subscribes once the first screen has settled and the SDK has come.
   const show = async () => {
+    fakeClock()
     render(<Provider store={store}><FCMHandler /></Provider>)
-    await act(() => vi.waitFor(() => expect(onPush).toBeDefined()))
+    await settle()
+    expect(onPush).toBeDefined()
   }
 
-  it("is listened for only once the page is idle: the SDK is not on the first screen", async () => {
+  it("is listened for only once the first screen has settled and the page is quiet: the SDK is not on it", async () => {
+    fakeClock()
     render(<Provider store={store}><FCMHandler /></Provider>)
+    // A phone at 4x is useful at about 3 s; the SDK came at 2 s.
+    await act(() => vi.advanceTimersByTimeAsync(SETTLE_MS - 100))
     expect(onPush).toBeUndefined()
-    await act(() => vi.waitFor(() => expect(onPush).toBeDefined()))
+    await settle()
+    expect(onPush).toBeDefined()
     cleanup()
     expect(onPush).toBeUndefined()
   })
@@ -111,10 +122,12 @@ describe("a push while the app is open", () => {
 })
 
 describe("the device's push token", () => {
-  it("is registered on start, and again on coming back into view once it is old", async () => {
-    vi.useFakeTimers()
+  it("is registered on start once the first screen has settled, and again on coming back into view once it is old", async () => {
+    fakeClock()
     render(<Provider store={store}><FCMHandler /></Provider>)
     await act(() => vi.advanceTimersByTimeAsync(3_000))
+    expect(registered).not.toHaveBeenCalled()
+    await settle()
     expect(registered).toHaveBeenCalledTimes(1)
     expect(registered.mock.calls[0][0]).toMatchObject({ payload: { fcm_token: "token-1" } })
 

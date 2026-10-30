@@ -417,6 +417,8 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
     group: "Knowledge & search",
     tools: [
       { name: "search_workspace", label: "Search workspace & connected apps", write: false },
+      { name: "related_items", label: "See what an item is connected to", write: false },
+      { name: "how_connected", label: "Find how two items are connected", write: false },
       { name: "find_people", label: "Look up a person (name, title, team)", write: false },
       { name: "read_meeting_transcript", label: "Read what was said in a call", write: false },
     ],

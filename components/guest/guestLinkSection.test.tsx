@@ -114,12 +114,19 @@ describe("anyone with the link, as the share dialog's card (D19)", () => {
     turnOffGuestLink.mockReset()
   })
 
-  it("is a switch on a card with the globe on moss, Off until turned on", () => {
+  it("is a switch on a card with the globe in neutral ink, Off until turned on, and says a doc can be published once it's on", () => {
     render(<GuestLinkSection card resourceType="doc" resourceId="d1" canShare />)
     const sw = screen.getByRole("switch", { name: "Anyone with the link" })
     expect(sw.getAttribute("aria-checked")).toBe("false")
+    expect(screen.getByText("Off · Turn on to share a link or publish it as a web page")).toBeInTheDocument()
+    const tile = document.querySelector('[data-access-tile="link"]')!
+    expect(tile.className).toMatch(/bg-hover/)
+    expect(tile.querySelector(`.${HUE_CLASS.moss}`)).toBeNull()
+  })
+
+  it("says Off alone where nothing can be published", () => {
+    render(<GuestLinkSection card resourceType="board" resourceId="b1" canShare />)
     expect(screen.getByText("Off")).toBeInTheDocument()
-    expect(document.querySelector(`[data-access-tile="link"] .${HUE_CLASS.moss}`)).not.toBeNull()
   })
 
   it("turning on opens the options and Create link makes a 30-day read-only link", async () => {

@@ -37,8 +37,9 @@ describe("small controls side by side", () => {
   it("stand 44px less their size apart under a finger, one rule over the row's own gap", () => {
     const css = readFileSync(join(ROOT, "app/phone.css"), "utf8")
     const rule = css.slice(css.indexOf("F3b."))
-    expect(rule).toMatch(/@media \(pointer: coarse\) \{\s*\[data-touch-group\] \{\s*gap: calc\(var\(--m-hit\) - 28px\);/)
-    for (const size of [32, 24, 20]) expect(rule).toMatch(new RegExp(`\\[data-touch-group="${size}"\\] \\{\\s*gap: calc\\(var\\(--m-hit\\) - ${size}px\\);`))
+    // The gap is --touch-gap, which a group's own space above can use too.
+    expect(rule).toMatch(/@media \(pointer: coarse\) \{\s*\[data-touch-group\] \{\s*--touch-gap: calc\(var\(--m-hit\) - 28px\);\s*gap: var\(--touch-gap\);/)
+    for (const size of [32, 24, 20]) expect(rule).toMatch(new RegExp(`\\[data-touch-group="${size}"\\] \\{\\s*--touch-gap: calc\\(var\\(--m-hit\\) - ${size}px\\);`))
     // Unlayered (at the top level, where this file's layered rules are
     // indented), so it wins over the row's own gap utility.
     expect(css).toMatch(/\n\/\* F3b\. [\s\S]*?\*\/\n@media \(pointer: coarse\) \{\n  \[data-touch-group\] \{/)

@@ -8,8 +8,8 @@ vi.mock("@/hooks/useFetch", async (importOriginal) => ({
   useFetch: () => ({ data: read.data, isError: read.isError, isLoading: !read.data && !read.isError, mutate: read.mutate }),
 }))
 const ensure = vi.hoisted(() => vi.fn())
-vi.mock("@/services/tableService", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/services/tableService")>()),
+vi.mock("@/services/tableCalls", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/tableCalls")>()),
   ensureRowPage: (...a: unknown[]) => ensure(...a),
 }))
 const { toast } = vi.hoisted(() => ({ toast: vi.fn() }))

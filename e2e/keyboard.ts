@@ -21,6 +21,24 @@ export type KeyboardKind = "visual" | "resize"
 
 const STEPS = [0.35, 0.7, 1]
 
+/**
+ * Paints the keyboard openKeyboard stands for, for a review shot: a browser
+ * draws none, so a sheet resting on it looked as if it ran on to the foot of
+ * the screen. Returns its removal.
+ */
+export async function paintKeyboard(page: Page, height = 336): Promise<() => Promise<void>> {
+  await page.evaluate((h) => {
+    const k = document.createElement("div")
+    k.id = "e2e-keyboard"
+    k.textContent = "Keyboard"
+    Object.assign(k.style, { position: "fixed", insetInline: "0", bottom: "0", height: `${h}px`, zIndex: "2147483647", display: "grid", placeItems: "center", background: "#c9ccd3", color: "#3a3d45", font: "500 13px system-ui" })
+    document.body.append(k)
+  }, height)
+  return async () => {
+    await page.evaluate(() => document.getElementById("e2e-keyboard")?.remove())
+  }
+}
+
 export async function openKeyboard(page: Page, kind: KeyboardKind, height = 336): Promise<() => Promise<void>> {
   if (kind === "resize") {
     const size = page.viewportSize()!

@@ -2,37 +2,57 @@
 
 import { useSearchParams } from "next/navigation"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Search, ArrowLeft, X, ChevronDown, Sparkles } from "@/lib/icons"
+import { LazySearchInput } from "@/components/ui/lazy-search-input"
+import { ArrowLeft, ChevronDown, ChevronRight, Sparkles } from "@/lib/icons"
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { useSearch } from "@/hooks/useSearch"
+import { useQuerySearch } from "@/hooks/useQuerySearch"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { searchResultKeys } from "@/lib/utils/helpers/search"
 import { cn } from "@/lib/utils/helpers/cn"
+import { WhoKnowsSlot } from "@/components/whoKnows/WhoKnowsSlot"
 import { moveListFocus } from "@/lib/search/listFocus"
 import { looksLikeQuestion } from "@/lib/search/paletteMatch"
 import { resultPath } from "@/lib/search/resultPath"
-import { groupResults, isScope, scopeCounts, sortResults, visibleScopes, type SearchScope, type SearchSort } from "@/lib/search/scopes"
+import { groupResults, isScope, visibleScopes } from "@/lib/search/scopes"
+import type { QuerySort } from "@/lib/search/queryApi"
+import { useFreeWords } from "@/hooks/useFreeWords"
 import { HubRowSkeleton } from "@/components/ui/hubRow"
 import { SpotSearchV3 } from "@/components/ui/graphics/hubSpots"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ScopeChips } from "@/components/search/scopeChips"
 import { SearchResultRow } from "@/components/search/searchResultRow"
-import ConnectorSearchResults from "@/components/ai/ConnectorSearchResults"
-import SearchAnswer from "@/components/ai/SearchAnswer"
 import { ErrorState } from "@/components/ui/error-state"
 import { askAIHref } from "@/lib/search/askAI"
-import { readSearchWithin, searchWithinHref } from "@/lib/search/within"
+import { readSearchWithin } from "@/lib/search/within"
+import { addressLater } from "@/lib/navigation/addressLater"
+import { useTabInAddress } from "@/components/task/tabInAddress"
 import { SearchWithinChip, useWithinName } from "@/components/search/searchWithinChip"
+import { lazyPart } from "@/lib/lazy/lazyPart"
+
+const SORT_LABELS: Record<QuerySort, string> = { best: "best match", newest: "newest", oldest: "oldest" }
+
+// The filter chips (with the grammar they write in), the AI's answer and the
+// connected apps' results are chunks of their own: the page is at its source
+// ceiling (app/firstLoad.test.ts). So is Who knows' strip (WhoKnowsSlot). A
+// part whose code can't come (offline) is nothing, and the page carries on:
+// React.lazy threw to the page's error screen, and kept that failure for the
+// rest of the visit, Try again included.
+const queryFilters = lazyPart(() => import("@/components/search/queryFilters").then((m) => m.QueryFilters))
+const searchAnswer = lazyPart(() => import("@/components/ai/SearchAnswer").then((m) => m.default))
+const connectorResults = lazyPart(() => import("@/components/ai/ConnectorSearchResults").then((m) => m.default))
 
 /**
  * The search page (design v3, hub.md S7–S13): a 52px header, the hub's 760px
- * column from the sheet's edge, a raised 44px field, scope chips with their
- * counts, the AI's answer, and the results as two-line rows grouped by type.
+ * column from the sheet's edge, a raised 44px field, the filters it holds as
+ * chips, scope chips with their counts, the AI's answer, and the results as
+ * two-line rows grouped by type. The text is read with the one grammar on the
+ * server (docs C2-1): the counts are its honest counts (D-23), and what it
+ * read differently from what was typed is said under the field.
  */
 export default function SearchPage() {
     const searchParams = useSearchParams()
@@ -49,12 +69,20 @@ export default function SearchPage() {
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const selfUUID = selfProfile.data?.data?.user_uuid || ""
 
+    const initialScope = searchParams.get("in")
     const {
         inputValue,
         setInputValue,
         debouncedValue,
         results,
         resultsFor,
+        scope,
+        setScope,
+        sort,
+        setSort,
+        counts,
+        total,
+        notes,
         isLoading,
         isRefreshing,
         isError,
@@ -66,14 +94,17 @@ export default function SearchPage() {
         hasMore,
         loadMore,
         isLoadingMore,
-    } = useSearch({ initialQuery: query, debounceMs: 150, within })
+    } = useQuerySearch({ initialQuery: query, initialScope: isScope(initialScope) ? initialScope : "all", debounceMs: 150, within })
 
     const inputRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
     // The address follows what is typed, so a reload and a shared link show
-    // the search on screen. The query this page wrote itself is remembered, so
-    // the address catching up never rewrites the box while somebody types.
+    // the search on screen: a moment after the last key, or at once for a
+    // press, so a result clicked meanwhile still opens (addressLater). The
+    // query this page wrote itself is remembered, so the address catching up
+    // never rewrites the box while somebody types.
     const written = useRef(query)
+    const toAddress = useTabInAddress()
 
     useEffect(() => {
         if (query === written.current) return
@@ -81,12 +112,16 @@ export default function SearchPage() {
         setInputValue(query)
     }, [query, setInputValue])
 
+    // Merged into the address: the conversation searched stays; ?q= (as a
+    // browser types it) and the opening scope (in) go.
     useEffect(() => {
-        const next = debouncedValue.trim()
+        const next = inputValue.trim()
         if (next === written.current.trim()) return
-        written.current = next
-        router.replace(within ? searchWithinHref(within, next) : next ? `/app/search?query=${encodeURIComponent(next)}` : "/app/search", { scroll: false })
-    }, [debouncedValue, router, within])
+        return addressLater(() => {
+            written.current = next
+            toAddress({ query: next || null, q: null, in: null })
+        }, 150)
+    }, [inputValue, toAddress])
 
     // Everywhere again: the same words, without the conversation.
     const searchEverywhere = useCallback(() => {
@@ -110,17 +145,22 @@ export default function SearchPage() {
     }, [])
 
     const shown = debouncedValue.trim()
-    const initialScope = searchParams.get("in")
-    const [scopeState, setScopeState] = useState<{ q: string; scope: SearchScope }>({ q: shown, scope: isScope(initialScope) ? initialScope : "all" })
-    // A new query starts on All: a scope picked for the last words may hold nothing now.
-    const scope = scopeState.q === shown ? scopeState.scope : "all"
-    const setScope = useCallback((s: SearchScope) => setScopeState({ q: shown, scope: s }), [shown])
-    const [sort, setSort] = useState<SearchSort>("best")
+    // The words without the filters: what the AI's answer, the connected
+    // apps and Who knows search for, which read no modifiers.
+    const words = useFreeWords(inputValue) ?? ""
+    const shownWords = useFreeWords(shown)
+    // The count names the words alone: a date or a person spelled out in it
+    // wrapped the line at 390; the chips say those.
+    const countWords = useFreeWords(resultsFor)
+    // A filtered search's words wait for the grammar, and its count and list
+    // wait with them: Who knows' place is settled before the first result
+    // draws, so no result moves for it, and the count never says done over
+    // rows still loading.
+    const listLoading = isLoading || shownWords === undefined
 
-    const sorted = useMemo(() => sortResults(results, sort), [results, sort])
-    const counts = useMemo(() => scopeCounts(results), [results])
-    const chips = useMemo(() => visibleScopes(results), [results])
-    const groups = useMemo(() => groupResults(sorted, scope), [sorted, scope])
+    // The server sorts, and counts every chip, pages not fetched yet included.
+    const chips = useMemo(() => visibleScopes(results, counts), [results, counts])
+    const groups = useMemo(() => groupResults(results, scope, counts), [results, scope, counts])
     // Keyed by the hit, not its place: a refined query reorders the list.
     const keys = useMemo(() => {
         const all = searchResultKeys(results)
@@ -132,10 +172,12 @@ export default function SearchPage() {
         handleSearchSubmit()
     }
 
-    const total = scope === "all" ? results.length : counts[scope]
-    // The index holds more than the pages fetched: every count is "at least".
-    const plus = hasMore ? "+" : ""
-    const question = aiAvailable && looksLikeQuestion(shown)
+    const question = aiAvailable && looksLikeQuestion(words)
+    // A filter chip writes its text, and the field keeps the caret.
+    const writeFilters = useCallback((text: string) => {
+        setInputValue(text)
+        inputRef.current?.focus()
+    }, [setInputValue])
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-background font-sans">
@@ -153,74 +195,65 @@ export default function SearchPage() {
             <ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block">
                 <div data-search-column="" className="max-w-[760px] px-4 pb-16 pt-4 md:px-6 md:pt-6">
                     <form onSubmit={onSearchSubmit} role="search" className="relative w-full">
-                        <div data-search-field="" className="hub-field relative flex h-11 items-center rounded-[10px]">
-                            <Search className="pointer-events-none absolute left-3.5 size-[18px] text-ink-3" aria-hidden />
-                            <input
-                                ref={inputRef}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "ArrowDown" && listRef.current) {
-                                        e.preventDefault()
-                                        moveListFocus(listRef.current, 1)
-                                    }
-                                }}
-                                aria-label="Search"
-                                type="search"
-                                name="query"
-                                autoComplete="off"
-                                placeholder={within ? `Search in ${withinName}…` : "Search messages, docs, tasks and people…"}
-                                className="h-full w-full rounded-[10px] bg-transparent pl-11 pr-11 text-base text-foreground outline-none placeholder:text-ink-3 [&::-webkit-search-cancel-button]:hidden"
-                            />
-                            {inputValue ? (
-                                <button
-                                    type="button"
-                                    aria-label="Clear search"
-                                    onClick={() => {
-                                        setInputValue("")
-                                        inputRef.current?.focus()
-                                    }}
-                                    className="absolute right-2.5 grid size-6 place-items-center rounded-sm text-ink-3 transition-colors hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand"
-                                >
-                                    <X className="size-4" />
-                                </button>
-                            ) : (
-                                <kbd className="kbd pointer-events-none absolute right-3 hidden md:inline-flex">/</kbd>
-                            )}
-                        </div>
+                        <LazySearchInput
+                            ref={inputRef}
+                            size="lg"
+                            value={inputValue}
+                            onValueChange={setInputValue}
+                            onKeyDown={(e) => {
+                                if (e.key === "ArrowDown" && listRef.current) {
+                                    e.preventDefault()
+                                    moveListFocus(listRef.current, 1)
+                                }
+                            }}
+                            aria-label="Search"
+                            name="query"
+                            placeholder={within ? `Search in ${withinName}…` : "Search messages, docs, tasks and people…"}
+                            hint={<kbd className="kbd pointer-events-none me-0.5 hidden md:inline-flex">/</kbd>}
+                        />
                     </form>
 
-                    {within ? (
-                        <div className="mt-3 flex">
-                            <SearchWithinChip name={withinName} onRemove={searchEverywhere} />
-                        </div>
+                    {/* The conversation searched, then the filter chips; the row keeps its height while they load, so nothing under it moves. */}
+                    <div className="mt-3 flex min-h-[26px] flex-wrap items-center gap-1.5">
+                        {within ? <SearchWithinChip name={withinName} onRemove={searchEverywhere} /> : null}
+                        <queryFilters.Part text={inputValue} onChange={writeFilters} inConversation={!!within} />
+                    </div>
+
+                    {notes.length > 0 ? (
+                        <ul data-search-notes="" aria-live="polite" className="mt-2 space-y-0.5 text-meta text-ink-3">
+                            {notes.map((n) => (
+                                <li key={n}>{n}</li>
+                            ))}
+                        </ul>
                     ) : null}
 
                     {shown && (results.length > 0 || isLoading) ? (
                         <div className="mt-3">
-                            <ScopeChips scopes={chips} counts={counts} more={hasMore} value={scope} onChange={setScope} />
+                            <ScopeChips scopes={chips} counts={counts} value={scope} onChange={setScope} />
                         </div>
                     ) : null}
 
                     {/* Always there, so the list does not drop when the count arrives. */}
                     <div className="mt-3 flex h-6 items-center gap-1 text-ui-sm text-ink-3 tabular-nums" aria-live="polite">
-                        {!isLoading && results.length > 0 ? (
+                        {!listLoading && results.length > 0 ? (
                             <>
-                                <span data-search-count="">
-                                    {total === 1 && !plus ? "1 result" : `${total}${plus} results`} for “{resultsFor}”
+                                <span data-search-count="" className="min-w-0 truncate">
+                                    {total === 1 ? "1 result" : `${total.toLocaleString("en-GB")} results`}
+                                    {countWords ? ` for “${countWords}”` : null}
                                 </span>
                                 <span aria-hidden>·</span>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="xs" className="-ml-1 gap-0.5 text-ink-3">
-                                            sorted by {sort === "best" ? "best match" : "newest"}
+                                        <Button variant="ghost" size="xs" className="-ml-1 shrink-0 gap-0.5 text-ink-3">
+                                            sorted by {SORT_LABELS[sort]}
                                             <ChevronDown className="size-3" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="start">
-                                        <DropdownMenuRadioGroup value={sort} onValueChange={(v) => setSort(v as SearchSort)}>
+                                        <DropdownMenuRadioGroup value={sort} onValueChange={(v) => setSort(v as QuerySort)}>
                                             <DropdownMenuRadioItem value="best">Best match</DropdownMenuRadioItem>
                                             <DropdownMenuRadioItem value="newest">Newest</DropdownMenuRadioItem>
+                                            <DropdownMenuRadioItem value="oldest">Oldest</DropdownMenuRadioItem>
                                         </DropdownMenuRadioGroup>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
@@ -231,11 +264,16 @@ export default function SearchPage() {
                     {/* Over a failed search, no answer: the one thing to say is that the search failed. */}
                     {!isError && (
                         <div className="mt-2">
-                            <SearchAnswer query={inputValue} selfUUID={selfUUID} resultCount={results.length || undefined} />
+                            <searchAnswer.Part query={words} selfUUID={selfUUID} resultCount={results.length || undefined} />
                         </div>
                     )}
 
-                    {isLoading ? (
+                    {/* Who knows about the words (DG9, both editions): not inside one conversation. */}
+                    {!isError && !within && shownWords ? (
+                        <WhoKnowsSlot words={shownWords} />
+                    ) : null}
+
+                    {listLoading ? (
                         <div role="status" aria-label="Searching across all records" className="mt-3">
                             {[0, 1, 2, 3, 4, 5].map((i) => (
                                 <HubRowSkeleton key={i} density="two-line" />
@@ -262,10 +300,10 @@ export default function SearchPage() {
                                 <section key={g.scope} data-search-group={g.scope} aria-labelledby={`search-group-${g.scope}`} className="mb-4">
                                     <h2
                                         id={`search-group-${g.scope}`}
-                                        className="hub-sticky-head sticky top-0 z-[3] flex h-8 items-center gap-2 pl-12 text-meta font-medium text-ink-3"
+                                        className="hub-sticky-head sticky top-0 z-[3] flex h-8 items-center gap-2 pl-7 text-meta font-medium text-ink-3"
                                     >
                                         {g.label}
-                                        <span className="font-book tabular-nums">{g.total}{plus}</span>
+                                        <span className="font-book tabular-nums">{g.total.toLocaleString("en-GB")}</span>
                                     </h2>
                                     <ul>
                                         {g.rows.map((result) => {
@@ -274,19 +312,24 @@ export default function SearchPage() {
                                         })}
                                     </ul>
                                     {g.more ? (
-                                        <button
+                                        // A way to the kind's own list, so it reads as a link, apart from
+                                        // Show more under it.
+                                        <Button
                                             type="button"
+                                            variant="link"
+                                            size="sm"
                                             data-search-show-all={g.scope}
                                             onClick={() => setScope(g.scope)}
-                                            className="ml-12 mt-1 text-meta font-medium text-ink-2 transition-colors hover:text-foreground"
+                                            className="ml-7 mt-1 h-auto gap-0.5 p-0 text-meta font-medium"
                                         >
                                             {g.more}
-                                        </button>
+                                            <ChevronRight className="size-3.5" />
+                                        </Button>
                                     ) : null}
                                 </section>
                             ))}
                             {hasMore ? (
-                                <div className="mb-4 pl-12">
+                                <div className="mb-4 pl-7">
                                     <Button
                                         type="button"
                                         variant="secondary"
@@ -294,13 +337,13 @@ export default function SearchPage() {
                                         data-search-show-more=""
                                         onClick={() => void loadMore?.()}
                                         disabled={isLoadingMore}
-                                        aria-busy={isLoadingMore || undefined}
+                                        busy={isLoadingMore}
                                     >
                                         {isLoadingMore ? "Loading more…" : "Show more"}
                                     </Button>
                                 </div>
                             ) : null}
-                            <p className="hidden pl-12 text-meta text-ink-3 md:flex md:items-center md:gap-1">
+                            <p className="hidden pl-7 text-meta text-ink-3 md:flex md:items-center md:gap-1">
                                 <kbd className="kbd">↑</kbd>
                                 <kbd className="kbd">↓</kbd> to move through them
                             </p>
@@ -327,7 +370,7 @@ export default function SearchPage() {
                         </div>
                     )}
 
-                    <ConnectorSearchResults query={inputValue} />
+                    <connectorResults.Part query={words} />
                 </div>
             </ScrollArea>
         </div>

@@ -23,9 +23,9 @@ describe("the DM, group and thread composers' placeholders", () => {
   const read = (p: string) => readFileSync(join(ROOT, p), "utf8")
   it.each([
     ["components/chat/chatIdDesktop.tsx", /placeholder=\{dmComposerPlaceholder\(/],
-    ["components/textInput/mobileChatTextInput.tsx", /placeholder=\{dmComposerPlaceholder\(/],
+    ["components/chat/chatIdMobile.tsx", /placeholder=\{dmComposerPlaceholder\(/],
     ["components/groupChat/chatGrpIdDesktop.tsx", /placeholder=\{GROUP_COMPOSER_PLACEHOLDER\}/],
-    ["components/textInput/mobileGroupChatTextInput.tsx", /placeholder=\{GROUP_COMPOSER_PLACEHOLDER\}/],
+    ["components/groupChat/grpChatIdMobile.tsx", /placeholder=\{GROUP_COMPOSER_PLACEHOLDER\}/],
     // Every thread panel's reply box (a channel's, a DM's and a group's).
     ["components/conversation/ThreadReplyBox.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],
     ["components/textInput/mobileChannelPostTextInput.tsx", /placeholder=\{THREAD_COMPOSER_PLACEHOLDER\}/],

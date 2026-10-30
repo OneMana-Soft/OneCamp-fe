@@ -94,6 +94,31 @@ describe("a doc in the trash (E2)", () => {
     expect(hoisted.toasts.at(-1)).toEqual({ title: "Deleted for good", description: "2 pages you don't have full access to stay in the trash." })
   })
 
+  // Busy is a button's own action only: while the doc goes for good, Restore
+  // waits, disabled, and doesn't say it is restoring.
+  it("keeps Restore waiting, not busy, while the doc goes for good", async () => {
+    hoisted.purge.mockReturnValue(new Promise(() => {}))
+    render(<TrashedBanner docId="t1" canRestore onRestored={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Delete for good" }))
+    const asked = hoisted.confirm.mock.calls[0][0]
+    await act(async () => {
+      void asked.onConfirm()
+    })
+    const restore = screen.getByRole<HTMLButtonElement>("button", { name: "Restore" })
+    expect(restore.getAttribute("aria-busy")).toBeNull()
+    expect(restore.disabled).toBe(true)
+  })
+
+  it("is busy while it restores, and Delete for good waits", async () => {
+    hoisted.restore.mockReturnValue(new Promise(() => {}))
+    render(<TrashedBanner docId="t1" canRestore onRestored={() => {}} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Restore" })))
+    const restore = screen.getByRole<HTMLButtonElement>("button", { name: "Restore" })
+    expect(restore.getAttribute("aria-busy")).toBe("true")
+    expect(restore.disabled).toBe(false)
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Delete for good" }).disabled).toBe(true)
+  })
+
   it("offers a viewer neither, and says who can", () => {
     hoisted.page = { ...page, can_restore: false, can_purge: false }
     render(<TrashedBanner docId="t1" canRestore={false} onRestored={() => {}} />)

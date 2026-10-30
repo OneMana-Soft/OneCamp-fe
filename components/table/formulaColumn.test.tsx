@@ -8,21 +8,21 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
   useAIAvailable: () => ai.on,
 }))
-vi.mock("@/services/tableService", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/services/tableService")>()),
+vi.mock("@/services/tableCalls", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/tableCalls")>()),
   createField: (...args: unknown[]) => createField(...args),
   previewFormula: vi.fn().mockResolvedValue({ result: "number", values: [] }),
 }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
 
-import { DataTableGrid } from "@/components/table/DataTableGrid"
+import { DataTableGrid, LiveCells } from "@/components/table/DataTableGrid"
 import type { TableField, TableRow } from "@/services/tableService"
 import { loadColumnMenus } from "@/components/table/ColumnMenu"
 import { cellPickers } from "@/components/table/cellPickerPart"
 
 // The column menus, the cell pickers are chunks of their own
 // (lazyView): loaded once, before these tests, they draw at once.
-beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm()]))
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), LiveCells.warm()]))
 
 const fields: TableField[] = [
   { id: "price", table_id: "t", name: "Price", type: "number", config: "{}", position: 0 },

@@ -3,10 +3,12 @@ import { displayNameOf } from "@/lib/personName"
  * "What needs me now" as data (hub.md H8, H9): one row model for every kind,
  * grouped in a fixed order and capped, so the section and its tests agree.
  *
- *   agent  an agent asks to do something for you (an approval);
- *   reply  a mention or a DM waiting on you;
- *   due    a task overdue or due today;
- *   email  a Gmail thread the AI marks as needing a reply.
+ *   agent     an agent asks to do something for you (an approval);
+ *   approval  a request waiting for your yes (business/Approvals), answered
+ *             in its item's card;
+ *   reply     a mention or a DM waiting on you;
+ *   due       a task overdue or due today;
+ *   email     a Gmail thread the AI marks as needing a reply.
  *
  * Pure: the section (NeedsMeSection) draws it, the hook (useHomeNeeds) and the
  * AI's attention list fill it.
@@ -15,13 +17,16 @@ import type { StatusKind } from "@/components/ui/graphics/glyphs"
 import type { UnifiedActivityItem } from "@/types/activity"
 import type { TaskInfoInterface } from "@/types/task"
 import type { UserDMInterface } from "@/types/user"
+import type { WaitingApproval } from "@/lib/rules/approvals"
 import { collapseEchoes } from "@/lib/activity/feedPages"
+import { dueLabel } from "@/lib/utils/dueLabel"
 
-export type NeedsKind = "agent" | "reply" | "due" | "email"
+export type NeedsKind = "agent" | "approval" | "reply" | "due" | "email"
 
-export const NEEDS_ORDER: NeedsKind[] = ["agent", "reply", "due", "email"]
+export const NEEDS_ORDER: NeedsKind[] = ["agent", "approval", "reply", "due", "email"]
 export const NEEDS_LABEL: Record<NeedsKind, string> = {
   agent: "Agent requests",
+  approval: "Approvals",
   reply: "Replies",
   due: "Due",
   email: "Email",
@@ -51,6 +56,8 @@ export interface NeedsItem {
   /** The thing to act on: a task's uuid and project, a post to reply under, a pending action. */
   taskUuid?: string
   projectUuid?: string
+  /** A task's status as it was (its custom id or built-in key), for Done's Undo. */
+  statusValue?: string
   postUuid?: string
   refId?: string
   /** The time at the row's right edge. */
@@ -76,16 +83,6 @@ export function groupNeeds(items: NeedsItem[], cap = NEEDS_CAP): { groups: Needs
   }
   const shownCount = groups.reduce((n, g) => n + g.items.length, 0)
   return { groups, more: items.length - shownCount, total: items.length }
-}
-
-/** Counts per kind, for the summary sentence. */
-export function needsCounts(items: NeedsItem[]): Record<NeedsKind, number> & { overdue: number } {
-  const c = { agent: 0, reply: 0, due: 0, email: 0, overdue: 0 }
-  for (const i of items) {
-    c[i.kind]++
-    if (i.kind === "due" && i.overdue) c.overdue++
-  }
-  return c
 }
 
 /** Plain words of a message, with the reader's own mention said as "@You". */
@@ -159,6 +156,31 @@ export function dmsToNeeds(chats: UserDMInterface[], selfId: string | undefined)
   return out
 }
 
+/**
+ * Requests waiting for the reader's yes, newest first as the server sends
+ * them: the item, what is asked (or where a held move goes), who asked and
+ * by when. The row links to the item, whose card takes the answer.
+ */
+export function approvalsToNeeds(rows: WaitingApproval[], now: Date): (NeedsItem & { href: string })[] {
+  return rows.map((r) => {
+    const due = dueLabel(r.due_at, now)
+    return {
+      id: `approval:${r.approval_id}`,
+      kind: "approval" as const,
+      title: r.title,
+      quote: r.ask || (r.to_name ? `Move to ${r.to_name}` : undefined),
+      person: r.asker ? { id: r.asker.user_uuid, name: displayNameOf(r.asker) || "Someone", bot: !!r.asker.is_bot } : undefined,
+      due: due || undefined,
+      overdue: !!due && Date.parse(r.due_at!) < now.getTime(),
+      when: r.due_at,
+      project: r.project_id && r.project_name ? { id: r.project_id, name: r.project_name } : undefined,
+      href: r.path,
+      taskUuid: r.kind === "task" ? r.id : undefined,
+      projectUuid: r.project_id,
+    }
+  })
+}
+
 const OPEN = (s: string) => !/^(done|cancel)/i.test(s || "")
 
 /** Tasks overdue or due by the end of today, oldest first. */
@@ -183,6 +205,7 @@ export function tasksToNeeds(tasks: TaskInfoInterface[], now: Date): NeedsItem[]
         href: `/app/task/${t.task_uuid}`,
         taskUuid: t.task_uuid,
         projectUuid: t.task_project?.project_uuid,
+        statusValue: t.task_custom_status || t.task_status,
       }
     })
 }

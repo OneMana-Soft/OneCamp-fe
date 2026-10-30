@@ -103,6 +103,22 @@ describe("a guest commenting on a shared doc", () => {
     expect(screen.getByText("1").className).not.toMatch(/rounded-full/)
   })
 
+  it("gives a teammate's reply their own face: initials and hue from their name, not the label", async () => {
+    const team: GuestDocComment = { id: "r1", guest_name: "Maya Chen from Acme", author_name: "Maya Chen", body: "Done.", created_at: comment.created_at, parent_id: "c1", from_team: true }
+    await open("view", [comment, team])
+    const row = screen.getByText("Done.").closest("li")!
+    expect(row.querySelector("[class*='avatar-person']")?.textContent).toBe("MC")
+    expect(screen.getByText("Maya Chen from Acme")).toBeInTheDocument()
+  })
+
+  it("labels the name above a field of the composer's full width", async () => {
+    await open()
+    const field = screen.getByLabelText("Your name")
+    expect(field.className).toMatch(/\bw-full\b/)
+    expect(field.className).not.toMatch(/max-w-/)
+    expect(field.parentElement?.className).toMatch(/\bgrid\b/)
+  })
+
   it("says the team will see a posted comment, which rises in", async () => {
     createGuestDocComment.mockResolvedValue({ ok: true, data: { ...comment, id: "c3", guest_name: "Jordan", body: "Nice" } })
     await open()

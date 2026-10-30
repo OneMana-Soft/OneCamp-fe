@@ -212,7 +212,7 @@ export default function TranscriptionSettingsCard() {
     // Saving the mode also busts the client-config SWR cache so open call UIs
     // pick up the new mode on their next read. Only the mode is taken from the
     // reply: speech-to-text edits still waiting in the save bar stay.
-    const saveMode = async (next: TranscriptionMode) => {
+    const saveMode = async (next: TranscriptionMode): Promise<boolean> => {
         const before = mode
         setMode(next)
         const ok = await runMode(async () => {
@@ -222,9 +222,10 @@ export default function TranscriptionSettingsCard() {
                 setMode(c.mode)
             }
             globalMutate("client-config")
-        })
+        }, { what: `Transcription: ${MODE_LABEL[next]}`, undo: () => saveMode(before) })
         // A refusal slides the choice back; its reason is under the label.
         if (!ok) setMode(before)
+        return ok
     }
 
     const pickMode = (next: TranscriptionMode) => {

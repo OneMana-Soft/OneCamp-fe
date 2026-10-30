@@ -4,8 +4,9 @@
 // the row says "Saved" with a moss tick that springs in beside its label,
 // stays 1.6s and fades, and a polite live region says it to a screen reader.
 // A failure puts the control back, shakes the row twice and leaves the
-// server's reason under the label. Never a toast for a routine save, and
-// never the celebration.
+// server's reason under the label. Never the celebration. A save that held
+// can be offered back on the toast (design-14's Undo, over the old "never a
+// toast for a routine save").
 
 import * as React from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -35,15 +36,29 @@ export function reasonOf(err: unknown): string {
   return apiErrorMessage(err, "Try again in a moment.") || "Try again in a moment."
 }
 
+/** The toast's words for a saved change, and the caller's own way back (false: it didn't hold). */
+export interface UndoOffer {
+  what: string
+  description?: string
+  undo: () => unknown
+}
+
+/** A switch's offer: "Read receipts: Off", and back is the other way. */
+export function switchOffer(label: string, next: boolean, change: (on: boolean) => unknown): UndoOffer {
+  return { what: `${label}: ${next ? "On" : "Off"}`, undo: () => change(!next) }
+}
+
 /**
- * A row's save status. `run(save)` marks it saving, then saved (for 1.9s, the
- * tick's 1.6s plus its fade) or failed with the reason. The caller restores
- * its own control on failure: `run` resolves to whether the save held.
+ * A row's save status. `run(save, offer?)` marks it saving, then saved (for
+ * 1.9s, the tick's 1.6s plus its fade) or failed with the reason, and offers
+ * a held save back. The caller restores its own control on failure: `run`
+ * resolves to whether the save held.
  */
 export function useSaveStatus() {
   const [status, setStatus] = useState<SaveStatus>({ state: "idle", failures: 0 })
   const timer = useRef<number | undefined>(undefined)
   const mounted = useRef(true)
+  const undoing = useRef(false)
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -52,7 +67,7 @@ export function useSaveStatus() {
     }
   }, [])
 
-  const run = useCallback(async (save: () => Promise<unknown>): Promise<boolean> => {
+  const run = useCallback(async (save: () => Promise<unknown>, offer?: UndoOffer): Promise<boolean> => {
     window.clearTimeout(timer.current)
     setStatus((s) => ({ ...s, state: "saving", error: undefined }))
     try {
@@ -62,6 +77,7 @@ export function useSaveStatus() {
       timer.current = window.setTimeout(() => {
         if (mounted.current) setStatus((s) => ({ ...s, state: "idle" }))
       }, SAVED_MS)
+      if (offer && !undoing.current) void import("@/components/ui/undoToast").then((m) => m.offerBack(offer, undoing))
       return true
     } catch (err) {
       if (mounted.current) setStatus((s) => ({ state: "error", error: reasonOf(err), failures: s.failures + 1 }))

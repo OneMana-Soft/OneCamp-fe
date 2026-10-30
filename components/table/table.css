@@ -8,6 +8,14 @@
 .v3-grid {
   --grid-gutter: 44px;
   --grid-frozen-shadow: rgb(16 18 26 / 0.12);
+  /* The grid's foot, read by the New row line and the summary bar's cells,
+     and by a phone's selection bar (A4): its box ends --float-foot over the
+     frame's foot, over the New row line, the summary bar (its row and its
+     hairline rule) and a gap. Its height, --float-bar, is FloatingBar's. */
+  --grid-new-row: 36px;
+  --grid-sum-row: 32px;
+  --float-gap: 8px;
+  --float-foot: calc(var(--grid-new-row) + var(--grid-sum-row) + 1px + var(--float-gap));
 }
 .dark .v3-grid {
   --grid-frozen-shadow: rgb(0 0 0 / 0.6);
@@ -33,6 +41,40 @@
 }
 .v3-grid tbody tr[data-selected="true"] > * {
   background-color: color-mix(in oklab, var(--sheet), var(--ink) 5.5%);
+}
+/* A cell a colour rule or a colour scale tints (V3 cell colours,
+   applyRules cellTints): its hue over the sheet, a rule's at one strength,
+   a scale's in four steps from light to strong ("moss-3"). The pointer and
+   the selection deepen it as they do any cell. Hues are the camp's (TB16). */
+.v3-grid tbody td[data-tint] {
+  --tint: 24%;
+  --tinted: color-mix(in oklab, var(--tint-hue) var(--tint), var(--sheet));
+  background-color: var(--tinted);
+}
+.v3-grid tbody td[data-tint^="sky"] { --tint-hue: var(--camp-sky); }
+.v3-grid tbody td[data-tint^="moss"] { --tint-hue: var(--camp-moss); }
+.v3-grid tbody td[data-tint^="sun"] { --tint-hue: var(--camp-sun); }
+.v3-grid tbody td[data-tint^="dusk"] { --tint-hue: var(--camp-dusk); }
+.v3-grid tbody td[data-tint^="berry"] { --tint-hue: var(--camp-berry); }
+.v3-grid tbody td[data-tint^="lake"] { --tint-hue: var(--camp-lake); }
+.v3-grid tbody td[data-tint$="-1"] { --tint: 9%; }
+.v3-grid tbody td[data-tint$="-2"] { --tint: 18%; }
+.v3-grid tbody td[data-tint$="-3"] { --tint: 28%; }
+.v3-grid tbody td[data-tint$="-4"] { --tint: 38%; }
+/* On the dark sheet a hue mixed in shows less: each step a little stronger.
+   Ink keeps 5:1 or more on every hue (sun's 44% is the lowest, 5.09). */
+.dark .v3-grid tbody td[data-tint] { --tint: 30%; }
+.dark .v3-grid tbody td[data-tint$="-1"] { --tint: 14%; }
+.dark .v3-grid tbody td[data-tint$="-2"] { --tint: 24%; }
+.dark .v3-grid tbody td[data-tint$="-3"] { --tint: 34%; }
+.dark .v3-grid tbody td[data-tint$="-4"] { --tint: 44%; }
+@media (hover: hover) {
+  .v3-grid tbody tr:hover > td[data-tint] {
+    background-color: color-mix(in oklab, var(--tinted), var(--ink) 4%);
+  }
+}
+.v3-grid tbody tr[data-selected="true"] > td[data-tint] {
+  background-color: color-mix(in oklab, var(--tinted), var(--ink) 5.5%);
 }
 
 /* The row-number gutter and the primary column stay put sideways. */
@@ -116,8 +158,10 @@
   box-shadow: var(--shadow-e2);
 }
 
-/* A focused cell sits on --raised under the ring. */
-.v3-grid tbody td:focus-within {
+/* A focused cell sits on --raised under the ring. The gutter isn't a cell: its
+   checkbox and open button wear their own focus ring, and on --raised it stayed
+   lifted in dark after a tap (DB-27). */
+.v3-grid tbody td:not([data-gutter]):focus-within {
   background-color: var(--raised) !important;
 }
 
@@ -208,6 +252,28 @@
   opacity: 0.6;
 }
 
+/* A touch screen shows a row's checkbox and open button side by side, each a
+   24px tap (WCAG 2.5.8) that shares no pixel with the other, and the button
+   8px clear of the first cell, whose taps it once took (TAB-BUG-15; DB-27,
+   28 Oct). Where the gutter holds both it is 56px, the frozen column following
+   the variable: the checkbox 0-24, the button 24-48. The box is still drawn at
+   16px, inside a clear 4px edge that takes the tap too. */
+@media (hover: none) {
+  .v3-grid[data-gutter-pair] {
+    --grid-gutter: 56px;
+  }
+  .v3-grid [data-gutter] .v3-check {
+    width: 24px;
+    height: 24px;
+    border: 4px solid transparent;
+    border-radius: 9px;
+    background-clip: padding-box;
+  }
+  .v3-grid [data-gutter] .v3-check:focus-visible {
+    outline-offset: -2px;
+  }
+}
+
 /* ---- cells -------------------------------------------------------------- */
 
 /* A number column's percent bar: 48 × 4 on --press, filled in ink-3. */
@@ -246,6 +312,30 @@
   box-shadow: inset 0 1px 0 var(--line);
 }
 
+/* ---- an edit on its way ------------------------------------------------- */
+
+/* A cell, or a phone list's row, whose edit is still saving (useCellCommit;
+   aria-busy) shows the edit at once, and the save dot's breathing ink-3 dot
+   in its corner (components/docEditor/SaveDot), only once the save has
+   lasted 700 ms, as the page's own dot: a quick save never flickers it. */
+.v3-grid-list > li[data-saving] {
+  position: relative;
+}
+:is(.v3-grid tbody td, .v3-grid-list > li)[data-saving]::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 1;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--ink-3);
+  opacity: 0;
+  pointer-events: none;
+  animation: content-save-pulse var(--content-save-dot-duration) var(--content-save-dot-ease) 700ms infinite;
+}
+
 /* ---- a column menu's sub-page slides in from the right ----------------- */
 
 @keyframes table-sub-in {
@@ -272,4 +362,78 @@
    text in from the fields once the record opened as a page. */
 .row-page :is(.doc-measure, .doc-measure-full) {
   max-width: none;
+}
+
+/* The table page on a computer (DB-23's must, 27 Oct): the page is the
+   sheet's height, and its view takes the height left under the toolbar, so
+   what is under the rows, the grid's "+ New row", ends inside the card. The
+   view's own cap (TABLE_VIEW_BODY, the screen less 16rem) was a guess at what
+   stands above it, and a notice over the page or a toolbar on two lines made
+   it too tall: New row and the summary bar were cut at the card's foot. A
+   view still grows with its rows, so a short table's New row sits under its
+   last row. A phone's page scrolls as a whole, and a doc's embed scrolls its
+   own box, so both keep the cap. Rules here, not classes: the table route's
+   first load counts every byte of its scripts. */
+@media (width >= 40rem) {
+  [data-table-page] {
+    height: 100%;
+  }
+  [data-table-frame] {
+    padding-bottom: 0.5rem;
+  }
+  [data-table-frame] > .v3-grid {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  /* Only the scrolling bodies give way: a toolbar on two lines, shrunk to
+     its one line's height, hid its second behind the grid. */
+  [data-table-frame] > *,
+  [data-table-frame] > .v3-grid > * {
+    flex-shrink: 0;
+  }
+  [data-table-frame] > .v3-grid,
+  [data-table-frame] :is([data-table-grid], [data-table-board], [data-table-calendar], [data-table-chart]) {
+    flex-shrink: 1;
+    max-height: none;
+  }
+  /* The selection bar floats on the New row line (34 px on its 36), under
+     the summary bar: it hides no row and no sum, and "+ New row" stays in
+     reach at the line's start (DB-23's SF; at 5rem it covered the last
+     row's values). Sticky, as it is where something scrolls, it would sit
+     in the flow under New row here and take the rows' height as it came. */
+  [data-table-frame] [data-selection-float] {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 1px;
+  }
+  /* There the bar hides no row: nothing to make room for. */
+  [data-float-room] {
+    display: none;
+  }
+}
+
+/* A phone's summary bar is under the New row line's place, so a row's
+   selection bar floats over the rows, 8 px over the sums, wherever the page
+   is scrolled (A4). While it shows, the rows end with room for it and a gap
+   on each side: the last row scrolls clear of it (DB-29's should-fix). */
+@media (width < 40rem) {
+  [data-float-over-sums] {
+    pointer-events: none;
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    bottom: var(--float-foot);
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  [data-float-room] {
+    height: calc(var(--float-bar) + 2 * var(--float-gap));
+  }
+  [data-float-room] > td {
+    padding: 0;
+    border: 0;
+  }
 }

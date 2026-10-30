@@ -47,7 +47,7 @@ import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { useProjectHue } from "@/lib/projectHue"
 import { relativeTime } from "@/lib/utils/relativeTime"
-import { GuestCard, GuestStatusGlyph, awaitsReview } from "@/components/guest/GuestReview"
+import { GuestAskNote, GuestCard, GuestStatusGlyph, awaitsReview } from "@/components/guest/GuestReview"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 // The timeline is one tab of three, so it arrives when a guest opens it
@@ -352,6 +352,7 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
             </div>
             {task.description && <p className="whitespace-pre-wrap break-words text-sm">{task.description}</p>}
             {task.review && <ReviewBadge review={task.review} withNote />}
+            {task.waiting ? <GuestAskNote ask={task.waiting} /> : null}
             {task.can_comment && (
               <ReviewControls
                 name={name}
@@ -424,14 +425,14 @@ function ReviewControls({ name, onReview }: { name: string; onReview: (decision:
     <section aria-label="Your verdict" className="grid gap-2 rounded-md border p-3">
       {!asking ? (
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => send("approved")} disabled={busy}>Approve</Button>
-          <Button size="sm" variant="outline" onClick={() => setAsking(true)} disabled={busy}>Request changes</Button>
+          <Button size="sm" onClick={() => send("approved")} busy={busy}>Approve</Button>
+          <Button size="sm" variant="outline" onClick={() => setAsking(true)} disabled={busy}>Ask for changes</Button>
         </div>
       ) : (
         <div className="grid gap-2">
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What should change?" aria-label="What should change?" rows={3} maxLength={2000} autoFocus />
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => send("changes")} disabled={busy || !note.trim()}>Send</Button>
+            <Button size="sm" onClick={() => send("changes")} disabled={!note.trim()} busy={busy}>Send</Button>
             <Button size="sm" variant="ghost" onClick={() => setAsking(false)} disabled={busy}>Cancel</Button>
           </div>
         </div>

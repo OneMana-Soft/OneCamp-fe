@@ -2,7 +2,8 @@
 // so the signed-in axios instance (refresh, CSRF, logout) is never involved,
 // as with guest links. Failures carry the server's message, written for people.
 
-const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "")
+/** The server public calls go to (no trailing slash). */
+export const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "")
 
 export type PublicResult<T> = { ok: true; data: T } | { ok: false; status: number; msg: string; code?: string; retryAfter?: number }
 
@@ -10,7 +11,7 @@ export async function publicCall<T>(path: string, init?: RequestInit): Promise<P
   try {
     const res = await fetch(backendBase + path, {
       ...init,
-      headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}) },
+      headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}), ...init?.headers },
     })
     const body = await res.json().catch(() => ({}))
     if (res.ok) return { ok: true, data: (body as { data: T }).data }

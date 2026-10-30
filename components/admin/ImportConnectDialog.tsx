@@ -18,6 +18,14 @@
  *              via discover dialog.
  *   monday   — Personal API token (avatar → Developers → My access
  *              tokens). Single token; workspace picked via discover.
+ *   Basecamp — no tokens to paste: the admin signs in at Basecamp
+ *              (signIn) and comes back to the import page, connected.
+ *   Miro     — the OAuth token of an app the admin makes in their own
+ *              Miro (owner decision O3: no OneCamp Miro app), installed on
+ *              the team that holds the boards. Board picked via discover.
+ *   Airtable — Personal access token (airtable.com/create/tokens) with
+ *              data.records:read and schema.bases:read and access to the
+ *              bases; a base picked via discover, or every base.
  *
  * Tokens are sent over the admin-only API and encrypted at rest with
  * AES-256-GCM. The dialog never reads them back — re-connecting
@@ -34,20 +42,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { SetupSentence } from "@/components/ui/setupSentence"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/ui/field"
 import { useToast } from "@/hooks/use-toast"
-import { connectImport, importProblemOf, importProviderLabel, type ImportProvider } from "@/services/importService"
-import { Loader2 } from "lucide-react"
+import {
+  connectImport,
+  importProblemOf,
+  importProviderLabel,
+  importSignInURL,
+  type ProviderInfo,
+  type TokenProvider,
+} from "@/services/importService"
+import { leaveTo } from "@/lib/navigate"
+import { webURL } from "@/lib/links/webURL"
 
 interface Props {
-  provider: ImportProvider
+  provider: TokenProvider
   open: boolean
   onOpenChange: (open: boolean) => void
   onConnected: () => void
+  /** Set for a provider connected by signing in at it rather than with a token. */
+  signIn?: ProviderInfo["sign_in"]
 }
 
-const HELP_LINK: Record<ImportProvider, string> = {
+const HELP_LINK: Record<TokenProvider, string> = {
   // trello.com/app-key no longer issues keys: a key now comes from a Power-Up.
   trello: "https://trello.com/power-ups/admin",
   asana: "https://app.asana.com/0/my-apps",
@@ -57,22 +76,84 @@ const HELP_LINK: Record<ImportProvider, string> = {
   linear: "https://linear.app/settings/api",
   clickup: "https://app.clickup.com/settings/apps",
   monday: "https://developer.monday.com/api-reference/docs/authentication",
+  basecamp: "https://launchpad.37signals.com/integrations",
+  miro: "https://developers.miro.com/docs/rest-api-build-your-first-hello-world-app",
+  airtable: "https://airtable.com/create/tokens",
+  // Google Sheets signs in with the server's Google client, made here.
+  gsheets: "https://console.cloud.google.com/apis/credentials",
 }
 
 // Where the token lives when the help link can't point at it directly
 // (monday's token page sits under each account's own subdomain).
-const TOKEN_HINT: Partial<Record<ImportProvider, string>> = {
+const TOKEN_HINT: Partial<Record<TokenProvider, string>> = {
   trello:
     "Trello gives API keys to Power-Ups now. Open trello.com/power-ups/admin, create a Power-Up (any name, in your Workspace), open its API key page and generate a key. Copy the API key, then follow the Token link beside it, allow access, and copy the token.",
   jira:
     "Use a classic API token: at id.atlassian.com, open Security, then Create and manage API tokens, and choose Create API token (not the one with scopes). Use the email you sign in to Jira with.",
   monday: "In monday.com, click your avatar, then Developers → My access tokens → Show, and copy the personal API token. Imports see the boards that user can open.",
+  miro: "In Miro, open your profile settings, then Your apps, and create an app (Miro makes a free Developer team for it). Give it the boards:read permission, choose Install app and get OAuth token for the team that holds your boards, and copy the token. Imports see that team's boards.",
+  airtable:
+    "At airtable.com/create/tokens, create a token with the scopes data.records:read and schema.bases:read, add the bases to bring under Access, and copy it. Imports see only the bases you add.",
 }
 
 type FieldKey = "siteURL" | "email" | "apiKey" | "accessToken"
 const FIELD_ORDER: FieldKey[] = ["siteURL", "email", "apiKey", "accessToken"]
 
-export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenChange, onConnected }) => {
+export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenChange, onConnected, signIn }) => {
+  if (signIn) return <SignInDialog provider={provider} signIn={signIn} open={open} onOpenChange={onOpenChange} />
+  return <TokenDialog provider={provider} open={open} onOpenChange={onOpenChange} onConnected={onConnected} />
+}
+
+/** Signing in at the provider: the admin leaves for its sign-in page and comes back connected. */
+function SignInDialog({ provider, signIn, open, onOpenChange }: { provider: TokenProvider; signIn: NonNullable<ProviderInfo["sign_in"]>; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [leaving, setLeaving] = useState(false)
+  const [problem, setProblem] = useState("")
+  const name = importProviderLabel(provider)
+  const go = async () => {
+    setLeaving(true)
+    setProblem("")
+    try {
+      const url = await importSignInURL(provider)
+      if (!url) throw new Error()
+      leaveTo(url)
+    } catch (err: unknown) {
+      setProblem(importProblemOf(err, `Couldn't start signing in to ${name}. Try again.`).message)
+      setLeaving(false)
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connect {name}</DialogTitle>
+          <DialogDescription>
+            {signIn.configured
+              ? `You'll sign in to ${name}, allow this workspace to read it, and come back here to pick what to import. The sign-in is encrypted at rest and never returned in API responses.`
+              : <SetupSentence text={signIn.setup ?? `${name} is connected by signing in, and this server isn't set up for that yet.`} />}
+          </DialogDescription>
+        </DialogHeader>
+        {problem && (
+          <p role="alert" className="cx-imp-note text-sm text-danger-ink">
+            {problem}
+          </p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={leaving}>
+            {signIn.configured ? "Cancel" : "Close"}
+          </Button>
+          {signIn.configured && (
+            <Button onClick={go} busy={leaving}>
+              {leaving ? `Opening ${name}…` : `Continue to ${name}`}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Pasting a token: tested with the provider before it is saved. */
+function TokenDialog({ provider, open, onOpenChange, onConnected }: Omit<Props, "signIn">) {
   const { toast } = useToast()
   const [accessToken, setAccessToken] = useState("")
   const [apiKey, setApiKey] = useState("")
@@ -103,7 +184,7 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
   const handleSubmit = async () => {
     // In the order the fields are on screen, so the cursor goes to the first.
     const found: Partial<Record<FieldKey, string>> = {}
-    if (needsSiteURL && !/^https?:\/\/\S+/i.test(siteURL.trim())) {
+    if (needsSiteURL && !webURL(siteURL)) {
       found.siteURL = "Enter your Atlassian site's address, like https://acme.atlassian.net."
     }
     if (needsEmail && !email.trim()) found.email = "Enter the email you sign in to Jira with."
@@ -226,7 +307,7 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
             <Input
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
-              placeholder="Acme Inc.…"
+              placeholder="Acme Inc."
               autoComplete="off"
             />
           </Field>
@@ -242,14 +323,8 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking with {importProviderLabel(provider)}…
-              </>
-            ) : (
-              "Connect"
-            )}
+          <Button onClick={handleSubmit} busy={submitting}>
+            {submitting ? `Checking with ${importProviderLabel(provider)}…` : "Connect"}
           </Button>
         </DialogFooter>
       </DialogContent>

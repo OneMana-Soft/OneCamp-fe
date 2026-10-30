@@ -9,11 +9,12 @@ import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { appMutate } from "@/lib/swrMutate"
-import { ProjectsGet } from "@/services/endpoints/projects"
+import { ProjectsGet, ProjectsPost } from "@/services/endpoints/projects"
 import { browserTZ } from "@/lib/utils/timeZone"
 import type { UpdateDraft } from "@/lib/projectUpdates"
 import type { UpdateInput } from "@/hooks/useProjectUpdates"
 import type { GoalCheckIn, GoalDetail, GoalInput, GoalSummary } from "@/lib/goals"
+import { listOnceRead } from "@/lib/utils/listOf"
 
 const tz = () => `tz=${encodeURIComponent(browserTZ())}`
 export const goalsKey = () => `${ProjectsGet.GoalList}?${tz()}`
@@ -47,7 +48,7 @@ export function useGoals() {
     await refreshGoals()
     return (res.data as { data: GoalSummary }).data
   }, [])
-  return { goals: data?.data?.goals, isLoading, isError: !!error, create, refresh: mutate }
+  return { goals: listOnceRead<{ data: { goals: GoalSummary[] | null } }, GoalSummary>(data, (a) => a.data?.goals), isLoading, isError: !!error, create, refresh: mutate }
 }
 
 export function useGoal(id: string | undefined) {
@@ -81,7 +82,7 @@ export function useGoal(id: string | undefined) {
     return (res.data as { data: UpdateDraft }).data
   }, [id])
   const aiDraft = useCallback(async (): Promise<UpdateDraft> => {
-    const res = await axiosInstance.post(ProjectsGet.AiGoalCheckInDraft, { goal_id: id, tz: browserTZ() })
+    const res = await axiosInstance.post(ProjectsPost.AiGoalCheckInDraft, { goal_id: id, tz: browserTZ() })
     return (res.data as { data: UpdateDraft }).data
   }, [id])
 

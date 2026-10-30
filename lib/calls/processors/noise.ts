@@ -7,30 +7,18 @@
 import type { AudioProcessorOptions, LocalAudioTrack, Track, TrackProcessor } from "livekit-client"
 import { RNNOISE } from "./assets"
 import type { NoiseLevel } from "./effects"
+import { CALL_MIC } from "../callMic"
+import { once } from "@/lib/lazy/once"
 
 type Lib = typeof import("@sapphi-red/web-noise-suppressor")
 type Node = InstanceType<Lib["RnnoiseWorkletNode"]>
 
-let lib: Promise<Lib> | null = null
-let wasm: Promise<ArrayBuffer> | null = null
 const worklets = new WeakMap<BaseAudioContext, Promise<void>>()
 
-const load = (): Promise<Lib> => {
-  lib ??= import("@sapphi-red/web-noise-suppressor").catch((e: unknown) => {
-    lib = null
-    throw e
-  })
-  return lib
-}
+const load = once((): Promise<Lib> => import("@sapphi-red/web-noise-suppressor"))
 
 /** RNNoise's WebAssembly, fetched once per page (the SIMD build where the browser has SIMD). */
-function binary(m: Lib): Promise<ArrayBuffer> {
-  wasm ??= m.loadRnnoise({ url: RNNOISE.wasm, simdUrl: RNNOISE.simd }).catch((e: unknown) => {
-    wasm = null
-    throw e
-  })
-  return wasm
-}
+const binary = once(async (): Promise<ArrayBuffer> => (await load()).loadRnnoise({ url: RNNOISE.wasm, simdUrl: RNNOISE.simd }))
 
 /** Its worklet, added once to each audio context. */
 function worklet(ctx: AudioContext): Promise<void> {
@@ -81,7 +69,7 @@ export class StrongNoise implements TrackProcessor<Track.Kind.Audio, AudioProces
   private async build(track: MediaStreamTrack, ctx: AudioContext | undefined): Promise<void> {
     if (!ctx) throw new Error("Strong noise reduction needs the call's audio, which hasn't started.")
     const m = await load()
-    const [wasmBinary] = await Promise.all([binary(m), worklet(ctx)])
+    const [wasmBinary] = await Promise.all([binary(), worklet(ctx)])
     // A suspended context passes no sound: the call would go silent.
     if (ctx.state !== "running") await ctx.resume().catch(() => undefined)
     if (ctx.state !== "running") throw new Error("This browser didn't start the sound for strong noise reduction.")
@@ -153,8 +141,8 @@ export class StrongNoise implements TrackProcessor<Track.Kind.Audio, AudioProces
  * still has no echo, and nothing else. Pure.
  */
 export function captureFor(level: NoiseLevel, deviceId: string | undefined): AudioCapture {
-  // The room's own capture (roomOptions.ts): one channel of speech at 48 kHz.
-  const base: AudioCapture = { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), channelCount: 1, sampleRate: { ideal: 48000 }, sampleSize: 16, echoCancellation: true }
+  // The room's own capture (lib/calls/callMic): one channel of speech at 48 kHz.
+  const base: AudioCapture = { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), ...CALL_MIC, echoCancellation: true }
   if (level === "standard") return { ...base, noiseSuppression: true, autoGainControl: true }
   if (level === "strong") return { ...base, noiseSuppression: false, autoGainControl: true, voiceIsolation: false }
   return { ...base, noiseSuppression: false, autoGainControl: false, voiceIsolation: false }

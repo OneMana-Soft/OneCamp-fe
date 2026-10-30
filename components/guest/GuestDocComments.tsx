@@ -21,12 +21,15 @@
 
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import * as React from "react"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { Skeleton } from "@/components/ui/skeleton"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { PaperCard } from "@/components/guest/PublicFrame"
-import { Eye, Loader2 } from "@/lib/icons"
+import { Eye } from "@/lib/icons"
 import {
   listGuestDocComments,
   createGuestDocComment,
@@ -35,6 +38,10 @@ import {
 import { retryingText, sendFailedText } from "@/services/publicApi"
 import { GUEST_NAME_MAX, guestWhen, useGuestAnswer, useGuestName } from "@/components/guest/guestUi"
 import { cn } from "@/lib/utils/helpers/cn"
+import { threadsOf } from "@/lib/guestThread/threadsOf"
+
+// Loaded only where a link may comment.
+const GuestDocVerdict = dynamic(() => import("@/components/guest/GuestDocVerdict").then((m) => m.GuestDocVerdict), { ssr: false })
 
 interface GuestDocCommentsProps {
   token: string
@@ -46,9 +53,8 @@ const NO_NAME = "Add your name first, so the team knows who wrote this."
  * The comments card under the shared doc (content.md D21): 816 px, r16, e1,
  * 24 px in, the comments in the doc panel's card style (an avatar in the
  * guest's hue, the name, the Guest tag, when, then the words at 14/22). The
- * composer is a floating card: "Your name" inline at the top (remembered for
- * this link), the comment at 15/23, and Comment, enabled once both are filled.
- * A new comment rises in (row-in) with a line saying the team will see it.
+ * composer is a card: "Your name" (kept for this link), the comment, and
+ * Comment once both are filled; a new comment rises in.
  */
 export function GuestDocComments({ token }: GuestDocCommentsProps) {
   const { data, trouble } = useGuestAnswer(`doc-comments:${token}`, () => listGuestDocComments(token))
@@ -122,13 +128,14 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
           <p className="mt-2 text-ui text-ink-2">{canComment ? "No comments yet. Leave the first one below." : "No comments yet."}</p>
         ) : (
           <ul className="mt-3 grid gap-4">
-            {comments.map((c) => (
-              <li key={c.id} className={cn("flex gap-3", posted.some((p) => p.id === c.id) && "content-row-in")}>
-                <IdentityMark variant="avatar" size={28} id={avatarSeed(c.guest_name)} label={c.guest_name || "Guest"} />
+            {threadsOf(comments).flatMap((t) => [t.comment, ...t.replies]).map((c) => (
+              <li key={c.id} className={cn("flex gap-3", c.from_team && "ml-10", posted.some((p) => p.id === c.id) && "content-row-in")} data-guest-reply={c.from_team ? "" : undefined}>
+                {/* A teammate's face is their own, seeded by their name as in the workspace; the label says where they're from. */}
+                <IdentityMark variant="avatar" size={28} id={avatarSeed(c.author_name || c.guest_name)} label={c.author_name || c.guest_name || "Guest"} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="text-ui font-medium text-ink">{c.guest_name}</span>
-                    <PrincipalTag kind="guest" />
+                    {c.from_team ? null : <PrincipalTag kind="guest" />}
                     <time className="text-meta text-ink-3" dateTime={c.created_at}>
                       {guestWhen(c.created_at)}
                     </time>
@@ -148,18 +155,18 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
 
         {canComment ? (
           <form
-            className="composer-card mt-5 rounded-xl bg-raised p-3"
+            className="mt-5 rounded-xl bg-sunken p-3"
             data-guest-composer=""
             onSubmit={(e) => {
               e.preventDefault()
               void post()
             }}
           >
-            <div className="flex items-center gap-2">
-              <label htmlFor={nameId} className="shrink-0 text-ui-sm text-ink-3">
+            <div className="grid gap-1">
+              <label htmlFor={nameId} className="text-ui-sm font-medium text-ink-2">
                 Your name
               </label>
-              <input
+              <Input
                 ref={nameRef}
                 id={nameId}
                 name="name"
@@ -172,19 +179,18 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
                 maxLength={GUEST_NAME_MAX}
                 aria-invalid={!!nameError}
                 aria-describedby={nameError ? `${nameId}-err` : undefined}
-                className="h-8 min-w-0 flex-1 rounded-lg bg-sunken px-2.5 text-ui text-ink outline-none placeholder:text-ink-3 focus-visible:focus-halo aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-destructive max-sm:text-base sm:max-w-60"
                 placeholder="So the team knows who wrote this"
               />
             </div>
             {nameError ? (
-              <p id={`${nameId}-err`} className="mt-1 text-meta text-danger-ink">
+              <p id={`${nameId}-err`} className="mt-1 text-meta text-danger-ink text-pretty">
                 {nameError}
               </p>
             ) : null}
             <label htmlFor={bodyId} className="sr-only">
               Comment
             </label>
-            <textarea
+            <Textarea
               id={bodyId}
               name="comment"
               value={draft}
@@ -196,7 +202,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
               placeholder="What would you change, or what works?"
               rows={3}
               maxLength={4000}
-              className="mt-2 block w-full resize-y bg-transparent px-0.5 text-body text-ink outline-none placeholder:text-ink-3 max-sm:text-base"
+              className="mt-2 max-h-60"
             />
             {sendError && (
               <p role="alert" className="mt-1 text-meta font-medium text-danger-ink">
@@ -204,12 +210,14 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
               </p>
             )}
             <div className="mt-2 flex justify-end">
-              <Button type="submit" size="sm" disabled={posting || !draft.trim() || !name.trim()} className="relative">
-                <span className={cn(posting && "invisible")}>Comment</span>
-                {posting ? <Loader2 className="absolute size-3.5 animate-spin" aria-label="Posting" /> : null}
+              <Button type="submit" size="sm" disabled={!draft.trim() || !name.trim()} busy={posting}>
+                Comment
               </Button>
             </div>
           </form>
+        ) : null}
+        {canComment ? (
+          <GuestDocVerdict token={token} name={name} onNoName={() => { setNameError(NO_NAME); nameRef.current?.focus() }} />
         ) : (
           <p className="mt-4 inline-flex items-center gap-1.5 text-meta text-ink-3">
             <Eye className="size-3.5" aria-hidden="true" /> This link is view only.

@@ -23,9 +23,10 @@ import { celebrateOnce } from "@/lib/celebrateSoon"
 import { springPop } from "@/lib/spring"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
+import { SearchInput } from "@/components/ui/search-input"
 import { SafeHtml } from "@/components/safeHtml/SafeHtml"
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml"
-import { ArrowLeft, ArrowUp, ExternalLink, Loader2, Lock, MoreHorizontal, RefreshCw, Search, Sparkles, CircleCheck, X } from "@/lib/icons"
+import { ArrowLeft, ArrowUp, ExternalLink, Loader2, Lock, MoreHorizontal, RefreshCw, Sparkles, CircleCheck, X } from "@/lib/icons"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { SpotEnvelope, SpotSearchV3 } from "@/components/ui/graphics/hubSpots"
 import { HubRow, HubRowSkeleton, HubToolButton } from "@/components/ui/hubRow"
@@ -316,24 +317,23 @@ export default function InboxPage() {
       <span className="grow" />
       <form
         role="search"
-        className={cn("hub-field relative hidden h-8 w-[280px] items-center rounded-md sm:flex", openId && "max-md:hidden")}
+        className={cn("hidden w-[280px] sm:flex", openId && "max-md:hidden")}
         onSubmit={(e) => {
           e.preventDefault()
           setApplied(query.trim())
         }}
       >
-        <Search className="pointer-events-none absolute left-2.5 size-3.5 text-ink-3" aria-hidden />
-        <input
+        <SearchInput
           ref={searchRef}
+          size="sm"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onValueChange={setQuery}
           placeholder="Search mail"
           aria-label="Search mail"
           name="q"
-          autoComplete="off"
-          className="h-full w-full rounded-md bg-transparent pl-8 pr-8 text-ui-sm text-foreground outline-none placeholder:text-ink-3"
+          clearable={false}
+          hint={<kbd className="kbd pointer-events-none">/</kbd>}
         />
-        {!query ? <kbd className="kbd pointer-events-none absolute right-2">/</kbd> : null}
       </form>
       <Button variant="ghost" size="icon-sm" aria-label="Refresh" onClick={() => void load(applied)}>
         <RefreshCw className="size-4" />
@@ -351,10 +351,7 @@ export default function InboxPage() {
           setApplied(query.trim())
         }}
       >
-        <div className="hub-field relative flex h-11 items-center rounded-[10px]">
-          <Search className="pointer-events-none absolute left-3 size-4 text-ink-3" aria-hidden />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search mail" aria-label="Search mail (phone)" className="h-full w-full bg-transparent pl-9 pr-3 text-base outline-none placeholder:text-ink-3" />
-        </div>
+        <SearchInput size="lg" value={query} onValueChange={setQuery} placeholder="Search mail" aria-label="Search mail (phone)" clearable={false} />
       </form>
       {applied && threads && threads.length > 0 ? (
         <div className="flex h-10 shrink-0 items-center gap-2 px-4 text-meta text-ink-3">
@@ -391,7 +388,7 @@ export default function InboxPage() {
               <p className="text-heading font-semibold text-foreground">Nothing matches “{applied}”</p>
               <p className="mt-1 text-ui text-ink-2">Check the spelling, or try fewer words.</p>
               <Button variant="secondary" size="sm" className="mt-4" onClick={() => { setQuery(""); setApplied("") }}>
-                Clear search
+                Show the whole inbox
               </Button>
             </div>
           ) : (

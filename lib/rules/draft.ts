@@ -1,4 +1,4 @@
-import type { Rule, RuleAction, RuleActionType, RuleCondition, ConditionField, ConditionOp, RuleDraft, RuleTemplate } from "@/lib/rules/types"
+import type { Rule, RuleAction, RuleActionType, RuleCondition, ConditionField, ConditionOp, RuleDraft, RuleTemplate, RuleTrigger, RuleTriggerConfig } from "@/lib/rules/types"
 
 /** A new rule's starting point. */
 export const BLANK_DRAFT: RuleDraft = {
@@ -79,15 +79,64 @@ export function newAction(type: RuleActionType): RuleAction {
       return { type, task_name: "" }
     case "notify":
       return { type, notify: "assignee", text: "{task} needs you" }
+    case "create_task":
+      return { type, task_name: "", priority: "medium" }
+    case "ask_agent":
+      return { type, text: "" }
     default:
       return { type }
   }
+}
+
+/** A trigger's starting settings: a schedule every Monday at 09:00, a due date's day before at 09:00. */
+export function triggerDefaults(t: RuleTrigger): RuleTriggerConfig {
+  switch (t) {
+    case "schedule":
+      return { repeat: "FREQ=WEEKLY;BYDAY=MO", at: "09:00" }
+    case "task_due_soon":
+      return { days: 1, at: "09:00" }
+    case "task_overdue":
+      return { at: "09:00" }
+    default:
+      return {}
+  }
+}
+
+/**
+ * A draft moved to another trigger. A schedule that makes a task starts with
+ * the task it makes and has no conditions; one that acts for each task starts
+ * by telling whoever has it, with the conditions choosing the tasks; neither
+ * has an otherwise.
+ */
+export function withTrigger(d: RuleDraft, t: RuleTrigger, eachTask = false): RuleDraft {
+  const trigger_config: RuleTriggerConfig = t === "schedule" ? { ...triggerDefaults(t), ...(d.trigger_type === "schedule" ? d.trigger_config : {}), each_task: eachTask || undefined } : triggerDefaults(t)
+  if (t !== "schedule") return { ...d, trigger_type: t, trigger_config, actions: d.actions.filter((a) => a.type !== "create_task" || d.trigger_type !== "schedule") }
+  if (eachTask) {
+    const kept = d.actions.filter((a) => a.type !== "create_task" && a.type !== "reply")
+    return { ...d, trigger_type: t, trigger_config, actions: kept.length ? kept : [newAction("notify")], else_actions: [] }
+  }
+  const rest = d.actions.filter((a) => a.type !== "create_task" && a.type !== "reply")
+  const made = d.actions.find((a) => a.type === "create_task") ?? newAction("create_task")
+  return { ...d, trigger_type: t, trigger_config, conditions: { match: "all", items: [] }, actions: [made, ...rest], else_actions: [] }
 }
 
 /** What's missing before a draft saves, in words, or "" when it's ready. */
 export function draftProblem(d: RuleDraft): string {
   if (!d.name.trim()) return "Name the rule."
   if (d.actions.length === 0) return "Add something for the rule to do."
+  if (d.trigger_type === "form_submitted" && !d.trigger_config.form_id) return "Pick the form."
+  if (d.trigger_type === "schedule") {
+    const c = d.trigger_config
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(c.at ?? "")) return "Choose the time it runs."
+    if (/BYDAY=(;|$)/.test(c.repeat ?? "") || !c.repeat) return "Choose the days it runs."
+    if (!c.each_task) {
+      if (d.actions[0]?.type !== "create_task") return "A schedule makes a task first, then acts on it."
+      if (!(d.actions[0].task_name ?? "").trim()) return "Name the task it makes."
+    }
+  }
+  if (d.trigger_type === "task_due_soon" && !(Number.isInteger(d.trigger_config.days) && d.trigger_config.days! >= 0 && d.trigger_config.days! <= 30)) {
+    return "Say how many days before the due date, 0 to 30."
+  }
   for (const c of d.conditions.items ?? []) {
     if (needsValue(c.op) && !(c.value ?? "").trim()) return `Fill in the ${FIELD_LABEL[c.field].toLowerCase()} condition.`
     if (c.field === "due" && c.op === "within_days" && !/^\d{1,3}$/.test(c.value ?? "")) return "Say the due date's days as a number."
@@ -96,8 +145,10 @@ export function draftProblem(d: RuleDraft): string {
     if (a.type === "add_comment" && !(a.text ?? "").trim()) return "Write the comment."
     if (a.type === "notify" && !(a.text ?? "").trim()) return "Write what the notice says."
     if (a.type === "notify" && a.notify === "people" && !(a.user_ids ?? []).length) return "Pick who to tell."
-    if (a.type === "add_subtask" && !(a.task_name ?? "").trim()) return "Name the sub-task."
+    if (a.type === "add_subtask" && !(a.task_name ?? "").trim()) return "Name the subtask."
     if (a.type === "assign" && a.assign === "person" && !(a.user_ids ?? []).length) return "Pick who gets it."
+    if (a.type === "ask_agent" && !(a.text ?? "").trim()) return "Write what to ask the agent."
+    if (a.type === "create_task" && !(a.task_name ?? "").trim()) return "Name the task it makes."
   }
   return ""
 }
@@ -114,3 +165,14 @@ export function savedIn(d: RuleDraft, tz: string): RuleDraft {
 
 /** The words a rule's message may carry, for the hint under a text field. */
 export const VARIABLES = ["{task}", "{status}", "{by}", "{project}", "{link}"]
+
+/**
+ * The words a rule's message may carry for its trigger. A form's rule has no
+ * status or mover to say, but its form, its project, and each answer as
+ * {answer:<question id>}, which the builder lists by question. An answered
+ * approval's rule says who answered last, how it ended and what they said.
+ */
+export const variablesFor = (t: RuleTrigger) =>
+  t === "form_submitted" ? ["{task}", "{form}", "{project}", "{link}"]
+  : t === "approval_decided" ? ["{task}", "{approver}", "{outcome}", "{comment}", "{project}", "{link}"]
+  : VARIABLES

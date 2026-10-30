@@ -12,6 +12,7 @@ import "./ai.css"
  */
 import * as React from "react"
 
+import { useGrowWithText } from "@/components/ui/textarea"
 import { ArrowUp, Mic } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { isComposingKey } from "@/lib/keys/ime"
@@ -63,37 +64,8 @@ export function AiComposer({
     else if (inputRef) (inputRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el
   }
   const min = size === "page" ? 40 : 24
-
-  // Grows with what is typed, up to 280 px, and shrinks back: measured after
-  // the value is in the DOM, with no height transition (a transition would
-  // read a stale scrollHeight and the box would never shrink).
-  const measure = React.useCallback(() => {
-    const el = local.current
-    if (!el) return
-    el.style.height = `${min}px`
-    // Empty is the least height. An empty textarea measures its placeholder,
-    // and the side panel opens by sliding in from nothing: measured in that
-    // narrow moment the placeholder wrapped a word a line, and the empty box
-    // stayed 280 px tall, half the panel.
-    if (!el.value) return
-    el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
-  }, [min])
-  React.useLayoutEffect(measure, [value, measure])
-  // Measured at one width, it is wrong at another (the panel sliding in, the
-  // window resized): measure again when the width changes, never on height,
-  // which this sets.
-  React.useEffect(() => {
-    const el = local.current
-    if (!el || typeof ResizeObserver === "undefined") return
-    let width = el.clientWidth
-    const ro = new ResizeObserver(() => {
-      if (el.clientWidth === width) return
-      width = el.clientWidth
-      measure()
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [measure])
+  // Grows with what is typed, up to 280 px, and shrinks back.
+  useGrowWithText(local, value)
 
   const empty = !value.trim()
   return (

@@ -11,7 +11,9 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   useFeature: (name: string) => repeatsOn && name === "calendar_repeats",
 }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
-vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }) }))
+// Guests' working hours (calendar A3): none kept here.
+vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({}) }))
+vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }), useFetch: () => ({ data: undefined, mutate: () => {} }) }))
 vi.mock("@/components/common/peoplePicker", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/common/peoplePicker")>()),
   PeoplePicker: () => <input aria-label="Guests" />,

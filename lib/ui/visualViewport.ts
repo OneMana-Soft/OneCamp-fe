@@ -132,3 +132,40 @@ export function followKeyboard(win: Win = window): () => void {
     write(CLOSED)
   }
 }
+
+/** Whether followKeyboard has fitted the app's frame to the keyboard (data-keyboard="open" on <html>). */
+export function frameFitted(doc: Document = document): boolean {
+  return doc.documentElement.getAttribute("data-keyboard") === "open"
+}
+
+/**
+ * Calls `listener` each time followKeyboard fits the frame or lets it go. It
+ * writes in a frame of its own, after the viewport's events, so what places
+ * itself by the fit listens here too. Returns a function that stops.
+ */
+export function onFrameFit(listener: () => void, doc: Document = document): () => void {
+  const watch = new MutationObserver(listener)
+  watch.observe(doc.documentElement, { attributes: true, attributeFilter: ["data-keyboard"] })
+  return () => watch.disconnect()
+}
+
+/** How far the keyboard reaches up from the screen's bottom, and how far a bar docked on it is raised in the box it's placed in. */
+export interface KeyboardDock {
+  keyboard: number
+  raise: number
+}
+
+/**
+ * A bar docked on the keyboard (V-72; a doc's Formatting bar). The keyboard is
+ * the screen's height less the visible part's bottom. A fixed bar inside the
+ * app's frame is placed in that frame while it is fitted (its transform makes
+ * it the box), and the fitted frame's bottom is already the keyboard's top: the
+ * bar is raised by nothing. Unfitted (pinch-zoomed), the box is the screen,
+ * and the bar is raised by the keyboard. Raised by the keyboard in the fitted
+ * frame, it counted the keyboard twice and floated a keyboard's height over
+ * it. Pure.
+ */
+export function keyboardDock(screenHeight: number, visible: { height: number; offsetTop: number }, fitted: boolean): KeyboardDock {
+  const keyboard = Math.max(0, Math.round(screenHeight - (visible.height + visible.offsetTop)))
+  return { keyboard, raise: fitted ? 0 : keyboard }
+}

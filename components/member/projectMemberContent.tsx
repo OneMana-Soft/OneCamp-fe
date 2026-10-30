@@ -8,7 +8,7 @@ import {UserListInterfaceResp} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {ProjectInfoRawInterface, ProjectMemberAddOrRemoveInterface} from "@/types/project";
-import AddProjectMemberCombobox from "@/components/combobox/addProjectMemberCombobox";
+import { AddMemberCombobox } from "@/components/combobox/addMemberCombobox";
 import {useState} from "react";
 import {ProjectRolePicker} from "@/components/member/ProjectRolePicker";
 import {useToast} from "@/hooks/use-toast";
@@ -217,7 +217,14 @@ export const ProjectMemberContent: React.FC<memberContentProp> = ({projectId}) =
 
     return (
         <div className='h-full flex flex-col gap-y-6'>
-            {canAdd && <AddProjectMemberCombobox handleAddMember={handleAddMember} projectId={projectId}/>}
+            {canAdd && (
+                <AddMemberCombobox
+                    url={projectId ? `${ProjectsGet.UserListNotBelongToProjectButBelongsToTeam}/${projectId}` : ""}
+                    onAdd={handleAddMember}
+                    searchPlaceholder="Find someone in the team…"
+                    empty="Nobody in the team by that name."
+                />
+            )}
             <MembersList isAdmin={access.manage_people} usersList={projectInfo.data?.data.project_members || []}
                         handleMakeAdmin={handleMakeAdmin} handleRemoveAdmin={handleRemoveAdmin}
                         handleRemoveMember={handleRemoveMember} blockExitForUUID={projectInfo.data?.data.project_created_by?.user_uuid}

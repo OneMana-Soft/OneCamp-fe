@@ -11,10 +11,9 @@ const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 // Read through the one shared SWR key (useWorkspaceSettings), answering from api.get.
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   // The sender address comes from the email config, answered apart.
-  default: { get: async (url: string) => (url.includes("config/email") ? { data: { data: { default_sender: "noreply@kestrel.example" } } } : { data: { data: await api.get() } }), post: vi.fn() },
-  OWN_ERRORS: {},
+  default: { get: async (url: string) => (url.includes("config/email") ? { data: { data: { default_sender: "noreply@kestrel.studio" } } } : { data: { data: await api.get() } }), post: vi.fn() },
 }))
 vi.mock("@/services/settingsService", async (orig) => ({
   ...(await orig<typeof import("@/services/settingsService")>()),

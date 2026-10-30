@@ -1,3 +1,4 @@
+import type { AttachmentSource } from "@/lib/addOns/core";
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AttachmentMediaReq } from "@/types/attachment";
 import type { TaskDraft, TaskSource } from "@/lib/task/messageToTask";
@@ -29,9 +30,9 @@ interface RootUIState {
   createProject: SingleUIState<{ templateId?: string } | null>;
   createTeam: SingleUIState;
   // Set when the task is being made from a message; null for a blank task.
-  // From a message (draft + source), from My Tasks (assignToMe), or from a
-  // project (projectId, preselected).
-  createTask: SingleUIState<{ draft?: TaskDraft; source?: TaskSource; assignToMe?: boolean; projectId?: string } | null>;
+  // From a message (draft + source), from My Tasks (assignToMe), from a
+  // project (projectId, preselected), or from a link (address, its query).
+  createTask: SingleUIState<{ draft?: TaskDraft; source?: TaskSource; assignToMe?: boolean; projectId?: string; address?: string } | null>;
   createDoc: SingleUIState;
   // One right sheet for a channel (design v3 chat, C49): About, members, agents,
   // guests, notifications, settings and the danger zone.
@@ -70,6 +71,7 @@ interface RootUIState {
   archiveRunJob: SingleUIState<{ entityLabel: string; entityType: string }>;
   archiveRestore: SingleUIState;
   githubLinkTask: SingleUIState<{ taskId: string }>;
+  askApproval: SingleUIState<{ taskId: string }>;
   githubBulkLinkTask: SingleUIState<{ taskIds: string[] }>;
   createBranch: SingleUIState<{ taskId: string; taskName: string }>;
   
@@ -101,13 +103,10 @@ interface RootUIState {
   projectLongPress: SingleUIState;
 
   // File Uploads
-  channelFileUpload: SingleUIState;
   channelCommentFileUpload: SingleUIState;
   taskCommentFileUpload: SingleUIState;
   chatCommentFileUpload: SingleUIState;
   groupChatCommentFileUpload: SingleUIState;
-  chatFileUpload: SingleUIState;
-  groupChatFileUpload: SingleUIState;
 
   // Popovers
 }
@@ -129,7 +128,7 @@ const initialState: RootUIState = {
   docUpdateTitle: { isOpen: false, data: { title: "", docId: "" } },
   createChatMessage: { isOpen: false, data: null },
   forwardMessage: { isOpen: false, data: { chatUUID: "", chatMessageID: "", groupChatMsgID: "", channelUUID: "", postUUID: "" } },
-  attachmentLightbox: { isOpen: false, data: { allMedia: [] as AttachmentMediaReq[], mediaGetUrl: "", media: {} as AttachmentMediaReq, analyzeContext: undefined as undefined | { srcKey: string; srcRef: string } } },
+  attachmentLightbox: { isOpen: false, data: { allMedia: [] as AttachmentMediaReq[], mediaGetUrl: "", media: {} as AttachmentMediaReq, source: undefined as undefined | AttachmentSource } },
   confirmAlert: { isOpen: false, data: { title: "", description: "", confirmText: "Confirm", onConfirm: () => {} } },
   recordingPlayer: { isOpen: false, data: null as RecordingPlayerInterface | null },
   userStatusUpdate: { isOpen: false, data: { userUUID: "" } },
@@ -154,6 +153,7 @@ const initialState: RootUIState = {
   archiveRunJob: { isOpen: false, data: { entityLabel: "", entityType: "" } },
   archiveRestore: { isOpen: false, data: null },
   githubLinkTask: { isOpen: false, data: { taskId: "" } },
+  askApproval: { isOpen: false, data: { taskId: "" } },
   githubBulkLinkTask: { isOpen: false, data: { taskIds: [] as string[] } },
   createBranch: { isOpen: false, data: { taskId: "", taskName: "" } },
   
@@ -185,13 +185,10 @@ const initialState: RootUIState = {
   projectLongPress: { isOpen: false, data: {isAdmin: false, projectId: '', teamId: '', isMember: '', isDeleted: false} } ,
 
   // File Uploads
-  channelFileUpload: { isOpen: false, data: null },
   channelCommentFileUpload: { isOpen: false, data: null },
   taskCommentFileUpload: { isOpen: false, data: null },
   chatCommentFileUpload: { isOpen: false, data: null },
   groupChatCommentFileUpload: { isOpen: false, data: null },
-  chatFileUpload: { isOpen: false, data: null },
-  groupChatFileUpload: { isOpen: false, data: null },
 
   // Popovers
 };

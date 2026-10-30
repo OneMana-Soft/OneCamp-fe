@@ -19,14 +19,10 @@ vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams()
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useMessageResync", () => ({ useMessageResync: () => {} }))
 vi.mock("@/components/typingIndicator/typingIndicatorBar", () => ({ TypingIndicatorBar: () => null, ChannelTypingBar: () => null, ChatTypingBar: () => null, GroupChatTypingBar: () => null }))
-vi.mock("@/components/chat/chatMessages", () => ({ ChatMessages: () => <p>This is the start of your conversation</p> }))
-vi.mock("@/components/groupChat/groupChatMessages", () => ({ GroupChatMessages: () => <p>This is the start of your group</p> }))
-vi.mock("@/components/channel/channelMessages", () => ({ ChannelMessages: () => <p>This is the start of #engineering</p> }))
+vi.mock("@/components/conversation/ConversationRows", () => ({ ConversationRows: () => <p>This is the start of the conversation</p> }))
 
 const { default: store } = await import("@/store/store")
-const { ChatMessageList } = await import("@/components/chat/chatMessageList")
-const { GroupChatMessageList } = await import("@/components/groupChat/groupChatMessageList")
-const { ChannelMessageList } = await import("@/components/channel/channelMessageList")
+const { ChannelList, DmList, GroupList } = await import("@/lib/testing/conversationLists")
 
 afterEach(() => {
   cleanup()
@@ -35,8 +31,8 @@ afterEach(() => {
 
 describe("a conversation that failed to load", () => {
   it.each([
-    ["a channel", () => <ChannelMessageList channelId="ch-fail" />, "Couldn't load this channel's messages"],
-    ["a DM", () => <ChatMessageList chatId="dm-fail" />, "Couldn't load this conversation"],
+    ["a channel", () => <ChannelList channelId="ch-fail" />, "Couldn't load this channel's messages"],
+    ["a DM", () => <DmList other="dm-fail" />, "Couldn't load this conversation"],
   ])("in %s says so and offers Try again, not the empty state", (_, list, title) => {
     render(<Provider store={store}>{list()}</Provider>)
     expect(screen.getByText(title)).toBeTruthy()
@@ -49,9 +45,9 @@ describe("a conversation that failed to load", () => {
   // opens on the page around it and asks for no latest page: that page is the
   // read that failed. A DM and a group drew their empty conversation over it.
   it.each([
-    ["a channel", () => <ChannelMessageList channelId="ch-link" postId="p1" />, "Couldn't load this channel's messages"],
-    ["a DM", () => <ChatMessageList chatId="dm-link" messageId="m1" />, "Couldn't load this conversation"],
-    ["a group", () => <GroupChatMessageList grpId="grp-ok" messageId="m1" />, "Couldn't load this conversation"],
+    ["a channel", () => <ChannelList channelId="ch-link" link="p1" />, "Couldn't load this channel's messages"],
+    ["a DM", () => <DmList other="dm-link" link="m1" />, "Couldn't load this conversation"],
+    ["a group", () => <GroupList grpId="grp-ok" link="m1" />, "Couldn't load this conversation"],
   ])("in %s opened at a message says so when that page fails, not the empty state", (_, list, title) => {
     render(<Provider store={store}>{list()}</Provider>)
     expect(screen.getByText(title)).toBeTruthy()
@@ -63,7 +59,7 @@ describe("a conversation that failed to load", () => {
   it("in a group says so too, when who is in it failed to load", () => {
     // A group asks for its people first and its messages after: either
     // failing is the conversation failing to load.
-    render(<Provider store={store}><GroupChatMessageList grpId="grp-fail" /></Provider>)
+    render(<Provider store={store}><GroupList grpId="grp-fail" /></Provider>)
     expect(screen.getByText("Couldn't load this conversation")).toBeTruthy()
     expect(screen.queryByText(/This is the start of/)).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))

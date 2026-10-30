@@ -4,7 +4,7 @@ import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
 import { StatusWord } from "@/components/ui/statusWord"
-import { Switch } from "@/components/ui/switch"
+import { InstantSwitch } from "@/components/ui/instantSwitch"
 import { useFetch } from "@/hooks/useFetch"
 import { AdminGet } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
@@ -18,7 +18,7 @@ import {
   testDataSource,
   getDataSourceSchema,
 } from "@/services/dataSourceService"
-import { DataSourceEditDialog } from "./DataSourceEditDialog"
+import dynamic from "next/dynamic"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
@@ -26,6 +26,9 @@ import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SpotPlug } from "@/components/ui/graphics"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+
+// The add and edit dialog loads when it opens.
+const DataSourceEditDialog = dynamic(() => import("./DataSourceEditDialog").then((m) => m.DataSourceEditDialog), { ssr: false })
 
 const ENGINE_LABELS: Record<string, string> = { postgres: "PostgreSQL", mysql: "MySQL" }
 
@@ -43,16 +46,8 @@ const DataSourcesCard = () => {
   const sources = data?.data || []
 
   const handleToggle = async (s: DataSource, next: boolean) => {
-    setBusyId(s.id)
-    try {
-      await setDataSourceEnabled(s.id, next)
-      toast({ title: next ? `${s.name} is on` : `${s.name} is off` })
-      mutate()
-    } catch {
-      // interceptor surfaces the error
-    } finally {
-      setBusyId(null)
-    }
+    await setDataSourceEnabled(s.id, next)
+    void mutate()
   }
 
   const handleTest = async (s: DataSource) => {
@@ -155,10 +150,11 @@ const DataSourcesCard = () => {
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1">
-                    <Switch
+                    <InstantSwitch
                       checked={s.enabled}
                       disabled={busyId === s.id || !s.can_manage}
-                      onCheckedChange={(v) => handleToggle(s, v)}
+                      onSave={(v) => handleToggle(s, v)}
+                      what={(v) => (v ? `${s.name} is on` : `${s.name} is off`)}
                       aria-label={`Use ${s.name}`}
                     />
                     <Button

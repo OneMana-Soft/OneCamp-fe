@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { OWN_ERRORS } from '@/lib/axiosInstance'
 import type { ActionContext, DocCommandBus } from '@/components/docEditor/registry/types'
 
 const post = vi.fn()
 const get = vi.fn()
-vi.mock('@/lib/axiosInstance', () => ({ default: { post: (...a: unknown[]) => post(...a), get: (...a: unknown[]) => get(...a) }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a), get: (...a: unknown[]) => get(...a) } }))
 const toast = vi.fn()
 vi.mock('@/hooks/use-toast', () => ({ toast: (...a: unknown[]) => toast(...a) }))
 
@@ -51,7 +52,7 @@ describe("the owner's switch for workspace exports", () => {
     await loadConsent('doc-1')
     post.mockResolvedValueOnce({ data: { consent: { allowed: true, owner: true, private: true } } })
     await shown('more')[0].run()
-    expect(post).toHaveBeenCalledWith('/doc/exportConsent', { doc_uuid: 'doc-1', allow: true }, {})
+    expect(post).toHaveBeenCalledWith('/doc/exportConsent', { doc_uuid: 'doc-1', allow: true }, OWN_ERRORS)
     expect(knownConsent('doc-1')?.allowed).toBe(true)
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Admins' workspace exports now include this doc" }))
     expect(shown('more')[0].checked).toBe(true)

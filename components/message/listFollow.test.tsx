@@ -146,9 +146,10 @@ describe("the conversation's furniture", () => {
   })
 })
 
-// QA F-27: below md the composer floats over the list's last 150px, and a
-// sticky offset counts from above that padding, so "Jump to latest" hung
-// about 100px over the conversation, across a message's author.
+// QA F-27: below md the composer floats over the room the list pads under its
+// last message (150px at rest), and a sticky offset counts from above that
+// padding, so "Jump to latest" hung about 100px over the conversation, across
+// a message's author.
 describe("the way back on a phone", () => {
   const phone = (matches: boolean) =>
     vi.fn((query: string) => ({ matches: matches && query === "(max-width: 767.98px)", media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false }))
@@ -161,12 +162,15 @@ describe("the way back on a phone", () => {
   })
   afterEach(() => {
     card.remove()
+    document.querySelector("[data-composer-sheet]")?.remove()
     Reflect.deleteProperty(window, "matchMedia")
   })
-  const scrolledUp = () => {
+  const scrolledUp = (room = "150px") => {
     render(list(items(10)))
     const scroller = document.querySelector<HTMLElement>('div[style*="overflow-y: auto"]')!
     scroller.getBoundingClientRect = () => ({ bottom: 844 }) as DOMRect
+    // The room it pads (phone.css --phone-composer-room, which jsdom doesn't load).
+    scroller.style.paddingBottom = room
     act(() => readerScrolls(400))
     return document.querySelector<HTMLElement>("[data-jump-row]")!
   }
@@ -187,6 +191,20 @@ describe("the way back on a phone", () => {
     document.body.appendChild(card)
     // 844 - 852, + 12, - the 150px room: the pill's foot 12px above the card.
     expect(scrolledUp().style.bottom).toBe("-146px")
+  })
+
+  it("hangs 12px above a command's answers showing over the card, as the room grows with them", () => {
+    window.matchMedia = phone(true) as unknown as typeof window.matchMedia
+    // A Giphy card above the box, in its sheet, which now reaches 420px down.
+    const sheet = document.createElement("div")
+    sheet.setAttribute("data-composer-sheet", "")
+    const answers = document.createElement("div")
+    answers.setAttribute("data-command-answers", "")
+    answers.getBoundingClientRect = () => ({ top: 420 }) as DOMRect
+    sheet.append(answers, card)
+    document.body.appendChild(sheet)
+    // 844 - 420 between the list's foot and the card, + 12, - the 446px room.
+    expect(scrolledUp("446px").style.bottom).toBe("-10px")
   })
 
   it("keeps the list's own offset on a computer", () => {

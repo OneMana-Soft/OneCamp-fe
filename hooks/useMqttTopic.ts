@@ -1,47 +1,48 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import {useMqtt} from "@/components/mqtt/mqttContext";
 
 interface UseMqttTopicOptions {
     topic: string
     /**
-     * Called for each message on the topic, for what only this page does with
-     * it. Most pages pass none: subscribing is what brings a topic's messages
-     * in, and the global router (useMqttMessageHandler) handles each one
-     * once. A page that handled them as well handled every event twice (a
-     * doc's comment count moved by two).
+     * For what only this page does with each message. Most pass none: the
+     * app's router (useMqttMessageHandler) handles every one once, and a page
+     * that handled them too counted each twice.
      */
     onMessage?: (message: string, topic: string) => void
-    autoSubscribe?: boolean
+    /** Reads what the page shows from the topic again once it's live (TopicLive). */
+    onLive?: () => void
 }
 
 /**
- * Subscribes to an MQTT topic while mounted (and connected). It keeps no
- * list of the messages: it used to, in state, so every message on a doc's or
- * a table's topic rendered the whole page again, and the list only grew.
+ * Subscribes to an MQTT topic while mounted and connected. It keeps no list
+ * of the messages: one kept in state drew the whole page again on each.
  */
-export const useMqttTopic = ({ topic, onMessage, autoSubscribe = true }: UseMqttTopicOptions) => {
+export const useMqttTopic = ({ topic, onMessage, onLive }: UseMqttTopicOptions) => {
     const { subscribeToTopic, unsubscribeFromTopic, connectionState } = useMqtt()
     const subscriptionIdRef = useRef<string | null>(null)
-    // The latest handler, so a new one each render needs no resubscribe.
-    const onMessageRef = useRef(onMessage)
+    // The latest handlers, so new ones each render need no resubscribe.
+    const latest = useRef({ onMessage, onLive })
     useEffect(() => {
-        onMessageRef.current = onMessage
+        latest.current = { onMessage, onLive }
     })
+    const [since] = useState(() => performance.now())
 
     useEffect(() => {
-        if (!topic || !autoSubscribe || subscriptionIdRef.current || !connectionState.isConnected) return
-        subscriptionIdRef.current = subscribeToTopic(topic, (message: string, receivedTopic: string) => {
-            if (receivedTopic === topic) onMessageRef.current?.(message, receivedTopic)
-        })
+        if (!topic || subscriptionIdRef.current || !connectionState.isConnected) return
+        subscriptionIdRef.current = subscribeToTopic(
+            topic,
+            (message: string, receivedTopic: string) => {
+                if (receivedTopic === topic) latest.current.onMessage?.(message, receivedTopic)
+            },
+            { since, onLive: () => latest.current.onLive?.() },
+        )
         return () => {
             if (subscriptionIdRef.current) {
                 unsubscribeFromTopic(subscriptionIdRef.current)
                 subscriptionIdRef.current = null
             }
         }
-    }, [topic, autoSubscribe, subscribeToTopic, unsubscribeFromTopic, connectionState.isConnected])
-
-    return { isConnected: connectionState.isConnected }
+    }, [topic, subscribeToTopic, unsubscribeFromTopic, connectionState.isConnected, since])
 }

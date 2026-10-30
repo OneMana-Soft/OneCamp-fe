@@ -1611,8 +1611,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               Next <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            <Button onClick={handleSave} busy={saving} className="gap-1.5">
+              <Check className="h-4 w-4" />
               {editing ? "Save changes" : "Create agent"}
             </Button>
           )}

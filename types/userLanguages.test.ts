@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { appLangList, appLanguage } from "@/types/user"
+import { appLangList, appLanguage } from "@/types/appLanguages"
 
 // Arabic was listed under "am", which is Amharic's code, though the
 // translation behind it has always been Arabic.

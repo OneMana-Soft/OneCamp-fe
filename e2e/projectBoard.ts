@@ -1,11 +1,12 @@
 import { expect, type Page, type TestInfo } from "@playwright/test"
 
-import { SAM, stubBackend } from "./stubbedApp"
+import { SAM, stubBackend, type Answers } from "./stubbedApp"
 
 /**
  * A project board with three columns on a laptop, every read the project page
  * makes answered (so no "Not found" toast lands beside a menu), for the menu
- * and overlay checks (boardCardMenu, sideMenus, overlayRest).
+ * and overlay checks (boardCardMenu, sideMenus, overlayRest) and the Undo of
+ * what its admins delete (undoAfterDelete).
  */
 export const P = "5a1e7c2d-0b3f-4d6a-8e9c-1f2a3b4c5d6e"
 const NONE = "0001-01-01T00:00:00Z"
@@ -28,8 +29,8 @@ const card = (i: number, status: string) => ({
 })
 const project = { project_uuid: P, project_name: "Website relaunch", project_is_admin: 1, project_is_member: 1, project_members: [SAM] }
 
-/** The board, its reads answered here, in a theme; returns the moves it sends. */
-export async function openBoard(page: Page, testInfo: TestInfo, theme: "light" | "dark") {
+/** The board, its reads answered here, in a theme; `answers` adds or replaces reads (stubBackend's). Returns the moves it sends. */
+export async function openBoard(page: Page, testInfo: TestInfo, theme: "light" | "dark", answers: Answers = {}) {
   await page.addInitScript((t) => {
     localStorage.setItem("ui-theme", t)
     // The first-run keyboard tip, which would rise in the corner mid-test.
@@ -59,6 +60,17 @@ export async function openBoard(page: Page, testInfo: TestInfo, theme: "light" |
     [`/project/${P}/goals`]: { msg: "ok", data: { goals: [] } },
     [`/project/${P}/cycles`]: { msg: "ok", data: { cycles: [], can_edit: false } },
     [`/project/membersInfo/${P}`]: { msg: "ok", data: project },
+    [`/project/${P}/milestones`]: { msg: "ok", data: { milestones: [], can_manage: false } },
+    [`/project/${P}/estimates`]: { msg: "ok", data: { scale: null, kinds: [], can_edit: false } },
+    // Nothing to go on yet: the forecast says no date.
+    [`/project/${P}/forecast`]: {
+      msg: "ok",
+      data: { project_uuid: P, state: "starting", date: null, optimistic: null, pessimistic: null, by_pace: null, by_links: null, open: 0, unit: "tasks", per_week: 0, weeks: 0, held_by: [], held_count: 0 },
+    },
+    // A card's panel: the milestone it's in.
+    "/task/milestone/": { msg: "ok", data: null },
+    "/entities": { msg: "ok", data: [] },
+    "/user/dm-ai-targets": { msg: "ok", data: [] },
     "/notices": { msg: "ok", data: { notices: [] } },
     ...Object.fromEntries(
       [...NAMES.map((_, i) => card(i, "todo")), card(0, "inProgress"), card(0, "done")].map((t) => [
@@ -67,6 +79,7 @@ export async function openBoard(page: Page, testInfo: TestInfo, theme: "light" |
       ]),
     ),
     "/task/moveTask": { msg: "ok", data: {} },
+    ...answers,
   })
   const moves: { task_status: string; task_uuid: string }[] = []
   page.on("request", (r) => {

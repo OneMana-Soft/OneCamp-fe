@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * No `prose` classes while the typography plugin is off.
@@ -19,25 +20,6 @@ import { join, relative, resolve } from "node:path"
 
 const ROOT = resolve(__dirname, "..")
 const DIRS = ["app", "components", "lib", "hooks", "context", "store", "services"]
-
-function files(dir: string, out: string[] = []): string[] {
-  let entries
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const e of entries) {
-    const full = join(dir, e.name)
-    if (e.isDirectory()) {
-      if (["node_modules", ".next"].includes(e.name)) continue
-      files(full, out)
-    } else if (/\.(tsx?|jsx?|css)$/.test(e.name) && !/\.test\.(tsx?|ts)$/.test(e.name)) {
-      out.push(full)
-    }
-  }
-  return out
-}
 
 /** A class token from the plugin, with any variants: prose, prose-sm, dark:prose-invert, sm:prose-base, not-prose. */
 const PLUGIN_CLASS = /^!?(?:not-)?prose(?:-[a-z0-9]+)?!?$/
@@ -64,7 +46,7 @@ const pluginLoaded = /@plugin\s+["']@tailwindcss\/typography["']/.test(globals)
 describe("prose classes", () => {
   it.skipIf(pluginLoaded)("are not used while the typography plugin is off", () => {
     const offenders: string[] = []
-    for (const file of DIRS.flatMap((d) => files(join(ROOT, d)))) {
+    for (const file of sourceFiles(DIRS, /\.(tsx?|jsx?|css)$/)) {
       const hits = proseClasses(readFileSync(file, "utf8"), file.endsWith(".css"))
       if (hits.length) offenders.push(`${relative(ROOT, file)}: ${hits.join(" ")}`)
     }

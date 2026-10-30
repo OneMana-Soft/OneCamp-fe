@@ -13,6 +13,8 @@ interface DrawerItemProps {
     description?: string
     onClick: () => void
     destructive?: boolean
+    /** The one thing to do in its group (Connect Google again once it stopped answering): label and icon in brand ink. */
+    primary?: boolean
     trailing?: React.ReactNode
     /** Drawn in the icon's 32px slot when the row's mark is not an icon (a status glyph, an avatar). */
     leading?: React.ReactNode
@@ -40,6 +42,7 @@ export function DrawerItem({
     description,
     onClick,
     destructive,
+    primary,
     trailing,
     leading,
     current,
@@ -84,7 +87,7 @@ export function DrawerItem({
                     <Icon
                         className={cn(
                             "h-5 w-5",
-                            destructive ? "text-danger-ink" : "text-muted-foreground",
+                            destructive ? "text-danger-ink" : primary ? "text-brand-text" : "text-muted-foreground",
                         )}
                         strokeWidth={1.75}
                     />
@@ -98,13 +101,15 @@ export function DrawerItem({
                 <span
                     className={cn(
                         "block text-body leading-5",
-                        destructive ? "text-danger-ink" : "text-foreground",
+                        destructive ? "text-danger-ink" : primary ? "font-medium text-brand-text" : "text-foreground",
                     )}
                 >
                     {label}
                 </span>
                 {description && (
-                    <span className="block text-xs text-muted-foreground mt-0.5 truncate">
+                    // Two lines before it is cut: a status line ("sam@gmail.com ·
+                    // In step with Google · 2m ago") reads whole on a phone.
+                    <span className="line-clamp-2 break-words text-xs text-muted-foreground mt-0.5">
                         {description}
                     </span>
                 )}

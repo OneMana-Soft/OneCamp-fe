@@ -15,12 +15,13 @@ import { docInfoKey } from '@/lib/docCache'
 import type { DocInfoResponse } from '@/types/doc'
 import { docCoverOf } from '@/lib/docLook'
 import '@/components/docEditor/chrome/look.css'
+import { lazyPiece } from '@/lib/lazy/lazyPiece'
 
 // The band's controls (add or change the icon and cover, the title's
 // suggestion, a phone's path and lock) load beside the editor (B6).
-const TitleBand = React.lazy(() => import('@/components/docEditor/chrome/TitleBand'))
+const TitleBand = lazyPiece(() => import('@/components/docEditor/chrome/TitleBand'))
 // A cover's art loads with the cover: the room for it is drawn at once.
-const CoverArt = React.lazy(() => import('@/components/docEditor/chrome/CoverArt'))
+const CoverArt = lazyPiece(() => import('@/components/docEditor/chrome/CoverArt'))
 
 /** The title: an h1 holding its field, subscribed on its own (docTitleStore.ts). */
 const DocTitleField = React.memo(function DocTitleField({ store, titleRef, id, editable, onChange, onBlur, onKeyDown, padded }: {

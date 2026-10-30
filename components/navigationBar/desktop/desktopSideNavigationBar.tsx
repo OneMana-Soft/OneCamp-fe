@@ -2,7 +2,8 @@
 
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import * as Menu from "@radix-ui/react-dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useSheetMode } from "@/components/ui/overlayMode";
 import { Bot, BellOff, ChevronDown, Columns2, Hash, MoreHorizontal, Plus } from "@/lib/icons";
 import { openInSplit, selectSplitOn } from "@/store/slice/splitActions";
 import { paneFromHref } from "@/lib/split";
@@ -214,27 +215,28 @@ PrimaryRow.displayName = "PrimaryRow";
  * page the sidebar does.
  */
 export function MorePopover({ links, children }: { links: DesktopNavType[]; children: ReactNode }) {
+  // As a sheet it says what it is; beside its button it needn't.
+  const sheet = useSheetMode();
   return (
-    <Menu.Root modal={false}>
-      <Menu.Trigger asChild>{children}</Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Content side="right" align="start" sideOffset={6} collisionPadding={8} aria-label="More places" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop z-[var(--z-dropdown)] !w-56">
-          {links.map((l) => {
-            const hue = destinationHue(String(l.path || "").split("?")[0]);
-            return (
-              <Menu.Item key={l.title} asChild className="shell-menu-item">
-                <IntentLink href={`${l.path}`} aria-current={l.variant === "sidebarActive" ? "page" : undefined}>
-                  <span className={cn(HUE_CLASS[hue], "grid size-5 shrink-0 place-items-center rounded-[6px] bg-hue-tint text-hue [&>svg]:size-3")} aria-hidden="true">
-                    {l.icon && <l.icon />}
-                  </span>
-                  <span className={cn("flex-1 truncate", l.variant === "sidebarActive" && "font-medium")}>{l.title}</span>
-                </IntentLink>
-              </Menu.Item>
-            );
-          })}
-        </Menu.Content>
-      </Menu.Portal>
-    </Menu.Root>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" sideOffset={6} aria-label="More places" onCloseAutoFocus={returnFocusOnlyForKeys} className="shell-menu shell-pop w-56">
+        {sheet && <DropdownMenuLabel className="text-center text-ui font-semibold text-ink">More places</DropdownMenuLabel>}
+        {links.map((l) => {
+          const hue = destinationHue(String(l.path || "").split("?")[0]);
+          return (
+            <DropdownMenuItem key={l.title} asChild className="shell-menu-item">
+              <IntentLink href={`${l.path}`} aria-current={l.variant === "sidebarActive" ? "page" : undefined}>
+                <span className={cn(HUE_CLASS[hue], "grid size-5 shrink-0 place-items-center rounded-[6px] bg-hue-tint text-hue [&>svg]:size-3")} aria-hidden="true">
+                  {l.icon && <l.icon />}
+                </span>
+                <span className={cn("flex-1 truncate", l.variant === "sidebarActive" && "font-medium")}>{l.title}</span>
+              </IntentLink>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

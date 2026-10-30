@@ -108,3 +108,13 @@ export function levelLabel(level: string | undefined): string {
     if (level === "comment") return "Can comment"
     return ""
 }
+
+/** Whether someone at a level, under a lock, may decide suggestions (the server's rule). Pure. */
+export function maySuggestDecide(level: DocLevel, lock: "" | "soft" | "hard" | undefined): boolean {
+    return atLeast(level, "edit") && (lock !== "hard" || level === "full")
+}
+
+/** Whether someone at a level, under a lock, chooses between Editing and Suggesting: a hard lock takes no suggestions. Pure. */
+export function offersModes(level: DocLevel, lock: "" | "soft" | "hard" | undefined): boolean {
+    return atLeast(level, "edit") && lock !== "hard"
+}

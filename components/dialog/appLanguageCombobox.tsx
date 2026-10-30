@@ -1,21 +1,8 @@
-import { ChevronsUpDown } from "@/lib/icons";
-import { cn } from "@/lib/utils/helpers/cn"
-import { Button } from "@/components/ui/button"
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem, CommandList,
-} from "@/components/ui/command"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
-import {useState} from "react";
-import {appLangList, appLanguage} from "@/types/user";
-import { MenuCheck, menuCheckState } from "@/components/ui/menuCheck"
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxField, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox"
+import { appLangList, appLanguage } from "@/types/appLanguages"
+
+/** The languages by their names, as people look for them ("English (US)" beside "English (Australia)"). */
+const LANGUAGES = Object.values(appLangList).sort((a, b) => a.name.localeCompare(b.name))
 
 interface AppLanguageComboboxProps {
     userLang?: string;
@@ -27,62 +14,30 @@ interface AppLanguageComboboxProps {
 }
 
 /**
- * The language field. It sits in a grid of text inputs, so its trigger is
- * drawn as one of them: the same height (44px on a phone, 32px from md up),
- * raised surface and ring, padding and type, with the value in the field's
+ * The language field. It sits in a grid of text inputs, so it is the
+ * combobox's field (components/ui/combobox): an input's height (44px on a
+ * phone, 32px from md up), surface and halo, with the value in the field's
  * normal weight.
  */
 export function AppLanguageCombobox({ userLang, onLangChange, ...control }: AppLanguageComboboxProps) {
-    const [open, setOpen] = useState(false)
     const current = appLanguage(userLang)
 
     return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    {...control}
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={open}
-                    // The outline button's own raised surface and e1 ring,
-                    // which is the field's: transparent with no shadow, it
-                    // was bare text in a card of boxed fields, and 36px high
-                    // beside their 32 from md up.
-                    className="h-11 w-full justify-between rounded-md px-2.5 text-base font-normal md:h-8 md:text-sm"
-                >
-                    <span className={cn("truncate", !current && "text-muted-foreground")}>
-                        {current ? current.name : "Choose a language"}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                <Command>
-                    <CommandInput placeholder="Search languages…" aria-label="Search languages" />
-                    <CommandList className="max-h-[200px] overflow-y-auto">
-                        <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">No language by that name.</CommandEmpty>
-                        <CommandGroup>
-                            {Object.values(appLangList).map((e) => (
-                                <CommandItem
-                                    key={e.code}
-                                    value={e.code}
-                                    keywords={[e.name]}
-                                    onSelect={() => {
-                                        setOpen(false)
-                                        onLangChange?.(e.code)
-                                    }}
-                                    className="cursor-pointer"
-                                    {...menuCheckState(current?.code === e.code)}
-                                >
-                                    <span className="flex-1">{e.name}</span>
-                                    <MenuCheck checked={current?.code === e.code} />
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
-            </PopoverContent>
-        </Popover>
+        <Combobox>
+            <ComboboxField {...control} placeholder="Choose a language">
+                {current?.name}
+            </ComboboxField>
+            <ComboboxContent label="Language" selected={current?.code}>
+                <ComboboxInput placeholder="Find a language…" />
+                <ComboboxList>
+                    <ComboboxEmpty>No language by that name.</ComboboxEmpty>
+                    {LANGUAGES.map((e) => (
+                        <ComboboxItem key={e.code} value={e.code} keywords={[e.name]} checked={current?.code === e.code} onSelect={onLangChange}>
+                            {e.name}
+                        </ComboboxItem>
+                    ))}
+                </ComboboxList>
+            </ComboboxContent>
+        </Combobox>
     )
 }

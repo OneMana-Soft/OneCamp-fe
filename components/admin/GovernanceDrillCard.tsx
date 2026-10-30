@@ -27,6 +27,7 @@
 import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { busyWith } from "@/lib/ui/busyWith"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { ErrorState } from "@/components/ui/error-state"
 import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
@@ -242,13 +243,12 @@ const GovernanceDrillCard: React.FC = () => {
             action={
                 // Nothing to offer until the card knows whether the drill is set up.
                 loadError ? undefined : seeded ? (
-                    <Button size="sm" className={sectionActionClass} onClick={onRun} disabled={busy !== undefined}>
-                        {busy === "run" ? <Loader2 className="animate-spin" /> : <Play />}
+                    <Button size="sm" className={sectionActionClass} onClick={onRun} {...busyWith(busy, "run")}>
+                        <Play />
                         Run the drill
                     </Button>
                 ) : (
                     <Button size="sm" variant="outline" className={sectionActionClass} onClick={onSetup} disabled={loading || busy !== undefined}>
-                        {busy === "setup" ? <Loader2 className="animate-spin" /> : null}
                         Set it up
                     </Button>
                 )

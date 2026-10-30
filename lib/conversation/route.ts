@@ -44,7 +44,7 @@ export function chatRef(groupingId: string | null | undefined, viewer: string | 
 }
 
 /** The DM with other, for who reads it; null while the reader isn't known. Pure. */
-export function dmWith(other: string, viewer: string | null | undefined): ConversationRef | null {
+export function dmWith(other: string, viewer: string | null | undefined): Extract<ConversationRef, { kind: "dm" }> | null {
   return other && viewer ? { kind: "dm", id: getGroupingId(viewer, other), other } : null
 }
 

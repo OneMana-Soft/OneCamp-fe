@@ -13,9 +13,8 @@ vi.mock("@/services/agentService", async (orig) => ({
   getAgentInventory: vi.fn(),
 }))
 const get = vi.hoisted(() => vi.fn())
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: (...a: unknown[]) => get(...a), post: vi.fn() },
-  OWN_ERRORS: {},
 }))
 
 const fresh = ({ children }: { children: ReactNode }) => (

@@ -12,7 +12,7 @@ import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {useAddFrequentlyUsedReaction, useFrequentlyUsedReactions} from "@/hooks/reactions/useFrequentlyUsedReactions";
 import {notEmpty} from "@/lib/utils/validation/notEmpty";
 import {useSearchReactions} from "@/hooks/reactions/useSearchReactions";
-import {Input} from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import {MobileReactionPickerCategory} from "@/components/reactionPicker/MobileReactionPickerCategory";
 import {Apple, Clock, Flag, Heart, Lightbulb, PawPrint, Plane, Smile, Trophy} from "@/lib/icons";
 import {ix} from "@/lib/ui/interactive";
@@ -156,14 +156,7 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
                 <DrawerTitle className="sr-only">Pick an emoji</DrawerTitle>
                 <DrawerDescription className="sr-only">Search, or go to a group</DrawerDescription>
                 <div ref={headRef} className="sticky top-0 z-[1] bg-pop px-3 pb-1 pt-1">
-                    <Input
-                        enterKeyHint="search"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder='Search'
-                        aria-label="Search emoji"
-                        className="rounded-[10px]"
-                    />
+                    <SearchInput value={query} onValueChange={setQuery} placeholder="Search" aria-label="Search emoji" className="rounded-[10px]" />
                     {query ? null : (
                         <div role="group" aria-label="Emoji groups" data-vaul-no-drag="" className="mt-1.5 flex">
                             {groups.map(({ id }) => {

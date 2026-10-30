@@ -1,6 +1,7 @@
 "use client";
 
-import { lazy, memo, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
+import type { AddOnAction } from "@/lib/addOns/core";
+import { memo, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { useDispatch } from "react-redux";
 
 import { Button } from "@/components/ui/button";
@@ -21,11 +22,15 @@ import { noteReaction, quickReactions, readRecentReactions, type QuickReaction }
 
 import { openUI } from "@/store/slice/uiSlice";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
+import { useAIAvailable } from "@/hooks/useClientConfig";
+import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
+import { DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
+import { Spark } from "@/components/ui/graphics/motifs";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 
-// Save to memory and its expiry field are fetched when the More menu first
-// draws them, not with every message (they were 23 KB of each conversation's
-// first screen).
-const SaveToMemoryButton = lazy(() => import("@/components/ai/SaveToMemoryButton").then((m) => ({ default: m.SaveToMemoryButton })));
+// Only Save to memory's kinds are a chunk; its row draws with More (memoryRowPlace.test).
+const loadKinds = () => import("@/components/ai/saveToMemoryKinds");
+const SaveToMemoryKinds = lazyPiece(loadKinds);
 
 interface MessageDesktopHoverOptionProps {
     setIsDropdownOpen: (open: boolean) => void;
@@ -40,19 +45,18 @@ interface MessageDesktopHoverOptionProps {
     messageText?: string;
     /** Who wrote it, shown beside the message in Later. */
     authorName?: string;
-    // onReply, when provided, arms the composer to inline-reply to this message
-    // (Discord-style). Distinct from "Reply in thread" (which opens the thread
-    // panel). Rendered only when the surface supplies it.
+    /** Arms the composer to reply to this message, quoting it. */
     onReply?: () => void;
-    // onTranslate, when provided, translates this message in place (the surface
-    // owns the translation state + inline render).
-    onTranslate?: () => void;
+    // What an edition adds to the message's More menu (lib/addOns).
+    addOns?: AddOnAction[];
     setEmojiPopupState?: (open: boolean) => void;
     editMessage: () => void;
     deleteMessage: () => void;
     isAdmin?: boolean;
     isOwner: boolean;
     onReactionSelect: (id: string) => void;
+    /** Whether the reader may react here (the server says); the reactions give way when not. */
+    canReact?: boolean;
     /**
      * A reply inside a thread: there is no thread to open from it, and Reply
      * in thread gives way. The same toolbar otherwise, list and panel alike.
@@ -108,11 +112,12 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     deleteMessage,
     editMessage,
     onReply,
-    onTranslate,
+    addOns,
     onReactionSelect,
     chatMessageID,
     commentUUID,
     inThread = false,
+    canReact = true,
 }: MessageDesktopHoverOptionProps) => {
     const dispatch = useDispatch();
     // Decided once, as it mounts: arriving from outside, or from the row above.
@@ -190,29 +195,38 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
         }
         : null;
 
-    // Save to memory, in the More menu: channel posts, group chats and DMs,
-    // wherever the memory layer has a scope and a source for it.
-    const memoryItem = channelUUID && commentUUID ? (
-        <SaveToMemoryButton asMenuItem messageText={messageText} channelUUID={channelUUID} sourceType="comment" sourceUUID={commentUUID} />
-    ) : channelUUID && postUUID ? (
-        <SaveToMemoryButton asMenuItem messageText={messageText} channelUUID={channelUUID} sourceType="post" sourceUUID={postUUID} />
-    ) : (groupUUID || chatGrpID) && chatMessageID ? (
-        <SaveToMemoryButton asMenuItem messageText={messageText} chatGrpID={groupUUID || chatGrpID} sourceType="chat" sourceUUID={chatMessageID} />
+    // Save to memory: channel posts, group chats and DMs, for a message with words.
+    const ai = useAIAvailable();
+    const memorySource = !ai || !removeHtmlTags(messageText).trim() ? null
+        : channelUUID && commentUUID ? { channelUUID, sourceType: "comment", sourceUUID: commentUUID }
+        : channelUUID && postUUID ? { channelUUID, sourceType: "post", sourceUUID: postUUID }
+        : (groupUUID || chatGrpID) && chatMessageID ? { chatGrpID: groupUUID || chatGrpID, sourceType: "chat", sourceUUID: chatMessageID }
+        : null;
+    const memorySlot = memorySource ? (
+        <DropdownMenuSub>
+            <DropdownMenuSubTrigger onPointerEnter={() => void loadKinds()} onFocus={() => void loadKinds()}>
+                <Spark size={14} className="text-agent" /> Save to memory
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="pop-surface w-60 p-1">
+                <Suspense fallback={<DropdownMenuItem disabled>Loading…</DropdownMenuItem>}>
+                    <SaveToMemoryKinds messageText={messageText} {...memorySource} />
+                </Suspense>
+            </DropdownMenuSubContent>
+        </DropdownMenuSub>
     ) : null;
-    const memorySlot = memoryItem ? <Suspense fallback={null}>{memoryItem}</Suspense> : null;
 
     return (
         // A floating toolbar on the pop surface (design v3 chat, C19): r10 at
         // e3 with 3px of padding, six slots. It overlaps the row's top edge.
-        // It enters by pop (y 2px and scale .98 to rest in 120 ms) when the
-        // pointer arrives from outside, and not again row to row.
+        // It fades in (120 ms) when the pointer arrives from outside, not
+        // row to row, and never moves: a click lands where it rests.
         <div
             role="toolbar"
             aria-label="Message actions"
             data-message-toolbar=""
             className={cn("pop-surface flex items-center gap-px rounded-[10px] p-[3px]", enters && "animate-toolbar-in")}
         >
-            {quick.map((reaction) => (
+            {canReact && quick.map((reaction) => (
                 <Button
                     key={reaction.id}
                     type="button"
@@ -227,6 +241,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 </Button>
             ))}
 
+            {canReact && <>
             <span aria-hidden="true" className="mx-[3px] h-4 w-px bg-line" />
 
             <AddReactionTrigger
@@ -235,6 +250,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 setPopupState={setEmojiPopupState}
                 className={TOOL_BUTTON}
             />
+            </>}
 
             {!inThread && (
                 <HoverIconButton label="Reply in thread" onClick={handleOpenThread}>
@@ -256,7 +272,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                 onMakeTask={onMakeTask}
                 onReply={onReply}
                 onForward={postUUID || chatMessageID ? handleForward : undefined}
-                onTranslate={onTranslate}
+                addOns={addOns}
                 link={laterLink || undefined}
                 laterTarget={laterTarget}
                 messageText={messageText}

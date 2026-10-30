@@ -21,7 +21,7 @@ export default function ApiTokensSettingsPage() {
           </Button>
         }
       >
-        A token acts as you, limited to the scopes you grant, for scripts and outside tools. Send it as{" "}
+        A token acts as you with a member&apos;s powers, never an admin&apos;s, limited to the scopes you grant, for scripts and outside tools. Send it as{" "}
         {/* nowrap: a phone broke the header in two at the space. */}
         <code className="whitespace-nowrap rounded-sm bg-sunken px-1 font-mono text-xs" translate="no">Authorization: Bearer …</code>.
       </SectionHeader>

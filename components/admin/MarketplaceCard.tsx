@@ -13,16 +13,17 @@
 // hue is identity, never a category.
 
 import { cn } from "@/lib/utils/helpers/cn"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import useSWR from "swr"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { SearchInput } from "@/components/ui/search-input"
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useToast } from "@/hooks/use-toast"
-import { Check, RefreshCw, AlertCircle, Trash2, Search, KeyRound, Globe, LogIn } from "@/lib/icons"
+import { Check, AlertCircle, Trash2, Search, KeyRound, Globe, LogIn } from "@/lib/icons"
 import { Plug } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
@@ -83,6 +84,24 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
     const [open, setOpen] = useState<MarketplaceItem | null>(null)
     const [query, setQuery] = useState("")
     const [activeCategory, setActiveCategory] = useState<string>("All")
+
+    // "/apps <name>" lands here with ?q=, and the "/" menu's "Set up <app>"
+    // with ?app=<slug>: the search is filled, or that app's sheet opens, once
+    // per arrival, also when the admin was already on this page.
+    const search = useSearchParams()
+    useEffect(() => {
+        if (!apps) return
+        const slug = search.get("app")
+        const q = search.get("q")
+        if (!slug && !q) return
+        const item = slug ? apps.find((a) => a.slug === slug) : undefined
+        if (item) setOpen(item)
+        else if (q) setQuery(q)
+        const rest = new URLSearchParams(search)
+        rest.delete("app")
+        rest.delete("q")
+        window.history.replaceState(window.history.state, "", `${window.location.pathname}${rest.size ? `?${rest}` : ""}`)
+    }, [apps, search])
 
     // Distinct categories (stable order) for the filter chips.
     const categories = useMemo(() => {
@@ -164,18 +183,13 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             {/* The filters on their own line under the search: beside it the
                 seven of them wrapped, "Time tracking" alone on a second row. */}
             <div className="flex flex-col gap-2">
-                <div className="relative md:w-64 md:shrink-0">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                    <Input
-                        type="search"
-                        aria-label="Search the app directory"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search apps…"
-                        className="h-8 pl-8 text-sm"
-                        autoComplete="off"
-                    />
-                </div>
+                <SearchInput
+                    aria-label="Search the app directory"
+                    value={query}
+                    onValueChange={setQuery}
+                    placeholder="Search apps…"
+                    className="md:w-64 md:shrink-0"
+                />
                 {/* Filters, so a pressed state rather than a selection in the
                     accent. A category is a neutral chip (§1.5): the chosen one
                     is raised at e1, the rest stay quiet. */}
@@ -225,7 +239,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                                     setActiveCategory("All")
                                 }}
                             >
-                                {q ? "Clear search" : "Show all"}
+                                Show all apps
                             </Button>
                         }
                     />
@@ -328,14 +342,12 @@ export function InstallSlot({ item, busy, fresh, onInstall, onConfigure }: {
             className="cx-app-slot inline-grid"
             data-install-state={state}
             onClick={state === "idle" ? onInstall : undefined}
-            disabled={state !== "idle"}
-            aria-busy={state === "busy" || undefined}
+            disabled={state === "done"}
+            busy={state === "busy"}
             aria-label={state === "idle" ? `Install ${item.name}` : state === "busy" ? `Installing ${item.name}` : `${item.name} installed`}
         >
+            {/* While it installs, Button's own spinner holds the slot (app/styles/admin/connect.css). */}
             <span className="cx-app-slot-label" data-show={state === "idle" ? "true" : undefined}>Install</span>
-            <span className="cx-app-slot-label" data-show={state === "busy" ? "true" : undefined} aria-hidden="true">
-                <RefreshCw className="animate-spin" />
-            </span>
             <span className="cx-app-slot-label text-success-ink" data-show={state === "done" ? "true" : undefined}>
                 Installed <Check aria-hidden="true" />
             </span>

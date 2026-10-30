@@ -99,7 +99,7 @@ function DescribeProjectUngated({ onDrafted }: { onDrafted: (t: ProjectTemplate)
         <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={cancel}>
           Cancel
         </Button>
-        <Button type="button" size="sm" className="h-7 gap-1.5 text-xs" disabled={busy || !ready} onClick={() => void draft()}>
+        <Button type="button" size="sm" className="h-7 gap-1.5 text-xs" disabled={!ready} busy={busy} onClick={() => void draft()}>
           <Sparkles className="h-3.5 w-3.5" />
           {busy ? "Drafting…" : "Draft the plan"}
         </Button>

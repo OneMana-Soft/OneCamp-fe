@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatSendAt, schedulePresets, sendLaterProblem, toLocalInputValue } from "./schedulePresets"
+import { formatSendAt, quarterUp, schedulePresets, sendLaterProblem, toLocalInputValue } from "./schedulePresets"
 import { pinTestClock } from "@/lib/testing/testClock"
 
 pinTestClock()
@@ -55,5 +55,18 @@ describe("a typed send-later time", () => {
     expect(sendLaterProblem(new Date(now + 121 * 24 * 3600_000), now)).toBe("Pick a time within the next 120 days.")
     expect(sendLaterProblem(new Date("not a date"), now)).toBe("Pick a date and time.")
     expect(sendLaterProblem(null, now)).toBe("Pick a date and time.")
+  })
+})
+
+// A first offer (Pause until, Schedule send, Send later, a status's custom
+// end) is on the time list's quarter hours: "7:51 AM" read as random, and the
+// list's chosen row didn't match the field (DESIGN-BUILD-3).
+describe("a first offer on the quarter hour", () => {
+  it("moves up to the next quarter, and keeps one that is on it", () => {
+    expect(toLocalInputValue(quarterUp(d(2026, 10, 21, 7, 51)))).toBe("2026-10-21T08:00")
+    expect(toLocalInputValue(quarterUp(d(2026, 10, 21, 7, 31)))).toBe("2026-10-21T07:45")
+    expect(toLocalInputValue(quarterUp(d(2026, 10, 21, 7, 45)))).toBe("2026-10-21T07:45")
+    expect(toLocalInputValue(quarterUp(new Date(2026, 9, 21, 7, 45, 20)))).toBe("2026-10-21T08:00")
+    expect(toLocalInputValue(quarterUp(d(2026, 10, 21, 23, 50)))).toBe("2026-10-22T00:00")
   })
 })

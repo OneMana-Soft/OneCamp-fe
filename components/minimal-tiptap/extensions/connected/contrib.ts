@@ -1,11 +1,14 @@
 "use client"
 
 import type { Editor, JSONContent, Range } from "@tiptap/core"
-import { registerAction, registerBlock, registerDialog } from "@/components/docEditor/registry/registry"
+import { dialogFor, registerAction, registerBlock, registerDialog, registerSlot } from "@/components/docEditor/registry/registry"
 import { busFor } from "@/components/docEditor/registry/commandBus"
 import type { ActionContext } from "@/components/docEditor/registry/types"
-import { ArrowUpRight, CircleCheck, FileText, Kanban, ListTodo } from "@/lib/icons"
+import { stageDrop } from "@/components/docEditor/chrome/stagedDrop"
+import { ArrowRightToLine, ArrowUpRight, CircleCheck, FileText, Kanban, ListTodo } from "@/lib/icons"
+import { snapshot, type DocChipData } from "@/lib/liveEntity"
 import { trackPos } from "../smart-paste/smartPaste"
+import { actionBlock } from "../../utils/actionBlock"
 import { ancestor } from "../../utils/ancestor"
 import { openWhenDrawn } from "../subpage/opening"
 import { subpagePrivate } from "@/lib/docCache"
@@ -14,8 +17,9 @@ import { pickPage, pickProject, PICK_PAGE, PICK_PROJECT, type Picked } from "./p
 /**
  * What the chunk adds as it loads (chunk.ts), before a doc's editor is built:
  * the "/" entries for pages, a project's tasks and its board; the to-do's
- * "Make it a task" on the block menu and the phone's bar; and the pickers they
- * ask.
+ * "Make it a task" on the block menu and the phone's bar; a child page's
+ * Move to… there; the pickers they ask; and the doc's foot, where pages
+ * inside it with no block in its body are listed.
  */
 
 /** "/" asks for something first, then its block goes where the "/" was. */
@@ -37,7 +41,7 @@ function newSubpage(editor: Editor, range: Range) {
   if (!docId) return
   const at = trackPos(editor, range.from)
   void import("@/services/docGraphService")
-    .then(({ createDoc }) => createDoc({ parent_uuid: docId, doc_private: subpagePrivate(docId) }))
+    .then(({ createDoc }) => createDoc({ parent_uuid: docId, doc_private: subpagePrivate(docId), placed: true }))
     .then(
       (page) => {
         const pos = at.pos()
@@ -128,5 +132,40 @@ registerAction({
   },
 })
 
+/**
+ * The page of the block the block menu stands for, when that one block is a
+ * page inside this doc (its live read says so), not a link to a page that
+ * lives elsewhere.
+ */
+function childPageAt(ctx: ActionContext): { uuid: string; title: string } | null {
+  const at = actionBlock(ctx)
+  const range = ctx.state?.range as { to: number } | undefined
+  if (!at || at.node.type.name !== "subpage" || (range && range.to !== at.pos + at.node.nodeSize)) return null
+  const uuid = at.node.attrs.docId
+  const live = typeof uuid === "string" && uuid ? snapshot("doc", uuid) : null
+  const page = live?.state === "ok" ? (live.data as DocChipData | undefined) : undefined
+  return page && page.parent_id === ctx.docId ? { uuid, title: page.title } : null
+}
+
+// A child page's block moves its page, and the tree takes the block along
+// (docs C7a); B1's Move to…, which moves blocks, steps aside for it.
+registerAction({
+  id: "subpage.moveTo",
+  label: "Move to…",
+  icon: ArrowRightToLine,
+  group: "move",
+  order: 30,
+  surfaces: ["blockMenu"],
+  edition: "both",
+  isVisible: (ctx) => ctx.canEdit && !!dialogFor("doc.moveTo", ctx.gate ?? { ai: false }) && !!childPageAt(ctx),
+  run: (ctx) => {
+    const page = childPageAt(ctx)
+    if (!page) return
+    stageDrop(ctx.docId, { page })
+    ctx.bus.emit("openDialog", { id: "doc.moveTo" })
+  },
+})
+
+registerSlot({ slot: "foot", id: "subpage.inside", edition: "both", load: () => import("../subpage/PagesInside") })
 registerDialog({ id: PICK_PROJECT, edition: "both", load: () => import("./ProjectPickerDialog") })
 registerDialog({ id: PICK_PAGE, edition: "both", load: () => import("./PagePickerDialog") })

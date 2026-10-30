@@ -13,7 +13,7 @@
 import type { Editor } from "@tiptap/core"
 import { applicable, baseHash, trackOpen, type AcceptResult, type Tracked } from "@/lib/proposals/review"
 import type { EditProposal, ProposalAuthorKind } from "@/lib/proposals/types"
-import { conflictsOf, createProposal, decideProposal, reopenProposal } from "@/services/proposalService"
+import { conflictsOf, createProposal, decideAndApply, decideProposal, reopenProposal } from "@/services/proposalService"
 import {
   acceptProposal,
   discardProposal,
@@ -68,14 +68,14 @@ export async function acceptPersisted(editor: Editor, id: string, ids?: string[]
   const ready = applicable(editor.state, tracked, ids)
   if (ready.conflicts.length || ready.placed.length === 0) return { applied: [], conflicts: ready.conflicts }
   const chosen = ready.placed.map((p) => p.hunk.id)
+  let result: AcceptResult
   try {
-    await decideProposal(id, { accept: true, hunk_ids: chosen, apply: "client" })
+    result = await decideAndApply(id, { accept: true, hunk_ids: chosen, apply: "client" }, () => acceptProposal(editor, id, chosen))
   } catch (error) {
     const conflicts = conflictsOf(error)
     if (conflicts) return { applied: [], conflicts }
     throw error
   }
-  const result = acceptProposal(editor, id, chosen)
   if (result.conflicts.length) await reopenProposal(id, chosen)
   return result
 }
@@ -88,6 +88,5 @@ export async function declinePersisted(editor: Editor, id: string, ids?: string[
 
 /** insertPersistedBelow: the target changed, so the suggestion goes in below it. */
 export async function insertPersistedBelow(editor: Editor, id: string) {
-  await decideProposal(id, { accept: true, apply: "client", insert_below: true })
-  insertProposalBelow(editor, id)
+  await decideAndApply(id, { accept: true, apply: "client", insert_below: true }, () => insertProposalBelow(editor, id))
 }

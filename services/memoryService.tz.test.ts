@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 // the zone it is told; the answers kept for a moment are kept per zone.
 
 const { get, zone } = vi.hoisted(() => ({ get: vi.fn(), zone: { value: "Asia/Kolkata" } }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get } }))
 vi.mock("@/lib/utils/timeZone", () => ({ browserTZ: () => zone.value }))
 
 import { attentionKey, briefingKey, getAttention, getBriefing } from "./memoryService"

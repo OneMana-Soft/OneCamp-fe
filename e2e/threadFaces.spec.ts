@@ -1,14 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { SAM, stubBackend } from "./stubbedApp"
-
-// The shared demo's banner and the first-run tip, closed so the shots show the screen.
-async function tidy(tab: import("@playwright/test").Page) {
-  for (let i = 0; i < 2; i++) {
-    const gotIt = tab.getByRole("button", { name: "Got it" }).first()
-    if (!(await gotIt.isVisible().catch(() => false))) break
-    await gotIt.click().catch(() => {})
-  }
-}
+import { SAM, stubBackend, tidy } from "./stubbedApp"
 
 // A thread's faces on first load (chat P2; STEP5_PLAN #1, spec A), in a real
 // browser with no backend. The pages answer as the server now does: up to

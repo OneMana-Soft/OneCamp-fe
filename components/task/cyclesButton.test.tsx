@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { pinTestClock } from "@/lib/testing/testClock"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import type { ReactElement } from "react"
 import type { Cycle } from "@/lib/tasks/cycles"
 import { warmBursts } from "@/lib/celebrateSoon"
 
@@ -11,6 +12,7 @@ beforeAll(async () => {
 })
 
 const remove = vi.fn(async () => {})
+const post = vi.fn(async () => ({ data: { msg: "ok" } }))
 const complete = vi.fn(async () => ({ done: 0, carried: 0 }))
 let cycles: Cycle[] = []
 const CYCLES: Cycle[] = [
@@ -27,12 +29,12 @@ const CYCLES: Cycle[] = [
 ]
 cycles = CYCLES
 vi.mock("@/hooks/useProjectCycles", () => ({
-  useProjectCycles: () => ({ cycles, canEdit: true, isLoading: false, create: vi.fn(), complete, rename: vi.fn(), remove, refresh: vi.fn() }),
+  useProjectCycles: () => ({ cycles, canEdit: true, isLoading: false, create: vi.fn(), complete, rename: vi.fn(), remove, refresh: vi.fn(), refreshTasks: vi.fn(), http: { post } }),
 }))
 const toast = vi.fn()
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
+vi.mock("@/hooks/use-toast", () => ({ toast: (t: unknown) => toast(t), useToast: () => ({ toast }) }))
 vi.mock("@/components/task/cycleBurndownDialog", () => ({ CycleBurndownDialog: () => null }))
-const celebrateRing = vi.fn((_el: Element | null | undefined) => 10)
+const celebrateRing = vi.fn((el: Element | null | undefined) => (void el, 10))
 vi.mock("@/lib/celebrate", () => ({ celebrateRing: (el: Element | null | undefined) => celebrateRing(el) }))
 
 const { CyclesButton, warmSwitcher } = await import("@/components/task/cyclesButton")
@@ -47,6 +49,7 @@ beforeAll(async () => {
 afterEach(() => {
   cleanup()
   remove.mockClear()
+  post.mockClear()
   toast.mockClear()
 })
 // Today is pinned (app/testClock.test.ts): in the middle of the current cycle.
@@ -58,14 +61,14 @@ function openPopover() {
 }
 
 describe("deleting a cycle", () => {
-  it("asks first, in red, saying the tasks stay and the burndown goes", () => {
+  it("asks first, in red, saying the tasks stay; its Undo brings it back, so it never says it can't", () => {
     openPopover()
     fireEvent.click(screen.getByRole("button", { name: "Delete Launch week" }))
     expect(remove).not.toHaveBeenCalled()
     const ask = screen.getByRole("group", { name: "Delete Launch week" })
     expect(ask.textContent).toContain("Delete Launch week?")
     expect(ask.textContent).toContain("Its 5 tasks stay in the project, in no cycle.")
-    expect(ask.textContent).toContain("Its burndown is deleted with it, and this can't be undone.")
+    expect(ask.textContent).not.toContain("can't be undone")
     const confirm = screen.getByRole("button", { name: "Delete cycle" })
     // Danger ink, and the interaction layer's danger tint under the cursor.
     expect(confirm.className).toContain("text-danger-ink")
@@ -82,7 +85,21 @@ describe("deleting a cycle", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete Launch week" }))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete cycle" })))
     expect(remove).toHaveBeenCalledWith("c3")
-    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Deleted Launch week" }))
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Deleted “Launch week”" })))
+  })
+
+  it("offers Undo once it's deleted, which brings the cycle back", async () => {
+    openPopover()
+    fireEvent.click(screen.getByRole("button", { name: "Delete Launch week" }))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete cycle" })))
+    await vi.waitFor(() => expect(toast).toHaveBeenCalled())
+    const offered = toast.mock.calls.at(-1)?.[0] as { title: string; action?: ReactElement<{ altText: string; onClick: () => unknown }> }
+    expect(offered.title).toBe("Deleted “Launch week”")
+    expect(offered.action?.props.altText).toBe("Undo")
+    await act(async () => {
+      await offered.action?.props.onClick()
+    })
+    expect(post).toHaveBeenCalledWith("/restore/cycle/c3", {}, { suppressErrorToast: true })
   })
 })
 

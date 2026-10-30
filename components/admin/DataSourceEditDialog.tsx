@@ -435,8 +435,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
             <Button variant="outline" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            <Button onClick={handleSave} busy={saving}>
               {editing ? "Save changes" : "Add source"}
             </Button>
           </div>

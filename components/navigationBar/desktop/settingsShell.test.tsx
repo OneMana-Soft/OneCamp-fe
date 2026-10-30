@@ -151,6 +151,17 @@ describe("the settings shell", () => {
     expect(nav.push).toHaveBeenCalledWith("/app/settings/notifications#notifications-quiet")
   })
 
+  it("lands on a field itself: its row, on the AI sub-page that holds it", async () => {
+    render(<SettingsNav isAdmin />)
+    const box = screen.getByRole("searchbox", { name: "Search settings" })
+    fireEvent.change(box, { target: { value: "web search" } })
+    const results = screen.getByRole("navigation", { name: "Settings search results" })
+    // The field index comes with the first letter typed.
+    const hit = await within(results).findByText("Use web search")
+    fireEvent.click(hit.closest("button")!)
+    expect(nav.push).toHaveBeenCalledWith("/app/admin?tab=ai-models&sub=advanced#set-use-web-search")
+  })
+
   it("finds a section by a word people use for it", () => {
     const hits = searchSettings("sso", SETTINGS_PLACES)
     expect(hits[0]?.place.key).toBe("integrations")

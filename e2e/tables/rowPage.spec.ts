@@ -82,8 +82,7 @@ for (const [width, height, asPage] of [
       const sam = await (await openRecord(server, { width, height, scheme, asPage }))(browser, testInfo)
       await expect(sam.page.locator("[data-row-page]").getByText("The brief")).toBeVisible({ timeout: 30_000 })
       await sam.page.locator("[data-row-page]").scrollIntoViewIfNeeded()
-      await sam.page.waitForTimeout(400)
-      await sam.page.screenshot({ path: `${shots}/row-page-${width}${asPage ? "-as-page" : ""}-${scheme}.png` })
+      await sam.page.screenshot({ path: `${shots}/row-page-${width}${asPage ? "-as-page" : ""}-${scheme}.png`, animations: "disabled" })
       await sam.close()
     })
   }
@@ -93,8 +92,7 @@ for (const [width, height, asPage] of [
       const server = new TableServer(fields, rows)
       const sam = await (await openRecord(server, { width, height, scheme: "light" }))(browser, testInfo)
       await sam.page.getByRole("button", { name: /Write a page for this row/ }).hover()
-      await sam.page.waitForTimeout(300)
-      await sam.page.screenshot({ path: `${shots}/row-page-start-1280-light.png` })
+      await sam.page.screenshot({ path: `${shots}/row-page-start-1280-light.png`, animations: "disabled" })
       await sam.close()
     })
   }

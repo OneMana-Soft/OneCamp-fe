@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 // Mock the axios instance BEFORE importing the service, since vitest hoists
 // vi.mock and the service captures the binding at import time.
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: vi.fn(),
   },

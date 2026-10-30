@@ -1,65 +1,46 @@
 "use client"
 
-import { personHue } from "@/lib/utils/getAvatarColor"
+// The grid's live cells (content.md T08): the one cell in use draws through
+// these, with its state, pickers and saves; every other cell is drawn at
+// rest (cellFaces' restCell). A chunk of its own (DataTableGrid's liveCells),
+// off the table's first screen; the record panel draws its fields with them.
+
+import { rowLines } from "@/lib/tables/display"
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
-import {
-  AlertTriangle,
-  ArrowUpRight,
-  CalendarDays,
-  Check,
-  Mail,
-} from "@/lib/icons"
+import { AlertTriangle } from "@/lib/icons"
 import { PopoverContent } from "@/components/ui/popover"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { LazyPopover } from "./LazyPopover"
-import { cellPickers, PickerLoading } from "./cellPickerPart"
-import {
-  computedOf,
-  formulaOf,
-  optionsOf,
-  parseFieldConfig,
-  relationOf,
-  type RelationRef,
-  type TableField,
-} from "@/services/tableService"
+import { cellPickers, ComboboxCell, kindCells, PickerLoading } from "./cellPickerPart"
+import { computedOf, formulaOf, isFromRow, optionsOf, relationOf, type RelationRef, type TableField } from "@/services/tableService"
 import { RelationCell } from "@/components/table/RelationCell"
-import { OptionChip, chipsTinted, tintedFields } from "@/components/table/optionChip"
 import { showFormulaValue } from "@/lib/tables/formula"
-import { cellValid, formatNumber, numberFormatOf, safeHref, shortDay, urlHost } from "@/lib/tables/cellFormat"
-import { typedNumberText } from "@/lib/format/number"
-import type { RowHeight } from "@/lib/tables/display"
+import { dayOf, listText, numberFormatOf } from "@/lib/tables/cellFormat"
 import { localDay } from "@/lib/utils/timeZone"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
-import { formatLocale } from "@/lib/tables/numberFormat"
 import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
 import { fieldKind } from "@/lib/fieldTypes/registry"
+import { lazyView } from "@/lib/lazy/lazyView"
+import {
+  CELL_PAD,
+  FOCUS,
+  checkboxMarkup,
+  chipRoom,
+  chosenOf,
+  computedMarkup,
+  dateMarkup,
+  savedTextOf,
+  selectMarkup,
+  textLook,
+  textMarkup,
+  waitFace,
+  type CellContext,
+  type CellProps,
+} from "@/components/table/cellFaces"
 
-/** A select option the grid knows, by its label: for chips a formula's result can borrow. */
-export type OptionIndex = Map<string, { color?: string; tinted: boolean }>
-
-export function optionIndexOf(fields: TableField[]): OptionIndex {
-  const out: OptionIndex = new Map()
-  const tintedIds = tintedFields(fields)
-  for (const f of fields) {
-    if (f.type !== "select" && f.type !== "multi_select") continue
-    const tinted = tintedIds.has(f.id)
-    for (const o of optionsOf(f)) if (!out.has(o.label)) out.set(o.label, { color: o.color, tinted })
-  }
-  return out
-}
-
-/** What every cell in a grid shares. */
-export interface CellContext {
-  options: OptionIndex
-  /** The columns whose chips are tinted (optionChip tintedFields); without it, each column's own say. */
-  tinted?: Set<string>
-  rowHeight: RowHeight
-  /** Opens a column's menu at its formula (from a formula error's card). */
-  onEditField?: (fieldId: string) => void
-  /** In the record panel: values read from the left, as a form does. */
-  panel?: boolean
-}
+/** A files cell (FilesCell.tsx): a chunk of its own, as few tables have one. */
+const filesPart = lazyView(() => import("@/components/table/FilesCell"))
 
 /**
  * What a cell shows: its saved value, or what was just chosen while that is
@@ -81,42 +62,36 @@ export function useShownValue<T>(value: T): [T, (next: T, commit: (v: T) => Prom
   return [shown, change]
 }
 
-const CELL_PAD = "px-3"
-const FOCUS = "outline-none"
-
-export interface CellProps {
-  field: TableField
-  value: unknown
-  /** "row:col", for moving between cells from the keyboard. */
-  cellId: string
-  primary?: boolean
-  readOnly?: boolean
-  ctx: CellContext
-  onCommit: (value: unknown) => Promise<boolean>
-  onLink: (change: { add?: string[]; remove?: string[] }) => void
-}
-
-/**
- * How a cell's chips sit: in the record panel, all of them, wrapping; in a
- * tall row, eight, wrapping; else one line of two (one for a single select),
- * then "+N". Chips that wrapped in a 40 px row stretched it past the grid's
- * fixed row height (QA PTC-16).
- */
-function chipRoom(ctx: CellContext, multi: boolean): { max: number; wrap: boolean } {
-  if (ctx.panel) return { max: Infinity, wrap: true }
-  const tall = ctx.rowHeight === "tall" || ctx.rowHeight === "xtall"
-  return { max: tall ? 8 : multi ? 2 : 1, wrap: tall }
-}
-
 /** The right renderer for a field's type (content.md T08). */
 export function Cell({ field, value, cellId, primary, readOnly, ctx, onCommit, onLink }: CellProps) {
   if (field.type === "formula" || field.type === "rollup") {
     return <ComputedCell field={field} value={value} cellId={cellId} ctx={ctx} />
   }
+  if (isFromRow(field)) {
+    return <kindCells.View fallback={<KindWait field={field} value={value} cellId={cellId} />} render={(m) => <m.RowStampCell field={field} value={value} cellId={cellId} />} />
+  }
   if (field.type === "checkbox") {
     return <CheckboxCell label={field.name} value={!!value} cellId={cellId} readOnly={readOnly} start={ctx.panel} onCommit={onCommit} />
   }
-  if (field.type === "select" || field.type === "multi_select") {
+  if (field.type === "rating" || field.type === "people" || field.type === "long_text") {
+    const wait = <KindWait field={field} value={value} cellId={cellId} />
+    const lines = rowLines(ctx.rowHeight)
+    return (
+      <kindCells.View
+        fallback={wait}
+        render={(m) =>
+          field.type === "rating" ? (
+            <m.RatingCell field={field} value={value} cellId={cellId} readOnly={readOnly} onCommit={onCommit} />
+          ) : field.type === "people" ? (
+            <m.PeopleCell field={field} value={value} cellId={cellId} readOnly={readOnly} onCommit={onCommit} />
+          ) : (
+            <m.LongTextCell field={field} value={value} cellId={cellId} readOnly={readOnly} lines={lines} panel={ctx.panel} onCommit={onCommit} />
+          )
+        }
+      />
+    )
+  }
+  if (fieldKind(field.type).options) {
     return <SelectCell field={field} value={value} cellId={cellId} readOnly={readOnly} ctx={ctx} onCommit={onCommit} />
   }
   if (field.type === "relation") {
@@ -137,10 +112,26 @@ export function Cell({ field, value, cellId, primary, readOnly, ctx, onCommit, o
       </div>
     )
   }
+  if (field.type === "attachment") {
+    return (
+      <div data-cell={cellId} tabIndex={-1} className={cn("h-full", FOCUS)}>
+        {/* Its chunk loads with the first files cell drawn; until then, the names. */}
+        <filesPart.View
+          fallback={<span className="flex h-full items-center truncate px-3 text-meta text-ink-2">{Array.isArray(value) ? listText(value) : ""}</span>}
+          render={(m) => <m.FilesCell value={value} tableId={ctx.tableId} room={chipRoom(ctx, true)} readOnly={readOnly} onCommit={onCommit} />}
+        />
+      </div>
+    )
+  }
   if (field.type === "date") {
     return <DateCell field={field} value={value} cellId={cellId} readOnly={readOnly} onCommit={onCommit} />
   }
   return <TextCell field={field} value={value} cellId={cellId} primary={primary} readOnly={readOnly} ctx={ctx} onCommit={onCommit} />
+}
+
+/** A B1 kind's cell while its chunk (kindCells) is on its way: its text, where the cell will be. */
+function KindWait({ field, value, cellId }: { field: TableField; value: unknown; cellId: string }) {
+  return waitFace({ field, value, cellId })
 }
 
 export function CheckboxCell({
@@ -163,25 +154,21 @@ export function CheckboxCell({
   // The springy check: only when someone ticks it, never for a box that was
   // already ticked when the table opened.
   const [pop, setPop] = React.useState(false)
-  // A label as big as the cell, so a click or a tap anywhere in it ticks the
-  // box, as every cell takes one (TAB-BUG-15): the 16 px box alone did.
-  return (
-    <label className={cn("flex h-full items-center", start ? "px-3" : "justify-center", !readOnly && "cursor-pointer")}>
-      <input
-        type="checkbox"
-        data-cell={cellId}
-        checked={shown}
-        disabled={readOnly}
-        onChange={(e) => {
-          if (e.target.checked) setPop(true)
-          change(e.target.checked, onCommit)
-        }}
-        onAnimationEnd={() => setPop(false)}
-        aria-label={label}
-        className={cn("v3-check", pop && "animate-spring")}
-      />
-    </label>
-  )
+  return checkboxMarkup({
+    label,
+    checked: shown,
+    cellId,
+    readOnly,
+    start,
+    pop,
+    live: {
+      onChange: (e) => {
+        if (e.target.checked) setPop(true)
+        change(e.target.checked, onCommit)
+      },
+      onAnimationEnd: () => setPop(false),
+    },
+  })
 }
 
 /**
@@ -205,16 +192,11 @@ export function SelectCell({
   onCommit: (v: unknown) => Promise<boolean>
 }) {
   const multi = field.type === "multi_select"
+  const status = field.type === "status"
   const options = React.useMemo(() => optionsOf(field), [field])
-  const tinted = ctx.tinted ? ctx.tinted.has(field.id) : chipsTinted(field)
-  const saved = React.useMemo<string[]>(
-    () => (multi ? (Array.isArray(value) ? (value as string[]) : []) : typeof value === "string" && value ? [value] : []),
-    [multi, value],
-  )
+  const saved = React.useMemo<string[]>(() => chosenOf(field, value), [field, value])
   const [selected, change] = useShownValue(saved)
   const [open, setOpen] = React.useState(false)
-  const colorOf = (label: string) => options.find((o) => o.label === label)?.color
-  const { max: maxChips, wrap } = chipRoom(ctx, multi)
 
   // A pick toggles a multi-select's option, and chooses a select's.
   const pickLabel = (label: string) => {
@@ -231,41 +213,21 @@ export function SelectCell({
     setOpen(false)
   }
 
-  const shown = selected.slice(0, maxChips)
-  const more = selected.length - shown.length
-  const body = (
-    <span className={cn("flex min-w-0 flex-1 items-center gap-1", wrap ? "flex-wrap content-start py-2" : "overflow-hidden")}>
-      {shown.map((s) => (
-        <OptionChip key={s} label={s} color={colorOf(s)} tinted={tinted} className={ctx.rowHeight === "short" ? "h-5" : undefined} />
-      ))}
-      {more > 0 ? <span className="chip h-[22px] shrink-0 text-ink-2">+{more}</span> : null}
-      {selected.length === 0 && !readOnly ? (
-        <span className="text-ui text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Select…</span>
-      ) : null}
-    </span>
-  )
-  if (readOnly) {
+  const button = selectMarkup({ field, selected, cellId, readOnly, ctx, options, live: true })
+  if (readOnly) return button
+  if (status) {
+    // The combobox (SA-3), grouped, with the cell as its trigger.
     return (
-      <div data-cell={cellId} tabIndex={-1} className={cn("flex h-full items-center", CELL_PAD, FOCUS)} aria-label={`${field.name}: ${selected.join(", ") || "none"}`}>
-        {body}
-      </div>
+      <ComboboxCell
+        trigger={button}
+        picker={(m, open, setOpen) => (
+          <m.StatusCombobox trigger={button} open={open} onOpenChange={setOpen} name={field.name} options={options} selected={selected[0] ?? ""} onPick={pickLabel} onClear={clear} />
+        )}
+      />
     )
   }
   return (
-    <LazyPopover
-      open={open}
-      onOpenChange={setOpen}
-      trigger={
-        <button
-          type="button"
-          data-cell={cellId}
-          aria-label={`${field.name}: ${selected.length ? selected.join(", ") : "none chosen"}`}
-          className={cn("flex h-full w-full items-center text-left", CELL_PAD, FOCUS)}
-        >
-          {body}
-        </button>
-      }
-    >
+    <LazyPopover open={open} onOpenChange={setOpen} trigger={button}>
       <PopoverContent align="start" sideOffset={2} className="w-auto rounded-xl bg-transparent p-0 shadow-none" onOpenAutoFocus={(e) => e.preventDefault()}>
         <cellPickers.View
           fallback={<PickerLoading />}
@@ -274,15 +236,6 @@ export function SelectCell({
       </PopoverContent>
     </LazyPopover>
   )
-}
-
-/** "2026-10-07" (or a timestamp) as the day it names, in the reader's zone. */
-export function dayOf(value: unknown): Date | undefined {
-  if (typeof value !== "string" || !value) return undefined
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-  const d = new Date(value)
-  return Number.isNaN(d.getTime()) ? undefined : d
 }
 
 /**
@@ -307,40 +260,17 @@ export function DateCell({
   const [shown, change] = useShownValue(saved)
   const [open, setOpen] = React.useState(false)
   const day = dayOf(shown)
-  const due = parseFieldConfig(field).due === true
-  const overdue = due && !!day && day < new Date(new Date().toDateString())
   const pick = (d: Date | undefined) => {
     change(d ? localDay(d) : "", onCommit)
     setOpen(false)
   }
-  const text = (
-    <span className={cn("min-w-0 truncate tabular-nums", overdue && "text-danger-ink")}>{day ? shortDay(day) : ""}</span>
-  )
-  if (readOnly) {
-    return (
-      <div data-cell={cellId} tabIndex={-1} className={cn("flex h-full items-center text-ui", CELL_PAD, FOCUS)}>
-        {text}
-      </div>
-    )
-  }
+  const button = dateMarkup({ field, text: shown, cellId, readOnly, live: true })
+  if (readOnly) return button
   return (
     <LazyPopover
       open={open}
       onOpenChange={setOpen}
-      trigger={
-        <button
-          type="button"
-          data-cell={cellId}
-          aria-label={`${field.name}: ${day ? shortDay(day) : "no date"}`}
-          className={cn("group/date flex h-full w-full items-center gap-1.5 text-left text-ui", CELL_PAD, FOCUS)}
-        >
-          {text}
-          <CalendarDays
-            aria-hidden="true"
-            className="pointer-events-none ml-auto size-3.5 shrink-0 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible/date:opacity-100 group-data-[state=open]/date:opacity-100 [@media(hover:none)]:opacity-100"
-          />
-        </button>
-      }
+      trigger={button}
     >
       <PopoverContent className="content-float w-auto rounded-xl p-0 shadow-e3" align="start">
         <cellPickers.View fallback={<PickerLoading />} render={(m) => <m.DayPicker day={day} onPick={pick} />} />
@@ -348,28 +278,6 @@ export function DateCell({
     </LazyPopover>
   )
 }
-
-/** A number as the grid shows it at rest, in the reader's format; null when the text is not one number. */
-export function groupedNumber(text: string): string | null {
-  const t = text.trim()
-  if (t === "" || !/^-?\d*\.?\d+(e[+-]?\d+)?$/i.test(t)) return null
-  const n = Number(t)
-  return Number.isFinite(n) ? formatLocale(n, { maximumFractionDigits: 6 }) : null
-}
-
-/** A person's initials avatar at 20 px, in their hue. */
-function PersonDot({ name }: { name: string }) {
-  const hue = personHue(name)
-  const initial = name.trim().charAt(0).toUpperCase()
-  return (
-    <span aria-hidden="true" className={cn(HUE_CLASS[hue], "avatar-person inline-flex size-5 shrink-0 items-center justify-center rounded-[10px] text-micro font-semibold text-white")}>
-      {initial}
-    </span>
-  )
-}
-
-/** Whether text holds a line break, which only a text area keeps: an input drops it. */
-const hasBreak = (text: string) => /[\r\n]/.test(text)
 
 /** How tall a grid cell's text editor grows while it's edited, before it scrolls. */
 const LINES_MAX_PX = 240
@@ -379,17 +287,6 @@ const LINES_MAX_PX = 240
  * at most `max`, past which it scrolls; `data-grown` when it's taller than
  * its cell. Closed, it's its cell's height again, at its first line.
  */
-/**
- * A text area that isn't a cell (the record's title): as tall as its text.
- * fitLines keeps a cell's text area at least its cell's height; a title's
- * parent is the whole record, and that made the title as tall as the record's
- * visible part, a blank stretch above its fields.
- */
-export function fitText(el: HTMLTextAreaElement) {
-  el.style.height = "auto"
-  el.style.height = `${el.scrollHeight}px`
-}
-
 export function fitLines(el: HTMLTextAreaElement, open: boolean, max = Infinity) {
   if (!open) {
     el.style.height = ""
@@ -423,28 +320,6 @@ export function lineBreakKey(e: React.KeyboardEvent<HTMLTextAreaElement>): strin
   return el.value
 }
 
-/**
- * A typed cell (text, number, URL, email, person) that commits on blur or
- * Enter, so typing never waits on the network. At rest some types read
- * differently from what is typed, drawn over the control until it has the
- * focus: a number grouped with its currency and a true minus, a URL as its
- * host in the brand's text colour with a way out, an email with its mail
- * glyph, a person with their avatar, and long text wrapped in tall rows.
- * Escape puts back what was saved; a row that scrolls out commits.
- *
- * Text is edited in a text area, which keeps its line breaks (TAB-BUG-7): an
- * input dropped them, and the first edit saved the lines run together. Enter
- * saves; Shift+Enter or Alt+Enter adds a line. In the grid it shows its first
- * line at rest (its lines, in tall rows) and grows over the rows below while
- * it's edited; in the record panel it's as tall as its lines. A URL, an email
- * or a person holding a line break is edited the same way, whole, and says
- * "Edit in full".
- *
- * A number is read in the reader's locale, with a currency sign before or
- * after; text that isn't a number is refused, never saved as another number
- * or as nothing: the cell keeps its value, ringed, and says "Not a number"
- * (TAB-BUG-8).
- */
 export function TextCell({
   field,
   value,
@@ -462,19 +337,13 @@ export function TextCell({
   ctx: CellContext
   onCommit: (value: unknown) => Promise<boolean>
 }) {
-  const type = field.type
-  const isNumber = type === "number"
-  const savedText = isNumber ? typedNumberText(value) : value == null ? "" : String(value)
+  const savedText = savedTextOf(field, value)
   const [local, setLocal] = React.useState<string>(savedText)
   React.useEffect(() => {
     setLocal(savedText)
   }, [savedText])
-
-  // What a save sends: the text read as the field's kind reads what's typed
-  // (a number column's in the reader's signs), null when it isn't one.
-  const parsed = fieldKind(type).parse?.(local, field) ?? { value: local }
-  const typed = "value" in parsed ? parsed.value : null
-  const notNumber = "error" in parsed
+  const look = textLook(field, local, savedText, ctx)
+  const { typed, notNumber, lines } = look
 
   // The latest typing, for a commit when the row leaves the page while its
   // cell still has the focus: removing a focused element does not blur it.
@@ -493,107 +362,12 @@ export function TextCell({
     void onCommit(typed)
   }
 
-  // Text's lines, and a URL's, an email's or a person's when it holds a break.
-  const lines = !isNumber && (type === "text" || hasBreak(savedText))
   const area = React.useRef<HTMLTextAreaElement>(null)
   // In the record panel a text area is as tall as its lines, always.
   React.useLayoutEffect(() => {
     if (lines && ctx.panel && area.current) fitLines(area.current, true)
   }, [lines, ctx.panel, local])
 
-  const tall = ctx.rowHeight === "tall" || ctx.rowHeight === "xtall"
-  const fmt = isNumber ? numberFormatOf(field) : null
-  const num = typeof typed === "number" ? formatNumber(typed, fmt ?? {}) : null
-  const invalid = notNumber || ((type === "url" || type === "email") && !lines && !cellValid(type, local))
-  const href = lines ? null : type === "url" ? safeHref(local) : type === "email" && local.trim() && !invalid ? `mailto:${local.trim()}` : null
-
-  // What reads at rest, over the control.
-  let atRest: React.ReactNode = null
-  if (num) {
-    atRest = (
-      <span className={cn("flex min-w-0 items-center gap-2 tabular-nums", ctx.panel ? "justify-start" : "justify-end")}>
-        {num.fraction !== undefined && fmt?.bar ? (
-          <span className="v3-pct-bar" aria-hidden="true">
-            <span style={{ transform: `scaleX(${num.fraction})` }} />
-          </span>
-        ) : null}
-        <span className={cn("truncate", num.negative && "text-danger-ink")}>
-          {num.prefix ? <span className="text-ink-3">{num.prefix}</span> : null}
-          {num.text}
-          {num.suffix}
-        </span>
-      </span>
-    )
-  } else if (lines) {
-    // The grid's text area shows its first line itself; the panel's, every line.
-    if (!ctx.panel && local.trim() && type !== "text") {
-      atRest = (
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate">{local}</span>
-          <span className="shrink-0 text-meta text-ink-3">Edit in full</span>
-        </span>
-      )
-    } else if (!ctx.panel && tall && local.trim()) {
-      atRest = <span className={cn("whitespace-pre-wrap break-words", ctx.rowHeight === "tall" ? "line-clamp-2" : "line-clamp-4")}>{local}</span>
-    }
-  } else if (type === "url" && local.trim()) {
-    atRest = (
-      <span className="flex min-w-0 items-center gap-1">
-        <span className="truncate text-brand-text group-hover/cell:underline">{urlHost(local)}</span>
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            tabIndex={-1}
-            aria-label={`Open ${urlHost(local)}`}
-            className="pointer-events-auto shrink-0 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover/cell:opacity-100 group-focus-within/cell:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
-          >
-            <ArrowUpRight className="size-3" />
-          </a>
-        ) : null}
-      </span>
-    )
-  } else if (type === "email" && local.trim()) {
-    atRest = (
-      <span className="flex min-w-0 items-center gap-1">
-        <span className="truncate text-ink">{local}</span>
-        {href ? (
-          <a href={href} tabIndex={-1} aria-label={`Write to ${local}`} className="pointer-events-auto shrink-0 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover/cell:opacity-100 group-focus-within/cell:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
-            <Mail className="size-3" />
-          </a>
-        ) : null}
-      </span>
-    )
-  } else if (type === "person" && local.trim()) {
-    atRest = (
-      <span className="flex min-w-0 items-center gap-1.5">
-        <PersonDot name={local} />
-        <span className="truncate">{local}</span>
-      </span>
-    )
-  }
-
-  const cover = atRest !== null
-  if (readOnly) {
-    return (
-      <div
-        data-cell={cellId}
-        tabIndex={-1}
-        className={cn("flex h-full items-center text-ui", CELL_PAD, FOCUS, primary && "font-medium", isNumber && "justify-end")}
-        title={local}
-      >
-        {atRest ?? <span className="truncate">{local}</span>}
-      </div>
-    )
-  }
-  const control = cn(
-    "peer h-full w-full bg-transparent text-ui text-ink outline-none",
-    CELL_PAD,
-    primary && "font-medium",
-    isNumber && (ctx.panel ? "tabular-nums" : "text-right tabular-nums"),
-    cover && "text-transparent focus:text-foreground",
-  )
   const escape = (e: React.KeyboardEvent) => {
     if (e.key === "Escape" && local !== savedText) {
       e.preventDefault()
@@ -605,77 +379,38 @@ export function TextCell({
   const fit = (el: HTMLTextAreaElement, open: boolean) => {
     if (!ctx.panel) fitLines(el, open, LINES_MAX_PX)
   }
-  return (
-    <div
-      // A tap anywhere in the cell, on a touch screen, where the text box
-      // ignores taps until it has the focus (table.css): the cell takes it,
-      // and hands the focus to the box.
-      tabIndex={-1}
-      onFocus={(e) => e.target === e.currentTarget && e.currentTarget.querySelector<HTMLElement>("[data-cell]")?.focus()}
-      className={cn("group/cell relative h-full outline-none", invalid && "ring-1 ring-inset ring-destructive")}
-      title={invalid ? (notNumber ? "Not a number" : type === "url" ? "This isn't a web address" : "This isn't an email address") : undefined}
-    >
-      {lines ? (
-        <textarea
-          ref={area}
-          rows={1}
-          data-cell={cellId}
-          value={local}
-          onChange={(e) => {
-            setLocal(e.target.value)
-            fit(e.currentTarget, true)
-          }}
-          onFocus={(e) => fit(e.currentTarget, true)}
-          onBlur={(e) => {
-            fit(e.currentTarget, false)
-            commit()
-          }}
-          data-escape-own={local !== savedText ? "" : undefined}
-          onKeyDown={fieldKeyDown((e) => {
-            escape(e)
-            const next = lineBreakKey(e)
-            if (next === null) return
-            setLocal(next)
-            fit(e.currentTarget, true)
-          })}
-          aria-label={field.name}
-          autoComplete="off"
-          spellCheck={type === "text" ? undefined : false}
-          className={cn(control, "block resize-none overflow-hidden break-words", ctx.panel ? "py-2" : "py-[var(--cell-pad-y)]")}
-        />
-      ) : (
-        <input
-          type={isNumber ? "text" : type === "email" ? "email" : type === "url" ? "url" : "text"}
-          inputMode={isNumber ? "decimal" : undefined}
-          data-cell={cellId}
-          value={local}
-          onChange={(e) => setLocal(e.target.value)}
-          onBlur={commit}
-          data-escape-own={local !== savedText ? "" : undefined}
-          onKeyDown={fieldKeyDown(escape)}
-          aria-label={field.name}
-          aria-invalid={invalid || undefined}
-          autoComplete="off"
-          spellCheck={false}
-          className={control}
-        />
-      )}
-      {cover ? (
-        <span
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none absolute inset-0 flex text-ui peer-focus:hidden",
-            CELL_PAD,
-            tall && type === "text" ? "items-start py-2.5" : "items-center",
-            isNumber && !ctx.panel && "justify-end",
-            primary && "font-medium",
-          )}
-        >
-          {atRest}
-        </span>
-      ) : null}
-    </div>
-  )
+  return textMarkup({
+    field,
+    cellId,
+    primary,
+    readOnly,
+    ctx,
+    local,
+    look,
+    live: {
+      area,
+      own: local !== savedText,
+      onArea: (e) => {
+        setLocal(e.target.value)
+        fit(e.currentTarget, true)
+      },
+      onAreaFocus: (e) => fit(e.currentTarget, true),
+      onAreaBlur: (e) => {
+        fit(e.currentTarget, false)
+        commit()
+      },
+      onAreaKey: fieldKeyDown((e) => {
+        escape(e)
+        const next = lineBreakKey(e)
+        if (next === null) return
+        setLocal(next)
+        fit(e.currentTarget, true)
+      }),
+      onInput: (e) => setLocal(e.target.value),
+      onInputBlur: commit,
+      onInputKey: fieldKeyDown(escape),
+    },
+  })
 }
 
 /**
@@ -683,42 +418,12 @@ export function TextCell({
  * (ink-2), numbers tabular and right-aligned; a result that names an option
  * of a select column reads as that option's chip; an error is "#ERROR" in the
  * cell, never the raw message, with a card on hover or focus that says what
- * went wrong and offers to edit the formula.
+ * went wrong and offers to edit the formula, or the rollup's settings.
  */
 export function ComputedCell({ field, value, cellId, ctx }: { field: TableField; value: unknown; cellId: string; ctx: CellContext }) {
-  const shown = showFormulaValue(value, computedOf(field).result)
-  const reach = { "data-cell": cellId, tabIndex: -1 } as const
-  const base = cn("flex h-full items-center text-ui text-ink-2", CELL_PAD, FOCUS)
-  switch (shown.kind) {
-    case "blank":
-      return <div {...reach} className={base} />
-    case "error":
-      return <ComputedError field={field} message={shown.message} reach={reach} onEdit={ctx.onEditField} />
-    case "checkbox":
-      return (
-        <div {...reach} className={cn(base, !ctx.panel && "justify-center")} aria-label={shown.checked ? "Yes" : "No"}>
-          {shown.checked && <Check className="size-4 text-ink-2" />}
-        </div>
-      )
-    case "number":
-      return <div {...reach} className={cn(base, "tabular-nums", !ctx.panel && "justify-end")}>{shown.text}</div>
-    default: {
-      const asChip = ctx.options.get(shown.text)
-      const chipFormat = parseFieldConfig(field).show === "chip"
-      if (asChip || (chipFormat && shown.text)) {
-        return (
-          <div {...reach} className={base} title={shown.text}>
-            <OptionChip label={shown.text} color={asChip?.color} tinted={asChip?.tinted ?? false} />
-          </div>
-        )
-      }
-      return (
-        <div {...reach} className={base} title={shown.text}>
-          <span className="truncate">{shown.text}</span>
-        </div>
-      )
-    }
-  }
+  const shown = showFormulaValue(value, computedOf(field).result, numberFormatOf(field))
+  if (shown.kind === "error") return <ComputedError field={field} message={shown.message} reach={{ "data-cell": cellId, tabIndex: -1 }} onEdit={ctx.onEditField} />
+  return computedMarkup(field, cellId, ctx, shown)
 }
 
 function ComputedError({
@@ -738,6 +443,21 @@ function ComputedError({
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => setOpen(on), on ? 120 : 160)
   }
+  // Hover is a mouse's or a pen's. A finger's tap opens the card by focus,
+  // and every tap ends with the finger leaving, which must not start the
+  // grace that puts the card away before its button can be pressed.
+  const hover = (on: boolean) => (e: React.PointerEvent) => {
+    if (e.pointerType !== "touch") show(on)
+  }
+  // Pressing its button is the card's work done: it goes at once, and no
+  // hover timer brings it back. On a phone the settings sheet leaves the focus
+  // on the button, so nothing else would put the card away, and it stayed
+  // under the settings it opened.
+  const edit = () => {
+    if (timer.current) clearTimeout(timer.current)
+    setOpen(false)
+    onEdit?.(field.id)
+  }
   React.useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current)
   }, [])
@@ -752,8 +472,8 @@ function ComputedError({
         <div
           {...reach}
           aria-describedby={descId}
-          onPointerEnter={() => show(true)}
-          onPointerLeave={() => show(false)}
+          onPointerEnter={hover(true)}
+          onPointerLeave={hover(false)}
           onFocus={() => setOpen(true)}
           onBlur={() => show(false)}
           className={cn("flex h-full items-center gap-1 text-meta font-medium text-danger-ink", CELL_PAD, FOCUS)}
@@ -770,20 +490,46 @@ function ComputedError({
         align="start"
         sideOffset={4}
         onOpenAutoFocus={(e) => e.preventDefault()}
-        onPointerEnter={() => show(true)}
-        onPointerLeave={() => show(false)}
-        className="content-float w-[280px] space-y-2 rounded-xl p-3 shadow-e3"
+        onPointerEnter={hover(true)}
+        onPointerLeave={hover(false)}
+        data-overlay-holds-body=""
+        data-overlay-holds-footer={onEdit ? "" : undefined}
+        className="content-float w-[280px] rounded-xl p-0 shadow-e3"
         role="note"
       >
-        <p className="text-ui-sm text-ink">{message}</p>
-        {formula ? <p className="truncate font-mono text-meta text-ink-2"><span className="v3-wavy">{formula}</span></p> : null}
-        {onEdit ? (
-          <Button size="xs" variant="secondary" onClick={() => onEdit(field.id)}>
-            Edit formula
-          </Button>
-        ) : null}
+        <ErrorCard
+          message={message}
+          formula={formula}
+          action={field.type === "rollup" ? "Edit rollup" : "Edit formula"}
+          onAction={onEdit ? edit : undefined}
+        />
       </PopoverContent>
     </LazyPopover>
   )
 }
 
+/**
+ * A broken cell's card, laid out as every overlay is (app/overlay.css): its
+ * words are the body and its button is pinned in the footer. On a phone the
+ * card is a sheet, so it takes the sheets' 16 px gutters and its button their
+ * full size; drawn only while the card is up, so only an open card asks.
+ */
+function ErrorCard({ message, formula, action, onAction }: { message: string; formula: string; action: string; onAction?: () => void }) {
+  const sheet = useSheetMode()
+  const gutter = sheet ? "px-4" : "px-3"
+  return (
+    <>
+      <div data-overlay-body="" className={cn("min-h-0 space-y-2 pt-3", gutter, onAction ? "pb-2" : "pb-3")}>
+        <p className="text-ui-sm text-ink">{message}</p>
+        {formula ? <p className="truncate font-mono text-meta text-ink-2"><span className="v3-wavy">{formula}</span></p> : null}
+      </div>
+      {onAction ? (
+        <div data-overlay-footer="" className={cn("flex", gutter, sheet ? "pt-1" : "pb-3")}>
+          <Button size={sheet ? "lg" : "xs"} variant="secondary" className={cn(sheet && "h-11 flex-1")} onClick={onAction}>
+            {action}
+          </Button>
+        </div>
+      ) : null}
+    </>
+  )
+}

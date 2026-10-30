@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { Tile } from "@/components/ui/graphics/Tile"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
 import { ChromeSheet } from "@/components/docEditor/chrome/Sheet"
 import { InlineError } from "@/components/docEditor/chrome/parts"
@@ -17,7 +16,6 @@ import { busForDoc } from "@/components/docEditor/registry/commandBus"
 import { toast } from "@/hooks/use-toast"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
-import { ACCESS_LEVEL_LABEL } from "@/lib/docAccess"
 import { docInfoKey, docShared } from "@/lib/docCache"
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
 import { appMutate, patchCached } from "@/lib/swrMutate"
@@ -35,6 +33,7 @@ import type { TeamListResponseInterface } from "@/types/team"
 import type { UserProfileInterface } from "@/types/user"
 import {
   AccessCard,
+  AccessTile,
   CopyLinkButton,
   InviteRow,
   LevelMenu,
@@ -48,6 +47,8 @@ import {
 
 const ALL: GrantLevel[] = ["full", "edit", "comment", "view"]
 const TEAM: GrantLevel[] = ["edit", "comment", "view"]
+/** General access gives a level, never Full access. */
+const GENERAL_LEVELS: General["level"][] = ["edit", "comment", "view"]
 type General = DocSharing["general"]
 type Audience = "private" | "space" | "workspace"
 const RANK: Record<General["level"], number> = { view: 1, comment: 2, edit: 3 }
@@ -153,7 +154,7 @@ function RequestRow({ request, onAnswer }: { request: DocAccessRequest; onAnswer
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => void answer(false)}>
           Decline
         </Button>
-        <Button size="sm" disabled={busy} onClick={() => void answer(true)} data-share-approve="">
+        <Button size="sm" busy={busy} onClick={() => void answer(true)} data-share-approve="">
           Approve
         </Button>
       </div>
@@ -299,6 +300,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
         { value: "private", label: "Only people added", description: "Only the people and teams above can open it." },
         { value: "workspace", label: "Everyone in the workspace", description: "Everyone signed in can find it." },
       ]
+  const shown = audiences.find((a) => a.value === audience)
   const owner = sharing?.owner
   const youOwn = !!owner && owner.user_uuid === me?.user_uuid
 
@@ -398,43 +400,31 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
         <AccessCard
           tile={
             audience === "private" ? (
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-hover text-ink-2 [&>svg]:size-4" data-access-tile="restricted">
+              <AccessTile data-access-tile="restricted">
                 <Lock aria-hidden="true" />
-              </span>
-            ) : (
+              </AccessTile>
+            ) : audience === "space" ? (
+              // A team's space is an area of the app: its hue.
               <span className="inline-flex shrink-0" data-access-tile={audience}>
-                <Tile hue={audience === "space" ? "dusk" : "sky"} size="md">
+                <Tile hue="dusk" size="md">
                   <Building2 aria-hidden="true" />
                 </Tile>
               </span>
+            ) : (
+              <AccessTile data-access-tile={audience}>
+                <Building2 aria-hidden="true" />
+              </AccessTile>
             )
           }
-          label={audiences.find((a) => a.value === audience)?.label ?? ""}
-          description={audiences.find((a) => a.value === audience)?.description ?? ""}
+          label={shown?.label ?? ""}
+          description={shown?.description ?? ""}
           options={audiences}
           value={audience}
           onChange={(v) => setGeneral(v as Audience, sharing.general.level)}
           disabled={!full}
           aside={
             audience !== "private" ? (
-              full ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 shrink-0 gap-1 px-2 text-ui-sm font-medium text-ink-2" data-share-general-level="">
-                      {ACCESS_LEVEL_LABEL[sharing.general.level]}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {(["edit", "comment", "view"] as const).map((l) => (
-                      <DropdownMenuItem key={l} onSelect={() => l !== sharing.general.level && setGeneral(audience, l)} data-level={l}>
-                        {ACCESS_LEVEL_LABEL[l]}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <span className="shrink-0 text-ui-sm text-ink-3">{ACCESS_LEVEL_LABEL[sharing.general.level]}</span>
-              )
+              <LevelMenu value={sharing.general.level} levels={GENERAL_LEVELS} who={shown?.label ?? ""} canEdit={full} onChange={(l) => setGeneral(audience, l)} />
             ) : undefined
           }
         />

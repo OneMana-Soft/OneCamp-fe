@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 // refusal was said twice, once over the dialog that was saying it.
 
 const post = vi.hoisted(() => vi.fn())
-vi.mock("@/lib/axiosInstance", () => ({ default: { post, get: vi.fn(), delete: vi.fn() }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post, get: vi.fn(), delete: vi.fn() } }))
 
 const { createApiToken } = await import("@/services/apiTokenService")
 

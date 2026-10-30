@@ -1,13 +1,16 @@
 "use client"
 
 import * as React from "react"
+import { drawnSelected } from "@/components/minimal-tiptap/utils"
 import { parseISO } from "date-fns"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
 import { ChatFace } from "@/components/message/chatFace"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
 import { DueLabel } from "@/components/task/DueLabel"
+import { useMyId } from "@/hooks/useMyId"
+import { RestrictedMark } from "@/components/task/BlockedBadge"
 import { usePost } from "@/hooks/usePost"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import { taskListShow, TASK_LIST_SHOWS, type TaskListShow } from "@/lib/codec/connectedValues"
@@ -16,6 +19,7 @@ import { CATEGORY_KIND, isClosedStatus, statusOptionOf, type StatusCategory } fr
 import { ArrowUpRight, ListTodo } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { displayNameOf } from "@/lib/personName"
+import { canEditTask } from "@/lib/work/access"
 import { PostEndpointUrl } from "@/services/endPoints"
 import type { TaskInfoInterface } from "@/types/task"
 import { COLUMNS, OPEN, tasksIn, useProjectBoard } from "./useProjectBoard"
@@ -35,8 +39,8 @@ function tasksFor(board: Parameters<typeof tasksIn>[0], show: TaskListShow): Tas
 /**
  * A project's tasks in a doc (docs C1, structure.md P2.3): open, mine (each
  * reader's own) or all, live as they change anywhere. Ticking one completes
- * it, for whoever may change the project's tasks (its admins, as on the
- * project's own list); a name opens the task. Whoever edits the doc picks
+ * it, for whoever may change that task (as on the project's own board); a
+ * name opens the task. Whoever edits the doc picks
  * what it shows. Someone outside the project reads that they can't see it,
  * and never its name; a guest reads only that it is a project's tasks.
  */
@@ -48,10 +52,14 @@ export function TaskListEmbedView({ node, editor, updateAttributes, selected }: 
   const { project, board } = read
   const [all, setAll] = React.useState(false)
   const today = useToday()
-  const router = useRouter()
+  const router = useAppRouter()
   const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate()
   const name = project.data?.name || "Untitled project"
-  const canTick = project.state === "ok" && !!project.data?.can_edit && editor.isEditable
+  const me = useMyId(!guest)
+  // Each task by its own right, as on the project's own board (lib/work/access):
+  // where members change only their own tasks, the others' boxes don't tick.
+  // The project's can_edit is any task's.
+  const mayTick = project.state === "ok" && !!project.data?.can_edit && editor.isEditable
 
   const go = (href: string) => (e: React.MouseEvent) => {
     e.preventDefault()
@@ -130,7 +138,7 @@ export function TaskListEmbedView({ node, editor, updateAttributes, selected }: 
         <div role="list" aria-label={`${name}: ${SHOW_LABEL[show].toLowerCase()} tasks`}>
           {shown.map((t) => (
             // A refused tick is said by the request layer, as on the project's list.
-            <TaskRow key={t.task_uuid} task={t} today={today} canTick={canTick} onTick={() => void tick(t).catch(() => undefined)} onOpen={(e) => open(e, t.task_uuid)} />
+            <TaskRow key={t.task_uuid} task={t} today={today} canTick={mayTick && canEditTask(t, me, board)} onTick={() => void tick(t).catch(() => undefined)} onOpen={(e) => open(e, t.task_uuid)} />
           ))}
         </div>
         {tasks.length > shown.length ? (
@@ -154,7 +162,7 @@ export function TaskListEmbedView({ node, editor, updateAttributes, selected }: 
 
   return (
     <NodeViewWrapper data-task-list-embed={show}>
-      <EmbedFrame selected={selected} head={head}>
+      <EmbedFrame selected={drawnSelected(editor, selected)} head={head}>
         {body}
       </EmbedFrame>
     </NodeViewWrapper>
@@ -188,6 +196,9 @@ function TaskRow({ task, today, canTick, onTick, onOpen }: { task: TaskInfoInter
       >
         {task.task_name || "Untitled task"}
       </a>
+      {/* Each reader reads the embed as themselves: a restricted task shows
+          only to its people, with its lock, so they know others don't (WA2b). */}
+      <RestrictedMark restricted={task.task_restricted} />
       {task.task_assignee?.user_uuid ? (
         <ChatFace name={displayNameOf(task.task_assignee)} profileKey={task.task_assignee.user_profile_object_key} userUUID={task.task_assignee.user_uuid} size={20} />
       ) : null}

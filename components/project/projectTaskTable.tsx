@@ -1,7 +1,7 @@
 "use client"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useLayoutOnce } from "@/components/task/useLayoutOnce"
 import {
     type ColumnFiltersState,
@@ -11,7 +11,10 @@ import {
     useReactTable,
 } from "@tanstack/react-table"
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
+import { addressLater } from "@/lib/navigation/addressLater"
+import { useTabInAddress } from "@/components/task/tabInAddress"
 
 import { useDebounce } from "@/hooks/useDebounce"
 import { WorkToolbar, type Layout } from "@/components/task/WorkToolbar"
@@ -20,6 +23,7 @@ import { GroupedTaskList, PROJECT_PROPS, type RowProp } from "@/components/task/
 import { useListDisplay, keepsFinished } from "@/hooks/useListDisplay"
 import { usePost } from "@/hooks/usePost"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
+import { useStableCallback } from "@/hooks/useStableCallback"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { openUI } from "@/store/slice/uiSlice"
 import { Button } from "@/components/ui/button"
@@ -27,7 +31,9 @@ import dynamic from "next/dynamic"
 
 const ProjectStatusesDialog = dynamic(() => import("@/components/project/ProjectStatusesDialog").then((m) => m.ProjectStatusesDialog), { loading: () => null })
 import { whenOf, type TaskGroup } from "@/lib/tasks/grouping"
+import { isManualSort } from "@/lib/tasks/manualSort"
 import { DUE_WEEK, filtersFromAddress, filtersToAddress } from "@/lib/tasks/listAddress"
+import { projectTaskListQuery } from "@/lib/tasks/listQuery"
 import { WorkState } from "@/components/task/workFrame"
 import { ErrorState } from "@/components/ui/error-state"
 import { useProjectTaskColumn } from "@/hooks/useProjectTaskColumn"
@@ -38,7 +44,7 @@ import type { ProjectInfoRawInterface } from "@/types/project"
 import {useDispatch, useSelector} from "react-redux";
 import {clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
 import type {RootState} from "@/store/store";
-import {TaskInfoInterface} from "@/types/task";
+import type { TaskInfoInterface } from "@/types/task";
 import { accessOf, canEditTask } from "@/lib/work/access";
 import type { UserProfileInterface } from "@/types/user";
 import { EmptyState } from "@/components/ui/empty-state"
@@ -58,6 +64,7 @@ const DISPLAY_DEFAULTS = { grouping: "status" as const, props: PROJECT_PROPS, sh
 // render again on every change to the store (a new `[]` is never equal to
 // the last).
 const NO_TASKS: TaskInfoInterface[] = []
+const SORT_WORDS: Record<string, string> = { task_due_date: "due date", task_start_date: "start date", task_created_at: "date created" }
 
 const projectTasksOf = (answer: ProjectInfoRawInterface) => answer.data?.project_tasks
 
@@ -71,9 +78,8 @@ const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
 }
 
 export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps) => {
-    const router = useRouter()
+    const router = useAppRouter()
     const projectHue = useProjectHue(projectId)
-    const pathname = usePathname()
     const searchParams = useSearchParams()
     const dispatch = useDispatch()
 
@@ -102,25 +108,9 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
 
     const taskSearchString = useDebounce(globalFilter, 500)
 
-    const apiQueryString = useMemo(() => {
-        const params = new URLSearchParams()
-
-        if (sorting.length > 0) {
-            params.set("sorting", JSON.stringify(sorting.map(({ id, desc }) => ({ id, desc }))))
-        }
-
-        if (columnFilters.length > 0) {
-            params.set("filters", JSON.stringify(columnFilters.map(({ id, value }) => ({ id, value }))))
-        }
-
-        params.set("pageSize", TASK_PAGE.toString())
-
-        if (taskSearchString) {
-            params.set("taskSearchString", taskSearchString)
-        }
-
-        return params.toString()
-    }, [sorting, columnFilters, taskSearchString])
+    const listQuery = useMemo(() => ({ sort: sorting, filters: columnFilters, search: taskSearchString }), [sorting, columnFilters, taskSearchString])
+    const apiQueryString = useMemo(() => projectTaskListQuery({ ...listQuery, pageSize: TASK_PAGE }).toString(), [listQuery])
+    const exportCSV = useCallback(async () => (await import("@/lib/tasks/exportTaskList")).exportTaskList(projectId, listQuery), [projectId, listQuery])
 
     // No pages to turn (work.md W18): "Show more" at the foot reads the next.
     const pages = useTaskPages<ProjectInfoRawInterface>(
@@ -136,53 +126,14 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     // and emptied the list for good (useLayoutOnce).
     useLayoutOnce(projectId, () => dispatch(clearTaskListVisibleInfo()))
 
-    const debouncedUrlUpdateRef = useRef<NodeJS.Timeout|null>(null)
-
-    useEffect(() => {
-        // Clear previous timeout
-        if (debouncedUrlUpdateRef.current) {
-            clearTimeout(debouncedUrlUpdateRef.current)
-        }
-
-        // Debounce URL updates to avoid excessive router.replace calls
-        debouncedUrlUpdateRef.current = setTimeout(() => {
-            // Keeps what the page put there (the tab), rewrites the list's own.
-            const params = new URLSearchParams(searchParams.toString())
-            for (const k of ["sort", "visibility", "search"]) params.delete(k)
-
-            // Sorting
-            if (sorting.length > 0) {
-                params.set("sort", JSON.stringify(sorting))
-            }
-
-            // Filters
-            filtersToAddress(params, columnFilters, statusOpts)
-
-            // Column visibility
-            if (Object.keys(columnVisibility).length > 0) {
-                params.set("visibility", JSON.stringify(columnVisibility))
-            }
-
-            // Global search filter
-            if (globalFilter) {
-                params.set("search", globalFilter)
-            }
-
-            const newUrl = `${pathname}?${params.toString()}`
-            const currentUrl = `${pathname}?${searchParams.toString()}`
-
-            // Only update if URL actually changed
-            if (newUrl !== currentUrl) {
-                router.replace(newUrl, { scroll: false })
-            }
-        }, 300) // 300ms debounce
-
-        return () => {
-            if (debouncedUrlUpdateRef.current) {
-                clearTimeout(debouncedUrlUpdateRef.current)
-            }
-        }
-    }, [sorting, columnFilters, columnVisibility, globalFilter, pathname, router])
+    const toAddress = useTabInAddress()
+    useEffect(() => addressLater(() => {
+        const own = filtersToAddress(new URLSearchParams(), columnFilters, statusOpts)
+        if (sorting.length > 0) own.set("sort", JSON.stringify(sorting))
+        if (Object.keys(columnVisibility).length > 0) own.set("visibility", JSON.stringify(columnVisibility))
+        if (globalFilter) own.set("search", globalFilter)
+        toAddress(Object.fromEntries(["sort", "visibility", "search", "status", "assignee", "overdue", "due", "filters"].map((k) => [k, own.get(k)])))
+    }, 300), [sorting, columnFilters, columnVisibility, globalFilter, statusOpts, toAddress])
 
     const { fields, isLoading: fieldsLoading, isError: fieldsFailed } = useProjectFields(projectId)
     const { nameOf } = usePeople(projectId, fields)
@@ -238,19 +189,26 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
     const { revalidateTaskKeys } = useTaskUpdate()
     const addInGroup = useCallback(
         async (group: TaskGroup, name: string) => {
-            const res = await post.makeRequest<Record<string, unknown>, { task_uuid?: string }>({
-                apiEndpoint: PostEndpointUrl.CreateTask,
-                payload: { task_name: name, task_project_uuid: projectId },
-            })
+            // Made in the group's status, in one request: a project whose new
+            // tasks start elsewhere still lands it in the group it was added
+            // in, and with no network it waits as one create (lib/offline).
             const status = group.status?.value
-            if (res?.task_uuid && status && status !== "todo") {
-                await post.makeRequest({ apiEndpoint: PostEndpointUrl.UpdateTaskStatus, payload: { task_uuid: res.task_uuid, task_status: status, task_project_uuid: projectId } })
-            }
+            await post.makeRequest<Record<string, unknown>, { task_uuid?: string }>({
+                apiEndpoint: PostEndpointUrl.CreateTask,
+                payload: { task_name: name, task_project_uuid: projectId, ...(status ? { task_status: status } : {}) },
+            })
             revalidateTaskKeys(projectId)
         },
         [post, projectId, revalidateTaskKeys],
     )
     const [managing, setManaging] = useState(false)
+    // One function for the page's life: every row takes it (F-1 #1).
+    const manageStatuses = useStableCallback(() => setManaging(true))
+    const manual = isManualSort(sorting)
+    const reorder = useMemo(
+        () => ({ projectId, manual, sortedBy: SORT_WORDS[sorting[0]?.id], onManual: () => setSorting([]) }),
+        [projectId, manual, sorting],
+    )
 
     return (
         <KeyboardList tasks={taskListState} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts}>
@@ -268,6 +226,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                 onShowCompleted={(showCompleted) => setDisplay({ showCompleted })}
                 layout="list"
                 onLayout={onLayout}
+                onExport={exportCSV}
                 onReset={() => {
                     resetDisplay()
                     table.resetColumnFilters()
@@ -299,7 +258,8 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                         table.setGlobalFilter("")
                     }}
                     onAdd={access.create_tasks ? addInGroup : undefined}
-                    onManageStatuses={access.manage ? () => setManaging(true) : undefined}
+                    onManageStatuses={access.manage ? manageStatuses : undefined}
+                    reorder={reorder}
                     empty={
                         <WorkState>
                             <EmptyState
@@ -321,7 +281,7 @@ export const ProjectTaskTable = ({ projectId, onLayout }: ProjectTaskTableProps)
                 <button
                     type="button"
                     onClick={pages.showMore}
-                    className="flex h-9 w-full items-center pl-[54px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
+                    className="flex h-9 w-full items-center pl-[66px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                 >
                     Show more tasks
                 </button>

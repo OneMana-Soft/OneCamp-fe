@@ -1,5 +1,6 @@
 "use client"
 
+import { useOpenCount } from "@/components/conversation/openCount"
 import React, { useCallback, useEffect, useState } from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import StreamingText from "./StreamingText"
@@ -18,8 +19,8 @@ const DISMISS_TTL_MS = 60 * 60 * 1000 // 1 hour
 interface CatchMeUpBannerProps {
     /** UUID of the channel, user, or group to summarize */
     channelUUID: string
-    /** Number of unread messages */
-    unreadCount: number
+    /** Number of unread messages; the conversation's count as it opened when not given (components/conversation/openCount). */
+    unreadCount?: number
     /** Header name for display */
     channelName?: string
     /** Minimum unread count to show the banner (default: 10) */
@@ -37,12 +38,14 @@ interface CatchMeUpBannerProps {
  */
 const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
     channelUUID,
-    unreadCount,
+    unreadCount: given,
     channelName,
     threshold = 10,
     isChannel = true,
     type = "channel",
 }) => {
+    const opened = useOpenCount()
+    const unreadCount = given ?? opened ?? 0
     const [state, setState] = useState<"idle" | "loading" | "summary" | "dismissed">("idle")
     const [summary, setSummary] = useState("")
     // Held beside the summary, not derived from it: the recap and the boundary it
@@ -144,7 +147,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
                     <Button
                         size="sm"
                         onClick={handleCatchMeUp}
-                        disabled={isSubmitting}
+                        busy={isSubmitting}
                         className="shrink-0"
                     >
                         Catch me up

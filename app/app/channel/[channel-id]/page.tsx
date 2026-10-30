@@ -1,7 +1,7 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { ChannelView } from "@/components/views/ChannelView"
+import { ChannelConversation } from "@/components/conversation/ChannelConversation"
 import { ConversationView } from "@/components/conversation/ConversationView"
 
 export default function Page() {
@@ -9,7 +9,7 @@ export default function Page() {
     const channelId = params?.["channel-id"] as string
     return (
         <ConversationView conversation={channelId ? { kind: "channel", id: channelId } : null}>
-            <ChannelView channelId={channelId} />
+            <ChannelConversation channelId={channelId} />
         </ConversationView>
     )
 }

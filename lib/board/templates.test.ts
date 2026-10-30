@@ -71,6 +71,16 @@ describe("selected notes", () => {
   it("ignores deleted elements", () => {
     expect(selectedNotes([{ ...scene[0], isDeleted: true }, scene[1]], { r1: true })).toEqual([])
   })
+  it("reads the selected notes, never the whole scene, and nothing when nothing is selected (W-4)", () => {
+    const walked = new Proxy([] as typeof scene, {
+      get(t, k) {
+        if (k === "length" || /^\d+$/.test(String(k)) || k === Symbol.iterator) throw new Error("the scene was walked")
+        return Reflect.get(t, k)
+      },
+    })
+    expect(selectedNotes(walked, {})).toEqual([])
+    expect(selectedNotes(walked, { r1: false })).toEqual([])
+  })
 })
 
 describe("a template's notes", () => {

@@ -48,7 +48,7 @@ export function DocAccessRequests({ docId, className }: { docId: string; classNa
                         {r.note ? <span className="text-ink-3">: “{r.note}”</span> : null}
                     </span>
                     <span className="flex items-center gap-1">
-                        <Button size="sm" className="h-7 px-2" disabled={busy === r.id} onClick={() => void answer(r, true)}>
+                        <Button size="sm" className="h-7 px-2" busy={busy === r.id} onClick={() => void answer(r, true)}>
                             Approve
                         </Button>
                         <Button variant="ghost" size="sm" className="h-7 px-2" disabled={busy === r.id} onClick={() => void answer(r, false)}>

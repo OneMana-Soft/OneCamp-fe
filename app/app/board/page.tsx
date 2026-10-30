@@ -19,15 +19,22 @@ import { BoardInfoInterface, BoardListResponse } from "@/types/board";
 import { addUserBoard } from "@/store/slice/userSlice";
 import { app_board_path } from "@/types/paths";
 import { Button } from "@/components/ui/button";
+import { busyWith } from "@/lib/ui/busyWith";
+import { SearchInput } from "@/components/ui/search-input";
 import { ErrorState } from "@/components/ui/error-state";
-import { Plus, Loader2, Lock, Users, Search } from "@/lib/icons";
+import { Plus, Lock, Users } from "@/lib/icons";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Spark, SpotSearch } from "@/components/ui/graphics";
-import { BOARD_TEMPLATES, type BoardTemplate } from "@/lib/board/templates";
-import { NotesFallback, TemplatePreview } from "@/components/board/templatePreview";
-import { cn } from "@/lib/utils/helpers/cn";
+import { SpotSearch } from "@/components/ui/graphics/spots";
+import { NotesFallback } from "@/components/board/notesFallback";
+import dynamic from "next/dynamic";
+
+// The first visit's templates: loaded only for a workspace with no boards.
+const BoardsWelcome = dynamic(() => import("@/components/board/boardsWelcome"), { ssr: false });
+
+/** What a new board may start from: one of the templates, by id and name. */
+type StartFrom = { id: string; name: string };
 
 const GRID = "grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(232px,1fr))] sm:gap-4";
 
@@ -51,7 +58,7 @@ function BoardsPage() {
   // A new board, blank or from a template. The template is laid on the canvas
   // once the board opens (the board page reads ?template=).
   const createBoard = React.useCallback(
-    (template?: BoardTemplate) => {
+    (template?: StartFrom) => {
       if (isSubmitting || creating) return;
       setCreating(template?.id ?? "blank");
       makeRequest<{ board_title: string; board_private: boolean }, BoardInfoInterface>({
@@ -98,20 +105,10 @@ function BoardsPage() {
             ) : null}
           </div>
           {!firstRun ? (
-            <label className="relative flex h-8 w-full items-center rounded-lg bg-raised shadow-e1 transition-shadow focus-within:focus-halo sm:w-60">
-              <Search className="pointer-events-none absolute left-2.5 size-3.5 text-ink-3" aria-hidden="true" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search boards"
-                className="h-full w-full bg-transparent pl-8 pr-2.5 text-ui text-ink outline-none placeholder:text-ink-3"
-                aria-label="Search boards"
-                type="search"
-              />
-            </label>
+            <SearchInput value={search} onValueChange={setSearch} placeholder="Search boards" aria-label="Search boards" className="sm:w-60" />
           ) : null}
-          <Button size="sm" onClick={() => createBoard()} disabled={isSubmitting || !!creating} className="shrink-0 gap-1.5 max-sm:hidden">
-            {creating === "blank" ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+          <Button size="sm" onClick={() => createBoard()} {...busyWith(creating, "blank")} className="shrink-0 gap-1.5 max-sm:hidden">
+            <Plus className="size-3.5" />
             New board
             <span className="kbd" aria-hidden="true">
               B
@@ -156,78 +153,6 @@ function BoardsPage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-/**
- * The first visit (B02): an illustrated header, a line, and the five
- * templates as cards; "Blank board" under them.
- */
-function BoardsWelcome({ onPick, creating }: { onPick: (t?: BoardTemplate) => void; creating: string | null }) {
-  return (
-    <section aria-labelledby="boards-welcome" className="flex flex-col items-center pt-4 text-center sm:pt-8">
-      <WelcomeArt />
-      <h2 id="boards-welcome" className="mt-5 text-title-2 text-ink">
-        Think it through together
-      </h2>
-      <p className="mt-1.5 max-w-[440px] text-ui text-ink-2">
-        A shared canvas for retros, brainstorms and plans. Start from a template:
-      </p>
-      <ul
-        className="-mx-4 mt-6 flex w-[calc(100%+2rem)] snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-3 sm:mx-0 sm:w-full sm:justify-center sm:overflow-visible sm:px-1 sm:pb-0"
-        aria-label="Templates"
-      >
-        {BOARD_TEMPLATES.map((t, i) => {
-          const busy = creating === t.id;
-          return (
-            <li key={t.id} className="content-rise shrink-0 snap-start" style={{ ["--i" as string]: i }}>
-              <button
-                type="button"
-                onClick={() => onPick(t)}
-                disabled={!!creating}
-                data-board-template={t.id}
-                className={cn(
-                  "group/tpl hover-lift relative flex h-[156px] w-[160px] flex-col overflow-hidden rounded-xl bg-raised text-left shadow-e1 outline-none sm:w-[180px]",
-                  "focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-sheet",
-                  creating && !busy && "opacity-60",
-                )}
-              >
-                <TemplatePreview template={t} height={96} />
-                {busy ? (
-                  <span className="absolute right-2 top-2 inline-flex size-6 items-center justify-center rounded-lg bg-pop shadow-e1">
-                    <Loader2 className="size-3.5 animate-spin text-ink-2" />
-                  </span>
-                ) : null}
-                <span className="flex flex-1 flex-col justify-center px-3">
-                  <span className="truncate text-ui-sm font-medium text-ink">{t.name}</span>
-                  <span className="line-clamp-2 text-meta text-ink-3">{t.description}</span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      <Button variant="secondary" size="sm" className="mt-5" onClick={() => onPick()} disabled={!!creating}>
-        {creating === "blank" ? <Loader2 className="size-3.5 animate-spin" /> : null}
-        Blank board
-      </Button>
-    </section>
-  );
-}
-
-/** Three tilted stickies on the dot grid, a dashed orbit and one brand spark. */
-function WelcomeArt() {
-  return (
-    <div aria-hidden="true" data-empty-illustration="" className="relative size-[120px]">
-      <div className="dot-ground absolute inset-3 rounded-[40px] opacity-90" />
-      <svg viewBox="0 0 120 120" className="absolute inset-0 size-full" fill="none">
-        <circle cx="60" cy="60" r="54" stroke="var(--line-3)" strokeWidth="1.5" strokeDasharray="1.5 5" strokeLinecap="round" />
-        <circle cx="8" cy="48" r="3.5" fill="var(--camp-sky)" />
-        <circle cx="110" cy="80" r="3" fill="var(--camp-moss)" />
-      </svg>
-      <NotesFallback />
-      <Spark size={14} className="content-twinkle absolute right-3 top-2 text-brand" />
     </div>
   );
 }

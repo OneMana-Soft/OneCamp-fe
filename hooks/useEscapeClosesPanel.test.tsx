@@ -6,7 +6,7 @@ import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
 
 // The people the mention picker would fetch.
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: async () => ({
       status: 200,

@@ -120,7 +120,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={closeModal}>Cancel</Button>
-                        <Button type="submit" disabled={!isValid || isSubmitting || name.unchanged || !name.available}>
+                        <Button type="submit" disabled={!isValid || name.unchanged || !name.available} busy={isSubmitting}>
                             {isSubmitting ? "Saving…" : "Save name"}
                         </Button>
                     </DialogFooter>

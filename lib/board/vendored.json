@@ -1,0 +1,79 @@
+{
+  "about": "Excalidraw's faces, copied out of node_modules into public/ by scripts/vendor-assets.mjs before every build, so this server serves them itself (lib/board/excalidrawAssets.ts) and no board asks esm.sh, Excalidraw's own default. The folder is named by the start of the faces' tree sha256, so new faces get a new folder; excalidrawAssets.test.ts holds the version to the installed package. The tree's sha256 covers every file's path and sha256 (vendor-assets.mjs treeHash): a package that changed under the same version fails the build.",
+  "packages": [
+    {
+      "pkg": "@excalidraw/excalidraw",
+      "version": "0.18.1",
+      "licence": "MIT (package.json); each face under its own licence, as its file's name table says: public/board/THIRD-PARTY-NOTICES.txt, written by scripts/board-notices.mjs",
+      "dir": "board/vendor/excalidraw-e65d316c",
+      "trees": [
+        [
+          "dist/prod/fonts",
+          "fonts",
+          "e65d316c0a2221f80bada02e09d4c6432de6c6148becc4fc9473de5935807a72"
+        ]
+      ],
+      "faces": {
+        "Assistant": {
+          "licence": "SIL Open Font License 1.1",
+          "texts": [
+            "LICENSE-OFL-1.1.txt"
+          ]
+        },
+        "Cascadia": {
+          "licence": "SIL Open Font License 1.1",
+          "texts": [
+            "LICENSE-OFL-1.1.txt"
+          ],
+          "from": "the OFL release on GitHub, unchanged: microsoft/cascadia-code v2005.15, CascadiaCode_2005.15.zip (sha256 b3d8495e9cdee90d0dbaf60b7db018413e130265dc27e2be7a8db04cf98fddce), woff2/CascadiaCode.woff2",
+          "sha256": {
+            "CascadiaCode-Regular.woff2": "5bce041e0fcce617e35efbc335b1372d27a84acb65fb464c65ff80ab3424a885"
+          }
+        },
+        "ComicShanns": {
+          "licence": "MIT License",
+          "texts": []
+        },
+        "Excalifont": {
+          "licence": "SIL Open Font License 1.1",
+          "texts": [
+            "LICENSE-OFL-1.1.txt"
+          ],
+          "statedBy": "Excalidraw's own source, packages/excalidraw/fonts/Excalifont/index.ts (the face's metadata), since the font file names no licence"
+        },
+        "Liberation": {
+          "licence": "GNU General Public License v2 with the Liberation font exception (Red Hat's Liberation 1.x licence agreement)",
+          "texts": [
+            "LICENSE-LIBERATION-1.txt",
+            "LICENSE-GPL-2.0.txt"
+          ]
+        },
+        "Lilita": {
+          "licence": "SIL Open Font License 1.1",
+          "texts": [
+            "LICENSE-OFL-1.1.txt"
+          ]
+        },
+        "Nunito": {
+          "licence": "SIL Open Font License 1.1",
+          "texts": [
+            "LICENSE-OFL-1.1.txt"
+          ]
+        },
+        "Virgil": {
+          "licence": "SIL Open Font License 1.1",
+          "texts": [
+            "LICENSE-OFL-1.1.txt"
+          ]
+        },
+        "Xiaolai": {
+          "licence": "SIL Open Font License 1.1",
+          "texts": [
+            "LICENSE-OFL-1.1.txt"
+          ],
+          "statedBy": "Excalidraw's own source, packages/excalidraw/fonts/Xiaolai/index.ts (the face's metadata), since the font file names no licence"
+        }
+      }
+    }
+  ]
+}

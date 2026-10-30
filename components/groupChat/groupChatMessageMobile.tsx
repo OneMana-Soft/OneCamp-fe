@@ -7,7 +7,7 @@ import { useDispatch } from "react-redux";
 import { openUI, closeUI } from "@/store/slice/uiSlice";
 import { StandardReaction, SyncCustomReaction } from "@/types/reaction";
 import { app_grp_chat_path } from "@/types/paths";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useCallback, useMemo } from "react";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -44,7 +44,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
 
     const dispatch = useDispatch();
 
-    const router = useRouter();
+    const router = useAppRouter();
 
     const copyToClipboard = useCopyToClipboard()
 
@@ -139,7 +139,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
     const handleSelectAttachment = (attachment: AttachmentMediaReq) => {
 
         if(chatInfo.chat_attachments) {
-            dispatch(openUI({ key: 'attachmentLightbox', data: {allMedia: chatInfo.chat_attachments, media: attachment, mediaGetUrl: GetEndpointUrl.GetGroupChatMedia + '/' + grpId, analyzeContext: { srcKey: 'grpChat', srcRef: grpId }} }))
+            dispatch(openUI({ key: 'attachmentLightbox', data: {allMedia: chatInfo.chat_attachments, media: attachment, mediaGetUrl: GetEndpointUrl.GetGroupChatMedia + '/' + grpId, source: { srcKey: 'grpChat', srcRef: grpId }} }))
 
         }
 

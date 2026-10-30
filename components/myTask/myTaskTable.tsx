@@ -1,6 +1,6 @@
 "use client"
 
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import { useLayoutOnce } from "@/components/task/useLayoutOnce";
 import {
     ColumnFiltersState,
@@ -9,29 +9,28 @@ import {
     getCoreRowModel,
     useReactTable,
 } from "@tanstack/react-table";
-// <CHANGE> Add Next.js router hooks for URL-based state persistence
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { addressLater } from '@/lib/navigation/addressLater';
+import { useTabInAddress } from '@/components/task/tabInAddress';
 
 import { WorkToolbar, type Layout } from "@/components/task/WorkToolbar";
 import { KeyboardList } from "@/components/task/KeyboardList";
 import { GroupedTaskList, MINE_PROPS, type RowProp } from "@/components/task/GroupedTaskList";
 import { useListDisplay, keepsFinished } from "@/hooks/useListDisplay";
-import { Button } from "@/components/ui/button";
-import { openUI } from "@/store/slice/uiSlice";
 import { WorkState } from "@/components/task/workFrame";
 import { ErrorState } from "@/components/ui/error-state";
 import {useMyTaskColumn} from "@/hooks/useMyTaskColumn";
 import {useDebounce} from "@/hooks/useDebounce";
 import {GetEndpointUrl} from "@/services/endPoints";
 import { TASK_PAGE, useTaskPages } from "@/components/task/useTaskPages";
+import { taskListQuery } from "@/lib/tasks/listQuery";
 import {UserInfoRawInterface} from "@/types/user";
 import {clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import { canEditTask } from "@/lib/work/access";
-import { EmptyState } from "@/components/ui/empty-state"
-import { SpotTasks } from "@/components/ui/graphics/spots"
+import { NothingAssigned } from "@/components/myTask/nothingAssigned"
 import { statusOptions } from "@/lib/taskStatus"
 
 // No list in the store yet: one empty list, made once, so the table doesn't
@@ -54,10 +53,8 @@ const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
 };
 
 export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void } = {}) => {
-    // <CHANGE> Add Next.js router hooks for URL-based pagination
-    const router = useRouter();
-    const pathname = usePathname();
     const searchParams = useSearchParams();
+    const toAddress = useTabInAddress();
     const dispatch = useDispatch()
 
     const [urlParam, setUrlParam] = useState('');
@@ -91,8 +88,6 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
 
     const taskSearchString = useDebounce(globalFilter, 500);
 
-    const urlUpdateTimeoutRef = useRef<NodeJS.Timeout|null>(null);
-
 
     // Reset taskListVisibleInfo once, on mount, so we don't render the
     // previous surface's tasks (e.g. project tasks if user came from
@@ -119,70 +114,25 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
         getCoreRowModel: getCoreRowModel(),
     });
 
-    // <CHANGE> Memoized query string builder for API calls only
-    const apiQueryString = useMemo(() => {
-        const params = new URLSearchParams();
-
-        if (sorting.length > 0) {
-            params.set('sorting', JSON.stringify(sorting.map(({ id, desc }) => ({ id, desc }))));
-        }
-
-        if (columnFilters.length > 0) {
-            params.set('filters', JSON.stringify(columnFilters.map(({ id, value }) => ({ id, value }))));
-        }
-
-        params.set('pageSize', TASK_PAGE.toString());
-
-        if (taskSearchString) {
-            params.set('taskSearchString', taskSearchString);
-        }
-
-        return params.toString();
-    }, [sorting, columnFilters, taskSearchString]);
+    const apiQueryString = useMemo(
+        () => taskListQuery({ sort: sorting, filters: columnFilters, search: taskSearchString, pageSize: TASK_PAGE }).toString(),
+        [sorting, columnFilters, taskSearchString],
+    );
 
     // <CHANGE> Effect to update API query string
     useEffect(() => {
         setUrlParam(apiQueryString);
     }, [apiQueryString]);
 
-    // <CHANGE> Debounced effect to sync table state with URL (300ms debounce)
-    useEffect(() => {
-        if (urlUpdateTimeoutRef.current) {
-            clearTimeout(urlUpdateTimeoutRef.current);
-        }
-
-        urlUpdateTimeoutRef.current = setTimeout(() => {
-            const params = new URLSearchParams();
-
-            // Sorting
-            if (sorting.length > 0) {
-                params.set("sort", JSON.stringify(sorting));
-            }
-
-            // Filters
-            if (columnFilters.length > 0) {
-                params.set("filters", JSON.stringify(columnFilters));
-            }
-
-            // Column visibility
-            if (Object.keys(columnVisibility).length > 0) {
-                params.set("visibility", JSON.stringify(columnVisibility));
-            }
-
-            // Global search filter
-            if (globalFilter) {
-                params.set("search", globalFilter);
-            }
-
-            router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-        }, 300);
-
-        return () => {
-            if (urlUpdateTimeoutRef.current) {
-                clearTimeout(urlUpdateTimeoutRef.current);
-            }
-        };
-    }, [sorting, columnFilters, columnVisibility, globalFilter, pathname, router]);
+    // The list's own keys go into the address a moment after they change, for
+    // Back, a reload and a shared link, beside what the page put there (the
+    // tab). The list opens from the address, so opening writes nothing.
+    useEffect(() => addressLater(() => toAddress({
+        sort: sorting.length > 0 ? JSON.stringify(sorting) : null,
+        filters: columnFilters.length > 0 ? JSON.stringify(columnFilters) : null,
+        visibility: Object.keys(columnVisibility).length > 0 ? JSON.stringify(columnVisibility) : null,
+        search: globalFilter || null,
+    }), 300), [sorting, columnFilters, columnVisibility, globalFilter, toAddress]);
 
     // The first rows reach the list through the store, an effect after the
     // answer, and the request itself starts an effect after the first render.
@@ -239,12 +189,7 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
                     }}
                     empty={
                         <WorkState>
-                            <EmptyState
-                                illustration={<SpotTasks />}
-                                title="Nothing assigned to you"
-                                description="Tasks you're given, or make for yourself, land here."
-                                action={<Button size="sm" variant="secondary" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>New task</Button>}
-                            />
+                            <NothingAssigned />
                         </WorkState>
                     }
                 />
@@ -253,7 +198,7 @@ export const MyTaskTable = ({ onLayout }: { onLayout?: (layout: Layout) => void 
                 <button
                     type="button"
                     onClick={pages.showMore}
-                    className="flex h-9 w-full items-center pl-[54px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
+                    className="flex h-9 w-full items-center pl-[66px] text-left text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                 >
                     Show more tasks
                 </button>

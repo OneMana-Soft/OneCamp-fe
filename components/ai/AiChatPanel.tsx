@@ -68,7 +68,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMedia } from "@/context/MediaQueryContext";
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
 import { getOtherUserId } from "@/lib/utils/getOtherUserId";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
@@ -83,6 +83,7 @@ import { numberCitations, orderSources } from "@/components/ai/citations";
 import { suggestionsFrom, type Suggestion, type SuggestionContext } from "@/components/ai/suggestions";
 import { getAttention } from "@/services/memoryService";
 import { prefersReducedMotion } from "@/lib/reducedMotion";
+import { nearEnd } from "@/lib/ui/scrollEnd";
 
 // --- Client-side AI text sanitization ---
 // Defense-in-depth: strip tool_call XML, UUIDs, and command syntax before display.
@@ -549,7 +550,7 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page"; initialAsk?: string }>
         onError: (m) => toast({ title: m, variant: "destructive" }),
     });
     const micBusy = dictation.transcribing || dictation.setup.progress !== null;
-    const router = useRouter();
+    const router = useAppRouter();
 
     // Current user id: needed to resolve DM source links to the OTHER
     // participant (a DM grouping id contains both user uuids).
@@ -600,7 +601,7 @@ const AiChatPanel: React.FC<{ variant?: "panel" | "page"; initialAsk?: string }>
     const onScroll = useCallback(() => {
         const el = scrollContainerRef.current;
         if (!el) return;
-        setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 48);
+        setAtBottom(nearEnd(el, 48));
     }, []);
     const toBottom = useCallback((smooth: boolean) => {
         const el = scrollContainerRef.current;

@@ -86,7 +86,6 @@ describe("the splash's scene", () => {
     const ids = [...container.querySelectorAll("linearGradient")].map((g) => g.id)
     expect(new Set(ids).size).toBe(2)
   })
-
 })
 
 describe("the splash's motion", () => {

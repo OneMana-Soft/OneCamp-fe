@@ -1,12 +1,21 @@
 "use client";
 
 import { use, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { getGuestCollabSession, guestCollabToken } from "@/services/guestService";
-import { GuestBoardViewer } from "@/components/guest/GuestBoardViewer";
 import { GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { CanvasPending } from "@/components/guest/canvasPending";
 import { PublicGone } from "@/components/guest/publicStates";
 import { PublicFrame } from "@/components/guest/PublicFrame";
 import { Eye } from "@/lib/icons";
+
+// The live canvas (its socket and its drawing library) loads after the
+// page's frame, as the member's board does: the guest sees the board's name
+// and the frame at once.
+const GuestBoardViewer = dynamic(() => import("@/components/guest/GuestBoardViewer").then((m) => m.GuestBoardViewer), {
+    ssr: false,
+    loading: () => <CanvasPending />,
+});
 
 const gone = <PublicGone surface="guest-board" noun="shared board" detail="The link may have expired or been turned off. Ask the person who shared it for a new one." />;
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { pinTestClock } from "@/lib/testing/testClock"
-import { burndownChart, cycleDates, cycleLabel, loadNote, nextStart, openCycles, paceNote, percentDone, velocityChart, type Burndown, type Cycle, type Velocity } from "./cycles"
+import { cycleDates, cycleLabel, nextStart, openCycles, percentDone, type Cycle } from "./cycles"
+import { burndownChart, burndownUnits, loadNote, paceNote, velocityChart, type Burndown, type Velocity } from "./cycleBurndown"
 
 // Today is pinned (app/testClock.test.ts): a day in this year is written without its year, and these are 2026's.
 pinTestClock()
@@ -102,5 +103,35 @@ describe("burndown", () => {
     expect(chart.labels).toEqual(["Cycle 1", "Launch"])
     expect(chart.series[0].values).toEqual([4, 6])
     expect(velocityChart(v, "hours").series[0]).toMatchObject({ name: "Hours done", values: [9, 11] })
+  })
+})
+
+// linear-05: a project that estimates in points can count its burndown and
+// velocity in them, a third unit beside tasks and hours.
+describe("a burndown in points", () => {
+  const pb: Burndown = { ...b, scope_points: [13, 13, 15, 15], remaining_points: [13, 10, 12, 7], ideal_points: [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0.5, 0], pointed: 5, points: 15 }
+  const pv: Velocity = { ...v, cycles: v.cycles.map((c, i) => ({ ...c, done_points: [12, 14][i] })), typical_points: 13 }
+
+  it("offers points only when the project counts them, and hours only when a task has an estimate", () => {
+    expect(burndownUnits(pb)).toEqual(["tasks", "hours", "points"])
+    expect(burndownUnits(b)).toEqual(["tasks", "hours"])
+    expect(burndownUnits({ ...b, estimated: 0, scope_hours: null })).toEqual(["tasks"])
+  })
+
+  it("draws, paces and loads in points", () => {
+    const chart = burndownChart(pb, "points")
+    expect(chart.unit).toBe("Points")
+    expect(chart.series.at(-1)!.values.slice(0, 4)).toEqual([13, 10, 12, 7])
+    expect(paceNote(pb, "points", "current")).toBe("On pace: 7 points left, and the ideal pace has 9 points by today.")
+    expect(paceNote({ ...pb, remaining_points: [13, 10, 12, 11] }, "points", "current")).toBe("Behind pace: 11 points left, where the ideal pace has 9 points by today.")
+    expect(loadNote(pb, pv, "points")).toBe("The last 2 cycles finished 13 points on average; this one holds 15 points.")
+    const bars = velocityChart(pv, "points")
+    expect([bars.title, bars.series[0].name, bars.series[0].values]).toEqual(["Points done in each completed cycle", "Points done", [12, 14]])
+  })
+
+  it("falls back to tasks where the project counts no points", () => {
+    expect(burndownChart(b, "points").unit).toBe("Tasks")
+    expect(velocityChart(v, "points").title).toBe("Tasks done in each completed cycle")
+    expect(loadNote(b, v, "points")).toBe("The last 2 cycles finished 5 tasks on average; this one holds 6 tasks.")
   })
 })

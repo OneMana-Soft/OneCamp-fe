@@ -5,12 +5,9 @@
 // (CALL-BUG-9, 17).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import type { ReactNode } from "react"
+import { fakeMedia } from "@/lib/testing/fakeMedia"
 
-vi.mock("livekit-client", async (orig) => ({
-  ...(await orig<typeof import("livekit-client")>()),
-  // The camera never answers: the preview's in-between state.
-  createLocalVideoTrack: vi.fn(() => new Promise(() => {})),
-}))
 vi.mock("@livekit/components-react", () => ({ useIsMuted: () => true }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true, isTablet: false }) }))
 
@@ -20,7 +17,7 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetchOnlyOnce: (url: string) => reads[url] ?? {},
 }))
 const post = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a) }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a) } }))
 
 let conference: Record<string, unknown> = {}
 vi.mock("@/components/livekit/VideoConference", () => ({
@@ -59,6 +56,8 @@ import { handOffMeeting, peekMeetingHandoff } from "./instantMeeting"
 import InstantMeetingPage from "@/app/app/meet/instant/page"
 
 beforeEach(() => {
+  // The camera never answers: the preview's in-between state.
+  fakeMedia("never")
   reads = {}
   conference = {}
   Object.defineProperty(navigator, "languages", { configurable: true, value: ["hi-IN", "en-GB"] })
@@ -114,6 +113,20 @@ describe("CALL-BUG-12: a channel call says what it is doing before Join", () => 
     expect(post).toHaveBeenCalledWith("/ch/getCallToken", expect.objectContaining({ channel_uuid: "c1", audio_enabled: false, video_enabled: true, language: "hi-IN" }), expect.anything())
     await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
     expect(conference).toMatchObject({ token: "tok", audio: false, video: true, sessionId: "s1" })
+  })
+
+  // HU13: Invite, beside the call's other pills, for someone in it who may
+  // let people in; never for anyone else.
+  it("offers Invite to someone who may let people in, and to nobody else", async () => {
+    for (const [can, offered] of [[["mute", "admit"], true], [[], false]] as const) {
+      reads[current] = { data: { data: { ...state.data, you: { role: "host", can } } } }
+      post.mockResolvedValueOnce({ data: { data: { token: "tok" } } })
+      render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
+      await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
+      expect(!!conference.extraStatus).toBe(offered)
+      cleanup()
+    }
   })
 
   it("says before Join that a locked call won't let you in, and holds Join", () => {
@@ -175,6 +188,17 @@ describe("CALL-BUG-23: a call that never connected says so, with Try again", () 
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Leave" })))
     expect(screen.getByRole("heading", { name: "You left the call" })).toBeInTheDocument()
     expect(screen.getByText("1 min")).toBeInTheDocument()
+  })
+
+  it("goes back to the channel by its name (placeInSentence)", async () => {
+    reads["/ch/channelBasicInfo/c1"] = { data: { channel_info: { ch_name: "engineering" } } }
+    post.mockResolvedValue({ data: { data: { token: "tok" } } })
+    render(<CallView kind="channel" id="c1" onLeave={() => {}} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join now" })))
+    await waitFor(() => expect(screen.getByTestId("conference")).toBeInTheDocument())
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Connected" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Leave" })))
+    expect(screen.getByRole("button", { name: "Back to #engineering" })).toBeInTheDocument()
   })
 
   it("hands the workspace's transcription settings to a member's call", async () => {
@@ -242,6 +266,23 @@ describe("CALL-BUG-17 and 9: an instant meeting's own page", () => {
     const notice = document.querySelector('[data-call-notice="unavailable"]')!
     expect(notice.className).not.toMatch(/(^|\s)dark(\s|$)/)
     expect(notice.className).toContain("bg-sheet")
+  })
+
+  // A personal room (CALLS-2) is hosted on the same page: its address is the
+  // invite, with no end, changed in the room's settings, never turned off here.
+  it("invites to a personal room by its address, said as your room", async () => {
+    reads["/meet/instant/m6"] = { data: { data: { active: false, address: "/r/maya-chen" } } }
+    handOffMeeting("m6", { hostToken: "host-tok", audio: true, video: false })
+    render(<InstantMeetingView meetingId="m6" />)
+    expect(conference.place).toBe("in your room")
+    cleanup()
+    render(<>{conference.extraStatus as ReactNode}</>)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Invite a guest" })))
+    expect(screen.getByLabelText("Your room's address").textContent).toBe(`${window.location.origin}/r/maya-chen`)
+    expect(screen.getByText("Anyone with your room's address can ask to come in.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Room settings" }).getAttribute("href")).toBe("/app/meet/room")
+    expect(screen.queryByRole("button", { name: "Turn off the old link" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Get a new link" })).toBeNull()
   })
 
   it("moves a new meeting to its own page, handing it the first token and the guest link", async () => {

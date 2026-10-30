@@ -16,26 +16,30 @@
  * Shared code: it draws rows and calls back. Where the rows come from (the
  * AI's attention list, or mentions and tasks without it) is the caller's.
  */
-import { avatarSeed } from "@/lib/utils/getAvatarColor"
-import { ChatFace } from "@/components/message/chatFace"
 import Link from "next/link"
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Chip } from "@/components/ui/chip"
+import { busyWith } from "@/lib/ui/busyWith"
 import { CountTick } from "@/components/ui/CountTick"
 import { HubRow, HubRowSkeleton, HubSectionHeader, HubToolButton } from "@/components/ui/hubRow"
-import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
-import { StatusGlyph } from "@/components/ui/graphics/glyphs"
-import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
-import { ArrowUpRight, Check, Loader2, Send, Shield } from "@/lib/icons"
+import { ArrowUpRight, Check, Loader2, Send } from "@/lib/icons"
 import { celebrateOnce } from "@/lib/celebrateSoon"
 import { useResolve } from "@/lib/hub/motion"
+import { listKey } from "@/lib/listKeys"
+import { NeedsGoneContext, useNeedsGoneState } from "@/components/home/needsGone"
+import { toastDuration, useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils/helpers/cn"
 import { groupNeeds, NEEDS_CAP, type NeedsItem } from "@/components/home/needsMe"
+import { NeedsLead, NeedsSecond } from "@/components/home/needsRow"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
-import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
+import { lazyPart } from "@/lib/lazy/lazyPart"
 
+
+// Undo's button in the shared toast. The root layout's Toaster already holds
+// it, so it costs Home's first load nothing; a lazy part, so the toast never
+// waits for it.
+const ToastAction = lazyPart(() => import("@/components/ui/toast").then((m) => m.ToastAction)).Part
 
 /**
  * The section holds its header and two rows' height (34 + 2 x 52) whether it
@@ -48,6 +52,8 @@ const NEEDS_MIN_H = "min-h-[138px]"
 export interface NeedsActions {
   /** Mark a task done. */
   onDone?: (item: NeedsItem) => Promise<void>
+  /** Done's Undo: the task back as it was. Without it, Done offers no Undo. */
+  onUndoDone?: (item: NeedsItem) => Promise<void>
   /** Approve an agent's request. Throws with the reason when it fails. */
   onApprove?: (item: NeedsItem) => Promise<void>
   onDismiss?: (item: NeedsItem) => Promise<void>
@@ -79,24 +85,6 @@ function ClearSpot({ springRef }: { springRef?: React.Ref<SVGSVGElement> }) {
   )
 }
 
-/** A mention's words, with the reader's own mention as the brand-muted "@You" chip. */
-function Quote({ text }: { text: string }) {
-  const parts = text.split(/(@You)/)
-  return (
-    <span className="text-ui-sm text-ink-2">
-      {parts.map((p, i) =>
-        p === "@You" ? (
-          <span key={i} className="hub-me mr-0.5 text-meta leading-4">
-            @You
-          </span>
-        ) : (
-          <span key={i}>{p}</span>
-        ),
-      )}
-    </span>
-  )
-}
-
 export function NeedsMeSection({
   items,
   loading,
@@ -105,6 +93,7 @@ export function NeedsMeSection({
   footer,
   noChannels,
   onDone,
+  onUndoDone,
   onApprove,
   onDismiss,
   onReply,
@@ -112,7 +101,10 @@ export function NeedsMeSection({
 }: NeedsMeSectionProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const { phase, resolve } = useResolve(listRef)
-  const [gone, setGone] = useState<Set<string>>(() => new Set())
+  // What was resolved here: the page's, which its greeting line reads too, or the list's own.
+  const own = useNeedsGoneState()
+  const resolved = useContext(NeedsGoneContext) ?? own
+  const gone = resolved.gone
   const [busy, setBusy] = useState<Record<string, "approve" | "dismiss" | "done" | "reply">>({})
   const [failed, setFailed] = useState<Record<string, string>>({})
   const [replying, setReplying] = useState<string | null>(null)
@@ -122,8 +114,36 @@ export function NeedsMeSection({
   const [cleared, setCleared] = useState(false)
   const resolvedHere = useRef(false)
   const spotRef = useRef<SVGSVGElement>(null)
+  const { toast } = useToast()
+  // Rows undone while they were still leaving: they stay.
+  const undone = useRef(new Set<string>())
+  // Dismissals waiting out their Undo, told to the server when it has gone or
+  // when Home goes first (the setup checklist's "Hidden. Undo"): an Undo costs
+  // no request.
+  const held = useRef(new Map<string, { item: NeedsItem; timer: number }>())
+  const dismissRef = useRef(onDismiss)
+  dismissRef.current = onDismiss
+  useEffect(() => {
+    const waiting = held.current
+    return () => {
+      for (const { item, timer } of waiting.values()) {
+        window.clearTimeout(timer)
+        // Home is gone, so no one is left to tell: a lost dismissal only
+        // shows its row again on the next visit.
+        void dismissRef.current?.(item).catch(() => {})
+      }
+      waiting.clear()
+    }
+  }, [])
 
   const live = items.filter((i) => !gone.has(i.id))
+  // What this list shows, told to the page before the paint, for its line (needsGone).
+  const showOnPage = resolved.show
+  const showing = Boolean(loading)
+  const readFailed = Boolean(error) && live.length === 0
+  useLayoutEffect(() => {
+    showOnPage({ items: live, loading: showing, failed: readFailed })
+  })
   // Six rows, then the rest open in place. They used to link to Inbox >
   // Priority, which lists mentions and requests but never a task that is due,
   // so a queue of one due task linked to "You're all caught up".
@@ -142,7 +162,53 @@ export function NeedsMeSection({
   const finish = (item: NeedsItem, what: string) => {
     resolvedHere.current = true
     setSaid(what)
-    resolve(item.id, () => setGone((g) => new Set(g).add(item.id)))
+    resolve(item.id, () => {
+      if (!undone.current.delete(item.id)) resolved.mark(item)
+    })
+  }
+
+  // Undo: the row comes back where it was.
+  const back = (id: string) => {
+    if (phase(id)) undone.current.add(id)
+    resolved.unmark(id)
+    setSaid("Undone")
+  }
+  const undoButton = (onClick: () => void) => (
+    <ToastAction altText="Undo" onClick={onClick}>
+      Undo
+    </ToastAction>
+  )
+  const reasonOf = (e: unknown) => (e instanceof Error && e.message ? e.message : "something went wrong")
+
+  const undoDone = async (item: NeedsItem) => {
+    back(item.id)
+    try {
+      await onUndoDone?.(item)
+    } catch {
+      resolved.mark(item)
+      toast({ title: "Couldn't undo", description: item.title, tone: "error" })
+    }
+  }
+
+  const dismiss = (item: NeedsItem) => {
+    if (!onDismiss || busy[item.id]) return
+    finish(item, "Dismissed")
+    const action = undoButton(() => {
+      const h = held.current.get(item.id)
+      if (!h) return
+      window.clearTimeout(h.timer)
+      held.current.delete(item.id)
+      back(item.id)
+    })
+    const timer = window.setTimeout(() => {
+      held.current.delete(item.id)
+      onDismiss(item).catch((e) => {
+        back(item.id)
+        setFailed((f) => ({ ...f, [item.id]: `Couldn't dismiss: ${reasonOf(e)}` }))
+      })
+    }, toastDuration({ action }))
+    held.current.set(item.id, { item, timer })
+    toast({ title: "Dismissed", description: item.title, action })
   }
 
   const run = async (item: NeedsItem, kind: "approve" | "dismiss" | "done", fn: ((i: NeedsItem) => Promise<void>) | undefined, what: string) => {
@@ -156,9 +222,10 @@ export function NeedsMeSection({
     try {
       await fn(item)
       finish(item, what)
+      // Done can be undone, as the task list's is; an approval can't, the agent has acted.
+      if (kind === "done" && onUndoDone) toast({ title: "Done", description: item.title, action: undoButton(() => void undoDone(item)) })
     } catch (e) {
-      const reason = e instanceof Error && e.message ? e.message : "something went wrong"
-      setFailed((f) => ({ ...f, [item.id]: `Couldn't ${kind === "done" ? "mark it done" : kind}: ${reason}` }))
+      setFailed((f) => ({ ...f, [item.id]: `Couldn't ${kind === "done" ? "mark it done" : kind}: ${reasonOf(e)}` }))
     } finally {
       setBusy((b) => {
         const n = { ...b }
@@ -188,15 +255,25 @@ export function NeedsMeSection({
     }
   }
 
-  // E done, R reply, A approve, D dismiss: only with the row focused.
+  // E done, R reply, A approve, D dismiss: only with the row focused. Then
+  // the shared list keys (lib/listKeys), as tasks and boards have them: J and
+  // K or the arrows move between rows, Enter and O open one.
   const keys = (item: NeedsItem) => (e: KeyboardEvent<HTMLElement>) => {
     if (e.target !== e.currentTarget || e.metaKey || e.ctrlKey || e.altKey) return
     const k = e.key.toLowerCase()
     if (k === "e" && item.kind === "due") run(item, "done", onDone, "Done")
     else if (k === "r" && item.kind === "reply" && item.postUuid && onReply) setReplying(item.id)
     else if (k === "a" && item.kind === "agent") run(item, "approve", onApprove, "Approved")
-    else if (k === "d" && item.kind === "agent") run(item, "dismiss", onDismiss, "Dismissed")
-    else return
+    else if (k === "d" && item.kind === "agent") dismiss(item)
+    else {
+      const go = listKey(e)
+      const row = e.currentTarget
+      if (go?.type === "move") {
+        const rows = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-needs-kind]") ?? [])]
+        rows[rows.indexOf(row) + go.by]?.focus()
+      } else if (go?.type === "open") row.querySelector<HTMLAnchorElement>("a[href]")?.click()
+      else return
+    }
     e.preventDefault()
   }
 
@@ -257,45 +334,7 @@ export function NeedsMeSection({
         </span>
       )
     }
-    if (item.kind === "agent") return <span className="block size-6"><AgentAvatar /></span>
-    if (item.kind === "due") return <StatusGlyph status={item.status ?? "todo"} />
-    // An agent or a bot is its square, never a person's disc (design v3 §3.9),
-    // as on the greeting's orbit: OneCamp AI's unread DM drew an "OA" disc.
-    if (item.person?.bot) return <ChatFace name={item.person.name} userUUID={item.person.id} isBot size={24} />
-    if (item.person) return <IdentityMark variant="avatar" size={24} id={avatarSeed(item.person.name)} label={item.person.name} />
-    return <StatusGlyph status="todo" />
-  }
-
-  const second = (item: NeedsItem): ReactNode => {
-    if (item.kind === "agent") {
-      return (
-        <span className="inline-flex items-center gap-1.5">
-          {item.context ? <span>{item.context}</span> : null}
-          {item.context ? <span className="text-ink-4">·</span> : null}
-          <Shield className="size-3 text-agent" aria-hidden />
-          acts for you
-        </span>
-      )
-    }
-    if (item.kind === "due") {
-      return (
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          {item.due ? (
-            <Chip tone={item.overdue ? "danger" : "sun"} className="h-[18px] px-1.5 text-micro">
-              {item.due}
-            </Chip>
-          ) : null}
-          {item.project ? (
-            <>
-              <ProjectTile id={item.project.id} size={14} />
-              <span className="truncate">{item.project.name}</span>
-            </>
-          ) : null}
-        </span>
-      )
-    }
-    if (item.quote) return <Quote text={item.quote} />
-    return item.context
+    return <NeedsLead item={item} />
   }
 
   const actions = (item: NeedsItem): ReactNode => {
@@ -304,12 +343,11 @@ export function NeedsMeSection({
       // Always visible, not only on hover: consequential and rare.
       return (
         <span className="flex items-center gap-1">
-          <Button variant="ghost" size="xs" disabled={!!b} onClick={() => run(item, "dismiss", onDismiss, "Dismissed")}>
+          <Button variant="ghost" size="xs" disabled={!!b} onClick={() => dismiss(item)}>
             {b === "dismiss" ? <Loader2 className="animate-spin" /> : null}
             Dismiss
           </Button>
-          <Button size="xs" disabled={!!b} aria-busy={b === "approve" || undefined} onClick={() => run(item, "approve", onApprove, "Approved")}>
-            {b === "approve" ? <Loader2 className="animate-spin" /> : null}
+          <Button size="xs" {...busyWith(b, "approve")} onClick={() => run(item, "approve", onApprove, "Approved")}>
             Approve
           </Button>
         </span>
@@ -342,7 +380,10 @@ export function NeedsMeSection({
     if (item.kind === "reply" && item.postUuid && onReply) {
       return (
         <Button variant="secondary" size="xs" onClick={() => setReplying(replying === item.id ? null : item.id)}>
-          Reply <span className="kbd">R</span>
+          Reply{" "}
+          <span className="kbd" data-kbd-hint="">
+            R
+          </span>
         </Button>
       )
     }
@@ -379,6 +420,9 @@ export function NeedsMeSection({
                 <div key={item.id} data-flip-key={item.id}>
                   <HubRow
                     density="two-line"
+                    // A row keeps its words: a title and a second line of two lines each,
+                    // not one (a mention's "#engineering", a task's whole name on a phone).
+                    clamp
                     tabIndex={0}
                     onKeyDown={keys(item)}
                     data-needs-kind={item.kind}
@@ -393,7 +437,7 @@ export function NeedsMeSection({
                         item.title
                       )
                     }
-                    second={second(item)}
+                    second={<NeedsSecond item={item} />}
                     meta={<span className="flex items-center gap-2">{actions(item)}</span>}
                   >
                     {failed[item.id] ? (
@@ -426,7 +470,9 @@ export function NeedsMeSection({
                           className="min-h-8 w-full resize-none bg-transparent text-ui outline-none placeholder:text-ink-3"
                         />
                         <span className="flex items-center justify-end gap-2">
-                          <span className="text-meta text-ink-3">↵ send · Esc close</span>
+                          <span className="text-meta text-ink-3" data-kbd-hint="">
+                            ↵ send · Esc close
+                          </span>
                           <button
                             type="button"
                             aria-label="Send reply"

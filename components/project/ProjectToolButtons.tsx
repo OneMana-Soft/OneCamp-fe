@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Archive, Bell, ClipboardList, Clock, Globe, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
+import { Archive, Bell, ClipboardList, Clock, Globe, Hash, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
 import type { WorkAccess } from "@/lib/work/types"
 import { useArchiveProject } from "@/hooks/useArchiveProject"
 import { appMutate } from "@/lib/swrMutate"
@@ -43,8 +43,9 @@ const ProjectFormsDialog = dynamic(() => import("@/components/project/ProjectFor
 const ProjectShareDialog = dynamic(() => import("@/components/project/ProjectShareDialog").then((m) => m.ProjectShareDialog), { loading: () => null })
 const ProjectTimeDialog = dynamic(() => import("@/components/project/ProjectTimeDialog").then((m) => m.ProjectTimeDialog), { loading: () => null })
 const SaveAsTemplateDialog = dynamic(() => import("@/components/projectTemplates/SaveAsTemplateDialog").then((m) => m.SaveAsTemplateDialog), { loading: () => null })
-const ProjectRulesDialog = dynamic(() => import("@/components/work/rules/ProjectRulesDialog").then((m) => m.ProjectRulesDialog), { loading: () => null })
+const ProjectRulesDialog = dynamic(() => import("@/components/work/rules/ProjectRulesDialog"), { loading: () => null })
 const ProjectAccessDialog = dynamic(() => import("@/components/project/ProjectAccessDialog").then((m) => m.ProjectAccessDialog), { loading: () => null })
+const ProjectKeyTypesDialog = dynamic(() => import("@/components/project/ProjectKeyTypesDialog").then((m) => m.ProjectKeyTypesDialog), { loading: () => null })
 
 /** Starts the menu's dialogs loading, so the one chosen opens without a wait. */
 function warmTools() {
@@ -52,10 +53,11 @@ function warmTools() {
   void import("@/components/project/ProjectShareDialog")
   void import("@/components/projectTemplates/SaveAsTemplateDialog")
   void import("@/components/project/ProjectAccessDialog")
+  void import("@/components/project/ProjectKeyTypesDialog")
 }
 const warmTime = () => void import("@/components/project/ProjectTimeDialog")
 
-type ToolKey = "time" | "rules" | "forms" | "share" | "template" | "access"
+type ToolKey = "time" | "rules" | "forms" | "share" | "template" | "access" | "keys"
 export interface ProjectTool {
   key: ToolKey
   label: string
@@ -99,10 +101,11 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
     tool("time", "Time logged on this project", Clock),
     tool("rules", "Rules that run work", Workflow),
     ...(isAdmin ? [
-      tool("forms", "Forms that make tasks", ClipboardList),
+      tool("forms", "Intake forms", ClipboardList),
       tool("share", "Share with a client", Globe),
       tool("template", "Save as a template", LayoutTemplate),
       tool("access", "Who can change tasks", ShieldCheck),
+      tool("keys", "Key and types", Hash),
     ] : []),
   ]
   const dialogs = !allowed ? null : (
@@ -113,6 +116,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
       {isAdmin && was("share") && <ProjectShareDialog projectId={projectId} open={open === "share"} onOpenChange={set("share")} />}
       {isAdmin && was("template") && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}
       {isAdmin && was("access") && <ProjectAccessDialog projectId={projectId} open={open === "access"} onOpenChange={set("access")} />}
+      {isAdmin && was("keys") && <ProjectKeyTypesDialog projectId={projectId} open={open === "keys"} onOpenChange={set("keys")} />}
     </>
   )
   return { allowed, tools, dialogs }

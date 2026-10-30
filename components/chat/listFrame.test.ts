@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest"
 
 // Channels and DMs sit under one tab bar on a phone, so their lists share a
 // frame: rows 8px in (px-2), 8px from the top (py-2). DM rows were 4px in and
-// 6px down, so a DM's face sat 4px left of a channel's tile.
+// 6px down, so a DM's face sat 4px left of a channel's tile. Both are list
+// frames (data-list-frame), whose end app/phone.css F6 keeps clear of the bar.
 const root = join(__dirname, "..", "..")
 const read = (f: string) => readFileSync(join(root, f), "utf8")
 
@@ -15,7 +16,7 @@ describe("the phone's Channels and DMs lists share a frame", () => {
     const container = read("components/ui/pageContainer.tsx")
     const channels = read("components/channel/chnnelListResult.tsx")
     expect(container).toMatch(/"w-full h-full px-2 md:px-4"/)
-    expect(channels).toMatch(/<PageContainer className="[^"]*\bpy-2\b/)
+    expect(channels).toMatch(/<PageContainer data-list-frame="" className="[^"]*\bpy-2\b/)
   })
 
   it("says what failed in sentence case", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 const post = vi.fn().mockResolvedValue({ data: { data: { enabled: true, query: "q", groups: [] } } })
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a) } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a) } }))
 
 const { unifiedSearch, unifiedSearchAnswer } = await import("@/services/aiSearchService")
 

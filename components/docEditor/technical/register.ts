@@ -6,14 +6,9 @@ import { TABLE_EDITING } from "@/components/docEditor/technical/onDemandIds"
 import { Search } from "@/lib/icons"
 import { blockById, registerAction, registerBlock } from "@/components/docEditor/registry/registry"
 import { DOC_EDITORS, ORDER } from "@/components/minimal-tiptap/blocks/kinds"
+import { once } from "@/lib/lazy/once"
 
-type Blocks = typeof import("./blocks")
-let chunk: Promise<Blocks> | null = null
-const blocks = () =>
-  (chunk ??= import("./blocks").catch((e) => {
-    chunk = null
-    throw e
-  }))
+const blocks = once(() => import("./blocks"))
 const both = { editors: DOC_EDITORS, edition: "both" as const }
 
 registerBlock({

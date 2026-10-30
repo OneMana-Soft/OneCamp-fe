@@ -1,14 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { KeyboardTip, SHOW_AFTER_MS } from "./KeyboardTip"
+import { KeyboardTip } from "./KeyboardTip"
+import { SHOW_AFTER_MS } from "./keysTip"
+import { SCREENS, putOnScreen, type Screen } from "@/lib/testing/screens"
+
+let offScreen = () => {}
+const on = (s: Screen) => {
+  offScreen()
+  offScreen = putOnScreen(s)
+}
 
 beforeEach(() => {
   localStorage.clear()
   vi.useFakeTimers()
-  window.matchMedia = ((q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
+  on(SCREENS["a computer"])
 })
 afterEach(() => {
   cleanup()
+  offScreen()
   vi.useRealTimers()
 })
 
@@ -55,10 +64,20 @@ describe("the keyboard tip", () => {
   })
 
   it("never shows on a phone", () => {
-    window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
+    on(SCREENS["a phone in portrait"])
     render(<KeyboardTip />)
     wait()
     expect(tip()).toBeNull()
+  })
+
+  // A phone is the app's own line (context/MediaQueryContext PHONE_QUERY,
+  // 639px). The tip asked for 768px, so between 640 and 767 it never showed,
+  // in a window the app draws as a computer's (CODE-REVIEW, 22 Oct 2026).
+  it("shows wherever the app isn't a phone, from 640px", () => {
+    on({ ...SCREENS["a computer"], width: 640 })
+    render(<KeyboardTip />)
+    wait()
+    expect(tip()).not.toBeNull()
   })
 })
 

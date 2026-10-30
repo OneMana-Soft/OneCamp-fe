@@ -18,6 +18,8 @@ const bundleWith = (rows: TableRow[]): TableBundle => ({
 
 let fetched: { data?: { data: TableBundle }; isLoading: boolean; isError?: unknown } = { isLoading: false }
 let saved: ViewRules = { sort: [], filters: [], match: "all" }
+// Who the page said "me" was, the last time it applied a view's filters.
+let ruledFor: string | null | undefined
 const saveViewRules = vi.fn()
 
 vi.mock("next/navigation", () => ({
@@ -27,15 +29,30 @@ vi.mock("next/navigation", () => ({
   // The page names its tab by its address (lib/utils/pageName).
   usePathname: () => window.location.pathname,
 }))
-vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ ...fetched, mutate: vi.fn(async () => fetched.data) }) }))
+// Who is signed in, as the page's profile says: a test may hold it on its way. Read again, it says Sam.
+const SIGNED_IN = { data: { data: { user_uuid: "u-sam" } }, isLoading: false }
+let profile: { data?: typeof SIGNED_IN.data; isLoading: boolean } = SIGNED_IN
+vi.mock("@/hooks/useFetch", () => ({
+  useFetch: () => ({ ...fetched, mutate: vi.fn(async () => fetched.data) }),
+  useFetchOnlyOnce: () => ({ ...profile, mutate: vi.fn(async () => SIGNED_IN.data) }),
+}))
 // The page's calls to the server, by what it asks.
-const { createRow, readEveryRow, updateTable, listRows } = vi.hoisted(() => ({ createRow: vi.fn(), readEveryRow: vi.fn(), updateTable: vi.fn(), listRows: vi.fn() }))
+const { createRow, readEveryRow, updateTable, listRows, queryRows, rowsByIds } = vi.hoisted(() => ({
+  createRow: vi.fn(),
+  readEveryRow: vi.fn(),
+  updateTable: vi.fn(),
+  listRows: vi.fn(),
+  queryRows: vi.fn(),
+  rowsByIds: vi.fn(),
+}))
 vi.mock("@/services/tableService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/tableService")>()),
   createRow,
   readEveryRow,
   updateTable,
   listRows,
+  queryRows,
+  rowsByIds,
 }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => {} }))
 // The row ledger's calls (tables A2): an undo, a redo.
@@ -51,14 +68,25 @@ vi.mock("@/lib/tables/viewRules", async (importOriginal) => {
     ...real,
     loadViewRules: () => saved,
     saveViewRules: (...a: unknown[]) => saveViewRules(...a),
-    // A filter here hides every row.
-    applyViewRules: (rows: TableRow[], _f: unknown, rules: ViewRules) => (rules.filters.length ? [] : rows),
   }
 })
+// A filter here hides every row.
+vi.mock("@/lib/tables/applyRules", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/tables/applyRules")>()),
+  applyViewRules: (rows: TableRow[], _f: unknown, rules: ViewRules, me?: string | null) => {
+    if (rules.filters.length) ruledFor = me
+    return rules.filters.length ? [] : rows
+  },
+}))
 // The views themselves have their own tests; here they say what they were given.
 vi.mock("@/components/table/DataTableGrid", () => ({
-  DataTableGrid: ({ rows, empty }: { rows: TableRow[]; empty?: ReactNode }) => (
-    <div data-testid="grid">{rows.length ? `${rows.length} rows` : empty}</div>
+  SelectionPart: { prefetch: () => Promise.resolve() },
+  DataTableGrid: ({ rows, count, tail, empty, onNearEnd }: { rows: TableRow[]; count?: number; tail?: number; empty?: ReactNode; onNearEnd?: () => void }) => (
+    <div data-testid="grid" data-count={count} data-tail={tail} data-first={rows[0]?.id} data-last={rows.at(-1)?.id}>
+      {(count ?? rows.length) ? `${rows.length} rows` : empty}
+      {/* Scrolling near the rows' end, as a press: no words, so the grid's text stays its rows'. */}
+      {onNearEnd ? <button type="button" aria-label="Read the next window" onClick={onNearEnd} /> : null}
+    </div>
   ),
 }))
 vi.mock("@/components/table/DataTableBoard", () => ({ DataTableBoard: () => <div data-testid="board" />, BoardGroupBy: () => null }))
@@ -68,7 +96,24 @@ vi.mock("@/components/table/DataTableCalendar", () => ({
   monthOf: (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1),
 }))
 vi.mock("@/components/table/DataTableChart", () => ({ DataTableChart: () => <div data-testid="chart" /> }))
-vi.mock("@/components/marketplace/PublishTemplateDialog", () => ({ PublishTemplateDialog: () => null }))
+vi.mock("@/components/table/layouts/TableTimeline", () => ({
+  TableTimeline: ({ rows, count, gantt }: { rows: TableRow[]; count?: number; gantt?: boolean }) => (
+    <div data-testid={gantt ? "gantt" : "timeline"} data-count={count} data-first={rows[0]?.id} />
+  ),
+}))
+vi.mock("@/components/table/layouts/TableGallery", () => ({
+  TableGallery: ({ rows, count, tail }: { rows: TableRow[]; count?: number; tail?: number }) => (
+    <div data-testid="gallery" data-count={count} data-tail={tail} data-first={rows[0]?.id} />
+  ),
+}))
+// What a template is made of, as the page hands it to the publish dialog.
+const published = vi.hoisted(() => ({ payload: undefined as { views: { name: string }[] } | undefined }))
+vi.mock("@/components/marketplace/PublishTemplateDialog", () => ({
+  PublishTemplateDialog: ({ payload }: { payload: { views: { name: string }[] } }) => {
+    published.payload = payload
+    return null
+  },
+}))
 vi.mock("@/components/guest/GuestLinkSection", () => ({ GuestLinkSection: () => null }))
 
 import TableDetailPage from "./page"
@@ -88,12 +133,15 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   fetched = { isLoading: false }
+  profile = SIGNED_IN
   saved = { sort: [], filters: [], match: "all" }
   saveViewRules.mockReset()
   createRow.mockReset()
   readEveryRow.mockReset()
   updateTable.mockReset()
   listRows.mockReset()
+  queryRows.mockReset()
+  rowsByIds.mockReset()
   confirm.mockReset()
 })
 
@@ -116,6 +164,19 @@ describe("a table's page", () => {
     expect(screen.getByRole("link", { name: "Back to tables" }).getAttribute("href")).toBe("/app/tables")
   })
 
+  // A template is for the whole workspace: a view of someone's own isn't theirs to give.
+  it("makes a template of the table's shared views, never the reader's own", async () => {
+    const shared = { id: "v1", table_id: TABLE_ID, name: "Everything", type: "grid" as const, config: "{}", position: 0 }
+    fetched = { isLoading: false, data: { data: { ...bundleWith([]), views: [shared, { ...shared, id: "v2", name: "My calls", owner_id: "me", position: 1 }] } } }
+    render(<TableDetailPage />)
+    const more = screen.getByRole("button", { name: "More" })
+    fireEvent.pointerDown(more, { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.keyDown(more, { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Save as template" }))
+    await waitFor(() => expect(published.payload).toBeTruthy())
+    expect(published.payload?.views.map((v) => v.name)).toEqual(["Everything"])
+  })
+
   it("says a table that isn't the reader's is theirs to ask for", () => {
     fetched = { isLoading: false, data: undefined, isError: { response: { status: 403 } } }
     render(<TableDetailPage />)
@@ -135,6 +196,47 @@ describe("a table's page", () => {
     render(<TableDetailPage />)
     expect(screen.getByRole("heading", { name: "No rows yet" })).toBeTruthy()
     expect(spot()).toContain(`hue-${hueFor(TABLE_ID)}`)
+  })
+
+  it("reads a filter on me as the person signed in", () => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    saved = { sort: [], filters: [{ field: "item", op: "contains", value: "@me" }] as ViewRules["filters"], match: "all" }
+    render(<TableDetailPage />)
+    expect(ruledFor).toBe("u-sam")
+  })
+
+  // CR-55's SF1: with the profile on its way, a filter on me ruled as no one, and the view's rows came up empty.
+  it("holds a filter on me until the profile says who is signed in", () => {
+    profile = { isLoading: true }
+    ruledFor = undefined
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    saved = { sort: [], filters: [{ field: "item", op: "contains", value: "@me" }] as ViewRules["filters"], match: "all" }
+    const { rerender } = render(<TableDetailPage />)
+    expect(document.querySelector("[data-table-frame]")?.getAttribute("aria-busy")).toBe("true")
+    expect(ruledFor).toBeUndefined()
+    profile = SIGNED_IN
+    rerender(<TableDetailPage />)
+    expect(document.querySelector("[data-table-frame]")?.getAttribute("aria-busy")).toBeNull()
+    expect(ruledFor).toBe("u-sam")
+  })
+
+  it("exports a filter on me as the person signed in, with the profile still on its way", async () => {
+    profile = { isLoading: true }
+    ruledFor = undefined
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    saved = { sort: [], filters: [{ field: "item", op: "contains", value: "@me" }] as ViewRules["filters"], match: "all" }
+    // jsdom has no object URLs: the download is caught here.
+    URL.createObjectURL = () => "blob:x"
+    URL.revokeObjectURL = () => {}
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {})
+    render(<TableDetailPage />)
+    const more = screen.getByRole("button", { name: "More" })
+    fireEvent.pointerDown(more, { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.keyDown(more, { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Export CSV" }))
+    await waitFor(() => expect(click).toHaveBeenCalled())
+    expect(ruledFor).toBe("u-sam")
+    click.mockRestore()
   })
 
   it("when its filters hide every row, says so and offers to clear them, keeping the sort", () => {
@@ -346,6 +448,148 @@ describe("a table past 10,000 rows", () => {
   })
 })
 
+// Tables T5c: a table past the bundle's page whose rules the server answers
+// is read in windows of its view, in its order: no "Load all", no rows read
+// to find one, and a new row held at the view's end until the person moves on.
+describe("a view the server answers in windows", () => {
+  const ROWS = 100_000
+  const served = (): TableBundle => ({
+    ...bundleWith(Array.from({ length: 500 }, (_, i) => row(`r${i}`))),
+    rows_truncated: true,
+    row_count: ROWS,
+    row_query: { indexed: true, sorts_text: true },
+  })
+  // The server: the table's rows newest first for a sort that says desc; a
+  // filter the page asks for keeps 12 of them.
+  const answering = () =>
+    queryRows.mockImplementation(async (_t: string, body: { spec: { filter?: unknown; sorts?: { desc?: boolean }[] }; cursor?: string; n: number; count?: boolean }) => {
+      const total = body.spec.filter ? 12 : ROWS
+      if (body.count) return { rows: [], total }
+      const at = Number(body.cursor || 0)
+      const n = Math.max(0, Math.min(body.n, total - at))
+      const rows = Array.from({ length: n }, (_, i) => row(`r${body.spec.sorts?.[0]?.desc ? ROWS - 1 - (at + i) : at + i}`))
+      return { rows, next: at + n < total ? String(at + n) : undefined }
+    })
+  const grid = () => screen.getByTestId("grid")
+
+  it("reads the view's first window in its order, counts it, and offers no Load all", async () => {
+    fetched = { isLoading: false, data: { data: served() } }
+    saved = { sort: [{ field: "item", dir: "desc" }], filters: [], match: "all" }
+    answering()
+    render(<TableDetailPage />)
+    await waitFor(() => expect(grid().dataset.first).toBe("r99999"))
+    expect(grid().dataset.count).toBe("100000")
+    expect(queryRows).toHaveBeenCalledWith(TABLE_ID, { spec: { sorts: [{ field: "field:item", desc: true }] }, cursor: undefined, n: 500 }, expect.any(AbortSignal))
+    expect(listRows).not.toHaveBeenCalled()
+    // Every row of the table shows: nothing to say, and nothing to load all of.
+    expect(document.querySelector("[data-rows-shown]")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Load all" })).toBeNull()
+  })
+
+  // airtable-03: a formula's or a rollup's rules go to the server, which may
+  // refuse them (a 422, in its own words). The view says why, never "Couldn't
+  // load the rows", offers no Load all, and offers to clear just those rules.
+  it("says why in the server's words when it won't read the view, and clears the formula's rules it can't answer", async () => {
+    const why = "This table has too many rows to work out a formula or a rollup over all of them yet"
+    const calc = { id: "calc", table_id: TABLE_ID, name: "Calc", type: "formula" as const, config: JSON.stringify({ formula: "1", result: "number" }), position: 1 }
+    fetched = { isLoading: false, data: { data: { ...served(), fields: [...served().fields, calc] } } }
+    saved = { sort: [{ field: "calc", dir: "desc" }], filters: [{ field: "item", op: "contains", value: "Booth" }], match: "all" } as ViewRules
+    queryRows.mockRejectedValue(Object.assign(new Error("Request failed with status code 422"), { response: { status: 422, data: { msg: why } } }))
+    render(<TableDetailPage />)
+    await waitFor(() => expect(within(grid()).getByRole("heading", { name: why })).toBeTruthy())
+    // Said once (DB-40): with no row drawn, the body says it with its button,
+    // and the toolbar doesn't say it again.
+    expect(screen.getAllByText(why)).toHaveLength(1)
+    expect(screen.queryAllByRole("status").some((s) => s.textContent?.includes(why))).toBe(false)
+    expect(screen.queryByText(/Couldn.t load the rows/)).toBeNull()
+    expect(screen.queryByRole("button", { name: "Load all" })).toBeNull()
+    fireEvent.click(within(grid()).getByRole("button", { name: "Clear formula and rollup rules" }))
+    expect(saveViewRules).toHaveBeenLastCalledWith(TABLE_ID, { sort: [], filters: saved.filters, match: "all" })
+  })
+
+  // A later window refused (M6: a sweep holds the kept lock, and the reader's
+  // own read is past 10,000 rows): the rows read stay drawn, so the toolbar
+  // says why, once.
+  it("says a later window's refusal in the toolbar, over the rows it drew", async () => {
+    const why = "This table has too many rows to work out a formula or a rollup over all of them yet"
+    const calc = { id: "calc", table_id: TABLE_ID, name: "Calc", type: "formula" as const, config: JSON.stringify({ formula: "1", result: "number" }), position: 1 }
+    fetched = { isLoading: false, data: { data: { ...served(), fields: [...served().fields, calc] } } }
+    saved = { sort: [{ field: "calc", dir: "desc" }], filters: [], match: "all" } as ViewRules
+    answering()
+    const answer = queryRows.getMockImplementation()!
+    queryRows.mockImplementation(async (t: string, body: { cursor?: string; count?: boolean }, signal?: AbortSignal) =>
+      body.cursor && !body.count ? Promise.reject(Object.assign(new Error("Request failed with status code 422"), { response: { status: 422, data: { msg: why } } })) : answer(t, body, signal),
+    )
+    render(<TableDetailPage />)
+    await waitFor(() => expect(grid().textContent).toBe("500 rows"))
+    fireEvent.click(within(grid()).getByRole("button", { name: "Read the next window" }))
+    await waitFor(() => expect(screen.getAllByRole("status").some((s) => s.textContent === why)).toBe(true))
+    expect(grid().textContent).toBe("500 rows")
+    expect(screen.getAllByText(why)).toHaveLength(1)
+  })
+
+  it("says how many rows a filter shows once the server has counted them", async () => {
+    fetched = { isLoading: false, data: { data: served() } }
+    saved = { sort: [], filters: [{ field: "item", op: "contains", value: "Booth" }], match: "all" }
+    answering()
+    render(<TableDetailPage />)
+    await waitFor(() => expect(document.querySelector("[data-rows-shown]")?.textContent).toBe("Showing 12 of 100,000 rows"))
+    expect(grid().dataset.count).toBe("12")
+  })
+
+  it("opens a row the windows haven't reached by reading it alone", async () => {
+    window.history.replaceState(null, "", `/app/tables/${TABLE_ID}?row=r77777`)
+    fetched = { isLoading: false, data: { data: served() } }
+    answering()
+    rowsByIds.mockImplementation(async (_t: string, ids: string[]) => ids.map((id) => ({ ...row(id), values: JSON.stringify({ item: "Far down" }) })))
+    render(<TableDetailPage />)
+    const record = await screen.findByRole("dialog", { name: "Far down, a row of Launch budget" })
+    expect(rowsByIds).toHaveBeenCalledWith(TABLE_ID, ["r77777"], expect.any(AbortSignal))
+    // No place in the view, and no steps: the windows weren't read through to find it.
+    expect(within(record).queryByText(/ of /)).toBeNull()
+    expect(Math.max(...queryRows.mock.calls.map((c) => Number((c[1] as { cursor?: string }).cursor || 0)))).toBe(0)
+  })
+
+  it("holds a new row at the view's end, past the rows not read yet", async () => {
+    fetched = { isLoading: false, data: { data: served() } }
+    saved = { sort: [{ field: "item", dir: "desc" }], filters: [], match: "all" }
+    answering()
+    createRow.mockResolvedValue({ ...row("new"), position: ROWS })
+    rowsByIds.mockImplementation(async (_t: string, ids: string[]) => ids.map((id) => row(id)))
+    render(<TableDetailPage />)
+    await waitFor(() => expect(grid().dataset.first).toBe("r99999"))
+    fireEvent.keyDown(document.body, { key: "r" })
+    await waitFor(() => expect(grid().dataset.tail).toBe("1"))
+    expect(grid().dataset.last).toBe("new")
+    expect(grid().dataset.count).toBe("100001")
+  })
+
+  // B4: the gallery and the list show the view's rows as the grid does, from its windows.
+  it("reads the view's windows in its order for the gallery and the list, as for the grid", async () => {
+    fetched = { isLoading: false, data: { data: served() } }
+    saved = { sort: [{ field: "item", dir: "desc" }], filters: [], match: "all" }
+    answering()
+    window.history.replaceState(null, "", `/app/tables/${TABLE_ID}?view=gallery`)
+    render(<TableDetailPage />)
+    const gallery = () => screen.getByTestId("gallery")
+    await waitFor(() => expect(gallery().dataset.first).toBe("r99999"))
+    expect(gallery().dataset.count).toBe("100000")
+    expect(screen.getByRole("button", { name: "Gallery" }).getAttribute("aria-pressed")).toBe("true")
+    fireEvent.click(screen.getByRole("button", { name: "List" }))
+    expect(new URLSearchParams(window.location.search).get("view")).toBe("list")
+    await waitFor(() => expect(document.querySelector("[data-table-list] li[aria-setsize]")?.getAttribute("aria-setsize")).toBe("100000"))
+    expect(listRows).not.toHaveBeenCalled()
+    expect(screen.queryByTestId("grid")).toBeNull()
+    // The timeline and the Gantt read the same windows.
+    fireEvent.click(screen.getByRole("button", { name: "Timeline" }))
+    await waitFor(() => expect(screen.getByTestId("timeline").dataset.count).toBe("100000"))
+    fireEvent.click(screen.getByRole("button", { name: "Gantt" }))
+    await waitFor(() => expect(screen.getByTestId("gantt").dataset.first).toBe("r99999"))
+    expect(new URLSearchParams(window.location.search).get("view")).toBe("gantt")
+    expect(listRows).not.toHaveBeenCalled()
+  })
+})
+
 // TAB-BUG-12: the header was saved whole from this page's copy, so a rename
 // from a copy older than someone's "Make private" put the table back on show.
 describe("a table's own settings", () => {
@@ -393,6 +637,31 @@ describe("a table AI made", () => {
     await asked.onConfirm()
     expect(updateTable).toHaveBeenCalledWith(TABLE_ID, { visibility: "workspace" })
     expect(window.location.search).toBe("")
+  })
+
+  it("asks the same from the More menu, where a table a person made goes on show at once", async () => {
+    updateTable.mockResolvedValue({})
+    fetched = { isLoading: false, data: { data: made("private") } }
+    const showFromMenu = () => {
+      const more = screen.getByRole("button", { name: "More" })
+      fireEvent.pointerDown(more, { button: 0, ctrlKey: false, pointerType: "mouse" })
+      fireEvent.keyDown(more, { key: "Enter" })
+      fireEvent.click(screen.getByRole("menuitem", { name: /Show to the workspace/ }))
+    }
+    window.history.replaceState(null, "", `/app/tables/${TABLE_ID}?made=ai`)
+    render(<TableDetailPage />)
+    showFromMenu()
+    expect(updateTable).not.toHaveBeenCalled()
+    await (confirm.mock.lastCall![0] as { onConfirm: () => Promise<void> }).onConfirm()
+    expect(updateTable).toHaveBeenCalledWith(TABLE_ID, { visibility: "workspace" })
+    cleanup()
+    updateTable.mockClear()
+    confirm.mockClear()
+    window.history.replaceState(null, "", `/app/tables/${TABLE_ID}`)
+    render(<TableDetailPage />)
+    showFromMenu()
+    await waitFor(() => expect(updateTable).toHaveBeenCalledWith(TABLE_ID, { visibility: "workspace" }))
+    expect(confirm).not.toHaveBeenCalled()
   })
 
   it("says nothing once the table is the workspace's, or for a table a person made", () => {

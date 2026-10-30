@@ -1,5 +1,5 @@
 /**
- * Who is in a doc, read from its awareness states (B8). Every tab is an
+ * Who is in a doc or on a board, read from its awareness states (B8). Every tab is an
  * awareness client with a number of its own; a person is found by that number,
  * never by their name (two people called Sam are two people, N50).
  *
@@ -9,6 +9,7 @@
  *   edited     when it last changed the doc, at most every 10 seconds
  *   following  the client it follows, so that one says where it is looking
  *   view       where it is looking, only while someone follows it
+ *   pointer    on a board, where it points (components/board/boardPresence)
  * Times are read on this tab's clock, when a field is seen to change: two
  * machines' clocks never meet.
  */
@@ -22,16 +23,17 @@ export type AwarenessState = Record<string, unknown> & {
   edited?: unknown
   cursor?: unknown
   view?: unknown
+  pointer?: unknown
   following?: unknown
 }
 
 /** What this tab remembers about each client between changes. */
 interface Seen {
-  /** When the client last did something this tab saw: its caret moved, it edited, it scrolled while followed. */
+  /** When the client last did something this tab saw: its caret or its pointer moved, it edited, it scrolled while followed. */
   active: Map<number, number>
   /** Its last `edited`, to tell a new edit from the same one said again. */
   edited: Map<number, unknown>
-  /** Its last caret and view, to tell a move. */
+  /** Its last caret, view and pointer, to tell a move. */
   moved: Map<number, string>
 }
 
@@ -51,7 +53,7 @@ export function look(states: Map<number, AwarenessState>, self: number, seen: Se
     if (!id) continue
     // Seen in an earlier look: what changes now happened while this tab watched.
     const known = seen.moved.has(client)
-    const moved = JSON.stringify([s.cursor ?? null, s.view ?? null])
+    const moved = JSON.stringify([s.cursor ?? null, s.view ?? null, s.pointer ?? null])
     if (known && seen.moved.get(client) !== moved) seen.active.set(client, now)
     seen.moved.set(client, moved)
     if (!seen.active.has(client)) seen.active.set(client, now - 1)

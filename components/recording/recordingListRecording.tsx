@@ -1,11 +1,13 @@
 import { displayNameOf } from "@/lib/personName"
 import React from "react";
-import { Play, Trash2 } from "@/lib/icons";
+import { AlertTriangle, Info, Play, Trash2, VideoOff } from "@/lib/icons";
+import { nothingToPlay, type NothingToPlayState } from "@/components/recording/recordingState";
 import {RecordingInfoInterface} from "@/types/recording";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import { shortDateTime } from "@/lib/utils/date/shortDate";
+import { fileSize } from "@/lib/utils/format/formatFileSizeForAttachment";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { HubRow, HubToolButton } from "@/components/ui/hubRow";
 import { hueFor } from "@/lib/campHue";
@@ -43,10 +45,20 @@ export function recordingHueKey(rec: RecordingInfoInterface, selfId?: string): s
 
 /**
  * The 40 x 28 thumbnail (hub.md C13): the place's hue gradient with a white
- * play triangle, and the length in its corner when it is known.
+ * play triangle, and the length in its corner when it is known. A recording
+ * with nothing to play (V-32) shows a quiet glyph instead, and no length: a
+ * camera off for one that captured nothing, a warning for one that broke.
  */
-export function RecordingThumb({ hueKey, seconds }: { hueKey: string; seconds?: number }) {
+export function RecordingThumb({ hueKey, seconds, nothing }: { hueKey: string; seconds?: number; nothing?: NothingToPlayState }) {
     const hue = hueFor(hueKey)
+    if (nothing) {
+        const Glyph = nothing === "failed" ? AlertTriangle : VideoOff
+        return (
+            <span data-recording-thumb="" data-hue={hue} className={cn(HUE_CLASS[hue], "avatar-person relative grid h-7 w-10 place-items-center rounded-[6px]")}>
+                <Glyph aria-hidden="true" data-thumb-nothing={nothing} className="size-3 text-white" />
+            </span>
+        )
+    }
     return (
         <span data-recording-thumb="" data-hue={hue} className={cn(HUE_CLASS[hue], "avatar-person relative grid h-7 w-10 place-items-center rounded-[6px]")}>
             {/* With the length shown, the triangle moves to the top-left: centred,
@@ -73,7 +85,8 @@ export function RecordingThumb({ hueKey, seconds }: { hueKey: string; seconds?: 
  * place's colour with its length, the place, who started it and how big, a
  * Transcript tag when there is one, and when at the right edge. Hover brings
  * the toolbar: Play and Delete. Given `onOpen`, the row plays it, from the
- * keyboard too.
+ * keyboard too. One with nothing to play (V-32) says so first on its line,
+ * and offers See why in place of Play: the player says why.
  */
 export const RecordingListRecording = ({
     recordingInfo,
@@ -96,9 +109,13 @@ export const RecordingListRecording = ({
     const when = Number.isNaN(startedAt.getTime()) ? "" : shortDateTime(startedAt)
     const time = Number.isNaN(startedAt.getTime()) ? "" : clockTime(startedAt)
     const starter = displayNameOf(rec.recording_started_by)
+    // Nothing to play (V-32): the row says so first, and offers no Play.
+    const nothing = nothingToPlay(rec.recording_status)
     const details = [
+        nothing?.short ?? "",
         starter ? `Started by ${starter}` : "",
-        rec.recording_size > 0 ? `${(rec.recording_size / (1024 * 1024)).toFixed(1)} MB` : "",
+        // As the app writes every file's size, and the player's header this one's.
+        fileSize(rec.recording_size),
     ].filter(Boolean)
     const transcript = (rec.recording_transcript?.length ?? 0) > 0
 
@@ -111,7 +128,7 @@ export const RecordingListRecording = ({
             data-recording-row=""
             density="two-line"
             leadSize={40}
-            lead={<RecordingThumb hueKey={recordingHueKey(rec, currentUserId)} seconds={rec.recording_duration} />}
+            lead={<RecordingThumb hueKey={recordingHueKey(rec, currentUserId)} seconds={rec.recording_duration} nothing={nothing?.state} />}
             title={place}
             second={
                 details.length || transcript ? (
@@ -127,9 +144,10 @@ export const RecordingListRecording = ({
             tools={
                 onOpen || del ? (
                     <>
+                        {/* Nothing to play: the player says why, so the tool is "See why", never Play. */}
                         {onOpen ? (
-                            <HubToolButton label="Play" onClick={onOpen}>
-                                <Play />
+                            <HubToolButton label={nothing ? "See why" : "Play"} onClick={onOpen}>
+                                {nothing ? <Info /> : <Play />}
                             </HubToolButton>
                         ) : null}
                         {del ? (
@@ -144,7 +162,7 @@ export const RecordingListRecording = ({
                 ? {
                       role: "button",
                       tabIndex: 0,
-                      "aria-label": `Play the recording, ${place}${when ? `, ${when}` : ""}`,
+                      "aria-label": `${nothing ? "Open" : "Play"} the recording, ${place}${when ? `, ${when}` : ""}${nothing ? `, ${nothing.short}` : ""}`,
                       onClick: onOpen,
                       onKeyDown: (e: React.KeyboardEvent) => {
                           if (e.target !== e.currentTarget) return

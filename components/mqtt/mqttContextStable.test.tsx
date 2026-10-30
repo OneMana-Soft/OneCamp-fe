@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Provider } from "react-redux"
 import { act, cleanup, render } from "@testing-library/react"
 import store from "@/store/store"
@@ -31,13 +31,22 @@ vi.mock("@/hooks/useFetch", () => ({
 import { MqttProvider } from "./mqttProvider"
 import { useMqtt } from "./mqttContext"
 
-afterEach(cleanup)
+// The engine (components/mqtt/RealtimeEngine) starts at the first idle moment: at once here.
+beforeEach(() => {
+  vi.stubGlobal("requestIdleCallback", (cb: () => void) => setTimeout(cb, 0))
+  vi.stubGlobal("cancelIdleCallback", (id: number) => clearTimeout(id))
+})
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe("the realtime provider", () => {
-  it("doesn't re-render its readers when only its own state changes", () => {
+  it("doesn't re-render its readers when only its own state changes", async () => {
     let reads = 0
+    let seen: unknown
     function Reader() {
-      useMqtt()
+      seen = useMqtt().connectionState
       reads++
       return null
     }
@@ -48,6 +57,8 @@ describe("the realtime provider", () => {
         </MqttProvider>
       </Provider>,
     )
+    // The engine has started and handed its connection up.
+    await vi.waitFor(() => expect(seen).toBe(connection.connectionState))
     const before = reads
     for (let n = 1; n <= 3; n++) act(() => void store.dispatch(updateUserConnectedDeviceCount({ userUUID: "u1", deviceConnected: n })))
     expect(reads).toBe(before)

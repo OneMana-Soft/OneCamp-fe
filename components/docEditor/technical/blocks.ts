@@ -15,6 +15,7 @@
  */
 
 import { Extension, type Editor } from "@tiptap/core"
+import { lazyChunk } from "@/lib/loadChunk"
 import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state"
 import { Captions, Copy, Code, LetterText, Radical, Sigma, Table2, WrapText } from "@/lib/icons"
 import { registerAction, registerBlock } from "@/components/docEditor/registry/registry"
@@ -36,6 +37,7 @@ const SelectionWatch = Extension.create({
     const editor = this.editor
     let chip: Chip | null = null
     let asked = false
+    const count = lazyChunk(() => import("@/components/docEditor/SelectionCount"))
     return [
       new Plugin({
         key: new PluginKey("selectionCount"),
@@ -47,8 +49,9 @@ const SelectionWatch = Extension.create({
             }
             if (asked || view.state.selection.empty) return
             asked = true
-            void import("@/components/docEditor/SelectionCount").then((m) => {
-              if (editor.isDestroyed) return
+            // Its code can't come (no network): the next selection asks again; a deploy reloads the page once.
+            void count.use(() => (asked = false)).then((m) => {
+              if (!m || editor.isDestroyed) return
               chip = m.mountCount(editor)
               chip.update()
             })

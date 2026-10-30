@@ -5,6 +5,7 @@ import { WeekView, HOUR_HEIGHT } from "./weekView"
 import { MonthView } from "./monthView"
 import { itemsByDay, layoutWeek, monthGridRange, placeItems } from "./calendarLayout"
 import { installPointerEvent } from "@/lib/testing/pointerEvent"
+import { spanLabel } from "@/lib/calendar/spanLabel"
 import { pinTestClock, TEST_TODAY } from "@/lib/testing/testClock"
 
 // Today is TEST_TODAY wherever the code under test reads the time.
@@ -303,6 +304,58 @@ describe("a press on an event", () => {
     expect(onEventClick).toHaveBeenCalledWith("e1", block())
   })
 
+  // V-38: the click a finger's release is followed by would land on the sheet
+  // the tap just opened and close it; a mouse's click goes to the grid.
+  it("swallows the click that follows a finger's tap on a block, never a mouse's", () => {
+    const heard = vi.fn()
+    window.addEventListener("click", heard)
+    try {
+      week({ onEventChange: vi.fn(), onEventClick: vi.fn(), onEventMenu: vi.fn() })
+      fireEvent.pointerDown(block(), { button: 0, pointerType: "touch", ...at9 })
+      wait(120)
+      fireEvent.pointerUp(grid(), { pointerType: "touch", ...at9 })
+      fireEvent.click(document.body)
+      expect(heard, "the tap's own click").not.toHaveBeenCalled()
+      fireEvent.click(document.body)
+      expect(heard, "the next click").toHaveBeenCalledTimes(1)
+      fireEvent.pointerDown(block(), { button: 0, ...at9 })
+      fireEvent.pointerUp(grid(), at9)
+      fireEvent.click(document.body)
+      expect(heard, "a mouse's click").toHaveBeenCalledTimes(2)
+    } finally {
+      window.removeEventListener("click", heard)
+      wait(600)
+    }
+  })
+
+  // V-50: a finger's tap on an empty hour opens the new event's sheet a frame
+  // after the release; on a slow phone the tap's click comes after that frame.
+  it("swallows the click that follows a finger's tap on an empty hour, never a mouse's", () => {
+    const heard = vi.fn()
+    const onDraft = vi.fn()
+    window.addEventListener("click", heard)
+    try {
+      week({ onDraft })
+      const col = document.querySelector('[data-day-col="2"]') as HTMLElement
+      const at20 = { clientX: 300, clientY: y(20) + 5 }
+      fireEvent.pointerDown(col, { button: 0, pointerType: "touch", ...at20 })
+      fireEvent.pointerUp(grid(), { pointerType: "touch", ...at20 })
+      expect(onDraft, "the tap drafts an event").toHaveBeenCalledTimes(1)
+      fireEvent.click(document.body)
+      expect(heard, "the tap's own click").not.toHaveBeenCalled()
+      fireEvent.click(document.body)
+      expect(heard, "the next click").toHaveBeenCalledTimes(1)
+      fireEvent.pointerDown(col, { button: 0, ...at20 })
+      fireEvent.pointerUp(grid(), at20)
+      expect(onDraft, "a click drafts an event").toHaveBeenCalledTimes(2)
+      fireEvent.click(document.body)
+      expect(heard, "a mouse's click").toHaveBeenCalledTimes(2)
+    } finally {
+      window.removeEventListener("click", heard)
+      wait(600)
+    }
+  })
+
   it("lifts a week block under a finger only once held 250 ms, and opens its menu when let go still", () => {
     const onEventMenu = vi.fn()
     const onEventClick = vi.fn()
@@ -440,6 +493,9 @@ describe("the resize grips", () => {
     expect(block.className).toContain("cursor-ns-resize")
     expect(grid().className).toContain("cursor-ns-resize")
     expect(grid().className).not.toContain("cursor-grabbing")
+    // Its range as it stretches, and its length beside it.
+    expect(block.textContent).toContain(spanLabel(new Date(new Date(monday).setHours(9, 0, 0, 0)), new Date(new Date(monday).setHours(11, 0, 0, 0))))
+    expect(block.querySelector(".content-ghost-pulse")?.textContent).toBe("2 h")
     fireEvent.pointerUp(grid(), { clientX: 100, clientY: y(11) })
     expect(onEventChange).toHaveBeenCalledWith("e1", new Date(new Date(monday).setHours(9, 0, 0, 0)), new Date(new Date(monday).setHours(11, 0, 0, 0)))
   })
@@ -456,7 +512,7 @@ describe("the time grid under a drag", () => {
     expect((band.firstElementChild as HTMLElement).className).toContain("text-brand-text")
   })
 
-  it("scrolls near its bottom edge while a block is carried there, and the block goes on with the hours", () => {
+  it("scrolls near its bottom edge while a block is carried there, and the block goes on with the hours", async () => {
     let frames: FrameRequestCallback[] = []
     vi.stubGlobal("requestAnimationFrame", (f: FrameRequestCallback) => frames.push(f))
     vi.stubGlobal("cancelAnimationFrame", () => {
@@ -486,6 +542,10 @@ describe("the time grid under a drag", () => {
     fireEvent.pointerDown(block, { button: 0, clientX: 100, clientY: y(9) + 5 })
     // 10 px from the bottom edge: 14 px a frame (0 to 18 over the 48 px zone).
     fireEvent.pointerMove(grid(), { clientX: 300, clientY: 590 })
+    // The edge scroll's code is a chunk the press asked for: the move follows once it lands.
+    await act(async () => {
+      await import("@/lib/ui/edgeScroll")
+    })
     act(() => {
       run()
       run()
@@ -522,5 +582,67 @@ describe("a month bar in a drag", () => {
     week({ onEventChange: vi.fn() })
     liftBlock()
     expect((document.querySelector("[data-drag-origin]") as HTMLElement).className).toContain("outline-dashed")
+  })
+
+  // DESIGN-BUILD-3 (B1 review, 21 Oct): a carried block said its old times,
+  // with the new ones on a tag beside them. It says when it would land, by
+  // the shared range (noon's rule included); the day is the column's.
+  it("says, while it is carried, when it would land, with no second time beside it", () => {
+    week({ onEventChange: vi.fn() })
+    const block = liftBlock()
+    const wednesday = addDays(monday, 2)
+    expect(block.textContent).toContain(spanLabel(new Date(new Date(wednesday).setHours(11, 0, 0, 0)), new Date(new Date(wednesday).setHours(12, 0, 0, 0))))
+    expect(block.textContent).not.toContain(spanLabel(new Date(new Date(monday).setHours(9, 0, 0, 0)), new Date(new Date(monday).setHours(10, 0, 0, 0))))
+    expect(block.querySelector(".content-ghost-pulse")).toBeNull()
+  })
+})
+
+// gcal-new-task-blocks: a task carried from the all-day lane onto the hours
+// blocks an hour of its time there; a tap on it still opens the task.
+describe("a task carried from the all-day lane", () => {
+  const brief = { task_uuid: "t1", task_name: "Write the brief", task_due_date: at(2, 12), task_status: "todo" }
+  const view = (on: { onTaskBlock?: () => void; onTaskClick?: () => void }) =>
+    render(
+      <WeekView
+        weekStart={monday}
+        events={[]}
+        tasks={[brief] as never}
+        showEvents
+        showTasks
+        onEventClick={vi.fn()}
+        onTaskClick={on.onTaskClick ?? vi.fn()}
+        onTaskBlock={on.onTaskBlock}
+      />,
+    )
+  const chip = () => document.querySelector('[data-all-day-rail] [aria-label^="Task: Write the brief"]') as HTMLElement
+
+  it("blocks an hour of its time where it is let go over the hours, an hour about the pointer", () => {
+    const onTaskBlock = vi.fn()
+    view({ onTaskBlock })
+    fireEvent.pointerDown(chip(), { button: 0, pointerId: 1, clientX: 300, clientY: 10 })
+    // Carried to Wednesday (the third column) at 10:00: 9:30 to 10:30, drawn as a ghost that names the task.
+    fireEvent.pointerMove(grid(), { pointerId: 1, clientX: 320, clientY: y(10) })
+    const ghost = document.querySelector('[data-day-col="2"] [data-calendar-ghost]')
+    expect(ghost?.textContent).toContain("Write the brief")
+    fireEvent.pointerUp(grid(), { pointerId: 1, clientX: 320, clientY: y(10) })
+    expect(onTaskBlock).toHaveBeenCalledWith("t1", new Date(addDays(monday, 2).setHours(9, 30, 0, 0)), new Date(addDays(monday, 2).setHours(10, 30, 0, 0)))
+    expect(document.querySelector("[data-calendar-ghost]")).toBeNull()
+  })
+
+  it("opens the task on a tap, and blocks nothing", () => {
+    const onTaskBlock = vi.fn()
+    const onTaskClick = vi.fn()
+    view({ onTaskBlock, onTaskClick })
+    fireEvent.pointerDown(chip(), { button: 0, pointerId: 1, clientX: 300, clientY: 10 })
+    fireEvent.pointerUp(grid(), { pointerId: 1, clientX: 300, clientY: 10 })
+    expect(onTaskClick).toHaveBeenCalledWith("t1")
+    expect(onTaskBlock).not.toHaveBeenCalled()
+  })
+
+  it("only opens, where the hours take no tasks", () => {
+    const onTaskClick = vi.fn()
+    view({ onTaskClick })
+    fireEvent.click(chip(), { detail: 1 })
+    expect(onTaskClick).toHaveBeenCalledWith("t1")
   })
 })

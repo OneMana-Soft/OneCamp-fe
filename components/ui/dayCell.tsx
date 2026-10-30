@@ -19,9 +19,11 @@ import { cn } from "@/lib/utils/helpers/cn"
  */
 export const DAY_CELL_BASE =
   "relative inline-flex size-8 items-center justify-center rounded-lg p-0 text-ui-sm font-[450] tabular-nums text-ink outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-pop aria-selected:opacity-100"
+// Today's ring is the cell's ::after: under a finger, ::before is the cell's
+// 44 px reach (app/phone.css F3), whose inset moved the ring off its day.
 export const DAY_CELL_TODAY =
-  "font-semibold text-brand-text before:pointer-events-none before:absolute before:left-1/2 before:top-1/2 before:size-[26px] before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:ring-[1.5px] before:ring-brand before:content-['']"
-export const DAY_CELL_SELECTED = "bg-ink! text-sheet! hover:bg-ink! before:ring-0!"
+  "font-semibold text-brand-text after:pointer-events-none after:absolute after:left-1/2 after:top-1/2 after:size-[26px] after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:ring-[1.5px] after:ring-brand after:content-['']"
+export const DAY_CELL_SELECTED = "bg-ink! text-sheet! hover:bg-ink! after:ring-0!"
 
 export interface DayCellProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   date: Date
@@ -34,10 +36,15 @@ export interface DayCellProps extends Omit<React.ButtonHTMLAttributes<HTMLButton
   size?: 32 | 40
 }
 
-/** One day for a hand-drawn grid, with the same states as the picker's. */
-export const DayCell = React.forwardRef<HTMLButtonElement, DayCellProps>(function DayCell(
-  { date, today, selected, outside, dot, size = 32, className, disabled, ...rest },
-  ref
+/**
+ * One day's element as DayCell draws it, for a grid that draws many at once
+ * (the calendar's mini month: 42 days, which as DayCells were 42 components
+ * drawn on each switch to the day view). A call, not a component: wrap each in
+ * a keyed Fragment, as the month does with hueBlock().
+ */
+export function dayCell(
+  { date, today, selected, outside, dot, size = 32, className, disabled, ...rest }: DayCellProps,
+  ref?: React.Ref<HTMLButtonElement>
 ) {
   return (
     <button
@@ -67,4 +74,9 @@ export const DayCell = React.forwardRef<HTMLButtonElement, DayCellProps>(functio
       ) : null}
     </button>
   )
+}
+
+/** One day for a hand-drawn grid, with the same states as the picker's. */
+export const DayCell = React.forwardRef<HTMLButtonElement, DayCellProps>(function DayCell(props, ref) {
+  return dayCell(props, ref)
 })

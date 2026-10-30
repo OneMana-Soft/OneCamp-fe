@@ -12,6 +12,8 @@ export interface RecordingInfoInterface {
     recording_started_by: UserProfileDataInterface;
     recording_channel: ChannelInfoInterface;
     recording_dm: UserDMInterface;
+    /** "ready", "failed" or "empty" (captured nothing). */
+    recording_status?: string;
 }
 
 export interface TranscriptInfoInterface {

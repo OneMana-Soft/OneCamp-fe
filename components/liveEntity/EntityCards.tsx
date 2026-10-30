@@ -27,6 +27,7 @@ export function TaskCard({ data }: { id: string; data: TaskChipData }) {
   return (
     <div data-entity-card="task" className="flex flex-col gap-2">
       <div className="flex items-center gap-1.5 text-meta text-ink-2">
+        {data.key ? <span className="font-medium tabular-nums text-ink-3">{data.key}</span> : null}
         <StatusGlyph status={CATEGORY_KIND[data.status] ?? "todo"} size={14} />
         {data.status_name}
       </div>

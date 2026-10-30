@@ -20,11 +20,16 @@ const bundleNow = (): { data: TableBundle } => ({
   },
 })
 let bundle = bundleNow()
-const mutate = vi.fn(async () => {
-  bundle = bundleNow()
+// SWR's mutate: with no argument the bundle is read again; with a function,
+// the cached bundle is changed in place (useTableRows' put), with no read.
+const mutate = vi.fn(async (change?: (d: typeof bundle) => typeof bundle) => {
+  bundle = typeof change === "function" ? change(bundle) : bundleNow()
   return bundle
 })
+/** How many times the whole bundle was read again. */
+const refetches = () => mutate.mock.calls.filter((c) => typeof c[0] !== "function").length
 const listRows = vi.fn<(t: string, offset: number, limit: number, signal?: AbortSignal) => Promise<TableRow[]>>(async (_t, offset, limit) => Array.from({ length: Math.max(0, Math.min(limit, count - offset)) }, (_, i) => rowAt(offset + i)))
+const rowsByIds = vi.fn<(t: string, ids: string[]) => Promise<TableRow[]>>(async (_t, ids) => ids.map((id) => rowAt(Number(id.slice(1)))))
 let heard: ((m: string) => void) | undefined
 
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: bundle, isLoading: false, isError: undefined, mutate }) }))
@@ -32,6 +37,7 @@ vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: ({ onMessage }: { onMessa
 vi.mock("@/services/tableService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/tableService")>()),
   listRows: (...a: Parameters<typeof listRows>) => listRows(...a),
+  rowsByIds: (...a: Parameters<typeof rowsByIds>) => rowsByIds(...a),
 }))
 
 import { ROWS_HELD_MAX, useTableRows } from "@/lib/tables/useTableRows"
@@ -45,6 +51,7 @@ afterEach(() => {
   cleanup()
   mutate.mockClear()
   listRows.mockClear()
+  rowsByIds.mockClear()
 })
 
 const tell = (data: Record<string, unknown>) => act(() => heard?.(JSON.stringify({ type: 9, data })))
@@ -83,7 +90,7 @@ describe("the rows a table's page holds", () => {
     expect(new Set(result.current.rows.map((r) => r.id)).size).toBe(10600)
   })
 
-  it("asks again for only the page holding a row someone changed", async () => {
+  it("asks again for only the row someone changed, by its id", async () => {
     const { result } = renderHook(() => useTableRows("t"))
     act(() => result.current.more())
     await waitFor(() => expect(result.current.rows).toHaveLength(1000))
@@ -91,14 +98,43 @@ describe("the rows a table's page holds", () => {
     edited.r700 = "Changed elsewhere"
     tell({ action: "updated", row_id: "r700" })
     await waitFor(() => expect(result.current.rows.find((r) => r.id === "r700")?.values).toContain("Changed elsewhere"))
-    expect(listRows.mock.calls).toEqual([["t", 500, 500]])
-    expect(mutate).not.toHaveBeenCalled()
+    expect(rowsByIds.mock.calls).toEqual([["t", ["r700"]]])
+    expect(listRows).not.toHaveBeenCalled()
+    expect(refetches()).toBe(0)
   })
 
-  // A row's threads changed (business/TableComments): the page holding it is
-  // read again for its comment count, whatever shows its threads is told, and
+  // FLUIDITY-LEAD, 20 Oct: a row in the bundle's page read the whole bundle
+  // again, a 534 ms long task at 100,000 rows.
+  it("reads a changed row in the bundle's own page alone too, and changes the bundle in place", async () => {
+    const { result } = renderHook(() => useTableRows("t"))
+    edited.r3 = "Changed elsewhere"
+    tell({ action: "updated", row_id: "r3" })
+    await waitFor(() => expect(rowsByIds.mock.calls).toEqual([["t", ["r3"]]]))
+    expect(refetches()).toBe(0)
+    expect(bundle.data.rows[3].values).toContain("Changed elsewhere")
+    expect(result.current.rows).toHaveLength(500)
+  })
+
+  it("puts a saved row where it's held, with no read at all", async () => {
+    const { result } = renderHook(() => useTableRows("t"))
+    act(() => result.current.more())
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    listRows.mockClear()
+    const saved = (i: number) => ({ ...rowAt(i), updated_at: "now", values: JSON.stringify({ item: `Saved ${i}` }) })
+    act(() => result.current.put([saved(3), saved(700), saved(5000)]))
+    await waitFor(() => expect(result.current.rows.find((r) => r.id === "r700")?.values).toContain("Saved 700"))
+    expect(bundle.data.rows[3].values).toContain("Saved 3")
+    // A row not held stays unheld.
+    expect(result.current.rows.find((r) => r.id === "r5000")).toBeUndefined()
+    expect(refetches()).toBe(0)
+    expect(listRows).not.toHaveBeenCalled()
+    expect(rowsByIds).not.toHaveBeenCalled()
+  })
+
+  // A row's threads changed (business/TableComments): the row is read again
+  // by its id for its comment count, whatever shows its threads is told, and
   // nothing else is read.
-  it("asks again for only the page holding a row someone commented on, and tells its threads", async () => {
+  it("asks again for only the row someone commented on, and tells its threads", async () => {
     const { result } = renderHook(() => useTableRows("t"))
     act(() => result.current.more())
     await waitFor(() => expect(result.current.rows).toHaveLength(1000))
@@ -108,21 +144,44 @@ describe("the rows a table's page holds", () => {
     const stop = onRowComments("r700", told)
     tell({ action: "comments", row_id: "r700", thread_id: "th1", event: "thread.created" })
     expect(told).toHaveBeenCalledTimes(1)
-    await waitFor(() => expect(listRows.mock.calls).toEqual([["t", 500, 500]]))
-    expect(mutate).not.toHaveBeenCalled()
+    await waitFor(() => expect(rowsByIds.mock.calls).toEqual([["t", ["r700"]]]))
+    expect(listRows).not.toHaveBeenCalled()
+    expect(refetches()).toBe(0)
     stop()
   })
 
-  // A row given a page (tables T2): the page of rows holding it is read
-  // again, for the row's page, and nothing else.
-  it("asks again for only the page holding a row someone gave a page", async () => {
+  // An AI fill moving on (TABLES-LEAD-26): each cell it writes comes as its
+  // own "updated", so its progress reads nothing again; whatever shows the
+  // fill's progress hears it.
+  it("reads nothing again for an AI fill's progress, and tells whatever shows it", async () => {
+    const { result } = renderHook(() => useTableRows("t"))
+    act(() => result.current.more())
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    listRows.mockClear()
+    const { onAIFill } = await import("@/lib/tables/aiFills")
+    const told = vi.fn()
+    const stop = onAIFill("t", told)
+    const fill = { id: "f1", table_id: "t", field_id: "summary", total: 3200, asked: 340, filled: 338, state: "running" }
+    tell({ action: "ai_fill", fill })
+    expect(told).toHaveBeenCalledWith(fill)
+    await new Promise((r) => setTimeout(r, 400))
+    expect(listRows).not.toHaveBeenCalled()
+    expect(rowsByIds).not.toHaveBeenCalled()
+    expect(refetches()).toBe(0)
+    stop()
+  })
+
+  // A row given a page (tables T2): the row is read again by its id, for its
+  // page, and nothing else.
+  it("asks again for only the row someone gave a page", async () => {
     const { result } = renderHook(() => useTableRows("t"))
     act(() => result.current.more())
     await waitFor(() => expect(result.current.rows).toHaveLength(1000))
     listRows.mockClear()
     tell({ action: "page", row_id: "r700", page: "d1" })
-    await waitFor(() => expect(listRows.mock.calls).toEqual([["t", 500, 500]]))
-    expect(mutate).not.toHaveBeenCalled()
+    await waitFor(() => expect(rowsByIds.mock.calls).toEqual([["t", ["r700"]]]))
+    expect(listRows).not.toHaveBeenCalled()
+    expect(refetches()).toBe(0)
   })
 
   it("asks again for the bundle and every page held when rows go", async () => {
@@ -131,7 +190,7 @@ describe("the rows a table's page holds", () => {
     await waitFor(() => expect(result.current.rows).toHaveLength(1000))
     listRows.mockClear()
     tell({ action: "deleted", row_id: "r3" })
-    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(refetches()).toBe(1))
     await waitFor(() => expect(listRows).toHaveBeenCalledWith("t", 500, 500))
   })
 
@@ -145,8 +204,9 @@ describe("the rows a table's page holds", () => {
     edited.r650 = "Pasted"
     tell({ action: "changed", change_set: "cs", created: [], updated: ["r600", "r650"], deleted: [], restored: [] })
     await waitFor(() => expect(result.current.rows.find((r) => r.id === "r650")?.values).toContain("Pasted"))
-    expect(listRows.mock.calls).toEqual([["t", 500, 500]])
-    expect(mutate).not.toHaveBeenCalled()
+    expect(rowsByIds.mock.calls).toEqual([["t", ["r600", "r650"]]])
+    expect(listRows).not.toHaveBeenCalled()
+    expect(refetches()).toBe(0)
   })
 
   it("asks again for everything held when a change of many made, deleted, brought back or moved rows", async () => {
@@ -157,7 +217,7 @@ describe("the rows a table's page holds", () => {
       mutate.mockClear()
       listRows.mockClear()
       tell({ action: "changed", change_set: "cs", created: [], updated: [], deleted: [], restored: [], ...change })
-      await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(refetches()).toBe(1))
       await waitFor(() => expect(listRows).toHaveBeenCalledWith("t", 500, 500))
       unmount()
     }
@@ -169,7 +229,7 @@ describe("the rows a table's page holds", () => {
     await waitFor(() => expect(result.current.rows).toHaveLength(1000))
     listRows.mockClear()
     tell({ action: "table" })
-    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(refetches()).toBe(1))
     expect(listRows).not.toHaveBeenCalled()
   })
 

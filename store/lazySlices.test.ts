@@ -86,7 +86,7 @@ describe("a slice a page adds (injectSlice)", () => {
     })
 
     it("starts again on a reset, like every other slice", () => {
-        store.dispatch(openUI({ key: "channelFileUpload" }))
+        store.dispatch(openUI({ key: "attachmentLightbox" }))
         store.dispatch({ type: RESET_STORE_ACTION })
         expect(probed()).toEqual({ opened: 0 })
     })

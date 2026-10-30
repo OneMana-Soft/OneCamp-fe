@@ -97,24 +97,25 @@ export default function DefaultChannelsCard() {
     const generalChosen = chosen.some(isGeneral)
 
     /** Saves an order at once; a refusal puts the last saved one back. */
-    const commit = async (next: string[], row: string) => {
+    const commit = async (next: string[], row: string, what: string): Promise<boolean> => {
         const before = order
         setOrder(next)
         setTouched(row)
         const ok = await run(async () => {
             const answer = await setDefaultChannels(next)
             if (answer) show(answer)
-        })
+        }, { what, undo: () => commit(before, row, what) })
         if (!ok) setOrder(before)
+        return ok
     }
 
     const toggle = (id: string, on: boolean) => {
         const picked = on ? [...order, id] : order.filter((x) => x !== id)
         // The landing channel stays first while it is still chosen.
-        void commit(saveOrder(picked, available, landing), id)
+        void commit(saveOrder(picked, available, landing), id, `#${byId.get(id)?.ch_name} is ${on ? "on" : "off"}`)
     }
 
-    const openHere = (id: string) => void commit(saveOrder(order, available, id), id)
+    const openHere = (id: string) => void commit(saveOrder(order, available, id), id, `New members open in #${byId.get(id)?.ch_name}`)
 
     let body: React.ReactNode
     if (loading) {

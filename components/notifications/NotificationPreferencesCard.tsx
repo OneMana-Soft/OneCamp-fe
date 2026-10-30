@@ -326,7 +326,7 @@ export function NotificationPreferencesCard() {
           <SettingRow
             label="Activity digest"
             controlId="digest"
-            description={DIGEST_LINE[working.email_digest_frequency] ?? DIGEST_LINE.off}
+            description={masterOff ? "No digest while email is off." : (DIGEST_LINE[working.email_digest_frequency] ?? DIGEST_LINE.off)}
             status={statuses.email_digest_frequency}
             disabled={masterOff}
           >

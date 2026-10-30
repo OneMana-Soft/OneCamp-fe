@@ -1,6 +1,7 @@
 "use client";
 import type React from "react";
 import { useCallback, useEffect, useRef } from "react";
+import { pressNow as now, swallowReleaseClick } from "@/lib/ui/releaseClick";
 
 interface LongPressOptions {
     threshold?: number;
@@ -17,37 +18,6 @@ const COMPAT_MOUSE_MS = 800;
 const MOVE_TOLERANCE_PX = 20;
 /** Touches this close to a side are the system's back gesture. */
 const EDGE_PX = 30;
-/** How long after a hold is released its click can still arrive. */
-const RELEASE_CLICK_MS = 600;
-
-const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
-
-/**
- * Swallows the click that releasing a hold sends. A phone follows the lifted
- * finger with a click on whatever is under it: the menu's overlay if it has
- * drawn by then, and otherwise the row itself, which opened the row (a
- * message's thread) behind its own menu. A new touch first means a new tap,
- * which keeps its click.
- */
-function swallowReleaseClick() {
-    if (typeof window === "undefined") return;
-    const until = now() + RELEASE_CLICK_MS;
-    const onClick = (e: MouseEvent) => {
-        done();
-        if (now() > until) return;
-        e.preventDefault();
-        e.stopPropagation();
-    };
-    const done = () => {
-        window.removeEventListener("click", onClick, true);
-        window.removeEventListener("touchstart", done, true);
-        clearTimeout(timer);
-    };
-    window.addEventListener("click", onClick, true);
-    window.addEventListener("touchstart", done, true);
-    const timer = setTimeout(done, RELEASE_CLICK_MS);
-}
-
 /**
  * Calls `callback` when an element is held for `threshold` ms without moving.
  *

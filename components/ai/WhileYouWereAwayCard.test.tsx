@@ -20,7 +20,10 @@ let sidebar: {
 } = { userChannels: [], userChats: [] }
 let aiEnabled: boolean | undefined = true
 let statusLoading = false
-let aiState: "unknown" | "available" | "unavailable" = "available"
+// "failed": the server's config read failed with nothing kept, so the answer
+// stays unknown for a caller that waits, and reads as what the caller asked
+// a failure to read as (hooks/useClientConfig's onFailure).
+let aiState: "unknown" | "available" | "unavailable" | "failed" = "available"
 
 vi.mock("react-redux", () => ({
   useSelector: (fn: (s: unknown) => unknown) =>
@@ -46,7 +49,7 @@ vi.mock("@/components/ai/MarkdownMessage", () => ({
 vi.mock("@/hooks/useClientConfig", () => ({
   FEATURE_AI: "ai",
   useFeature: () => aiState === "available",
-  useFeatureState: () => aiState,
+  useFeatureState: (_: string, o?: { onFailure?: "unknown" | "unavailable" }) => (aiState === "failed" ? (o?.onFailure ?? "unknown") : aiState),
   useAIAvailable: () => aiState === "available",
   useClientConfig: () => ({ features: { ai: aiState === "available" } }),
 }))
@@ -146,6 +149,16 @@ describe("WhileYouWereAwayCard", () => {
     aiState = "unknown"
     render(<WhileYouWereAwayCard />)
     expect(screen.getByRole("status", { name: /loading your recap/i })).toBeTruthy()
+  })
+
+  // 22 Oct: with the config read failed and nothing kept, the skeleton held its
+  // place under Home's list for good. It holds it only while the answer comes.
+  it("stops holding its place once asking whether AI is on has failed", () => {
+    withUnread([40])
+    aiState = "failed"
+    const { container } = render(<WhileYouWereAwayCard />)
+    expect(screen.queryByRole("status", { name: /loading your recap/i })).toBeNull()
+    expect(container.firstChild).toBeNull()
   })
 
   it("renders nothing at all on a server without AI", () => {

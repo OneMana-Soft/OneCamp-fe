@@ -14,15 +14,13 @@ vi.mock("@/lib/auth/sessionRefresh", () => ({
   refreshSession,
   // A session past its end, by the clock every tab shares.
   sessionIsStale: () => true,
-  onSessionRefreshed: () => () => {},
 }))
 vi.mock("@/hooks/use-toast", () => ({ toast: () => ({ id: "1", dismiss: () => {}, update: () => {} }), useToast: () => ({ toast: () => {} }) }))
-vi.mock("@/store/store", () => ({ default: { dispatch: () => {} } }))
 vi.mock("@/lib/sessionEnd", () => ({ endSession: async () => {} }))
 
 const { default: axiosInstance, onVisitorPage } = await import("@/lib/axiosInstance")
 
-const VISITOR_PAGES = ["/guest/d/abc123", "/book/maya-patel", "/booking/tok-123", "/f/form-tok", "/rsvp/tok-456", "/unsubscribe"]
+const VISITOR_PAGES = ["/guest/d/abc123", "/book/maya-patel", "/booking/tok-123", "/f/form-tok", "/rsvp/tok-456", "/unsubscribe", "/r/maya-chen"]
 
 function becomeVisible() {
   Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true })

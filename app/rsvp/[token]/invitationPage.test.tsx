@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { Suspense } from "react"
 
 const VIEW = {
@@ -21,7 +21,15 @@ vi.mock("@/services/eventInvitationService", async (importOriginal) => ({
 }))
 vi.mock("@/lib/utils/timeZone", () => ({ browserTZ: () => "Asia/Kolkata" }))
 vi.mock("@/components/public/MadeWithOneCamp", () => ({ MadeWithOneCamp: () => null, madeWithHref: () => "" }))
-vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn(), useToast: () => ({ toast: vi.fn() }) }))
+const { toast } = vi.hoisted(() => ({ toast: vi.fn() }))
+vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
+// The shared pickers have browser tests of their own: here, plain stand-ins.
+vi.mock("@/components/ui/date-field", async (importOriginal) => {
+  const field = (p: { value: string; onChange: (v: string) => void; "aria-label"?: string }) => (
+    <input aria-label={p["aria-label"]} value={p.value} onChange={(e) => p.onChange(e.target.value)} />
+  )
+  return { ...(await importOriginal<typeof import("@/components/ui/date-field")>()), DateField: field, TimeField: field }
+})
 
 import InvitationPage from "./page"
 import { pinTestClock } from "@/lib/testing/testClock"
@@ -39,6 +47,7 @@ afterEach(() => {
   cleanup()
   getInvitation.mockReset()
   answerInvitation.mockReset()
+  toast.mockReset()
   window.history.replaceState(null, "", "/")
 })
 
@@ -98,10 +107,67 @@ describe("an invitation's own page", () => {
     await waitFor(() => expect(answerInvitation).toHaveBeenLastCalledWith("t", { answer: "declined", note: "Away that week" }))
   })
 
+  // Calendar head 4: a guest proposes another time from their own page.
+  it("proposes another time with the answer when the event takes one, shows it, and takes it back", async () => {
+    getInvitation.mockResolvedValue(ok({ proposable: true, you: { ...VIEW.you, response: "tentative" } }))
+    answerInvitation.mockImplementation(async (_t: string, body: { answer: string; proposal?: { start?: string } }) =>
+      ok({ proposable: true, you: { ...VIEW.you, response: body.answer, ...(body.proposal?.start ? { proposal: body.proposal } : {}) } }),
+    )
+    await show()
+    fireEvent.click(screen.getByRole("button", { name: "Propose a new time" }))
+    const form = await screen.findByRole("group", { name: "Propose a new time" })
+    fireEvent.change(within(form).getByRole("textbox", { name: "Day" }), { target: { value: "2026-10-21" } })
+    fireEvent.change(within(form).getByRole("textbox", { name: "From" }), { target: { value: "15:00" } })
+    fireEvent.change(within(form).getByRole("textbox", { name: "Until" }), { target: { value: "15:45" } })
+    fireEvent.click(within(form).getByRole("button", { name: "Propose" }))
+    const p = { start: new Date(2026, 9, 21, 15).toISOString(), end: new Date(2026, 9, 21, 15, 45).toISOString() }
+    await waitFor(() => expect(answerInvitation).toHaveBeenCalledWith("t", { answer: "tentative", proposal: p }))
+    expect((await screen.findByText(/^You proposed/)).closest("[data-your-proposal]")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Take it back" }))
+    await waitFor(() => expect(answerInvitation).toHaveBeenLastCalledWith("t", { answer: "tentative", proposal: {} }))
+    expect(await screen.findByRole("button", { name: "Propose a new time" })).toBeTruthy()
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it("says a time the server won't take in its words, keeping the page, and offers none where the event takes none", async () => {
+    getInvitation.mockResolvedValue(ok({ proposable: true, you: { ...VIEW.you, response: "accepted" } }))
+    answerInvitation.mockResolvedValue({ ok: false, status: 400, msg: "That's the time it's at already." })
+    await show()
+    fireEvent.click(screen.getByRole("button", { name: "Propose a new time" }))
+    const form = await screen.findByRole("group", { name: "Propose a new time" })
+    fireEvent.click(within(form).getByRole("button", { name: "Propose" }))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't propose that time", description: "That's the time it's at already." })))
+    expect(screen.getByRole("heading", { name: "Pricing page walkthrough" })).toBeTruthy()
+    expect(screen.getByRole("group", { name: "Propose a new time" })).toBeTruthy()
+    cleanup()
+    // A series, an all-day event, or one over: the server says it takes none.
+    getInvitation.mockResolvedValue(ok({ proposable: false, you: { ...VIEW.you, response: "accepted" } }))
+    await show()
+    expect(screen.getByRole("textbox", { name: "Your note with your answer" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Propose a new time" })).toBeNull()
+  })
+
   it("says an all-day event's dates, in no zone", async () => {
     getInvitation.mockResolvedValue(ok({ all_day: true, start: { date: "2026-10-26" }, end: { date: "2026-10-28" } }))
     await show()
     expect(screen.getByText("Monday 26 October – Tuesday 27 October")).toBeTruthy()
     expect(document.querySelector("[data-ticket]")?.textContent).toContain("All day")
+  })
+
+  // meet-02 (1): the event's own call, joined with the guest's own key, so
+  // they come in without knocking; none once it has happened or with no call.
+  it("offers the event's call with the guest's key, until the event has happened", async () => {
+    getInvitation.mockResolvedValue(ok({ call_address: "/r/design-review-1a2b" }))
+    await show()
+    const join = screen.getByRole("link", { name: "Join call" })
+    expect(join.getAttribute("href")).toBe("/r/design-review-1a2b#invitation=t")
+    cleanup()
+    getInvitation.mockResolvedValue(ok({ call_address: "/r/design-review-1a2b", ended: true }))
+    await show()
+    expect(screen.queryByRole("link", { name: "Join call" })).toBeNull()
+    cleanup()
+    getInvitation.mockResolvedValue(ok())
+    await show()
+    expect(screen.queryByRole("link", { name: "Join call" })).toBeNull()
   })
 })

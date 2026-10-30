@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Provider } from "react-redux"
 import { act, cleanup, render, screen } from "@testing-library/react"
 import store from "@/store/store"
@@ -13,18 +13,31 @@ import store from "@/store/store"
 let connectionState = { isConnected: true, isConnecting: false, error: null as string | null, reconnectAttempts: 0 }
 const reconnect = vi.fn()
 const noop = () => {}
+// The connection's state as the real hook keeps it: a change draws the engine
+// that holds it again (the engine is drawn once by its provider, then by itself).
+const heard = new Set<() => void>()
+const setConnectionState = (next: typeof connectionState) => {
+  connectionState = next
+  heard.forEach((l) => l())
+}
 
-vi.mock("@/hooks/useMqttConnection", () => ({
-  useMqttConnection: () => ({
-    connectionState,
-    connect: noop,
-    disconnect: noop,
-    reconnect,
-    publish: async () => {},
-    subscribeToTopic: noop,
-    unsubscribeFromTopic: noop,
-  }),
-}))
+vi.mock("@/hooks/useMqttConnection", async () => {
+  const { useSyncExternalStore } = await import("react")
+  return {
+    useMqttConnection: () => ({
+      connectionState: useSyncExternalStore(
+        (l) => (heard.add(l), () => void heard.delete(l)),
+        () => connectionState,
+      ),
+      connect: noop,
+      disconnect: noop,
+      reconnect,
+      publish: async () => {},
+      subscribeToTopic: noop,
+      unsubscribeFromTopic: noop,
+    }),
+  }
+})
 vi.mock("@/hooks/useMqttMessageHandler", () => ({ useMqttMessageHandler: () => ({ handleMessage: noop, cleanup: noop }) }))
 vi.mock("@/hooks/useMessageSyncManager", () => ({
   useMessageSyncManager: () => ({ markHealthy: noop, handleDisconnected: noop, handleConnectionEstablished: noop, handleForeground: noop }),
@@ -47,15 +60,21 @@ function App({ children }: { children: React.ReactNode }) {
   )
 }
 
+// The engine (components/mqtt/RealtimeEngine) starts at the first idle moment: at once here.
+beforeEach(() => {
+  vi.stubGlobal("requestIdleCallback", (cb: () => void) => setTimeout(cb, 0))
+  vi.stubGlobal("cancelIdleCallback", (id: number) => clearTimeout(id))
+})
 afterEach(() => {
   cleanup()
-  connectionState = { isConnected: true, isConnecting: false, error: null, reconnectAttempts: 0 }
+  vi.unstubAllGlobals()
+  setConnectionState({ isConnected: true, isConnecting: false, error: null, reconnectAttempts: 0 })
   reconnect.mockClear()
 })
 
 describe("the realtime provider's light readers", () => {
-  it("read the provider's own connection through components/mqtt/mqttContext", () => {
-    let read: unknown
+  it("read the provider's own connection through components/mqtt/mqttContext, connecting until its engine has started", async () => {
+    let read: { isConnected: boolean; isConnecting: boolean } | undefined
     function Reader() {
       read = useMqttConnectionState()
       return null
@@ -65,23 +84,28 @@ describe("the realtime provider's light readers", () => {
         <Reader />
       </App>,
     )
-    expect(read).toBe(connectionState)
+    expect(read).toMatchObject({ isConnected: false, isConnecting: true })
+    await vi.waitFor(() => expect(read).toBe(connectionState))
   })
 
-  it("hear the connection drop: the pill under the provider says so, and Reconnect reaches it", () => {
-    const view = render(
+  it("hear the connection drop: the pill under the provider says so, and Reconnect reaches it", async () => {
+    let read: unknown
+    function Reader() {
+      read = useMqttConnectionState()
+      return null
+    }
+    render(
       <App>
         <FootPill />
+        <Reader />
       </App>,
     )
+    // Connecting, before the engine has started, is no drop: the pill says nothing.
     expect(screen.queryByRole("status")).toBeNull()
-    connectionState = { ...connectionState, isConnected: false, reconnectAttempts: 5 }
-    view.rerender(
-      <App>
-        <FootPill />
-      </App>,
-    )
-    expect(screen.getByRole("status").textContent).toMatch(/Live updates paused · trying every 30 s/)
+    await vi.waitFor(() => expect(read).toBe(connectionState))
+    expect(screen.queryByRole("status")).toBeNull()
+    act(() => setConnectionState({ ...connectionState, isConnected: false, reconnectAttempts: 5 }))
+    await vi.waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/Live updates paused · trying every 30 s/))
     act(() => screen.getByRole("button", { name: "Reconnect" }).click())
     expect(reconnect).toHaveBeenCalledOnce()
   })

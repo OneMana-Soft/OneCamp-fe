@@ -26,6 +26,7 @@ import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
 import { SECRET_REENTRY_CODE, secretMoves, secretReentryHint } from "@/lib/utils/secretDestination"
+import { webURL } from "@/lib/links/webURL"
 
 interface McpServerEditDialogProps {
   server: McpServer | null
@@ -130,7 +131,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
   const validate = () => {
     const next: typeof errors = {}
     if (!name.trim()) next.name = "Give the server a name."
-    if (!url.trim() || !/^https?:\/\//i.test(url.trim())) next.url = "Enter its address, starting with https:// or http://."
+    if (!webURL(url)) next.url = "Enter its address, starting with https:// or http://."
     if (authType === "header" && !authHeaderName.trim()) next.header = "Enter the header's name."
     if (secretMissing) next.secret = secretReentryHint()
     return next
@@ -378,8 +379,8 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
           <Button variant="ghost" onClick={onClose} className="gap-1.5">
             <X className="h-4 w-4" /> Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          <Button onClick={handleSave} busy={saving} className="gap-1.5">
+            <Check className="h-4 w-4" />
             {editing ? "Save changes" : "Add server"}
           </Button>
         </div>

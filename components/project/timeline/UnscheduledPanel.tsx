@@ -25,14 +25,15 @@ export const UNSCHEDULED_DRAG = "application/x-onecamp-task"
 export function UnscheduledPanel({
   tasks,
   statuses,
-  canEdit,
+  canMove,
   onOpenTask,
   onClose,
   away,
 }: {
   tasks: TimelineTask[]
   statuses: StatusOption[]
-  canEdit: boolean
+  /** Whether the person may give this task dates: their own, where members change only theirs. */
+  canMove: (t: TimelineTask) => boolean
   onOpenTask: (taskUUID: string) => void
   onClose: () => void
   /** The task being dragged out: its row is the slot it left. */
@@ -53,7 +54,7 @@ export function UnscheduledPanel({
           <X className="size-4" />
         </Button>
       </div>
-      {canEdit && tasks.length > 0 && <p className="px-4 pb-2 text-xs text-ink-3">Drag a task onto a day to make it due then.</p>}
+      {tasks.some(canMove) && <p className="px-4 pb-2 text-xs text-ink-3">Drag a task onto a day to make it due then.</p>}
       {tasks.length === 0 ? (
         <p className="p-4 text-sm text-ink-2">Every open task has a date.</p>
       ) : (
@@ -63,7 +64,7 @@ export function UnscheduledPanel({
               key={t.task_uuid}
               task={t}
               status={statusOptionOf(t, statuses)}
-              canEdit={canEdit}
+              canEdit={canMove(t)}
               away={away === t.task_uuid}
               onOpenTask={onOpenTask}
             />

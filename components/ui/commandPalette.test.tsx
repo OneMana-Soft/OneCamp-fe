@@ -63,7 +63,6 @@ vi.mock("@/components/ai/PaletteAsk", () => ({
   ),
 }))
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pause: vi.fn(), resume: vi.fn() }) }))
-vi.mock("@/hooks/useTrackPageVisit", () => ({ useTrackPageVisit: () => {} }))
 vi.mock("@/hooks/useSplitView", () => ({ useSplitActions: () => () => {} }))
 vi.mock("@/components/shortcuts/ShortcutsDialog", () => ({ openShortcuts: () => {} }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => ({}) }))
@@ -183,6 +182,15 @@ describe("the command palette", () => {
     expect(screen.queryByText("Nothing called “qz plan”")).toBeNull()
     expect(screen.getByText("Couldn't search just now")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
+  })
+
+  it("takes Settings straight to your profile on a computer, where the settings nav is the index", () => {
+    // /app/settings on a computer draws nothing and moves on to the profile:
+    // two moves for one press (fluid-14).
+    const input = open()
+    type(input, "settings")
+    fireEvent.click(row(group("Commands"), "Settings")!)
+    expect(push).toHaveBeenCalledWith("/app/settings/profile")
   })
 
   it("takes Home to Home, once typed", () => {

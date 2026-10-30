@@ -1,12 +1,12 @@
 "use client"
 
 import { createElement, isValidElement, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react"
-import { fieldKeyDown } from "@/lib/keys/ime"
 
 import * as React from "react"
 
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, X } from "@/lib/icons"
+import { LazySearchInput, warmSearchInput } from "@/components/ui/lazy-search-input"
+import { Search } from "@/lib/icons"
 import { ix, withLabel } from "@/lib/ui/interactive"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -239,6 +239,8 @@ export function WorkSearch({ value, onChange, placeholder, label }: { value: str
         aria-label={label}
         title={`${label} (/)`}
         onClick={() => setOpen(true)}
+        onPointerEnter={() => void warmSearchInput()}
+        onFocus={() => void warmSearchInput()}
         data-touch-target=""
         {...ix("icon")}
         className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 hover:text-foreground"
@@ -248,41 +250,20 @@ export function WorkSearch({ value, onChange, placeholder, label }: { value: str
     )
   }
   return (
-    <div className="relative w-[220px] shrink-0 origin-right [animation:work-pop-in_180ms_var(--ease-out)_both]">
-      <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
-      <input
+    <div className="w-[220px] shrink-0 origin-right [animation:work-pop-in_180ms_var(--ease-out)_both]">
+      <LazySearchInput
         ref={input}
-        type="search"
+        autoFocus
+        size="sm"
+        className="h-7"
+        inputClassName="text-xs md:text-xs"
         value={value}
         aria-label={label}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        data-escape-own=""
-        onKeyDown={fieldKeyDown((e) => {
-          if (e.key === "Escape") {
-            onChange("")
-            setOpen(false)
-          }
-        })}
+        onValueChange={onChange}
+        onEscape={() => setOpen(false)}
         onBlur={() => !value && setOpen(false)}
-        className="field-surface h-7 w-full rounded-md pl-8 pr-7 text-xs text-foreground"
       />
-      {value && (
-        <button
-          type="button"
-          aria-label="Clear search"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            onChange("")
-            input.current?.focus()
-          }}
-          data-touch-target=""
-          {...ix("icon")}
-          className="absolute right-1.5 top-1/2 inline-flex size-4 -translate-y-1/2 items-center justify-center rounded-xs text-ink-3 hover:text-foreground"
-        >
-          <X className="size-3" />
-        </button>
-      )}
     </div>
   )
 }

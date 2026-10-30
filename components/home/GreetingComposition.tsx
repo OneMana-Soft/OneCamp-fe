@@ -14,9 +14,13 @@
  *
  * On the first visit of a session it draws itself: rings 600ms, the core
  * springs, orbiters pop in, the sun travels to now, the spark twinkles once.
- * Then the two orbits turn (120s and 180s a turn, in opposite directions),
- * paused while the drawing is off screen or the tab is hidden. Reduced motion
- * shows the last frame and never turns. Decorative: aria-hidden.
+ * Then the two orbits turn (120s and 180s a turn, in opposite directions)
+ * for a few turns and rest where they began, paused while the drawing is off
+ * screen or the tab is hidden. Each ring, and each orbiter's counter-turn, is
+ * a layer of its own that the compositor turns: a transform on an SVG group is
+ * laid out and painted on the main thread every frame, and Home is open all
+ * day. Reduced motion shows the last frame and never turns. Decorative:
+ * aria-hidden.
  */
 import { personHue } from "@/lib/utils/getAvatarColor"
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
@@ -52,6 +56,11 @@ export interface GreetingCompositionProps {
 
 const CX = 196
 const CY = 84
+/** Turns before each orbit rests: six minutes of each. */
+const OUTER_TURNS = 3
+const INNER_TURNS = 2
+/** An orbiter's own layer: its drawing, centred, with room for its ring. */
+const UPRIGHT = 32
 
 /** Pauses the orbit while the drawing is off screen or the tab is hidden. Exported for its test. */
 export function orbitPlayState(visible: boolean, hidden: boolean): "running" | "paused" {
@@ -116,14 +125,16 @@ export function GreetingComposition({
   now: nowProp,
   className,
 }: GreetingCompositionProps) {
-  const ref = useRef<SVGSVGElement>(null)
+  const box = useRef<HTMLDivElement>(null)
   const sunRef = useRef<SVGGElement>(null)
   const [now] = useState(() => nowProp ?? new Date())
   const reduced = useMemo(() => prefersReducedMotion(), [])
   const phone = variant === "phone"
-  // Continuous orbit on desktop only (battery), and never with reduced motion.
-  const orbiting = !phone && !reduced
-  const play = useOrbitPlayState(ref, orbiting)
+  // The orbits turn on desktop only (battery), never with reduced motion, and
+  // rest once their turns end: the layers then keep nothing for turning.
+  const [rested, setRested] = useState(false)
+  const orbiting = !phone && !reduced && !rested
+  const play = useOrbitPlayState(box, orbiting)
   const sun = dayArcPoint(now)
   const wash = hueForHour(now.getHours())
 
@@ -145,7 +156,7 @@ export function GreetingComposition({
     const shown = people.slice(0, agent ? 2 : 3)
     const slots = [-40, 130, 250]
     return (
-      <svg ref={ref} viewBox="0 0 96 96" width={96} height={96} aria-hidden="true" data-greeting-composition="phone" className={cn("shrink-0 overflow-visible", className)}>
+      <svg viewBox="0 0 96 96" width={96} height={96} aria-hidden="true" data-greeting-composition="phone" className={cn("shrink-0 overflow-visible", className)}>
         <circle cx={c} cy={c} r={18} fill="var(--brand-muted)" />
         <g fill="none" strokeWidth={1.5}>
           <circle className={animate ? "hub-draw" : undefined} style={{ ["--i" as string]: 0 } as CSSProperties} cx={c} cy={c} r={18} stroke="var(--line-2)" pathLength={1} strokeDasharray={1} />
@@ -179,124 +190,135 @@ export function GreetingComposition({
   const outer = people.slice(0, agent ? 3 : 4)
   const agentSlot = OUTER_SLOTS[outer.length]
   const dots = events.slice(0, INNER_SLOTS.length)
-  const orbitStyle = (seconds: number, back: boolean): CSSProperties | undefined =>
+  // A ring's turn, or an orbiter's counter-turn, on a layer of its own.
+  const turn = (name: "hub-orbit" | "hub-orbit-back", seconds: number, turns: number, origin?: string): CSSProperties | undefined =>
     orbiting
       ? {
-          transformBox: "view-box",
-          transformOrigin: `${CX}px ${CY}px`,
-          animation: `${back ? "hub-orbit-back" : "hub-orbit"} ${seconds}s linear infinite`,
+          animationName: name,
+          animationDuration: `${seconds}s`,
+          animationTimingFunction: "linear",
+          animationIterationCount: turns,
           animationPlayState: play,
+          transformOrigin: origin,
+          willChange: "transform",
         }
       : undefined
-  const counterStyle = (seconds: number, back: boolean): CSSProperties | undefined =>
-    orbiting
-      ? {
-          transformBox: "fill-box",
-          transformOrigin: "center",
-          animation: `${back ? "hub-orbit" : "hub-orbit-back"} ${seconds}s linear infinite`,
-          animationPlayState: play,
-        }
-      : undefined
+  const layer = "absolute inset-0 overflow-visible"
 
   return (
-    <svg
-      ref={ref}
-      viewBox="0 0 320 168"
-      width={320}
-      height={168}
+    <div
+      ref={box}
       aria-hidden="true"
       data-greeting-composition="desktop"
       data-orbit={orbiting ? play : "off"}
       data-wash={wash}
-      className={cn("shrink-0 overflow-visible", className)}
+      className={cn("relative shrink-0", className)}
+      style={{ width: 320, height: 168 }}
     >
-      <defs>
-        <linearGradient id="hub-logo-ring" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#FF8A00" />
-          <stop offset="1" stopColor="#FF3D00" />
-        </linearGradient>
-        <radialGradient id="hub-sky-wash">
-          <stop offset="0" stopColor={`var(--camp-${wash})`} className="[stop-opacity:0.22] dark:[stop-opacity:0.16]" />
-          <stop offset="1" stopColor={`var(--camp-${wash})`} stopOpacity={0} />
-        </radialGradient>
-      </defs>
-      {/* 1. The hour's light: a radial, never a solid disc. */}
-      <circle cx={CX} cy={CY} r={80} fill="url(#hub-sky-wash)" />
-      {/* 4. The day arc behind the rings: travelled part solid, the rest dashed. */}
-      <path d={ARC_PATH} fill="none" stroke="var(--line-3)" strokeWidth={1.5} strokeDasharray="2 5" strokeLinecap="round" />
-      <path d={ARC_PATH} fill="none" stroke="var(--line-2)" strokeWidth={1.5} pathLength={1} strokeDasharray={`${sun.t} 1`} data-arc-done={sun.t.toFixed(2)} />
-      {/* 3. The core's ground. */}
-      <circle cx={CX} cy={CY} r={30} fill="var(--brand-muted)" />
-      {/* 2. Rings. */}
-      <g fill="none" strokeWidth={1.5}>
-        <circle className={animate ? "hub-draw" : undefined} style={{ ["--i" as string]: 0 } as CSSProperties} cx={CX} cy={CY} r={30} stroke="var(--line-2)" pathLength={1} strokeDasharray={1} />
-        <circle cx={CX} cy={CY} r={52} stroke="var(--line-3)" strokeDasharray="1.5 5" strokeLinecap="round" />
-        <circle className={animate ? "hub-draw" : undefined} style={{ ["--i" as string]: 2 } as CSSProperties} cx={CX} cy={CY} r={74} stroke="var(--line-2)" pathLength={1} strokeDasharray={1} />
-      </g>
-      {/* 3. The logo ring, the brand mark's hero instance. */}
-      <circle
-        className={animate ? "hub-pop-in" : undefined}
-        style={animate ? ({ animationDelay: "200ms" } as CSSProperties) : undefined}
-        cx={CX}
-        cy={CY}
-        r={15}
-        fill="none"
-        stroke="url(#hub-logo-ring)"
-        strokeWidth={6}
-      />
-      {/* 5. The outer orbit: people and the agent. Position on a wrapper g,
-          because a CSS transform replaces an SVG transform attribute. */}
-      <g data-orbit-ring="outer" style={orbitStyle(120, false)}>
-        {outer.map((p, i) => {
-          const pt = orbitPoint(CX, CY, 74, OUTER_SLOTS[i])
-          return (
-            <g key={p.id} transform={`translate(${pt.x} ${pt.y})`}>
-              <g style={counterStyle(120, false)}>
-                <Orbiter person={p} r={13} step={i + 1} animate={animate} />
-              </g>
-            </g>
-          )
-        })}
-        {agent && agentSlot !== undefined ? (
-          <g transform={`translate(${orbitPoint(CX, CY, 74, agentSlot).x} ${orbitPoint(CX, CY, 74, agentSlot).y})`}>
-            <g style={counterStyle(120, false)}>
-              <AgentOrbiter size={24} step={outer.length + 1} animate={animate} />
-            </g>
-          </g>
-        ) : null}
-      </g>
-      {/* The inner orbit: today's events, in their calendar hue. */}
-      <g data-orbit-ring="inner" style={orbitStyle(180, true)}>
-        {dots.map((ev, i) => {
-          const pt = orbitPoint(CX, CY, 52, INNER_SLOTS[i])
-          return (
-            <circle
-              key={ev.id}
-              data-orbiter="event"
-              className={animate ? "hub-pop-in" : undefined}
-              style={{ ["--i" as string]: 5 + i } as CSSProperties}
-              cx={pt.x}
-              cy={pt.y}
-              r={4 - i * 0.5}
-              fill={`var(--camp-${ev.hue ?? hueFor(ev.id)})`}
-            />
-          )
-        })}
-      </g>
-      {/* 6. One brand spark, top-left of the outer ring; it twinkles once. */}
-      <g transform="translate(116 8) scale(0.42)">
-        <path
-          d={SPARK_PATH}
-          fill="var(--brand)"
-          style={animate ? ({ transformBox: "fill-box", transformOrigin: "center", animation: "hub-twinkle 1.2s var(--ease-in-out) 1.4s both" } as CSSProperties) : undefined}
+      <svg viewBox="0 0 320 168" width={320} height={168} className={layer}>
+        <defs>
+          <linearGradient id="hub-logo-ring" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#FF8A00" />
+            <stop offset="1" stopColor="#FF3D00" />
+          </linearGradient>
+          <radialGradient id="hub-sky-wash">
+            <stop offset="0" stopColor={`var(--camp-${wash})`} className="[stop-opacity:0.22] dark:[stop-opacity:0.16]" />
+            <stop offset="1" stopColor={`var(--camp-${wash})`} stopOpacity={0} />
+          </radialGradient>
+        </defs>
+        {/* 1. The hour's light: a radial, never a solid disc. */}
+        <circle cx={CX} cy={CY} r={80} fill="url(#hub-sky-wash)" />
+        {/* 4. The day arc behind the rings: travelled part solid, the rest dashed. */}
+        <path d={ARC_PATH} fill="none" stroke="var(--line-3)" strokeWidth={1.5} strokeDasharray="2 5" strokeLinecap="round" />
+        <path d={ARC_PATH} fill="none" stroke="var(--line-2)" strokeWidth={1.5} pathLength={1} strokeDasharray={`${sun.t} 1`} data-arc-done={sun.t.toFixed(2)} />
+        {/* 3. The core's ground. */}
+        <circle cx={CX} cy={CY} r={30} fill="var(--brand-muted)" />
+        {/* 2. Rings. */}
+        <g fill="none" strokeWidth={1.5}>
+          <circle className={animate ? "hub-draw" : undefined} style={{ ["--i" as string]: 0 } as CSSProperties} cx={CX} cy={CY} r={30} stroke="var(--line-2)" pathLength={1} strokeDasharray={1} />
+          <circle cx={CX} cy={CY} r={52} stroke="var(--line-3)" strokeDasharray="1.5 5" strokeLinecap="round" />
+          <circle className={animate ? "hub-draw" : undefined} style={{ ["--i" as string]: 2 } as CSSProperties} cx={CX} cy={CY} r={74} stroke="var(--line-2)" pathLength={1} strokeDasharray={1} />
+        </g>
+        {/* 3. The logo ring, the brand mark's hero instance. */}
+        <circle
+          className={animate ? "hub-pop-in" : undefined}
+          style={animate ? ({ animationDelay: "200ms" } as CSSProperties) : undefined}
+          cx={CX}
+          cy={CY}
+          r={15}
+          fill="none"
+          stroke="url(#hub-logo-ring)"
+          strokeWidth={6}
         />
-      </g>
-      {/* The sun, or after dark a crescent in dusk. */}
-      <g ref={sunRef} data-sun={sun.day ? "day" : "night"} style={{ transform: `translate(${sun.x}px, ${sun.y}px)` }}>
-        <circle r={7.5} fill="var(--sheet)" />
-        <circle r={5} fill={sun.day ? "var(--camp-sun)" : "var(--camp-dusk)"} />
-        {!sun.day ? <circle r={4.2} cx={2.4} cy={-1.6} fill="var(--sheet)" /> : null}
-      </g>
-    </svg>
+      </svg>
+      {/* 5. The outer orbit: people and the agent, each kept upright by a
+          counter-turn of its own. */}
+      <div
+        data-orbit-ring="outer"
+        className={layer}
+        style={turn("hub-orbit", 120, OUTER_TURNS, `${CX}px ${CY}px`)}
+        // Both orbits end together (six minutes each); the outer one says so.
+        onAnimationEnd={(e) => e.target === e.currentTarget && setRested(true)}
+      >
+        {outer.map((p, i) => (
+          <Upright key={p.id} at={orbitPoint(CX, CY, 74, OUTER_SLOTS[i])} style={turn("hub-orbit-back", 120, OUTER_TURNS)}>
+            <Orbiter person={p} r={13} step={i + 1} animate={animate} />
+          </Upright>
+        ))}
+        {agent && agentSlot !== undefined ? (
+          <Upright at={orbitPoint(CX, CY, 74, agentSlot)} style={turn("hub-orbit-back", 120, OUTER_TURNS)}>
+            <AgentOrbiter size={24} step={outer.length + 1} animate={animate} />
+          </Upright>
+        ) : null}
+      </div>
+      {/* The inner orbit: today's events, in their calendar hue. */}
+      <div data-orbit-ring="inner" className={layer} style={turn("hub-orbit-back", 180, INNER_TURNS, `${CX}px ${CY}px`)}>
+        <svg viewBox="0 0 320 168" width={320} height={168} className={layer}>
+          {dots.map((ev, i) => {
+            const pt = orbitPoint(CX, CY, 52, INNER_SLOTS[i])
+            return (
+              <circle
+                key={ev.id}
+                data-orbiter="event"
+                className={animate ? "hub-pop-in" : undefined}
+                style={{ ["--i" as string]: 5 + i } as CSSProperties}
+                cx={pt.x}
+                cy={pt.y}
+                r={4 - i * 0.5}
+                fill={`var(--camp-${ev.hue ?? hueFor(ev.id)})`}
+              />
+            )
+          })}
+        </svg>
+      </div>
+      <svg viewBox="0 0 320 168" width={320} height={168} className={layer}>
+        {/* 6. One brand spark, top-left of the outer ring; it twinkles once. */}
+        <g transform="translate(116 8) scale(0.42)">
+          <path
+            d={SPARK_PATH}
+            fill="var(--brand)"
+            style={animate ? ({ transformBox: "fill-box", transformOrigin: "center", animation: "hub-twinkle 1.2s var(--ease-in-out) 1.4s both" } as CSSProperties) : undefined}
+          />
+        </g>
+        {/* The sun, or after dark a crescent in dusk. */}
+        <g ref={sunRef} data-sun={sun.day ? "day" : "night"} style={{ transform: `translate(${sun.x}px, ${sun.y}px)` }}>
+          <circle r={7.5} fill="var(--sheet)" />
+          <circle r={5} fill={sun.day ? "var(--camp-sun)" : "var(--camp-dusk)"} />
+          {!sun.day ? <circle r={4.2} cx={2.4} cy={-1.6} fill="var(--sheet)" /> : null}
+        </g>
+      </svg>
+    </div>
+  )
+}
+
+/** An orbiter on a layer of its own at a point of its ring, drawn round its centre. */
+function Upright({ at, style, children }: { at: { x: number; y: number }; style?: CSSProperties; children: React.ReactNode }) {
+  const half = UPRIGHT / 2
+  return (
+    <div data-counter-turn="" className="absolute" style={{ left: at.x - half, top: at.y - half, width: UPRIGHT, height: UPRIGHT, ...style }}>
+      <svg viewBox={`${-half} ${-half} ${UPRIGHT} ${UPRIGHT}`} width={UPRIGHT} height={UPRIGHT} className="overflow-visible">
+        {children}
+      </svg>
+    </div>
   )
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { abilitiesPhrase, autonomyPhrase, reachPhrase, sponsorName, weekPhrase } from "@/lib/agentCardCopy"
+import { toolLabel } from "@/services/agentService"
 
 describe("agent card copy", () => {
   it("names the sponsor by first name, and says so when unknown", () => {
@@ -31,11 +32,8 @@ describe("agent card copy", () => {
 })
 
 describe("toolLabel", () => {
-  it("labels an unknown tool as words", async () => {
-    const { toolLabel } = await import("@/services/agentService")
+  it("labels an unknown tool as words", () => {
     expect(toolLabel("search_messages")).toBe("Search messages")
     expect(toolLabel("")).toBe("")
-    // The first import of the service pulls its whole graph: under a full,
-    // parallel run on a busy machine that took just over the 5s default.
-  }, 20_000)
+  })
 })

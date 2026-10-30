@@ -4,15 +4,17 @@ import { BUILT_IN_STATUSES } from "@/lib/taskStatus"
 
 // A project's board and its column order (design/projects-vs-asana-jira/
 // BOARD_COLUMNS_PLAN.md): only someone who manages the project gets the
-// order to drag, only on columns of statuses; and a statuses message on the
-// project's topic (43) reads the statuses again, so the board rearranges live.
+// order to drag, only on columns of statuses. Another admin's change to the
+// order reaches the board through the app's message router
+// (hooks/projectStatusesLive.test.ts), on the project's topic, which the open
+// board takes up for a project joined since the connection was made.
 
 const h = vi.hoisted(() => ({
   admin: true,
   ordering: [] as unknown[],
-  topics: new Map<string, (raw: string) => void>(),
-  mutated: [] as unknown[],
   saved: [] as string[][],
+  topics: new Set<string>(),
+  handled: false,
 }))
 const P = "p-launch"
 
@@ -37,12 +39,12 @@ vi.mock("@/hooks/useProjectStatusOrder", () => ({ useProjectStatusOrder: () => a
 vi.mock("@/hooks/useProjectFields", () => ({ useProjectFields: () => ({ fields: [] }), usePeople: () => ({ nameOf: () => undefined, people: [] }) }))
 vi.mock("@/lib/liveEntity", () => ({ useLiveEntity: () => ({ state: "ok", topic: "project/p-launch" }) }))
 vi.mock("@/hooks/useMqttTopic", () => ({
-  useMqttTopic: ({ topic, onMessage }: { topic: string; onMessage?: (raw: string) => void }) => {
-    if (topic && onMessage) h.topics.set(topic, onMessage)
+  useMqttTopic: ({ topic, onMessage }: { topic: string; onMessage?: unknown }) => {
+    if (topic) h.topics.add(topic)
+    if (onMessage) h.handled = true
     return { isConnected: true }
   },
 }))
-vi.mock("@/lib/swrMutate", () => ({ appMutate: (key: unknown) => void h.mutated.push(key) }))
 vi.mock("@/components/kanbanComponents/TaskBoard", () => ({
   TaskBoard: ({ columnOrder }: { columnOrder?: unknown }) => {
     h.ordering.push(columnOrder)
@@ -65,9 +67,9 @@ afterEach(() => {
   cleanup()
   h.admin = true
   h.ordering.length = 0
-  h.topics.clear()
-  h.mutated.length = 0
   h.saved.length = 0
+  h.topics.clear()
+  h.handled = false
   localStorage.clear()
 })
 
@@ -96,12 +98,9 @@ describe("a project's board and its column order", () => {
     expect(last()).toBeUndefined()
   })
 
-  it("reads the statuses again when the project's topic says they changed, and for no other message", () => {
+  it("takes up its project's topic and leaves its messages to the app's router", () => {
     render(<ProjectTaskKanban projectId={P} />)
-    const hear = h.topics.get("project/p-launch")!
-    act(() => hear(JSON.stringify({ type: 40, data: { project_uuid: P } })))
-    expect(h.mutated).toEqual([])
-    act(() => hear(JSON.stringify({ type: 43, data: { project_uuid: P } })))
-    expect(h.mutated).toEqual([`/project/${P}/statuses`])
+    expect([...h.topics]).toEqual(["project/p-launch"])
+    expect(h.handled).toBe(false)
   })
 })

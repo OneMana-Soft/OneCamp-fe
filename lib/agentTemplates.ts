@@ -91,7 +91,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       "When someone @mentions you, answer from what the workspace already knows: docs, earlier messages, " +
       "meeting transcripts and the people directory. Quote or link your sources. If the answer is not in " +
       "the workspace, say so plainly and suggest who might know; never guess.",
-    tools: ["search_workspace", "read_doc", "summarize_channel", "find_people", "read_meeting_transcript"],
+    tools: ["search_workspace", "related_items", "read_doc", "summarize_channel", "find_people", "read_meeting_transcript"],
     autonomy: "auto",
     trigger: { type: "mention" },
     next: "Pick the channels it answers in under Trigger, or leave them empty for everywhere it is invited.",

@@ -2,7 +2,7 @@
 
 import { displayNameOf } from "@/lib/personName"
 import {useState} from "react";
-import {Input} from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import * as React from "react";
 import MemberInfo from "@/components/member/memberInfo";
 import {ListSkeleton} from "@/components/ui/ListSkeleton";
@@ -51,16 +51,7 @@ const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForU
                 members…" fields, one adding and one filtering, read as one
                 field twice (PTC-18). */}
             {usersList.length >= FIND_FROM && (
-                <div className="relative mb-4 flex-shrink-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        type="text"
-                        placeholder="Find a member…"
-                        aria-label="Find a member"
-                        className="pl-9 bg-muted/50 border-border/50 focus-visible:ring-primary/20"
-                        onChange={(event) => setQuery(event.target.value)}
-                    />
-                </div>
+                <SearchInput placeholder="Find a member…" aria-label="Find a member" value={query} onValueChange={setQuery} className="mb-4 flex-shrink-0" />
             )}
 
             <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">

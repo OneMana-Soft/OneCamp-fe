@@ -54,6 +54,32 @@ describe("rows kept across renders", () => {
     expect(result.current[1]).toBe(a)
   })
 
+  // The week's blocks (fluid-10): an item read again is a new object all
+  // through, nested times included, so a field-by-field compare never holds.
+  // A caller says what "the same" is: here, the same JSON.
+  it("keep a row by the caller's own sameness", () => {
+    type Block = { uuid: string; when: { start: string }; title: string }
+    const json = (a: Block, b: Block) => JSON.stringify(a) === JSON.stringify(b)
+    const blocks = (title: string): Block[] => [
+      { uuid: "e1", when: { start: "09:00" }, title: "Standup" },
+      { uuid: "e2", when: { start: "11:00" }, title },
+    ]
+    const { result, rerender } = renderHook(({ list }) => useStableRows(list, (b) => b.uuid, json), { initialProps: { list: blocks("Review") } })
+    const first = result.current
+    rerender({ list: blocks("Review") })
+    expect(result.current).toBe(first)
+    rerender({ list: blocks("Design review") })
+    expect(result.current[0]).toBe(first[0])
+    expect(result.current[1]).not.toBe(first[1])
+    expect(result.current[1].title).toBe("Design review")
+  })
+
+  it("are what the week hands its blocks", () => {
+    const week = readFileSync(join(__dirname, "..", "..", "components/calendar/weekView.tsx"), "utf8")
+    expect(week).toMatch(/useStableRows\(/)
+    expect(week).not.toMatch(/function useStableItems/)
+  })
+
   it("are what the computer's sidebar hands its rows", () => {
     const bar = readFileSync(join(__dirname, "..", "..", "components/navigationBar/desktop/desktopNavigationBar.tsx"), "utf8")
     for (const list of ["projectRows", "starredRows", "channelRows", "dmRows", "primary"]) expect(bar, list).toMatch(new RegExp(`${list} = useStableRows\\(`))

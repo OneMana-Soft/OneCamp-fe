@@ -9,9 +9,12 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),
   useAIAvailable: () => ai.on,
 }))
+vi.mock("@/services/tableCalls", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/tableCalls")>()),
+  previewConversion: (...a: unknown[]) => preview(...a),
+}))
 vi.mock("@/services/tableService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/tableService")>()),
-  previewConversion: (...a: unknown[]) => preview(...a),
   aggregateTable: vi.fn().mockResolvedValue({ buckets: [], truncated: false }),
 }))
 

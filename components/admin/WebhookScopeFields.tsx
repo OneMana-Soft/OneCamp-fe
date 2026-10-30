@@ -56,8 +56,8 @@ export function WebhookScopeFields({
   return (
     <>
       <Field label="Events from" help={SCOPE_HELP[known]}>
-        <Select value={known} onValueChange={(v) => onChange(v as WebhookScope, "")}>
-          <SelectTrigger id={`${idPrefix}-scope`}><SelectValue /></SelectTrigger>
+        <Select id={`${idPrefix}-scope`} value={known} onValueChange={(v) => onChange(v as WebhookScope, "")}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="org">The whole workspace</SelectItem>
             <SelectItem value="channel">One channel</SelectItem>
@@ -67,8 +67,8 @@ export function WebhookScopeFields({
       </Field>
       {known === "channel" && (
         <Field label="Channel" error={error}>
-          <Select value={entity || undefined} onValueChange={(v) => onChange("channel", v)} disabled={channelsLoading}>
-            <SelectTrigger id={`${idPrefix}-scope-channel`}>
+          <Select id={`${idPrefix}-scope-channel`} value={entity || undefined} onValueChange={(v) => onChange("channel", v)} disabled={channelsLoading}>
+            <SelectTrigger>
               <SelectValue placeholder={channelsLoading ? "Loading channels…" : "Choose a channel"} />
             </SelectTrigger>
             <SelectContent>

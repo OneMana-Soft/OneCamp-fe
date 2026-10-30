@@ -7,7 +7,9 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 /**
  * A picker's own sheet, on a phone, where the field is in no sheet (a page, a
  * dialog): titled with the field's name. Loaded when a field first opens one,
- * so a page with a date field doesn't carry the sheet (components/ui/date-field).
+ * so a page with a date field doesn't carry the sheet (components/ui/date-field,
+ * and the combobox's menu, whose filter the sheet keeps the focus off as every
+ * sheet does).
  */
 export default function PickerSheet({
   label,

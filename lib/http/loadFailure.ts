@@ -123,6 +123,8 @@ export function SaysLoadFailure(): null {
 export function tellReadFailure(error: unknown): void {
   const res = (error as AxiosError<{ msg?: unknown; code?: unknown }>)?.response
   if (!res || res.status === 401) return
+  // The device's own answer (lib/offline) is no failure: its screen says its own state.
+  if ((error as AxiosError)?.config?.offlineAnswered) return
   const copy = errorToastCopy(res.status, res.data?.msg, res.data?.code)
   // A read with no address is its own: only an error state drawn with it says it.
   const read = readOf(error) || `unnamed ${Math.random()}`

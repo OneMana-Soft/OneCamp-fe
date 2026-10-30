@@ -114,7 +114,7 @@ export function SegmentedControl<T extends string>({
         className="pointer-events-none absolute left-0 top-0 rounded-sm bg-raised opacity-0 shadow-sel transition-transform duration-[220ms] ease-[var(--ease-spring)]"
       />
       {options.map(({ value: v, label, icon: Icon, disabled: off, title }) => (
-        <RadioGroupPrimitive.Item key={v} value={v} disabled={off} title={title} className={cn(segmentedItem, itemClassName)} data-touch-target="" {...ix("tab")}>
+        <RadioGroupPrimitive.Item key={v} value={v} disabled={off} title={title} className={cn(segmentedItem, itemClassName)} data-touch-target="" {...ix("tab", { tone: "neutral" })}>
           {Icon && <Icon className="size-3.5" aria-hidden="true" />}
           {withLabel(label)}
         </RadioGroupPrimitive.Item>

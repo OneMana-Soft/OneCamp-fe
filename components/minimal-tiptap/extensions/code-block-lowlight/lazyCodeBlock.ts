@@ -5,25 +5,16 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { DecorationSet } from '@tiptap/pm/view'
 import { changedRange } from '@/components/minimal-tiptap/utils/changedRange'
+import { once } from '@/lib/lazy/once'
 
 // The code block, highlighted once lowlight loads with the first one (I20).
 
 type Highlighter = typeof import('./highlighter')
 
 let hl: Highlighter | null = null
-let fetching: Promise<Highlighter> | null = null
 
 /** Fetches the highlighter, once (again after a failed fetch). */
-export function loadHighlighter(): Promise<Highlighter> {
-  fetching ??= import('./highlighter').then(
-    (m) => (hl = m),
-    (e) => {
-      fetching = null
-      throw e
-    },
-  )
-  return fetching
-}
+export const loadHighlighter: () => Promise<Highlighter> = once(() => import('./highlighter').then((m) => (hl = m)))
 
 const lazyLowlightKey = new PluginKey<DecorationSet>('lazyLowlight')
 

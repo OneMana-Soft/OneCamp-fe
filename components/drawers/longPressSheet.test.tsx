@@ -6,7 +6,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 // and Delete to the message's owner.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copy: vi.fn() }) }))
-vi.mock("@/services/aiService", () => ({ useTranslateText: () => ({ translateText: async () => null, isSubmitting: false }) }))
 vi.mock("@/hooks/useLater", () => ({ useSavedEntry: () => undefined, useLaterActions: () => ({ save: vi.fn(async () => {}), remove: vi.fn(async () => {}) }) }))
 vi.mock("@/components/message/chatFace", () => ({ ChatFace: () => <span data-face="" /> }))
 

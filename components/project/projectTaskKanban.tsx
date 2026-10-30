@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from "react"
-import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
@@ -8,6 +7,7 @@ import {
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { SlidersHorizontal } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
@@ -16,6 +16,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { boardQuery } from "@/lib/board/boardQuery"
 import type { TaskInfoInterface } from "@/types/task"
 import { accessOf, canEditTask } from "@/lib/work/access"
+import { mayMoveInto } from "@/lib/board/moveInto"
 import { useMyId } from "@/hooks/useMyId"
 import { useMoveTask } from "@/hooks/useMoveTask"
 import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
@@ -33,10 +34,8 @@ const ProjectFieldsDialog = dynamic(() => import("@/components/project/ProjectFi
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
 import { closedColumn } from "@/lib/board/columnOrder"
 import { useProjectStatusOrder } from "@/hooks/useProjectStatusOrder"
-import { statusesKeyOfMessage } from "@/lib/board/statusesMessage"
 import { useLiveEntity } from "@/lib/liveEntity"
 import { useMqttTopic } from "@/hooks/useMqttTopic"
-import { appMutate } from "@/lib/swrMutate"
 import { CardFieldsContext } from "@/components/task/cardFields"
 import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { KeyboardList } from "@/components/task/KeyboardList"
@@ -53,7 +52,7 @@ import { priorities } from "@/types/table"
 import { cn } from "@/lib/utils/helpers/cn"
 import { TagFilter } from "@/components/tags/TagFilter"
 import { hasTag } from "@/lib/tags"
-import { taskStatusLabel } from "@/types/task"
+import { taskStatusLabel } from "@/types/taskScale"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { WorkState } from "@/components/task/workFrame"
 import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
@@ -61,7 +60,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SpotTasks } from "@/components/ui/graphics/spots"
 import { useProjectHue } from "@/lib/projectHue"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useMedia } from "@/context/MediaQueryContext"
 import { app_task_path } from "@/types/paths"
 
@@ -151,23 +150,21 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
     // A phone has no panel beside the board: a card opens the task's page,
     // as a row of the Tasks tab does. It dispatched the panel there, which a
     // phone never draws, so a tapped card only took on the opened ring.
-    const router = useRouter()
+    const router = useAppRouter()
     const { isMobile } = useMedia()
     const openOnPhone = useCallback((task: TaskInfoInterface) => router.push(`${app_task_path}/${task.task_uuid}`), [router])
     const onOpen = isMobile ? openOnPhone : undefined
 
     // One column per status: the built-in ones, each followed by the project's
-    // own that count as it (the server groups tasks by category only).
+    // own that count as it (the server groups tasks by category only). Another
+    // admin's change to them or their order reaches this board through the
+    // app's message router (hooks/useMqttMessageHandler), as it reaches every
+    // picker. The connection holds the topic of every project it was made in;
+    // the open board takes up the topic of one joined since, for the router.
     const { options: statusOpts, isLoading: statusesLoading } = useProjectStatuses(projectId)
     const setOrder = useProjectStatusOrder(projectId)
-    // Live: another admin's change to the statuses or their order (message
-    // 43 on the project's topic) reads them again, so this board rearranges.
     const live = useLiveEntity("project", projectId)
-    const onTopic = useCallback((raw: string) => {
-        const key = statusesKeyOfMessage(raw)
-        if (key) void appMutate(key)
-    }, [])
-    useMqttTopic({ topic: live.state === "ok" ? live.topic ?? "" : "", onMessage: onTopic })
+    useMqttTopic({ topic: live.state === "ok" ? live.topic ?? "" : "", onLive: () => void projectInfo.mutate() })
     const [managing, setManaging] = useState(false)
     const [managingFields, setManagingFields] = useState(false)
     // The project's own fields its cards show, and the names for person ones.
@@ -356,6 +353,8 @@ export const ProjectTaskKanban = ({ projectId = "", className }: { projectId?: s
                                 totals={totals}
                                 onShowMore={showMore}
                                 onQuickAdd={access.create_tasks ? quickAdd : undefined}
+                                // None where the column's rule on who leaves the reader out.
+                                addsTo={(s) => mayMoveInto(access, s)}
                                 onOpen={onOpen}
                                 columnOrder={columnOrder}
                             />

@@ -25,10 +25,13 @@ import type { RawUserDMInterface, UserProfileInterface } from "@/types/user"
 export const SeenReceiptLine = memo(function SeenReceiptLine({
   target,
   latest,
+  hold,
 }: {
   target: ChatTarget
   /** The conversation's newest message, the one whose row this is in. */
   latest: ChatInfo | undefined
+  /** Not marked seen until the unread count is read. */
+  hold?: boolean
 }) {
   const typing = useSelector((state: RootState) =>
     target.kind === "dm" ? (state.typing.chatTyping[target.otherUUID]?.length ?? 0) > 0 : (state.typing.groupChatTyping[target.grpId]?.length ?? 0) > 0,
@@ -42,7 +45,7 @@ export const SeenReceiptLine = memo(function SeenReceiptLine({
     if (latest && me && !mine) setArrived(latest.chat_uuid)
   }, [latest, me, mine])
   // Your own message is the newest: sending it marked the conversation seen.
-  useMarkChatSeen(me && !mine ? target : null, arrived, me ? groupingIdOf(target, me) : "")
+  useMarkChatSeen(me && !mine && !hold ? target : null, arrived, me ? groupingIdOf(target, me) : "")
   const receipts = useChatReceipts(target)
   const group = target.kind === "group" ? target.grpId : ""
   const people = useFetchOnlyOnce<RawUserDMInterface>(group ? `${GetEndpointUrl.GetDmGroupParticipants}/${group}` : "")

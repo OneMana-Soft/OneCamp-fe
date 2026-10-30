@@ -15,6 +15,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip"
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip"
+import { LazyForecastChip } from "@/components/project/LazyForecastChip"
 import dynamic from "next/dynamic"
 import { TabLoading } from "@/components/task/TabLoading"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
@@ -24,6 +25,7 @@ const ProjectTaskKanban = dynamic(() => import("@/components/project/projectTask
 const ProjectTimeline = dynamic(() => import("@/components/project/timeline/ProjectTimeline").then((m) => m.ProjectTimeline), { loading: () => <TabLoading kind="timeline" /> })
 const ProjectUpdates = dynamic(() => import("@/components/projectUpdates/ProjectUpdates").then((m) => m.ProjectUpdates), { loading: () => <TabLoading kind="list" /> })
 // The project's docs (docs programme B5): the pages made in its space.
+const ProjectBacklog = dynamic(() => import("@/components/work/backlog/ProjectBacklog"), { loading: () => <TabLoading kind="list" /> })
 const SpaceDocs = dynamic(() => import("@/components/docTree/SpaceDocs"), { loading: () => <TabLoading kind="list" /> })
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTabInAddress } from "@/components/task/keptTabs"
@@ -36,7 +38,7 @@ import { app_task_path } from "@/types/paths"
  * `SectionTabs` primitive (Notion-style underline) so the look matches
  * channel / chat / activity tabs.
  */
-type Tab = "task" | "board" | "timeline" | "updates" | "attachment" | "docs"
+type Tab = "task" | "board" | "backlog" | "timeline" | "updates" | "attachment" | "docs"
 
 // ?tab= names the desktop's tabs (list, kanban, attachments) or the phone's
 // own; a link to a project's board opens its board on a phone too. The
@@ -46,13 +48,14 @@ const FROM_ADDRESS: Record<string, Tab> = {
     task: "task",
     kanban: "board",
     board: "board",
+    backlog: "backlog",
     timeline: "timeline",
     updates: "updates",
     attachments: "attachment",
     attachment: "attachment",
     docs: "docs",
 }
-const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", timeline: "timeline", updates: "updates", attachment: "attachments", docs: "docs" }
+const TO_ADDRESS: Record<Tab, string> = { task: "list", board: "kanban", backlog: "backlog", timeline: "timeline", updates: "updates", attachment: "attachments", docs: "docs" }
 
 export function ProjectListTabs({ projectId }: { projectId: string }) {
     const params = useSearchParams()
@@ -92,9 +95,12 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 {/* Each piece loads on its own, so each has its place from the
                     first paint: the chips in a row of their own. The goal's name
                     gives way with an ellipsis, as on a computer, rather than the
-                    row running off the screen mid-word (PTC-43). */}
-                <div data-project-chips="" className="flex h-8 min-w-0 items-center gap-2">
+                    row running off the screen mid-word (PTC-43). A part whose read
+                    failed (PartRetry) takes a line of its own, whole, rather than
+                    running off the screen: only then does the row grow. */}
+                <div data-project-chips="" className="flex h-8 min-w-0 items-center gap-2 has-[>[data-part-failed]]:h-auto has-[>[data-part-failed]]:flex-wrap">
                     <ProjectHealthChip projectId={projectId} onOpen={() => setSelectedTab("updates")} className="shrink-0" />
+                    <LazyForecastChip projectId={projectId} className="shrink-0" />
                     <ProjectGoalChip projectId={projectId} className="min-w-0 shrink overflow-hidden" />
                 </div>
             </div>
@@ -102,10 +108,11 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             tabs={[
                 { value: "task", label: "Tasks" },
                 { value: "board", label: "Board" },
+                { value: "backlog", label: "Backlog" },
                 { value: "timeline", label: "Timeline" },
                 { value: "updates", label: "Updates" },
-                { value: "attachment", label: "Files" },
-                { value: "docs", label: "Docs" },
+                { value: "attachment", label: "Attachments" },
+                { value: "docs", label: "Docs & Files" },
             ]}
             value={selectedTab}
             onValueChange={(v) => setSelectedTab(v as Tab)}
@@ -118,6 +125,9 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 {/* No side padding: the board runs to the screen's edges and keeps its
                     own 16px margin, so the next column can peek in at the right. */}
                 <ProjectTaskKanban projectId={projectId} className="pt-3" />
+            </SectionTabsContent>
+            <SectionTabsContent value="backlog" className="flex-1 min-h-0 overflow-y-auto">
+                <ProjectBacklog projectId={projectId} />
             </SectionTabsContent>
             <SectionTabsContent value="timeline" className="flex-1 min-h-0">
                 <ProjectTimeline

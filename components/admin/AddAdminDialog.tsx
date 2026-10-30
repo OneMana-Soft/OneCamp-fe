@@ -11,14 +11,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { SearchInput } from "@/components/ui/search-input"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { AdminGet } from "@/services/endpoints/admin"
 import { UserProfileDataInterface } from "@/types/user"
 import axiosInstance from "@/lib/axiosInstance"
 import { usePost } from "@/hooks/usePost"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Check, Search, UserPlus, X } from "@/lib/icons";
-import { Input } from "@/components/ui/input"
+import { Check, UserPlus, X } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
@@ -268,20 +268,13 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
         </DialogHeader>
 
         <div className="space-y-3 py-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              type="search"
-              name="admin-candidate-search"
-              aria-label="Search members"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="Search by name or email…"
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          <SearchInput
+            name="admin-candidate-search"
+            aria-label="Search members"
+            placeholder="Search by name or email…"
+            value={searchTerm}
+            onValueChange={setSearchTerm}
+          />
 
           {/* The one chosen, as a 24px chip with its face and ×. */}
           {selectedUser && (
@@ -317,7 +310,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
           <Button variant="ghost" onClick={() => close(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleAddAdmin} disabled={!selectedUser || submitting}>
+          <Button onClick={handleAddAdmin} disabled={!selectedUser} busy={submitting}>
             {submitting ? "Making admin…" : "Make admin"}
           </Button>
         </DialogFooter>

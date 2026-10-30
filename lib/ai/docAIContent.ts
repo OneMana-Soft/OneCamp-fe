@@ -11,24 +11,10 @@ import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model"
 import type { EditorState } from "@tiptap/pm/state"
 import { nodesFromJSON } from "@/lib/proposals/core"
 import { BLOCK_ID_ATTR, newBlockId } from "@/components/minimal-tiptap/extensions/block-id"
+import { once } from "@/lib/lazy/once"
 
-type Codec = (typeof import("@/lib/codec"))["codec"]
-
-let codecLoad: Promise<Codec> | null = null
-
-/** The content codec, fetched once. */
-export function loadCodec(): Promise<Codec> {
-  if (!codecLoad) {
-    codecLoad = import("@/lib/codec").then(
-      (m) => m.codec,
-      (e) => {
-        codecLoad = null
-        throw e
-      },
-    )
-  }
-  return codecLoad
-}
+/** The content codec, fetched once; a failed fetch is tried again next time (lib/lazy/once). */
+export const loadCodec = once(() => import("@/lib/codec").then((m) => m.codec))
 
 const asDoc = (content: JSONContent[] | null | undefined): JSONContent => ({ type: "doc", content: content ?? [] })
 

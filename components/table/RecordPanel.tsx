@@ -11,18 +11,22 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Spark } from "@/components/ui/graphics"
 import { useConfirm } from "@/hooks/useConfirm"
 import { onEscape } from "@/lib/keys/onEscape"
-import { fillTableAIColumn, parseFieldConfig, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
+import { fillTableAIColumn, parseFieldConfig, type TableField, type TableRow } from "@/services/tableService"
 import { batchRows, undoChange } from "@/lib/tables/ledger"
 import { useUndoToast } from "@/components/table/ledger/useUndoToast"
 import { RowHistory } from "@/components/table/history/RowHistory"
-import { Cell, fitText, lineBreakKey, optionIndexOf, type CellContext } from "@/components/table/gridCells"
+import { Cell, lineBreakKey } from "@/components/table/gridCells"
+import { optionIndexOf, type CellContext } from "@/components/table/cellFaces"
+import { useGrowWithText } from "@/components/ui/textarea"
 import { fieldKind } from "@/lib/fieldTypes/registry"
 import { fieldKeyDown } from "@/lib/keys/ime"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
+import { formatLocale } from "@/lib/tables/numberFormat"
+import { placeOfRow, rowAtPlace } from "@/lib/tables/viewPlaces"
 import { tintedFields } from "@/components/table/optionChip"
 import { aiPromptOf } from "@/components/table/ColumnMenu"
 import { TableGlyph } from "@/components/table/TableGlyph"
-import type { CellCommit } from "@/lib/tables/useCellCommit"
+import { shownValues, type CellCommit } from "@/lib/tables/useCellCommit"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { ix } from "@/lib/ui/interactive"
 import { useAIAvailable } from "@/hooks/useClientConfig"
@@ -86,6 +90,10 @@ export function RecordPanel({
   tableName,
   fields,
   rows,
+  count,
+  tail = 0,
+  alone = false,
+  onReach,
   rowId,
   canManage,
   commit,
@@ -97,8 +105,15 @@ export function RecordPanel({
   tableId: string
   tableName: string
   fields: TableField[]
-  /** The rows the view shows, in its order. */
+  /** The rows the view shows, in its order: in a view read in windows, its rows read, then its last `tail`, added here. */
   rows: TableRow[]
+  /** How many rows the view has, read or not (lib/tables/viewPlaces): rows' own length unless it reads in windows. */
+  count?: number
+  tail?: number
+  /** A row the view hasn't reached (the address named it): opened by itself, with no place and no steps. */
+  alone?: boolean
+  /** The record stepped to a place: the view reads on to the place after it. */
+  onReach?: (place: number) => void
   rowId: string
   canManage: boolean
   commit: CellCommit
@@ -113,8 +128,24 @@ export function RecordPanel({
   const sorted = React.useMemo(() => fieldOrder(fields), [fields])
   const index = rows.findIndex((r) => r.id === rowId)
   const row = index >= 0 ? rows[index] : undefined
-  const values = React.useMemo(() => (row ? parseRowValues(row) : {}), [row])
-  const ctx = React.useMemo<CellContext>(() => ({ options: optionIndexOf(fields), tinted: tintedFields(fields), rowHeight: "medium", panel: true }), [fields])
+  // Its place in the view, and the row a step away, read or not (viewPlaces).
+  const of = count ?? rows.length
+  const place = index >= 0 && !alone ? placeOfRow(index, rows.length, of, tail) : -1
+  const stepTo = React.useCallback(
+    (by: number): TableRow | undefined => {
+      if (place < 0) return undefined
+      const at = rowAtPlace(place + by, rows.length, of, tail)
+      return at >= 0 ? rows[at] : undefined
+    },
+    [place, rows, of, tail],
+  )
+  React.useEffect(() => {
+    if (place >= 0) onReach?.(place + 1)
+  }, [place, onReach])
+  // Its values as the grid's cells show them, an edit still saving included.
+  const rowEdits = row ? commit.edits.get(row.id) : undefined
+  const values = React.useMemo(() => (row ? shownValues(row, rowEdits) : {}), [row, rowEdits])
+  const ctx = React.useMemo<CellContext>(() => ({ options: optionIndexOf(fields), tinted: tintedFields(fields), rowHeight: "medium", panel: true, tableId }), [fields, tableId])
   const panelRef = React.useRef<HTMLDivElement>(null)
   // A cell a new comment goes on, and each cell's count of open comments.
   const [commentOn, setCommentOn] = React.useState<string | null>(null)
@@ -129,10 +160,10 @@ export function RecordPanel({
 
   const step = React.useCallback(
     (by: number) => {
-      const next = rows[index + by]
+      const next = stepTo(by)
       if (next) onStep(next.id)
     },
-    [rows, index, onStep],
+    [stepTo, onStep],
   )
 
   React.useEffect(() => {
@@ -168,7 +199,7 @@ export function RecordPanel({
       destructive: true,
       onConfirm: async () => {
         try {
-          const next = rows[index + 1] ?? rows[index - 1]
+          const next = stepTo(1) ?? stepTo(-1)
           const done = await batchRows(tableId, { delete: [row.id] })
           offerUndo("Row deleted", () => undoChange(tableId, done.change_set))
           if (next) onStep(next.id)
@@ -198,12 +229,12 @@ export function RecordPanel({
       <header className="flex h-12 shrink-0 items-center gap-1 px-3" data-touch-group="">
         <TableGlyph id={tableId} size="sm" />
         <span className="ml-1.5 min-w-0 flex-1 truncate text-ui-sm text-ink-3">
-          {tableName} · {index + 1} of {rows.length}
+          {place >= 0 ? `${tableName} · ${formatLocale(place + 1, {})} of ${formatLocale(of, {})}` : tableName}
         </span>
-        <Button variant="ghost" size="icon-sm" aria-label="Previous row (K)" disabled={index <= 0} onClick={() => step(-1)}>
+        <Button variant="ghost" size="icon-sm" aria-label="Previous row (K)" disabled={!stepTo(-1)} onClick={() => step(-1)}>
           <ChevronUp className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon-sm" aria-label="Next row (J)" disabled={index >= rows.length - 1} onClick={() => step(1)}>
+        <Button variant="ghost" size="icon-sm" aria-label="Next row (J)" disabled={!stepTo(1)} onClick={() => step(1)}>
           <ChevronDown className="size-4" />
         </Button>
         <Button
@@ -329,9 +360,9 @@ function CellCommentButton({ field, count, onClick }: { field: TableField; count
 function PanelTitle({ label, value, readOnly, onCommit }: { label: string; value: string; readOnly?: boolean; onCommit: (v: string) => void }) {
   const [text, setText] = React.useState(value)
   const ref = React.useRef<HTMLTextAreaElement>(null)
-  React.useLayoutEffect(() => {
-    if (ref.current) fitText(ref.current)
-  }, [text])
+  // As tall as its text, not fitLines: a title's parent is the whole record,
+  // and a cell's least height made it as tall as the record's visible part.
+  useGrowWithText(ref, text)
   if (readOnly) return <h2 className="mb-4 whitespace-pre-wrap break-words font-display text-title-2 text-ink">{value || "Untitled"}</h2>
   return (
     <textarea

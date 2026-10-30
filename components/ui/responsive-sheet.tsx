@@ -2,8 +2,10 @@
 
 import * as React from "react"
 
+import { cn } from "@/lib/utils/helpers/cn"
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
 import { noWords } from "@/components/ui/overlayWords"
+import { SHEET_FOOTER_ROW, SHEET_LINE } from "@/components/ui/sheetFrame"
 
 /**
  * ResponsiveDialog on a phone (components/ui/responsive-dialog): the sheet's
@@ -23,27 +25,40 @@ export default function ResponsiveSheet({
   description,
   footer,
   onClose,
+  className,
+  afterFrame,
   children,
 }: {
   title: string
   description?: string
   footer: React.ReactNode
   onClose(): void
+  /** The sheet's own surface, where its caller stands on one: a call's sheet is on the call's dark surface (callSurface). */
+  className?: string
+  /** It takes the place of its loading frame (sheetFrame), which rose already: it doesn't rise again (app/phone.css C5f). */
+  afterFrame?: boolean
   children: React.ReactNode
 }) {
   return (
     <Drawer open onOpenChange={(open) => !open && onClose()} detent="medium">
       <DrawerContent
+        // Its mark: e2e/approvalsWaiting holds the chunk that carries it to see the loading frame (sheetFrame).
+        data-responsive-sheet=""
+        className={cn(className, afterFrame && "sheet-after-frame")}
+        overlayClassName={afterFrame ? "sheet-after-frame" : undefined}
         {...noWords(description)}
         header={
           <>
             <DrawerTitle className="text-title-3 text-ink">{title}</DrawerTitle>
-            {description ? <DrawerDescription className="mt-0.5 text-meta text-ink-3">{description}</DrawerDescription> : null}
+            {description ? <DrawerDescription className={SHEET_LINE}>{description}</DrawerDescription> : null}
           </>
         }
-        footer={<div className="flex flex-col-reverse gap-2 [&>*]:h-11">{footer}</div>}
+        // Stacked upright; side by side held sideways, where two rows of 44px
+        // left Remind me's month a sliver above them. 4px over the content, so
+        // a field at its top keeps its ring.
+        footer={<div className={SHEET_FOOTER_ROW}>{footer}</div>}
       >
-        <div className="px-4 pb-2">{children}</div>
+        <div className="px-4 pb-2 pt-1">{children}</div>
       </DrawerContent>
     </Drawer>
   )

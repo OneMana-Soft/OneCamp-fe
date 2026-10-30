@@ -181,15 +181,17 @@ describe("the composer's height (hub.md AI10)", () => {
   it("is its least height while empty, however its placeholder wraps, and grows with words", async () => {
     const { AiComposer } = await import("@/components/ai/AiComposer")
     const tall = vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockReturnValue(300)
+    // What the box shows: the height written on it, held between its least and most.
+    const shown = (el: HTMLElement) => Math.min(Math.max(parseFloat(el.style.height) || 0, parseFloat(el.style.minHeight)), parseFloat(el.style.maxHeight))
     try {
       const props = { onChange: () => {}, onSend: () => {}, onStop: () => {}, streaming: false }
       const { container, rerender } = render(<AiComposer {...props} value="" />)
       const box = container.querySelector("textarea")!
-      expect(box.style.height).toBe("24px")
+      expect(shown(box)).toBe(24)
       rerender(<AiComposer {...props} value="Where does the launch stand?" />)
-      expect(box.style.height).toBe("280px")
+      expect(shown(box)).toBe(280)
       rerender(<AiComposer {...props} value="" size="page" />)
-      expect(box.style.height).toBe("40px")
+      expect(shown(box)).toBe(40)
     } finally {
       tall.mockRestore()
     }

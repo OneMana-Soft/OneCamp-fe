@@ -86,6 +86,25 @@ describe("a table's board", () => {
     expect(screen.getAllByText(/^Card \d+$/)).toHaveLength(300)
     expect(screen.queryByRole("button", { name: /^Show .* more$/ })).toBeNull()
   })
+
+  // F9: a card moved into a long lane takes its place there by the view's order, which may be past every card the
+  // lane holds; the lane draws it after its first 50, and draws no more for it.
+  it("draws a card moved into a lane of 1,000 after the lane's first 50, and no other card", async () => {
+    patchRow.mockResolvedValue({})
+    render(<DataTableBoard tableId="t" fields={fields} rows={[...Array.from({ length: 1000 }, (_, i) => card(i, "Done")), card(1000, "To do")]} canManage onChange={() => {}} />)
+    const menu = screen.getByRole("button", { name: "Move Card 1000" })
+    fireEvent.pointerDown(menu, { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.keyDown(menu, { key: "Enter" })
+    const done = screen.getByRole("menuitem", { name: "Done" })
+    await act(async () => {
+      fireEvent.pointerDown(done)
+      fireEvent.click(done)
+    })
+    const drawn = within(lane("label:Done")).getAllByText(/^Card \d+$/)
+    expect(drawn).toHaveLength(51)
+    expect(drawn.at(-1)?.textContent).toBe("Card 1000")
+    expect(within(lane("label:Done")).getByRole("button", { name: "Show 500 more" })).toBeTruthy()
+  })
 })
 
 // Tables A1 (FD-14): a row has one name, its primary field, on a card as in

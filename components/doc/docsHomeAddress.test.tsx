@@ -17,9 +17,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: hoisted.replace, push: hoisted.push, prefetch: vi.fn() }),
 }))
 // No doc opened yet: Recent is empty, so the home picks Workspace.
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: async () => ({ data: { data: { docs: [], count: 0, next_cursor: "" } } }) },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/hooks/useHydrateUserSidebar", () => ({ useSidenav: () => ({ data: { data: { user_uuid: "me" } } }) }))
 vi.mock("@/components/doc/useCreateDoc", () => ({ useCreateDoc: () => ({ create: vi.fn(), busy: null }) }))

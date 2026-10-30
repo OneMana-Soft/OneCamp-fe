@@ -9,10 +9,6 @@
  * (I5), never sent anywhere.
  */
 import { useCallback, useSyncExternalStore } from "react"
-import { useDispatch } from "react-redux"
-import { useRouter } from "next/navigation"
-import { useMedia } from "@/context/MediaQueryContext"
-import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import type { Anchor, ResolvedAnchor } from "@/lib/anchors/types"
 
 interface CommentsUi {
@@ -134,28 +130,4 @@ export function usePlaces(docId: string): ReadonlyMap<string, ResolvedAnchor> {
 /** For each thread whose words changed, how many exact matches of them the doc has (for "Reattach here"). */
 export function useMatches(docId: string): ReadonlyMap<string, number> {
     return usePlaced(docId, (p) => p?.matches ?? NO_MATCHES)
-}
-
-/**
- * Opens a doc's comments where the screen keeps them: the panel beside the
- * doc, or on a phone the comments page; at a thread when one is named, or
- * with a new thread to write when an anchor is.
- */
-export function useOpenComments(docId: string) {
-    const dispatch = useDispatch()
-    const router = useRouter()
-    const { isMobile } = useMedia()
-    return useCallback(
-        (to?: { thread?: string; start?: Anchor }) => {
-            if (to?.start) setUi(docId, { pending: to.start, active: null })
-            if (isMobile) {
-                const path = to?.start ? "/new" : to?.thread ? `/${encodeURIComponent(to.thread)}` : ""
-                router.push(`/app/doc/${docId}/comment${path}`)
-                return
-            }
-            if (to?.thread) revealThread(docId, { thread: to.thread })
-            dispatch(openRightPanel({ docUUID: docId }))
-        },
-        [docId, dispatch, router, isMobile],
-    )
 }

@@ -17,7 +17,7 @@ const CHOICES = [
   { share: "all", messages: 40, replies: 1, shared: 41, capped: false, cap: 5000 },
 ]
 const { post, push, toasted, mutated } = vi.hoisted(() => ({ post: vi.fn(), push: vi.fn(), toasted: vi.fn(), mutated: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a) }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a) } }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toasted }), toast: toasted }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: (k: unknown) => { mutated(k); return Promise.resolve() }, patchCached: () => {}, dataToSeed: () => undefined }))
 vi.mock("@/hooks/useFetch", () => ({

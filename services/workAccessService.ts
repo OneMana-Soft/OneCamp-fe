@@ -6,6 +6,7 @@
  */
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { appMutate } from "@/lib/swrMutate"
 import type { EditWho, Role } from "@/lib/work/types"
 
 /** One policy as the server shows it (business/Policy Info). */
@@ -37,6 +38,20 @@ export async function setProjectEditWho(projectId: string, value: EditWho | null
   const res = await axiosInstance.put<{ data: PolicyInfo }>(`${projectPoliciesKey(projectId)}/${EDIT_WHO}`, { value }, OWN_ERRORS)
   return res.data.data
 }
+
+/**
+ * Sets a workspace policy (an admin's), and puts the server's answer into
+ * the admins' list, so every card showing it shows what the server holds.
+ */
+export async function setWorkspacePolicy(key: string, value: unknown): Promise<PolicyInfo> {
+  const res = await axiosInstance.put<{ data: PolicyInfo }>(`${ADMIN_POLICIES_KEY}/${key}`, { value }, OWN_ERRORS)
+  const after = res.data.data
+  await appMutate<{ data: PolicyInfo[] }>(ADMIN_POLICIES_KEY, (d) => (d ? { ...d, data: d.data.map((p) => (p.key === key ? after : p)) } : d), { revalidate: false })
+  return after
+}
+
+/** Calendar A6: members see when other members are busy, and nothing more (owner decision O7). */
+export const CALENDAR_FREEBUSY = "calendar.freebusy.members"
 
 /** Gives someone in the project a role. */
 export async function setMemberRole(projectId: string, userId: string, role: Role): Promise<void> {

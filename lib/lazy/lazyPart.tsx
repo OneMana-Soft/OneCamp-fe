@@ -1,6 +1,8 @@
 "use client"
 
-import React, { useEffect, useSyncExternalStore } from "react"
+import React, { useEffect, useState, useSyncExternalStore } from "react"
+import { lazyChunk } from "@/lib/loadChunk"
+import { codeOrSaid, Nothing } from "@/lib/lazy/lazyPiece"
 
 /**
  * A part of a screen whose code is a chunk of its own: a chart or a query plan
@@ -22,19 +24,27 @@ import React, { useEffect, useSyncExternalStore } from "react"
  * The server draws the placeholder, as the browser's first render does, so
  * hydration matches. warm() is safe to call while rendering: it tells the
  * drawn parts only once the code has come or failed, never during a render.
+ *
+ * The code comes through lib/loadChunk's lazyChunk, so a deploy that took the
+ * old build's file away reloads the page once (lib/chunkRecovery's one probe)
+ * instead of saying the part failed; anything else (no network) is the
+ * part's failure (lib/lazy/lazyPiece's codeOrSaid). lib/lazy/lazyPiece is the
+ * same, in React.lazy's shape, and the leaf this file builds on.
  */
 export interface LazyPart<P> {
   /** The part: drawn at once when its code is in; otherwise its placeholder, or its failure. */
   Part: React.FC<P>
   /** Fetches the part's code once (after a failure, again); true once it is in. */
   warm: () => Promise<boolean>
+  /** Whether its code is in. */
+  isIn: () => boolean
 }
 
 export interface LazyPartOptions<P> {
-  /** Drawn while the code comes: keeps the part's room. */
-  placeholder: React.ComponentType<P>
-  /** Drawn when the code couldn't come; `retry` fetches it again. */
-  failed: React.ComponentType<P & { retry: () => void }>
+  /** Drawn while the code comes: keeps the part's room. Nothing by default. */
+  placeholder?: React.ComponentType<P>
+  /** Drawn when the code couldn't come; `retry` fetches it again. Nothing by default. */
+  failed?: React.ComponentType<P & { retry: () => void }>
 }
 
 type State = "coming" | "in" | "failed"
@@ -43,8 +53,9 @@ const onServer = (): State => "coming"
 
 export function lazyPart<P extends object>(
   load: () => Promise<React.ComponentType<P>>,
-  { placeholder: Placeholder, failed: Failed }: LazyPartOptions<P>,
+  { placeholder: Placeholder = Nothing, failed: Failed = Nothing }: LazyPartOptions<P> = {},
 ): LazyPart<P> {
+  const chunk = lazyChunk(load)
   let Loaded: React.ComponentType<P> | undefined
   let pending: Promise<boolean> | undefined
   let lastFailed = false
@@ -61,19 +72,12 @@ export function lazyPart<P extends object>(
     if (typeof window === "undefined") return Promise.resolve(false)
     if (!pending) {
       const retrying = lastFailed
-      pending = load()
-        .then(
-          (component) => {
-            Loaded = component
-            lastFailed = false
-            return true
-          },
-          (error) => {
-            lastFailed = true
-            console.warn("[lazyPart] a part's code didn't load; it says so in its place:", error)
-            return false
-          },
-        )
+      pending = codeOrSaid(chunk, "lazyPart")
+        .then((component) => {
+          lastFailed = !component
+          if (component) Loaded = component
+          return !!component
+        })
         .finally(() => {
           pending = undefined
           notify()
@@ -88,13 +92,11 @@ export function lazyPart<P extends object>(
   const retry = () => void warm()
 
   function Part(props: P) {
-    const now = useSyncExternalStore(subscribe, state, onServer)
     // The first part drawn fetches the code; one drawn after a failure tries
-    // again, as the connection may be back without an "online" event.
+    // again before it draws, so an overlay doesn't close at once, untried.
+    useState(() => lastFailed && void warm())
+    const now = useSyncExternalStore(subscribe, state, onServer)
     if (now === "coming") void warm()
-    useEffect(() => {
-      if (lastFailed) void warm()
-    }, [])
     useEffect(() => {
       if (now !== "failed") return
       window.addEventListener("online", retry)
@@ -105,5 +107,5 @@ export function lazyPart<P extends object>(
     return <Placeholder {...props} />
   }
 
-  return { Part, warm }
+  return { Part, warm, isIn: () => !!Loaded }
 }

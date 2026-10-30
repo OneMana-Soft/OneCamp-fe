@@ -233,6 +233,28 @@ describe("a notice about a table's row", () => {
   })
 })
 
+describe("someone who left with work under their name (docs C6-2)", () => {
+  const n = (can_open: boolean) =>
+    ({ id: "n1", kind: "member.left_work", resource_kind: "departed_member", resource_uuid: "u-dana", reason: "admin", title: can_open ? "Dana Ross" : "", can_open, data: { docs: "12", links: "3", work: "12 docs and 3 links" }, created_at: "" }) as never
+
+  it("names them and their work for an admin, and opens the Docs settings", () => {
+    const w = noticeWords(n(true))
+    expect(w.actor?.user_name).toBe("Dana Ross")
+    expect(`${w.verb} ${w.place}`).toBe("left with 12 docs and 3 links under their name")
+    expect(noticeHref(n(true))).toBe("/app/admin?tab=docs#docs-departed")
+  })
+
+  it("names nobody and opens nothing for someone who isn't an admin now", () => {
+    expect(noticeWords(n(false)).actor?.user_name).toBe("Someone who left")
+    expect(noticeHref(n(false))).toBeNull()
+  })
+
+  it("says the work in the server's words, or \"work\" without them", () => {
+    const bare = { ...(n(true) as object), data: { docs: "12", links: "3" } } as never
+    expect(noticeWords(bare).place).toBe("work under their name")
+  })
+})
+
 describe("a rule's notices", () => {
   it("name the task and open it only for a reader who may open it", () => {
     const told = notice("work.rule", { resource_kind: "task", resource_uuid: "t1", title: "Fix SSO", can_open: true })
@@ -244,5 +266,54 @@ describe("a rule's notices", () => {
     const stopped = notice("work.rule.paused", { resource_kind: "rule", resource_uuid: "r1", title: "Triage", can_open: true, data: { project_id: "p1" } })
     expect(noticeWords(stopped).place).toBe("Triage")
     expect(noticeHref(stopped)).toBe("/app/project/p1?tool=rules")
+  })
+})
+
+describe("approval notices", () => {
+  it("ask an approver, and tell the asker how it ended, opening the task", () => {
+    const asked = notice("work.approval.requested", { resource_kind: "task", resource_uuid: "t1", title: "Ship it" })
+    expect(noticeWords(asked)).toMatchObject({ verb: "asks you to approve", place: "Ship it" })
+    expect(noticeWords(notice("work.approval.decided", { resource_kind: "task", resource_uuid: "t1", data: { state: "changes" } })).verb).toBe("asked for changes to")
+    expect(noticeHref(asked)).toBe("/app/task/t1")
+  })
+})
+
+describe("someone an upgrade took off a project's tasks", () => {
+  const REPAIR = { user_uuid: "r1", user_name: "OneCamp, upgrade repair", user_profile_object_key: "" }
+  const BACK = "To give them the tasks back, add them to the project or let them into the tasks, then assign them again."
+  const repaired = (can_open: boolean, tasks = "3", title = can_open ? "Launch" : "") =>
+    notice("project.assignees_repaired", {
+      resource_kind: "project",
+      resource_uuid: "p1",
+      title,
+      can_open,
+      reason: "admin",
+      actor: REPAIR,
+      data: { person: "u-ben", person_name: "Ben Ade", tasks },
+    })
+
+  it("names who was taken off how many of its tasks, never which, and how to give them back", () => {
+    const w = noticeWords(repaired(true))
+    expect(w.actor).toMatchObject({ user_uuid: "u-ben", user_name: "Ben Ade" })
+    expect(`${w.verb} ${w.place}`).toBe("was taken off 3 tasks in Launch")
+    expect(w.preview).toBe(BACK)
+    expect(noticeWords(repaired(true, "1")).verb).toBe("was taken off 1 task in")
+  })
+
+  it("calls a nameless project the reader may open Untitled, and still says how to give the tasks back", () => {
+    const w = noticeWords(repaired(true, "3", ""))
+    expect(w.place).toBe("Untitled")
+    expect(w.preview).toBe(BACK)
+    expect(noticeHref(repaired(true, "3", ""))).toBe("/app/project/p1")
+  })
+
+  it("opens the project for an admin who may open it, and names, opens and asks nothing of one who can't", () => {
+    expect(noticeHref(repaired(true))).toBe("/app/project/p1")
+    expect(noticeHref(repaired(false))).toBeNull()
+    for (const title of ["", "Launch"]) {
+      const w = noticeWords(repaired(false, "3", title))
+      expect(`${w.verb} ${w.place}`).toBe("was taken off 3 tasks in a project you can't open")
+      expect(w.preview).toBe("")
+    }
   })
 })

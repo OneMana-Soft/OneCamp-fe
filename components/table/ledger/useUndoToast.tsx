@@ -1,51 +1,17 @@
 "use client"
 
-// What a table's change says once it's made (tables A2, the row ledger): a
-// toast naming it, with Undo, which reverses that change set alone, or brings
-// back what went to the trash. What an undo left, as it changed again since,
-// it says.
+// What a table's change says once it's made (tables A2): the shared toast
+// with Undo, which reverses that change set alone or brings back what went to
+// the trash, and says what an undo left as it changed again since.
 
-import * as React from "react"
-import { useToast } from "@/hooks/use-toast"
-import { ToastAction } from "@/components/ui/toast"
-import { apiErrorMessage } from "@/lib/utils/apiError"
-import { undoneNote, type UndoResult } from "@/lib/tables/ledger"
+import { useUndoToast as useChangeUndoToast } from "@/components/ui/undoToast"
+import type { UndoResult } from "@/lib/tables/ledger"
+import { undoneNote } from "@/lib/tables/undoneNote"
 
-/** How long a change's toast offers Undo. */
-const UNDO_FOR_MS = 8000
+/** What a table's undo left, when its answer says. */
+const noteOf = (r: unknown) => (r && typeof r === "object" && "skipped" in r ? undoneNote(r as UndoResult) : undefined)
 
-/**
- * offerUndo(title, undo): a toast saying title, whose Undo runs undo and then
- * onDone (the page reads the table again either way). An undo that answers
- * with an UndoResult says what it left.
- */
+/** offerUndo(title, undo); onDone after every Undo (the page reads the table again). */
 export function useUndoToast(onDone: () => void) {
-  const { toast } = useToast()
-  return React.useCallback(
-    (title: string, undo: () => Promise<UndoResult | unknown>, description?: string) => {
-      toast({
-        title,
-        description,
-        duration: UNDO_FOR_MS,
-        action: (
-          <ToastAction
-            altText="Undo"
-            onClick={async () => {
-              try {
-                const r = await undo()
-                toast(r && typeof r === "object" && "skipped" in r ? undoneNote(r as UndoResult) : { title: "Undone" })
-              } catch (e) {
-                toast({ title: "Couldn't undo that", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-              } finally {
-                onDone()
-              }
-            }}
-          >
-            Undo
-          </ToastAction>
-        ),
-      })
-    },
-    [toast, onDone],
-  )
+  return useChangeUndoToast(onDone, noteOf)
 }

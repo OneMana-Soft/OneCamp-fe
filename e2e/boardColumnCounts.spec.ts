@@ -56,12 +56,24 @@ test("an open column of 2,500 says so, and Show more asks for that column's next
     [`/project/${P}/statuses`]: { msg: "ok", data: null },
     [`/project/${P}/fields`]: { msg: "ok", data: { fields: [], can_edit: true } },
     [`/project/${P}/tags`]: { msg: "ok", data: [] },
+    // The board holds a part of the project, so the glance's dates come from
+    // the server, exact (PR1).
+    [`/project/${P}/glance`]: { msg: "ok", data: { open: 2505, done: 6, overdue: 37, due_this_week: 112 } },
   })
   await page.goto(`/app/project/${P}?tab=kanban`, { waitUntil: "domcontentloaded", timeout: 120_000 })
   const todo = page.locator('[data-board] [data-column="todo"]')
   await expect(todo.getByLabel("2500 tasks")).toBeVisible({ timeout: 60_000 })
   // The glance counts the server's open tasks, not the cards loaded.
-  await expect(page.locator("[data-glance]")).toContainText("2505 open")
+  await expect(page.locator("[data-glance]")).toContainText("2,505 open")
+  // Its dates are the server's count over every open task, not "at least".
+  await expect(page.locator("[data-glance]")).toContainText("37 overdue")
+  await expect(page.locator("[data-glance]")).toContainText("112 due this week")
+  await expect(page.locator("[data-glance]")).not.toContainText("+")
+  if (process.env.SHOTS_DIR) {
+    // The board's other reads this test leaves unanswered say so in a toast; the shot waits it out.
+    await expect(page.getByText("Not in this test")).toHaveCount(0, { timeout: 15_000 })
+    await page.screenshot({ path: `${process.env.SHOTS_DIR}/glance-exact-390-light.png` })
+  }
   // At the column's foot: which part it shows, and the next page.
   await todo.locator("[data-board-scroll]").evaluate((el) => el.scrollTo(0, el.scrollHeight))
   await expect(todo.getByText("The first 12 of 2500.")).toBeVisible()

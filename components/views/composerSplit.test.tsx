@@ -10,6 +10,8 @@ import { Provider } from "react-redux"
 // every store change at all while it had no draft, because it made a new
 // empty draft object on each render.
 
+// The box reads its conversation's command catalog as it draws (LazyCommandSurface).
+vi.mock("@/services/commandService", () => ({ fetchCommandCatalog: async () => ({ commands: [] }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useOpenBeside", () => ({ useOpenBeside: () => () => false }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }), usePathname: () => "/app/channel/c1", useSearchParams: () => new URLSearchParams() }))
@@ -43,9 +45,7 @@ vi.mock("@/components/textInput/textInput", () => ({
 }))
 const sparks = vi.fn()
 vi.mock("@/lib/chat/celebrateFirst", () => ({ celebrateFirstMessage: () => sparks() }))
-vi.mock("@/components/channel/channelMessageList", () => ({ ChannelMessageList: () => null }))
-vi.mock("@/components/chat/chatMessageList", () => ({ ChatMessageList: () => null }))
-vi.mock("@/components/groupChat/groupChatMessageList", () => ({ GroupChatMessageList: () => null }))
+vi.mock("@/components/conversation/ConversationMessages", () => ({ ConversationMessages: () => null }))
 vi.mock("@/components/ai/ChannelAgents", () => ({ useChannelAgents: () => [] }))
 vi.mock("@/components/ai/CatchMeUpBanner", () => ({ default: () => null }))
 vi.mock("@/components/ai/ChannelMemoryIndicator", () => ({ ChannelMemoryIndicator: () => null }))
@@ -55,9 +55,6 @@ vi.mock("@/components/command/CommandSurface", () => ({ default: () => null }))
 vi.mock("@/components/messages/heldNotificationsBar", () => ({ HeldNotificationsBar: () => null }))
 vi.mock("@/components/chat/chatUserEmojiStatus", () => ({ ChatUserEmojiStatus: () => null }))
 vi.mock("@/components/chat/chatUserAvatar", () => ({ ChatUserAvatar: () => null }))
-vi.mock("@/components/fileUpload/channelFileUpload", () => ({ ChannelFileUpload: () => null }))
-vi.mock("@/components/fileUpload/chatFileUpload", () => ({ ChatFileUpload: () => null }))
-vi.mock("@/components/fileUpload/groupChatFileUpload", () => ({ GroupChatFileUpload: () => null }))
 
 const { TooltipProvider } = await import("@/components/ui/tooltip")
 const { default: store } = await import("@/store/store")
@@ -67,6 +64,12 @@ const { createOrUpdateGroupChatBody } = await import("@/store/slice/groupChatSli
 const { ChannelIdDesktop } = await import("@/components/channel/chanelIdDesktop")
 const { ChatIdDesktop } = await import("@/components/chat/chatIdDesktop")
 const { ChatGrpIdDesktop } = await import("@/components/groupChat/chatGrpIdDesktop")
+const { ComposerHost } = await import("@/components/conversation/ComposerHost")
+
+// Each page in its conversation, as ConversationView puts it: the message box writes to the one its host names.
+const CHANNEL = { kind: "channel", id: "c1" } as const
+const DM = { kind: "dm", id: "maya me", other: "maya" } as const
+const GROUP = { kind: "group", id: "g1" } as const
 
 afterEach(() => {
   cleanup()
@@ -75,9 +78,9 @@ afterEach(() => {
 })
 
 const views = [
-  ["a channel", () => <ChannelIdDesktop channelId="c1" handleSend={() => {}} />, (n: number) => updateChannelInputText({ channelId: "c1", inputTextHTML: `<p>${"a".repeat(n)}</p>` })],
-  ["a DM", () => <ChatIdDesktop chatId="maya" handleSend={() => {}} />, (n: number) => createOrUpdateChatBody({ chatUUID: "maya", body: `<p>${"a".repeat(n)}</p>` })],
-  ["a group", () => <ChatGrpIdDesktop grpId="g1" handleSend={() => {}} />, (n: number) => createOrUpdateGroupChatBody({ grpID: "g1", body: `<p>${"a".repeat(n)}</p>` })],
+  ["a channel", () => <ComposerHost target={CHANNEL}><ChannelIdDesktop channelId="c1" handleSend={() => {}} /></ComposerHost>, (n: number) => updateChannelInputText({ channelId: "c1", inputTextHTML: `<p>${"a".repeat(n)}</p>` })],
+  ["a DM", () => <ComposerHost target={DM}><ChatIdDesktop chatId="maya" handleSend={() => {}} /></ComposerHost>, (n: number) => createOrUpdateChatBody({ chatUUID: "maya", body: `<p>${"a".repeat(n)}</p>` })],
+  ["a group", () => <ComposerHost target={GROUP}><ChatGrpIdDesktop grpId="g1" handleSend={() => {}} /></ComposerHost>, (n: number) => createOrUpdateGroupChatBody({ grpID: "g1", body: `<p>${"a".repeat(n)}</p>` })],
 ] as const
 
 describe.each(views)("typing in %s", (_, view, typed) => {
@@ -100,9 +103,9 @@ describe.each(views)("typing in %s", (_, view, typed) => {
 // A first message (the view says so) celebrates, from the new row's avatar
 // (design v3 chat, C60: lib/chat/celebrateFirst); groups celebrate too.
 describe.each([
-  ["a channel", (send: () => boolean) => <ChannelIdDesktop channelId="c1" handleSend={send} />],
-  ["a DM", (send: () => boolean) => <ChatIdDesktop chatId="maya" handleSend={send} />],
-  ["a group", (send: () => boolean) => <ChatGrpIdDesktop grpId="g1" handleSend={send} />],
+  ["a channel", (send: () => boolean) => <ComposerHost target={CHANNEL}><ChannelIdDesktop channelId="c1" handleSend={send} /></ComposerHost>],
+  ["a DM", (send: () => boolean) => <ComposerHost target={DM}><ChatIdDesktop chatId="maya" handleSend={send} /></ComposerHost>],
+  ["a group", (send: () => boolean) => <ComposerHost target={GROUP}><ChatGrpIdDesktop grpId="g1" handleSend={send} /></ComposerHost>],
 ] as const)("sending a first message in %s", (_, view) => {
   it("celebrates, and a routine send does not", () => {
     let first = true

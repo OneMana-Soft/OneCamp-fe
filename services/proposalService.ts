@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { patchCached } from "@/lib/swrMutate"
 import type { EditProposal, ProposalAuthorKind, ProposalHunk } from "@/lib/proposals/types"
@@ -63,9 +63,27 @@ export async function createProposal(input: NewProposal): Promise<EditProposal> 
     return remember(res.data.data)
 }
 
-export async function decideProposal(id: string, input: DecideInput): Promise<EditProposal> {
+async function postDecision(id: string, input: DecideInput): Promise<EditProposal> {
     const res = await axiosInstance.post<{ data: EditProposal }>(`${PROPOSALS_URL}/${id}/decide`, input, { suppressErrorToast: true })
-    return remember(res.data.data)
+    return res.data.data
+}
+
+export async function decideProposal(id: string, input: DecideInput): Promise<EditProposal> {
+    return remember(await postDecision(id, input))
+}
+
+/**
+ * Decides a proposal, then writes it here with `apply` before the doc's list
+ * learns the decision: the list's sync lets go of a decided proposal an
+ * editor still draws, so learning first would leave nothing to write.
+ */
+export async function decideAndApply<T>(id: string, input: DecideInput, apply: () => T): Promise<T> {
+    const p = await postDecision(id, input)
+    try {
+        return apply()
+    } finally {
+        remember(p)
+    }
 }
 
 export async function withdrawProposal(id: string): Promise<EditProposal> {
@@ -78,9 +96,15 @@ export async function reopenProposal(id: string, hunkIds: string[]): Promise<Edi
     return remember(res.data.data)
 }
 
-/** A doc's proposals, open ones first, then the latest decided. */
+/**
+ * A doc's proposals, open ones first, then the latest decided. Read as every
+ * doc opens, by the chip beside its title and the marks in its text, so a
+ * failed read is said only where someone looks for them: the list beside the
+ * doc says it in place, with Try again; the chip and the marks draw nothing.
+ * A toast would say it over every doc that opened fine.
+ */
 export function useDocProposals(docId: string) {
-    const { data, isError, isLoading, mutate } = useFetch<{ data?: { proposals?: EditProposal[] } }>(proposalsListUrl(docId))
+    const { data, isError, isLoading, mutate } = useFetch<{ data?: { proposals?: EditProposal[] } }>(proposalsListUrl(docId), undefined, undefined, OWN_ERRORS)
     // An error is an error, never an empty list (I19).
     return { proposals: data?.data?.proposals ?? [], isError: !!isError, isLoading, mutate }
 }

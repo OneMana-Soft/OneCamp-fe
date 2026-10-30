@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: vi.fn() } }))
 
 import axiosInstance from "@/lib/axiosInstance"
 import { ANSWER_WAIT_MAX_MS, nextRecoveryStep, stopAnswer } from "./answerRecovery"

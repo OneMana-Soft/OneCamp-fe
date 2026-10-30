@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
+import { deletedTitle, offerUndo, restore } from "@/services/restoreService"
 import { useProjectStatuses, type StatusInput } from "@/hooks/useProjectStatuses"
 import { BUILT_IN_STATUSES, CATEGORY_KIND, STATUS_HUES, STORED_NAME, statusHueOf, type CustomTaskStatus, type StatusCategory } from "@/lib/taskStatus"
 import { StatusGlyph } from "@/components/ui/graphics/glyphs"
@@ -45,7 +46,7 @@ export function ProjectStatusesDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { project, options, create, update, remove, reorder } = useProjectStatuses(open ? projectId : undefined)
+  const { project, options, create, update, remove, reorder, refresh, refreshTasks, http } = useProjectStatuses(open ? projectId : undefined)
   const customs = useMemo(() => project?.custom ?? [], [project])
   const max = project?.max ?? 20
   const [busy, setBusy] = useState(false)
@@ -119,7 +120,10 @@ export function ProjectStatusesDialog({
                     last={i === mine.length - 1}
                     onMove={(dir) => move(c, dir)}
                     onSave={(input) => run(() => update(c.id, input))}
-                    onDelete={(moveTo) => run(() => remove(c.id, moveTo), `Deleted ${c.name}`)}
+                    onDelete={(moveTo) => run(async () => {
+                      await remove(c.id, moveTo)
+                      offerUndo(deletedTitle(c.name), () => restore(http, "status", c.id, () => Promise.all([refresh(), refreshTasks()])))
+                    })}
                     moveTargets={options.filter((o) => o.value !== c.id)}
                   />
                 ))}
@@ -290,7 +294,7 @@ function AddStatus({ busy, full, max, onAdd }: { busy: boolean; full: boolean; m
         className="h-8 flex-1"
       />
       <CategorySelect value={category} disabled={busy} onChange={setCategory} />
-      <Button type="submit" size="sm" className="h-8 gap-1" disabled={busy || !name.trim()}>
+      <Button type="submit" size="sm" className="h-8 gap-1" disabled={!name.trim()} busy={busy}>
         <Plus className="h-4 w-4" />
         Add
       </Button>

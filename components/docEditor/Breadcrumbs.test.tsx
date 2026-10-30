@@ -7,7 +7,7 @@ const hoisted = vi.hoisted(() => ({ ancestors: [] as unknown[], doc: {} as Recor
 vi.mock("./chrome/useDoc", () => ({ useDoc: () => hoisted.doc }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: (key: string) => ({ data: key ? { data: { ancestors: hoisted.ancestors, truncated: false } } : undefined }) }))
 vi.mock("@/services/docGraphService", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/docGraphService")>()), moveDoc: hoisted.moveDoc, previewDocMove: hoisted.preview, getAncestors: hoisted.ancestorsOf }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: hoisted.post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: hoisted.post } }))
 vi.mock("@/lib/docCache", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/docCache")>()), docRenamed: hoisted.renamed }))
 vi.mock("@/store/store", () => ({ default: { dispatch: vi.fn() } }))
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: { title?: string; action?: React.ReactElement }) => hoisted.toasts.push(t) }))

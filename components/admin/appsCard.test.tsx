@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { SWRConfig } from "swr"
 import type { ReactNode } from "react"
 
@@ -23,16 +23,31 @@ vi.mock("@/services/appService", () => ({
 vi.mock("@/hooks/useUploadFile", () => ({ useUploadFile: () => ({ makeRequestToUploadToPublic: vi.fn(), validateFiles: (f: FileList) => Array.from(f), uploadLimitMB: 10 }) }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (opts: (typeof confirmCalls)[number]) => confirmCalls.push(opts) }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastSpy }), toast: toastSpy }))
+// The access sheet has its own tests (appAccessSheet.test.tsx): here, only that the row opens it.
+vi.mock("@/components/admin/AppAccessSheet", () => ({
+  default: ({ appName }: { appName: string }) => <div role="dialog" aria-label={`Access for ${appName}`} />,
+}))
 
 import AppsCard from "@/components/admin/AppsCard"
 import { disconnectApp, listApps, listMarketplace, updateApp } from "@/services/appService"
+import { AtAddress, moveAddress } from "@/lib/testing/nextAddress"
 
+// Admin › Apps, at an address as the app router holds it and the browser shows it.
+const APPS = "/app/admin?tab=apps"
+let address = APPS
+const at = (url: string) => {
+  address = url
+  window.history.replaceState(null, "", url)
+}
 const fresh = ({ children }: { children: ReactNode }) => (
-  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
+  <AtAddress url={address}>
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
+  </AtAddress>
 )
 
 afterEach(() => {
   cleanup()
+  at(APPS)
   vi.clearAllMocks()
   confirmCalls.length = 0
 })
@@ -63,6 +78,20 @@ describe("apps", () => {
     expect(await screen.findByRole("switch", { name: "Use Giphy" })).toBeTruthy()
     const edit = screen.getByRole("button", { name: "Edit Giphy" })
     expect(edit.querySelector(".lucide-refresh-cw")).toBeNull()
+  })
+
+  // An app acts as its own user with tokens of its own (platform P-API, §3.1):
+  // its row opens its access and tokens. A built-in app is OneCamp's own and
+  // has none to give.
+  it("opens an app's access and tokens from its row, and offers none for a built-in app", async () => {
+    const reminders = { ...giphy, id: "b1", slug: "remind", name: "Reminders", kind: "builtin", is_connected: false, commands: [] }
+    vi.mocked(listApps).mockResolvedValue([giphy, reminders] as never)
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    fireEvent.click(await screen.findByRole("button", { name: "Access and tokens for Giphy" }))
+    expect(screen.getByRole("dialog", { name: "Access for Giphy" })).toBeTruthy()
+    expect(screen.getByRole("switch", { name: "Use Reminders" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Access and tokens for Reminders" })).toBeNull()
   })
 
   // The saved client secret stays with the token address it was given for, and
@@ -143,6 +172,43 @@ describe("apps", () => {
     expect(video.className).not.toMatch(/\bhue-|bg-hue-tint|camp-/)
     expect(video.className).toContain("shadow-e1")
     expect(video.className).not.toMatch(/bg-primary/)
+  })
+
+  // The "/" menu's "Set up Giphy" lands here with ?app=giphy, and "/apps zoom"
+  // with ?q=zoom: both used to land on the whole directory.
+  it("opens the app the address names, or searches for the words it carries", async () => {
+    vi.mocked(listApps).mockResolvedValue([])
+    vi.mocked(listMarketplace).mockResolvedValue([
+      { slug: "giphy", name: "Giphy", description: "Send GIFs", category: "Fun", commands: ["giphy"], installed: false, setup: [] },
+      { slug: "zoom", name: "Zoom", description: "Calls", category: "Video", commands: [], installed: false, setup: [] },
+    ] as never)
+    at(`${APPS}&app=giphy`)
+    render(<AppsCard />, { wrapper: fresh })
+    expect(await screen.findByRole("dialog", { name: /Giphy/ })).toBeTruthy()
+    expect(window.location.search).toBe("?tab=apps")
+    cleanup()
+
+    at(`${APPS}&q=zoom`)
+    render(<AppsCard />, { wrapper: fresh })
+    expect(((await screen.findByRole("searchbox", { name: "Search the app directory" })) as HTMLInputElement).value).toBe("zoom")
+    expect(window.location.search).toBe("?tab=apps")
+  })
+
+  // Already on Admin › Apps, a second "Set up Giphy" changed the address and
+  // opened nothing: the page read it only when the directory first loaded.
+  it("opens the app a later address names, while the page is open", async () => {
+    vi.mocked(listApps).mockResolvedValue([])
+    vi.mocked(listMarketplace).mockResolvedValue([
+      { slug: "giphy", name: "Giphy", description: "Send GIFs", category: "Fun", commands: ["giphy"], installed: false, setup: [] },
+    ] as never)
+    render(<AppsCard />, { wrapper: fresh })
+    await screen.findByRole("searchbox", { name: "Search the app directory" })
+    act(() => {
+      window.history.replaceState(null, "", `${APPS}&app=giphy`)
+      moveAddress(`${APPS}&app=giphy`)
+    })
+    expect(await screen.findByRole("dialog", { name: /Giphy/ })).toBeTruthy()
+    expect(window.location.search).toBe("?tab=apps")
   })
 
   it("shows the plug spot when no app is installed", async () => {
@@ -249,7 +315,7 @@ describe("apps", () => {
     await screen.findByText("Zoom")
     fireEvent.change(screen.getByRole("searchbox", { name: "Search the app directory" }), { target: { value: "jira" } })
     expect(await screen.findByText(/No apps match/)).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show all apps" }))
     expect(await screen.findByText("Zoom")).toBeTruthy()
   })
 

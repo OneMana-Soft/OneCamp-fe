@@ -4,6 +4,7 @@ import { X } from "@/lib/icons"
 import { hueFor, type CampHue } from "@/lib/campHue"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
+import { CHIP_TONE, type ChipTone } from "@/lib/ui/chipTone"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 
 /**
@@ -14,13 +15,6 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
  * camp hue), and a tint only when it means something (`tone`: "Due today"
  * in sun, "Overdue" in danger). `onRemove` adds the × of an active filter.
  */
-export type ChipTone = "sun" | "danger"
-
-/** A chip's tint, for any chip-shaped thing that means it (a due day, a live entity). */
-export const CHIP_TONE: Record<ChipTone, string> = {
-  sun: "bg-camp-sun-tint text-camp-sun-ink shadow-none",
-  danger: "bg-destructive/10 text-danger-ink shadow-none",
-}
 
 export function Chip({
   children,
@@ -41,7 +35,7 @@ export function Chip({
 }) {
   return (
     <span data-chip="" title={title} className={cn("chip min-w-0", tone && CHIP_TONE[tone], className)}>
-      {dot ? <span aria-hidden="true" data-chip-dot="" className={cn(HUE_CLASS[dot], "size-1.5 shrink-0 rounded-full bg-hue")} /> : null}
+      {dot ? <HueDot hue={dot} /> : null}
       <span className="truncate">{children}</span>
       {onRemove ? (
         <button
@@ -57,6 +51,11 @@ export function Chip({
       ) : null}
     </span>
   )
+}
+
+/** A thing's colour as a chip carries it (colour is a noun): its hue's 6px dot. */
+export function HueDot({ hue }: { hue: CampHue }) {
+  return <span aria-hidden="true" data-chip-dot="" className={cn(HUE_CLASS[hue], "size-1.5 shrink-0 rounded-full bg-hue")} />
 }
 
 /**

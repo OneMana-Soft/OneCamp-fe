@@ -169,7 +169,7 @@ for (const theme of ["light", "dark"] as const) {
 
       await expect.poll(() => shown(page)).toEqual(["inProgress", "todo", "done"])
       // The hidden columns keep their places in the project's order.
-      expect(server.saved).toEqual([["backlog", "inProgress", "todo", "inReview", "done", "canceled"]])
+      await expect.poll(() => server.saved).toEqual([["backlog", "inProgress", "todo", "inReview", "done", "canceled"]])
       await expect(page.locator("[data-column-drop-line]")).toHaveCount(0)
       await shot(page, "dropped", theme)
 
@@ -191,7 +191,7 @@ for (const theme of ["light", "dark"] as const) {
       await shot(page, "keys", theme)
       await page.keyboard.press("Space")
       await expect.poll(() => shown(page)).toEqual(["inProgress", "todo", "done"])
-      expect(server.saved).toEqual([["backlog", "inProgress", "todo", "inReview", "done", "canceled"]])
+      await expect.poll(() => server.saved).toEqual([["backlog", "inProgress", "todo", "inReview", "done", "canceled"]])
       // The grip keeps the focus through the move, for the next one.
       await expect(grip).toBeFocused()
 
@@ -203,7 +203,7 @@ for (const theme of ["light", "dark"] as const) {
       await shot(page, "menu", theme)
       await page.getByRole("menuitem", { name: "Move left" }).click()
       await expect.poll(() => shown(page)).toEqual(["todo", "inProgress", "done"])
-      expect(server.saved.at(-1)).toEqual(DEFAULT)
+      await expect.poll(() => server.saved.at(-1)).toEqual(DEFAULT)
     })
   })
 }
@@ -246,6 +246,20 @@ test.describe("board columns at 1280: the rules", () => {
     await expect(page.getByRole("menuitem", { name: "Collapse" })).toBeVisible()
     await expect(page.getByRole("menuitem", { name: /^Move (left|right)$/ })).toHaveCount(0)
   })
+
+  test("a column's actions open from the keys on their first row, and Escape gives focus back", async ({ page }, testInfo) => {
+    test.setTimeout(180_000)
+    const server: Server = { order: DEFAULT, saved: [], refuse: false }
+    await openBoard(page, testInfo, ADMIN, server)
+    // Focus shows the head's buttons, as a hover does.
+    const actions = page.getByRole("button", { name: "To do column actions" })
+    await actions.focus()
+    await page.keyboard.press("Enter")
+    await expect(page.getByRole("menu").getByRole("menuitem").first()).toBeFocused()
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await expect(actions).toBeFocused()
+  })
 })
 
 for (const theme of ["light", "dark"] as const) {
@@ -263,7 +277,7 @@ for (const theme of ["light", "dark"] as const) {
       await shot(page, "menu", theme)
       await page.getByRole("menuitem", { name: "Move right" }).tap()
       await expect.poll(() => shown(page)).toEqual(["inProgress", "todo", "done"])
-      expect(server.saved).toEqual([["backlog", "inProgress", "todo", "inReview", "done", "canceled"]])
+      await expect.poll(() => server.saved).toEqual([["backlog", "inProgress", "todo", "inReview", "done", "canceled"]])
       await shot(page, "moved", theme)
     })
   })

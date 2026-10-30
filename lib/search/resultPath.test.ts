@@ -49,4 +49,9 @@ describe("resultPath", () => {
     expect(resultPath(hit({ type: "comment", comment: { comment_doc_id: "d1" } }), ME)).toBe("/app/doc/d1/comment")
     expect(resultPath(hit({ type: "user", user: { user_id: MAYA } }), ME)).toBeNull()
   })
+
+  it("opens an event at its own page, the calendar's one rule for a link to an event", () => {
+    expect(resultPath(hit({ type: "event", event: { event_uuid: "e1" } }), ME)).toBe("/app/calendar/event/e1")
+    expect(resultPath(hit({ type: "event", event: {} }), ME)).toBeNull()
+  })
 })

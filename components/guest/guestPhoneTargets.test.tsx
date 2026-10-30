@@ -61,7 +61,7 @@ describe("the guest meeting's green room", () => {
   // no width of its own; inside a shrink-to-fit column of 448px max it
   // collapsed to its padding, and the join form was a 32px white strip.
   it("takes the frame's full width and height", () => {
-    const src = readFileSync("app/guest/m/[token]/page.tsx", "utf8")
+    const src = readFileSync("components/guest/GuestMeeting.tsx", "utf8")
     expect(src).toMatch(/data-guest-meeting="" className="flex w-full flex-1 flex-col/)
     expect(src).not.toMatch(/mx-auto flex max-w-md flex-col items-center px-4 pt-6/)
     expect(src).toMatch(/<PreJoin [^>]*embedded/)

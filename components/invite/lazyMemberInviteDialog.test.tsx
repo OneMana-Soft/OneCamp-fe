@@ -8,7 +8,7 @@ import { useState } from "react"
 // With next/dynamic the failure was thrown, and the page went with it.
 
 const toast = vi.fn()
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
+vi.mock("@/hooks/use-toast", () => ({ toast: (t: unknown) => toast(t) }))
 
 let failing = true
 vi.mock("@/components/invite/MemberInviteDialog", () => {

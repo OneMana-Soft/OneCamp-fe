@@ -22,6 +22,8 @@ const posted: Array<{ url: string; body: Record<string, unknown> }> = []
 let refuseCheck = false
 let failReads = false
 let failSelf = false
+/** Who the reader is, when a test says: /user/profile's answer. */
+let selfUser: { user_uuid: string } | null = null
 let failProjects = false
 const users = [
   { user_uuid: "u-sam", uid: "0x1", user_full_name: "Sam Rivera", user_name: "Sam", is_bot: false },
@@ -35,14 +37,14 @@ let laterItems: Array<{ id: string }> = []
 // What POST /doc/mentionAccess answers: the server's word on who can't open the doc and whether the writer may invite them.
 let mentionAnswer: { can_share: boolean; cant_open: string[] } | "refused" = { can_share: true, cant_open: ["u-maya"] }
 const topics = new Map<string, (raw: string) => void>()
-vi.mock("@/lib/axiosInstance", () => ({
-  OWN_ERRORS: { suppressErrorToast: true },
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: vi.fn(async (url: string) => {
       gets.push(url)
       if (url.startsWith("/later?state=open")) return { status: 200, data: { data: { items: laterItems } } }
       if (url.includes("/user/allUsers")) return { status: 200, data: { users } }
       if (url === "/user/profile" && failSelf) throw Object.assign(new Error("503"), { response: { status: 503, data: {} } })
+      if (url === "/user/profile" && selfUser) return { status: 200, data: { data: selfUser } }
       if (url.startsWith("/user/userProjectList") && failProjects) throw Object.assign(new Error("503"), { response: { status: 503, data: {} } })
       if (url.startsWith(`/project/taskListForKanban/${PROJECT}`)) return { status: 200, data: { data: board } }
       return { status: 200, data: {} }
@@ -133,6 +135,7 @@ beforeEach(() => {
   refuseCheck = false
   failReads = false
   failSelf = false
+  selfUser = null
   failProjects = false
   board = {}
   push.mockReset()
@@ -202,8 +205,9 @@ describe("pages in a doc", () => {
     await act(async () => page.run(editor, { from: 1, to: 6 }))
     await vi.waitFor(() => expect(editor.getJSON().content?.find((n) => n.type === "subpage")?.attrs?.docId).toBe(NEW_PAGE), { timeout: 3000 })
     const { createDoc } = await import("@/services/docGraphService")
-    // Private: nothing here says what this doc is (see below).
-    expect(createDoc).toHaveBeenCalledWith({ parent_uuid: DOC, doc_private: true })
+    // Private: nothing here says what this doc is (see below). Placed: its
+    // block is put here, so the server adds none at the doc's end (docs C7a).
+    expect(createDoc).toHaveBeenCalledWith({ parent_uuid: DOC, doc_private: true, placed: true })
     // Opened once its block is drawn: its title is ready to type.
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith(`/app/doc/${NEW_PAGE}?new=1`), { timeout: 3000 })
   })
@@ -231,7 +235,7 @@ describe("pages in a doc", () => {
         const editor = await docEditor("<p>/page</p>")
         const page = blockById("connectedSlash")!.slash!.find((s) => s.id === "page")!
         await act(async () => page.run(editor, { from: 1, to: 6 }))
-        await vi.waitFor(() => expect(createDoc).toHaveBeenCalledWith({ parent_uuid: DOC, doc_private: priv }), { timeout: 3000 })
+        await vi.waitFor(() => expect(createDoc).toHaveBeenCalledWith({ parent_uuid: DOC, doc_private: priv, placed: true }), { timeout: 3000 })
         cleanup()
       }
     })
@@ -253,7 +257,7 @@ describe("pages in a doc", () => {
         // The pages found, then New page.
         press(editor, "ArrowDown")
         press(editor, "Enter")
-        await vi.waitFor(() => expect(createDoc).toHaveBeenCalledWith({ doc_title: "Launch", parent_uuid: DOC, doc_private: priv }), { timeout: 3000 })
+        await vi.waitFor(() => expect(createDoc).toHaveBeenCalledWith({ doc_title: "Launch", parent_uuid: DOC, doc_private: priv, placed: true }), { timeout: 3000 })
         cleanup()
       }
     })
@@ -547,6 +551,7 @@ describe("a project's tasks and board in a doc", () => {
   beforeEach(() => {
     board = {
       project_uuid: PROJECT,
+      project_access: { edit_tasks: "all" },
       project_tasks_todo: [{ task_uuid: T1, task_name: "Write the post", task_status: "todo" }],
       project_tasks_done: [{ task_uuid: T2, task_name: "Book the room", task_status: "done" }],
       project_tasks_done_count: 1,
@@ -595,6 +600,22 @@ describe("a project's tasks and board in a doc", () => {
     await act(async () => screen.getByRole("button", { name: "Mark “Write the post” done" }).click())
     await settle()
     expect(posted.find((p) => p.url === "/task/updateTaskStatus")?.body).toEqual({ task_status: "done", task_uuid: T1, task_project_uuid: PROJECT })
+  })
+
+  it("ticks only the reader's own tasks where members change only their own, as the project's board does", async () => {
+    selfUser = { user_uuid: "u-me" }
+    board = {
+      ...board,
+      project_access: { edit_tasks: "assigned" },
+      project_tasks_todo: [
+        { task_uuid: T1, task_name: "Write the post", task_status: "todo", task_assignee: { user_uuid: "u-me" } },
+        { task_uuid: "7a5c0000-0000-4000-8000-000000000013", task_name: "Print the flyers", task_status: "todo", task_assignee: { user_uuid: "u-ben" } },
+      ],
+    }
+    await docEditor(`<div data-type="task-list-embed" data-project-id="${PROJECT}" data-show="open"></div>`, { freshReads: true })
+    expect(await screen.findByRole("button", { name: "Mark “Write the post” done" }, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByText("Print the flyers")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Mark “Print the flyers” done" })).toBeNull()
   })
 
   it("lets a project member read the list but not tick it, as on the project's own list", async () => {

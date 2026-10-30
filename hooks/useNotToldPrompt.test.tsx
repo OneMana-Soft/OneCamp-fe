@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { act, renderHook } from "@testing-library/react"
 
 const { post, toast, known } = vi.hoisted(() => ({ post: vi.fn(), toast: vi.fn(), known: { value: null as unknown } }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a) }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a) } }))
 vi.mock("@/hooks/use-toast", () => ({ toast: (...a: unknown[]) => toast(...a), useToast: () => ({ toast }) }))
 vi.mock("@/lib/conversation/mentionables", () => ({ mentionablesOf: async () => known.value }))
 
@@ -37,7 +38,7 @@ describe("who wasn't told", () => {
     expect(shown.title).toBe("Jonas isn't in #launch, so they weren't told.")
     post.mockResolvedValue({})
     await act(async () => shown.action.props.onClick())
-    expect(post).toHaveBeenCalledWith("/ch/addMember", { channel_id: "c-1", user_id: JONAS }, {})
+    expect(post).toHaveBeenCalledWith("/ch/addMember", { channel_id: "c-1", user_id: JONAS }, OWN_ERRORS)
   })
 
   it("says nothing when everyone named is in it, or the list can't say", async () => {

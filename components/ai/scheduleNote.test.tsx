@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // leave out under them.
 
 const { post, toast } = vi.hoisted(() => ({ post: vi.fn(), toast: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post } }))
 vi.mock("@/lib/utils/timeZone", () => ({ browserTZ: () => "America/New_York" }))
 // One toast function, as the real hook gives: the dialog asks again whenever it changes.
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))

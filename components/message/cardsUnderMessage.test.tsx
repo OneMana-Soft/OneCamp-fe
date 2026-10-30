@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 // What sits under a message: work cards, agent results, files and the faces of
@@ -58,8 +58,8 @@ describe("cards under a message", () => {
     const button = screen.getByRole("button", { name: `Open ${LONG}` })
     const card = container.querySelector("[data-file-card]")!
     expect(card.contains(button)).toBe(true)
-    expect(button.querySelector("[data-file-name] .truncate")).toBeTruthy()
-    expect(button.querySelector("[data-file-name] .shrink-0")!.textContent).toBe("ency.pdf")
+    expect(button.querySelector("[data-middle-name] .truncate")).toBeTruthy()
+    expect(button.querySelector("[data-middle-name] .shrink-0")!.textContent).toBe(" agency.pdf")
     // C24: the tile is in the kind's hue (a PDF is berry), and the name is cut in its middle.
     expect(card.getAttribute("data-file-kind")).toBe("pdf")
     expect(button.querySelector("[data-card-tile]")!.className).toContain("hue-berry")
@@ -87,6 +87,19 @@ describe("cards under a message", () => {
       expect(opened).toHaveBeenCalledTimes(1)
       cleanup()
     }
+  })
+
+  // Its own Download is drawn at 28px; under a finger it takes 44px, as chat's
+  // other controls do (app/phone.css F3; DESIGN-BUILD-8, 23 Oct).
+  it("give a viewable file's own Download a finger's reach", () => {
+    render(
+      <MessageAttachments
+        attachments={[{ attachment_uuid: "n", attachment_file_name: "notes.txt", attachment_type: "document", attachment_size: 1000, attachment_created_at: "", attachment_raw_type: "text/plain" }]}
+        mediaGetUrl="/ch/getFile/c1"
+        attachmentSelected={() => {}}
+      />,
+    )
+    expect(screen.getByRole("button", { name: "Download notes.txt" }).hasAttribute("data-touch-target")).toBe(true)
   })
 
   it("download a PDF on a phone, whose browser can't show one in the page", async () => {
@@ -125,10 +138,18 @@ describe("cards under a message", () => {
     expect(opened).not.toHaveBeenCalled()
   })
 
-  it("tint a doc card's tile in the doc's own hue", () => {
+  it("tint a doc card's tile in the doc's own hue", async () => {
     const id = "f75cbe7f-9ee2-4513-b2dc-46aba48a34aa"
+    // The cards' code loads with the first message that has one. It's loaded
+    // here first, so the wait below is for a render, never for a chunk that a
+    // busy machine takes longer than waitFor's second to bring.
+    await import("@/components/message/workLinkCardsBody")
     const { container } = render(<WorkLinkCards text={`see /app/doc/${id}`} />)
-    const tile = container.querySelector("[data-card-tile]")!
+    const tile = await waitFor(() => {
+      const t = container.querySelector("[data-card-tile]")
+      expect(t).toBeTruthy()
+      return t!
+    })
     expect(tile.className).toMatch(/\bhue-(sky|moss|sun|dusk|berry|lake)\b/)
     expect(tile.className).toContain("bg-hue-tint")
     expect(tile.className).not.toContain("bg-muted")

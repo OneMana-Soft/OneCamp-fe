@@ -1,6 +1,7 @@
 "use client"
 
-import {usePathname, useRouter} from "next/navigation";
+import {usePathname} from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
 import {useDispatch} from "react-redux";
 import {PhoneMark} from "@/components/navigationBar/mobile/phoneMark";
 import {openUI} from "@/store/slice/uiSlice";
@@ -16,7 +17,7 @@ import { AdminPhoneLeading } from "@/components/admin/AdminPhoneBar";
  * link), never out of the app (lib/navigation/back.ts). 44px, for a thumb.
  */
 function BackButton() {
-    const router = useRouter();
+    const router = useAppRouter();
     const pathname = usePathname();
     return (
         <Button aria-label='Back' variant='ghost' size='icon' className="h-11 w-11" onClick={() => goBack(router, pathname)}>

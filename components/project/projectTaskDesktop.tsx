@@ -1,5 +1,5 @@
 "use client"
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "@/lib/utils/i18n";
 
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -7,9 +7,9 @@ import { ProjectsGet } from "@/services/endpoints/projects"
 import {ProjectInfoRawInterface} from "@/types/project"
 import { FileText, List, Megaphone, Paperclip } from "@/lib/icons";
 import { TabLoading } from "@/components/task/TabLoading"
-import { lazyView } from "@/components/task/LazyView"
+import { lazyView } from "@/lib/lazy/lazyView"
 import { ProjectActionsMenu } from "@/components/project/ProjectToolButtons";
-import { Kanban } from "@/lib/icons";
+import { Kanban, ListTodo } from "@/lib/icons";
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { WorkTabsList } from "@/components/task/WorkTabs"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
@@ -36,6 +36,7 @@ const Timeline = lazyView(() => import("@/components/project/timeline/ProjectTim
 const Updates = lazyView(() => import("@/components/projectUpdates/ProjectUpdates"))
 const Files = lazyView(() => import("@/components/project/ProjectAttachments"))
 // The project's docs: the pages made in its space (docs programme B5).
+const Backlog = lazyView(() => import("@/components/work/backlog/ProjectBacklog"))
 const Docs = lazyView(() => import("@/components/docTree/SpaceDocs"))
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ChartGantt } from "@/lib/icons"
@@ -48,8 +49,9 @@ import { useProjectNotification } from "@/hooks/useNotificationLevel";
 import { useProjectHue } from "@/lib/projectHue";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 import { accessOf } from "@/lib/work/access";
+import { LazyConnected } from "@/components/workGraph/LazyConnected"
 
-const VALID_TABS = ["list", "kanban", "timeline", "updates", "attachments", "docs"] as const
+const VALID_TABS = ["list", "kanban", "backlog", "timeline", "updates", "attachments", "docs"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
@@ -141,6 +143,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                     {members.length > 0 && <span className="shrink-0 @max-[640px]:hidden"><MemberStack members={members} /></span>}
                     {(isMember || isAdmin) && (
                         <div className="flex items-center gap-0.5">
+                            <LazyConnected kind="project" id={projectId || ""} title={project?.project_name} />
                             <NotificationLevelMenu level={notification.level} onChoose={notification.choose} />
                             <ProjectActionsMenu
                                 projectId={projectId}
@@ -184,10 +187,11 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                         tabs={[
                             { value: "list", label: t("list", { defaultValue: "List" }), icon: <List /> },
                             { value: "kanban", label: t("board", { defaultValue: "Board" }), icon: <Kanban /> },
+                            { value: "backlog", label: "Backlog", icon: <ListTodo /> },
                             { value: "timeline", label: "Timeline", icon: <ChartGantt /> },
                             { value: "updates", label: "Updates", icon: <Megaphone /> },
-                            { value: "attachments", label: "Files", icon: <Paperclip />, count: project?.project_attachments?.length },
-                            { value: "docs", label: "Docs", icon: <FileText /> },
+                            { value: "attachments", label: "Attachments", icon: <Paperclip />, count: project?.project_attachments?.length },
+                            { value: "docs", label: "Docs & Files", icon: <FileText /> },
                         ]}
                     />
                     {/* One scroll container for every tab's body. The panels
@@ -200,6 +204,9 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                         <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="mt-0 h-full data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
                             <Board.View fallback={<TabLoading kind="board" />} render={(m) => <m.ProjectTaskKanban projectId={projectId} className="px-5 pt-3" />} />
                         </KeptTab>
+                        <TabsContent value="backlog" className="mt-0 [animation:work-fade-in_120ms_var(--ease-out)]">
+                            <Backlog.View fallback={<TabLoading kind="list" />} render={(m) => <m.default projectId={projectId} />} />
+                        </TabsContent>
                         <KeptTab value="timeline" selected={selectedTab === "timeline"} seen={seen.has("timeline")} className="mt-0 h-full data-[state=active]:[animation:work-fade-in_120ms_var(--ease-out)]">
                             <Timeline.View
                                 fallback={<TabLoading kind="timeline" />}

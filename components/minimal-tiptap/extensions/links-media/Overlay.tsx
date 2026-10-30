@@ -5,8 +5,9 @@ import type { SlotProps } from "@/components/docEditor/registry/types"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { pasteMenuOf } from "../smart-paste/smartPaste"
 import { setUploadLimit } from "../file-block/uploadLimit"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
-const PasteMenu = React.lazy(() => import("./PasteMenu"))
+const PasteMenu = lazyPiece(() => import("./PasteMenu"))
 
 /**
  * Over a doc's editor, once per editor (A1's editorOverlay slot): the menu a

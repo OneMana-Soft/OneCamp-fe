@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test"
 
 import { openBoard, P } from "./projectBoard"
 import { SAM, stubBackend } from "./stubbedApp"
@@ -69,6 +69,41 @@ test("the new-task dialog's Attach says, whole, why it waits", async ({ page }, 
 
 test("a read-only list's check says, whole, why it can't be ticked, on the top row too", async ({ page }, testInfo) => {
   test.setTimeout(150_000)
+  const check = await openReadOnlyList(page, testInfo)
+  await check.hover()
+  await expectWholeTip(page, check, "Only this project's members can change it")
+})
+
+// The tip is a shared primitive's (Button, TaskCheck), so it runs on a phone too (22 Oct 2026): a tap on a read-only
+// check ticks nothing, and no tip opens and stays, there being no hover to close it.
+test.describe("on a 390x844 phone, by touch", () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+
+  test("a read-only list's check takes a tap and changes nothing, and no tip is left open", async ({ page }, testInfo) => {
+    test.setTimeout(150_000)
+    const check = await openReadOnlyList(page, testInfo)
+    // The tip's chunk comes after the list, and a tap before it meets no tip, so the checks below would pass for
+    // nothing. The tip is wired to the check once focus on the check opens it.
+    const tip = page.getByRole("tooltip")
+    await expect(async () => {
+      await check.blur()
+      await check.focus()
+      await expect(tip).toHaveText("Only this project's members can change it", { timeout: 1_000 })
+    }).toPass({ timeout: 30_000 })
+    await check.blur()
+    await expect(tip).toHaveCount(0)
+    // Forced: Playwright won't press an aria-disabled control, which is the point here.
+    await check.tap({ force: true })
+    // A tip opens 400 ms after a pointer comes to its control: look once that has passed.
+    await page.waitForTimeout(700)
+    await expect(check).toHaveAttribute("aria-pressed", "false")
+    await expect(check).toHaveAttribute("aria-disabled", "true")
+    await expect(tip).toHaveCount(0)
+  })
+})
+
+/** A project the visitor can read and not change, opened on its list: its first task's check. */
+async function openReadOnlyList(page: Page, testInfo: TestInfo): Promise<Locator> {
   await page.addInitScript(() => localStorage.setItem("oc_keys_tip_seen", "1"))
   const NONE = "0001-01-01T00:00:00Z"
   const project = { project_uuid: P, project_name: "Website relaunch", project_is_admin: 0, project_is_member: 0, project_members: [SAM] }
@@ -104,6 +139,5 @@ test("a read-only list's check says, whole, why it can't be ticked, on the top r
   const check = page.getByRole("button", { name: "Mark Draft launch email complete" })
   await expect(check).toBeVisible({ timeout: 60_000 })
   await expect(check).toHaveAttribute("aria-disabled", "true")
-  await check.hover()
-  await expectWholeTip(page, check, "Only this project's members can change it")
-})
+  return check
+}

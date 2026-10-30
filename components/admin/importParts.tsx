@@ -30,8 +30,12 @@ import { cn } from "@/lib/utils/helpers/cn"
 /** Where an import stands, as a word and a status tone. Running and uploading pulse. */
 export const IMPORT_STATE: Record<string, { label: string; tone: StateTone; pulse?: boolean }> = {
   pending: { label: "Uploading", tone: "warning", pulse: true },
-  // A Slack import read through Slack's API, while it reads (status pending, stage reading).
+  // A Slack import read through Slack's API, while it reads (status pending, stage reading),
+  // while it waits for one of the server's reads (queued), and, read, while its
+  // workspace's import under way finishes (waiting).
   reading: { label: "Reading", tone: "warning", pulse: true },
+  queued: { label: "Queued", tone: "neutral" },
+  waiting: { label: "Waiting", tone: "neutral" },
   validating: { label: "To plan", tone: "neutral" },
   planned: { label: "Planned", tone: "info" },
   running: { label: "Running", tone: "warning", pulse: true },

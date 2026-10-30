@@ -91,6 +91,8 @@ export function InlineEdit({
             // An input method's Enter picks a word and its Escape drops one.
             if (isComposingKey(e.nativeEvent)) return
             if (e.key === "Enter") {
+              // Taken, or its keypress opens us again.
+              e.preventDefault()
               byKey.current = true
               e.currentTarget.blur()
             }
@@ -115,7 +117,7 @@ export function InlineEdit({
             setDraft(value)
             setEditing(true)
           }}
-          className={cn(propertyValue, "w-fit min-w-0", prefix && value ? "ml-0" : undefined, !value && "text-ink-3", className)}
+          className={cn(propertyValue, "w-fit min-w-0 max-w-none", prefix && value ? "ml-0" : undefined, !value && "text-ink-3", className)}
         >
           <span className="truncate">{value || placeholder}</span>
         </button>

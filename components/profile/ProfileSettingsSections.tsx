@@ -21,8 +21,13 @@ import { PasskeySection } from "@/components/profile/PasskeySection"
 import { DEMO_ACCOUNTS_LINE, DEMO_SIGN_IN_LINE, useDemoVisitor } from "@/hooks/useDemoVisitor"
 import { crossfadeGlow } from "@/components/profile/glowCrossfade"
 import { SettingsCardError, SettingsList, SettingsRowsSkeleton, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { useSaveStatus } from "@/components/ui/saveStatus"
+import { SavedTick, switchOffer, useSaveStatus } from "@/components/ui/saveStatus"
 import { cn } from "@/lib/utils/helpers/cn"
+import { lazyView } from "@/lib/lazy/lazyView"
+
+// Working hours bring the zone list and the time fields: a chunk of their own,
+// asked for as these sections draw.
+const WorkingHours = lazyView(() => import("@/components/calendar/workingHours/workingHoursSection"))
 
 const THEMES = [
   { value: "light", label: "Light" },
@@ -61,17 +66,15 @@ function ThemeMiniature({ mode }: { mode: "light" | "dark" | "system" }) {
 
 /**
  * Light, dark or the device's own: three cards, each a miniature of the app in
- * that mode, the chosen one ringed in the accent with a check. A Radix radio
+ * that mode, the chosen one ringed in ink with an ink check. A Radix radio
  * group, so it keys as WAI-ARIA's radio group does: one Tab stop, and the arrow
  * keys move to the next theme and choose it.
  */
-export function ThemePicker() {
-  const { theme, setTheme } = useTheme()
-  const choice = theme === "dark" || theme === "light" ? theme : "system"
+export function ThemePicker({ value, onChoose }: { value: string; onChoose: (v: string) => void }) {
   return (
     <RadioGroupPrimitive.Root
-      value={choice}
-      onValueChange={setTheme}
+      value={value}
+      onValueChange={onChoose}
       orientation="horizontal"
       aria-label="Theme"
       data-theme-picker=""
@@ -100,12 +103,11 @@ const accentName = (key: string) => (key === "onecamp" ? "OneCamp" : key.charAt(
  * class with bg-brand, so it shows exactly what choosing it does. Choosing one
  * re-themes the app live, and the frame's glow crossfades to the new hue.
  */
-export function AccentSwatches() {
-  const { activeTheme, setActiveTheme } = useThemeConfig()
+export function AccentSwatches({ value, onChoose }: { value: string; onChoose: (v: string) => void }) {
   return (
     <div role="radiogroup" aria-label="Accent colour" data-accent-swatches="" className="you-swatches">
       {VALID_COLOR_THEMES.map((color) => {
-        const on = activeTheme === color
+        const on = value === color
         return (
           <button
             key={color}
@@ -116,8 +118,7 @@ export function AccentSwatches() {
             title={accentName(color)}
             data-accent={color}
             onClick={() => {
-              if (on) return
-              crossfadeGlow(() => setActiveTheme(color))
+              if (!on) onChoose(color)
             }}
             className={cn("you-swatch", `theme-${color} bg-brand`)}
           />
@@ -127,18 +128,43 @@ export function AccentSwatches() {
   )
 }
 
-/** How the app looks, on this device: the theme cards, then the accent. */
+const themeName = (v: string) => THEMES.find((t) => t.value === v)?.label ?? v
+
+/**
+ * How the app looks, on this device: the theme cards, then the accent. Each
+ * changes the moment it is picked, ticks beside its name, and is offered back
+ * on the toast (design-14: every change saved with a tick and undo).
+ */
 export function AppearanceSection() {
+  const { theme, setTheme } = useTheme()
+  const { activeTheme, setActiveTheme } = useThemeConfig()
+  const themeSave = useSaveStatus()
+  const accentSave = useSaveStatus()
+  const mode = theme === "dark" || theme === "light" ? theme : "system"
+  const chooseTheme = (to: string, from = mode): Promise<boolean> => {
+    setTheme(to)
+    return themeSave.run(async () => {}, { what: `Theme: ${themeName(to)}`, undo: () => chooseTheme(from) })
+  }
+  const chooseAccent = (to: string, from = activeTheme): Promise<boolean> => {
+    crossfadeGlow(() => setActiveTheme(to))
+    return accentSave.run(async () => {}, { what: `Accent: ${accentName(to)}`, undo: () => chooseAccent(from) })
+  }
   return (
     <SettingsSection title="Appearance" description="Changes as you pick, on this device.">
       <SettingsList>
         <div className="set-row space-y-3">
-          <p className="text-sm font-medium">Theme</p>
-          <ThemePicker />
+          <p className="flex items-center gap-2 text-sm font-medium">
+            Theme
+            <SavedTick status={themeSave.status} />
+          </p>
+          <ThemePicker value={mode} onChoose={(v) => void chooseTheme(v)} />
         </div>
         <div className="set-row space-y-3">
-          <p className="text-sm font-medium">Accent colour</p>
-          <AccentSwatches />
+          <p className="flex items-center gap-2 text-sm font-medium">
+            Accent colour
+            <SavedTick status={accentSave.status} />
+          </p>
+          <AccentSwatches value={activeTheme} onChoose={(v) => void chooseAccent(v)} />
         </div>
       </SettingsList>
     </SettingsSection>
@@ -218,11 +244,15 @@ function ConnectedCalendarSection() {
       },
     })
 
-  const toggleSync = async (enabled: boolean) => {
+  const toggleSync = async (enabled: boolean): Promise<boolean> => {
     setProblem("")
     setStatus((prev) => (prev && prev !== "failed" ? { ...prev, taskSyncEnabled: enabled } : prev))
-    const held = await sync.run(() => axiosInstance.post(PeoplePost.UpdateGoogleCalendarSyncTask, { enabled }, OWN_ERRORS))
+    const held = await sync.run(
+      () => axiosInstance.post(PeoplePost.UpdateGoogleCalendarSyncTask, { enabled }, OWN_ERRORS),
+      switchOffer("Put task due dates on my calendar", enabled, toggleSync),
+    )
     if (!held) setStatus((prev) => (prev && prev !== "failed" ? { ...prev, taskSyncEnabled: !enabled } : prev))
+    return held
   }
 
   const loaded = status !== null && status !== "failed" ? status : null
@@ -303,3 +333,26 @@ export function SigningInSection() {
   )
 }
 
+/**
+ * Your profile's parts that save as they change, below its details, each where
+ * a jump lands (lib/adminSections): a chunk of their own (profileSections),
+ * so opening Settings fetches the details alone.
+ */
+export function ProfileSections() {
+  return (
+    <>
+      <div id="profile-appearance" className="scroll-mt-5">
+        <AppearanceSection />
+      </div>
+      <div id="profile-calendar" className="scroll-mt-5">
+        <CalendarSection />
+      </div>
+      <div className="min-h-[7.5rem] scroll-mt-5">
+        <WorkingHours.View render={(m) => <m.WorkingHoursSection />} fallback={null} />
+      </div>
+      <div id="profile-security" className="scroll-mt-5">
+        <SigningInSection />
+      </div>
+    </>
+  )
+}

@@ -37,10 +37,14 @@ const api = {
 
 // Who reads the panel: Sam, its organiser, unless a test reads it as a guest.
 const reader = vi.hoisted(() => ({ uuid: "" }))
+// Guests' working hours (calendar A3): none kept here.
+vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({}) }))
+// Whether the calendar's API hasn't answered yet (an edit begun before it does).
+const late = vi.hoisted(() => ({ api: false }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     if (url === `/event/getEvent/${encodeURIComponent(INSTANCE)}`) return { data: { data: legacy }, isLoading: false, mutate: vi.fn() }
-    if (url === `/calendar/events/${encodeURIComponent(INSTANCE)}`) return { data: { data: api }, isLoading: false, mutate: vi.fn() }
+    if (url === `/calendar/events/${encodeURIComponent(INSTANCE)}`) return late.api ? { data: undefined, isLoading: true, mutate: vi.fn() } : { data: { data: api }, isLoading: false, mutate: vi.fn() }
     return { data: undefined, isLoading: false, mutate: vi.fn() }
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: reader.uuid || SAM.user_uuid } } }),
@@ -103,6 +107,32 @@ describe("a guest let to change the event", () => {
     reader.uuid = MAYA.user_uuid
     panel()
     expect(screen.queryByRole("button", { name: "Edit event" })).toBeNull()
+  })
+})
+
+// An edit begun before the calendar's API answered starts from the event as
+// listed, which has no colour; once the API answers, the untouched form takes
+// its values (batch B's e2e: the event page's form showed the calendar's
+// colour, not the event's own Moss, after a quick Edit).
+describe("an edit begun before the calendar's API answers", () => {
+  afterEach(() => {
+    late.api = false
+    delete (api as { hue?: string }).hue
+  })
+
+  it("takes the API's values once they come, while nothing has been changed", async () => {
+    ;(api as { hue?: string }).hue = "moss"
+    late.api = true
+    const { rerender } = panel()
+    fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    expect(await screen.findByDisplayValue("Stand-up", {}, { timeout: 8000 })).toBeTruthy()
+    late.api = false
+    rerender(
+      <TooltipProvider>
+        <EventInfoPanel eventUUID={INSTANCE} />
+      </TooltipProvider>,
+    )
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Moss" }).getAttribute("aria-checked")).toBe("true"), { timeout: 8000 })
   })
 })
 

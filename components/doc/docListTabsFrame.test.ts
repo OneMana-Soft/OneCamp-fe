@@ -31,8 +31,9 @@ describe("the docs page", () => {
   it("draws rows on a phone (64 px, the doc's icon on a tile), not two cramped cards", () => {
     expect(card).toMatch(/max-sm:h-16/)
     expect(card).toMatch(/data-doc-card/)
-    // A page drawn 40 px wide was a blank white box.
-    expect(card).toMatch(/<DocIcon icon=\{doc\.doc_icon\} id=\{doc\.doc_uuid\} size=\{20\} className="sm:hidden" \/>/)
+    // A page drawn 40 px wide was a blank white box. Its mark (a page's own
+    // icon, a folder's tile, a file's or a link's glyph: docs F1b) stands in.
+    expect(card).toMatch(/<NodeMark node=\{mark\} size=\{20\} className="sm:hidden" \/>/)
     expect(card).not.toMatch(/compact/)
   })
 

@@ -19,7 +19,7 @@ vi.mock("@/hooks/useFetch", () => ({
   }),
 }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: [] }) }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: axiosGet, post: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: axiosGet, post: vi.fn() } }))
 vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useDispatch: () => vi.fn() }))
 
 import GitHubIntegrationCard from "@/components/admin/GitHubIntegrationCard"

@@ -63,6 +63,27 @@
   opacity: 0.6;
 }
 
+/*
+ * A teammate's suggestion (docs C5): what it adds in the success green, what
+ * it removes struck through in the danger red, as suggesting works anywhere;
+ * the AI's and an agent's keep the agent tint, so who proposed it is seen.
+ */
+.oc-proposal-ins[data-by="person"] {
+  color: var(--success-ink);
+  background: color-mix(in oklab, var(--success-ink) 10%, transparent);
+  text-decoration-color: color-mix(in oklab, var(--success-ink) 45%, transparent);
+}
+
+.oc-proposal-ins-block[data-by="person"] {
+  border-left-color: var(--success);
+}
+
+.oc-proposal-del.is-focused[data-by="person"],
+.oc-proposal-del-block.is-focused[data-by="person"],
+.oc-proposal-ins.is-focused[data-by="person"] {
+  outline-color: var(--success);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .oc-proposal-ins {
     transition: background-color 120ms ease-out;

@@ -49,6 +49,15 @@ async function expectBeside(card: Locator, by: Locator, within = 16) {
   expect(c!.x > 24 || c!.y > 24, "not in the top-left corner").toBe(true)
 }
 
+/** The whole card is in the window, 16 px or more from each of its edges (V-60). Call it after expectBeside, once the card rests. */
+async function expectInWindow(card: Locator, edge = 16) {
+  await expect(card).toBeInViewport({ ratio: 1 })
+  const c = (await card.boundingBox())!
+  const { width, height } = card.page().viewportSize()!
+  const room = { left: c.x, top: c.y, right: width - (c.x + c.width), bottom: height - (c.y + c.height) }
+  for (const [side, px] of Object.entries(room)) expect(Math.round(px), `${side} of ${JSON.stringify(c)}`).toBeGreaterThanOrEqual(edge)
+}
+
 async function openCalendar(page: Page, testInfo: TestInfo, path: string) {
   await page.clock.setFixedTime(NOW)
   await page.addInitScript(() => {
@@ -149,6 +158,8 @@ for (const theme of ["light", "dark"] as const) {
       await openCalendar(page, testInfo, "/app/calendar?date=2026-10-21&view=day")
       await dragHours(page, 9, 60)
       await expectBeside(card(page), ghost(page))
+      // The ghost is as wide as the day, so neither of its sides has the card's room.
+      await expectInWindow(card(page))
       await shot(page, "day-drag", theme)
     })
 
@@ -175,6 +186,8 @@ for (const theme of ["light", "dark"] as const) {
       await block.click()
       const popover = page.locator("[data-event-popover]")
       await expectBeside(popover, block)
+      // A week's block leaves the card its room on the right, where it opens as before.
+      await expect(popover).toHaveAttribute("data-side", "right")
       await page.keyboard.press("Escape")
       await expect(popover).toHaveCount(0)
       // Escape gives the focus back to the block it opened from (once the card's focus scope has let go).
@@ -182,6 +195,18 @@ for (const theme of ["light", "dark"] as const) {
       await page.keyboard.press("Enter")
       await expectBeside(popover, block)
       await shot(page, "event-card", theme)
+    })
+
+    test("in Day view, a full-width event's card opens inside the window, under or over its block", async ({ page }, testInfo) => {
+      await openCalendar(page, testInfo, "/app/calendar?date=2026-10-21&view=day")
+      const block = page.locator(BLOCK).first()
+      await block.click()
+      const popover = page.locator("[data-event-popover]")
+      await expectBeside(popover, block)
+      await expectInWindow(popover)
+      // Neither side of a block as wide as the day has the card's 360 px (V-60).
+      await expect(popover).toHaveAttribute("data-side", /^(bottom|top)$/)
+      await shot(page, "day-event-card", theme)
     })
 
     test("the menu key opens an event's menu by its block, not at (0, 0)", async ({ page }, testInfo) => {
@@ -311,6 +336,17 @@ for (const theme of ["light", "dark"] as const) {
         })
         await expect.poll(edge).toBe("none")
         await shot(page, `phone-sheet-${phone.name.replace(/ /g, "-")}-end`, theme)
+      })
+
+      test("a tap on an event opens its card as a sheet, not a card by its block", async ({ page }, testInfo) => {
+        await openCalendar(page, testInfo, phone.path)
+        await page.locator(BLOCK).first().tap()
+        const sheet = page.locator("[data-event-sheet]")
+        await expect(sheet).toBeVisible()
+        await expect(sheet.getByText("Launch review")).toBeVisible()
+        await expect(page.locator("[data-event-popover]")).toHaveCount(0)
+        await expect(sheet).toBeInViewport()
+        await shot(page, `phone-event-sheet-${phone.name.replace(/ /g, "-")}`, theme)
       })
     })
   }

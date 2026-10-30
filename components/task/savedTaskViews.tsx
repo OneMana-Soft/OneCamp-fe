@@ -93,7 +93,7 @@ export function SavedTaskViewsPanel({ scope, current, apply, withColumns = true,
           aria-label="View name"
           className="h-8 min-w-0 flex-1"
         />
-        <Button type="submit" size="sm" className="h-8" disabled={!name.trim() || busy}>
+        <Button type="submit" size="sm" className="h-8" disabled={!name.trim()} busy={busy}>
           Save
         </Button>
       </form>

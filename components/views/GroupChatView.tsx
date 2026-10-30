@@ -30,16 +30,19 @@ import {
 import {UpdateMessageInChatList, UpdateUnreadCountToZero} from "@/store/slice/chatSlice";
 import {resetUserChatUnread} from "@/store/slice/userSlice";
 import { clearChatUnread } from "@/services/unreadCache";
-import {useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo} from "react";
 import { useStableCallback } from "@/hooks/useStableCallback";
+import { useListPreviewFill } from "@/components/conversation/useListPreviewFill";
 import { newLocalId } from "@/lib/chat/pendingSend";
 import { appMutate } from "@/lib/swrMutate";
 import { PendingSendContext } from "@/components/message/sendStatus";
-import { usePendingSend } from "@/components/views/usePendingSend";
+import { usePendingSend, viewingLinkedMessage } from "@/components/views/usePendingSend";
 import { useConversationMissing } from "@/hooks/useConversationMissing";
 import { useInSplitPane } from "@/hooks/useLinkTarget";
 import { LoadFailureState } from "@/components/ui/load-failure-state";
 import { app_chat_path } from "@/types/paths";
+import { useUnreadOnOpen } from "@/hooks/useUnreadOnOpen";
+import { OpenCount } from "@/components/conversation/openCount";
 
 
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
@@ -180,15 +183,19 @@ export function GroupChatView({ grpId }: { grpId: string }) {
         return first
     })
 
+    useListPreviewFill({ kind: "group", id: grpId })
+
     // How many were unread on opening, read once (see ChannelView).
-    const [unreadOnOpen] = useState(() => store.getState().users.userSidebar.userChats.find(chat => chat.dm_grouping_id === grpId)?.dm_unread || 0);
+    const unreadOnOpen = useUnreadOnOpen(grpId, (s) => s.users.userSidebar.userChats.find(chat => chat.dm_grouping_id === grpId)?.dm_unread,
+        (a) => a.data?.user_dms?.find((d) => d.dm_grouping_id === grpId)?.dm_unread, inPane || !viewingLinkedMessage("messageId") ? latestKey : "");
+    const unreadKnown = unreadOnOpen !== undefined
 
     useEffect(()=>{
-        if(!grpId) return
+        if(!grpId || !unreadKnown) return
         dispatch(UpdateUnreadCountToZero({grpId}))
         dispatch(resetUserChatUnread({dm_grouping_id: grpId}))
         clearChatUnread(grpId)
-    },[grpId, dispatch])
+    },[grpId, unreadKnown, dispatch])
 
 
     const { isMobile, isDesktop } = useMedia();
@@ -215,9 +222,12 @@ export function GroupChatView({ grpId }: { grpId: string }) {
     return (
         <PendingSendContext.Provider value={actions}>
             <ScheduleSendContext.Provider value={schedule}>
-            {isMobile && <GrpChatIdMobile grpId={grpId} handleSend={handleSend} unreadCount={unreadOnOpen} />}
+            {/* The count reaches only the list and the catch-up banner (components/conversation/openCount). */}
+            <OpenCount.Provider value={unreadOnOpen}>
+            {isMobile && <GrpChatIdMobile grpId={grpId} handleSend={handleSend} />}
 
-            {isDesktop && <ChatGrpIdDesktop grpId={grpId} handleSend={handleSend} unreadCount={unreadOnOpen} />}
+            {isDesktop && <ChatGrpIdDesktop grpId={grpId} handleSend={handleSend} />}
+            </OpenCount.Provider>
             </ScheduleSendContext.Provider>
         </PendingSendContext.Provider>
     );

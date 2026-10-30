@@ -18,6 +18,7 @@
  * its mark is neutral ink on sunken: it was a camp-hued square per tool.
  */
 
+import { count } from "@/lib/utils/count"
 import React, { useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -82,10 +83,6 @@ export function ImportStatusChip({ status, jobId }: { status: string; jobId?: st
   )
 }
 
-/** "1 error", "3 errors". */
-export function count(n: number, one: string, many: string): string {
-  return `${n.toLocaleString("en")} ${n === 1 ? one : many}`
-}
 
 /** How far a run has got, in the parts it is split into: "4 of 10 parts". */
 export function partsLine(done: number, total: number): string {

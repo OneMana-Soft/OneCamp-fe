@@ -115,6 +115,29 @@ function AttentionCard({ base = [], baseLoading = false, footer, noChannels, cla
     }
   }, [])
 
+  // A request that arrives live (the store) and isn't listed reads the list again.
+  const pendingIds = useSelector((s: RootState) => s.pendingAction.actions.map((a) => a.id).join(" "))
+  const listed = React.useRef<string[]>([])
+  listed.current = (data?.items ?? []).flatMap((it) => (it.source === "approval" && it.ref_id ? [it.ref_id] : []))
+  useEffect(() => {
+    if (loading || !pendingIds) return
+    const have = new Set(listed.current)
+    if (pendingIds.split(" ").every((id) => have.has(id))) return
+    let alive = true
+    forgetShared(attentionKey())
+    getAttention()
+      .then((res) => {
+        if (alive) setData(res)
+      })
+      // A failed re-read keeps the rows on screen. The request still waits in
+      // its conversation's tray (PendingActionsTray), and the kept copy is
+      // already forgotten, so the next visit to Home reads the list afresh.
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [pendingIds, loading])
+
   const forget = () => forgetShared(attentionKey())
 
   const onApprove = async (item: NeedsItem) => {

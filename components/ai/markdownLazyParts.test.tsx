@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
 
 // An answer's chart is a chunk of its own (MarkdownMessage's lazy parts, 17 Oct
@@ -13,6 +13,12 @@ const OPENING = 'Open tickets by day.\n```chart\n{"type": "bar", "title": "Open'
 const WHOLE = `Open tickets by day.\n\`\`\`chart\n${SPEC}\n\`\`\`\nThey rose.`
 
 const FakeChart = ({ chart }: { chart: { title?: string } }) => <svg role="img" aria-label={chart.title} />
+
+// Loaded once before any test's clock runs (lib/testing/inTestImportsGuard):
+// each test then runs a fresh copy of it, under its own mock of the chart.
+beforeAll(async () => {
+  await import("@/components/ai/MarkdownMessage")
+}, 30_000)
 
 /** MarkdownMessage with its lazy parts as new, under this test's mock of the chart. */
 async function freshMarkdown() {
@@ -53,7 +59,7 @@ describe("an answer's chart", () => {
     const MarkdownMessage = await freshMarkdown()
     const view = render(<MarkdownMessage content={WHOLE} />)
     await act(async () => {})
-    expect(view.container.querySelector("[data-block-failed]")?.textContent).toMatch(/Couldn't show this chart\. Check your connection, then try again\./)
+    expect(view.container.querySelector("[data-block-failed]")?.textContent).toMatch(/Couldn't load this chart\. Check your connection, then try again\./)
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy()
     expect(view.container.textContent).toContain("Open tickets by day.")
     expect(view.container.textContent).toContain("They rose.")

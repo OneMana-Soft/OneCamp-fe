@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { SWRConfig } from "swr"
 import type { ReactNode } from "react"
@@ -34,12 +34,11 @@ vi.mock("@/hooks/usePost", () => ({
     isSubmitting: false,
   }),
 }))
-vi.mock("@/lib/axiosInstance", () => ({
-  OWN_ERRORS: { suppressErrorToast: true },
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: (url: string) => (h.readError && url.includes("/task/info/") ? Promise.reject(h.readError) : new Promise(() => {})),
-    post: (url: string) => {
-      h.axiosPosts.push(url)
+    post: (url: string, body?: { op?: string }) => {
+      h.axiosPosts.push(url === "/task/bulk" ? `bulk:${body?.op}` : url)
       return h.refuse.has(url) ? Promise.reject(new Error("500")) : Promise.resolve({ data: {} })
     },
     interceptors: { request: { use: () => 0 }, response: { use: () => 0 } },
@@ -110,7 +109,6 @@ function wrap(cache: Map<string, unknown>) {
 }
 
 const SLOW = 30_000
-const settle = () => act(() => new Promise((r) => setTimeout(r, 300)))
 
 afterEach(() => {
   cleanup()
@@ -127,21 +125,19 @@ describe("a change the server refuses is taken back (PTC-2)", () => {
   it("Mark complete goes back to In progress when the server refuses it, with no uncaught error", async () => {
     h.refuse.add(PostEndpointUrl.UpdateTaskStatus)
     render(<TaskInfoPanel taskUUID={TASK.task_uuid} />, { wrapper: wrap(cached(TASK)) })
-    await settle()
-    fireEvent.click(screen.getByRole("button", { name: "Mark task as complete" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Mark task as complete" }, { timeout: 10_000 }))
     expect(screen.getByRole("button", { name: "Task completed" })).toBeTruthy()
-    await settle()
-    expect(h.posts.some((p) => p.apiEndpoint === PostEndpointUrl.UpdateTaskStatus)).toBe(true)
-    expect(screen.getByRole("button", { name: "Mark task as complete" })).toBeTruthy()
+    await waitFor(() => expect(h.posts.some((p) => p.apiEndpoint === PostEndpointUrl.UpdateTaskStatus)).toBe(true), { timeout: 10_000 })
+    expect(await screen.findByRole("button", { name: "Mark task as complete" }, { timeout: 10_000 })).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Task completed" })).toBeNull()
   }, SLOW)
 
   it("Mark complete stays done when the server takes it", async () => {
     render(<TaskInfoPanel taskUUID={TASK.task_uuid} />, { wrapper: wrap(cached(TASK)) })
-    await settle()
-    fireEvent.click(screen.getByRole("button", { name: "Mark task as complete" }))
-    await settle()
-    expect(screen.getByRole("button", { name: "Task completed" })).toBeTruthy()
+    fireEvent.click(await screen.findByRole("button", { name: "Mark task as complete" }, { timeout: 10_000 }))
+    // Done once the server has it, and still done after.
+    await waitFor(() => expect(h.posts.some((p) => p.apiEndpoint === PostEndpointUrl.UpdateTaskStatus)).toBe(true), { timeout: 10_000 })
+    expect(await screen.findByRole("button", { name: "Task completed" })).toBeTruthy()
   }, SLOW)
 })
 
@@ -172,15 +168,14 @@ describe("a task that can't be read says why (PTC-4)", () => {
 describe("deleting a task offers Undo (PTC-24)", () => {
   it("deletes from the header's menu, says so with Undo, and stops offering to complete it", async () => {
     render(<TaskInfoPanel taskUUID={TASK.task_uuid} />, { wrapper: wrap(cached(TASK)) })
-    await settle()
-    const more = screen.getByRole("button", { name: "More task actions" })
+    // Each step waits on what it needs, never on the clock: the delete's code
+    // loads on first use, which under a loaded machine took past a fixed 300 ms.
+    const more = await screen.findByRole("button", { name: "More task actions" }, { timeout: 10_000 })
     fireEvent.pointerDown(more, { button: 0, ctrlKey: false, pointerType: "mouse" })
     fireEvent.keyDown(more, { key: "Enter" })
     fireEvent.click(await screen.findByRole("menuitem", { name: /Delete task/ }))
-    await settle()
-    expect(h.axiosPosts).toContain(PostEndpointUrl.ArchiveTask)
-    const said = h.toasts.find((t) => t.title === "Deleted “Book the launch retro”")
-    expect(said?.action).toBeTruthy()
+    await waitFor(() => expect(h.axiosPosts).toContain("bulk:delete"), { timeout: 10_000 })
+    await waitFor(() => expect(h.toasts.find((t) => t.title === "Deleted “Book the launch retro”")?.action).toBeTruthy(), { timeout: 10_000 })
     expect(screen.queryByRole("button", { name: "Mark task as complete" })).toBeNull()
   }, SLOW)
 })
@@ -196,10 +191,9 @@ describe("the browser tab says which task (PTC-38)", () => {
       </>,
       { wrapper: wrap(cached(TASK)) },
     )
-    await settle()
-    expect(document.title).toBe("Book the launch retro · OneCamp")
+    await waitFor(() => expect(document.title).toBe("Book the launch retro · OneCamp"), { timeout: 10_000 })
     // The composer sits under the work column, not across the sheet (PTC-45).
-    expect(document.querySelector('[data-composer-frame="page"]')).not.toBeNull()
+    await waitFor(() => expect(document.querySelector('[data-composer-frame="page"]')).not.toBeNull(), { timeout: 10_000 })
   }, SLOW)
 
   it("leaves the page beside a task's panel its own name", async () => {
@@ -210,8 +204,9 @@ describe("the browser tab says which task (PTC-38)", () => {
       </>,
       { wrapper: wrap(cached(TASK)) },
     )
-    await settle()
-    expect(document.title).toBe("Project · OneCamp")
+    // The panel is up (its status button shows) before the title is read.
+    await screen.findByRole("button", { name: "Mark task as complete" }, { timeout: 10_000 })
+    await waitFor(() => expect(document.title).toBe("Project · OneCamp"), { timeout: 10_000 })
     // In the side panel the composer is the panel's width.
     expect(document.querySelector("[data-composer-frame]")).toBeNull()
   }, SLOW)

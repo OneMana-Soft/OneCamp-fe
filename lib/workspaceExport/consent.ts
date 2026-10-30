@@ -8,7 +8,7 @@
 import axiosInstance, { OWN_ERRORS } from '@/lib/axiosInstance'
 import { toast } from '@/hooks/use-toast'
 import { apiErrorMessage } from '@/lib/utils/apiError'
-import { RecentCache } from '@/lib/swrCache'
+import { RecentCache } from '@/lib/recentCache'
 
 export const EXPORT_CONSENT_ROUTE = '/doc/exportConsent'
 

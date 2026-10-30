@@ -47,7 +47,7 @@ function start(options: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_COLLABORATION_URL", "wss://collab.example.test")
-  Object.assign(SESSION_TIMING, { lingerMs: 400, prefetchLingerMs: 300, legacyWaitMs: 150, sessionWaitMs: 2_000, legacyDetectMs: 150, retryDelaysMs: [30, 30, 30] })
+  Object.assign(SESSION_TIMING, { lingerMs: 400, prefetchLingerMs: 300, legacyWaitMs: 150, sessionWaitMs: 2_000, legacyDetectMs: 150, joinWaitMs: 300, retryDelaysMs: [30, 30, 30] })
   Object.assign(SOCKET_TIMING, { idleMs: 300, closeWaitMs: 500 })
   tokenNow.value = "editor"
   levels.clear()
@@ -380,5 +380,182 @@ describe("access that changes while the doc is open (A5, I10)", () => {
     server.kick("doc-1")
     await until(() => expect(s.getSnapshot().refused).toBe("forbidden"))
     expect(s.getSnapshot().access).toEqual({ level: "none", canEdit: false, locked: false })
+  })
+})
+
+describe("a sign-in nobody answers (22 Oct, 20:05)", () => {
+  it("opens a new connection when the first answers nothing, and the doc syncs on it", async () => {
+    start({ mute: (socket: number) => socket === 1 })
+    const s = collabSession("doc-1")
+    s.acquire()
+    await until(() => expect(s.getSnapshot().synced).toBe(true))
+    expect(sockets.length).toBe(2)
+    expect(s.getSnapshot().stalled).toBe(false)
+  })
+
+  it("opens one new connection for every doc waiting on a silent one", async () => {
+    start({ mute: (socket: number) => socket === 1 })
+    const one = collabSession("doc-1")
+    const two = collabSession("doc-2")
+    one.acquire()
+    two.acquire()
+    await until(() => expect(one.getSnapshot().synced && two.getSnapshot().synced).toBe(true))
+    expect(sockets.length).toBe(2)
+  })
+
+  it("says it is still connecting when the new connection answers nothing either, and Try again opens another", async () => {
+    let answering = false
+    start({ mute: () => !answering })
+    const s = collabSession("doc-1")
+    s.acquire()
+    await until(() => expect(s.getSnapshot().stalled).toBe(true))
+    // Nothing is shown as the doc before the server's copy arrives.
+    expect(s.getSnapshot().synced).toBe(false)
+    // One new connection on its own, then it waits for the person.
+    expect(sockets.length).toBe(2)
+    answering = true
+    s.retry()
+    expect(s.getSnapshot().stalled).toBe(false)
+    await until(() => expect(s.getSnapshot().synced).toBe(true))
+    expect(sockets.length).toBe(3)
+  })
+
+  it("waits on the same connection for a doc the server is still loading, and says it is slow", async () => {
+    start({ loadDelayMs: 600 })
+    const s = collabSession("doc-new")
+    s.acquire()
+    await until(() => expect(s.getSnapshot().stalled).toBe(true))
+    await until(() => expect(s.getSnapshot().synced).toBe(true))
+    expect(s.getSnapshot().stalled).toBe(false)
+    expect(sockets.length).toBe(1)
+  })
+})
+
+describe("a guest's session", () => {
+  // A call's guest opens the board on the stage with the call's own token
+  // (CallGuestBoardStage). Once the board left the stage the session lingered
+  // for its next view, and kept asking for a token the call no longer gives
+  // (409 no_board, then a refusal, retried): DESIGN-BUILD-23, 27 Oct.
+  it("ends with its last view, and asks for no token after it", async () => {
+    let asked = 0
+    const tokenFetcher = async () => {
+      asked++
+      return "editor"
+    }
+    const s = collabSession("doc-2", { tokenFetcher })
+    const release = s.acquire({ tokenFetcher })
+    await until(() => expect(s.getSnapshot().synced).toBe(true))
+    release()
+    expect(liveSessionNames()).not.toContain("doc-2")
+    const before = asked
+    await sleep(SESSION_TIMING.lingerMs + 200)
+    expect(asked).toBe(before)
+  })
+})
+
+describe("a server's changes (W-4)", () => {
+  it("apply without the doc encoding them again: the provider sends none of them back, so none is encoded", async () => {
+    const { doc } = await open("doc-1")
+    const emit = vi.spyOn(doc, "emit")
+    server.edit("doc-1", (d: Y.Doc) => paragraph(d, "from the server"))
+    await until(() => expect(text(doc)).toContain("from the server"))
+    // Yjs encodes each applied change whole for its update event, when anyone listens.
+    expect(emit.mock.calls.filter(([name]) => name === "update" || name === "updateV2")).toEqual([])
+  })
+
+  it("still sends an edit made while a server's change applies, as an observer may", async () => {
+    const { doc } = await open("doc-1")
+    let once = true
+    doc.getXmlFragment("default").observeDeep(() => {
+      if (!once) return
+      once = false
+      doc.transact(() => doc.getMap("meta").set("seen", "yes"))
+    })
+    server.edit("doc-1", (d: Y.Doc) => paragraph(d, "from the server"))
+    await until(() => expect(server.doc("doc-1").getMap("meta").get("seen")).toBe("yes"))
+  })
+
+  it("sends this screen's own edits as before", async () => {
+    const { doc } = await open("doc-1")
+    paragraph(doc, "typed here")
+    await until(() => expect(text(server.doc("doc-1"))).toContain("typed here"))
+  })
+
+  it("lets go of its doc when the server's message ends the copy as it applies (epoch-changed)", async () => {
+    const { s, doc } = await open("doc-1")
+    const old = s.getSnapshot().provider!
+    server.tell("doc-1", { type: "epoch-changed" })
+    await until(() => expect(s.getSnapshot().provider).not.toBe(old))
+    // The dropped copy no longer listens: an edit to its doc is nothing it holds or sends.
+    paragraph(doc, "typed into the dropped copy")
+    expect(old.hasUnsyncedChanges).toBe(false)
+  })
+})
+
+// The window's offline wins over the socket's own state (V-21's regression,
+// 28 Oct): with the network down, a socket that closes says offline, never
+// reconnecting, as the journey's drops and a real outage close it after the
+// network went. Reconnecting is said only while the network is up.
+describe("offline, as the window says it", () => {
+  let online = true
+  beforeEach(() => {
+    online = true
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, get: () => online })
+  })
+  afterEach(() => {
+    delete (window.navigator as { onLine?: boolean }).onLine
+  })
+
+  it("stays offline when its socket closes after the network went, and syncs once the network is back", async () => {
+    const { s } = await open("doc-1")
+    online = false
+    window.dispatchEvent(new Event("offline"))
+    expect(s.getSnapshot().status).toBe("offline")
+    // The provider tells its listeners the socket went, the session first (it listened first): then the
+    // session has heard it, with no wait to guess (V-41's overwrite came through this event).
+    const told = new Promise<void>((resolve) =>
+      s.getSnapshot().provider!.on("status", ({ status }: { status: string }) => status === "disconnected" && resolve()),
+    )
+    sockets.at(-1)!.close()
+    await told
+    expect(s.getSnapshot().status).toBe("offline")
+    online = true
+    window.dispatchEvent(new Event("online"))
+    await until(() => expect(s.getSnapshot().status).toBe("synced"))
+  })
+
+  it("says the socket is down, not offline, when it closes while the network is up", async () => {
+    const { s } = await open("doc-1")
+    sockets.at(-1)!.close()
+    await until(() => expect(s.getSnapshot().status).not.toBe("synced"))
+    expect(s.getSnapshot().status).not.toBe("offline")
+    reviveCollabSocket()
+    await until(() => expect(s.getSnapshot().status).toBe("synced"))
+  })
+})
+
+// V-64: a reload the page makes by itself for a new build (lib/chunkRecovery)
+// would throw away edits only this tab holds. Every session holds it off
+// while edits typed here wait for the server, and lets go once they're there.
+describe("a reload a new build asks for", () => {
+  it("waits while edits typed here wait for the server, and not for the server's own", async () => {
+    const held: Array<() => boolean> = []
+    window.__ocChunk = { reloadIfGone: async () => false, urlOf: () => null, held }
+    const holding = () => held.some((h) => h())
+    try {
+      const { s, doc } = await open("doc-1")
+      expect(held).toHaveLength(1)
+      expect(holding(), "synced, nothing typed").toBe(false)
+      await blip(() => {
+        paragraph(doc, "typed offline")
+        expect(holding(), "typed while away").toBe(true)
+      })
+      await until(() => expect(text(server.doc("doc-1"))).toContain("typed offline"))
+      await until(() => expect(holding(), "the server has it").toBe(false))
+      s.destroy()
+      expect(held, "a session gone lets go of its hold").toHaveLength(0)
+    } finally {
+      delete window.__ocChunk
+    }
   })
 })

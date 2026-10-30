@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 import { ConnectAuthorize } from "@/components/connect/ConnectAuthorize"
 import { approveConsent, denyConsent, getConsent, type ConsentView } from "@/services/connectService"
-import { takePendingConnect } from "@/lib/pendingConnect"
+import { takeAfterSignIn } from "@/lib/afterSignIn"
 
 const REQ = "3f2a4c1e-9b7d-4e2a-8c1f-0a1b2c3d4e5f"
 let search = `request=${REQ}`
@@ -105,9 +105,9 @@ describe("approving an outside agent", () => {
     vi.mocked(getConsent).mockRejectedValue({ response: { status: 401 } })
     render(<ConnectAuthorize />)
     fireEvent.click(await screen.findByRole("button", { name: "Sign in" }))
-    expect(assign).toHaveBeenCalledWith("/")
-    expect(takePendingConnect()).toBe(`/connect/authorize?request=${REQ}`)
-    expect(takePendingConnect()).toBeNull()
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"))
+    expect(takeAfterSignIn()).toBe(`/connect/authorize?request=${REQ}`)
+    expect(takeAfterSignIn()).toBeNull()
   })
 
   it("tells the client no when the person declines", async () => {

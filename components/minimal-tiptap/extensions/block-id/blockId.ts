@@ -9,6 +9,7 @@ import {
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model"
 import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state"
 import { ReplaceAroundStep, type Step } from "@tiptap/pm/transform"
+import { randomUUID } from "@/lib/utils/randomUUID"
 
 /**
  * Block identity (docs programme §4 #4, A1): every block carries a stable id,
@@ -50,15 +51,7 @@ const NOT_BLOCKS = new Set(["doc", "text"])
 
 const blockIdKey = new PluginKey("blockId")
 
-/** A new id: a random UUID, from getRandomValues (randomUUID needs a secure context). */
-export function newBlockId(): string {
-  const b = new Uint8Array(16)
-  crypto.getRandomValues(b)
-  b[6] = (b[6] & 0x0f) | 0x40
-  b[8] = (b[8] & 0x3f) | 0x80
-  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("")
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
-}
+export const newBlockId = randomUUID
 
 /** The node extensions that are blocks: not inline, not the doc. */
 function blockTypesOf(extensions: AnyExtension[]): string[] {

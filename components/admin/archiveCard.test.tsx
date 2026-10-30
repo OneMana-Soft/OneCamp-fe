@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { pinTestClock } from "@/lib/testing/testClock"
 
 type Answer = { data?: unknown; isLoading?: boolean; isError?: unknown }
 let answers: Record<string, Answer> = {}
@@ -12,12 +13,15 @@ vi.mock("@/components/mqtt/mqttContext", async (orig) => ({ ...(await orig<objec
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 const post = vi.fn()
 const put = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a), put: (...a: unknown[]) => put(...a) }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a), put: (...a: unknown[]) => put(...a) } }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast: (...a: unknown[]) => toast(...a) }))
 
 const { default: ArchiveCard, duration } = await import("./ArchiveCard")
+
+// The runs' dates are read against one today on any day the suite runs.
+pinTestClock()
 
 const POLICIES = "/admin/archive/policies"
 const JOBS = "/admin/archive/jobs"
@@ -109,6 +113,75 @@ describe("the archive card", () => {
         expect.objectContaining({ title: "Couldn't restore what this run archived", description: "Archiving is running right now. Try again when it finishes." }),
       ),
     )
+  })
+
+  // The server has undone a documents run since 11 Oct (backend 30023f1f2:
+  // only the docs it archived that are archived still), and the card never
+  // offered it: documents were left off the runs it can undo since May.
+  it("offers to undo a documents run, and never a recordings run", async () => {
+    answers = {
+      [POLICIES]: { data: { policies: [policy] } },
+      [JOBS]: { data: { jobs: [job("d1", "completed", { entity_type: "docs" }), job("r1", "completed", { entity_type: "recordings" })] } },
+      [STATS]: { data: { stats } },
+    }
+    post.mockResolvedValue({ data: { count: 3 } })
+    render(<ArchiveCard />)
+    expect(screen.queryByRole("button", { name: "Actions for the recordings run" })).toBeNull()
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for the documents run" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Restore what this run archived" }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/admin/archive/undo/d1", undefined, expect.anything()))
+  })
+
+  // R3 (23 Oct 2026): an undo cut part way left the run "completed" with part
+  // of it deleted, and nothing said so. A run whose undo began and hasn't
+  // finished says it's partly restored, and Restore finishes it.
+  it("says a run is partly restored, offers to finish it, and reads the runs again when an undo fails", async () => {
+    answers = {
+      [POLICIES]: { data: { policies: [policy] } },
+      [JOBS]: { data: { jobs: [job("j1", "partial", { completed_at: "2026-10-05T02:01:48Z", error_message: "the graph stopped answering" })] } },
+      [STATS]: { data: { stats } },
+    }
+    post.mockRejectedValue({ response: { status: 500, data: { error: "the graph stopped answering" } } })
+    render(<ArchiveCard />)
+    expect(screen.getByText("Partly restored")).toBeTruthy()
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for the channel posts run" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Restore what this run archived" }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/admin/archive/undo/j1", undefined, expect.anything()))
+    await waitFor(() => expect(refetch).toHaveBeenCalled())
+  })
+
+  // A partial run whose undo is at work (begun in another tab, or by another
+  // admin) offered Undo too, and a second whole undo began while the first
+  // still ran (CODE-REVIEWER-23, SF1 on R3, 24 Oct 2026).
+  it("says a run being undone is restoring, and offers no second undo", () => {
+    answers = {
+      [POLICIES]: { data: { policies: [policy] } },
+      [JOBS]: { data: { jobs: [job("j1", "partial", { undoing: true })] } },
+      [STATS]: { data: { stats } },
+    }
+    render(<ArchiveCard />)
+    const run = screen.getByRole("list", { name: "Archive history" }).querySelector("[data-archive-run]") as HTMLElement
+    expect(within(run).getByText("Restoring…")).toBeTruthy()
+    expect(within(run).queryByText("Partly restored")).toBeNull()
+    expect(within(run).queryByRole("button", { name: "Actions for the channel posts run" })).toBeNull()
+  })
+
+  it("says an undo was refused because one is at work already", async () => {
+    answers = {
+      [POLICIES]: { data: { policies: [policy] } },
+      [JOBS]: { data: { jobs: [job("j1", "partial")] } },
+      [STATS]: { data: { stats } },
+    }
+    post.mockRejectedValue({ response: { status: 409, data: { code: "undo_running", msg: "this run is being restored already" } } })
+    render(<ArchiveCard />)
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for the channel posts run" }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Restore what this run archived" }))
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Couldn't restore what this run archived", description: "This run is being restored already. It finishes on its own." }),
+      ),
+    )
+    await waitFor(() => expect(refetch).toHaveBeenCalled())
   })
 })
 

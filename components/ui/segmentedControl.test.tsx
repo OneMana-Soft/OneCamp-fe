@@ -30,6 +30,15 @@ describe("the segmented control", () => {
     expect(change).toHaveBeenCalledWith("weekly")
   })
 
+  // Design review (DESIGN-BUILD-4, 22 Oct): a choice isn't an action, so the
+  // chosen option's icon and halo take the ink (app/interaction.css's neutral
+  // tone), never the accent, which marks actions only.
+  it("marks the choice in ink, never the accent: every option is a neutral pick", () => {
+    render(<SegmentedControl aria-label="Each answer becomes" value="task" onValueChange={() => {}}
+      options={[{ value: "task", label: "A task" }, { value: "table", label: "A table row" }]} />)
+    for (const radio of screen.getAllByRole("radio")) expect(radio.getAttribute("data-tone")).toBe("neutral")
+  })
+
   // Design v3 (admin §1.4): the choice is the raised surface at e-sel, one
   // thumb that slides between options on transform, never a layout property.
   it("marks the choice with one sliding thumb, raised at e-sel, moved by transform", () => {

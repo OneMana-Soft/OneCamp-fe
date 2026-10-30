@@ -10,6 +10,42 @@ const CARD = "[data-board] [data-column] [data-task-id]"
 const BAR = "[data-timeline] [data-bar]"
 const MAIN = "[data-split-view='-1'], [data-app-scroller]"
 
+// The rows a list shows, and those it knows of (shown, plus what each "Show
+// N more" holds back), in the page. A windowed list draws only the rows near
+// the screen, so a group whose rows carry aria-setsize (the rows it shows,
+// drawn or not) counts that, and otherwise its drawn rows: the same numbers
+// on a list that draws every row (FLUIDITY-LEAD-4, 21 Oct 2026, ahead of the
+// windowing package; release-1010/design/fluidity/WINDOWING-SCOPE-2026-10-21.md).
+function listCounts() {
+  window.__fluShownRows = () => {
+    // A windowed list may say how many rows it shows, drawn or not
+    // (data-rows on its role=list): a group scrolled wholly out of view draws
+    // none, and is counted by what it says (W2-WINDOW, 22 Oct 2026). A build
+    // without it keeps its numbers.
+    let n = 0
+    for (const l of document.querySelectorAll("[data-grouped-list] [role='list'][data-rows]")) n += Number(l.getAttribute("data-rows")) || 0
+    const sets = new Map()
+    for (const r of document.querySelectorAll("[data-grouped-list] [data-task-id], [data-phone-task-row]")) {
+      if (r.closest("[role='list'][data-rows]")) continue
+      const set = r.closest("[data-group]") || document
+      const s = sets.get(set) || { drawn: 0, size: 0 }
+      s.drawn++
+      s.size = Math.max(s.size, Number(r.getAttribute("aria-setsize")) || 0)
+      sets.set(set, s)
+    }
+    for (const s of sets.values()) n += s.size || s.drawn
+    return n
+  }
+  window.__fluKnownRows = () => {
+    let n = window.__fluShownRows()
+    for (const b of document.querySelectorAll("button")) {
+      const m = /^Show (\d+) more$/.exec((b.textContent || "").trim())
+      if (m) n += Number(m[1])
+    }
+    return n
+  }
+}
+
 const group = {
   name: "work",
   fixtures: () => [...workFixtures(), ...chatFixtures({ sidebar: workSidebar() })],
@@ -17,6 +53,7 @@ const group = {
   // and sat over the board's last column through the column drag: seeded as
   // already turned down (components/banner/DemoLeadPrompt).
   storage: { "onecamp:demo-lead-dismissed": "1" },
+  initScripts: [{ fn: listCounts }],
   async run(h) {
     const { page } = h
     const M = {}
@@ -55,16 +92,8 @@ const group = {
 
     // ---- the list read to its end: every page ("Show more tasks"), then
     // every group opened ("Show N more"), until all 2,000 rows are drawn ----
-    // What the list knows of: the rows drawn and the rows its groups hold back.
-    const known = () =>
-      page.evaluate(() => {
-        let n = document.querySelectorAll("[data-grouped-list] [data-task-id], [data-phone-task-row]").length
-        for (const b of document.querySelectorAll("button")) {
-          const m = /^Show (\d+) more$/.exec((b.textContent || "").trim())
-          if (m) n += Number(m[1])
-        }
-        return n
-      })
+    // What the list knows of: the rows it shows and the rows its groups hold back (listCounts).
+    const known = () => page.evaluate(() => window.__fluKnownRows())
     const pageMore = []
     for (let i = 0; i < 6; i++) {
       const button = page.getByRole("button", { name: /^Show more tasks$/ }).first()
@@ -73,15 +102,7 @@ const group = {
       const before = await known()
       const r = await h.step(`listPage${i + 1}`, {
         act: () => h.press(button),
-        ready: () =>
-          h.until((was) => {
-            let n = document.querySelectorAll("[data-grouped-list] [data-task-id], [data-phone-task-row]").length
-            for (const b of document.querySelectorAll("button")) {
-              const m = /^Show (\d+) more$/.exec((b.textContent || "").trim())
-              if (m) n += Number(m[1])
-            }
-            return n > was
-          }, before),
+        ready: () => h.until((was) => window.__fluKnownRows() > was, before),
         settle: 800,
       })
       pageMore.push(r)
@@ -95,17 +116,18 @@ const group = {
       const button = page.getByRole("button", { name: /^Show \d+ more$/ }).first()
       if (!(await button.count())) break
       await button.scrollIntoViewIfNeeded().catch(() => {})
-      const rows = await page.locator(ROW).count()
+      const rows = await page.evaluate(() => window.__fluShownRows())
       const r = await h.step(`listGroup${i + 1}`, {
         act: () => h.press(button),
-        ready: () => h.ready({ sel: ROW, min: rows + 1 }, { timeout: 30000 }),
+        ready: () => h.until((was) => window.__fluShownRows() > was, rows, { timeout: 30000 }),
         settle: 800,
       })
       groupMore.push(r)
     }
     M.listGroupOpenP95Ms = worst(groupMore, (r) => r?.ready)
     M.listGroupOpenRenders = worst(groupMore, (r) => r?.renders)
-    M.listRows = await page.locator(ROW).count()
+    // The rows the list shows (drawn or, windowed, said by aria-setsize), and the page's elements.
+    M.listRows = await page.evaluate(() => window.__fluShownRows())
     M.listDomNodes = await page.evaluate(() => document.querySelectorAll("*").length)
 
     // ---- scrolling the long list, from its top ----

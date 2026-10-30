@@ -9,12 +9,12 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // allow-list makes the workspace invite-only.
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false }) }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn() }))
 const service = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
 // Read through the one shared SWR key (useWorkspaceSettings), answering from service.get.
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: async () => ({ data: { data: await service.get() } }), post: vi.fn() },
-  OWN_ERRORS: {},
 }))
 vi.mock("@/services/settingsService", async (orig) => ({
   ...(await orig<typeof import("@/services/settingsService")>()),
@@ -63,10 +63,14 @@ describe("the allow-list", () => {
     service.update.mockRejectedValue({ response: { data: { msg: "@acme.example is held by another workspace." } } })
     render(<WorkspaceSettingsCard />)
     const field = await screen.findByLabelText(/Who can join without an invitation/)
-    typeEntry(field, "@kestrel.example")
+    typeEntry(field, "@kestrel.studio")
     await act(async () => void fireEvent.click(saveButton()))
-    expect(service.update).toHaveBeenCalledWith({ allowed_users: ["@acme.example", "@kestrel.example"] }, { ownErrors: true })
+    expect(service.update).toHaveBeenCalledWith({ allowed_users: ["@acme.example", "@kestrel.studio"] }, { ownErrors: true })
     expect(screen.getByRole("alert").textContent).toBe("@acme.example is held by another workspace.")
+    // The entry it names takes the danger tint; the one added beside it doesn't.
+    const chip = (entry: string) => Array.from(document.querySelectorAll("[data-allow-chip]")).find((c) => c.textContent?.startsWith(entry))!
+    expect(chip("@acme.example").getAttribute("data-invalid")).toBe("true")
+    expect(chip("@kestrel.studio").getAttribute("data-invalid")).toBeNull()
   })
 })
 
@@ -88,10 +92,10 @@ describe("saving workspace settings", () => {
     const field = await screen.findByLabelText(/Who can join without an invitation/)
     // The footer is always there; Save waits for something to save.
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true)
-    typeEntry(field, "@kestrel.example")
+    typeEntry(field, "@kestrel.studio")
     expect(container.querySelector("[data-settings-card]")?.getAttribute("data-dirty")).toBe("true")
     fireEvent.click(screen.getByRole("button", { name: "Reset" }))
-    expect(screen.queryByText("@kestrel.example")).toBeNull()
+    expect(screen.queryByText("@kestrel.studio")).toBeNull()
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true)
   })
 

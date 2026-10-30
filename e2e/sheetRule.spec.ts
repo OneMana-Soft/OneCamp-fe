@@ -1,9 +1,10 @@
 import { expect, test, type Locator } from "@playwright/test"
 
-import { SAM, docInfo } from "./stubbedApp"
+import { SAM, SHOT_THEMES, docInfo, reviewShot } from "./stubbedApp"
 import { CollabRelay } from "./docs/collabRelay"
-import { more, openDocWith } from "./docs/docWith"
-import { sheetLayout } from "./sheetLayout"
+import { more, openDocWith, phoneOption } from "./docs/docWith"
+import { footIsGutter, sheetLayout } from "./sheetLayout"
+import { TableServer } from "./tables/tableServer"
 
 // ONE SHEET RULE (20 Oct 2026; components/ui/overlayMode, guarded by
 // app/overlayPhoneGuard). On a phone every overlay is a bottom sheet, held
@@ -59,7 +60,9 @@ async function isSheet(sheet: Locator, phone: Phone, what: string) {
   const box = (await sheet.boundingBox())!
   expect(box.width, `${what}: as wide as the phone allows`).toBeLessThanOrEqual(Math.min(phone.width, 640) + 1)
   expect(Math.abs(box.x + box.width / 2 - phone.width / 2), `${what}: in the middle`).toBeLessThanOrEqual(1)
-  expect((await sheetLayout(sheet)).squashed, `${what}: squashed below what it holds`).toEqual([])
+  const layout = await sheetLayout(sheet)
+  expect(layout.squashed, `${what}: squashed below what it holds`).toEqual([])
+  expect(layout.seeThrough, `${what}: what scrolls shows through a pinned part`).toEqual([])
 }
 
 for (const phone of PHONES) {
@@ -73,8 +76,7 @@ for (const phone of PHONES) {
     const upright = phone.width < 640
     const option = async (name: string) => {
       if (!upright) return name === "Share" ? page.locator("[data-doc-share]").click() : more(page, name)
-      await page.getByRole("button", { name: "Document options" }).click()
-      await page.getByText(name, { exact: true }).click()
+      await phoneOption(page, name)
     }
 
     // The page's icon: its picker (the title band).
@@ -92,14 +94,50 @@ for (const phone of PHONES) {
     const save = page.locator("[data-save-version-sheet]")
     await isSheet(save, phone, "Save version")
     await expect(save.locator("[data-sheet-footer]").getByRole("button", { name: "Save version" }), "Save version: Save pinned in the footer").toBeVisible()
+    // Its foot is its gutter, never under 16px: the one rule for every phone sheet (V-73).
+    await footIsGutter(save, "Save version")
     await page.keyboard.press("Escape")
     await expect(save).toBeHidden()
     await page.keyboard.press("Escape")
     await expect(history).toBeHidden()
 
-    // Share: one of the page chrome's dialogs.
+    // Share: one of the page chrome's dialogs, its Done in the sheet's footer
+    // on the one foot (V-73).
     await option("Share")
-    await isSheet(page.locator("[data-share-dialog]"), phone, "Share")
+    const share = page.locator("[data-share-dialog]")
+    await isSheet(share, phone, "Share")
+    await footIsGutter(share, "the doc's Share sheet")
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/v73-share-doc-${phone.width}-light.png` })
     await tab.close()
+  })
+}
+
+// A share dialog's own footer (components/dialog/shareParts' ShareFooter: a
+// table's, a board's and a calendar's Share) is its sheet's foot on a phone,
+// on the one rule for every phone sheet's footer (V-73, app/overlay.css 8b).
+// It padded a foot of its own, 12px, over the dialog's 20px bottom padding:
+// Done stood 32px off the foot of a sheet whose sides stand 20px in.
+for (const theme of SHOT_THEMES) {
+  test(`at 390 with touch, ${theme}: a table's Share sheet stands Done its gutter off the foot`, async ({ browser }, testInfo) => {
+    const s = new TableServer([{ id: "item", name: "Item", type: "text" }], [{ item: "Booth" }])
+    const { page, close } = await s.open(browser, testInfo, SAM, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme })
+    try {
+      // The table's live links: none yet.
+      await page.route(
+        (url) => url.pathname.endsWith("/guest/links"),
+        (route) => {
+          const headers = { "access-control-allow-origin": route.request().headers()["origin"] || "*", "access-control-allow-credentials": "true", "access-control-allow-headers": "*" }
+          return route.request().method() === "OPTIONS" ? route.fulfill({ status: 204, headers }) : route.fulfill({ status: 200, headers, json: { data: [] } })
+        },
+      )
+      await page.getByRole("button", { name: "Share", exact: true }).click()
+      const share = page.locator("[data-share-dialog='table']")
+      await expect(share.getByRole("button", { name: "Done" })).toBeVisible({ timeout: 60_000 })
+      await expect(share, "the phone's sheet").toHaveAttribute("data-v3-sheet", "")
+      await footIsGutter(share, "a table's Share sheet")
+      await reviewShot(page, "v73-share-table", theme)
+    } finally {
+      await close()
+    }
   })
 }

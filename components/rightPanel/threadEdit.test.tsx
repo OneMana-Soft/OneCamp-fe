@@ -18,7 +18,6 @@ vi.mock("@/hooks/useFetch", () => ({
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => ({}) }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKind: () => undefined, useBotKindMap: () => ({}) }))
-vi.mock("@/services/aiService", () => ({ useTranslateText: () => ({ translateText: async () => null, isSubmitting: false }) }))
 let editorProps: Record<string, unknown> = {}
 vi.mock("@/components/textInput/textInput", () => ({
   default: (props: Record<string, unknown>) => {

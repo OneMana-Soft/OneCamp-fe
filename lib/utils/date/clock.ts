@@ -10,8 +10,7 @@
  * hand (toLocaleTimeString, a date-fns "h:mm a", padded hours).
  *
  * A person's own choice wins: the booking page's "Use 24-hour time" switch is
- * passed as `hour12`. There is no account-wide setting yet; one would be passed
- * the same way.
+ * passed as `hour12`, the account's `clock` otherwise.
  *
  * Dates keep their one written form (lib/utils/date/shortDate): "9 Oct".
  */
@@ -43,13 +42,18 @@ type Moment = Date | string | number
 /** "17:00": a wall-clock time, as a time input and the API keep one (a check-in, working hours), with no day and no zone. */
 const WALL = /^([01]?\d|2[0-3]):([0-5]\d)$/
 
+let mine: boolean | undefined
+/** Account clock: "12", "24" or "auto". */
+export const setAccountClock = (c: unknown) => void (mine = c === "24" ? false : c === "12" || undefined)
+const own = (o: ClockOptions) => (o.hour12 === undefined ? { ...o, hour12: mine } : o)
 /**
  * A moment as a Date, and the options to write it with. A number is the API's
  * seconds since the epoch, as messages carry them; one too large to be
  * seconds (until the year 5138) is already milliseconds. A wall-clock time is
  * written as it is, in no zone.
  */
-function read(value: Moment, o: ClockOptions): [Date, ClockOptions] {
+function read(value: Moment, p: ClockOptions): [Date, ClockOptions] {
+  const o = own(p)
   // Any Date, not only this realm's: instanceof misses one made before a
   // test pinned the clock (a mocked Date class) or in another frame.
   if (typeof value === "object") return [value, o]
@@ -124,7 +128,8 @@ const tidy = (s: string) => s.trim().replace(/\s+/g, NBSP).replace(/\u00a0([â€“â
 const valid = (d: Date) => !Number.isNaN(d.getTime())
 
 /** Whether the reader writes a 12-hour clock (an AM/PM after the time), or the choice they made. */
-export function readsTwelveHour(o: ClockOptions = {}): boolean {
+export function readsTwelveHour(p: ClockOptions = {}): boolean {
+  const o = own(p)
   if (o.hour12 !== undefined) return o.hour12
   const cycle = formatter("hour", o).resolvedOptions().hourCycle
   return cycle === "h12" || cycle === "h11"

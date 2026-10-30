@@ -18,6 +18,8 @@ const makeRequest = vi.fn(async (o: { apiEndpoint: string; payload: { search_tex
   return {}
 })
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
+// The server's features: the calendar's own store is off here, so the card offers no Task chip.
+vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_CALENDAR_REPEATS: "calendar_repeats", useFeature: () => false }))
 
 import { QuickCreateCard } from "./quickCreateCard"
 

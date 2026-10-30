@@ -94,18 +94,23 @@ export enum MqttMessageType {
     // 41 MESSAGE_PIN (chat), 42 MESSAGE_CALL_STATE (calls), 43
     // MESSAGE_PROJECT_STATUSES (board columns, lib/board/statusesMessage), 44 an
     // invitation accepted (BE-FOUND F7), 45 a task's timer (projects PR3), 46
-    // MESSAGE_READ_MOVED (chat A3).
+    // MESSAGE_READ_MOVED (chat A3), 47 MESSAGE_PREFERENCE (calendar A3).
     // Ask for the next one; never take it here first.
     // Pin mirrors backend MESSAGE_PIN, on a conversation's message topic: a
     // message was pinned or unpinned (chat B25); the conversation's pins are
     // read again (lib/conversation/conversationPath pinsKey).
     Pin = 41,
     Call_State = 42,
+    // A project's statuses changed (lib/board/statusesMessage).
+    Project_Statuses = 43,
     // ReadMoved mirrors backend MESSAGE_READ_MOVED, on your own activity
     // topic: your read marker moved in one conversation (a read in another tab
     // or device, a Mark unread), with its unread count and first unread
     // message (lib/conversation/readMoved).
     ReadMoved = 46,
+    // Preference mirrors backend MESSAGE_PREFERENCE, on the person's own
+    // activity topic: they changed one of their preferences on another device.
+    Preference = 47,
 }
 
 /** MESSAGE_DOC_META's data: what happened to a doc, for the tabs that have it open. */

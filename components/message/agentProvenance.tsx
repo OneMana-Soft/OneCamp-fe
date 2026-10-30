@@ -3,12 +3,8 @@
 import { memo } from "react"
 import { useDispatch } from "react-redux"
 import { ShieldCheck } from "@/lib/icons"
+import { firstNameOf } from "@/lib/personName"
 import { openUI } from "@/store/slice/uiSlice"
-
-/** "Sam" from "Sam Rivera": the line names the person once in full. */
-function firstNameOf(name: string): string {
-    return name.trim().split(/\s+/)[0] || name
-}
 
 /** Who an agent acted for on this message, read from the run, never the channel. */
 export interface AgentAsker {
@@ -29,7 +25,8 @@ export interface AgentAsker {
  */
 export const AgentProvenance = memo(function AgentProvenance({ asker }: { asker?: AgentAsker | null }) {
     const dispatch = useDispatch()
-    const first = asker ? firstNameOf(asker.name) : ""
+    // "Sam" from "Sam Rivera": the line names the person once in full.
+    const first = asker ? firstNameOf(asker.name) || asker.name : ""
     return (
         <p data-provenance="" className="mt-1.5 flex min-w-0 items-center gap-1.5 text-meta text-ink-3">
             <ShieldCheck className="size-3 shrink-0 text-agent" aria-hidden="true" />

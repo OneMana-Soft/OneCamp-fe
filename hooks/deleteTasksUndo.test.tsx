@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, renderHook } from "@testing-library/react"
 import type { ReactElement } from "react"
-import { PostEndpointUrl } from "@/services/endPoints"
 import type { TaskInfoInterface } from "@/types/task"
 
 // useDeleteTasks.test mocks the bulk hook; this one runs the real one, with
@@ -13,15 +12,15 @@ const h = vi.hoisted(() => ({
   // The server's refusal, when a test wants one.
   refusal: null as unknown,
 }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
-    post: async (url: string) => {
-      h.posts.push(url)
+    // A delete and its Undo go as one bulk request each (PR2).
+    post: async (url: string, body?: { op?: string }) => {
+      h.posts.push(url === "/task/bulk" ? `bulk:${body?.op}` : url)
       if (h.refusal) throw h.refusal
       return { data: { msg: "ok" } }
     },
   },
-  OWN_ERRORS: {},
 }))
 vi.mock("@/hooks/useTaskUpdate", () => ({
   useTaskUpdate: () => ({ optimisticUpdateTask: () => {}, optimisticDeleteTask: () => {}, revalidateTaskKeys: () => {} }),
@@ -62,7 +61,7 @@ describe("Undo after deleting a task", () => {
   it("sends the task back from the trash, and says so", async () => {
     const { result } = renderHook(() => useDeleteTasks("p1"))
     await act(() => result.current([retro]))
-    expect(h.posts).toEqual([PostEndpointUrl.ArchiveTask])
+    expect(h.posts).toEqual(["bulk:delete"])
 
     const said = h.toasts.find((t) => t.title === "Deleted “Book the launch retro”")
     expect(said?.action).toBeTruthy()
@@ -72,7 +71,7 @@ describe("Undo after deleting a task", () => {
     })
     // The task as it was before the delete reads as live, and a restore of a
     // live task sent nothing: Undo did nothing and said nothing.
-    expect(h.posts).toEqual([PostEndpointUrl.ArchiveTask, PostEndpointUrl.UnArchiveTask])
+    expect(h.posts).toEqual(["bulk:delete", "bulk:restore"])
     expect(h.toasts.at(-1)?.title).toBe("Brought back “Book the launch retro”")
   })
 })

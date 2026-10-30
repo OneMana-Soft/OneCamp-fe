@@ -9,6 +9,8 @@ interface rightPanelProps {
     groupUUID: string;
     docUUID: string;
     eventUUID: string;
+    /** When the card's pencil asked to edit (V-34). */
+    eventEditAt?: number;
     aiChatOpen: boolean;
     docAiOpen: boolean;
     // Optional surface hint set by the quick-invoke shortcut so the assistant
@@ -78,5 +80,8 @@ export const {
     openRightPanel,
     closeRightPanel
 } = rightPanelSlice.actions
+
+/** Whether the doc's AI panel is open beside it. */
+export const selectDocAiOpen = (state: { rightPanel: typeof initialState }) => state.rightPanel.rightPanelState.data.docAiOpen
 
 export default rightPanelSlice;

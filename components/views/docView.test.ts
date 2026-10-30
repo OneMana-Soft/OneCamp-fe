@@ -9,8 +9,8 @@ import { MORE_GROUPS } from "@/components/docEditor/actions/doc"
 // The doc page's own chrome, read from its source: what a screen reader is
 // told, what floats, and where a dead end leads.
 // A7"s export items ask the API what this member may export; not here.
-vi.mock("@/lib/export/contentIO", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/export/contentIO")>()),
+vi.mock("@/lib/export/contentIOCapabilities", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/export/contentIOCapabilities")>()),
   knownCapabilities: () => null,
   loadCapabilities: async () => null,
 }))
@@ -44,7 +44,7 @@ describe("the doc page", () => {
   it("says how it is saving with a dot, not a footer or a banner", () => {
     expect(header).toMatch(/<SaveDot /)
     expect(src).not.toMatch(/Connecting to the live editor/)
-    expect(src).toMatch(/<ConnectionPill /)
+    expect(src).toMatch(/<LazyConnectionPill /)
   })
 
   // Review, 15 Oct 2026: the page read the saves (twice), which change with

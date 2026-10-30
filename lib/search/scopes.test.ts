@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { SearchResult } from "@/services/searchService"
-import { groupResults, resultTime, scopeCounts, sortResults, visibleScopes } from "@/lib/search/scopes"
+import { groupResults, resultTime, scopeCounts, visibleScopes } from "@/lib/search/scopes"
 
 const task = (n: number, t = n) => ({ type: "task", task: { task_id: `t${n}`, task_name: `Task ${n}`, created_date: t } }) as SearchResult
 const doc = { type: "doc", doc: { doc_uuid: "d1", doc_title: "Q4 launch plan", created_date: 5 } } as SearchResult
@@ -60,10 +60,16 @@ describe("search scopes and groups", () => {
     expect(visibleScopes([doc, board]).find((s) => s.id === "docs")!.label).toBe("Docs and boards")
   })
 
-  it("sorts newest first by when each was made, and keeps the server's order for best match", () => {
-    const rs = [task(1, 3), task(2, 9), task(3, 5)]
-    expect(sortResults(rs, "best")).toBe(rs)
-    expect(sortResults(rs, "newest").map((r) => r.task.task_id)).toEqual(["t2", "t3", "t1"])
+  it("takes the server's counts: a chip for a kind no page has listed yet, and Show all for what's past the page", () => {
+    const rs = [task(1, 3), task(2, 9)]
+    const counts = { all: 47, messages: 0, tasks: 40, docs: 7, events: 0, projects: 0, people: 0, channels: 0, files: 0 }
+    expect(visibleScopes(rs, counts).map((s) => s.id)).toEqual(["all", "tasks", "docs"])
+    const tasks = groupResults(rs, "all", counts).find((g) => g.scope === "tasks")!
+    expect(tasks.total).toBe(40)
+    expect(tasks.rows).toHaveLength(2)
+    expect(tasks.more).toBe("Show all 40 tasks")
+    // Never fewer than the rows a group holds.
+    expect(groupResults(rs, "tasks", { ...counts, tasks: 1 })[0].total).toBe(2)
   })
 })
 

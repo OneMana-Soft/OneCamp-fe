@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { NodeSelection } from "@tiptap/pm/state"
 
 const post = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: (...a: unknown[]) => post(...a) }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a) } }))
 
 import { APPEND_BLOCKS_URL, peekBlockMove, releaseBlockMove, stageBlockMove } from "./blockMove"
 import { docEditor, loadDocBlocks, outline, posOf } from "@/components/minimal-tiptap/extensions/block-commands/blockTestKit"

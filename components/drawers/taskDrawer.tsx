@@ -1,24 +1,27 @@
 "use client"
 
-import { Link, Trash2 } from "@/lib/icons"
+import { BadgeCheck, Link, Trash2 } from "@/lib/icons"
 import {
     Drawer,
-    SheetCancel,
-    SheetGroup,
     DrawerContent,
     DrawerDescription,
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
+import { SheetCancel, SheetGroup } from "@/components/ui/sheet-menu"
 import { useCallback } from "react"
+import { useDispatch } from "react-redux"
 import { app_task_path } from "@/types/paths"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
-import { TaskInfoRawInterface } from "@/types/task"
+import type { TaskInfoRawInterface } from "@/types/task"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useDeleteTasks } from "@/hooks/useDeleteTasks"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { DrawerItem } from "@/components/drawers/drawerItem"
+import { openUI } from "@/store/slice/uiSlice"
+import { canEditTask } from "@/lib/work/access"
+import type { UserProfileInterface } from "@/types/user"
 
 interface TaskDrawerProps {
     drawerOpenState: boolean
@@ -32,7 +35,16 @@ export function TaskDrawer({ drawerOpenState, setOpenState, taskId }: TaskDrawer
         taskId ? `${GetEndpointUrl.GetTaskInfo}/${taskId}` : "",
     )
 
+    const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    const dispatch = useDispatch()
     const closeDrawer = () => setOpenState(false)
+    // The sheet opens from the app's overlays (uiSlice askApproval): this
+    // drawer goes as it opens.
+    const askForApproval = () => {
+        dispatch(openUI({ key: "askApproval", data: { taskId } }))
+        closeDrawer()
+    }
+    const canEdit = canEditTask(taskInfo.data?.data, self.data?.data?.user_uuid)
 
     const copyTaskLink = useCallback(() => {
         const host = window.location.host
@@ -64,6 +76,7 @@ export function TaskDrawer({ drawerOpenState, setOpenState, taskId }: TaskDrawer
                 <div className="pb-2">
                     <SheetGroup label="Task">
                     <DrawerItem icon={Link} label="Copy task link" onClick={copyTaskLink} />
+                    {canEdit && isActive && <DrawerItem icon={BadgeCheck} label="Ask for approval…" onClick={askForApproval} />}
                 </SheetGroup>
                     {/* What destroys is alone, and last (design v3, mobile C7). */}
                     {isActive && (

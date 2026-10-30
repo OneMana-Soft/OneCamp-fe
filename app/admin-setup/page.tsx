@@ -12,7 +12,6 @@
 //   Step 2  make it yours: the camp's colour (components/auth/FirstRun).
 //   Step 3  who's coming: invitations, each one joining the orbits.
 
-import { LoaderCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import { useCallback, useEffect, useRef, useState } from "react"
 import authService from "@/services/auth/AuthService"
@@ -295,8 +294,7 @@ export default function AdminSetupPage() {
 
               {errorField === null && <FormProblem>{error}</FormProblem>}
 
-              <Button type="submit" size="lg" className={authControlXl} aria-busy={isLoading || undefined}>
-                {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+              <Button type="submit" size="lg" className={authControlXl} busy={isLoading}>
                 {isLoading ? "Creating your account…" : "Create admin account"}
               </Button>
             </form>

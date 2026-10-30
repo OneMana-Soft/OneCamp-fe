@@ -8,10 +8,9 @@
  */
 import { useMemo } from "react"
 import { useDispatch } from "react-redux"
+import { once } from "@/lib/lazy/once"
 
-type Mod = typeof import("@/lib/hub/profileHoverOpen")
-let loading: Promise<Mod> | null = null
-const load = () => (loading ??= import("@/lib/hub/profileHoverOpen"))
+const load = once(() => import("@/lib/hub/profileHoverOpen"))
 
 const noop = () => undefined
 function useOptionalDispatch(): (action: unknown) => unknown {

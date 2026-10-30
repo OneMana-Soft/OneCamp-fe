@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useCallback } from "react"
 import { SwitchRow } from "@/components/ui/settingsSection"
-import { useSaveStatus } from "@/components/ui/saveStatus"
+import { switchOffer, useSaveStatus } from "@/components/ui/saveStatus"
 import { useAIConfig } from "@/components/admin/ai/useAIConfig"
 import type { AIConfig } from "@/services/aiModelService"
 
@@ -19,17 +19,17 @@ export type AIConfigSwitch = {
  * and the row's shake. Every one of these used to toast its own sentence,
  * on and off, for a change the row itself can say.
  */
-export function useConfigSwitch(field: AIConfigSwitch, request: (on: boolean) => Promise<unknown>) {
+export function useConfigSwitch(field: AIConfigSwitch, request: (on: boolean) => Promise<unknown>, label: string) {
   const { config, setConfig } = useAIConfig()
   const { status, run } = useSaveStatus()
   const set = useCallback(
-    async (on: boolean) => {
+    async function flip(on: boolean): Promise<boolean> {
       setConfig((c) => (c ? { ...c, [field]: on } : c))
-      const held = await run(() => request(on))
+      const held = await run(() => request(on), switchOffer(label, on, flip))
       if (!held) setConfig((c) => (c ? { ...c, [field]: !on } : c))
       return held
     },
-    [field, request, run, setConfig],
+    [field, label, request, run, setConfig],
   )
   return { checked: !!config?.[field], status, set }
 }
@@ -46,13 +46,13 @@ export function ConfigSwitchRow({
 }: {
   field: AIConfigSwitch
   request: (on: boolean) => Promise<unknown>
-  label: React.ReactNode
+  label: string
   description?: React.ReactNode
   disabled?: boolean
   locked?: string
   id?: string
 }) {
-  const { checked, status, set } = useConfigSwitch(field, request)
+  const { checked, status, set } = useConfigSwitch(field, request, label)
   return (
     <SwitchRow
       id={id}

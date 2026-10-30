@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
+import { pinTestClock } from "@/lib/testing/testClock"
 import { openRequest, openableFromUrl } from "./useOpenFromUrl"
+
+pinTestClock()
 
 describe("openableFromUrl", () => {
   it("opens the creation dialogs a link may ask for", () => expect(openableFromUrl("createProject")).toBe("createProject"))
@@ -27,6 +30,16 @@ describe("what an address asks to open", () => {
     expect(ask("new=1", "/app/project")).toEqual({ key: "createProject", templateId: undefined, used: ["new"] })
     expect(ask("new=event", "/app/home")).toBeNull()
     expect(ask("new=event", "/app/projects-elsewhere")).toBeNull()
+  })
+
+  it("opens New task with the fields its link names, and takes only those out of the address", () => {
+    const req = ask("tab=all&open=createTask&title=Write+the+post&project=Q4&labels=a,b&dueDate=2026-11-02&utm=x")
+    expect(req?.key).toBe("createTask")
+    expect(Object.fromEntries(new URLSearchParams(req!.address))).toEqual({ title: "Write the post", project: "Q4", labels: "a,b", dueDate: "2026-11-02" })
+    expect(req!.used).toEqual(expect.arrayContaining(["open", "title", "project", "labels", "dueDate"]))
+    expect(req!.used).not.toContain("tab")
+    expect(req!.used).not.toContain("utm")
+    expect(ask("open=createTask")).toMatchObject({ key: "createTask", address: undefined })
   })
 
   it("asks for nothing without a parameter", () => expect(ask("tab=all", "/app/project")).toBeNull())

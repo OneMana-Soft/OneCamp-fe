@@ -1,13 +1,14 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
+import { useAppRouter } from '@/lib/navigation/appRouter';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { APP_BOOT_RETRY_ATTR, appBootState, endAppBoot, hasAppBoot, holdAppBoot, leaveAppBoot, rememberMember, slowAppBoot } from "@/lib/appBoot";
+import { APP_BOOT_RETRY_ATTR, appBootState, endAppBoot, hasAppBoot, holdAppBoot, leaveAppBoot, slowAppBoot } from "@/lib/appBoot";
+import { rememberMember } from "@/lib/memberMark";
 
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
+import type {UserEmojiStatus, UserProfileInterface} from "@/types/user";
 import {app_login_path} from "@/types/paths";
-import { takePendingConnect } from "@/lib/pendingConnect";
+import { afterSignInWaits } from "@/lib/afterSignInWaits";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
@@ -19,6 +20,7 @@ import { SpotCrash } from "@/components/error/shellSpots";
 import { OwnSplash, SplashFrame } from "@/components/protectedRoute/Splash";
 import { WorkspaceName } from "@/hooks/useWorkspaceName";
 import { endSession, onSessionEndedElsewhere } from "@/lib/sessionEnd";
+import { sessionHeld } from "@/lib/auth/sessionRefresh";
 // The store registers its own reset for endSession; importing it makes sure
 // that registration has run.
 import "@/store/store";
@@ -39,8 +41,8 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
     // Asked for on every mount, and the app waits for the answer: it says
     // whose session this is, and the response cache lets in what it kept only
     // when that's the member it kept it for (lib/swrCache).
-    const userProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile, UserProfileResponseSchema as any, { revalidateOnMount: true });
-    const router = useRouter();
+    const userProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile, UserProfileResponseSchema, { revalidateOnMount: true });
+    const router = useAppRouter();
     const dispatch = useDispatch();
     // Guard against double-firing the redirect under StrictMode and against
     // the effect re-running while we wait on the BE logout.
@@ -174,6 +176,9 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
             // The start page opens on the splash in this browser from now on
             // (lib/appBoot): the installed app and the desktop app open there.
             rememberMember();
+            // A session is held: the refresh clock runs, also in a tab that
+            // signed in here without a reload (lib/auth/sessionRefresh).
+            sessionHeld();
             // The reducer ignores empty/undefined emoji-status payloads
             // (profile-fetch responses omit the field when no active
             // status exists, and we don't want that absence to clobber
@@ -183,11 +188,15 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
             dispatch(updateUserStatus({userUUID: userProfile.data?.data.user_uuid, status:userProfile.data.data.user_status || 'online'}));
             dispatch(updateUserConnectedDeviceCount({userUUID: userProfile.data?.data.user_uuid, deviceConnected:userProfile.data?.data.user_device_connected || 0}));
 
-            // An outside agent's sign-in that was waiting for this login (see
-            // lib/pendingConnect). Every login method lands here, so this is
-            // the one place that can take the person back to approve it.
-            const resume = takePendingConnect();
-            if (resume) router.replace(resume);
+            // Something started while signed out and waiting for this login
+            // (lib/afterSignIn, loaded only then): an outside agent's
+            // sign-in, a copy of a published page. Every login lands here.
+            if (afterSignInWaits()) {
+                void import("@/lib/afterSignIn").then(({ takeAfterSignIn }) => {
+                    const resume = takeAfterSignIn();
+                    if (resume) router.replace(resume);
+                });
+            }
         }
 
     }, [userProfile.isError, userProfile.isLoading, userProfile.isValidating, userProfile.data, userProfile.mutate, router, dispatch]);

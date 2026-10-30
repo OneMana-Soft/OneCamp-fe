@@ -85,6 +85,8 @@ interface DocSession {
   refused: Refusal | null
   /** The collaboration service never sent a session: an older one (see the top). */
   legacy: boolean
+  /** Signed in, but the doc hasn't come (lib/collabSession.ts's join watchdog): retry() tries a new connection. */
+  stalled: boolean
   recovered: RecoveredEdits | null
   dismissRecovered(): void
   retry(): void
@@ -122,6 +124,7 @@ export function useDocSession(input: DocSessionInput | undefined): DocSession {
     openError: s.openError,
     refused: s.refused,
     legacy: s.legacy,
+    stalled: s.stalled,
     recovered: s.recovered,
     dismissRecovered: s.dismissRecovered,
     retry: s.retry,

@@ -113,7 +113,8 @@ describe("the agent inventory", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Revoke" }))
     const dialog = await screen.findByRole("alertdialog")
     const confirm = Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "Revoke")!
-    expect(confirm.className).toContain("text-danger-ink")
+    // A confirm that destroys is danger-solid (design v3, admin §8 H3; SA-5).
+    expect(confirm.className).toMatch(/\bbtn-danger-solid\b.*\bbg-destructive\b/)
   })
 
   // "Could not pause X", with nothing about why, replaced the server's own

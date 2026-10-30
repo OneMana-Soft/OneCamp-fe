@@ -14,6 +14,7 @@ import { requestBlockMenu } from "./menuRequest"
 import { copyBlockLink } from "../block-link/blockLink"
 import { firstLine } from "../block-handle/blockDrag"
 import { feedback } from "@/lib/ui/feedback"
+import { swallowReleaseClick } from "@/lib/ui/releaseClick"
 
 /**
  * THE BLOCKS' KEYS AND COMMANDS (B1; small-details S3, S7–S9, S11, A10, M5).
@@ -122,7 +123,10 @@ function longPress(editor: Editor) {
           if (start && event.pointerId === start.id && Math.hypot(event.clientX - start.x, event.clientY - start.y) > PRESS_SLOP) stop()
           return false
         },
+        // The click a held press's release sends is swallowed wherever it
+        // lands: the sheet may have risen over the finger by then.
         pointerup: () => {
+          if (fired) swallowReleaseClick()
           stop()
           return false
         },
@@ -130,15 +134,9 @@ function longPress(editor: Editor) {
           stop()
           return false
         },
-        // Android's own long-press menu, and the click that ends a press that opened the sheet.
+        // Android's own long-press menu.
         contextmenu: (_view, event) => {
           if (!fired) return false
-          event.preventDefault()
-          return true
-        },
-        click: (_view, event) => {
-          if (!fired) return false
-          fired = false
           event.preventDefault()
           return true
         },

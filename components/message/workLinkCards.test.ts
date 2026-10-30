@@ -34,7 +34,7 @@ describe("which links in a message become cards", () => {
 })
 
 describe("what a work card shows", async () => {
-  const { statusKindOf, checklistOf } = await import("@/components/message/WorkLinkCards")
+  const { statusKindOf, checklistOf } = await import("@/components/message/workLinkCardsBody")
   it("draws a task's built-in status as its glyph, a custom one as to do", () => {
     expect(["backlog", "todo", "inProgress", "inReview", "done", "canceled", "Waiting on legal"].map(statusKindOf)).toEqual([
       "backlog", "todo", "progress", "review", "done", "cancelled", "todo",

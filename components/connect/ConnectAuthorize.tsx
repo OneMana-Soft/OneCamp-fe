@@ -34,7 +34,7 @@ import {
   getConsent,
   type ConsentView,
 } from "@/services/connectService"
-import { isConnectRequestId, rememberPendingConnect } from "@/lib/pendingConnect"
+import { isConnectRequestId } from "@/lib/afterSignInWaits"
 import { useNamedWorkspace } from "@/hooks/useWorkspaceName"
 import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 
@@ -252,9 +252,13 @@ export function ConnectAuthorize() {
         <Button
           size="lg"
           className={`${authControl} mt-6`}
-          onClick={() => {
-            if (requestId) rememberPendingConnect(requestId)
-            window.location.assign("/")
+          onClick={async () => {
+            // Kept for after sign-in (lib/afterSignIn, loaded only now).
+            try {
+              if (requestId) (await import("@/lib/afterSignIn")).rememberAfterSignIn({ kind: "connect", id: requestId })
+            } finally {
+              window.location.assign("/")
+            }
           }}
         >
           Sign in
@@ -290,7 +294,7 @@ export function ConnectAuthorize() {
               {actionError}
             </p>
           )}
-          <Button size="lg" className={authControl} onClick={approve} disabled={closed || busy || scopes.length === 0}>
+          <Button size="lg" className={authControl} onClick={approve} disabled={closed || scopes.length === 0} busy={busy}>
             {busy ? "Connecting…" : `Connect ${view.client_name}`}
           </Button>
           <Button className={authControl} variant="ghost" size="lg" onClick={deny} disabled={busy}>

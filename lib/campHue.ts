@@ -41,7 +41,7 @@ const SALT = "camp:"
  * `% 6` reads, so a team of sequentially numbered people came out in two
  * colours. The finaliser spreads every input bit across the word.
  */
-function hash32(id: string): number {
+export function hash32(id: string): number {
   const text = SALT + id
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) {

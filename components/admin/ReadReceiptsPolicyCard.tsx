@@ -9,7 +9,7 @@
 
 import { useState } from "react"
 import { SettingsCard, SettingsCardError, SettingsRowsSkeleton, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { useSaveStatus } from "@/components/ui/saveStatus"
+import { switchOffer, useSaveStatus } from "@/components/ui/saveStatus"
 import { setReadReceiptsPolicy, useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 
 export default function ReadReceiptsPolicyCard() {
@@ -22,17 +22,18 @@ export default function ReadReceiptsPolicyCard() {
     const { status, run } = useSaveStatus()
     const enabled = pending ?? (settings ? settings.read_receipts_enabled !== false : null)
 
-    const toggle = async (next: boolean) => {
+    const toggle = async (next: boolean): Promise<boolean> => {
         setPending(next)
-        await run(async () => {
+        const held = await run(async () => {
             const applied = await setReadReceiptsPolicy(next)
             await mutate(
                 (d) => (d?.data ? { ...d, data: { ...d.data, read_receipts_enabled: applied } as WorkspaceSettings } : d),
                 { revalidate: false },
             )
-        })
+        }, switchOffer("Allow read receipts", next, toggle))
         // Back to what the server holds: the saved value, or the old one.
         setPending(null)
+        return held
     }
 
     const failed = isError || (!isLoading && !settings)

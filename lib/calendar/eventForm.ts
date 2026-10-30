@@ -13,12 +13,13 @@
 import { addDays, differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns"
 import type { ApiEvent, ApiEventInput, ApiEventPatch, ApiGuestInput, ApiResponse, ApiWhen } from "@/lib/calendar/eventsApi"
 import { wholeDays } from "@/lib/timeOff"
-import type { CalendarEventInterface } from "@/types/calendar"
+import type { CalendarEventInterface, CalendarEventTask } from "@/types/calendar"
 import { displayNameOf } from "@/lib/personName"
 import { notesText, notesToSave } from "@/lib/calendar/notes"
+import { movedEnd } from "@/lib/calendar/spanMove"
 
-/** What an event is: a meeting, focus time, or time off. */
-export type FormKind = "event" | "focus" | "out_of_office"
+/** What an event is: a meeting, focus time, time off, or time for one of your tasks (B1). */
+export type FormKind = "event" | "focus" | "out_of_office" | "task_block"
 export type ShowAs = "busy" | "free"
 export type Visibility = "default" | "public" | "private"
 
@@ -35,6 +36,12 @@ export interface FormGuest {
 
 export interface EventFormValues {
   kind: FormKind
+  /**
+   * A block's task (kind task_block): one the writer may read, as the
+   * calendar's answers carry it. Set when the block is made; a change never
+   * sends it again.
+   */
+  task: CalendarEventTask | null
   title: string
   allDay: boolean
   /** A timed event's instants. */
@@ -64,8 +71,16 @@ export interface EventFormValues {
   emailOnAnswers: boolean
   /** The reader's own reminders, minutes before; null for the default's. */
   reminders: number[] | null
+  /** Out of office (head 5b): which invitations it declines for you, and the message they carry. */
+  oooDecline: OOODecline
+  oooMessage: string
+  /** The calendar it goes on: "" for the writer's own (A6). */
+  calendarId: string
   syncToGoogle: boolean
 }
+
+/** What an out-of-office declines: nothing, invitations that come while it runs, or those and the ones already there. */
+export type OOODecline = "none" | "new" | "all"
 
 const DAY = "yyyy-MM-dd"
 const day = (d: Date) => format(d, DAY)
@@ -83,6 +98,7 @@ export function newEventValues(zone: string, now: Date, at?: { start: Date; end?
   const span = at ? { start: at.start, end: at.end ?? new Date(at.start.getTime() + 60 * 60 * 1000) } : nextHour(now)
   return {
     kind: "event",
+    task: null,
     title: "",
     allDay: false,
     start: span.start,
@@ -103,8 +119,11 @@ export function newEventValues(zone: string, now: Date, at?: { start: Date; end?
     guestsCanInvite: true,
     guestsCanSeeGuests: true,
     emailOnAnswers: false,
+    oooDecline: "none",
+    oooMessage: "",
     reminders: null,
     syncToGoogle: false,
+    calendarId: "",
   }
 }
 
@@ -115,7 +134,7 @@ function dateOf(w: ApiWhen | undefined): Date | null {
   return null
 }
 
-const kindOf = (k: string): FormKind => (k === "focus" || k === "out_of_office" ? k : "event")
+const kindOf = (k: string): FormKind => (k === "focus" || k === "out_of_office" || k === "task_block" ? k : "event")
 
 /** An event's values as the API gave it, with the reader's reminders (null for the default's). */
 export function eventValues(e: ApiEvent, reminders: number[] | null, zone: string): EventFormValues {
@@ -126,6 +145,7 @@ export function eventValues(e: ApiEvent, reminders: number[] | null, zone: strin
   const startZone = e.start.zone || zone
   return {
     kind: kindOf(e.kind),
+    task: e.kind === "task_block" ? (e.task ?? null) : null,
     title: e.title,
     allDay: !!e.all_day,
     start: e.all_day ? new Date(start.getFullYear(), start.getMonth(), start.getDate(), 9) : start,
@@ -152,8 +172,11 @@ export function eventValues(e: ApiEvent, reminders: number[] | null, zone: strin
     guestsCanInvite: e.guests_can_invite ?? true,
     guestsCanSeeGuests: e.guests_can_see_guests ?? true,
     emailOnAnswers: !!e.email_on_answers,
+    oooDecline: e.out_of_office?.decline === "new" || e.out_of_office?.decline === "all" ? e.out_of_office.decline : "none",
+    oooMessage: e.out_of_office?.message ?? "",
     reminders,
     syncToGoogle: false,
+    calendarId: e.calendar_id ?? "",
   }
 }
 
@@ -172,7 +195,8 @@ export function listedValues(e: CalendarEventInterface, zone: string): EventForm
   const end = new Date(e.event_end_time)
   return {
     ...newEventValues(zone, start, { start, end }),
-    kind: e.event_is_away ? "out_of_office" : e.event_is_focus ? "focus" : "event",
+    kind: e.event_task ? "task_block" : e.event_is_away ? "out_of_office" : e.event_is_focus ? "focus" : "event",
+    task: e.event_task ?? null,
     title: e.event_title,
     notes: notesText(e.event_description),
     notesKept: e.event_description ?? "",
@@ -182,14 +206,16 @@ export function listedValues(e: CalendarEventInterface, zone: string): EventForm
 }
 
 /** What stops a save, at its field, in the form's words. */
-export type FormProblem = { field: "title" | "end"; message: string }
+export type FormProblem = { field: "title" | "end" | "task"; message: string }
 
 /** Why the values can't be saved; null when they can. */
 export function formProblem(v: EventFormValues): FormProblem | null {
   if (!v.title.trim()) return { field: "title", message: "Give it a title" }
   if (v.title.length > 500) return { field: "title", message: "A title can be up to 500 characters" }
+  if (v.kind === "task_block" && !v.task) return { field: "task", message: "Choose the task this is time for" }
   if (v.allDay) {
     if (v.kind === "focus") return { field: "end", message: "Focus time runs from a time to a time, not whole days" }
+    if (v.kind === "task_block") return { field: "end", message: "Time for a task runs from a time to a time, not whole days" }
     if (v.lastDate < v.startDate) return { field: "end", message: "It has to end on or after the day it starts" }
     return null
   }
@@ -222,7 +248,7 @@ export function guestInputs(guests: FormGuest[]): ApiGuestInput[] {
 /** The notes as a save sends them: as kept when untouched, else the text in the form they were kept in. */
 export const savedNotes = (v: EventFormValues) => notesToSave(v.notes, v.notesKept)
 
-/** Focus time and time off are yours: nobody else is on them, and they don't repeat yet. */
+/** Focus time, time off and time for a task are yours: nobody else is on them, and they don't repeat yet. */
 const ownTime = (v: EventFormValues) => v.kind !== "event"
 
 /** A new event, as the API takes it. */
@@ -245,6 +271,11 @@ export function eventInput(v: EventFormValues): ApiEventInput {
     guests_can_see_guests: v.guestsCanSeeGuests,
     ...(v.emailOnAnswers && v.guests.length && !ownTime(v) ? { email_on_answers: true } : {}),
     ...(v.syncToGoogle && !v.rule ? { sync_to_google: true } : {}),
+    ...(v.calendarId ? { calendar_id: v.calendarId } : {}),
+    // The task a block is time for, named once, when it is made.
+    ...(v.kind === "task_block" && v.task ? { task_uuid: v.task.task_uuid } : {}),
+    // What it declines for you while you're away (head 5b).
+    ...(v.kind === "out_of_office" && v.oooDecline !== "none" ? { out_of_office: { decline: v.oooDecline, message: v.oooMessage.trim() } } : {}),
   }
 }
 
@@ -279,6 +310,9 @@ export function eventPatch(v: EventFormValues, was: EventFormValues, sequence: n
   if (v.hue !== was.hue) p.hue = v.hue
   if (v.showAs !== was.showAs) p.transparency = v.showAs === "free" ? "transparent" : "opaque"
   if (v.visibility !== was.visibility) p.visibility = v.visibility
+  if (v.kind === "out_of_office" && (v.oooDecline !== was.oooDecline || v.oooMessage.trim() !== was.oooMessage.trim())) {
+    p.out_of_office = { decline: v.oooDecline, message: v.oooMessage.trim() }
+  }
   if (organiser) {
     const invite = v.guestsCanModify || v.guestsCanInvite
     if (v.guestsCanModify !== was.guestsCanModify) p.guests_can_modify = v.guestsCanModify
@@ -324,6 +358,5 @@ export function withAllDay(v: EventFormValues, on: boolean): EventFormValues {
 
 /** Moving the start keeps the length: the end moves with it. */
 export function withStart(v: EventFormValues, start: Date): EventFormValues {
-  const length = v.end.getTime() - v.start.getTime()
-  return { ...v, start, end: new Date(start.getTime() + (length > 0 ? length : 60 * 60 * 1000)) }
+  return { ...v, start, end: movedEnd(v.start, v.end, start) }
 }

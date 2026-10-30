@@ -32,6 +32,7 @@ import { hideSidebarChat, nameSidebarChat } from "@/lib/conversation/sidebarChat
 import { CreateUserChatList } from "@/store/slice/chatSlice"
 import { app_channel_path, app_chat_path, app_grp_chat_path } from "@/types/paths"
 import { EyeOff, Lock, Pencil, Users, X } from "@/lib/icons"
+import { focusDialogItself } from "@/components/ui/overlayFocus"
 import type { RootState } from "@/store/store"
 import type { RawUserDMInterface, UserProfileDataInterface, UserProfileInterface } from "@/types/user"
 
@@ -161,7 +162,7 @@ export default function ConversationDetailsSheet({ place, adding = false, open, 
                 <DialogPrimitive.Content
                     data-conversation-details=""
                     aria-describedby={undefined}
-                    onOpenAutoFocus={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).focus() }}
+                    onOpenAutoFocus={focusDialogItself}
                     tabIndex={-1}
                     className="fixed inset-y-0 right-0 z-[var(--z-modal)] flex w-full flex-col bg-sheet shadow-e4 outline-none animate-panel-in sm:w-[440px]"
                 >
@@ -327,7 +328,7 @@ function GroupNameRow({ name, onRename }: { name: string; onRename: (next: strin
             </p>
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={cancel}>Cancel</Button>
-                <Button size="sm" onClick={() => void submit()} disabled={!!problem || saving} aria-busy={saving || undefined}>
+                <Button size="sm" onClick={() => void submit()} disabled={!!problem} busy={saving}>
                     {saving ? "Saving…" : "Save"}
                 </Button>
             </div>
@@ -409,7 +410,7 @@ function PrivateChannelRow({ place, people, open, onOpen, onCancel, onMade }: {
             {error && <p role="alert" className="text-meta text-danger-ink">{error}</p>}
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
-                <Button size="sm" onClick={() => void submit()} disabled={!next || !!problem || taken || busy} aria-busy={busy || undefined}>
+                <Button size="sm" onClick={() => void submit()} disabled={!next || !!problem || taken} busy={busy}>
                     {busy ? "Making it…" : "Make channel"}
                 </Button>
             </div>

@@ -1,6 +1,8 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
+import { finger } from "./finger"
 import { SAM, stubBackend } from "./stubbedApp"
+import { settled } from "./sheetLayout"
 
 // A project's board on a phone (390 x 844, touch), as the owner asked: "verify
 // how kanban works in mobile view". Each test is a fault the board had there:
@@ -79,17 +81,6 @@ async function openBoard(page: Page, testInfo: TestInfo) {
   return moves
 }
 
-/** A finger, as a phone sends it: down, held, moved, up. */
-async function finger(page: Page) {
-  const cdp = await page.context().newCDPSession(page)
-  const at = (x: number, y: number) => [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }]
-  return {
-    down: (x: number, y: number) => cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(x, y) }),
-    move: (x: number, y: number) => cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(x, y) }),
-    up: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }),
-  }
-}
-
 const columnLefts = (page: Page) =>
   page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-board] [data-column]")].map((c) => Math.round(c.getBoundingClientRect().left)))
 
@@ -142,6 +133,24 @@ test.describe("the board on a phone", () => {
     await expect(sheet.getByRole("button", { name: "No assignee" }).locator('[data-column-mark="none"]')).toHaveCount(1)
   })
 
+  test("a column's actions open on the tap, and the lift chooses nothing", async ({ page }, testInfo) => {
+    test.setTimeout(120_000)
+    await openBoard(page, testInfo)
+    const before = await place(page)
+    const board = page.url()
+    // A menu that joins on a press (menuOnDemand) opens on the tap's click on a
+    // phone, as every menu does: its sheet rose under the finger on the touch.
+    await page.getByRole("button", { name: "To do column actions" }).first().tap()
+    const menu = page.getByRole("menu")
+    await expect(menu.getByRole("menuitem").first()).toBeVisible()
+    await settled(menu)
+    expect(await place(page)).toEqual(before)
+    expect(page.url()).toBe(board)
+    await page.touchscreen.tap(195, (await menu.boundingBox())!.y - 40)
+    await expect(menu).toHaveCount(0)
+    expect(await place(page)).toEqual(before)
+  })
+
   test("a tap outside the card's sheet closes it and opens nothing", async ({ page }, testInfo) => {
     test.setTimeout(120_000)
     await openBoard(page, testInfo)
@@ -152,9 +161,11 @@ test.describe("the board on a phone", () => {
     await page.locator('[data-column="todo"] [data-task-id]').first().getByRole("button", { name: "Card actions" }).tap()
     const sheet = page.locator("[data-card-sheet]")
     await expect(sheet).toBeVisible()
-    await page.waitForTimeout(500)
-    // The scrim, above the sheet.
-    await page.touchscreen.tap(195, 120)
+    await settled(sheet)
+    // The scrim, just above the sheet. The top of the screen is no place to
+    // tap: while a sheet is up, toasts come in there (app/phone.css C9), and
+    // a toast is not the way out of a sheet.
+    await page.touchscreen.tap(195, (await sheet.boundingBox())!.y - 40)
     await expect(sheet).toBeHidden()
     await page.waitForTimeout(1000)
     expect(opened).toEqual([])
@@ -267,6 +278,8 @@ test.describe("on a short phone", () => {
     await page.getByRole("button", { name: "Display" }).tap()
     const menu = page.getByRole("menu")
     await expect(menu).toBeVisible()
+    // Measured once it has risen: on a phone it is a sheet that slides up (app/overlay.css §8).
+    await menu.evaluate((el) => Promise.all(el.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))))
     const box = (await menu.boundingBox())!
     expect(box.y + box.height).toBeLessThanOrEqual(640)
     const last = page.getByRole("menuitemcheckbox", { name: "Cancelled" })

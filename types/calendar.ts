@@ -38,7 +38,34 @@ export interface CalendarEventInterface {
     /** Its own colour, one of the camp hues (the Event Form), and where it is: from the one store. */
     event_hue?: string;
     event_location?: string;
+    /**
+     * A timed event's own zone (IANA), and the one it ends in when that's
+     * another (calendar head 6): its card says its own time where the reader
+     * is elsewhere. None for an all-day event, or one given no zone.
+     */
+    event_zone?: string;
+    event_end_zone?: string;
+    /** The calendar it is on (calendar A6), and that calendar's colour as the reader sees it: an event without its own colour is drawn in it. */
+    event_calendar_id?: string;
+    calendar_hue?: string;
+    /** That calendar's name, where it isn't the reader's own (an import's, a project's, one they subscribe to). */
+    calendar_name?: string;
+    /** On a calendar the reader subscribes to (B8): seen whole, changed only where it is published. */
+    event_read_only?: boolean;
+    /** A task block's task (B1, gcal-new-task-blocks): its uuid, and its name, state and project when the reader may read it. */
+    event_task?: CalendarEventTask | null;
+    /** Its own call (calendar B11): the address its guests come in at; a member comes in as themselves. */
+    event_call?: { slug: string; address: string } | null;
     isTask?: boolean;
+}
+
+/** The task a block on the grid is time for, as the reader may read it (the server's event_task). */
+export interface CalendarEventTask {
+    task_uuid: string;
+    task_name?: string;
+    task_status?: string;
+    project_uuid?: string;
+    project_name?: string;
 }
 
 /** One guest's answer to an event: needs_action, accepted, declined or tentative, with their note. */
@@ -51,6 +78,14 @@ export interface EventGuest {
     note?: string;
     /** To the organiser alone: whether a guest by email was emailed their invitation. */
     invite?: "sent" | "not_sent" | "failed";
+    /** Another time they proposed: for them and whoever may change the event alone, while it stands. */
+    proposal?: EventProposal;
+}
+
+/** A time a guest proposed for an event, instead of its own (RFC 3339 instants). */
+export interface EventProposal {
+    start: string;
+    end: string;
 }
 
 export interface GetEventsResponse {

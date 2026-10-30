@@ -8,14 +8,21 @@ import { Provider } from "react-redux"
 // marks it read, once, and leaving it marks what arrived while it was open.
 
 const { seen } = vi.hoisted(() => ({ seen: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: () => new Promise(() => {}) }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: () => new Promise(() => {}) } }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/hooks/useScheduledMessages", () => ({ useScheduleMessage: () => vi.fn() }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
+// How many were unread: known (the usual open), or not yet (opened by a link,
+// before the sidebar answers; hooks/useUnreadOnOpen has its own test).
+const { sidebar } = vi.hoisted(() => ({ sidebar: { answered: true } }))
+vi.mock("@/hooks/useUnreadOnOpen", () => ({ useUnreadOnOpen: () => (sidebar.answered ? 0 : undefined) }))
 vi.mock("@/hooks/useFetch", () => {
   const me = { data: { data: { user_uuid: "me", user_name: "Sam Rivera" } } }
   return {
-    useFetch: (url: string) => (url.startsWith("/ch/") ? { data: { channel_info: { ch_uuid: "c-launch", ch_name: "launch", ch_is_member: 1 }, msg: "ok" }, mutate: () => {} } : { data: undefined, mutate: () => {} }),
+    useFetch: (url: string) =>
+      url.startsWith("/ch/")
+        ? { data: { channel_info: { ch_uuid: "c-launch", ch_name: "launch", ch_is_member: 1 }, msg: "ok" }, mutate: () => {} }
+        : { data: undefined, mutate: () => {} },
     useFetchOnlyOnce: () => me,
   }
 })
@@ -24,11 +31,12 @@ vi.mock("@/components/channel/chanelIdDesktop", () => ({ ChannelIdDesktop: () =>
 vi.mock("@/components/channel/channelIdMobile", () => ({ ChannelIdMobile: () => null }))
 
 const { default: store } = await import("@/store/store")
-const { ChannelView } = await import("./ChannelView")
+const { ChannelConversation: ChannelView } = await import("@/components/conversation/ChannelConversation")
 
 afterEach(() => {
   cleanup()
   seen.mockClear()
+  sidebar.answered = true
 })
 
 describe("opening a channel", () => {
@@ -45,5 +53,16 @@ describe("opening a channel", () => {
     const view = render(<Provider store={store}><ChannelView channelId="c-launch" /></Provider>)
     view.rerender(<Provider store={store}><ChannelView channelId="c-design" /></Provider>)
     expect(seen.mock.calls).toEqual([["c-launch"], ["c-launch"], ["c-design"]])
+  })
+
+  // Opened by a link before the sidebar answers: read only once its unread
+  // count is (chat B27). Marked before, the server's answer said none unread.
+  it("waits for the sidebar's answer before marking it read, opened by a link", () => {
+    sidebar.answered = false
+    const view = render(<Provider store={store}><ChannelView channelId="c-launch" /></Provider>)
+    expect(seen).not.toHaveBeenCalled()
+    sidebar.answered = true
+    view.rerender(<Provider store={store}><ChannelView channelId="c-launch" /></Provider>)
+    expect(seen.mock.calls).toEqual([["c-launch"]])
   })
 })

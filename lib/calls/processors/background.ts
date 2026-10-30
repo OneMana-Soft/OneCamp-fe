@@ -10,18 +10,12 @@ import { SEGMENTER_MODEL, VISION_FILESET } from "./assets"
 import { backdropUrl } from "./backdrops"
 import { BLUR_RADIUS, type Background } from "./effects"
 import { readPicture } from "./picture"
+import { once } from "@/lib/lazy/once"
 
 type Lib = typeof import("@livekit/track-processors")
 type Switchable = Awaited<ReturnType<Lib["BackgroundProcessor"]>>
 
-let lib: Promise<Lib> | null = null
-const load = (): Promise<Lib> => {
-  lib ??= import("@livekit/track-processors").catch((e: unknown) => {
-    lib = null
-    throw e
-  })
-  return lib
-}
+const load = once((): Promise<Lib> => import("@livekit/track-processors"))
 
 /** The processor's name on a track, to tell ours from anyone else's. */
 const NAME = "onecamp-background"

@@ -12,7 +12,7 @@
 
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import React, { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { getBriefing, briefingKey, BriefingResult, MemoryItem, BriefingHighlight, BriefingDayItem } from "@/services/memoryService"
@@ -90,7 +90,7 @@ function isOverdue(due?: string): boolean {
 }
 
 function BriefingCard() {
-  const router = useRouter()
+  const router = useAppRouter()
   const channels = useSelector((s: RootState) => s.users.userSidebar.userChannels)
   const { data: selfProfile } = useFetchOnlyOnce<SelfProfile>(GetEndpointUrl.SelfProfile)
   const currentUserId = selfProfile?.data?.user_uuid

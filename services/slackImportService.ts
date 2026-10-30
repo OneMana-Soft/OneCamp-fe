@@ -4,6 +4,7 @@
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { AdminGet, AdminPost } from "@/services/endpoints/admin"
+import { presignedUpload } from "@/lib/http/presignedUpload"
 
 // Mirrors backend adapter.JobOptions. Keep types pessimistic — backend
 // fills defaults if a field is omitted, so optional everywhere is fine.
@@ -13,6 +14,8 @@ export interface SlackImportOptions {
   channel_prefix?: string
   max_file_bytes?: number
   dry_run?: boolean
+  /** A member's read of their own Slack DMs: it plans and runs itself, and admins see it without what's in it. */
+  member_dms?: boolean
 }
 
 // Mirrors backend adapter.PlanResponse.
@@ -65,6 +68,8 @@ export interface SlackImportJob {
    */
   digest?: string
   triggered_by?: string
+  /** Whose own DMs a member's read brought, in the admins' history. */
+  member_name?: string
   created_at: string
   updated_at: string
   chunks_total: number
@@ -189,6 +194,38 @@ export function apiReadOf(job: Pick<SlackImportJob, "source" | "progress">): Sla
   return { conversations: n(read.conversations), of: n(read.of), messages: n(read.messages), replies: n(read.replies), files: n(read.files) }
 }
 
+/**
+ * Where a Slack import stands, as the history words it: its status, but for
+ * one waiting before it is read or planned, by why (a read under way, its
+ * turn among this server's reads, its team's import under way). Pure.
+ */
+export function slackJobState(job: Pick<SlackImportJob, "status" | "stage">): string {
+  if (job.status === "pending" && (job.stage === "reading" || job.stage === "queued" || job.stage === "waiting")) return job.stage
+  return job.status
+}
+
+/** How far a Slack import is, 0 to 100: conversations read while it reads, then parts brought in. Pure. */
+export function slackJobPercent(job: Pick<SlackImportJob, "status" | "stage" | "source" | "progress" | "chunks_done" | "chunks_total">): number {
+  if (job.status === "completed") return 100
+  if (slackJobState(job) === "reading") {
+    const read = apiReadOf(job)
+    return Math.round(((read?.conversations ?? 0) / Math.max(1, read?.of ?? 0)) * 100)
+  }
+  return Math.round((job.chunks_done / Math.max(1, job.chunks_total)) * 100)
+}
+
+/** A Slack token's kind by its shape: a person's (xoxp-) or an app's (xoxb-); undefined for anything else. Pure. */
+export function slackTokenKind(s: string): "user" | "bot" | undefined {
+  const m = /^xox([pb])-[A-Za-z0-9-]{8,}$/.exec(s.trim())
+  return m ? (m[1] === "p" ? "user" : "bot") : undefined
+}
+
+/** Whether a Slack import is still under way: reading, waiting or running. Pure. */
+export function slackJobLive(job: Pick<SlackImportJob, "status" | "stage">): boolean {
+  const s = slackJobState(job)
+  return s === "reading" || s === "queued" || s === "waiting" || s === "validating" || s === "planned" || s === "running" || s === "paused"
+}
+
 /** The SWR key of the largest export this server takes ({ max_bytes }). */
 export const SLACK_IMPORT_LIMITS_KEY = "/admin/import/slack/limits"
 
@@ -253,8 +290,8 @@ interface PresignResponse {
 }
 
 /**
- * Request a presigned upload URL. Caller must follow up with
- * uploadToPresignedURL + finalizePresignedUpload using the same job_id.
+ * Request a presigned upload URL, for presignedUpload to PUT the file to and
+ * finalizePresignedUpload to finish, under the same job_id.
  */
 async function presignSlackUpload(
   workspaceName: string,
@@ -272,50 +309,6 @@ async function presignSlackUpload(
     { ...OWN_ERRORS, signal },
   )
   return res.data
-}
-
-/** What a stopped upload rejects with, the same name fetch and axios use. */
-function abortError(): Error {
-  const e = new Error("The upload was stopped.")
-  e.name = "AbortError"
-  return e
-}
-
-/**
- * Stream-upload a File directly to MinIO using a presigned PUT URL.
- * Uses XHR (not fetch) for upload progress events, which are still the
- * most cross-browser-reliable way to report progress on multi-GB PUTs.
- */
-function uploadToPresignedURL(
-  url: string,
-  file: File,
-  headers: Record<string, string>,
-  onProgress?: (percent: number) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) return reject(abortError())
-    const xhr = new XMLHttpRequest()
-    // Stop means stop: a multi-GB PUT otherwise runs on after the dialog has
-    // given up on it, holding the connection and the bucket's space.
-    signal?.addEventListener("abort", () => xhr.abort(), { once: true })
-    xhr.open("PUT", url, true)
-    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v))
-    xhr.upload.onprogress = (evt) => {
-      if (!onProgress || !evt.lengthComputable) return
-      onProgress(Math.round((evt.loaded / evt.total) * 100))
-    }
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve()
-      } else {
-        reject(new Error(`MinIO PUT failed: ${xhr.status} ${xhr.statusText}`))
-      }
-    }
-    xhr.onerror = () => reject(new Error("network error during upload"))
-    xhr.onabort = () => reject(abortError())
-    xhr.send(file)
-  })
 }
 
 async function finalizePresignedUpload(jobId: string): Promise<void> {
@@ -338,10 +331,13 @@ export async function uploadSlackExportPresigned(
   /** Stops the upload, and nothing is finalised. Optional, so older callers are unchanged. */
   signal?: AbortSignal,
 ): Promise<{ job_id: string; slack_workspace_name: string; raw_object_key: string }> {
-  const presign = await presignSlackUpload(workspaceName, file.size, source, signal)
-  await uploadToPresignedURL(presign.upload_url, file, presign.headers, onUploadProgress, signal)
-  if (signal?.aborted) throw abortError()
-  await finalizePresignedUpload(presign.job_id)
+  const presign = await presignedUpload(
+    file,
+    () => presignSlackUpload(workspaceName, file.size, source, signal),
+    (p) => finalizePresignedUpload(p.job_id),
+    onUploadProgress,
+    signal,
+  )
   return {
     job_id: presign.job_id,
     slack_workspace_name: presign.slack_workspace_name,

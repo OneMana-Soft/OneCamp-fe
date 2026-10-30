@@ -16,6 +16,7 @@ describe("an archive request's problem", () => {
     expect(archiveProblem(refusal(429, { error: "rate limit exceeded, try again later" }), "fallback")).toBe("Too many archive requests at once. Try again in a minute.")
     expect(archiveProblem(refusal(409, { error: "x", code: "already_running" }), "fallback")).toBe("This is being archived right now. Wait for that run to finish.")
     expect(archiveProblem(refusal(409, { error: "x", code: "archive_running" }), "fallback")).toBe("Archiving is running right now. Try again when it finishes.")
+    expect(archiveProblem(refusal(409, { code: "undo_running", msg: "this run is being restored already" }), "fallback")).toBe("This run is being restored already. It finishes on its own.")
     expect(archiveProblem(refusal(400, { error: "entity_ids exceeds maximum of 1000 per request" }), "fallback")).toBe("Restore up to 1,000 items at a time.")
   })
 

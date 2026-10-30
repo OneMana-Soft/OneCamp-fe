@@ -8,6 +8,7 @@ import { mediaLinkOf } from "@/lib/codec/mediaLink"
 import { shapeLabel } from "@/lib/links/urlLabel"
 import { docFileOf, viewableFileUrl } from "@/lib/docFiles"
 import { useGuestReader } from "@/components/minimal-tiptap/guestReader"
+import { MENTION_ROOM } from "./linkMention"
 
 /**
  * A link mention (small-details L19): the page's icon and title in a chip, in
@@ -34,7 +35,8 @@ export function LinkMentionView({ node, selected }: NodeViewProps) {
         draggable={false}
         contentEditable={false}
         className={cn(
-          "inline-flex max-w-[22rem] items-baseline gap-1 rounded-md px-0.5 text-brand-text no-underline outline-none transition-colors duration-[90ms] hover:bg-hover",
+          "inline-flex max-w-[22rem] items-baseline gap-1 rounded-md text-brand-text no-underline outline-none transition-colors duration-[90ms] hover:bg-hover",
+          MENTION_ROOM,
           "focus-visible:ring-2 focus-visible:ring-brand",
           selected && "bg-press ring-2 ring-brand",
         )}

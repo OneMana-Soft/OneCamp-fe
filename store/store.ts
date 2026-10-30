@@ -2,7 +2,6 @@ import { configureStore} from "@reduxjs/toolkit";
 import storage from "@/lib/utils/storage";
 import { onSessionEnd } from "@/lib/sessionEnd";
 import { persistReducer, persistStore } from "redux-persist";
-import refreshSlice from "@/store/slice/refreshSlice";
 import reactionSlice from "@/store/slice/reactionSlice";
 import {taskInfoSlice} from "@/store/slice/taskInfoSlice";
 import {projectAttachmentSlice} from "@/store/slice/projectAttachmentSlice";
@@ -48,7 +47,7 @@ export const RESET_STORE_ACTION = "store/RESET"
 // only some pages use (a doc's) is added by them when they load (injectSlice):
 // store/lazySlices.test.ts holds this list to that.
 const SLICES = [
-    userSlice, refreshSlice, channelSlice, uiSlice, projectAttachmentSlice,
+    userSlice, channelSlice, uiSlice, projectAttachmentSlice,
     createTaskDialogSlice, createTaskCommentSlice, taskInfoSlice, reactionSlice,
     chatSlice, groupChatSlice, fwdMessageSlice, desktopRightPanelSlice, typingSlice,
     taskFilterSlice, channelCommentSlice, chatCommentSlice,
@@ -106,7 +105,6 @@ const rootReducer = (
 
 type StaticState = {
     [userSlice.name]: ReturnType<typeof userSlice.reducer>
-    [refreshSlice.name]: ReturnType<typeof refreshSlice.reducer>
     [channelSlice.name]: ReturnType<typeof channelSlice.reducer>
     [uiSlice.name]: ReturnType<typeof uiSlice.reducer>
     [projectAttachmentSlice.name]: ReturnType<typeof projectAttachmentSlice.reducer>

@@ -16,6 +16,7 @@ const CreateProjectDialog = dynamic(() => import("@/components/dialog/createProj
 const CreateTeamDialog = dynamic(() => import("@/components/dialog/createTeamDialog"), { ssr: false });
 const CreateTaskDialog = dynamic(() => import("@/components/dialog/createTaskDialog"), { ssr: false });
 const CreateDocDialog = dynamic(() => import("@/components/dialog/createDocDialog"), { ssr: false });
+const AskApprovalSheet = dynamic(() => import("@/components/work/approvals/AskApprovalSheet"), { ssr: false });
 const EditProfileDialog = dynamic(() => import("@/components/dialog/editProfileDailog"), { ssr: false });
 const OtherProfileDialog = dynamic(() => import("@/components/dialog/otherUserProfileDialog"), { ssr: false });
 const UpdateStatusDialog = dynamic(() => import("@/components/dialog/updateUserStatusDialog"), { ssr: false });
@@ -122,6 +123,7 @@ export function UnifiedUIManager() {
           fromMessage={ui.createTask.data?.draft && ui.createTask.data.source ? { draft: ui.createTask.data.draft, source: ui.createTask.data.source } : undefined}
           assignToMe={!!ui.createTask.data?.assignToMe}
           projectId={ui.createTask.data?.projectId}
+          address={ui.createTask.data?.address}
           renderNameHint={
             ui.createTask.data?.draft?.text
               ? (current, use) => <TaskNameSuggestion text={ui.createTask.data!.draft!.text} current={current} onUse={use} />
@@ -236,7 +238,7 @@ export function UnifiedUIManager() {
           media={ui.attachmentLightbox.data.media}
           allMedia={ui.attachmentLightbox.data.allMedia}
           mediaGetUrl={ui.attachmentLightbox.data.mediaGetUrl}
-          analyzeContext={ui.attachmentLightbox.data.analyzeContext}
+          source={ui.attachmentLightbox.data.source}
         />
       )}
 
@@ -467,6 +469,10 @@ export function UnifiedUIManager() {
             mutate((key) => typeof key === "string" && key.includes("/admin/archive/jobs"));
           }}
         />
+      )}
+
+      {ui.askApproval.isOpen && (
+        <AskApprovalSheet taskUUID={ui.askApproval.data.taskId} onClose={() => dispatch(closeUI('askApproval'))} />
       )}
 
       {ui.githubLinkTask.isOpen && (

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import type { DocBacklinks } from "@/types/docChrome"
 import { DocIcon } from "../DocIcon"
 import { useBacklinksShown } from "./backlinksPref"
+import { LazyConnected } from "@/components/workGraph/LazyConnected"
 
 /** How many show before "N more". */
 const FIRST = 3
@@ -69,6 +70,8 @@ export default function LinkedFromList({ links, refType, refUUID, className }: {
           <ChevronDown aria-hidden="true" className={cn("size-3.5 transition-transform duration-[140ms]", open && "rotate-180")} />
         </button>
       ) : null}
+      {/* Backlinks are one hop of the work graph: the rest of it, a press away. */}
+      {refType === "doc" ? <LazyConnected kind="doc" id={refUUID} showLabel label="All connections" className="h-7 px-1.5" /> : null}
     </section>
   )
 }

@@ -210,11 +210,11 @@ export function ProposalReviewBar(props: ProposalReviewBarProps) {
       )}
       <span className="ml-auto flex items-center gap-1">
         {allMoved ? (
-          <Button size="xs" onClick={() => void below()} disabled={busy} aria-keyshortcuts="Enter">
+          <Button size="xs" onClick={() => void below()} busy={busy} aria-keyshortcuts="Enter">
             <CornerDownRight /> Insert below
           </Button>
         ) : (
-          <Button size="xs" onClick={() => void accept()} disabled={busy || live.placed.length === 0} aria-keyshortcuts="Enter">
+          <Button size="xs" onClick={() => void accept()} disabled={live.placed.length === 0} busy={busy} aria-keyshortcuts="Enter">
             <Check /> {open.length > 1 ? "Accept all" : "Accept"}
           </Button>
         )}

@@ -16,8 +16,10 @@ import { BoardSkeleton } from "@/components/kanbanComponents/BoardSkeleton"
 import { useSearchParams } from "next/navigation"
 import { useState, useEffect, useCallback, useMemo, startTransition } from "react"
 import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
-import {useTranslation} from "react-i18next";
+import { useTranslation } from "@/lib/utils/i18n";
 
+// What waits for your answer shows once its read answers, so it comes in its own chunk.
+const WaitingForMe = dynamic(() => import("@/components/work/approvals/WaitingForMe").then((m) => m.WaitingForMe), { ssr: false })
 // The board is its own chunk, fetched when its tab first opens, as on a project.
 const MyTaskKanban = dynamic(() => import("@/components/myTask/myTaskKanban").then((m) => m.MyTaskKanban), { loading: () => <BoardSkeleton /> })
 
@@ -48,10 +50,11 @@ export const MyTaskDesktop = () => {
 
     return (
         <div className="flex h-full flex-col overflow-hidden">
-            {/* The header (work.md W14): the title, your day in counts, and the layout. */}
+            {/* The header (work.md W14): the title, your day in counts, what waits for your answer, and the layout. */}
             <header className="flex h-[52px] shrink-0 items-center gap-4 px-6 pt-2">
                 <h1 className="text-title-1 font-[590] tracking-[-0.019em] text-foreground">{t("myTasks")}</h1>
                 <MyDayCounts />
+                <WaitingForMe />
                 <span className="flex-1" />
                 <WorkSegmented
                     label="Layout"

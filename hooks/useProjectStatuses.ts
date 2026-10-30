@@ -62,5 +62,7 @@ export function useProjectStatuses(projectId: string | undefined) {
     [projectId, mutate],
   )
 
-  return { project, options, isLoading, create, update, remove, reorder, refresh: mutate }
+  return { project, options, isLoading, create, update, remove, reorder, refresh: mutate, refreshTasks,
+    // The client, for restoreService's restore: the lazy dialog may not import it itself (V-49).
+    http: axiosInstance }
 }

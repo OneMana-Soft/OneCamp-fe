@@ -26,7 +26,8 @@
  * and its digest a third box inside that.
  */
 
-import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
+import { count } from "@/lib/utils/count"
+import React, { useEffect, useMemo, useRef, useState, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
@@ -50,27 +51,31 @@ import {
   rollbackSlackImport,
   runSlackImport,
   apiReadOf,
+  slackJobLive,
+  slackJobPercent,
+  slackJobState,
   type SlackImportJob,
 } from "@/services/slackImportService"
 import { importProblemOf } from "@/services/importService"
-import { IMPORT_LIST, ImportRowsSkeleton, ROW_ACTION, count, partsLine } from "@/components/admin/ImportJobRow"
+import { IMPORT_LIST, ImportRowsSkeleton, ROW_ACTION, partsLine } from "@/components/admin/ImportJobRow"
 import { ImportDigest, ImportJobFrame, SLACK_IMPORT_NEW_EVENT } from "@/components/admin/importParts"
 import type { RowMenuItem } from "@/components/admin/connectParts"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 // Lazy-load the heavy dialogs (multi-GB upload widget, plan dialog
 // with mappings, error pagination). Same rationale as ImportCard:
 // the admin overview should render immediately; the dialogs only
 // matter when an action is taken.
-const SlackImportUploadDialog = lazy(() =>
+const SlackImportUploadDialog = lazyPiece(() =>
   import("@/components/admin/SlackImportUploadDialog").then((m) => ({ default: m.SlackImportUploadDialog })),
 )
-const SlackImportPlanDialog = lazy(() =>
+const SlackImportPlanDialog = lazyPiece(() =>
   import("@/components/admin/SlackImportPlanDialog").then((m) => ({ default: m.SlackImportPlanDialog })),
 )
-const SlackImportErrorsDialog = lazy(() =>
+const SlackImportErrorsDialog = lazyPiece(() =>
   import("@/components/admin/SlackImportErrorsDialog").then((m) => ({ default: m.SlackImportErrorsDialog })),
 )
-const ImportInviteDialog = lazy(() =>
+const ImportInviteDialog = lazyPiece(() =>
   import("@/components/admin/ImportInviteDialog").then((m) => ({ default: m.ImportInviteDialog })),
 )
 import { appMutate as swrMutate } from "@/lib/swrMutate";
@@ -88,7 +93,9 @@ const STAGE_LABELS: Record<string, string> = {
   queued: "Queued",
   users: "Resolving users",
   channels: "Creating channels",
+  dms: "Matching DMs",
   messages: "Importing messages",
+  dm_messages: "Importing DMs",
   threads: "Importing threads",
   files: "Downloading files",
   reactions: "Applying reactions",
@@ -112,7 +119,7 @@ const SlackImportCard: React.FC = () => {
   )
 
   const jobs = useMemo(() => data?.jobs ?? [], [data])
-  const runningJobs = useMemo(() => jobs.filter(isLive), [jobs])
+  const runningJobs = useMemo(() => jobs.filter(slackJobLive), [jobs])
 
   // -------- Polling fallback --------
   // useResilientPolling does the heavy lifting: pause on hidden tabs,
@@ -465,11 +472,13 @@ interface JobRowProps {
 // config to mount, none of which the row's own rendering depends on.
 export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors, onInvite, onDiscard }) => {
   const stageLabel = (job.stage && STAGE_LABELS[job.stage]) || job.stage || ""
-  const total = Math.max(1, job.chunks_total)
   // A read through Slack's API: how far it is, while it reads and once it has.
-  const reading = isReading(job)
+  const state = slackJobState(job)
+  const reading = state === "reading"
   const read = apiReadOf(job)
-  const pct = job.status === "completed" ? 100 : reading ? Math.round(((read?.conversations ?? 0) / Math.max(1, read?.of ?? 0)) * 100) : Math.round((job.chunks_done / total) * 100)
+  // A member's own DMs: it plans and runs itself, and its notes are theirs.
+  const memberRead = !!job.options?.member_dms
+  const pct = slackJobPercent(job)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -480,22 +489,21 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
 
   const done = job.status === "completed" || job.status === "failed" || job.status === "cancelled" || job.status === "rolled_back"
   const ran = job.status === "running" || job.status === "completed" || job.status === "paused"
-  const began = job.started_at || reading ? "Started" : job.source === "api" ? "Read" : "Uploaded"
-  const meta = [`${began} ${shortDateTime(new Date(job.started_at ?? job.created_at))}`]
-  if (read && !ran) {
+  const meta = memberRead ? memberReadMeta(job, state) : [`${job.started_at || reading ? "Started" : job.source === "api" ? "Read" : "Uploaded"} ${shortDateTime(new Date(job.started_at ?? job.created_at))}`]
+  if (read && !ran && !memberRead) {
     if (reading && read.of > 0) meta.push(`${read.conversations.toLocaleString()} of ${count(read.of, "conversation", "conversations")}`)
     else if (!reading) meta.push(count(read.conversations, "conversation", "conversations"))
     meta.push(count(read.messages + read.replies, "message", "messages"))
     if (read.files > 0) meta.push(count(read.files, "file", "files"))
   }
-  if (ran) meta.push(count(job.items_imported, "item", "items"), partsLine(job.chunks_done, job.chunks_total))
-  if (ran && job.chunks_failed > 0) meta.push(`${count(job.chunks_failed, "part", "parts")} failed`)
+  if (ran && !memberRead) meta.push(count(job.items_imported, "item", "items"), partsLine(job.chunks_done, job.chunks_total))
+  if (ran && !memberRead && job.chunks_failed > 0) meta.push(`${count(job.chunks_failed, "part", "parts")} failed`)
 
   // Done: what's left behind ⋯, so a list of finished imports is quiet.
   const menu: RowMenuItem[] = []
   if (done) {
-    if (job.status === "completed" && onInvite) menu.push({ label: "Invite the people who came across", icon: Users, onSelect: onInvite, disabled: busy })
-    if (job.errors_total > 0) menu.push({ label: `See ${count(job.errors_total, "error", "errors")}`, icon: AlertTriangle, onSelect: onShowErrors })
+    if (job.status === "completed" && onInvite && !memberRead) menu.push({ label: "Invite the people who came across", icon: Users, onSelect: onInvite, disabled: busy })
+    if (job.errors_total > 0 && !memberRead) menu.push({ label: `See ${count(job.errors_total, "error", "errors")}`, icon: AlertTriangle, onSelect: onShowErrors })
     menu.push({ label: "Free storage", icon: HardDrive, onSelect: onDeleteZip, disabled: busy })
     if (job.status !== "rolled_back")
       menu.push({ label: "Roll back", icon: RotateCcw, onSelect: onRollback, destructive: true, disabled: busy, separated: true })
@@ -507,29 +515,29 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
       jobId={job.id}
       vendor="slack"
       vendorName="Slack"
-      name={job.slack_workspace_name}
-      status={reading ? "reading" : job.status}
+      name={memberRead ? memberReadName(job) : job.slack_workspace_name}
+      status={state}
       stage={stageLabel}
       meta={meta}
       pct={pct}
       highlighted={highlighted}
-      errorsLabel={job.errors_total > 0 ? count(job.errors_total, "error", "errors") : undefined}
+      errorsLabel={job.errors_total > 0 && !memberRead ? count(job.errors_total, "error", "errors") : undefined}
       onShowErrors={onShowErrors}
       menu={menu}
       actions={
         <>
-          {job.status === "validating" && (
+          {job.status === "validating" && !memberRead && (
             <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
               Plan
             </Button>
           )}
-          {(job.status === "planned" || (job.status === "failed" && job.plan)) && (
+          {(job.status === "planned" || (job.status === "failed" && job.plan)) && !memberRead && (
             <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={onRun} disabled={busy}>
               <PlayCircle />
               {job.status === "failed" ? "Run again" : "Run"}
             </Button>
           )}
-          {job.status === "failed" && (
+          {job.status === "failed" && !memberRead && (
             <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
               Plan again
             </Button>
@@ -560,14 +568,30 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
   )
 }
 
-function isLive(job: SlackImportJob): boolean {
-  const s = job.status
-  return isReading(job) || s === "validating" || s === "planned" || s === "running" || s === "paused"
+/**
+ * What the admins' history says of a member's own read: when it was queued,
+ * started or brought, and how many conversations and messages, the counters
+ * that apply to it (an import's items and parts don't). Pure.
+ */
+export function memberReadMeta(job: SlackImportJob, state: string): string[] {
+  const when = shortDateTime(new Date(job.started_at ?? job.created_at))
+  const lead = state === "queued" || state === "waiting" ? "Queued" : job.status === "completed" ? "Brought" : "Started"
+  const meta = [`${lead} ${when}`]
+  const read = apiReadOf(job)
+  if (!read) return meta
+  if (state === "reading" && read.of > 0) meta.push(`${read.conversations.toLocaleString()} of ${count(read.of, "conversation", "conversations")}`)
+  else if (read.conversations > 0) meta.push(count(read.conversations, "conversation", "conversations"))
+  if (read.messages + read.replies > 0) meta.push(count(read.messages + read.replies, "message", "messages"))
+  return meta
 }
 
-/** A read through Slack's API under way. Pure. */
-function isReading(job: Pick<SlackImportJob, "status" | "stage">): boolean {
-  return job.status === "pending" && job.stage === "reading"
+/**
+ * A member's own read in the admins' history: whose DMs, never what's in them
+ * (the server keeps its plan, notes and digest to the member). Pure.
+ */
+export function memberReadName(job: Pick<SlackImportJob, "member_name">): string {
+  const who = job.member_name?.trim()
+  return who ? `${who}'s own DMs` : "A member's own DMs"
 }
 
 export default SlackImportCard

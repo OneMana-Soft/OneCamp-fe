@@ -1,8 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs"
-import { join, relative } from "node:path"
+import { readFileSync } from "node:fs"
+import { relative } from "node:path"
 
 import ts from "typescript"
 import { describe, expect, it } from "vitest"
+import { sourceFiles } from "@/lib/testing/sourceFiles"
 
 /**
  * A useSelector returns what the store holds, not something it makes.
@@ -29,15 +30,6 @@ const BASELINE: Record<string, number> = {
 }
 
 const ROOT = process.cwd()
-function files(dir: string, out: string[] = []): string[] {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === "node_modules" || e.name.startsWith(".")) continue
-    const p = join(dir, e.name)
-    if (e.isDirectory()) files(p, out)
-    else if (/\.tsx?$/.test(e.name) && !/\.(test|spec)\./.test(e.name)) out.push(p)
-  }
-  return out
-}
 
 const unwrap = (n: ts.Expression): ts.Expression =>
   ts.isParenthesizedExpression(n) || ts.isAsExpression(n) || ts.isTypeAssertionExpression(n) || ts.isSatisfiesExpression(n) ? unwrap(n.expression) : n
@@ -82,7 +74,7 @@ export function freshSelectors(src: string, fileName = "x.tsx"): number {
 describe("store selectors", () => {
   it("return what the store holds, not a value made on the spot", () => {
     const over: string[] = []
-    for (const file of ["app", "components", "hooks", "lib", "context"].flatMap((d) => files(join(ROOT, d)))) {
+    for (const file of sourceFiles(["app", "components", "hooks", "lib", "context"], /\.tsx?$/)) {
       const rel = relative(ROOT, file)
       const src = readFileSync(file, "utf8")
       if (!src.includes("useSelector")) continue

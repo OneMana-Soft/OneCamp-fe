@@ -21,16 +21,17 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SettingsCard, SettingsCardError, SettingsRowsSkeleton, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
-import { useSaveStatus } from "@/components/ui/saveStatus"
+import { switchOffer, useSaveStatus } from "@/components/ui/saveStatus"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban, Link2 } from "@/lib/icons"
 import { useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
-import { setGuestAccess, setGuestPublish, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
+import { setGuestOption, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { formatDistanceToNow } from "date-fns"
 import { NEUTRAL_TILE } from "@/components/admin/neutralTile"
 import { tablePath } from "@/lib/tables/route"
+import { MiddleName } from "@/components/ui/middleName"
 
 // Per-resource-type display: a friendly label, an icon, and (for resources that
 // have an in-app page) a link an admin can open to see what was shared.
@@ -46,8 +47,24 @@ const RESOURCE_META: Record<
     project: { label: "Project", Icon: FolderKanban, href: (id) => `/app/project/${id}` },
 }
 
-function resourceMeta(type: string) {
-    return RESOURCE_META[type] || { label: type, Icon: FileText }
+/** A meeting's link with an address is a member's personal room (calls CALLS-2). */
+const isRoom = (g: GuestGrant) => g.resource_type === "meeting" && !!g.slug
+
+function RoomAddress({ address }: { address: string }) {
+    return (
+        <span data-room-address="" className="flex min-w-0">
+            <MiddleName name={address} />
+        </span>
+    )
+}
+
+function resourceMeta(g: GuestGrant): (typeof RESOURCE_META)[string] {
+    // Named for its owner, in the words its guests see; "Personal room" when
+    // the owner has gone.
+    if (isRoom(g)) return { label: g.created_by_name ? `${g.created_by_name}'s room` : "Personal room", Icon: Video }
+    // A call's invite (HU13): one call, while it lasts.
+    if (g.resource_type === "call") return { label: g.created_by_name ? `${g.created_by_name}'s call invite` : "Call invite", Icon: Video }
+    return RESOURCE_META[g.resource_type] || { label: g.resource_type, Icon: FileText }
 }
 
 /** What a link lets its holder do, from their side: "Can comment", not "comment". */
@@ -78,6 +95,10 @@ export default function GuestAccessCard() {
     const [publishPending, setPublishPending] = useState<boolean | null>(null)
     const publishSave = useSaveStatus()
     const publishOn = publishPending ?? (settings ? settings.guest_publish_enabled !== false : true)
+    // And personal meeting rooms (calls CALLS-2), beside it under the switch.
+    const [roomsPending, setRoomsPending] = useState<boolean | null>(null)
+    const roomsSave = useSaveStatus()
+    const roomsOn = roomsPending ?? (settings ? settings.guest_rooms_enabled !== false : true)
     const enabled = pending ?? (settings ? !!settings.guest_access_enabled : null)
     const failed = isError || (!isLoading && !settings)
     const [grants, setGrants] = useState<GuestGrant[]>([])
@@ -103,10 +124,10 @@ export default function GuestAccessCard() {
         loadGrants()
     }, [])
 
-    const apply = async (next: boolean) => {
+    const apply = async (next: boolean): Promise<boolean> => {
         setPending(next)
         const ok = await run(async () => {
-            const applied = await setGuestAccess(next)
+            const applied = await setGuestOption("enabled", next)
             await mutate(
                 (d) => (d?.data ? { ...d, data: { ...d.data, guest_access_enabled: applied } as WorkspaceSettings } : d),
                 { revalidate: false },
@@ -115,22 +136,37 @@ export default function GuestAccessCard() {
                 setRevealed(true)
                 loadGrants()
             }
-        })
+        }, switchOffer("Allow guest links", next, apply))
         if (!ok) setRevealed(false)
         // Back to what the server holds: the saved value, or the old one.
         setPending(null)
+        return ok
     }
 
-    const applyPublish = async (next: boolean) => {
+    const applyPublish = async (next: boolean): Promise<boolean> => {
         setPublishPending(next)
-        await publishSave.run(async () => {
-            const applied = await setGuestPublish(next)
+        const held = await publishSave.run(async () => {
+            const applied = await setGuestOption("publish", next)
             await mutate(
                 (d) => (d?.data ? { ...d, data: { ...d.data, guest_publish_enabled: applied } as WorkspaceSettings } : d),
                 { revalidate: false },
             )
-        })
+        }, switchOffer("Pages can be published to the web", next, applyPublish))
         setPublishPending(null)
+        return held
+    }
+
+    const applyRooms = async (next: boolean): Promise<boolean> => {
+        setRoomsPending(next)
+        const held = await roomsSave.run(async () => {
+            const applied = await setGuestOption("rooms", next)
+            await mutate(
+                (d) => (d?.data ? { ...d, data: { ...d.data, guest_rooms_enabled: applied } as WorkspaceSettings } : d),
+                { revalidate: false },
+            )
+        }, switchOffer("Personal meeting rooms", next, applyRooms))
+        setRoomsPending(null)
+        return held
     }
 
     // Turning it back on wakes every link made before, so it says how many.
@@ -209,7 +245,7 @@ export default function GuestAccessCard() {
         links = (
             <ul aria-label="Guest links" className="set-rows">
                 {grants.map((g, i) => {
-                    const meta = resourceMeta(g.resource_type)
+                    const meta = resourceMeta(g)
                     const Icon = meta.Icon
                     const href = meta.href?.(g.resource_id)
                     const r = reveal(i + 1)
@@ -220,15 +256,30 @@ export default function GuestAccessCard() {
                                     <Icon className="size-4" />
                                 </span>
                                 <div className="min-w-0 space-y-0.5">
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <span className="font-medium text-foreground">{meta.label}</span>
-                                        <span className="chip">{capabilityLabel(g.capability)}</span>
+                                    {/* Short of room, the chip goes under the name, and a name
+                                        too long for the row wraps to two lines before it's cut. */}
+                                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+                                        <span className="min-w-0 break-words font-medium text-foreground line-clamp-2">{meta.label}</span>
+                                        <span className="chip shrink-0">{capabilityLabel(g.capability)}</span>
                                     </div>
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        <Clock className="size-3 text-ink-3" aria-hidden="true" />
-                                        {g.expires_at
-                                            ? `Expires ${formatDistanceToNow(new Date(g.expires_at), { addSuffix: true })}`
-                                            : "Doesn't expire"}
+                                    <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                                        {isRoom(g) ? (
+                                            // A room never expires: its line is its address, cut in
+                                            // its middle so its start and its end both show.
+                                            <>
+                                                <Link2 className="size-3 shrink-0 text-ink-3" aria-hidden="true" />
+                                                <RoomAddress address={`/r/${g.slug}`} />
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Clock className="size-3 shrink-0 text-ink-3" aria-hidden="true" />
+                                                <span className="truncate">
+                                                    {g.expires_at
+                                                        ? `Expires ${formatDistanceToNow(new Date(g.expires_at), { addSuffix: true })}`
+                                                        : "Doesn't expire"}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -236,7 +287,8 @@ export default function GuestAccessCard() {
                                 {href && (
                                     <Button asChild variant="ghost" size="sm">
                                         <a href={href} target="_blank" rel="noopener noreferrer" title={`Open this ${meta.label.toLowerCase()}`}>
-                                            <ExternalLink aria-hidden="true" /> Open
+                                            {/* The glyph alone on a phone, so the row's words keep their room. */}
+                                            <ExternalLink aria-hidden="true" /> <span className="max-sm:sr-only">Open</span>
                                         </a>
                                     </Button>
                                 )}
@@ -268,7 +320,7 @@ export default function GuestAccessCard() {
                     <>
                         <SwitchRow
                             label="Allow guest links"
-                            description="When off, no guest link can be created or used, and no page is published. Links already made are kept."
+                            description="When off, no guest link, page or room works. Links already made are kept."
                             checked={enabled}
                             disabled={status.state === "saving"}
                             status={status}
@@ -277,11 +329,20 @@ export default function GuestAccessCard() {
                         <SwitchRow
                             className="pl-6"
                             label="Pages can be published to the web"
-                            description="A doc's view-only link can also have its own address, as a fast, read-only page. Its owner chooses whether search engines may find it."
+                            description="A view-only doc can also get its own fast, read-only web address."
                             checked={enabled && publishOn}
                             disabled={!enabled || publishSave.status.state === "saving"}
                             status={publishSave.status}
                             onChange={(next) => void applyPublish(next)}
+                        />
+                        <SwitchRow
+                            className="pl-6"
+                            label="Personal meeting rooms"
+                            description="One room per member, at their own address. Off stops every room at once."
+                            checked={enabled && roomsOn}
+                            disabled={!enabled || roomsSave.status.state === "saving"}
+                            status={roomsSave.status}
+                            onChange={(next) => void applyRooms(next)}
                         />
                         <div {...reveal(0)} className={`set-row flex min-h-0 items-center py-2.5 ${reveal(0).className}`}>
                             <h3 className="text-xs font-medium text-muted-foreground">

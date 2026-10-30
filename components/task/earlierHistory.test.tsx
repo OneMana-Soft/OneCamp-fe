@@ -11,7 +11,7 @@ pinTestClock()
 // at a time, before the oldest line it shows.
 
 const h = vi.hoisted(() => ({ get: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: h.get } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: h.get } }))
 
 const { useEarlierHistory } = await import("@/hooks/useEarlierHistory")
 const { EarlierHistoryButton } = await import("@/components/task/taskActivitySection")

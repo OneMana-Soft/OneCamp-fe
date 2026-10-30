@@ -16,6 +16,8 @@ export interface WorkspaceSettings {
     guest_access_enabled: boolean
     /** Guest access's one sub-option: whether pages can be published to the web (docs C6). */
     guest_publish_enabled?: boolean
+    /** Guest access's sub-option for personal meeting rooms; absent means on. */
+    guest_rooms_enabled?: boolean
     /** Read receipts in DMs and group chats; each person can still turn theirs off. */
     read_receipts_enabled: boolean
 }

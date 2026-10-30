@@ -9,9 +9,15 @@
 // origin, whatever domain it was made for, by the rule e2e/stubbedApp.ts
 // routes by too (appServers.mjs).
 //
+// The realtime broker's socket is answered only when a run asks for it
+// (`broker: true`: fakeBroker.mjs, an MQTT broker; context.__broker publishes
+// and keeps its packets' times). Otherwise it is taken and stays silent, as
+// every measure before 21 Oct 2026 had it: the app never connects.
+//
 //   const collab = createFakeCollab({ docs, policy })
 //   await fakeApp(context, { app: "http://localhost:3000", user: USERS.sam, docs: DOCS, collab, rtt: 150 })
 import { leavesApp, serverOf } from "./appServers.mjs"
+import { brokerFor } from "./fakeBroker.mjs"
 import { createFakeCollab } from "./fakeCollab.mjs"
 
 export const USERS = {
@@ -72,6 +78,12 @@ export function status(code, json) {
   return { [STATUS]: code, json }
 }
 
+const BYTES = Symbol("bytes")
+/** A fixture's answer that isn't JSON: an image's bytes, say (a board's pictures). */
+export function bytes(contentType, body) {
+  return { [BYTES]: contentType, body }
+}
+
 // The app shell's reads whose "nothing" is not an empty object.
 const SHELL_FIXTURES = [
   [/\/task\/time\/running$/, { msg: "ok", data: null }],
@@ -129,6 +141,7 @@ export async function fakeApp(context, o) {
       const answer = typeof body === "function" ? body(path, url, req) : body
       if (answer === undefined) continue
       if (answer && answer[STATUS]) return json(answer[STATUS], answer.json)
+      if (answer && answer[BYTES]) return route.fulfill({ status: 200, headers: cors, contentType: answer[BYTES], body: answer.body }).catch(() => {})
       return json(200, answer)
     }
     // Anything else the shell asks for: an empty object, which every reader
@@ -143,10 +156,14 @@ export async function fakeApp(context, o) {
   const handshakeMs = o.handshakeMs ?? rtt * 2
   const net = { offline: false, losing: false }
   context.__collabNet = net
+  const broker = o.broker ? brokerFor({ log }) : null
+  context.__broker = broker
   await context.routeWebSocket(offApp, (ws) => {
-    // The collaboration server's sockets are answered here; any other (the
-    // realtime broker's) is taken and stays silent.
-    if (serverOf(new URL(ws.url())) !== "collab") return
+    // The collaboration server's sockets are answered here, and the realtime
+    // broker's when the run has one; any other is taken and stays silent.
+    const kind = serverOf(new URL(ws.url()))
+    const server = kind === "collab" ? o.collab : kind === "emqx" ? broker : null
+    if (!server) return
     // Offline (setOffline below): the connection fails, as a real one would.
     if (net.offline) {
       ws.close().catch?.(() => {})
@@ -156,7 +173,7 @@ export async function fakeApp(context, o) {
     const readyAt = Date.now() + handshakeMs
     const entry = { url: ws.url(), open: true }
     sockets.push(entry)
-    const peer = o.collab.connect(
+    const peer = server.connect(
       (bytes) => {
         if (net.losing) return
         const send = () => entry.open && ws.send(Buffer.from(bytes))
@@ -180,7 +197,7 @@ export async function fakeApp(context, o) {
       peer.closed()
     })
   })
-  return { sockets }
+  return { sockets, broker }
 }
 
 /**
@@ -189,9 +206,18 @@ export async function fakeApp(context, o) {
  * socket is closed here and new ones fail until it is back.
  */
 export async function setOffline(context, offline) {
-  context.__collabNet.offline = offline
-  if (offline) for (const s of context.__collabSockets) if (s.open) s.close()
+  dropCollabSocket(context, offline)
   await context.setOffline(offline)
+}
+
+/**
+ * Takes the collaboration socket down, or lets it come back, while the network
+ * stays up: the socket is closed and new ones fail until it is back, as when
+ * the collaboration server goes away under a page that is still online.
+ */
+export function dropCollabSocket(context, down) {
+  context.__collabNet.offline = down
+  if (down) for (const s of context.__collabSockets) if (s.open) s.close()
 }
 
 /**

@@ -21,13 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { RefreshCw } from "@/lib/icons";
 import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
 import { AdminGet, AdminPost } from "@/services/endpoints/admin"
 import { useEveryChannel } from "@/components/admin/useEveryChannel"
 import { WebhookScopeFields, scopePayload, scopeProblem } from "@/components/admin/WebhookScopeFields"
 import { FALLBACK_EVENT_TYPES, INCOMING_CHANNEL_HELP, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
+import { parseEvents, TICK_AN_EVENT } from "@/components/admin/webhookParts"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { StateWord } from "@/components/admin/connectParts"
@@ -91,8 +91,8 @@ function SendTest({ webhookId }: { webhookId: string }) {
           <p className="text-sm font-medium">Send a test</p>
           <p className="text-xs text-muted-foreground">Sends a test event to the address saved now.</p>
         </div>
-        <Button type="button" variant="secondary" size="sm" onClick={send} disabled={state === "sending"} aria-busy={state === "sending" || undefined}>
-          {state === "sending" ? <RefreshCw className="animate-spin" aria-hidden="true" /> : <PlayCircle aria-hidden="true" />}
+        <Button type="button" variant="secondary" size="sm" onClick={send} busy={state === "sending"}>
+          <PlayCircle aria-hidden="true" />
           {state === "sending" ? "Sending…" : "Send a test"}
         </Button>
       </div>
@@ -170,15 +170,13 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
 
   useEffect(() => {
     if (open && webhook) {
-      let events: string[] = []
-      try { if (webhook.events) events = JSON.parse(webhook.events) } catch {}
       setForm({
         name: webhook.name,
         description: webhook.description || "",
         target_url: webhook.target_url || "",
         channel_id: webhook.channel_id || "",
         bot_name: webhook.bot_name,
-        events,
+        events: parseEvents(webhook.events),
         is_active: webhook.is_active,
         scope_type: webhook.scope_type || "org",
         scope_entity_id: webhook.scope_entity_id || "",
@@ -210,6 +208,10 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
       return
     }
     if (next.scope) return
+    // A change that names no scope keeps the webhook's own (the server's
+    // rule), so Save names one only when the admin chose a new one: a dialog
+    // opened without the webhook's scope never moves it.
+    const scopeChanged = form.scope_type !== (webhook.scope_type || "org") || form.scope_entity_id !== (webhook.scope_entity_id || "")
     try {
       await post.makeRequest({
         apiEndpoint: AdminPost.UpdateWebhook,
@@ -223,7 +225,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
           bot_name: form.bot_name.trim() || "Webhook Bot",
           events: form.events.length > 0 ? form.events : undefined,
           is_active: form.is_active,
-          ...(webhook?.type === "outgoing" ? scopePayload(form.scope_type, form.scope_entity_id) : {}),
+          ...(webhook?.type === "outgoing" && scopeChanged ? scopePayload(form.scope_type, form.scope_entity_id) : {}),
         },
         showToast: true,
       })
@@ -301,11 +303,12 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
               help={INCOMING_CHANNEL_HELP}
             >
               <Select
+                id="edit-channel"
                 value={form.channel_id || NO_CHANNEL_VALUE}
                 onValueChange={(v) => setForm(f => ({ ...f, channel_id: v === NO_CHANNEL_VALUE ? "" : v }))}
                 disabled={channelsLoading}
               >
-                <SelectTrigger id="edit-channel">
+                <SelectTrigger>
                   {channelsLoading ? (
                     <span className="text-muted-foreground">Loading channels…</span>
                   ) : (
@@ -349,8 +352,12 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={post.isSubmitting}>
-            {post.isSubmitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+          <Button
+            onClick={handleSubmit}
+            busy={post.isSubmitting}
+            disabled={webhook?.type === "outgoing" && form.events.length === 0}
+            disabledReason={TICK_AN_EVENT}
+          >
             {post.isSubmitting ? "Saving…" : "Save changes"}
           </Button>
         </DialogFooter>

@@ -13,13 +13,19 @@ import { cn } from "@/lib/utils/helpers/cn"
  */
 export function propertyRow(align: "center" | "start" = "center", className?: string) {
   return cn(
-    "grid min-h-8 grid-cols-1 gap-1 sm:grid-cols-[104px_minmax(0,1fr)] sm:gap-x-2",
+    "grid min-h-8 grid-cols-[96px_minmax(0,1fr)] gap-x-2 sm:grid-cols-[104px_minmax(0,1fr)]",
     align === "start" ? "sm:items-start" : "sm:items-center",
     className ?? "mb-0.5",
   )
 }
 
-export const propertyLabel = "whitespace-nowrap text-ui-sm text-ink-3"
+/**
+ * A property's name, on a 32 px line: a value's own line (the field button),
+ * so at every width the name sits on its value's baseline, and on the first
+ * line of a value that wraps. A phone's rows don't centre their cells, and a
+ * name on its own 13 px line sat 7 px above its value (DESIGN-BUILD-13).
+ */
+export const propertyLabel = "min-w-0 truncate text-ui-sm leading-8 text-ink-3"
 
 /** A value that opens a picker: the ghost field button. */
 export const propertyValue =

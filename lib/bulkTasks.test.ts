@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { bulkRequest, notDone, tagState } from "./bulkTasks"
+import { bulkOp, bulkRequest, notDone, tagState } from "./bulkTasks"
 import { BUILT_IN_STATUSES } from "./taskStatus"
 import { PostEndpointUrl } from "@/services/endPoints"
 import type { TaskInfoInterface } from "@/types/task"
@@ -65,6 +65,18 @@ describe("one change to many tasks", () => {
     expect(back?.endpoint).toBe(PostEndpointUrl.UnArchiveTask)
     expect(back?.removes).toBeFalsy()
     expect(bulkRequest(live, { field: "restore" })).toBeNull()
+  })
+
+  it("moves tasks into a cycle or back to the backlog in one request, the server answering the ones already there", () => {
+    expect(bulkRequest(task(), { field: "cycle", value: "c-4" })).toMatchObject({ payload: { cycle_id: "c-4" }, patch: {} })
+    expect(bulkOp({ field: "cycle", value: "c-4" })).toEqual({ op: "cycle", value: "c-4" })
+    expect(bulkOp({ field: "cycle", value: "" })).toEqual({ op: "cycle", value: "" })
+  })
+
+  it("puts tasks in a milestone or takes them out in one request, as POST /task/bulk's milestone op", () => {
+    expect(bulkRequest(task(), { field: "milestone", value: "m-2" })).toMatchObject({ endpoint: "/task/milestone", payload: { milestone_id: "m-2" }, patch: {} })
+    expect(bulkOp({ field: "milestone", value: "m-2" })).toEqual({ op: "milestone", value: "m-2" })
+    expect(bulkOp({ field: "milestone", value: "" })).toEqual({ op: "milestone", value: "" })
   })
 
   it("says what a change to many tasks didn't do, in words that agree", () => {

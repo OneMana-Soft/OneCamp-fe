@@ -39,6 +39,29 @@ describe("the phone doc bar", () => {
         expect(openOptions()).toBe(false)
     })
 
+    it("offers no comments or page options on a folder, a file or a link, whose own view has its actions (docs F1b)", () => {
+        cleanup()
+        answers["/doc/getDocInfo"] = { data: { doc_node_kind: "folder", doc_created_by: { user_uuid: "u-sam" } } }
+        const store = configureStore({ reducer: { createDocComment: (s = { docCommentCount: {} }) => s } })
+        render(<Provider store={store}><MobileTopNavigationBarThirdDoc docId="d1" /></Provider>)
+        expect(screen.queryByRole("button", { name: "Document options" })).toBeNull()
+        expect(screen.queryByRole("link", { name: "Comments" })).toBeNull()
+        delete answers["/doc/getDocInfo"]
+    })
+
+    it("fetches the comments' page when a finger heads for it, not as the doc opens (fluid-06: the phone's doc-open KB)", () => {
+        // On sight, the link prefetched the comments' route in the doc's own
+        // open, and with it the doc page's code again: 653 KB counted where
+        // the open needs 332 (LEAD-6's A/B, 21 Oct).
+        cleanup()
+        const store = configureStore({ reducer: { createDocComment: (s = { docCommentCount: {} }) => s } })
+        render(<Provider store={store}><MobileTopNavigationBarThirdDoc docId="d1" /></Provider>)
+        const link = screen.getByRole("link", { name: "Comments" })
+        expect(link.getAttribute("data-prefetch")).toBe("off")
+        fireEvent.touchStart(link)
+        expect(link.getAttribute("data-prefetch")).toBe("intent")
+    })
+
     it("is the owner's when the profile is the doc's creator", () => {
         answers["/doc/getDocInfo"] = { data: { doc_created_by: { user_uuid: "u-sam" } } }
         answers.self = { data: { user_uuid: "u-sam" } }

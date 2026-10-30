@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { NO_ACCESS, accessOf, canCommentTask, canEditTask } from "@/lib/work/access"
+import { NO_ACCESS, accessHeldBack, accessOf, canCommentTask, canEditTask } from "@/lib/work/access"
 import { canDeleteTask } from "@/lib/work/canDelete"
 import type { WorkAccess } from "@/lib/work/types"
 
@@ -96,5 +96,20 @@ describe("whether someone may comment on a task", () => {
     expect(canCommentTask({ task_project: { project_is_admin: 0 } }, { project_access: viewer })).toBe(false)
     expect(canCommentTask({ task_project: { project_is_admin: 0 } }, { project_access: member })).toBe(true)
     expect(canCommentTask(undefined)).toBe(false)
+  })
+})
+
+describe("a task made on this device whose project's access it never kept", () => {
+  const MADE = "offline-7a6b5c4d-0000-4000-8000-000000000099"
+  it("is held back only while nothing says what the reader may do", () => {
+    expect(accessHeldBack(MADE, { task_project: { project_is_admin: undefined } })).toBe(true)
+    expect(accessHeldBack(MADE, { task_project: null })).toBe(true)
+    // Kept, or said by the task itself: known, whatever it allows.
+    expect(accessHeldBack(MADE, { task_project: { project_is_member: false } })).toBe(false)
+    expect(accessHeldBack(MADE, { task_project: { project_access: { ...NO_ACCESS, role: "viewer", view: true } } })).toBe(false)
+    expect(accessHeldBack(MADE, { task_access: { edit: false, delete: false, comment: false, log_time: false } })).toBe(false)
+    // A task the server made: its answer says.
+    expect(accessHeldBack("7a6b5c4d-0000-4000-8000-000000000099", { task_project: {} })).toBe(false)
+    expect(accessHeldBack(MADE, undefined)).toBe(false)
   })
 })

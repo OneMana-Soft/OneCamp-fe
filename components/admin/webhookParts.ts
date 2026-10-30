@@ -80,6 +80,25 @@ export function pausedWhy(w: { paused_at?: string; paused_reason?: string; scope
   return "Paused by an admin."
 }
 
+/**
+ * Why an outgoing webhook is sent nothing, as the list says it, or null. It is
+ * sent only the kinds of event it names, so one that names none gets nothing.
+ * The server refuses new ones like that (V-112); one kept from before stays
+ * so until an admin edits it and ticks one.
+ */
+export function sendsNothingWhy(w: { type: "incoming" | "outgoing"; events?: string }): string | null {
+  return w.type === "outgoing" && parseEvents(w.events).length === 0 ? "Sends nothing: no kinds ticked." : null
+}
+
+/**
+ * Why an outgoing webhook waits for an event: Create and Save in both its
+ * dialogs, and the list's switch on one kept with none. It is sent only the
+ * events ticked, so one with none would be sent nothing. The server refuses one
+ * in these same words (V-112; noKinds in business/Webhook/webhookBusiness.go),
+ * so the refusal reads one way.
+ */
+export const TICK_AN_EVENT = "Choose at least one event to send: a webhook with none is sent nothing."
+
 /** Whether it fired in the last seven days: deleting it then asks for its name. */
 export function deliveredRecently(lastTriggeredAt: string | undefined, now: number = Date.now()): boolean {
   if (!lastTriggeredAt) return false

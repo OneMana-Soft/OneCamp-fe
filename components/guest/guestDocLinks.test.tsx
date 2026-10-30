@@ -15,7 +15,7 @@ const unlock = vi.hoisted(() => ({ unlockPage: vi.fn() }))
 vi.mock("@/lib/publish/publish", async (importOriginal) => ({ ...(await importOriginal<object>()), ...unlock }))
 
 import GuestDocPage from "@/app/guest/d/[token]/page"
-import { go } from "@/components/publish/PublishedRoute"
+import { go } from "@/components/publish/publishCards"
 
 async function open(path: string) {
   window.history.replaceState(null, "", path)

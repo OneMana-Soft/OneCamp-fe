@@ -1,8 +1,7 @@
 /**
- * The projects area's API endpoints: what only projects code uses (split from
- * services/endPoints.ts on 18 Oct 2026, platform P-SPEED). A route loads only its
- * own area's. An endpoint a second area comes to use moves to services/endPoints.ts
- * (app/endpointsShared.test.ts); scripts/endpoints/areas.mjs says which file is whose.
+ * The projects area's own endpoints (platform P-SPEED, 18 Oct 2026): one a
+ * second area uses moves to services/endPoints.ts (app/endpointsShared.test.ts,
+ * scripts/endpoints/areas.mjs).
  */
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
@@ -18,8 +17,9 @@ export enum ProjectsGet {
     ProjectCycles = "/project",
     // A project's intake forms: /project/{id}/forms (+ /{form}/delete)
     ProjectForms = "/project",
-    // A project's rules: /project/{id}/rules (+ /{rule}, /active, /delete, /runs, /runs/{run}/undo)
+    // /project/{id}/rules (+ /{rule}, /active, /delete, /runs)
     ProjectRules = "/project",
+    TaskApproval = "/task/approval",
     // Project templates: GET the list, POST one from a file; /{id} to download,
     // /{id}/delete. A project is saved as one at /project/{id}/save-as-template.
     ProjectTemplates = "/project/templates",
@@ -31,8 +31,6 @@ export enum ProjectsGet {
     // Every project the reader is in, with where its tasks stand: ?tz=
     ProjectsOverview = "/project/overview",
     ProjectReport = "/project/report",
-    // The AI edition's draft of a project's next update (POST {project_uuid, tz}).
-    AiProjectUpdateDraft = "/ai/project-update/draft",
     // What a project's time is billed at: GET /project/{id}/rates, POST to
     // set it, /rates/delete to stop billing. The project's admins only.
     ProjectRates = "/project",
@@ -44,8 +42,6 @@ export enum ProjectsGet {
     GoalCreate = "/goal/create",
     Goal = "/goal",
     ProjectGoals = "/project",
-    // The AI edition's draft of a goal's next check-in (POST {goal_id, tz}).
-    AiGoalCheckInDraft = "/ai/goal-checkin/draft",
     // The AI edition's plan for a project from a sentence: POST {description}
     // starts a draft, GET /{draft_id} reads it until it's done.
     AiProjectPlanDraft = "/ai/project-template/draft",
@@ -75,7 +71,6 @@ export enum ProjectsPost {
     // A task waits on another of its project: {task_uuid, blocked_by_uuid}
     AddTaskDependency = "/task/dependency",
     SetWorkloadCapacity = "/project/workload/capacity",
-    UpdateTaskEstimate = "/task/updateTaskEstimate",
     SetTaskField = "/task/field",
     RemoveTaskDependency = "/task/dependency/delete",
     SetTaskRecurrence = "/task/recurrence",
@@ -84,4 +79,8 @@ export enum ProjectsPost {
     DeleteTaskView = "/task/views/delete",
     AIExtractTasks = "/ai/extract-tasks",
     AIExtractTasksCreate = "/ai/extract-tasks/create",
+    // The AI edition's draft of a project's next update: {project_uuid, tz}.
+    AiProjectUpdateDraft = "/ai/project-update/draft",
+    // The AI edition's draft of a goal's next check-in: {goal_id, tz}.
+    AiGoalCheckInDraft = "/ai/goal-checkin/draft",
 }

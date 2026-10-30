@@ -47,6 +47,10 @@ describe("MQTT message types match the backend", () => {
     expect(MqttMessageType.Call_State).toBe(42)
   })
 
+  it("Project_Statuses is 43 (MESSAGE_PROJECT_STATUSES)", () => {
+    expect(MqttMessageType.Project_Statuses).toBe(43)
+  })
+
   // The app tells messages apart by their number alone, so two types on one
   // number are read as each other. An explicit number (Conversation_Access =
   // 38, Call_State = 42) is how two could ever meet, as chat's Pin and

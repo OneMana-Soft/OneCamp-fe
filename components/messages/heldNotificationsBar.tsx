@@ -7,9 +7,10 @@
 // now says so (TN-BUG-8).
 
 import * as React from "react"
-import { BellOff, Loader2 } from "@/lib/icons"
+import { BellOff, CircleHelp, Loader2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { usePost } from "@/hooks/usePost"
 import { useToast } from "@/hooks/use-toast"
 import { PostEndpointUrl } from "@/services/endPoints"
@@ -21,6 +22,8 @@ interface HeldStatus {
   reason?: "paused" | "focus" | "quiet_hours"
 }
 
+const BAR = "mx-2 mb-1 flex flex-wrap items-center gap-2 rounded-md bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground"
+
 /** What the bar says of someone whose notifications are held, and why. */
 function heldWords(who: string, reason: HeldStatus["reason"], until: string): string {
   if (reason === "paused") return `${who} paused notifications until ${until}.`
@@ -29,16 +32,27 @@ function heldWords(who: string, reason: HeldStatus["reason"], until: string): st
 }
 
 export function HeldNotificationsBar({ userUUID, name, isBot }: { userUUID: string; name?: string; isBot?: boolean }) {
-  const { data } = useFetch<{ data: HeldStatus }>(userUUID && !isBot ? `${ChatGet.GetTeammateNotificationStatus}/${userUUID}` : "", undefined, {
+  // Read behind whatever the reader is doing, so a failure is the bar's to
+  // say, never a toast. A failed read keeps the last answer (SWR holds it).
+  const { data, isError } = useFetch<{ data: HeldStatus }>(userUUID && !isBot ? `${ChatGet.GetTeammateNotificationStatus}/${userUUID}` : "", undefined, {
     refreshInterval: 60_000,
-  })
+  }, OWN_ERRORS)
   const { makeRequest, isSubmitting } = usePost()
   const { toast } = useToast()
   const [sent, setSent] = React.useState(false)
   const status = data?.data
+  const first = name?.split(" ")[0]
+  if (!status && isError) {
+    return (
+      <div className={BAR} role="status">
+        <CircleHelp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1">Couldn&apos;t check whether {first || "they"} will be notified now.</span>
+      </div>
+    )
+  }
   if (!status?.reason || !status.until) return null
 
-  const who = name?.split(" ")[0] || "They"
+  const who = first || "They"
   const until = formatSendAt(new Date(status.until))
   const notify = async () => {
     const res = await makeRequest<{ user_uuid: string }, unknown>({
@@ -53,7 +67,7 @@ export function HeldNotificationsBar({ userUUID, name, isBot }: { userUUID: stri
   }
 
   return (
-    <div className="mx-2 mb-1 flex flex-wrap items-center gap-2 rounded-md bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground" role="status">
+    <div className={BAR} role="status">
       <BellOff className="h-3.5 w-3.5 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1">
         {heldWords(who, status.reason, until)} They&apos;ll see your messages then.

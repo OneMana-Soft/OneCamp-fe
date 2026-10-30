@@ -79,7 +79,7 @@ export default function ArchiveRunJobDialog({ open, onOpenChange, onConfirm, ent
         )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isRunning}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirm} disabled={isRunning} className="gap-1.5">
+          <AlertDialogAction onClick={handleConfirm} disabled={isRunning}>
             {isRunning && <RefreshCw className="h-4 w-4 animate-spin" />}
             {isRunning ? "Archiving…" : "Archive now"}
           </AlertDialogAction>

@@ -110,7 +110,7 @@ function StatTile({
  */
 export default function OverviewTab({ onOpenTab }: { onOpenTab?: (t: AISubTab) => void }) {
   const { config, isLoading, error, refresh } = useAIConfig()
-  const master = useConfigSwitch("enabled", setAIEnabled)
+  const master = useConfigSwitch("enabled", setAIEnabled, "OneCamp AI")
   const test = useSelfTest()
 
   const [usage, setUsage] = useState<AIUsage | null>(null)

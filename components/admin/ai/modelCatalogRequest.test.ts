@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 // said twice, the later replacing the earlier.
 
 const http = vi.hoisted(() => ({ get: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: http, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: http }))
 
 const { getOllamaCatalog } = await import("@/services/aiModelService")
 

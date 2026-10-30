@@ -10,10 +10,10 @@ import { SWRConfig } from "swr"
 // load, a failed read is asked again, and with nothing known the page says so.
 
 const get = vi.fn()
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: (...a: unknown[]) => get(...a) } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: (...a: unknown[]) => get(...a) } }))
 
 const { CLIENT_CONFIG_KEY } = await import("@/lib/clientConfigKey")
-const { useAIAvailable, useFeature, FEATURE_CALLS } = await import("./useClientConfig")
+const { useAIAvailable, useFeature, useFeatureState, FEATURE_AI, FEATURE_CALLS } = await import("./useClientConfig")
 const { FeaturesNotice } = await import("@/components/banner/FeaturesNotice")
 
 const SERVER = { data: { data: { upload_limit_mb: 10, upload_limit_bytes: 10 << 20, transcription_mode: "frontend", features: { ai: true, calls: true }, email_enabled: true } } }
@@ -101,3 +101,89 @@ describe("what this server has, when its read fails", () => {
     expect(screen.queryByRole("status")).toBeNull()
   })
 })
+
+// 22 Oct: Home's needs list waits for the AI answer so its AI rows don't swap
+// in, and with the read failed and nothing kept it waited for good. A route
+// still waits (FeaturesNotice offers Try again); a part of a page stops.
+describe("a part of a page that waits for the answer", () => {
+  function Parts() {
+    const route = useFeatureState(FEATURE_AI)
+    const part = useFeatureState(FEATURE_AI, { onFailure: "unavailable" })
+    return <p>{`route ${route} · part ${part}`}</p>
+  }
+  function parts(kept?: unknown) {
+    const cache = new Map<string, unknown>()
+    if (kept) cache.set(CLIENT_CONFIG_KEY, { data: kept })
+    return render(
+      <SWRConfig value={{ provider: () => cache as never, dedupingInterval: 0 }}>
+        <Parts />
+      </SWRConfig>,
+    )
+  }
+
+  it("waits while the read is on its way, as a route does", async () => {
+    get.mockReturnValue(new Promise(() => {}))
+    parts()
+    await act(async () => {})
+    expect(screen.getByText("route unknown · part unknown")).toBeTruthy()
+  })
+
+  it("stops waiting once the read has failed with nothing known, while a route waits on", async () => {
+    get.mockRejectedValue(new Error("Network Error"))
+    parts()
+    await waitFor(() => expect(screen.getByText("route unknown · part unavailable")).toBeTruthy())
+  })
+
+  // 22 Oct: a server with nothing optional answers with the defaults. Nothing
+  // was drawn again for that answer, so Home's list held its placeholder until
+  // something else drew the page (5 s later, a failed read's retry).
+  it.each([
+    ["an empty config", { msg: "ok", data: {} }],
+    ["no config at all", { msg: "ok" }],
+  ])("takes %s as an answer, for both", async (_, body) => {
+    get.mockResolvedValue({ data: body })
+    parts()
+    await waitFor(() => expect(screen.getByText("route unavailable · part unavailable")).toBeTruthy())
+  })
+
+  it("keeps the last load's answer through a failed read, for both", async () => {
+    get.mockRejectedValue(new Error("Network Error"))
+    parts(SERVER.data.data)
+    await waitFor(() => expect(get).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.getByText("route available · part available")).toBeTruthy()
+  })
+})
+
+// 28 Oct (DESIGN-BUILD-24): a call's guest page asked the members' config four
+// times, and the server refused each one (401): a guest has no session. A
+// visitor's page (a guest link, a booking, a form; lib/visitorPage) asks
+// nothing, and the workspace's optional parts are not a visitor's: each reads
+// as off, and known, even where this browser kept a member's answer.
+describe("on a visitor's page", () => {
+  beforeEach(() => window.history.pushState({}, "", "/guest/m/a-guest-link"))
+  afterEach(() => window.history.pushState({}, "", "/"))
+
+  it("asks nothing, and every optional part reads as off, known", async () => {
+    get.mockResolvedValue(SERVER)
+    page(SERVER.data.data)
+    await act(async () => {})
+    expect(get).not.toHaveBeenCalled()
+    expect(screen.getByText("Search")).toBeTruthy()
+    expect(screen.queryByRole("status")).toBeNull()
+  })
+
+  it("tells a part that waits, as it tells a route, that nothing is there", async () => {
+    get.mockResolvedValue(SERVER)
+    render(<FeatureLine />)
+    await act(async () => {})
+    expect(get).not.toHaveBeenCalled()
+    expect(screen.getByText("route unavailable · part unavailable")).toBeTruthy()
+  })
+})
+
+function FeatureLine() {
+  const route = useFeatureState(FEATURE_AI)
+  const part = useFeatureState(FEATURE_AI, { onFailure: "unavailable" })
+  return <p>{`route ${route} · part ${part}`}</p>
+}

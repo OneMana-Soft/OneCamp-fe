@@ -21,6 +21,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { ErrorState } from "@/components/ui/error-state"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
+import { refusalReason } from "@/lib/utils/apiError"
 import { History, RotateCcw, Loader2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Faces, RESOURCE_ROW, ResourceListEmpty, ResourceListSkeleton, VersionReason } from "@/components/dialog/resourceListParts"
@@ -48,9 +51,10 @@ const REASON_META: Record<BoardSnapshot["reason"], { label: string; warning: boo
 }
 
 export function BoardVersionHistoryDialog({ open, onOpenChange, boardId }: BoardVersionHistoryDialogProps) {
-  // Fetch only while open so closing the dialog drops the request.
+  // Fetch only while open so closing the dialog drops the request. A failed
+  // read is said in the list's place, so it raises no toast too.
   const endpoint = open && boardId ? `${BoardsGet.GetBoardSnapshots}?board_uuid=${boardId}` : ""
-  const { data, isLoading, mutate } = useFetch<BoardSnapshotListResponse>(endpoint)
+  const { data, isLoading, isError, mutate } = useFetch<BoardSnapshotListResponse>(endpoint, undefined, undefined, OWN_ERRORS)
   const { makeRequest, isSubmitting } = usePost()
   const [restoringId, setRestoringId] = React.useState<string | null>(null)
 
@@ -92,6 +96,8 @@ export function BoardVersionHistoryDialog({ open, onOpenChange, boardId }: Board
         <div className="max-h-[60vh] overflow-y-auto">
           {isLoading ? (
             <ResourceListSkeleton label="Loading versions" />
+          ) : isError && !data ? (
+            <ErrorState compact subject="this board's history" detail={refusalReason(isError)} onRetry={() => void mutate()} />
           ) : snapshots.length === 0 ? (
             <ResourceListEmpty icon={History} title="No versions yet" description="A version is kept as it is edited, every so often and before a large deletion." />
           ) : (

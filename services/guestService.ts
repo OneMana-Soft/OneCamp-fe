@@ -3,6 +3,7 @@ import { browserTZ } from "@/lib/utils/timeZone"
 import { PeopleGet, PeoplePost } from "@/services/endpoints/people"
 import { publicCall } from "@/services/publicApi"
 import type { DataTable, TableField, TableRow } from "@/services/tableService"
+import type { GuestAsk } from "@/lib/rules/approvals"
 
 // --- Member: an instant meeting's guest link ---
 
@@ -17,8 +18,6 @@ export function guestMeetingLink(rawToken: string): string {
 //     a failure keeps its status, so a page can tell a dead link from a
 //     server that didn't answer (publicTrouble). ---
 
-export const getGuestMeetingStatus = (token: string) =>
-    publicCall<{ available: boolean; workspace_name?: string }>(`/guest/meet/${encodeURIComponent(token)}`)
 
 // --- Member: create a scoped, read-only external share link for a doc/board ---
 
@@ -70,6 +69,8 @@ export interface ResourceGuestLink {
 export interface ResourceGuestLinks {
     data: ResourceGuestLink[]
     publish_allowed?: boolean
+    /** The longest a new link may last, in days; 0 or absent for none (C6-2). */
+    max_days?: number
 }
 
 /** The SWR key of a resource's live links. */
@@ -146,6 +147,11 @@ export interface GuestDocComment {
     guest_name: string
     body: string // plain text; render escaped
     created_at: string
+    /** A team reply (C5-2): what it answers, and the member's own name for their face; author_id is one guest on one link. */
+    parent_id?: string
+    from_team?: boolean
+    author_id?: string
+    author_name?: string
 }
 
 interface GuestDocCommentsResult {
@@ -169,20 +175,21 @@ export interface GuestGrant {
     resource_id: string
     capability: string
     created_by: string
+    /** Who made it, for the admin's list; absent once they have gone. */
+    created_by_name?: string
     /** Null when the grant lasts until it is revoked. */
     expires_at: string | null
     created_at: string
+    /** A published page's or a personal room's address. */
+    slug?: string
 }
 
-/** Guest access's one sub-option: whether pages can be published to the web. */
-export async function setGuestPublish(publish: boolean): Promise<boolean> {
-    const res = await axiosInstance.post(PeoplePost.SetGuestAccess, { publish })
-    return (res.data as { data?: { guest_publish_enabled?: boolean } })?.data?.guest_publish_enabled ?? publish
-}
+const GUEST_OPTION = { enabled: "guest_access_enabled", publish: "guest_publish_enabled", rooms: "guest_rooms_enabled" } as const
 
-export async function setGuestAccess(enabled: boolean): Promise<boolean> {
-    const res = await axiosInstance.post(PeoplePost.SetGuestAccess, { enabled })
-    return (res.data as { data?: { guest_access_enabled?: boolean } })?.data?.guest_access_enabled ?? enabled
+/** Guest access, or its sub-option for pages or rooms, on or off: what the server applied. */
+export async function setGuestOption(option: keyof typeof GUEST_OPTION, on: boolean): Promise<boolean> {
+    const res = await axiosInstance.post(PeoplePost.SetGuestAccess, { [option]: on })
+    return (res.data as { data?: Record<string, boolean | undefined> })?.data?.[GUEST_OPTION[option]] ?? on
 }
 
 export async function listGuestGrants(): Promise<GuestGrant[]> {
@@ -245,6 +252,8 @@ export interface GuestTaskCard {
     assignee?: string
     comment_count: number
     review?: GuestReview
+    /** What the team asks this link's client to approve. */
+    waiting?: GuestAsk
 }
 
 export interface GuestProjectView {

@@ -44,6 +44,8 @@ export interface TaskChipData {
   assignee?: { uuid: string; name: string; avatar_key?: string | null }
   project_id?: string
   project_name?: string
+  /** "Q4-12"; none until its project has a key. */
+  key?: string
 }
 
 export interface ProjectChipData {
@@ -96,12 +98,17 @@ registerEntityKind<TaskChipData>({
   // reaches its project as Reread, since every member hears that topic.
   hears: (m, id) =>
     (m.type === MqttMessageType.Task_Changed || m.type === MqttMessageType.Task_Dates) && (about(m, "task_uuid", id) || m.data?.reread === true),
-  view: (t, _id, { today }) => ({
-    lead: <StatusGlyph status={CATEGORY_KIND[t.status] ?? "todo"} size={14} label={t.status_name} />,
-    title: t.name || "Untitled task",
-    trailing: t.due ? dateLabel(t.due, today) : undefined,
-    tone: t.due ? dayTone(t.due, today, isClosedStatus(t.status)) : undefined,
-  }),
+  view: (t, _id, { today }) => {
+    const tone = t.due ? dayTone(t.due, today, isClosedStatus(t.status)) : undefined
+    return {
+      // A chip toned for its day is a tint (EntityChip, CHIP_TONE).
+      lead: <StatusGlyph status={CATEGORY_KIND[t.status] ?? "todo"} size={14} label={t.status_name} onTint={tone !== undefined} />,
+      tag: t.key,
+      title: t.name || "Untitled task",
+      trailing: t.due ? dateLabel(t.due, today) : undefined,
+      tone,
+    }
+  },
   href: (id) => workRoute({ task: id }),
   // Beside the doc in the task panel, as the project's lists open it; on a phone, its page.
   open: openTaskBeside,

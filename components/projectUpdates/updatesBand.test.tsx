@@ -17,6 +17,8 @@ vi.mock("@/hooks/useProjectUpdates", () => ({
   }),
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: undefined }) }))
+// The milestones at the tab's head read on their own (linear-16): not this test's band.
+vi.mock("@/components/work/milestones/MilestonesSection", () => ({ MilestonesSection: () => null }))
 vi.mock("@/hooks/useClientConfig", () => ({ useFeature: () => false, FEATURE_AI: "ai" }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("react-redux", () => ({ useSelector: () => [] }))

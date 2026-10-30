@@ -1,0 +1,216 @@
+Third-party files OneCamp serves for boards: the faces boards draw words in.
+This server serves them itself, so a board never asks anyone else for them.
+
+They are the faces of @excalidraw/excalidraw 0.18.1 (MIT License, as its
+package.json says), copied unchanged from its dist/prod/fonts/ into
+board/vendor/excalidraw-e65d316c/fonts/.
+Each face's copyright, version and licence below are its own font files'
+(their name tables), word for word; this file is written from them by
+scripts/board-notices.mjs.
+
+1. Assistant (board/vendor/excalidraw-e65d316c/fonts/Assistant/, 4 files)
+   Version: Version 3.000
+   Copyright, as the file says:
+     Copyright 2020 The Assistant Project Authors (https://github.com/hafontia/Assistant). Copyright 2010 The Source Sans Pro Authors (https://github.com/adobe-fonts/source-sans-pro), with Reserved Font Name 'Source'. Source is a trademark of Adobe Systems Incorporated in the United States and/or other countries.
+   Licence, as the file says:
+     This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL
+   Licence URL, as the file says: http://scripts.sil.org/OFL
+   Licence: SIL Open Font License 1.1.
+   Its text: LICENSE-OFL-1.1.txt in this folder.
+
+2. Cascadia (board/vendor/excalidraw-e65d316c/fonts/Cascadia/, 1 file)
+   Version: Version 2005.150
+   Copyright, as the file says:
+     © 2020 Microsoft Corporation. All Rights Reserved.
+   Licence, as the file says:
+     Microsoft supplied font. You may use this font to create, display, and print content as permitted by the license terms or terms of use, of the Microsoft product, service, or content in which this font was included. You may only (i) embed this font in content as permitted by the embedding restrictions included in this font; and (ii) temporarily download this font to a printer or other output device to help print content. Any other use is prohibited.
+
+     The following license, based on the SIL Open Font license (https://scripts.sil.org/OFL), applies to this font. Additional license terms may be found on the GitHub repository for this font (https://github.com/microsoft/cascadia-code/blob/master/LICENSE).
+
+     Permission is hereby granted, free of charge, to any person obtaining a copy of the Font Software, to use, study, copy, merge, embed, modify, redistribute, and sell modified and unmodified copies of the Font Software, subject to the following conditions:
+
+     1) Neither the Font Software nor any of its individual components, in Original or Modified Versions, may be sold by itself.
+
+     2) Original or Modified Versions of the Font Software may be bundled, redistributed and/or sold with any software, provided that each copy contains the above copyright notice and this license. These can be included either as stand-alone text files, human-readable headers or in the appropriate machine-readable metadata fields within text or binary files as long as those fields can be easily viewed by the user.
+
+     3) No Modified Version of the Font Software may use the Reserved Font Name(s) unless explicit written permission is granted by the corresponding Copyright Holder. This restriction only applies to the primary font name as presented to the users.
+
+     4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font Software shall not be used to promote, endorse or advertise any Modified Version, except to acknowledge the contribution(s) of the Copyright Holder(s) and the Author(s) or with their explicit written permission.
+
+     5) The Font Software, modified or unmodified, in part or in whole, must be distributed entirely under this license, and must not be distributed under any other license. The requirement for fonts to remain under this license does not apply to any document created using the Font Software.
+
+     THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER DEALINGS IN THE FONT SOFTWARE.
+   Licence URL, as the file says: https://scripts.sil.org/OFL
+   Licence: SIL Open Font License 1.1.
+   Its text: LICENSE-OFL-1.1.txt in this folder.
+   This file is the OFL release on GitHub, unchanged: microsoft/cascadia-code v2005.15, CascadiaCode_2005.15.zip (sha256 b3d8495e9cdee90d0dbaf60b7db018413e130265dc27e2be7a8db04cf98fddce), woff2/CascadiaCode.woff2.
+
+3. ComicShanns (board/vendor/excalidraw-e65d316c/fonts/ComicShanns/, 4 files)
+   Version: 1.3.0
+   Copyright, as the file says:
+     MIT License
+
+     Copyright (c) 2018 Shannon Miwa
+     Copyright (c) 2023 Jesus Gonzalez
+     Copyright (c) 2023 Rodrigo Batista de Moraes
+     Copyright (c) 2024 Fini Jastrow
+     Copyright (c) 2024 Kyle Beechly
+
+     Permission is hereby granted, free of charge, to any person obtaining a copy
+     of this software and associated documentation files (the "Software"), to deal
+     in the Software without restriction, including without limitation the rights
+     to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+     copies of the Software, and to permit persons to whom the Software is
+     furnished to do so, subject to the following conditions:
+
+     The above copyright notice and this permission notice shall be included in all
+     copies or substantial portions of the Software.
+
+     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+     IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+     FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+     AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+     SOFTWARE.
+   Licence: MIT License.
+
+4. Excalifont (board/vendor/excalidraw-e65d316c/fonts/Excalifont/, 7 files)
+   Version: Version 1.000;Glyphs 3.2 (3227)
+   Copyright, as the file says:
+     Copyright (c) 2024 by Excalidraw. All rights reserved.
+   Licence: SIL Open Font License 1.1, as stated by Excalidraw's own source, packages/excalidraw/fonts/Excalifont/index.ts (the face's metadata), since the font file names no licence.
+   Its text: LICENSE-OFL-1.1.txt in this folder.
+
+5. Liberation (board/vendor/excalidraw-e65d316c/fonts/Liberation/, 1 file)
+   Version: Version 1.05
+   Copyright, as the file says:
+     Digitized data `2007 Ascender Corporation. All rights reserved.
+   Licence, as the file says:
+     Use of this Liberation font software is subject to the license agreement under which you accepted the Liberation font software.
+   Licence URL, as the file says: http://www.ascendercorp.com/liberation.html
+   Licence: GNU General Public License v2 with the Liberation font exception (Red Hat's Liberation 1.x licence agreement).
+   Its text: LICENSE-LIBERATION-1.txt and LICENSE-GPL-2.0.txt in this folder.
+
+6. Lilita (board/vendor/excalidraw-e65d316c/fonts/Lilita/, 2 files)
+   Version: Version 1.002
+   Copyright, as the file says:
+     Copyright (c) 2011 Juan Montoreano (juan@remolacha.biz), with Reserved Font Names "Lilita One"
+   Licence URL, as the file says: http://scripts.sil.org/OFL
+   Licence: SIL Open Font License 1.1.
+   Its text: LICENSE-OFL-1.1.txt in this folder.
+
+7. Nunito (board/vendor/excalidraw-e65d316c/fonts/Nunito/, 5 files)
+   Version: Version 3.602
+   Copyright, as the file says:
+     Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito)
+   Licence URL, as the file says: https://scripts.sil.org/OFL
+   Licence: SIL Open Font License 1.1.
+   Its text: LICENSE-OFL-1.1.txt in this folder.
+
+8. Virgil (board/vendor/excalidraw-e65d316c/fonts/Virgil/, 1 file)
+   Version: Version 001.001
+   Copyright, as the file says:
+     Copyright (c) 2011 by Your Own Font Foundry. All rights reserved.
+   Licence, as the file says:
+     This Font Software is licensed under the SIL Open Font License, Version 1.1.
+     This license is copied below, and is also available with a FAQ at:
+     http://scripts.sil.org/OFL
+
+
+     -----------------------------------------------------------
+     SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+     -----------------------------------------------------------
+
+     PREAMBLE
+     The goals of the Open Font License (OFL) are to stimulate worldwide
+     development of collaborative font projects, to support the font creation
+     efforts of academic and linguistic communities, and to provide a free and
+     open framework in which fonts may be shared and improved in partnership
+     with others.
+
+     The OFL allows the licensed fonts to be used, studied, modified and
+     redistributed freely as long as they are not sold by themselves. The
+     fonts, including any derivative works, can be bundled, embedded,
+     redistributed and/or sold with any software provided that any reserved
+     names are not used by derivative works. The fonts and derivatives,
+     however, cannot be released under any other type of license. The
+     requirement for fonts to remain under this license does not apply
+     to any document created using the fonts or their derivatives.
+
+     DEFINITIONS
+     "Font Software" refers to the set of files released by the Copyright
+     Holder(s) under this license and clearly marked as such. This may
+     include source files, build scripts and documentation.
+
+     "Reserved Font Name" refers to any names specified as such after the
+     copyright statement(s).
+
+     "Original Version" refers to the collection of Font Software components as
+     distributed by the Copyright Holder(s).
+
+     "Modified Version" refers to any derivative made by adding to, deleting,
+     or substituting -- in part or in whole -- any of the components of the
+     Original Version, by changing formats or by porting the Font Software to a
+     new environment.
+
+     "Author" refers to any designer, engineer, programmer, technical
+     writer or other person who contributed to the Font Software.
+
+     PERMISSION & CONDITIONS
+     Permission is hereby granted, free of charge, to any person obtaining
+     a copy of the Font Software, to use, study, copy, merge, embed, modify,
+     redistribute, and sell modified and unmodified copies of the Font
+     Software, subject to the following conditions:
+
+     1) Neither the Font Software nor any of its individual components,
+     in Original or Modified Versions, may be sold by itself.
+
+     2) Original or Modified Versions of the Font Software may be bundled,
+     redistributed and/or sold with any software, provided that each copy
+     contains the above copyright notice and this license. These can be
+     included either as stand-alone text files, human-readable headers or
+     in the appropriate machine-readable metadata fields within text or
+     binary files as long as those fields can be easily viewed by the user.
+
+     3) No Modified Version of the Font Software may use the Reserved Font
+     Name(s) unless explicit written permission is granted by the corresponding
+     Copyright Holder. This restriction only applies to the primary font name as
+     presented to the users.
+
+     4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+     Software shall not be used to promote, endorse or advertise any
+     Modified Version, except to acknowledge the contribution(s) of the
+     Copyright Holder(s) and the Author(s) or with their explicit written
+     permission.
+
+     5) The Font Software, modified or unmodified, in part or in whole,
+     must be distributed entirely under this license, and must not be
+     distributed under any other license. The requirement for fonts to
+     remain under this license does not apply to any document created
+     using the Font Software.
+
+     TERMINATION
+     This license becomes null and void if any of the above conditions are
+     not met.
+
+     DISCLAIMER
+     THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+     OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+     COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+     INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+     DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+     FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+     OTHER DEALINGS IN THE FONT SOFTWARE.
+   Licence URL, as the file says: http://scripts.sil.org/OFL
+   Licence: SIL Open Font License 1.1.
+   Its text: LICENSE-OFL-1.1.txt in this folder.
+
+9. Xiaolai (board/vendor/excalidraw-e65d316c/fonts/Xiaolai/, 209 files)
+   Version: Version 3.11;December 4, 2020;FontCreator 13.0.0.2613 64-bit
+   Copyright, as the file says:
+     Copyright © 2020 LXGW
+   Licence: SIL Open Font License 1.1, as stated by Excalidraw's own source, packages/excalidraw/fonts/Xiaolai/index.ts (the face's metadata), since the font file names no licence.
+   Its text: LICENSE-OFL-1.1.txt in this folder.

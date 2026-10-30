@@ -48,7 +48,7 @@ vi.mock("@/hooks/useFetch", () => ({
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "u-sam" } } }),
 }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { put: vi.fn(async () => ({ data: {} })), get: vi.fn(), post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { put: vi.fn(async () => ({ data: {} })), get: vi.fn(), post } }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn(), patchCached: vi.fn() }))
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()),

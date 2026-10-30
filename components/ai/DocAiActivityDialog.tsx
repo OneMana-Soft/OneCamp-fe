@@ -15,13 +15,13 @@ import Link from "next/link"
 import { Ban, ListChecks } from "lucide-react"
 import {
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { OverlayBody } from "@/components/ui/overlay"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
@@ -114,7 +114,7 @@ export default function DocAiActivityDialog({ docId, onClose }: { docId: string;
             description="When someone accepts an AI edit here, or an agent writes in this doc, it's listed here."
           />
         ) : (
-          <DialogBody>
+          <OverlayBody>
             <ul className="flex flex-col" aria-label="AI activity, newest first">
               {items.map((item) => {
                 const kind = kindOf(item)
@@ -147,7 +147,7 @@ export default function DocAiActivityDialog({ docId, onClose }: { docId: string;
                 )
               })}
             </ul>
-          </DialogBody>
+          </OverlayBody>
         )}
         <DialogFooter
           tertiary={

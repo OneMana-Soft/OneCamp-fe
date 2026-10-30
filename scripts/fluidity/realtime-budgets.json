@@ -1,0 +1,4 @@
+{
+  "about": ["The realtime engine against a broker that answers (surfaces/realtime.mjs, fakeBroker.mjs; PLATFORM-LEAD-2's realtime split, FLUIDITY-LEAD-6, 21 Oct 2026). Its budgets come from the split's A/B: until then the run prints its numbers against none."],
+  "budgets": {}
+}

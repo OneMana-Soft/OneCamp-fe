@@ -192,7 +192,8 @@
     outline-offset: 2px;
     overflow: hidden;
   }
-  .you-theme[data-state="checked"] .you-theme-card { outline-color: var(--brand); }
+  /* Chosen is neutral: an ink ring and an ink check (themePickerChosen.test.ts). */
+  .you-theme[data-state="checked"] .you-theme-card { outline-color: var(--foreground); }
   .you-theme:focus-visible .you-theme-card { outline-color: var(--ring); }
   .you-theme-check {
     position: absolute;
@@ -203,8 +204,8 @@
     width: 18px;
     height: 18px;
     border-radius: 9999px;
-    background: var(--brand);
-    color: var(--on-brand, var(--brand-foreground));
+    background: var(--foreground);
+    color: var(--background);
     opacity: 0;
     transform: scale(0.6);
     transition: opacity 160ms var(--ease-out), transform 220ms var(--ease-spring);

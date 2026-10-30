@@ -164,12 +164,13 @@ function IconAction({
       onClick={onClick}
       aria-label={compact ? label : undefined}
       aria-pressed={pressed}
-      aria-busy={busy || undefined}
-      // Pressed is the neutral press tint with the glyph in the mark (the
-      // layer's), never a ring or the accent tint: Restore is the one accent here.
-      className={cn(!compact && "gap-1.5 px-2", "aria-pressed:!bg-none aria-pressed:!bg-press aria-pressed:!inset-ring-0")}
+      busy={busy}
+      // Pressed is a state (pinned, replaying): the neutral press tint with
+      // the glyph in ink, never a ring, the accent tint or the accent's mark:
+      // Restore is the one orange here.
+      className={cn(!compact && "gap-1.5 px-2", "[--ix-mark:var(--ink)] aria-pressed:!bg-none aria-pressed:!bg-press aria-pressed:!inset-ring-0")}
     >
-      {busy ? <Loader2 className="animate-spin" /> : children}
+      {children}
       {!compact && text}
     </Button>
   )
@@ -217,8 +218,7 @@ function NameField({ initial, busy, onSave, onCancel }: { initial: string; busy:
         className="h-7 min-w-0 flex-1 rounded-md bg-sunken px-2 text-heading text-ink outline-none ring-1 ring-inset ring-line focus-visible:ring-2 focus-visible:ring-brand"
         data-escape-own=""
       />
-      <Button type="submit" size="sm" disabled={busy} aria-busy={busy || undefined}>
-        {busy && <Loader2 className="animate-spin" />}
+      <Button type="submit" size="sm" busy={busy}>
         Save
       </Button>
       <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={busy}>

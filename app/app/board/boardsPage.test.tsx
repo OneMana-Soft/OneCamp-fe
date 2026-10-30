@@ -42,10 +42,12 @@ describe("the boards list", () => {
     expect(screen.getByText("1 board")).toBeTruthy()
   })
 
-  it("with no boards yet, offers the five templates drawn small, and a blank board", () => {
+  it("with no boards yet, offers the five templates drawn small, all the rest, and a blank board", async () => {
     boards = []
     render(<BoardsPage />)
-    expect(screen.getByRole("heading", { name: "Think it through together" })).toBeTruthy()
+    // Loaded only for a workspace with no boards (components/board/boardsWelcome).
+    expect(await screen.findByRole("heading", { name: "Think it through together" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "See all templates" })).toBeTruthy()
     const templates = screen.getByRole("list", { name: "Templates" })
     expect(templates.querySelectorAll("[data-board-template]")).toHaveLength(5)
     for (const id of ["retro", "brainstorm", "kanban", "journey", "swot"]) {

@@ -413,7 +413,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={save} disabled={!dirty || busy}>
+            <Button size="sm" onClick={save} disabled={!dirty} busy={busy}>
               <Save className="h-4 w-4 mr-1" /> Save
             </Button>
             <Button size="sm" variant="secondary" onClick={test} disabled={busy}>
@@ -508,6 +508,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant="dangerSolid"
               onClick={async () => {
                 const target = deleteTarget
                 setDeleteTarget(null)
@@ -622,7 +623,7 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
       </label>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={create} disabled={busy || !label || !baseURL}>
+        <Button size="sm" onClick={create} disabled={!label || !baseURL} busy={busy}>
           <Save className="h-4 w-4 mr-1" /> Add endpoint
         </Button>
         <Button size="sm" variant="secondary" onClick={test} disabled={busy || !baseURL}>

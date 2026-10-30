@@ -27,9 +27,8 @@ const api = vi.hoisted(() => ({
   push: vi.fn(),
   setPush: vi.fn(),
 }))
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: async () => ({ data: { data: await api.get() } }), post: vi.fn() },
-  OWN_ERRORS: {},
 }))
 vi.mock("@/services/settingsService", async (orig) => ({
   ...(await orig<typeof import("@/services/settingsService")>()),
@@ -46,7 +45,7 @@ const { TooltipProvider } = await import("@/components/ui/tooltip")
 const { default: WorkspaceSettingsCard } = await import("./WorkspaceSettingsCard")
 const { default: DefaultChannelsCard } = await import("./DefaultChannelsCard")
 const { default: PushNotificationsCard } = await import("./PushNotificationsCard")
-const { entryProblem, normalizeEntry, splitEntries, PUBLIC_DOMAIN_LINE } = await import("./allowListEntries")
+const { entryProblem, normalizeEntry, splitEntries } = await import("./allowListEntries")
 
 const wrap = (node: React.ReactNode) => (
   <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
@@ -93,7 +92,7 @@ describe("the chip input", () => {
     expect(chips[0].className).toMatch(/(^|\s)h-6(\s|$)/)
   })
 
-  it("tints a refused entry, says a public domain under the field, and won't save", async () => {
+  it("tints a refused entry, says why under the field, and won't save", async () => {
     api.get.mockResolvedValue(settings)
     render(wrap(<WorkspaceSettingsCard />))
     const field = await screen.findByLabelText(/Who can join without an invitation/)
@@ -103,15 +102,14 @@ describe("the chip input", () => {
     expect(chip.className).toMatch(/text-danger-ink/)
     // The reason travels with the chip (its tooltip and its accessible name).
     expect(chip.textContent).toMatch(/public email domain/)
-    expect(screen.getByRole("alert").textContent).toBe(PUBLIC_DOMAIN_LINE)
-    expect(PUBLIC_DOMAIN_LINE).toBe("Public email domains like gmail.com can't be added.")
+    expect(screen.getByRole("alert").textContent).toBe("gmail.com is a public email domain, so it would let anyone in.")
     const save = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement
     expect(save.disabled).toBe(true)
     await act(async () => void fireEvent.click(save))
     expect(api.update).not.toHaveBeenCalled()
     // Removing it clears the line and lets the card save.
     fireEvent.click(screen.getByRole("button", { name: "Remove @gmail.com" }))
-    expect(screen.queryByText(PUBLIC_DOMAIN_LINE)).toBeNull()
+    expect(screen.queryByRole("alert")).toBeNull()
   })
 
   it("takes the last chip back into the field on Backspace", async () => {

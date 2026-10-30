@@ -3,7 +3,8 @@ import { Editor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import { act, cleanup, render } from "@testing-library/react"
 import { SlashCommand } from "./slashCommandExtension"
-import { CHAT_COMMANDS, setBackendCommandProvider } from "./slashCommand"
+import { CHAT_COMMANDS } from "./slashCommand"
+import { setBackendCommandProvider } from "@/components/command/commandItems"
 import "@/components/docEditor/registry"
 import { slashItemsFor } from "@/components/docEditor/registry/readers"
 
@@ -63,7 +64,8 @@ describe("the slash menu", () => {
       await typeInto(chat, "/")
       const menu = document.querySelector("[data-slash-menu]")!
       expect(menu.querySelector('[role="listbox"]')!.getAttribute("aria-label")).toBe("Commands")
-      expect(menu.textContent).toContain("Commands")
+      // Named once, by its group: a header over it said "Commands" again.
+      expect(menu.textContent!.split("Commands").length - 1).toBe(1)
       expect(menu.textContent).toContain("/remind")
       expect(menu.textContent).not.toContain("Blocks")
       await typeInto(chat, "zzqq")

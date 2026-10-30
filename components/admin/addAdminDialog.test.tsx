@@ -17,7 +17,7 @@ const member = (i: number, extra: Record<string, unknown> = {}) => ({
 })
 
 const http = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: http.get, post: http.post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: http.get, post: http.post } }))
 const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: "" }) }))

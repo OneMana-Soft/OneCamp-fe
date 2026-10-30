@@ -1,95 +1,33 @@
+import { useSyncExternalStore } from "react";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import enLang from "./locales/en/en.json"
 
-// The app's words.
-//
-// English comes with the first screen: it is the language every screen
-// starts in, and 2 KB of gzip. Every other language is a chunk of its own,
-// fetched when someone picks it (loadLanguage). Until 17 Oct 2026 all 23 came
-// with every signed-in page, 60 KB of gzip on each, for an app that only ever
-// showed English. languages.test.ts keeps it that way, and keeps every
-// language on disk reachable through its own file (Estonian was loading the
-// Spanish one).
+// The app's words, read through this module only (languages.test.ts): it sets
+// i18next up as it loads, so they come with the first component that reads
+// them (the task views, the profile card), never with every first screen
+// (fluid-15). English comes with them; the rest: ./languages.
 
-type Words = Record<string, unknown>
+/** The app's words, for a component: set up before they can be read. */
+export { useTranslation } from "react-i18next";
 
-/** Every language but English, each its own chunk, by its code. */
-export const LANGUAGE_LOADERS: Record<string, () => Promise<{ default: Words }>> = {
-    ar: () => import("./locales/ar/ar.json"),
-    be: () => import("./locales/be/be.json"),
-    bg: () => import("./locales/bg/bg.json"),
-    ca: () => import("./locales/ca/ca.json"),
-    cs: () => import("./locales/cs/cs.json"),
-    da: () => import("./locales/da/da.json"),
-    de: () => import("./locales/de/de.json"),
-    el: () => import("./locales/el/el.json"),
-    "en-AU": () => import("./locales/en-AU/en-AU.json"),
-    es: () => import("./locales/es/es.json"),
-    et: () => import("./locales/et/et.json"),
-    eu: () => import("./locales/eu/eu.json"),
-    fi: () => import("./locales/fi/fi.json"),
-    fr: () => import("./locales/fr/fr.json"),
-    he: () => import("./locales/he/he.json"),
-    hi: () => import("./locales/hi/hi.json"),
-    it: () => import("./locales/it/it.json"),
-    ja: () => import("./locales/ja/ja.json"),
-    nl: () => import("./locales/nl/nl.json"),
-    pt: () => import("./locales/pt/pt.json"),
-    ru: () => import("./locales/ru/ru.json"),
-    sv: () => import("./locales/sv/sv.json"),
-}
+const language = () => i18n.language;
+const onLanguage = (f: () => void) => (i18n.on("languageChanged", f), () => i18n.off("languageChanged", f));
 
-/**
- * Switches the app's words to `lng`, fetching them first if this tab hasn't.
- * False, and nothing changes, for a language the app doesn't have.
- */
-export async function loadLanguage(lng: string): Promise<boolean> {
-    if (lng !== "en" && !i18n.hasResourceBundle(lng, "translation")) {
-        const load = LANGUAGE_LOADERS[lng]
-        if (!load) return false
-        const words = (await load()).default
-        i18n.addResourceBundle(lng, "translation", words, true, true)
-    }
-    await i18n.changeLanguage(lng)
-    return true
-}
+/** `key` in the reader's language, else `fallback`: the one i18n, not useTranslation's copy a mount (fluid-17). */
+export const useWord = (key: string, fallback: string): string =>
+    useSyncExternalStore(onLanguage, language, language) && key ? i18n.t(key, { defaultValue: fallback }) : fallback;
 
-const resources = {
-    en: {
-        translation: enLang
+i18n.use(initReactI18next).init({
+    resources: { en: { translation: enLang } },
+    fallbackLng: "en",
+    lng: "en",
+    // An empty string is missing, so the fallback below applies.
+    returnEmptyString: false,
+    // A key missing in English too draws as words ("myTasks" as "My tasks"), never as itself.
+    parseMissingKeyHandler: (key: string) => {
+        const spaced = key.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim()
+        return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : key
     },
-};
-
-i18n
-    .use(initReactI18next) // passes i18n down to react-i18next
-    .init({
-        resources,
-        fallbackLng: 'en',
-        lng: "en", // language to use, more information here: https://www.i18next.com/overview/configuration-options#languages-namespaces-resources
-        // you can use the i18n.changeLanguage function to change the language manually: https://www.i18next.com/overview/api#changelanguage
-        // if you're using a language detector, do not define the lng option
-        // Treat empty string returns from t() as missing so the
-        // configured fallback / parseMissingKeyHandler kicks in.
-        returnEmptyString: false,
-        // Last-resort safety net: if a key is missing in BOTH the
-        // active language and the fallback ('en'), render a humanised
-        // version of the camelCase key instead of the raw key. This
-        // prevents `t("myTasks")` from rendering as the literal
-        // "myTasks" if someone forgets to add the translation.
-        parseMissingKeyHandler: (key: string) => {
-            // Split camelCase / PascalCase / snake_case into words and
-            // Title Case the result.
-            const spaced = key
-                .replace(/[_-]+/g, " ")
-                .replace(/([a-z])([A-Z])/g, "$1 $2")
-                .trim()
-            return spaced
-                ? spaced.charAt(0).toUpperCase() + spaced.slice(1)
-                : key
-        },
-
-        interpolation: {
-            escapeValue: false // react already safes from xss
-        }
-    });
+    interpolation: { escapeValue: false }, // React escapes what it draws.
+});

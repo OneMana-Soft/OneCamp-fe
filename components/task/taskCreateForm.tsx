@@ -2,7 +2,8 @@ import { displayNameOf } from "@/lib/personName"
 import React, { useEffect, useRef, useState } from "react";
 import { useModEnter } from "@/hooks/useModKey";
 import { fieldKeyDown } from "@/lib/keys/ime";
-import { ProjectInfoListRawInterface } from "@/types/project";
+import { ProjectInfoListRawInterface, type ProjectInfoInterface } from "@/types/project";
+import { listOnceRead } from "@/lib/utils/listOf";
 import { UserProfileDataInterface } from "@/types/user";
 import { priorities } from "@/types/table";
 import { useUploadFile } from "@/hooks/useUploadFile";
@@ -12,16 +13,13 @@ import { RootState } from "@/store/store";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import type { UserProfileInterface } from "@/types/user";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
-import { ProjectsPost } from "@/services/endpoints/projects";
 import { useForm, Controller, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  CreateTaskFormData,
-  createTaskFormSchema,
-  CreateTaskInterface,
-  TaskInfoInterface,
-} from "@/types/task";
+import type { CreateTaskInterface } from "@/types/task";
+import { type CreateTaskFormData, createTaskFormSchema } from "@/lib/validation/taskForm";
 import { useTaskUpdate } from "@/hooks/useTaskUpdate";
+import { taskFromCreate } from "@/lib/tasks/fromCreate";
+import { madeOffline } from "@/lib/offline/offlineId";
 import {
   clearCreateTaskInputState,
   deleteCreateTaskDialogPreviewFiles,
@@ -44,7 +42,7 @@ import { statusKindOf } from "@/components/task/taskStatusCell";
 import { priorityLevel } from "@/components/task/taskPriorityCell";
 import { useProjectStatuses } from "@/hooks/useProjectStatuses";
 import { splitTags } from "@/lib/tags";
-import { formatDuration, parseDuration } from "@/lib/tasks/time";
+import { formatDuration, parseWorkDuration } from "@/lib/tasks/time";
 import { app_task_path } from "@/types/paths";
 import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon";
 import { shortDate } from "@/lib/utils/date/shortDate";
@@ -52,12 +50,15 @@ import { Calendar } from "@/components/ui/calendar";
 import type { TaskDraft } from "@/lib/task/messageToTask";
 import { lastTaskProject, rememberTaskProject, startingProject } from "@/lib/task/startingProject";
 import { myTaskAssignee } from "@/lib/task/myTaskAssignee";
+import type { PlacedAddress } from "@/lib/task/newTaskAddress";
 
 type TaskCreateFormProps = {
   submitLabel?: string;
   onSuccess?: () => void;
   /** Starting name and description, e.g. drafted from a message. */
   prefill?: TaskDraft;
+  /** What a link to a new task names (hooks/useTaskAddress). */
+  address?: PlacedAddress;
   /** Called with the new task once the server has made it. */
   onCreated?: (task: { taskUUID: string; name: string }) => void;
   /** Shown under the name, e.g. a suggested name; `use` puts one in the field. */
@@ -68,7 +69,9 @@ type TaskCreateFormProps = {
   defaultProjectId?: string;
 };
 
-const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create task", onSuccess, prefill, onCreated, renderNameHint, assignToMe, defaultProjectId }) => {
+const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create task", onSuccess, prefill, address, onCreated, renderNameHint, assignToMe: fromMyTasks, defaultProjectId }) => {
+  // A link's assignee=me is My Tasks' rule.
+  const assignToMe = fromMyTasks || !!address?.toMe;
   const [popOpenProjectName, setPopOpenProjectName] = useState(false);
   const [popOpenUserName, setPopOpenUserName] = useState(false);
   const [popOpenPriority, setPopOpenPriority] = useState(false);
@@ -82,7 +85,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   // What the form holds beyond the schema: the status it starts in, and an
   // estimate, set once the task exists (its own endpoint).
   const [status, setStatus] = useState("todo");
-  const [estimate, setEstimate] = useState("");
+  const [estimate, setEstimate] = useState(address?.estimate ?? "");
   // "Create more" keeps the dialog and its chips for the next task (W36).
   const [createMore, setCreateMore] = useState(false);
   const [created, setCreated] = useState<{ taskUUID: string; name: string } | null>(null);
@@ -110,15 +113,15 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     resolver: zodResolver(createTaskFormSchema),
     mode: "onChange",
     defaultValues: {
-      task_name: prefill?.name ?? "",
+      task_name: prefill?.name ?? address?.name ?? "",
       task_assignee_uuid: "",
-      task_description: prefill?.description ?? "",
+      task_description: prefill?.description ?? address?.description ?? "",
       task_project_uuid: defaultProjectId ?? "",
       task_attachments: [],
-      task_due_date: undefined,
+      task_due_date: address?.due,
       task_start_date: undefined,
-      task_label: "",
-      task_priority: "medium",
+      task_label: address?.tags ?? "",
+      task_priority: address?.priority || "medium",
     },
   });
 
@@ -128,7 +131,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   // The project picked, as the latest list has it: its name, and its members
   // for the assignee picker. A copy kept in state stayed as an older list had
   // it (SWR shows its cached answer while it asks again).
-  const projectChoices = projectsInfo.data?.data
+  const projectChoices = listOnceRead<ProjectInfoListRawInterface, ProjectInfoInterface>(projectsInfo.data, (a) => a.data)
   const selectedProject = projectChoices?.find((p) => p.project_uuid === taskProjectUUID) ?? null
 
   // From My Tasks a task is yours, or it would vanish from the list you made
@@ -138,26 +141,29 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const selfUUID = self.data?.data?.user_uuid;
   useEffect(() => {
     if (!taskProjectUUID) return;
-    const project = projectsInfo.data?.data.find((p) => p.project_uuid === taskProjectUUID);
+    const project = projectChoices?.find((p) => p.project_uuid === taskProjectUUID);
     const assignee = myTaskAssignee({ assignToMe, selfUUID, assignee: taskAssigneeUUID, project });
     if (assignee && assignee !== taskAssigneeUUID) {
       setValue("task_assignee_uuid", assignee, { shouldValidate: true });
     }
-  }, [assignToMe, selfUUID, taskAssigneeUUID, taskProjectUUID, projectsInfo.data, setValue]);
+  }, [assignToMe, selfUUID, taskAssigneeUUID, taskProjectUUID, projectChoices, setValue]);
 
   // Opened from outside a project, start where the task most likely goes: the
   // project a task was last made in here, or the only one there is. That pick
   // can come from an older list, so when the list that comes back no longer
   // has the project picked (deleted, or no longer one you run), it's picked
   // again the same way. The caller's project stays: the list holds only the
-  // projects you run.
+  // projects you run. A link's project starts it when it's one of them; any
+  // other starts empty, so Create asks.
   useEffect(() => {
     if (!projectChoices) return
     const gone = !!taskProjectUUID && taskProjectUUID !== defaultProjectId && !projectChoices.some((p) => p.project_uuid === taskProjectUUID)
     if (taskProjectUUID && !gone) return
-    const start = startingProject(projectChoices, lastTaskProject())
+    const start = address?.project
+      ? (address.projectAmong(projectChoices)?.project_uuid ?? "")
+      : startingProject(projectChoices, lastTaskProject())
     if (start || gone) setValue("task_project_uuid", start, { shouldValidate: !!start })
-  }, [projectChoices, taskProjectUUID, defaultProjectId, setValue]);
+  }, [projectChoices, taskProjectUUID, defaultProjectId, address, setValue]);
 
   // Uploads live in Redux (for their progress), keyed by the project picked in
   // this form; copy the finished ones into the form so they are sent with the
@@ -222,55 +228,47 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     );
   };
 
-  const { optimisticCreateTask, revalidateTaskKeys } = useTaskUpdate();
+  const { optimisticCreateTask, optimisticDeleteTask, revalidateTaskKeys } = useTaskUpdate();
 
   const handleCreateTask = async (data: CreateTaskFormData) => {
-    const tempTask: TaskInfoInterface = ({
-      task_uuid: `temp-${Date.now()}`,
+    const payload: CreateTaskInterface = {
       task_name: data.task_name,
-      task_status: status,
-      task_priority: data.task_priority || "medium", // Default priority
-      task_project: { project_uuid: data.task_project_uuid } as any,
-      task_assignee: data.task_assignee_uuid ? { user_uuid: data.task_assignee_uuid } as any : undefined,
-      task_due_date: data.task_due_date ? data.task_due_date.toISOString() : "",
-      task_start_date: data.task_start_date ? data.task_start_date.toISOString() : "",
-      task_label: data.task_label || "",
-      task_created_at: new Date().toISOString(),
-      task_sub_tasks: [],
-      task_comments: [],
+      task_assignee_uuid: data.task_assignee_uuid,
+      task_description: data.task_description,
+      task_project_uuid: data.task_project_uuid,
       task_attachments: data.task_attachments || [],
-    } as unknown) as TaskInfoInterface;
-
+      task_label: data.task_label,
+      task_priority: data.task_priority,
+      task_due_date: data.task_due_date ? data.task_due_date.toISOString() : undefined,
+      task_start_date: data.task_start_date ? data.task_start_date.toISOString() : undefined,
+      task_github_issue_url: data.task_github_issue_url || undefined,
+      task_status: status,
+    };
+    // On the lists at once, as the server will make it.
+    const tempTask = taskFromCreate(`temp-${Date.now()}`, payload as unknown as Record<string, unknown>);
     optimisticCreateTask(tempTask, data.task_project_uuid);
 
-        post
+    post
       .makeRequest<CreateTaskInterface, { task_uuid?: string }>({
         apiEndpoint: PostEndpointUrl.CreateTask,
         showToast: true,
-        payload: {
-          task_name: data.task_name,
-          task_assignee_uuid: data.task_assignee_uuid,
-          task_description: data.task_description,
-          task_project_uuid: data.task_project_uuid,
-          task_attachments: data.task_attachments || [],
-          task_label: data.task_label,
-          task_priority: data.task_priority,
-          task_due_date: data.task_due_date ? data.task_due_date.toISOString() : undefined,
-          task_start_date: data.task_start_date ? data.task_start_date.toISOString() : undefined,
-          task_github_issue_url: data.task_github_issue_url || undefined,
-          task_status: status,
-        },
+        payload,
       })
       .then((res) => {
         dispatch(clearCreateTaskInputState());
+        // Kept on this device with no network (lib/offline): the lists show
+        // it under the id it waits under, so this row goes.
+        const kept = madeOffline(res?.task_uuid);
+        if (kept) optimisticDeleteTask(tempTask.task_uuid, data.task_project_uuid);
         revalidateTaskKeys(data.task_project_uuid);
         rememberTaskProject(data.task_project_uuid);
-        if (res?.task_uuid && onCreated) onCreated({ taskUUID: res.task_uuid, name: data.task_name });
+        // A reply under the message would link a task only this device has yet.
+        if (res?.task_uuid && onCreated && !kept) onCreated({ taskUUID: res.task_uuid, name: data.task_name });
         // An estimate has its own endpoint: set once the task exists.
         const minutes = estimateMinutes(estimate);
         if (res?.task_uuid && minutes) {
           void post
-            .makeRequest({ apiEndpoint: ProjectsPost.UpdateTaskEstimate, payload: { task_uuid: res.task_uuid, task_estimate_minutes: minutes } })
+            .makeRequest({ apiEndpoint: PostEndpointUrl.UpdateTaskEstimate, payload: { task_uuid: res.task_uuid, task_estimate_minutes: minutes } })
             .catch(() => undefined);
         }
         if (createMore) {
@@ -329,9 +327,21 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
 
   const needsProject = !selectedProject;
   const pickProjectFirst = needsProject ? "Pick a project first" : undefined;
-  const { options: statusOpts } = useProjectStatuses(taskProjectUUID || undefined);
+  const { options: statusOpts, isLoading: statusesLoading } = useProjectStatuses(taskProjectUUID || undefined);
   const statusOption = statusOpts.find((o) => o.value === status) ?? statusOpts.find((o) => o.value === "todo");
   const [descriptionKey, setDescriptionKey] = useState(0);
+
+  // A link's status and assignee, found in its project once that and its
+  // statuses load; set once, so a later pick keeps the person's own.
+  const addressPlaced = useRef(false);
+  useEffect(() => {
+    if (addressPlaced.current || !address || !selectedProject || statusesLoading) return;
+    addressPlaced.current = true;
+    const named = address.statusAmong(statusOpts);
+    if (named) setStatus(named);
+    const member = address.memberAmong(selectedProject.project_members);
+    if (member) setValue("task_assignee_uuid", member, { shouldValidate: true });
+  }, [address, selectedProject, statusesLoading, statusOpts, setValue]);
   // The "Created · Open" line under the chips goes after three seconds.
   useEffect(() => {
     if (!created) return;
@@ -378,7 +388,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
       <form onSubmit={submitCreate} onKeyDown={onKeyDown} className="flex flex-col">
         {/* The top bar: the project chip, then where this is. */}
         <div className="flex h-11 items-center gap-1.5 pl-3 pr-12">
-          {projectsInfo.data?.data ? (
+          {projectChoices ? (
             <Controller
               control={control}
               name="task_project_uuid"
@@ -403,7 +413,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                       <CommandList>
                         <CommandEmpty>No project found</CommandEmpty>
                         <CommandGroup className="p-0">
-                          {projectsInfo.data?.data.map((project) => (
+                          {projectChoices.map((project) => (
                             <CommandItem
                               key={project.project_uuid}
                               value={project.project_uuid}
@@ -731,7 +741,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                 <GitBranch className="size-4" aria-hidden />
               </Button>
             </PopoverTrigger>
-            <PopoverContent forceMount className={cn("w-80 rounded-lg p-3 shadow-e3", !popOpenGitHub && "hidden")} align="start" side="top" portalled={false}>
+            <PopoverContent className="w-80 rounded-lg p-3 shadow-e3" align="start" side="top" portalled={false}>
               <label htmlFor="github-url" className="mb-1.5 block text-meta font-[510] text-ink-3">
                 GitHub issue or pull request (optional)
               </label>
@@ -773,7 +783,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
             <Switch checked={createMore} onCheckedChange={setCreateMore} aria-label="Create more" />
             <span>Create more</span>
           </label>
-          <Button type="submit" size="sm" disabled={post.isSubmitting} className="gap-2">
+          <Button type="submit" size="sm" busy={post.isSubmitting} className="gap-2">
             {submitLabel}
             {/* The platform's own chord: Ctrl on Linux and Windows (PTC-27). */}
             <span className="kbd hidden h-4 min-w-0 border-0 bg-white/20 px-1 text-[inherit] shadow-none sm:inline-flex" aria-hidden>
@@ -792,9 +802,7 @@ const chip =
 
 /** "2h 30m" in minutes, or null when it isn't one (a bare number is hours). */
 function estimateMinutes(text: string): number | null {
-  const t = text.trim();
-  if (!t) return null;
-  return parseDuration(/^\d+(\.\d+)?$/.test(t) ? `${t}h` : t, 1000 * 60);
+  return text.trim() ? parseWorkDuration(text, 1000 * 60) : null;
 }
 
 /** A day picker with the quick days (W29): Today, Tomorrow, Next week, then the calendar. */

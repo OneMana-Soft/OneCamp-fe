@@ -7,7 +7,7 @@ import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 import AgentHtmlArtifact from "@/components/ai/AgentHtmlArtifact";
 import { normalizeQueryPlan, type NormalizedQueryPlan } from "@/lib/utils/queryPlanSpec";
 import { lazyPart } from "@/lib/lazy/lazyPart";
-import { Button } from "@/components/ui/button";
+import { PieceUnavailable } from "@/lib/lazy/pieceUnavailable";
 
 // An answer's chart and query plan come when an answer has one: SVG charts,
 // and a plan's card with the tables service it reads, were on every screen that
@@ -18,14 +18,12 @@ import { Button } from "@/components/ui/button";
 // come says so in its own place, with Try again, instead of taking the page
 // with it.
 const BlockRoom = () => <div aria-hidden data-block-room="" className="my-2 h-40 w-full rounded-lg bg-muted/60" />;
+// A block that can't come says so in the shared failed row (lib/lazy/pieceUnavailable), in the room it keeps.
 const blockFailed = (what: string) =>
     function BlockFailed({ retry }: { retry: () => void }) {
         return (
-            <div data-block-failed="" className="my-2 flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-lg bg-sunken px-4 py-3 text-center">
-                <p className="text-xs text-ink-2">{`Couldn't show this ${what}. Check your connection, then try again.`}</p>
-                <Button type="button" variant="outline" size="sm" onClick={retry}>
-                    Try again
-                </Button>
+            <div data-block-failed="" className="my-2 flex min-h-40 w-full items-center">
+                <PieceUnavailable what={`this ${what}`} retry={retry} />
             </div>
         );
     };

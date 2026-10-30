@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Loader2, ShieldCheck } from "@/lib/icons"
+import { ShieldCheck } from "@/lib/icons"
 import { AuthHeading, authControl, authLink } from "@/components/auth/AuthShell"
 import { cn } from "@/lib/utils/helpers/cn"
 import { TwoFactorCells, TwoFactorCodeField } from "@/components/auth/TwoFactorCodeField"
@@ -141,8 +141,7 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
                     Start again
                 </Button>
             ) : (
-                <Button type="submit" size="lg" className={authControl} aria-busy={busy || undefined}>
-                    {busy && <Loader2 className="animate-spin" aria-hidden="true" />}
+                <Button type="submit" size="lg" className={authControl} busy={busy}>
                     {busy ? "Verifying…" : "Verify"}
                 </Button>
             )}

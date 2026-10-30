@@ -49,13 +49,33 @@ export function fileTypeHue(name?: string, mime?: string): CampHue | null {
 
 /**
  * A file name in two parts for a middle cut drawn by CSS: the head, which
- * truncates to whatever room the card has, and the tail (the last letters and
- * the extension), which never shrinks, so "OneCamp brand guidel…agency.pdf"
- * keeps its start and its type at any width. Pure.
+ * truncates to whatever room the card has, and the tail, which never shrinks,
+ * so "q4-launch-checkou…final.png" keeps its start and its type at any width.
+ * The tail is the extension and the word before it when that word is 4 to 10
+ * letters, else the last 4 letters before the extension; a name with no
+ * short extension keeps its last 6. Pure.
+ *
+ * A short name stays whole, unless keepExtension: then its extension is the
+ * tail, so a chip with less room than "Logo.png" reads "Lo….png", never
+ * "Logo.…" (a table's files cell).
  */
-export function splitForMiddle(name: string): [head: string, tail: string] {
+export function splitForMiddle(name: string, keepExtension = false): [head: string, tail: string] {
     const dot = name.lastIndexOf(".")
-    const cut = dot > 0 && name.length - dot <= 8 ? Math.max(0, dot - 4) : Math.max(0, name.length - 6)
-    if (name.length <= 12 || cut <= 0) return [name, ""]
+    const typed = dot > 0 && name.length - dot <= 8
+    const cut = typed ? lastWordAt(name, dot) : Math.max(0, name.length - 6)
+    if (name.length <= 12 || cut <= 0) return keepExtension && typed ? [name.slice(0, dot), name.slice(dot)] : [name, ""]
     return [name.slice(0, cut), name.slice(cut)]
+}
+
+/**
+ * Where the word of 4 to 10 letters before the extension at dot starts, after
+ * its break (a dash, an underscore, a dot or a space); dot - 4 when there is
+ * none. A space goes with the tail, which keeps it, where the truncating head
+ * would drop it.
+ */
+function lastWordAt(name: string, dot: number): number {
+    for (let i = dot - 5; i > 0 && dot - i <= 11; i--) {
+        if ("-_. ".includes(name[i])) return name[i] === " " ? i : i + 1
+    }
+    return Math.max(0, dot - 4)
 }

@@ -20,9 +20,10 @@ import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
-import { buttonVariants } from "@/components/ui/button"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { SwitchTick } from "@/components/ui/instantSwitch"
+import { useSaveStatus } from "@/components/ui/saveStatus"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -103,9 +104,18 @@ function InventoryAgentRow({
 }: {
   agent: InventoryAgent
   busy: boolean
-  onToggle: (a: InventoryAgent, next: boolean) => void
+  onToggle: (a: InventoryAgent, next: boolean) => Promise<unknown>
 }) {
   const [confirming, setConfirming] = React.useState(false)
+  // Saved with the row's tick and offered back on the toast. Undo goes
+  // straight back: a pause the admin just confirmed needs no second ask.
+  const { status, run } = useSaveStatus()
+  const change = (next: boolean): Promise<boolean> =>
+    run(() => onToggle(a, next), {
+      what: next ? `${a.name} resumed` : `${a.name} paused`,
+      description: next ? undefined : a.credentials > 0 ? "It stops now, and so do its credentials." : "It stops now. Nothing it started is undone.",
+      undo: () => change(!next),
+    })
   return (
     <li data-inventory-agent="" className="set-row">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -131,12 +141,15 @@ function InventoryAgentRow({
           <Count n={a.actions_7d} label="did" />
           <Count n={a.refusals_7d} label={a.refusals_7d === 1 ? "refusal" : "refusals"} refused />
           <StatePill active={a.is_active} />
-          <Switch
-            checked={a.is_active}
-            disabled={busy || confirming}
-            onCheckedChange={(next) => (next ? onToggle(a, true) : setConfirming(true))}
-            aria-label={`${a.is_active ? "Pause" : "Resume"} ${a.name}`}
-          />
+          <SwitchTick status={status}>
+            <Switch
+              checked={a.is_active}
+              disabled={busy || confirming}
+              onCheckedChange={(next) => (next ? void change(true) : setConfirming(true))}
+              aria-busy={status.state === "saving" || undefined}
+              aria-label={`${a.is_active ? "Pause" : "Resume"} ${a.name}`}
+            />
+          </SwitchTick>
         </div>
       </div>
       {confirming ? (
@@ -152,7 +165,7 @@ function InventoryAgentRow({
             variant="destructive"
             onClick={() => {
               setConfirming(false)
-              onToggle(a, false)
+              void change(false)
             }}
           >
             Pause
@@ -243,22 +256,17 @@ export function AgentInventoryCard() {
       setInv((cur) =>
         cur ? { ...cur, agents: cur.agents.map((x) => (x.id === a.id ? { ...x, is_active: next } : x)) } : cur,
       )
+      // The row says it is saved and offers it back; a failure says why here
+      // and rejects, and the reload below puts the switch back.
       try {
         await setAgentActive(a.id, next)
-        toast({
-          title: next ? `${a.name} resumed` : `${a.name} paused`,
-          description: next
-            ? undefined
-            : a.credentials > 0
-              ? "It stops now, and so do its credentials."
-              : "It stops now. Nothing it started is undone.",
-        })
       } catch (e) {
         toast({
           title: `Couldn't ${next ? "resume" : "pause"} ${a.name}`,
           description: apiErrorMessage(e, "Try again in a moment."),
           variant: "destructive",
         })
+        throw e
       } finally {
         setBusy(null)
         void load()
@@ -371,9 +379,9 @@ export function AgentInventoryCard() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            {/* Destructive: it can't be undone. It was the orange primary,
-                the colour of "go ahead". */}
-            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={() => void revoke()}>
+            {/* It can't be undone: the confirm's danger-solid (it was the
+                orange primary, the colour of "go ahead"). */}
+            <AlertDialogAction variant="dangerSolid" onClick={() => void revoke()}>
               Revoke
             </AlertDialogAction>
           </AlertDialogFooter>

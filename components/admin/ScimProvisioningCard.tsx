@@ -331,8 +331,7 @@ const ScimProvisioningCard = () => {
                 <Button variant="ghost" onClick={() => setCreating(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreate} disabled={saving}>
-                  {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
+                <Button onClick={handleCreate} busy={saving}>
                   Create credential
                 </Button>
               </DialogFooter>

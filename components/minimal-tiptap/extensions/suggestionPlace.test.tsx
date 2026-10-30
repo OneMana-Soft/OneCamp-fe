@@ -96,3 +96,30 @@ describe("the menus' flip", () => {
     await waitFor(() => expect(placement()).toBe("top-start"))
   })
 })
+
+describe("the menus as their box moves", () => {
+  it("follow the typed text when the box slides, though nothing changed size", async () => {
+    // A phone's box settles by a slide on y (components/drawers/dragableDrawer),
+    // which neither a resize nor a scroll tells the menu of. Placed mid-slide,
+    // the "/" menu stayed about 21px low on three of six phone thread pages,
+    // over the box's own row (DESIGN-BUILD-10's WM1, 24 Oct 2026).
+    vi.stubGlobal("ResizeObserver", Watch)
+    Object.defineProperties(document.documentElement, { clientWidth: { configurable: true, value: 390 }, clientHeight: { configurable: true, value: 844 } })
+    const editor = new Editor({ extensions: [StarterKit, SlashCommand.configure({ commands: slashItemsFor("doc", { ai: false }) })], content: "<p></p>" })
+    editors.push(editor)
+    render(<EditorContent editor={editor} />)
+    await waitFor(() => expect(editor.view.dom.isConnected).toBe(true))
+    act(() => {
+      editor.chain().focus("end").insertContent("/").run()
+    })
+    await waitFor(() => expect(menu()?.state.isMounted).toBe(true))
+    const popup = menu()!
+    const typed = document.querySelector("[data-decoration-id]")!
+    typed.getBoundingClientRect = () => new DOMRect(16, 420, 8, 20)
+    act(() => popup.popperInstance!.forceUpdate())
+    expect(popup.popperInstance!.state.rects.reference.y).toBe(420)
+    // The box slides up 21px: no size changes and nothing scrolls.
+    typed.getBoundingClientRect = () => new DOMRect(16, 399, 8, 20)
+    await waitFor(() => expect(popup.popperInstance!.state.rects.reference.y).toBe(399))
+  })
+})

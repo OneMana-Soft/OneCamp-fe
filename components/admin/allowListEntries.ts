@@ -21,9 +21,6 @@ export const PUBLIC_MAIL_DOMAINS = new Set([
   "zoho.com",
 ])
 
-/** The line under the field while a public domain is in it. */
-export const PUBLIC_DOMAIN_LINE = "Public email domains like gmail.com can't be added."
-
 export type EntryKind = "domain" | "address"
 
 const DOMAIN = /^@?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i
@@ -62,11 +59,6 @@ export function entryProblem(entry: string): string | null {
   return null
 }
 
-/** Whether an entry is refused for being a public domain. Pure. */
-export function isPublicDomain(entry: string): boolean {
-  return entry.startsWith("@") && PUBLIC_MAIL_DOMAINS.has(entry.slice(1))
-}
-
 /**
  * Text typed or pasted into the field, split into entries at commas,
  * semicolons, spaces and new lines. Pure.
@@ -76,4 +68,55 @@ export function splitEntries(text: string): string[] {
     .split(/[\s,;]+/)
     .map(normalizeEntry)
     .filter(Boolean)
+}
+
+/**
+ * What a chip field holds: how typing splits into entries, what's wrong with
+ * one (null when nothing), which glyph it carries, and the field's words.
+ */
+export interface ChipRules {
+  split: (text: string) => string[]
+  problem: (entry: string) => string | null
+  glyph: (entry: string) => EntryKind
+  /** The field's name, its placeholder, and the list's accessible name. */
+  name: string
+  placeholder: string
+  listLabel: string
+}
+
+/** The sign-up allow-list: domains and addresses. */
+export const SIGN_UP_RULES: ChipRules = {
+  split: splitEntries,
+  problem: entryProblem,
+  glyph: entryKind,
+  name: "allowed-users",
+  placeholder: "alice@example.com, @example.com",
+  listLabel: "On the allow-list",
+}
+
+// A host as the server's list of sites keeps it (business/Policy hostPattern):
+// "youtube.com", or "*.figma.com" for its subdomains.
+const HOST = /^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
+
+/** One typed site as the list keeps it: its host alone, lower case. "www." stays: the editor matches a link's whole host. Pure. */
+export function normalizeHost(raw: string): string {
+  const v = raw.trim().toLowerCase()
+  if (!v) return ""
+  return v.replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/[/?#].*$/, "").replace(/:\d+$/, "").replace(/\.$/, "")
+}
+
+/** Why a site can't be on the list of sites docs embed, or null. Pure. */
+export function hostProblem(entry: string): string | null {
+  if (!HOST.test(entry)) return "Not a site. Write one like embed.example.com, or *.example.com for all of its subdomains."
+  return null
+}
+
+/** The sites docs can embed, beyond the built-in ones: hosts, with a wildcard for subdomains. */
+export const EMBED_HOST_RULES: ChipRules = {
+  split: (text) => text.split(/[\s,;]+/).map(normalizeHost).filter(Boolean),
+  problem: hostProblem,
+  glyph: () => "domain",
+  name: "embed-sites",
+  placeholder: "embed.example.com, *.example.org",
+  listLabel: "Sites docs can embed",
 }

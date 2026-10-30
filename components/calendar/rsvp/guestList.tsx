@@ -7,7 +7,9 @@ import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
 import { sectionTitle } from "@/lib/ui/fieldRow"
 import { ANSWER_WORD, countsLine, responseOf } from "@/lib/calendar/answers"
-import { GuestFace } from "@/components/calendar/rsvp/guestFaces"
+import { GuestFace, type FaceGuest } from "@/components/calendar/rsvp/guestFaces"
+import { Proposals } from "@/components/calendar/rsvp/proposalsChunk"
+import type { EventProposal } from "@/types/calendar"
 import type { EventGuests } from "@/components/calendar/rsvp/eventGuests"
 
 /** What the organiser is told of an invitation by email that didn't go. */
@@ -22,7 +24,9 @@ export const INVITE_WORDS: Record<string, string> = {
  * the note they left. The organiser also sees how many said what, can ask
  * again whoever hasn't answered, copy the link of a guest invited by email
  * (to send it themselves when it wasn't emailed), and choose to be emailed
- * when guests answer.
+ * when guests answer. Another time a guest proposed shows on their row where
+ * the server sends it, to be used or dismissed by whoever may change the
+ * event (calendar head 4); the reader's own shows with their answer.
  */
 export function EventGuestList({
   guests,
@@ -32,6 +36,8 @@ export function EventGuestList({
   onCopyLink,
   emailOnAnswers,
   onEmailOnAnswers,
+  onUseProposal,
+  onDismissProposal,
 }: {
   guests: EventGuests
   /** The reader organises the event. */
@@ -42,6 +48,9 @@ export function EventGuestList({
   /** The organiser's "Email me when guests answer", once the calendar's API has said it. */
   emailOnAnswers?: boolean
   onEmailOnAnswers?: (on: boolean) => void
+  /** For whoever may change the event: moves it to a proposed time, or sets the proposal aside. */
+  onUseProposal?: (p: EventProposal) => Promise<void>
+  onDismissProposal?: (g: FaceGuest) => Promise<void>
 }) {
   const others = guests.faces.filter((f) => !f.organiser)
   const asks = organiser && guests.answered
@@ -64,7 +73,10 @@ export function EventGuestList({
       {others.length > 0 ? (
         <ul aria-label="Guests and their answers">
           {listed.map((g) => {
-            const unsent = organiser && g.outside && g.invite ? INVITE_WORDS[g.invite] : undefined
+            // Copying their link and dismissing their proposal name them by their address, which the demo hides.
+            const unsent = organiser && g.outside && g.email && g.invite ? INVITE_WORDS[g.invite] : undefined
+            const proposal = g.key !== guests.self ? g.proposal : undefined
+            const dismissable = !g.outside || !!g.email
             return (
               <li key={g.key} className="flex min-h-9 min-w-0 items-start gap-2.5 py-1.5 text-sm" data-guest-row={g.organiser ? "organiser" : responseOf(g.response)}>
                 <GuestFace g={g} size={24} />
@@ -75,6 +87,9 @@ export function EventGuestList({
                     {g.detail ? <span className="truncate text-xs text-muted-foreground">{g.detail}</span> : null}
                   </div>
                   {g.note ? <p className="text-meta text-ink-2">“{g.note}”</p> : null}
+                  {proposal ? (
+                    <Proposals.View fallback={null} render={(m) => <m.ProposedRow guest={g} proposal={proposal} onUse={onUseProposal} onDismiss={dismissable ? onDismissProposal : undefined} />} />
+                  ) : null}
                   {unsent ? <p className="text-meta text-ink-3">{unsent}</p> : null}
                 </div>
                 {guests.answered ? (

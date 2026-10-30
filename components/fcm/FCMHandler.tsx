@@ -12,16 +12,17 @@ function initialsOf(title: string): string {
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("")
 }
-// The Firebase SDK (lib/firebase) is fetched by the effects below, never with
-// the first screen: the config check needs none of it.
+// The Firebase SDK (lib/firebase) is fetched by the effects below once the
+// first screen has settled and the page is quiet (lib/ui/whenQuiet), never
+// with it: the config check needs none of it.
 import { isFirebaseConfigured } from "@/lib/push/firebaseConfig"
-import { whenIdle } from "@/lib/whenIdle"
+import { runWhenSettled } from "@/lib/ui/whenQuiet"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { toast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { DESKTOP_OPEN_ROUTE_EVENT, isDesktopApp } from "@/lib/desktopApp"
 
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -44,7 +45,7 @@ export const FCM_RESYNC_MS = 15 * 60_000
 
 export function FCMHandler() {
   const { makeRequest } = usePost()
-  const router = useRouter()
+  const router = useAppRouter()
   const store = useStore<RootState>()
   // When this tab last registered its token with the server (ms; 0: not yet).
   const syncedAtRef = useRef(0)
@@ -116,8 +117,9 @@ export function FCMHandler() {
       }
     }
 
-    // Initial setup after hydration delay: on every start of the app.
-    const initialTimeout = window.setTimeout(() => setupFCM(1), BASE_DELAY)
+    // On every start of the app, once its first screen has settled and the
+    // page is quiet: the SDK came at 3 s, inside a phone's first screen.
+    const cancelFirst = runWhenSettled([() => setupFCM(1)])
 
     // And again when the app comes back into view, once the last registration is
     // older than FCM_RESYNC_MS (or never happened): a token the server dropped
@@ -131,15 +133,15 @@ export function FCMHandler() {
 
     return () => {
       isCancelled = true
-      clearTimeout(initialTimeout)
+      cancelFirst()
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [makeRequest])
 
-  // Effect 3: Foreground message listener, subscribed once the page is idle
-  // and the SDK has come (it is not on the first screen; a push in the first
-  // moments of a visit still shows in the Inbox).
+  // Effect 3: Foreground message listener, subscribed once the first screen
+  // has settled and the SDK has come (it is not on the first screen; a push in
+  // the first moments of a visit still shows in the Inbox).
   useEffect(() => {
     if (!isFirebaseConfigured || isDesktopApp()) return
 
@@ -203,17 +205,18 @@ export function FCMHandler() {
         ) : undefined,
       })
     }
-    const cancelIdle = whenIdle(() => {
-      void import("@/lib/firebase")
-        .then(({ onForegroundMessage }) => {
-          if (!cancelled) unsubscribe = onForegroundMessage(onPush)
-        })
-        .catch((e) => console.warn("[FCM] Web push's SDK never arrived; previews stay off this visit:", e))
-    }, 2000)
+    const cancelListen = runWhenSettled([
+      () =>
+        import("@/lib/firebase")
+          .then(({ onForegroundMessage }) => {
+            if (!cancelled) unsubscribe = onForegroundMessage(onPush)
+          })
+          .catch((e) => console.warn("[FCM] Web push's SDK never arrived; previews stay off this visit:", e)),
+    ])
 
     return () => {
       cancelled = true
-      cancelIdle()
+      cancelListen()
       unsubscribe?.()
     }
   }, [router, store])

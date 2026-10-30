@@ -28,7 +28,6 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => ({}) }))
-vi.mock("@/services/aiService", () => ({ useTranslateText: () => ({ translateText: async () => null, isSubmitting: false }) }))
 vi.mock("@/components/textInput/textInput", () => ({
   default: ({ content }: { content?: string }) => <div data-testid="body">{content}</div>,
 }))
@@ -36,7 +35,6 @@ vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatA
   MessageDesktopHoverOptionsForMainChatAndChannel: () => null,
 }))
 vi.mock("@/lib/utils/useInternalLinkRouter", () => ({ useInternalLinkRouter: () => undefined }))
-vi.mock("@/components/ai/SaveToMemoryButton", () => ({ SaveToMemoryButton: () => null }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/app/channel/c1" }))
 vi.mock("@/components/message/AgentResultCards", () => ({ AgentResultCards: () => null }))
 vi.mock("@/components/message/WorkLinkCards", () => ({ WorkLinkCards: () => null }))

@@ -191,7 +191,7 @@ export function TaskRepeatField({
               ) : (
                 <span />
               )}
-              <Button size="sm" onClick={() => save(buildRule(spec))} disabled={isSubmitting}>
+              <Button size="sm" onClick={() => save(buildRule(spec))} busy={isSubmitting}>
                 {current ? "Save" : "Repeat"}
               </Button>
             </div>

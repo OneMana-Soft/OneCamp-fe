@@ -50,20 +50,42 @@ const order = (container: HTMLElement) =>
 describe("the dock's Together group", () => {
   it("holds People with how many are in the call, Chat and React, before the view and Record", () => {
     const { container } = dock({ onToggleRecording: () => {} })
-    expect(order(container)).toBe("Mute Turn camera off | Share screen Show captions | Participants, 3 Chat React Switch to speaker view Record More call options | Leave call")
+    expect(order(container)).toBe("Mute Turn camera off | Share screen Show captions | People, 3 Chat React Switch to speaker view Record More call options | Leave call")
   })
 
   it("says how many are in the call on People, and opens and closes the list", () => {
     const toggle = vi.fn()
     dock({ people: { count: 3, open: false, onToggle: toggle } })
-    const people = screen.getByRole("button", { name: "Participants, 3" })
+    const people = screen.getByRole("button", { name: "People, 3" })
     expect(people.getAttribute("aria-pressed")).toBe("false")
     expect(people.parentElement?.textContent).toContain("3")
     fireEvent.click(people)
     expect(toggle).toHaveBeenCalled()
     cleanup()
     dock({ people: { count: 3, open: true, onToggle: toggle } })
-    expect(screen.getByRole("button", { name: "Participants, 3" }).getAttribute("aria-pressed")).toBe("true")
+    expect(screen.getByRole("button", { name: "People, 3" }).getAttribute("aria-pressed")).toBe("true")
+  })
+
+  // CALLS-2: on a phone, More says who waits in its first row, with See who.
+  it("opens More with who waits first, and See who opens the list", () => {
+    const toggle = vi.fn()
+    dock({ people: { count: 3, open: false, onToggle: toggle, waiting: 2 } })
+    fireEvent.keyDown(screen.getByRole("button", { name: "More call options" }), { key: "Enter" })
+    const items = screen.getAllByRole("menuitem")
+    expect(items[0].textContent).toBe("2 waiting to joinSee who")
+    expect(items[0].className).not.toContain("text-brand")
+    fireEvent.click(items[0])
+    expect(toggle).toHaveBeenCalled()
+  })
+
+  // CALLS-2: whoever may let people in sees from the dock that someone waits.
+  it("turns the count sun, +N, while people wait to join, and says so", () => {
+    dock({ people: { count: 3, open: false, onToggle: vi.fn(), waiting: 2 } })
+    const people = screen.getByRole("button", { name: "People, 3, 2 waiting to join" })
+    // Waiting is pending, which is sun: never a second orange beside Admit.
+    const badge = people.parentElement?.querySelector('span[aria-hidden][class*="bg-[#F5B544]"]')
+    expect(badge?.textContent).toBe("+2")
+    expect(people.parentElement?.querySelector("span[aria-hidden].bg-brand")).toBeNull()
   })
 
   it("opens a tray of six from React, sends the one picked, and closes", () => {
@@ -92,8 +114,8 @@ describe("the phone's More", () => {
     const toggle = vi.fn()
     dock({ people: { count: 4, open: false, onToggle: toggle } })
     fireEvent.keyDown(screen.getByRole("button", { name: "More call options" }), { key: "Enter" })
-    const row = screen.getByRole("menuitem", { name: /Participants/ })
-    expect(row.textContent).toMatch(/Participants\s*4/)
+    const row = screen.getByRole("menuitem", { name: /People/ })
+    expect(row.textContent).toMatch(/People\s*4/)
     fireEvent.click(row)
     expect(toggle).toHaveBeenCalled()
   })

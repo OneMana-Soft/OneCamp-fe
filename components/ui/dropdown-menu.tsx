@@ -2,20 +2,48 @@
 
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import { ChevronRight, Circle } from "@/lib/icons";
+import { Slot } from "@radix-ui/react-slot"
+import { ChevronRight } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
 import { movingPointerOnly } from "@/lib/ui/stillPointer"
 import { MenuCheck } from "@/components/ui/menuCheck"
+import { useFloatRef } from "@/components/ui/floatMark"
+import { useSheetMode } from "@/components/ui/overlayMode"
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 
 const DropdownMenu = DropdownMenuPrimitive.Root
 
-const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
+// Radix opens a menu on pointerdown. On a phone (overlayMode's SHEET_QUERY) it is a sheet
+// rising under the finger, whose release chose a row there; so it opens on the click.
+// A menu that joins on a press (components/ui/menuOnDemand) opens through it too.
+export function Press({ onPointerDown, onClick, ...props }: React.ComponentProps<typeof Slot>) {
+  const held = React.useRef(false)
+  return (
+    <Slot
+      {...props}
+      onPointerDown={(e) => {
+        held.current = !e.defaultPrevented && !props["aria-expanded"] && !!window.matchMedia?.("(max-width: 639px), (pointer: coarse) and (max-height: 500px)").matches
+        if (held.current) e.preventDefault()
+        else onPointerDown?.(e)
+      }}
+      onClick={(e) => {
+        onClick?.(e)
+        if (held.current && !e.defaultPrevented) onPointerDown?.(e as never)
+        held.current = false
+      }}
+    />
+  )
+}
+
+const DropdownMenuTrigger = ({ asChild, children, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) => (
+  <DropdownMenuPrimitive.Trigger asChild {...props}>
+    <Press>{asChild ? children : <button>{children}</button>}</Press>
+  </DropdownMenuPrimitive.Trigger>
+)
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group
-
-const DropdownMenuPortal = DropdownMenuPrimitive.Portal
 
 const DropdownMenuSub = DropdownMenuPrimitive.Sub
 
@@ -35,6 +63,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
       className
     )}
     {...ix("item")}
+    data-text-value={props.textValue}
     {...props}
     {...movingPointerOnly(props)}
   >
@@ -45,8 +74,8 @@ const DropdownMenuSubTrigger = React.forwardRef<
 DropdownMenuSubTrigger.displayName =
   DropdownMenuPrimitive.SubTrigger.displayName
 
-// A menu and a side menu: at most the room left below (or above) it, scrolling
-// past that, so a short screen still reaches its last rows.
+// A menu and a side menu: at most the room left, scrolling past it (the board's
+// Display menu ran off a 640px phone).
 const MENU = [
   "max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overscroll-contain",
   "z-[var(--z-dropdown)] min-w-[8rem] overflow-x-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-overlay pointer-events-auto",
@@ -54,26 +83,38 @@ const MENU = [
 ]
 
 // A side menu is portalled: inside its menu it was clipped away (menuPortalGuard.test.ts).
+// Its sheet step's head (Back, title) comes lazily.
+const SubStepHead = lazyPiece(() => import("./subStepHead"))
 const DropdownMenuSubContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
->(({ className, collisionPadding = 8, ...props }, ref) => (
+>(({ className, collisionPadding = 8, children, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
-    <DropdownMenuPrimitive.SubContent ref={ref} collisionPadding={collisionPadding} className={cn(MENU, className)} {...props} />
+    <DropdownMenuPrimitive.SubContent ref={useFloatRef(ref)} collisionPadding={collisionPadding} data-overlay="float" data-overlay-menu="" className={cn(MENU, className)} {...props}>
+      {useSheetMode() && (
+        <React.Suspense fallback={<div className="min-h-12" />}>
+          <SubStepHead />
+        </React.Suspense>
+      )}
+      {children}
+    </DropdownMenuPrimitive.SubContent>
   </DropdownMenuPrimitive.Portal>
 ))
 DropdownMenuSubContent.displayName =
   DropdownMenuPrimitive.SubContent.displayName
 
+// data-overlay: an action sheet on a phone, its rows 48px (app/overlay.css).
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
 >(({ className, sideOffset = 4, collisionPadding = 8, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.Content
-      ref={ref}
+      ref={useFloatRef(ref)}
       sideOffset={sideOffset}
       collisionPadding={collisionPadding}
+      data-overlay="float"
+      data-overlay-menu=""
       className={cn(MENU, className)}
       {...props}
     />
@@ -82,12 +123,8 @@ const DropdownMenuContent = React.forwardRef<
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
 /**
- * A menu row. Keyboard, typeahead (type the first letters of a label) and
- * focus return are Radix's; states are the layer's. Icons keep whatever
- * colour the caller gives them.
- *
- * variant="destructive" is the one red row in a menu (Delete, Remove), with a
- * danger highlight.
+ * A menu row: keyboard, typeahead and focus return are Radix's, states the
+ * layer's. variant="destructive" is a menu's one red row (Delete, Remove).
  */
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
@@ -99,8 +136,8 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      // The gap spaces an icon from its words, so an icon's own margin (an old
-      // `mr-2`) is dropped, or a menu's words start at different insets.
+      // The gap spaces an icon from its words; an icon's own margin (shadcn's
+      // old mr-2, on 35 items) is dropped, or rows' words didn't line up.
       "relative flex select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:mr-0",
       variant === "destructive" && "text-danger-ink [&>svg]:text-danger-ink",
       inset && "pl-8",
@@ -149,11 +186,9 @@ const DropdownMenuRadioItem = React.forwardRef<
     {...props}
     {...movingPointerOnly(props)}
   >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className="h-2 w-2 fill-current" />
-      </DropdownMenuPrimitive.ItemIndicator>
-    </span>
+    <DropdownMenuPrimitive.ItemIndicator className="absolute left-2">
+      <MenuCheck checked />
+    </DropdownMenuPrimitive.ItemIndicator>
     {children}
   </DropdownMenuPrimitive.RadioItem>
 ))
@@ -215,7 +250,6 @@ export {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuGroup,
-  DropdownMenuPortal,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,

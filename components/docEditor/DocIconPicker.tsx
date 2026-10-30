@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { RefreshCw, Search, Sparkles, Trash2 } from "@/lib/icons"
-import { Input } from "@/components/ui/input"
+import { RefreshCw, Sparkles, Trash2 } from "@/lib/icons"
+import { SearchInput } from "@/components/ui/search-input"
 import { DesktopReactionPicker } from "@/components/reactionPicker/DesktopReactionPicker"
 import { isStandardReaction } from "@/lib/utils/reaction/checker"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -97,10 +97,7 @@ export function DocIconPicker({ value, title, onPick, onRemove }: { value?: stri
         </div>
       ) : (
         <div role="tabpanel" aria-label="Icons" className="flex flex-col gap-2 p-3">
-          <div className="relative">
-            <Search aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search icons" aria-label="Search icons" className="h-8 pl-7" />
-          </div>
+          <SearchInput size="sm" value={query} onValueChange={setQuery} placeholder="Search icons" aria-label="Search icons" />
           <div role="radiogroup" aria-label="Colour" className="flex items-center gap-1.5">
             {HUES.map((h) => (
               <button

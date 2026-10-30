@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useStreamGapResync } from "@/hooks/useStreamGapResync"
 import { useDispatch, useSelector } from "react-redux"
 import { RootState } from "@/store/store"
-import { Sparkles, ShieldCheck, AlertTriangle, Check, X, Loader2 } from "@/lib/icons"
+import { Sparkles, ShieldCheck, AlertTriangle, Check, X } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -193,7 +193,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                             </Button>
                             <Button
                                 size="sm"
-                                disabled={isBusy}
+                                busy={isBusy}
                                 onClick={() => handleApprove(a)}
                                 className={
                                     "h-8 gap-1.5 " +
@@ -202,7 +202,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                                         : "")
                                 }
                             >
-                                {isBusy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                                <Check size={15} />
                                 {isBusy ? "Running…" : destructive ? "Approve anyway" : "Approve"}
                             </Button>
                         </div>

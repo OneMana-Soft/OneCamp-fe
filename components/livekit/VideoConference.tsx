@@ -14,9 +14,14 @@ import {
   ParticipantClickEvent,
 } from "@livekit/components-react";
 import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, ConnectionState, DisconnectReason, type Participant, type Room } from "livekit-client";
+import { isLive, type GreenRoomTracks } from "./greenRoomHandOver";
+import { liveKitCamera, liveKitMic } from "./greenRoomLiveKit";
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo, type MutableRefObject, type ReactNode } from "react";
 import { VideoControls, showCallFailure } from "./VideoControls";
-import { CallConnecting, CallReconnecting, CallStatusRow, CaptionsNotice, CaptionsOverlay, CaptionsPill, LockedPill, PlacePill, RecordingPill } from "./CallStage";
+import type { Knock } from "@/lib/calls/lobby";
+import type { InBreakout } from "@/lib/calls/breakouts";
+import { panelPeople } from "@/lib/calls/breakoutRooms";
+import { CallConnecting, CallReconnecting, CallStatusRow, CAPTIONS_BOTTOM, CaptionsNotice, CaptionsOverlay, CaptionsPill, LockedPill, PlacePill, RecordingPill, TOP_ROW_END } from "./CallStage";
 import { StageTile } from "./StageTile";
 import { captureTiles, flipTiles, type TileRects } from "./stageMotion";
 import { readDevicePrefs } from "./callDevices";
@@ -41,17 +46,42 @@ import dynamic from "next/dynamic";
 const CallEffects = dynamic(() => import("@/components/call/effects/CallEffects"), { ssr: false });
 // Who is in the call, with the host's tools, loaded when People is first opened.
 const CallPeoplePanel = dynamic(() => import("./CallPeoplePanel"), { ssr: false });
+// The call's chat (CALLS-3b), loaded when Chat is first opened.
+const CallChatPanel = dynamic(() => import("./CallChatPanel"), { ssr: false });
+const CallActivitiesPanel = dynamic(() => import("./CallActivitiesPanel"), { ssr: false });
+const CallBreakoutsPanel = dynamic(() => import("./CallBreakoutsPanel"), { ssr: false });
+const CallBreakoutBar = dynamic(() => import("./CallBreakoutBar"), { ssr: false });
+// The board on the stage (calls package B): its picker and its canvas, each
+// loaded when first wanted, so no call route's first load carries a board.
+const BoardPicker = dynamic(() => import("@/components/board/boardPicker"), { ssr: false });
+const CallBoardStage = dynamic(() => import("./CallBoardStage"), { ssr: false });
+const CallGuestBoardStage = dynamic(() => import("./CallGuestBoardStage"), { ssr: false });
+import { callThreadTargetOf } from "@/lib/calls/callThread";
 import { useCallPeople } from "./callPeople";
+import { useKeptThroughMoves, type KeptThroughMoves } from "./keptThroughMoves";
 import { FloatingReactions, useCallReactions } from "./callReactions";
-import { targetOf, useCallPart, useControlNotices, useHostActions } from "./callHosting";
+import { targetOf, useCallPart, useControlNotices, useHostActions, useKnockBar } from "./callHosting";
+import { useActivitiesLight } from "./useActivitiesLight";
+import { qualityKey, useQualityVerdicts } from "./callQualityNotes";
+import { useHands } from "./useHands";
+import { useCallAnnouncements } from "./useCallAnnouncements";
+import { HandsQueueContext } from "./handsQueue";
+import { CallSelfContext, callSelfOf } from "./callSelf";
+// Who waits to join, above the dock (CALLS-2): loaded with the first knock.
+const KnockBar = dynamic(() => import("./KnockBar").then((m) => m.KnockBar), { ssr: false });
 import { useInCallAgent } from "./useInCallAgent";
 import { cn } from "@/lib/utils/helpers/cn"
 import { readCaption } from "@/lib/calls/signals"
-import { partOf, personActions, type PersonAction } from "@/lib/calls/control"
+import { boardControls, heldFor, partOf, personActions, runsCall, type PersonAction } from "@/lib/calls/control"
+import { joinHeldNotice, mayPublish } from "./callHolds"
 import { useConfirm } from "@/hooks/useConfirm"
 import { callToast } from "./callSurface"
+import { useRootPlace } from "./rootPlace"
+import { useTellHeight } from "@/hooks/useTellHeight"
 import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
 import { setCallTranscription } from "@/services/callService"
+import { connectedRoomName, NOT_CONNECTED_YET } from "./connectedRoom"
+import { StoreProvider } from "@/components/providers/StoreProvider"
 
 /**
  * How a call ended for this screen. Leaving says nothing; being removed says
@@ -92,6 +122,9 @@ interface VideoConferenceProps {
   // route) — so a guest never triggers a 401 → refresh → logout redirect. Guests
   // still see remote captions relayed over the LiveKit data channel.
   guest?: boolean;
+  // In by a call's invite (calls HU13): a member, but nothing of the
+  // conversation reaches them, so no assistant (it reads the conversation).
+  inviteOnly?: boolean;
   // Where the call is, after "Call" ("in #engineering", "with Maya Chen"). Shown over the call, so
   // someone with two calls open, or back from another tab, knows which this is.
   place?: string;
@@ -107,11 +140,25 @@ interface VideoConferenceProps {
   audio?: boolean;
   video?: boolean;
   /**
+   * The camera and microphone the green room handed over at Join
+   * (greenRoomHandOver): the call sends them as they are, so Join asks the
+   * browser for nothing more and the camera's light never goes off and on.
+   */
+  tracks?: GreenRoomTracks;
+  /**
    * The call's id in Call State, for what whoever runs it does to it (Call
    * Control). A guest's call has none: a guest runs nothing.
    */
   sessionId?: string;
-  /** Controls of the page's own beside the call's status pills (an instant meeting's Invite). */
+  /**
+   * Who waits in the lobby (CALLS-2), from the call's read (useCallSession's
+   * waiting), for whoever may let them in. Required, so no page that mounts
+   * the call can leave it out (V-82: the member door did, and an event
+   * call's organiser never saw anyone waiting). A guest, who lets nobody
+   * in, passes undefined.
+   */
+  lobby: Knock[] | undefined;
+  /** Controls of the page's own beside the call's status pills: its Invite, which People offers at its head too. */
   extraStatus?: ReactNode;
   /** The call has connected: from now on, leaving is leaving, and it has a duration. */
   onConnected?: () => void;
@@ -129,9 +176,22 @@ interface VideoConferenceProps {
  * Speaker and grid draw in one frame (hub.md C4): 12px round the tiles, the
  * pills' 48px clear at the top, and the dock kept clear at the bottom (the
  * phone's full-width bar, 84px for the floating dock). Speaker and grid used
- * different insets once, so every tile moved 8px on a switch.
+ * different insets once, so every tile moved 8px on a switch. At every width
+ * the tiles, or what's presented, also end above the captions
+ * (--call-captions-room), so they never cover a name: on a wide stage the
+ * fourth of four tiles has its name mid-stage, where the captions are.
  */
-export const STAGE_FRAME = "px-3 pt-12 pb-24 @3xl:pb-[84px] @7xl:pb-[100px]"
+export const STAGE_FRAME =
+  "px-3 pt-12 pb-[max(6rem,var(--call-captions-room,0px))] @3xl:pb-[max(84px,var(--call-captions-room,0px))] @7xl:pb-[max(100px,var(--call-captions-room,0px))]"
+
+/** How far the tiles end from the window's right edge: an open side column's width. */
+const stageRight = (box: DOMRect) => window.innerWidth - box.right
+/** How far the stage ends above the window's foot (the captions' floor). */
+const stageFoot = (box: DOMRect) => window.innerHeight - box.bottom
+/** The tallest the captions have been while on, so the tiles step up once, not with each line or pause. Pure. */
+export const captionsHigh = (high: number, px: number) => (px > 0 ? Math.max(high, Math.round(px)) : 0)
+/** Where the stage's top row (its pills) ends on the page. */
+const topRowEnd = (box: DOMRect) => box.top + TOP_ROW_END
 
 /**
  * The app's face on the stage. LiveKit's theme sets the system UI font on
@@ -141,21 +201,39 @@ export const STAGE_FRAME = "px-3 pt-12 pb-24 @3xl:pb-[84px] @7xl:pb-[100px]"
  */
 export const STAGE_TYPE = "[--lk-font-family:var(--font-sans)]"
 
+/** Nobody waiting to join, for the announcer. */
+const NO_KNOCKS: Knock[] = [];
+
 /** How long a disconnect before connecting waits for the connect's error, which says why. */
 const FAILURE_WAIT_MS = 400
 
-export function VideoConference({
+/**
+ * The call. It reads the app's store (useConfirm), which a guest's call page
+ * (r/[slug], guest/m) doesn't have: the call brings it (StoreProvider).
+ */
+export function VideoConference(props: VideoConferenceProps) {
+  return (
+    <StoreProvider>
+      <Conference {...props} />
+    </StoreProvider>
+  );
+}
+
+function Conference({
   token,
   serverUrl,
   onDisconnect,
   toggleRecording,
   isAdmin,
   guest = false,
+  inviteOnly = false,
   place,
   embedded = false,
   audio = true,
   video = true,
+  tracks,
   sessionId,
+  lobby,
   extraStatus,
   onConnected,
   transcriptionConfig,
@@ -191,7 +269,26 @@ export function VideoConference({
   const [prefs] = useState(() => (typeof window === "undefined" ? {} : readDevicePrefs()));
   const options = useMemo(() => callRoomOptions(prefs, undefined, !!onePc), [prefs, onePc]);
   // The choice at Join, held for the call: published once, when connected.
-  const [initial] = useState(() => ({ audio, video }));
+  // The handed tracks go with the first room only: a move's room opens its own.
+  const [initial, setInitial] = useState<PublishChoice>(() => ({ audio, video, tracks }));
+  // What a move to or from a breakout room keeps: the call's clock, the
+  // captions choices, and everyone seen in the call (keptThroughMoves).
+  const kept = useKeptThroughMoves();
+  // The breakout room you're in (calls package C), with your mic and camera.
+  const [hop, setHop] = useState<(InBreakout & { token: string }) | null>(null);
+  // Who the call's token says you are: your own tile shows it until LiveKit names your part (callSelf).
+  const roomToken = hop?.token ?? token;
+  const self = useMemo(() => callSelfOf(roomToken), [roomToken]);
+  // Each room's own disconnect is told apart by its generation: the room a
+  // move leaves says nothing, while the room you're in reports as ever.
+  const genRef = useRef(0);
+  const [gen, setGen] = useState(0);
+  const onHop = useCallback((to: (InBreakout & { token: string }) | null, carry: { audio: boolean; video: boolean }) => {
+    genRef.current += 1;
+    setGen(genRef.current);
+    setInitial(carry);
+    setHop(to);
+  }, []);
 
   // Why this person is being removed, when the server says so first.
   const removalRef = useRef<CallRemoval | null>(null);
@@ -255,38 +352,47 @@ export function VideoConference({
       data-call-stage=""
     >
       <LiveKitRoom
+        key={gen}
         // Nothing is turned on by LiveKit itself: the green room's choice is
         // published once connected (usePublishChoice), each device on its
         // own, so a refusal can name the device.
         audio={false}
         video={false}
         options={options}
-        token={token}
+        token={roomToken}
         serverUrl={serverUrl}
-        onDisconnected={handleDisconnected}
+        onDisconnected={(reason?: DisconnectReason) => gen === genRef.current && handleDisconnected(reason)}
         onError={handleError}
         onConnected={handleConnected}
         connect={shouldConnect}
         className="h-full w-full"
       >
+        <CallSelfContext.Provider value={self}>
         <LayoutContextProvider>
             <MyVideoConference
               onDisconnect={report}
               parentToggleRecording={toggleRecording}
               isAdmin={isAdmin}
               guest={guest}
+              inviteOnly={inviteOnly}
               place={place}
               initial={initial}
               sessionId={sessionId}
+              callToken={guest ? token : undefined}
+              lobby={lobby}
               removalRef={removalRef}
               endedByRef={endedByRef}
               extraStatus={extraStatus}
               config={transcriptionConfig}
               onChatToggle={onChatToggle}
               isChatOpen={isChatOpen}
+              inRoom={hop}
+              onHop={onHop}
+              kept={kept}
             />
             <RoomAudioRenderer />
         </LayoutContextProvider>
+        </CallSelfContext.Provider>
       </LiveKitRoom>
     </div>
   );
@@ -298,22 +404,54 @@ export function VideoConference({
  * why (CALL-BUG-1). Off means off: nothing is opened. In a call whose hosts
  * have people join muted, the microphone stays off and you are told so, with
  * Unmute to press: the people running it set it, never the server's hand on
- * your microphone.
+ * your microphone. What the call holds for you (meet-12) isn't tried: your
+ * permission from the call server already leaves it out, before the room has
+ * been told your part, and you're told why.
  */
-export function usePublishChoice(room: Room, connected: boolean, initial: { audio: boolean; video: boolean }) {
+/** The green room's choice for the call, with the tracks it handed over, if any. */
+export interface PublishChoice {
+  audio: boolean;
+  video: boolean;
+  tracks?: GreenRoomTracks;
+}
+
+export function usePublishChoice(room: Room, connected: boolean, initial: PublishChoice) {
   const done = useRef(false);
   useEffect(() => {
     if (done.current || !connected) return;
     done.current = true;
     const lp = room.localParticipant;
-    const { role } = partOf(lp.attributes);
-    const runsIt = role === "host" || role === "cohost";
-    const joinMuted = initial.audio && readCallMetadata(room.metadata).muteOnEntry && !runsIt;
-    if (initial.audio && !joinMuted) lp.setMicrophoneEnabled(true).catch((e: unknown) => showCallFailure(callMediaFailure("microphone", e)));
+    const runsIt = runsCall(partOf(lp.attributes).role);
+    const micHeld = initial.audio && !mayPublish(lp.permissions, Track.sourceToProto(Track.Source.Microphone));
+    const cameraHeld = initial.video && !mayPublish(lp.permissions, Track.sourceToProto(Track.Source.Camera));
+    const joinMuted = initial.audio && !micHeld && readCallMetadata(room.metadata).muteOnEntry && !runsIt;
+    // What the green room handed over and is still open is sent as it is
+    // (greenRoomHandOver); otherwise the call opens its own, as before.
+    const { camera, mic } = initial.tracks ?? {};
+    const sendMic = initial.audio && !micHeld && !joinMuted;
+    const sendCamera = initial.video && !cameraHeld;
+    if (sendMic) {
+      const on = mic && isLive(mic.track) ? lp.publishTrack(liveKitMic(mic.track, mic.constraints), { source: Track.Source.Microphone }) : lp.setMicrophoneEnabled(true);
+      on.catch((e: unknown) => {
+        mic?.track.stop();
+        showCallFailure(callMediaFailure("microphone", e));
+      });
+    } else mic?.track.stop();
     if (joinMuted) {
       callToast({ title: "You joined muted", description: "The people running this call have everyone join muted. Unmute when you want to speak." });
     }
-    if (initial.video) lp.setCameraEnabled(true).catch((e: unknown) => showCallFailure(callMediaFailure("camera", e)));
+    if (micHeld || cameraHeld) callToast({ ...joinHeldNotice(micHeld, cameraHeld), tone: "info" });
+    if (sendCamera) {
+      const handed = camera && isLive(camera.track) ? (camera.liveKit ?? liveKitCamera(camera.track, camera.constraints)) : undefined;
+      const on = handed ? lp.publishTrack(handed, { source: Track.Source.Camera }) : lp.setCameraEnabled(true);
+      on.catch((e: unknown) => {
+        handed?.stop();
+        showCallFailure(callMediaFailure("camera", e));
+      });
+    } else {
+      camera?.liveKit?.stop();
+      camera?.track.stop();
+    }
   }, [room, connected, initial]);
 }
 
@@ -357,29 +495,44 @@ function MyVideoConference({
   parentToggleRecording,
   isAdmin,
   guest = false,
+  inviteOnly = false,
   place,
   initial,
   sessionId,
+  callToken,
+  lobby,
   removalRef,
   endedByRef,
   extraStatus,
   config = {},
   onChatToggle,
   isChatOpen,
+  inRoom,
+  onHop,
+  kept,
 }: {
   onDisconnect?: (end?: CallEnd) => void;
   parentToggleRecording?: (isRecording: boolean) => Promise<unknown> | void;
   isAdmin: boolean;
   guest?: boolean;
+  inviteOnly?: boolean;
   place?: string;
-  initial: { audio: boolean; video: boolean };
+  initial: PublishChoice;
   sessionId?: string;
+  /** A guest's own call token, which proves who they are for their hand and feedback. */
+  callToken?: string;
+  lobby?: Knock[];
   removalRef: MutableRefObject<CallRemoval | null>;
   endedByRef: MutableRefObject<string | null | undefined>;
   extraStatus?: ReactNode;
   config?: CallTranscriptionConfig;
   onChatToggle?: () => void;
   isChatOpen?: boolean;
+  /** The breakout room you're in, or null in the call's main room. */
+  inRoom: InBreakout | null;
+  onHop: (to: (InBreakout & { token: string }) | null, carry: { audio: boolean; video: boolean }) => void;
+  /** What a move keeps, held by the call around this view (keptThroughMoves). */
+  kept: KeptThroughMoves;
 }) {
   const tracks = useTracks(
     [
@@ -538,7 +691,7 @@ function MyVideoConference({
   // everyone's overlay shown again.
   const session = transcription.on ? (transcription.since ?? 0) : null;
   const iTurnedThemOn = !!transcription.byId && transcription.byId === localParticipant.identity;
-  const [noticeDismissed, setNoticeDismissed] = useState<number | null>(null);
+  const { noticeDismissed, setNoticeDismissed, notMe, setNotMe, hiddenFor, setHiddenFor } = kept;
   const noticeOpen = session !== null && !iTurnedThemOn && noticeDismissed !== session;
   // Set after the notice has rendered: nothing this person says is sent
   // before they have been shown where it goes.
@@ -546,12 +699,9 @@ function MyVideoConference({
   useEffect(() => {
     setSeenSession(session);
   }, [session]);
-  // "Stop captioning me": this person's own browser stops listening.
-  const [notMe, setNotMe] = useState(false);
-  const [captionsHidden, setCaptionsHidden] = useState(false);
-  useEffect(() => {
-    if (session !== null) setCaptionsHidden(false);
-  }, [session]);
+  // "Stop captioning me" (notMe): this person's own browser stops listening.
+  // Hidden captions come back with the next session of them.
+  const captionsHidden = session !== null && hiddenFor === session;
   const where = transcription.where ?? config.where ?? (config.mode === "frontend" ? "browser" : undefined);
   const browserCaptions = where === "browser";
   const keepsTranscript = transcription.on ? transcription.kept !== false : !room.name.startsWith("meet-");
@@ -560,15 +710,18 @@ function MyVideoConference({
 
   const switchCaptions = useCallback(
     async (on: boolean) => {
+      // Confirmed while the call still connects: sent once it has, and so has its name (V-30).
+      const roomName = await connectedRoomName(room);
+      if (!roomName) throw new Error(NOT_CONNECTED_YET);
       try {
-        await setCallTranscription(room.name, on);
+        await setCallTranscription(roomName, on);
       } catch (e) {
         const code = apiErrorCode(e);
         throw new Error(
           code === "transcription_disabled"
             ? "Captions are turned off for this workspace. An admin can turn them on under Call transcription."
             : code === "not_in_call"
-              ? "You aren't connected to the call yet. Try again in a moment."
+              ? NOT_CONNECTED_YET
               : apiErrorMessage(e, "Captions didn't change. Try again."),
         );
       }
@@ -577,7 +730,7 @@ function MyVideoConference({
   );
   const onCaptions = () => {
     if (transcription.on) {
-      setCaptionsHidden((hidden) => !hidden);
+      setHiddenFor((h) => (h === session ? null : session));
       return;
     }
     if (guest) return;
@@ -598,12 +751,15 @@ function MyVideoConference({
   // Why no captions are appearing, so switching them on never leaves the user
   // staring at an empty screen wondering whether the feature is broken.
   const [captionState, setCaptionState] = useState<TranscriberState>({ status: "starting" });
-  // One side column at a time: the in-call AI, who is in the call, or backgrounds and sound.
-  const [side, setSide] = useState<"ai" | "people" | "effects" | null>(null);
+  // One side column at a time: the in-call AI, who is in the call, the call's chat, backgrounds and sound, or polls and Q&A.
+  const [side, setSide] = useState<"ai" | "people" | "chat" | "effects" | "activities" | "breakouts" | null>(null);
   const aiPanelOpen = side === "ai";
   const peopleOpen = side === "people";
+  const chatOpen = side === "chat";
   const effectsOpen = side === "effects";
-  const toggleSide = useCallback((which: "ai" | "people" | "effects") => setSide((s) => (s === which ? null : which)), []);
+  const activitiesOpen = side === "activities";
+  const breakoutsOpen = side === "breakouts";
+  const toggleSide = useCallback((which: "ai" | "people" | "chat" | "effects" | "activities" | "breakouts") => setSide((s) => (s === which ? null : which)), []);
   // Rolling buffer of recent FINAL utterances ("Name: text"), newest last.
   // Fed from handleTranscript; this is the freshest in-call context source for
   // the in-call AI agent (the persisted Dgraph copy only exists while recording
@@ -779,8 +935,34 @@ function MyVideoConference({
     () => (hosting.enabled ? { ...myPart, identity: localParticipant.identity } : undefined),
     [hosting.enabled, myPart, localParticipant.identity],
   );
+  // Breakout rooms (calls package C), for whoever may run them.
+  const runsBreakouts = !!me?.can.has("breakouts");
+  // Everyone seen in the call, so the rooms panel names people once they have
+  // gone to a room (they are no longer in yours).
+  const { seen } = kept;
+  useEffect(() => {
+    for (const p of people) if (!p.you) seen.set(p.identity, { identity: p.identity, name: p.name });
+  }, [people, seen]);
+  const breakoutPeople = useMemo(
+    () => panelPeople(people.filter((p) => !p.you).map((p) => ({ identity: p.identity, name: p.name })), seen, meta.breakouts, localParticipant.identity),
+    [people, seen, meta.breakouts, localParticipant.identity],
+  );
   const spotlit = meta.spotlight?.identity;
-  const actionsFor = useCallback((p: Participant) => (me ? personActions(me, targetOf(p), spotlit) : []), [me, spotlit]);
+  const actionsFor = useCallback((p: Participant) => (me ? personActions(me, targetOf(p), spotlit, meta.held) : []), [me, spotlit, meta.held]);
+  // What the people running the call hold for you now (meet-12): your controls say why, guests' too.
+  const myHeld = useMemo(() => heldFor(meta.held, myPart), [meta.held, myPart]);
+  // The board on the stage (calls package B): what you may do about it, by
+  // the server's own rules, and whose it is. A guest opens it through their
+  // own call token, never a member's session.
+  const boardOn = guest && !callToken ? undefined : meta.board;
+  const boardRules = useMemo(() => (me ? boardControls(me, meta.board, meta.held) : undefined), [me, meta.board, meta.held]);
+  const presenterName = meta.board ? (people.find((p) => p.identity === meta.board?.by)?.name ?? "Someone") : "";
+  const guestsInCall = people.some((p) => p.guest);
+  const [pickingBoard, setPickingBoard] = useState(false);
+  // A board going up takes the stage from whoever you pinned, as a share does.
+  useEffect(() => {
+    if (boardOn?.uuid) setFocusedTrack(null);
+  }, [boardOn?.uuid]);
   const onAction = useCallback(
     (a: PersonAction, p?: Participant) => {
       const t = p ? targetOf(p) : undefined;
@@ -789,9 +971,68 @@ function MyVideoConference({
     [hosting],
   );
   const tileActions = me ? { actionsFor, onAction: (a: PersonAction, p: Participant) => onAction(a, p) } : {};
+  // Who waits in the lobby, for whoever may let them in (CALLS-2).
+  const knocks = me?.can.has("admit") ? lobby : undefined;
+  // Each change said once to a screen reader: joins, leaves, hands, knocks, a recording or captions stopping (meet-18).
+  useCallAnnouncements(useMemo(() => ({ people, knocks: knocks ?? NO_KNOCKS, recording: isRecording, captions: transcription.on }), [people, knocks, isRecording, transcription.on]));
+  const knockBar = useKnockBar(knocks, peopleOpen);
+  // The bar's height, which the stage gives up so the bar never covers a tile.
+  const [knockBarHeight, setKnockBarHeight] = useState(0);
+  // The room a bar over the dock takes: tiles and captions stay above it.
+  const barRoom = knockBarHeight ? knockBarHeight + 8 : 0;
+  // At every width the tiles end 8px above the captions, by STAGE_FRAME's room.
+  const captionsBox = useRef<HTMLDivElement>(null);
+  const [captionsHeight, setCaptionsHeight] = useState(0);
+  const tellCaptions = useCallback((px: number) => setCaptionsHeight((high) => captionsHigh(high, px)), []);
+  useTellHeight(captionsBox, tellCaptions, showCaptions);
 
-  // How long this screen has been in the call, for the place pill.
-  const [joinedAt] = useState(() => Date.now());
+  // Your hand and feedback (CALLS-3a): a member through their session, a
+  // guest through their own call token. The queue every screen draws.
+  const asker = useMemo(() => (guest ? (callToken ? { callToken } : undefined) : sessionId ? { sessionId } : undefined), [guest, callToken, sessionId]);
+  // Breakout rooms: Join, pick, Back, and the server's word to move.
+  const breakoutBar = (hidden: boolean) =>
+    asker && (meta.breakouts || inRoom) ? (
+      <CallBreakoutBar
+        hidden={hidden}
+        room={room}
+        breakouts={meta.breakouts}
+        identity={localParticipant.identity}
+        runsCall={runsCall(myPart.role)}
+        inRoom={inRoom}
+        asker={asker}
+        language={config.language}
+        onHop={onHop}
+        onHeight={setKnockBarHeight}
+      />
+    ) : null;
+  // The call's chat (CALLS-3b): a conversation's call has one, for everyone in
+  // it. The dock's Chat opens it; a member reaches the conversation from it.
+  // Where it has none (a meeting), Chat opens the conversation as before.
+  const chatTarget = useMemo(() => callThreadTargetOf({ room: room.name, guest, sessionId, callToken }), [room.name, guest, sessionId, callToken]);
+  const dockChat = chatTarget ? { onToggle: () => toggleSide("chat"), open: chatOpen } : onChatToggle ? { onToggle: onChatToggle, open: !!isChatOpen } : undefined;
+  const hands = useHands(localParticipant, asker);
+  // Polls and Q&A (calls package A), for everyone in every call: the dock lights while its panel is shut and something new is there.
+  const activitiesLit = useActivitiesLight(room, activitiesOpen, myPart.can.has("activities"));
+  // Why the call stutters for each person, for whoever runs it, while People is open (calls A5).
+  const quality = useQualityVerdicts(qualityKey(sessionId, peopleOpen, !!me && me.can.size > 0));
+  // Call Quality Telemetry (calls A5, #56): the call's own stats, sent as
+  // you; loaded once you're in it, never with the call's first load.
+  useEffect(() => {
+    if (!asker) return;
+    let live = true;
+    let stop: (() => void) | undefined;
+    void import("./callQuality").then((m) => {
+      if (live) stop = m.watchQuality(room, asker);
+    });
+    return () => {
+      live = false;
+      stop?.();
+    };
+  }, [room, asker]);
+
+  // How long this person has been in the call, for the place pill: from
+  // their first join, whichever room they are in now.
+  const joinedAt = kept.joinedAt;
 
   // The stage's reflow: tiles slide to their new places when the set of
   // tiles or the layout changes (stageMotion).
@@ -804,14 +1045,101 @@ function MyVideoConference({
     flipTiles(stage, lastRects.current);
     lastRects.current = captureTiles(stage);
   }, [tileKey]);
+  // The app's toasts stay over the stage, clear of the side column: a notice
+  // covered the chat's held line at 1280 (DESIGN-BUILD-18, 26 Oct).
+  const tilesRef = useRef<HTMLDivElement>(null);
+  const focusLayout = layout === 'speaker' && !!effectiveFocusedTrack;
+  useRootPlace("--call-stage-right", tilesRef, stageRight, focusLayout || !!boardOn);
+  useRootPlace("--call-stage-foot", stageRef, stageFoot);
+  // On a phone, while a sheet covers the dock, they come in 12px under the top
+  // row (app/phone.css C9): under the bar, one covered the place pill (DESIGN-BUILD-20).
+  const callRef = useRef<HTMLDivElement>(null);
+  useRootPlace("--call-top", callRef, topRowEnd);
 
   const sameTrack = (a: TrackReferenceOrPlaceholder, b: TrackReferenceOrPlaceholder) => a.participant.identity === b.participant.identity && a.source === b.source;
+  // The strip beside the stage's one big thing: whatever else it offers first
+  // (the board, while you look at a person), then the others, each a button
+  // that shows them: the thumbnails were clickable divs the keyboard couldn't reach.
+  // Beside a board on a phone's width (under @lg) it would leave the board two
+  // thirds of the stage and cut every name: the board fills the stage there,
+  // and the people are in People (DESIGN-BUILD-23, 27 Oct).
+  const strip = (others: TrackReferenceOrPlaceholder[], first?: ReactNode, besideBoard = false) =>
+    others.length > 0 || first ? (
+      <div className={cn("h-full w-[104px] shrink-0 flex-col gap-2 overflow-y-auto @2xl:w-[200px]", besideBoard ? "hidden @lg:flex" : "flex")} data-stage-strip="">
+        {first}
+        {others.map((track) => (
+          <button
+            type="button"
+            key={track.participant.identity + track.source}
+            aria-label={`Show ${track.participant.name || track.participant.identity}`}
+            className="relative aspect-video w-full shrink-0 rounded-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            onClick={() => onParticipantClick({ participant: track.participant, track: track.publication } as ParticipantClickEvent)}
+          >
+            <StageTile trackRef={track} size="sm" />
+          </button>
+        ))}
+      </div>
+    ) : null;
+  // The stage's one big thing: the board on the stage, as a share takes the
+  // focus slot, else the focused tile; everyone else goes to the strip.
+  const focus = boardOn && !focusedTrack
+    ? {
+        key: `board:${boardOn.uuid}`,
+        node:
+          guest && callToken ? (
+            <CallGuestBoardStage
+              board={boardOn}
+              presenter={presenterName}
+              callToken={callToken}
+              me={{ identity: localParticipant.identity, name: localParticipant.name || localParticipant.identity }}
+            />
+          ) : (
+            <CallBoardStage
+              board={boardOn}
+              presenter={presenterName}
+              controls={boardRules ?? { present: null, stop: false, run: false, mine: false }}
+              guestsInCall={guestsInCall}
+              act={hosting.act}
+            />
+          ),
+        strip: strip(tracks, undefined, true),
+      }
+    : focusLayout && effectiveFocusedTrack
+      ? {
+          key: effectiveFocusedTrack.participant.identity + effectiveFocusedTrack.source,
+          node: (
+            <StageTile
+              trackRef={effectiveFocusedTrack}
+              size="lg"
+              contain
+              pinned={!!focusedTrack && sameTrack(focusedTrack, effectiveFocusedTrack)}
+              onPin={() => setFocusedTrack(focusedTrack ? null : effectiveFocusedTrack)}
+              {...tileActions}
+            />
+          ),
+          strip: strip(
+            tracks.filter((t) => !sameTrack(t, effectiveFocusedTrack)),
+            boardOn ? (
+              <button
+                type="button"
+                aria-label="Show the board"
+                className="grid aspect-video w-full shrink-0 place-items-center gap-1 rounded-[14px] bg-[#16171A] p-2 text-center text-ui-sm text-[#EEEEF0] ring-1 ring-inset ring-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                onClick={() => setFocusedTrack(null)}
+              >
+                <span className="line-clamp-2">{presenterName}&apos;s board</span>
+              </button>
+            ) : null,
+          ),
+        }
+      : null;
   // A member in browser mode chooses for their own voice; a guest has no recogniser to stop.
   const captioningMe = !guest && browserCaptions ? !notMe : undefined;
   const toggleMe = !guest && browserCaptions ? () => setNotMe((v) => !v) : undefined;
 
+  const handsQueue = useMemo(() => people.filter((p) => p.hand !== null).map((p) => p.identity), [people]);
   return (
-    <div className="relative flex h-full w-full flex-col">
+    <HandsQueueContext.Provider value={handsQueue}>
+    <div ref={callRef} className="relative flex h-full w-full flex-col">
         <PlacePill place={place} since={joinedAt} />
         <CallStatusRow>
             {extraStatus}
@@ -840,39 +1168,17 @@ function MyVideoConference({
             </div>
         )}
 
-        <div ref={stageRef} className={cn("relative flex flex-1 overflow-hidden transition-opacity duration-200", reconnecting && "opacity-70")}>
-            {layout === 'speaker' && effectiveFocusedTrack ? (
-                <div className={cn("flex h-full w-full gap-2", STAGE_FRAME)}>
-                    <div className="hub-fade-in relative min-w-0 flex-1" key={effectiveFocusedTrack.participant.identity + effectiveFocusedTrack.source}>
-                        <StageTile
-                            trackRef={effectiveFocusedTrack}
-                            size="lg"
-                            contain
-                            pinned={!!focusedTrack && sameTrack(focusedTrack, effectiveFocusedTrack)}
-                            onPin={() => setFocusedTrack(focusedTrack ? null : effectiveFocusedTrack)}
-                            {...tileActions}
-                        />
+        {/* Said once each time who waits changes, while the bar shows it. */}
+        <div ref={stageRef} className={cn("relative flex flex-1 overflow-hidden transition-opacity duration-200", reconnecting && "opacity-70")} style={{ paddingBottom: barRoom || undefined, ["--call-captions-room" as string]: captionsHeight ? `calc(${CAPTIONS_BOTTOM} + ${captionsHeight + 8}px)` : undefined }}>
+            {focus ? (
+                <div ref={tilesRef} className={cn("flex h-full w-full gap-2", STAGE_FRAME)}>
+                    <div className="hub-fade-in relative min-w-0 flex-1" key={focus.key}>
+                        {focus.node}
                     </div>
-                    {tracks.some((t) => !sameTrack(t, effectiveFocusedTrack)) && (
-                        <div className="flex h-full w-[104px] shrink-0 flex-col gap-2 overflow-y-auto @2xl:w-[200px]">
-                             {tracks.filter((t) => !sameTrack(t, effectiveFocusedTrack)).map((track) => (
-                                 // A button: the thumbnails were clickable divs the
-                                 // keyboard couldn't reach.
-                                 <button
-                                    type="button"
-                                    key={track.participant.identity + track.source}
-                                    aria-label={`Show ${track.participant.name || track.participant.identity}`}
-                                    className="relative aspect-video w-full shrink-0 rounded-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                                    onClick={() => onParticipantClick({ participant: track.participant, track: track.publication } as ParticipantClickEvent)}
-                                 >
-                                     <StageTile trackRef={track} size="sm" />
-                                 </button>
-                             ))}
-                        </div>
-                    )}
-                 </div>
+                    {focus.strip}
+                </div>
             ) : (
-                    <div className={cn("h-full w-full [&_.lk-grid-layout]:gap-2 [&_.lk-grid-layout]:p-0", STAGE_FRAME)}>
+                    <div ref={tilesRef} className={cn("h-full w-full [&_.lk-grid-layout]:gap-2 [&_.lk-grid-layout]:p-0", STAGE_FRAME)}>
                         <GridLayout tracks={tracks}>
                             <StageTile onParticipantClick={onParticipantClick} {...tileActions} />
                         </GridLayout>
@@ -882,6 +1188,8 @@ function MyVideoConference({
             {/* Captions, read out as they change. */}
             {showCaptions && (
                 <CaptionsOverlay
+                    lift={barRoom}
+                    boxRef={captionsBox}
                     idleMessage={captionMessage(captionState, { notMe, browser: browserCaptions, guest })}
                     entries={Object.entries(activeTranscripts).map(([identity, data]) => ({ identity, name: data.name, text: data.accumulated || "" }))}
                 />
@@ -899,7 +1207,40 @@ function MyVideoConference({
                         settings={{ locked: !!meta.locked, muteOnEntry: meta.muteOnEntry }}
                         onAction={(a, p) => onAction(a, p?.participant)}
                         onMuteOnEntry={(on) => void hosting.setMuteOnEntry(on)}
+                        lobby={knocks}
+                        onLobbyAction={hosting.act}
+                        invite={extraStatus}
+                        quality={quality}
+                        held={meta.held}
+                        onHold={(what, held) => void hosting.setHold(what, held)}
+                        hasChat={!!chatTarget}
                     />
+                </div>
+            )}
+
+            {/* On a phone the chat covers the dock, as Meet's and Zoom's do, so its
+                field is the screen's footer: under the dock it couldn't be reached. */}
+            {chatOpen && chatTarget && (
+                <div className="absolute inset-0 z-[calc(var(--z-fixed)+1)] @3xl:static @3xl:inset-auto @3xl:z-auto @3xl:h-full shrink-0">
+                    <CallChatPanel
+                        target={chatTarget}
+                        onClose={() => setSide(null)}
+                        conversation={onChatToggle ? { onOpen: onChatToggle, open: !!isChatOpen } : undefined}
+                        held={myHeld.has("chat")}
+                    />
+                </div>
+            )}
+
+            {/* Like the chat, it covers the dock on a phone: its ask box is the screen's footer. */}
+            {activitiesOpen && asker && (
+                <div className="absolute inset-0 z-[calc(var(--z-fixed)+1)] @3xl:static @3xl:inset-auto @3xl:z-auto @3xl:h-full shrink-0">
+                    <CallActivitiesPanel who={asker} room={room} onClose={() => setSide(null)} />
+                </div>
+            )}
+
+            {breakoutsOpen && runsBreakouts && (
+                <div className="absolute inset-0 z-[calc(var(--z-fixed)+1)] @3xl:static @3xl:inset-auto @3xl:z-auto @3xl:h-full shrink-0">
+                    <CallBreakoutsPanel breakouts={meta.breakouts} people={breakoutPeople} onAct={hosting.act} onClose={() => setSide(null)} />
                 </div>
             )}
 
@@ -908,7 +1249,7 @@ function MyVideoConference({
             {/* In-Call AI Assistant side panel. On desktop it docks to the
                 right as a flex sibling (shrinking the video area); on mobile it
                 overlays full-screen. */}
-            {aiPanelOpen && !guest && (
+            {aiPanelOpen && !guest && !inviteOnly && (
                 <div className="absolute inset-0 z-30 @3xl:static @3xl:inset-auto @3xl:z-auto @3xl:h-full shrink-0">
                     <InCallAIPanel
                         items={inCallAgent.items}
@@ -933,16 +1274,50 @@ function MyVideoConference({
             onToggleCaptions={captionsAvailable ? onCaptions : undefined}
             showCaptions={showCaptions}
             captionsOff={!transcription.on}
-            onToggleAI={guest ? undefined : () => toggleSide("ai")}
+            onToggleAI={guest || inviteOnly ? undefined : () => toggleSide("ai")}
             isAIOpen={aiPanelOpen}
             aiUnreadCount={aiUnread}
-            people={{ count: people.length, open: peopleOpen, onToggle: () => toggleSide("people") }}
+            people={{ count: people.length, open: peopleOpen, onToggle: () => toggleSide("people"), waiting: knocks?.length }}
+            notice={
+              knockBar.show && knocks ? (
+                <>
+                {breakoutBar(true)}
+                <KnockBar
+                  waiting={knocks}
+                  onAdmit={(k) => hosting.act("admit", { ticket: k.ticket, name: k.name })}
+                  onAdmitAll={() => hosting.act("admit_all")}
+                  onSeeWho={() => setSide("people")}
+                  onHide={knockBar.hide}
+                  onHeight={setKnockBarHeight}
+                />
+                </>
+              ) : breakoutBar(false)
+            }
             effects={{ open: effectsOpen, onToggle: () => toggleSide("effects") }}
             onReact={reactions.send}
-            onChatToggle={onChatToggle}
-            isChatOpen={isChatOpen}
+            hand={hands.toggleHand ? { raised: hands.raisedAt !== null, onToggle: hands.toggleHand } : undefined}
+            feedback={hands.setFeedback ? { current: hands.feedback, onSet: hands.setFeedback } : undefined}
+            onChatToggle={dockChat?.onToggle}
+            isChatOpen={dockChat?.open}
+            activities={asker ? { open: activitiesOpen, onToggle: () => toggleSide("activities"), lit: activitiesLit } : undefined}
+            breakouts={runsBreakouts ? { open: breakoutsOpen, onToggle: () => toggleSide("breakouts") } : undefined}
             onEndForAll={me?.can.has("end") ? hosting.endForEveryone : undefined}
+            held={myHeld}
+            board={
+              boardRules?.present
+                ? {
+                    present: boardRules.present,
+                    busyBy: presenterName,
+                    presenting: boardRules.mine,
+                    onPresent: () => setPickingBoard(true),
+                    onStop: () => void hosting.act("stop_board"),
+                  }
+                : undefined
+            }
         />
+        {pickingBoard && (
+          <BoardPicker onPick={(board) => void hosting.act("present_board", { board })} onNew={() => void hosting.act("new_board")} onClose={() => setPickingBoard(false)} />
+        )}
         {!guest && (
             <FrontendTranscriber
                 onTranscript={handleTranscript}
@@ -953,6 +1328,7 @@ function MyVideoConference({
             />
         )}
     </div>
+    </HandsQueueContext.Provider>
   );
 }
 

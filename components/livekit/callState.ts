@@ -4,6 +4,9 @@
 // reads it from here. Pure, with no LiveKit import, so a guest page or the
 // green room can use it without the call's bundle.
 
+import { readBreakouts, type CallBreakouts } from "@/lib/calls/breakouts"
+import { holdsOf, type CallHold } from "@/lib/calls/holds"
+import type { Knock } from "@/lib/calls/lobby"
 import { readSignal, type SignalSender } from "@/lib/calls/signals"
 
 /** Where captioned speech is turned into text: the CALLS-FE ↔ CALLS-BE contract's `where`. */
@@ -44,14 +47,32 @@ export interface CallSpotlight {
   by?: string
 }
 
+/**
+ * The board on the call's stage (package B): which, whose (the presenter's
+ * call identity), who draws besides the presenter, and whether the call's
+ * guests draw too. The server decides what each person may do on it; this
+ * says what everyone sees.
+ */
+export interface CallBoard {
+  uuid: string
+  by: string
+  draw: "everyone" | "presenter"
+  guests: boolean
+}
+
 export interface CallMetadata {
   recording: CallRecording
   transcription: CallTranscription
   /** What the people running the call set (business/CallControl). */
   locked?: CallLock
   spotlight?: CallSpotlight
+  board?: CallBoard
   /** People join this call muted. */
   muteOnEntry: boolean
+  /** What everyone who doesn't run the call may not do now (meet-12). */
+  held: ReadonlySet<CallHold>
+  /** The call's breakout rooms (calls package C), when it has any. */
+  breakouts?: CallBreakouts
 }
 
 /** A guest link's read of its meeting, and an instant meeting's own page. */
@@ -62,6 +83,8 @@ export interface CallStateRead {
   transcription?: CallTranscription
   participants?: { id: string; name: string }[]
   expires_at?: number | string
+  /** A personal room's ("/r/maya"). */
+  address?: string
 }
 
 /** Someone in a call, as a member's read of it says (GET /calls/current). */
@@ -85,6 +108,8 @@ export interface CallSessionRead {
   recording?: { on: boolean; by?: string }
   transcription?: CallTranscription
   you?: { role?: string; can: string[]; refusal?: { code: string; msg: string } }
+  /** Who waits in the lobby (CALLS-2), for whoever may let them in. */
+  waiting?: Knock[]
 }
 
 /** The people in a call now, from a member's read, for the green room's line. Pure. */
@@ -92,7 +117,7 @@ export function peopleOfSession(read: CallSessionRead | undefined): CallStateRea
   return read?.session?.people.filter((p) => p.in_call).map((p) => ({ id: p.identity, name: p.name }))
 }
 
-const OFF: CallMetadata = { recording: { on: false }, transcription: { on: false }, muteOnEntry: false }
+const OFF: CallMetadata = { recording: { on: false }, transcription: { on: false }, muteOnEntry: false, held: new Set() }
 
 /**
  * Who is in the call, for the green room's line. The server names a guest
@@ -130,7 +155,7 @@ export function readCallMetadata(raw: string | null | undefined): CallMetadata {
     return OFF
   }
   const recording: CallRecording = m.isRecording === true ? { on: true, by: str(m.recordingStartedBy), egressId: str(m.egressID) } : { on: false }
-  const meta: CallMetadata = { recording, transcription: readTranscription(m.transcription), muteOnEntry: m.muteOnEntry === true }
+  const meta: CallMetadata = { recording, transcription: readTranscription(m.transcription), muteOnEntry: m.muteOnEntry === true, held: holdsOf(m.held) }
   if (m.locked && typeof m.locked === "object") {
     const l = m.locked as Record<string, unknown>
     meta.locked = { by: str(l.by), since: typeof l.since === "number" ? l.since : undefined }
@@ -138,6 +163,13 @@ export function readCallMetadata(raw: string | null | undefined): CallMetadata {
   if (m.spotlight && typeof m.spotlight === "object") {
     const id = str((m.spotlight as Record<string, unknown>).identity)
     if (id) meta.spotlight = { identity: id, by: str((m.spotlight as Record<string, unknown>).by) }
+  }
+  const breakouts = readBreakouts(m.breakouts)
+  if (breakouts) meta.breakouts = breakouts
+  if (m.board && typeof m.board === "object") {
+    const b = m.board as Record<string, unknown>
+    const uuid = str(b.uuid)
+    if (uuid) meta.board = { uuid, by: str(b.by) ?? "", draw: b.draw === "presenter" ? "presenter" : "everyone", guests: b.guests === true }
   }
   return meta
 }
@@ -250,6 +282,7 @@ export type CallControlPacket =
   | { t: "ask_unmute"; by?: string; all: boolean }
   | { t: "role"; role: "host" | "cohost" | "participant"; by?: string; handedOn: boolean }
   | { t: "ended"; by?: string }
+  | { t: "hand_lowered"; by?: string; all: boolean }
 
 /**
  * The server's word on what happened to you in the call, or null. Only the
@@ -273,6 +306,8 @@ export function readControlPacket(payload: Uint8Array, sender: SignalSender | un
       return { t: "role", role: m.role, by, handedOn: m.reason === "handed_on" }
     case "ended":
       return { t: "ended", by }
+    case "hand_lowered":
+      return { t: "hand_lowered", by, all: m.reason === "all" }
   }
   return null
 }
@@ -299,7 +334,46 @@ export function controlNotice(p: CallControlPacket): { title: string; detail?: s
       return { title: `${who} removed you as a co-host` }
     case "ended":
       return { title: `${who} ended the call for everyone` }
+    case "hand_lowered":
+      return p.all ? { title: `${who} lowered everyone's hands` } : { title: `${who} lowered your hand` }
   }
+}
+
+/** Why a board left the stage with nobody taking it down (business/CallControl's boardLeaves). */
+export type BoardLeft = "presenter_left" | "share_held"
+
+/**
+ * The server's word on the board on the call's stage (calls package B): one
+ * went up, or one came down, by whom, or, when nobody took it down, whose it
+ * was and why it left.
+ */
+export type BoardPacket = { t: "board"; by?: string } | { t: "board_stopped"; by?: string; reason?: BoardLeft }
+
+/** A board packet, or null. Only the server may send one (lib/calls/signals). Pure. */
+export function readBoardPacket(payload: Uint8Array, sender: SignalSender | undefined): BoardPacket | null {
+  const m = readSignal<Record<string, unknown>>(payload, sender, { topic: CALL_TOPIC, from: "server" })
+  if (m?.t === "board") return { t: "board", by: str(m.by) }
+  if (m?.t !== "board_stopped") return null
+  const reason = m.reason === "presenter_left" || m.reason === "share_held" ? m.reason : undefined
+  return { t: "board_stopped", by: str(m.by), ...(reason ? { reason } : {}) }
+}
+
+/**
+ * What a person reads about the board leaving the stage, when the stage alone
+ * doesn't say why: hosts turned off sharing (DESIGN-BUILD-21's words), its
+ * presenter left the call, or someone else took your board down. mine is
+ * whether the board was yours; myName keeps you from being told what you did
+ * yourself. Nothing when a board goes up: the stage shows it. Pure.
+ */
+export function boardNotice(p: BoardPacket, you: { mine: boolean; myName?: string }): { title: string } | null {
+  if (p.t !== "board_stopped") return null
+  if (p.reason === "share_held") {
+    if (you.mine) return { title: "Your board left the stage: hosts turned off sharing" }
+    return { title: `Hosts turned off sharing, so ${p.by ? `${p.by}'s` : "the"} board left the stage` }
+  }
+  if (p.reason === "presenter_left") return { title: p.by ? `${p.by} left the call, so their board left the stage` : "Its presenter left the call, so the board left the stage" }
+  if (!you.mine || (p.by && p.by === you.myName)) return null
+  return { title: `${p.by ?? "Someone running the call"} took your board off the stage` }
 }
 
 /**

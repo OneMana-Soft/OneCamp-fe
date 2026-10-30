@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn(), useSelector: () => undefined }))
@@ -147,6 +147,15 @@ describe("adding a task in a column", () => {
     board()
     expect(screen.queryByRole("button", { name: /new task/i })).toBeNull()
   })
+
+  // The project's rule on who moves tasks into Done leaves this person out:
+  // the server would refuse a task made there, so the column offers none.
+  it("is not offered in a column whose rule leaves the person out, and is in the rest", () => {
+    const { container } = board({ onQuickAdd: vi.fn(async () => true), addsTo: (s) => s.value !== "done" })
+    const adds = (column: string) => within(container.querySelector<HTMLElement>(`[data-column="${column}"]`)!).queryAllByRole("button", { name: /^new task$/i })
+    expect(adds("done")).toHaveLength(0)
+    expect(adds("todo").length).toBeGreaterThan(0)
+  })
 })
 
 describe("a board in swimlanes", () => {
@@ -183,6 +192,12 @@ describe("a board in swimlanes", () => {
     fireEvent.change(input, { target: { value: "Ship it" } })
     await act(async () => fireEvent.keyDown(input, { key: "Enter" }))
     expect(onQuickAdd).toHaveBeenCalledWith("done", "Ship it", "low")
+  })
+
+  it("offers no add in a lane's cell whose column's rule leaves the person out", () => {
+    const { container } = board({ columns: { todo: [], done: [] }, lanes, onQuickAdd: vi.fn(), addsTo: (s) => s.value !== "done" })
+    expect(container.querySelector(`[data-column="${cellKey("low", "done")}"] button`)).toBeNull()
+    expect(container.querySelector(`[data-column="${cellKey("low", "todo")}"] button`)).not.toBeNull()
   })
 
   it("counts each column across lanes, with the server's total when it sent part", () => {
@@ -288,6 +303,9 @@ describe("moving a card from the keyboard", () => {
 })
 
 describe("completing a card on the board", () => {
+  // A finish before the bursts are in skips its sparks (lib/celebrateSoon), and
+  // the page fetches them when idle: in before the drop, under any load.
+  beforeAll(async () => void (await (await import("@/lib/celebrateSoon")).warmBursts()))
   const inProgress: StatusOption = { value: "inProgress", label: "In progress", category: "inProgress", custom: false, color: "" }
   const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
     cb(0)
@@ -376,6 +394,39 @@ describe("the v3 board (work.md W20, W22)", () => {
     // And the line where it will land is drawn, not hidden.
     const line = target.querySelector<HTMLElement>("[data-drop-line]")!
     expect(line.className).not.toMatch(/opacity-0|(^|\s)h-0(\s|$)/)
+  })
+
+  // The owner, 27 Oct: a column's only card, lifted, drew two lines 5px apart.
+  it("draws one line when a column's only card is lifted, in its column", () => {
+    const { container } = board({ columns: { todo: many(1), done: many(2, "done") } })
+    const card = container.querySelector<HTMLElement>('[data-task-id="t-todo-0"]')!
+    act(() => card.focus())
+    act(() => void fireEvent.keyDown(card, { key: " " }))
+    expect(container.querySelectorAll("[data-drop-line]")).toHaveLength(1)
+    expect(container.querySelectorAll('[data-column="todo"] [data-drop-line]')).toHaveLength(1)
+  })
+
+  it("lights an empty column's box where a held card lands, with no line above it, and keeps it in view", () => {
+    const shown: Element[] = []
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      shown.push(this)
+    }
+    try {
+      const { container } = board({ columns: { todo: many(2), done: [] } })
+      const card = container.querySelector<HTMLElement>('[data-task-id="t-todo-0"]')!
+      act(() => card.focus())
+      act(() => void fireEvent.keyDown(card, { key: " " }))
+      const box = container.querySelector<HTMLElement>('[data-column="done"] [data-drop-slot]')!
+      // First in the column, where a card lands; lit only once one is over it.
+      expect(box.previousElementSibling).toBeNull()
+      expect(box.hasAttribute("data-drop")).toBe(false)
+      act(() => void fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" }))
+      expect(box.getAttribute("data-drop")).toBe("valid")
+      expect(container.querySelectorAll("[data-drop-line]")).toHaveLength(0)
+      expect(shown.at(-1)).toBe(box)
+    } finally {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+    }
   })
 
   // The rivals review (16 Oct 2026): Notion tints each status column and heads

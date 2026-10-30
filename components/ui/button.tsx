@@ -3,18 +3,18 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils/helpers/cn"
-import { ix } from "@/lib/ui/interactive"
+import { ix, pressNothing } from "@/lib/ui/interactive"
+import { DisabledTipPiece as Tip } from "@/components/ui/disabledTipPiece"
 
 // Design v3 (§3.10). States are the interaction layer's (app/interaction.css);
-// aria-busy dims it and blocks a second press.
+// busy spins in its own colours; disabled ("not yet") wears the field's look.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium disabled:pointer-events-none aria-busy:pointer-events-none aria-busy:opacity-70 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium disabled:pointer-events-none aria-busy:pointer-events-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          // A kbd hint inside it (New task C) is 16px on an 18% white fill.
-          "bg-brand text-brand-foreground shadow-primary [&_.kbd]:h-4 [&_.kbd]:min-w-4 [&_.kbd]:bg-white/[0.18] [&_.kbd]:text-current [&_.kbd]:shadow-none",
+          "bg-brand text-brand-foreground shadow-primary [&_.kbd]:h-4 [&_.kbd]:min-w-4 [&_.kbd]:bg-transparent [&_.kbd]:ring-1 [&_.kbd]:ring-inset [&_.kbd]:ring-white/40 [&_.kbd]:text-current [&_.kbd]:shadow-none",
         destructive: "bg-raised text-danger-ink shadow-e1",
         outline: "bg-raised text-foreground shadow-e1 hover:shadow-e2",
         secondary: "bg-raised text-foreground shadow-e1 hover:shadow-e2",
@@ -45,28 +45,27 @@ const buttonVariants = cva(
   }
 )
 
-// Why it is disabled, in the portalled tooltip, fetched when first needed.
-const Tip = React.lazy(() => import("./disabledTip"))
-
 interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean
+  /** Its own action runs: aria-busy, a second press (keys too) blocked, still focusable. */
+  busy?: boolean
   /** With `disabled`: why, in a tip, and the button stays focusable (aria-disabled). */
   disabledReason?: string
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, disabled, disabledReason, onClick, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, busy, disabled, disabledReason, onClick, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
     const reason = disabled ? disabledReason : undefined
-    const inert = !!reason || props["aria-disabled"] === true || props["aria-disabled"] === "true"
+    const inert = !!busy || !!reason || props["aria-disabled"] === true || props["aria-disabled"] === "true"
+    const tipId = React.useId()
     const button = (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
-        // The press on a touch screen (design v3, mobile F2, app/phone.css):
-        // a control dips to .96, an icon button to .92 with the press overlay.
+        // The press on a touch screen: app/phone.css F2.
         data-press={size?.startsWith("icon") ? "icon" : "control"}
         // A finger's target is 44px whatever the size (app/phone.css F3).
         data-touch-target=""
@@ -74,19 +73,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           tone: variant === "destructive" ? "danger" : !variant || variant === "default" ? "primary" : undefined,
           disabledReason: reason,
         })}
+        data-tip-control={reason && tipId}
         disabled={reason ? undefined : disabled}
-        onClick={
-          inert
-            ? (e: React.MouseEvent<HTMLButtonElement>) => {
-                e.preventDefault()
-                e.stopPropagation()
-              }
-            : onClick
-        }
+        aria-busy={busy || undefined}
+        onClick={inert ? pressNothing : onClick}
         {...props}
       />
     )
-    return reason ? <React.Suspense fallback={button}><Tip reason={reason}>{button}</Tip></React.Suspense> : button
+    return <>{button}{reason && <React.Suspense><Tip control={tipId} reason={reason} /></React.Suspense>}</>
   }
 )
 Button.displayName = "Button"

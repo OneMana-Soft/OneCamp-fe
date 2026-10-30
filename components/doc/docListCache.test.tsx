@@ -25,7 +25,7 @@ const get = vi.fn(async (url: string) => {
   const page = server[cursor] ?? { docs: [] }
   return { data: { data: { scope: "workspace", docs: page.docs, count: 32, next_cursor: page.next ?? "" } } }
 })
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: (url: string) => get(url) }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: (url: string) => get(url) } }))
 vi.mock("@/components/doc/docListResult", () => ({
   DocListResult: ({ items, onLoadMore, hasMore }: { items: DocListItem[]; onLoadMore: () => void; hasMore: boolean }) => (
     <div>

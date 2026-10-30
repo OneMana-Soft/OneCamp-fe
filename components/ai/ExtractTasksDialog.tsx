@@ -263,8 +263,8 @@ const ExtractTasksDialog: React.FC<{
                 </Select>
               </div>
 
-              <Button onClick={create} disabled={creating || selected.size === 0 || !projectId} className="self-end">
-                {creating ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
+              <Button onClick={create} disabled={selected.size === 0 || !projectId} busy={creating} className="self-end">
+                <Check className="mr-1 h-4 w-4" />
                 Create {selected.size} task{selected.size === 1 ? "" : "s"}
               </Button>
             </>

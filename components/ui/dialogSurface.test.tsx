@@ -67,6 +67,13 @@ describe("dialog surface", () => {
     expect(tokens(screen.getByRole("heading", { name: "Invite people" }))).toContain("text-title-3")
   })
 
+  // A description is a sentence or two under the title; text-wrap: pretty
+  // keeps its last line from being one word (DESIGN-BUILD-5, 22 Oct 2026).
+  it("wraps the description's lines pretty, never leaving one word alone", () => {
+    render(<Rename />)
+    expect(tokens(screen.getByText("Everyone sees the new name."))).toContain("text-pretty")
+  })
+
   it("puts the actions on a sunken footer strip, with the tertiary slot on the left", () => {
     render(<Rename />)
     const footer = screen.getByRole("button", { name: "Rename" }).parentElement!

@@ -59,7 +59,7 @@ describe("writes to a board's scene", () => {
   it("take the shared document's copies through the one binding", () => {
     for (const file of ["components/board/boardCanvas.tsx", "components/guest/GuestBoardViewer.tsx"]) {
       const src = readFileSync(join(ROOT, file), "utf8")
-      expect(src, file).toMatch(/applyShared\(api, yElements\.values\(\)/)
+      expect(src, file).toMatch(/followShared\(api, yElements as unknown as SharedElements/)
       expect(src, `${file} keeps no merge of its own`).not.toMatch(/function cloneElement/)
     }
   })

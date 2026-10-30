@@ -1,6 +1,7 @@
 import type { SearchResult } from "@/services/searchService"
 import { chatPath } from "@/lib/routes/conversationRoute"
 import { route } from "@/lib/conversation/route"
+import { calendarRoute } from "@/lib/calendar/route"
 
 /** A channel, at one of its messages when there is one (the Link Router). */
 const channelPath = (channel: string, message?: string) => route({ conversation: { kind: "channel", id: channel }, ...(message ? { message } : {}) })
@@ -51,6 +52,8 @@ export function resultPath(result: SearchResult, selfUUID: string): string | nul
       return `/app/team/${result.team?.team_id}`
     case "channel":
       return channelPath(result.channel?.ch_id)
+    case "event":
+      return result.event?.event_uuid ? calendarRoute({ event: result.event.event_uuid }) : null
     default:
       return null
   }

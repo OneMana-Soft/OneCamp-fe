@@ -20,3 +20,18 @@ export function keepRecentlyLoaded<T>(lists: Record<string, T[]>, order: string[
     delete lists[oldest]
   }
 }
+
+/**
+ * Holds `items` as a conversation's list, just loaded; none lets it go. A list
+ * not held is seeded from its latest page; one held, even emptied by deletes,
+ * takes only answers it hasn't had, so a deleted last message stays deleted.
+ */
+export function holdLoaded<T>(lists: Record<string, T[]>, order: string[], id: string, items: T[]): void {
+  if (items.length === 0) {
+    delete lists[id]
+    if (order.includes(id)) order.splice(order.indexOf(id), 1)
+    return
+  }
+  lists[id] = [...items]
+  keepRecentlyLoaded(lists, order, id)
+}

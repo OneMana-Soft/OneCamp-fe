@@ -8,13 +8,18 @@
  * usePost and the URL for useFetch.
  */
 
+import { browserTZ } from "@/lib/utils/timeZone"
 import type { RepeatScope } from "@/lib/calendar/repeat"
+import type { CalendarEventTask, EventProposal } from "@/types/calendar"
 
 // The API's path (router/calendarProgramme.go). It sits here, not in
 // services/endPoints.ts, which every route's first load carries (PROGRAM.md
 // §3.6): only the calendar's screens reach this file. usePost names an
 // endpoint by that file's enum, so the path is cast to it.
 const CALENDAR_EVENTS = "/calendar/events" as string as string
+
+/** Every event the reader is on, as one .ics (calendar A4). */
+export const calendarExportUrl = `${CALENDAR_EVENTS}/export`
 
 /** A time as the API takes and gives it: an instant in a zone, or a date for an all-day event. */
 export interface ApiWhen {
@@ -42,16 +47,25 @@ export interface ApiAttendee {
   response: ApiResponse
   note?: string
   responded_at?: string
-  invite?: "sent" | "not_sent" | "failed"
+  invite?: "sent" | "not_sent" | "failed" | "imported"
+}
+
+/** What an out-of-office declines, and the message each decline carries. */
+export interface ApiOutOfOffice {
+  decline: "" | "none" | "new" | "all"
+  message: string
 }
 
 /** An event as the API sends it (business/Calendar Event): the fields the web reads. */
 export interface ApiEvent {
   id: string
+  calendar_id?: string
   series_id?: string
   recurrence_id?: ApiWhen
   recurrence?: { rule: string; text?: string }
   kind: string
+  /** A task block's task (kind task_block): its uuid, and its name, state and project when the reader may read it. */
+  task?: CalendarEventTask | null
   title: string
   notes: string
   location: string
@@ -71,6 +85,8 @@ export interface ApiEvent {
   guests_can_see_guests?: boolean
   /** The organiser's "Email me when guests answer", told to them alone. */
   email_on_answers?: boolean
+  /** An out-of-office's decline rule (head 5b): read back by its owner alone. */
+  out_of_office?: ApiOutOfOffice
 }
 
 /** A guest's role: required, or optional (Google's "Mark optional"). */
@@ -105,6 +121,8 @@ export interface ApiEventPatch {
   guests_can_see_guests?: boolean
   notify?: ApiNotify
   email_on_answers?: boolean
+  /** An out-of-office's decline rule (head 5b): read back by its owner alone. */
+  out_of_office?: ApiOutOfOffice
 }
 
 /** A new event, as the API takes it. */
@@ -126,16 +144,16 @@ export interface ApiEventInput {
   sync_to_google?: boolean
   notify?: ApiNotify
   email_on_answers?: boolean
+  /** An out-of-office's decline rule (head 5b): read back by its owner alone. */
+  out_of_office?: ApiOutOfOffice
+  /** A calendar the writer may edit (a project's, A6); none for their own. */
+  calendar_id?: string
+  /** With kind "task_block": the task this is time for, one the writer may read. The block takes its name when given none. */
+  task_uuid?: string
 }
 
 /** The reader's own zone: the one a series keeps its time in. */
-export function readerZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  } catch {
-    return "UTC"
-  }
-}
+export const readerZone = (): string => browserTZ()
 
 /** The URL useFetch reads one event, series or instance from. */
 export function apiEventUrl(id: string): string {
@@ -185,16 +203,36 @@ export function deleteApiEventRequest(id: string, scope: RepeatScope, sequence?:
 /**
  * A guest's answer to an event (calendar A2): for all of it, or with scope
  * "this" for one instance of a series alone. A note left out stays as it was
- * (the card's tap); "" clears it. Quiet: the answer is shown at once, and its
- * control says itself when it couldn't be sent.
+ * (the card's tap); "" clears it. So with another time proposed (calendar
+ * head 4): null takes it back. Quiet, as its control says when it couldn't
+ * go; a proposal's refusal is toasted in the server's words.
  */
-export function answerEventRequest(id: string, answer: Answer, opts: { note?: string; scope?: "this" | "all" } = {}) {
+export function answerEventRequest(id: string, answer: Answer, opts: { note?: string; scope?: "this" | "all"; proposal?: EventProposal | null } = {}) {
   return {
     method: "POST",
     apiEndpoint: CALENDAR_EVENTS,
     appendToUrl: `/${encodeURIComponent(id)}/answer`,
-    payload: { answer, scope: opts.scope ?? "", ...(opts.note === undefined ? {} : { note: opts.note }) },
-    quiet: true,
+    payload: {
+      answer,
+      scope: opts.scope ?? "",
+      ...(opts.note === undefined ? {} : { note: opts.note }),
+      ...(opts.proposal === undefined ? {} : { proposal: opts.proposal ?? {} }),
+    },
+    ...(opts.proposal === undefined
+      ? { quiet: true }
+      : { showErrorToast: true, failureTitle: opts.proposal ? "Couldn't propose that time" : "Couldn't take your proposal back" }),
+  } as const
+}
+
+/** Sets aside a guest's proposed time (whoever may change the event): a member by id, a guest by email; an instance's, by its id. */
+export function dismissProposalRequest(id: string, guest: { user_uuid?: string; email?: string }) {
+  return {
+    method: "POST",
+    apiEndpoint: CALENDAR_EVENTS,
+    appendToUrl: `/${encodeURIComponent(id)}/proposal/dismiss`,
+    payload: guest,
+    showErrorToast: true,
+    failureTitle: "Couldn't dismiss the proposal",
   } as const
 }
 
@@ -237,6 +275,31 @@ export function snoozeReminderRequest(id: string, until: "5m" | "start" | "1m") 
     apiEndpoint: CALENDAR_EVENTS,
     appendToUrl: `/${encodeURIComponent(id)}/snooze`,
     payload: { until },
+  } as const
+}
+
+/** Gives an event (a series, from any of its instances) its own call, or answers the one it has (calendar B11). */
+export function addCallRequest(id: string) {
+  return {
+    method: "POST",
+    apiEndpoint: CALENDAR_EVENTS,
+    appendToUrl: `/${encodeURIComponent(id)}/call`,
+    showErrorToast: true,
+    failureTitle: "Couldn't add a call",
+  } as const
+}
+
+/**
+ * Takes an event's call off: its link stops working, and anyone in it leaves.
+ * Sent from its red confirm, which says in place why it couldn't and stays
+ * for another try (useConfirm), so no toast says it again.
+ */
+export function removeCallRequest(id: string) {
+  return {
+    method: "DELETE",
+    apiEndpoint: CALENDAR_EVENTS,
+    appendToUrl: `/${encodeURIComponent(id)}/call`,
+    quiet: true,
   } as const
 }
 

@@ -20,8 +20,8 @@ import { clockTime } from "@/lib/utils/date/clock"
  * of its own: a position change, not motion. The timeline reuses it.
  */
 export interface NowLineProps {
-  /** px from the grid's top. */
-  top: number
+  /** From the grid's top: px, or a CSS length (the week's calc() on its hour). */
+  top: number | string
   /** Width of the time gutter, px (the pill sits in it). */
   gutter: number
   /** Number of day columns, and which is today (-1 for none). */
@@ -38,7 +38,7 @@ export function NowLine({ top, gutter, columns, todayIndex, now, className }: No
       aria-hidden="true"
       data-now-line=""
       className={cn("pointer-events-none absolute inset-x-0 top-0 z-[25] h-0", className)}
-      style={{ transform: `translateY(${top}px)` }}
+      style={{ transform: `translateY(${typeof top === "number" ? `${top}px` : top})` }}
     >
       <span
         data-now-pill=""

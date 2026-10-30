@@ -98,7 +98,7 @@ export function sentenceOf(item: UnifiedActivityItem): Sentence {
     return { actor: w.actor, verb: w.verb, place: w.place, preview: w.preview, at: item.notice.created_at || item.time }
   }
   if (item.activity_type === "REACTION" && r) {
-    const place = channelName(r.post?.post_channel?.ch_name) || (r.chat ? "a direct message" : "") || r.reaction_task?.task_name || r.reaction_doc?.doc_title || ""
+    const place = channelName(r.post?.post_channel?.ch_name) || (r.chat ? "a direct message" : "")
     return {
       actor: r.reaction_added_by,
       verb: place ? "reacted to your message in" : "reacted to your message",
@@ -138,7 +138,7 @@ const DAY_MS = 86_400_000
 
 function reactionTarget(item: UnifiedActivityItem): string {
   const r = item.reaction
-  return r?.post?.post_uuid || r?.chat?.chat_uuid || r?.comment?.comment_uuid || r?.reaction_task?.task_uuid || r?.reaction_doc?.doc_uuid || ""
+  return r?.post?.post_uuid || r?.chat?.chat_uuid || r?.comment?.comment_uuid || ""
 }
 
 function mentionThread(item: UnifiedActivityItem): string {

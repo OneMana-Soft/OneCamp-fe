@@ -1,5 +1,5 @@
 import {createSlice} from "@reduxjs/toolkit";
-import {TaskInfoInterface} from "@/types/task";
+import type {TaskInfoInterface} from "@/types/task";
 
 /**
  * No sorting and no filters. A factory rather than `{}`: an empty object is

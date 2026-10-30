@@ -11,7 +11,8 @@ import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { isBuiltInStatus, type StatusOption } from "@/lib/taskStatus"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
+import { MenuOnDemand } from "@/components/ui/menuOnDemand"
 import { columnHue, columnLozenge, columnWash } from "@/components/kanbanComponents/columnLook"
 
 interface Props {
@@ -103,16 +104,17 @@ function ColumnMoves({ move, after }: { move: ColumnMove; after: boolean }) {
  */
 export function ColumnMoveMenu({ name, move }: { name: string; move: ColumnMove }) {
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <button type="button" aria-label={`${name} column actions`} className={HEAD_BUTTON} data-touch-target="">
-                    <MoreHorizontal className="size-3.5" />
-                </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-                <ColumnMoves move={move} after={false} />
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <MenuOnDemand
+            menu={(onDemand) => (
+                <DropdownMenuContent {...onDemand} align="end" className="w-44">
+                    <ColumnMoves move={move} after={false} />
+                </DropdownMenuContent>
+            )}
+        >
+            <button type="button" aria-label={`${name} column actions`} className={HEAD_BUTTON} data-touch-target="">
+                <MoreHorizontal className="size-3.5" />
+            </button>
+        </MenuOnDemand>
     )
 }
 
@@ -289,25 +291,27 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                             )}
                             <div className={cn(styles.Actions, "opacity-0 pointer-events-none transition-opacity duration-[140ms] focus-within:opacity-100 focus-within:pointer-events-auto group-hover/column:opacity-100 group-hover/column:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto")}>
                             {(onToggleCollapse || onAdd || move) && (
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <button
-                                            type="button"
-                                            aria-label={`${name} column actions`}
-                                            className={HEAD_BUTTON}
-                                            data-touch-target=""
-                                        >
-                                            <MoreHorizontal className="size-3.5" />
-                                        </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-44">
-                                        {onAdd && <DropdownMenuItem onSelect={onAdd}>New task here</DropdownMenuItem>}
-                                        {onToggleCollapse && <DropdownMenuItem onSelect={onToggleCollapse}>Collapse</DropdownMenuItem>}
-                                        {/* The column's place, for everyone in the project: the way to move it
-                                            on a phone, and anywhere without a drag. */}
-                                        {move && <ColumnMoves move={move} after={!!(onAdd || onToggleCollapse)} />}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                // In the tree only while it is open (F-1 #2), as a card's menu.
+                                <MenuOnDemand
+                                    menu={(onDemand) => (
+                                        <DropdownMenuContent {...onDemand} align="end" className="w-44">
+                                            {onAdd && <DropdownMenuItem onSelect={onAdd}>New task here</DropdownMenuItem>}
+                                            {onToggleCollapse && <DropdownMenuItem onSelect={onToggleCollapse}>Collapse</DropdownMenuItem>}
+                                            {/* The column's place, for everyone in the project: the way to move it
+                                                on a phone, and anywhere without a drag. */}
+                                            {move && <ColumnMoves move={move} after={!!(onAdd || onToggleCollapse)} />}
+                                        </DropdownMenuContent>
+                                    )}
+                                >
+                                    <button
+                                        type="button"
+                                        aria-label={`${name} column actions`}
+                                        className={HEAD_BUTTON}
+                                        data-touch-target=""
+                                    >
+                                        <MoreHorizontal className="size-3.5" />
+                                    </button>
+                                </MenuOnDemand>
                             )}
                             {onRemove ? <Remove onClick={onRemove} /> : undefined}
                             </div>
@@ -317,8 +321,19 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                 {placeholder ? children : (
                     <div className={cn(styles.Content, styles.Fade)} data-board-scroll="" onScroll={onScroll}>
                         {children}
+                        {/* Under the held card the box is where it lands, lit as the
+                            layer's drop well, so an empty column draws no line. Lit, its
+                            edge is solid like the line, and its words take the ink: the
+                            brand's text cut reads under 4.5:1 on a lit column's tint. */}
                         {count === 0 && dragActive && (
-                            <div data-drop-slot="" className="flex h-16 shrink-0 items-center justify-center rounded-[10px] text-2xs text-ink-3 outline-dashed outline-[1.5px] -outline-offset-[1.5px] outline-line-3">
+                            <div
+                                data-drop-slot=""
+                                data-drop={hover ? "valid" : undefined}
+                                className={cn(
+                                    "flex h-16 shrink-0 items-center justify-center rounded-[10px] text-2xs outline-[1.5px] -outline-offset-[1.5px]",
+                                    hover ? "text-ink outline-solid" : "text-ink-3 outline-dashed outline-line-3",
+                                )}
+                            >
                                 Drop tasks here
                             </div>
                         )}

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AlertTriangle } from "@/lib/icons";
 import { deliveredRecently } from "@/components/admin/webhookParts"
@@ -79,7 +78,7 @@ export default function WebhookDeleteDialog({ open, onOpenChange, onConfirm, web
               onConfirm()
             }}
             disabled={!matches}
-            className={buttonVariants({ variant: "destructive" })}
+            variant="dangerSolid"
           >
             Delete webhook
           </AlertDialogAction>

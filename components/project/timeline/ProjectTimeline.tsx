@@ -4,11 +4,11 @@ import type * as React from "react"
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react"
 import { useSelector } from "react-redux"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { DndContext, DragOverlay, useDroppable, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type KeyboardCoordinateGetter } from "@dnd-kit/core"
+import { DndContext, DragOverlay, useDroppable, type CollisionDetection, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type KeyboardCoordinateGetter } from "@dnd-kit/core"
 import { addDays, format, startOfDay } from "date-fns"
 import { announce } from "@/lib/ui/announce"
 import { onEscape } from "@/lib/keys/onEscape"
-import { dragPoint, useDndSetup, useDragState, type DragWords } from "@/lib/ui/dnd"
+import { DRAG_OVERLAY, collisionDetection, eventPoint, useDndSetup, useDragState, type DragWords } from "@/lib/ui/dnd"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -24,19 +24,20 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
+import { useMyId } from "@/hooks/useMyId"
 import { useProjectTimeline } from "@/hooks/useProjectTimeline"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { useTaskDependencies } from "@/hooks/useTaskDependencies"
 import { useTimelineView } from "@/hooks/useTimelineView"
-import { useStoredState } from "@/hooks/useStoredState"
-import { CalendarOff, ChevronDown, Plus, SlidersHorizontal } from "@/lib/icons"
+import { isBoolean, useStoredState } from "@/hooks/useStoredState"
+import { CalendarOff, Plus, SlidersHorizontal } from "@/lib/icons"
 import { useGrow } from "@/hooks/useGrow"
 import { flipBy } from "@/lib/flip"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
+import { NO_ACCESS, canEditTask } from "@/lib/work/access"
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
-import { StatusGlyph } from "@/components/ui/graphics/glyphs"
-import { statusKindOf } from "@/components/task/taskStatusCell"
 import type { RootState } from "@/store/store"
+import { StoreProvider } from "@/components/providers/StoreProvider"
 import {
   DAY_WIDTH,
   GROUPINGS,
@@ -71,6 +72,10 @@ import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { SpotCalendar } from "@/components/ui/graphics/spots"
 import { STICK_INSET } from "./TimelineBar"
 import { GROUP_HEIGHT, ROW_HEIGHT, TimelineGroupRow, TimelineTaskRow } from "./TimelineRows"
+import { TimelineMilestones, datedMilestones, milestonesHeight } from "./TimelineMilestones"
+import { useFetch } from "@/hooks/useFetch"
+import { OWN_ERRORS } from "@/lib/axiosInstance"
+import { milestonesPath, type MilestonesAnswer } from "@/lib/work/milestones"
 import { UNSCHEDULED_DRAG, UnscheduledPanel } from "./UnscheduledPanel"
 import { ZoomSwitch } from "./ZoomSwitch"
 import { useProjectHue } from "@/lib/projectHue"
@@ -135,7 +140,6 @@ function swallowNextClick() {
   window.addEventListener("pointerdown", done, true)
 }
 const isGrouping = (v: unknown): v is Grouping => GROUPINGS.some((g) => g.value === v)
-const isBool = (v: unknown): v is boolean => typeof v === "boolean"
 
 interface Drag {
   task: TimelineTask
@@ -153,8 +157,19 @@ interface Drag {
  * a bar to move it, drag an end to change when it starts or is due, and drag
  * a task with no dates onto a day; arrows do the same from the keyboard. On a
  * phone (compact) it shows the plan, and a task opens to change its dates.
+ *
+ * It reads the app's store (the task open in the panel), which a client's view
+ * of a shared project (guest/p) doesn't have: the timeline brings it (StoreProvider).
  */
-export function ProjectTimeline({
+export function ProjectTimeline(props: React.ComponentProps<typeof Timeline>) {
+  return (
+    <StoreProvider>
+      <Timeline {...props} />
+    </StoreProvider>
+  )
+}
+
+function Timeline({
   projectId,
   tasks: given,
   viewKey,
@@ -181,17 +196,23 @@ export function ProjectTimeline({
 }) {
   const fetched = useProjectTimeline(given ? "" : projectId)
   const { isLoading, isError, mutate, reschedule } = fetched
-  const data: TimelineData | undefined = given ? { tasks: given, total: given.length, can_edit: false } : fetched.data
+  const data: TimelineData | undefined = given ? { tasks: given, total: given.length, can_edit: false, project_access: NO_ACCESS } : fetched.data
   const tasks = given ?? fetched.tasks
+  // The project's milestones, read beside its tasks (linear-16): a row each above them, for those with a day.
+  // A client's view of a shared project has none. Its failure is said in its own heading.
+  const milestoneRead = useFetch<MilestonesAnswer>(given ? "" : milestonesPath(projectId), undefined, { revalidateOnFocus: false }, OWN_ERRORS)
+  const shownMilestones = useMemo(() => datedMilestones(milestoneRead.data?.data.milestones ?? undefined), [milestoneRead.data])
+  const milestonesFailed = !!milestoneRead.isError && !milestoneRead.data
+  const milestonesTall = milestonesHeight(shownMilestones.length, milestonesFailed)
   const { options: statuses } = useProjectStatuses(given ? undefined : projectId)
   const key = viewKey ?? projectId
   const [zoom, setZoom, zoomReady] = useStoredState<Zoom>(`oc_timeline_zoom:${key}`, "week", isZoom)
   const [grouping, setGrouping] = useStoredState<Grouping>(`oc_timeline_grouping:${key}`, "status", isGrouping)
-  const [showDone, setShowDone] = useStoredState<boolean>(`oc_timeline_done:${key}`, true, isBool)
+  const [showDone, setShowDone] = useStoredState<boolean>(`oc_timeline_done:${key}`, true, isBoolean)
   // Moving a task later moves the tasks waiting on it along (monday's "flexible").
-  const [shiftAlong, setShiftAlong] = useStoredState<boolean>(`oc_timeline_shift:${key}`, true, isBool)
+  const [shiftAlong, setShiftAlong] = useStoredState<boolean>(`oc_timeline_shift:${key}`, true, isBoolean)
   const setDependency = useTaskDependencies(given ? "" : projectId)
-  const [sideOpen, setSideOpen] = useStoredState<boolean>(compact ? undefined : "oc_timeline_unscheduled", !compact, isBool)
+  const [sideOpen, setSideOpen] = useStoredState<boolean>(compact ? undefined : "oc_timeline_unscheduled", !compact, isBoolean)
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [today] = useState(() => startOfDay(new Date()))
   const [preview, setPreview] = useState<{ id: string; kind: EditKind; days: number } | null>(null)
@@ -200,8 +221,8 @@ export function ProjectTimeline({
   const [linking, setLinking] = useState<{ from: string; x1: number; y1: number; x2: number; y2: number; target: string | null } | null>(null)
   // The bar the pointer is on: its arrows go ink-2.
   const [hovered, setHovered] = useState<string | null>(null)
-  const [showDeps, setShowDeps] = useStoredState<boolean>(`oc_timeline_deps:${key}`, true, isBool)
-  const [showWeekends, setShowWeekends] = useStoredState<boolean>(`oc_timeline_weekends:${key}`, true, isBool)
+  const [showDeps, setShowDeps] = useStoredState<boolean>(`oc_timeline_deps:${key}`, true, isBoolean)
+  const [showWeekends, setShowWeekends] = useStoredState<boolean>(`oc_timeline_weekends:${key}`, true, isBoolean)
   // Bars that just landed (a drop or a nudge): the brand-muted flash.
   const [landed, setLanded] = useState<ReadonlySet<string>>(() => new Set())
   const [dropRow, setDropRow] = useState<number | null>(null)
@@ -211,6 +232,12 @@ export function ProjectTimeline({
   const markerId = `dep${helpId.replace(/[^A-Za-z0-9]/g, "")}`
 
   const canEdit = !!data?.can_edit && !compact
+  // Each task by its own right, as the list and the board decide it
+  // (lib/work/access): where members change only their own tasks, the others'
+  // bars, handles and Unscheduled rows don't move. can_edit is any task's.
+  const me = useMyId(!given)
+  const projectAccess = data?.project_access
+  const canMove = useCallback((t: TimelineTask) => canEdit && canEditTask(t, me, { project_access: projectAccess }), [canEdit, me, projectAccess])
   const dayWidth = DAY_WIDTH[zoom]
   const nameWidth = compact ? 140 : 260
   const ownHue = useProjectHue(projectId)
@@ -220,7 +247,11 @@ export function ProjectTimeline({
     () => timelineRows(tasks, { grouping, statuses, showDone, collapsed }),
     [tasks, grouping, statuses, showDone, collapsed],
   )
-  const range = useMemo(() => timelineRange(spans, today, zoom), [spans, today, zoom])
+  // The grid reaches every task and every milestone's days.
+  const range = useMemo(
+    () => timelineRange(shownMilestones.length > 0 ? [...spans, ...shownMilestones.map((d) => d.days)] : spans, today, zoom),
+    [spans, shownMilestones, today, zoom],
+  )
   const gridWidth = range.days * dayWidth
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -240,7 +271,8 @@ export function ProjectTimeline({
     getScrollElement: () => scrollRef.current,
     estimateSize: (i) => (rows[i]?.kind === "group" ? GROUP_HEIGHT : ROW_HEIGHT),
     overscan: 12,
-    scrollMargin: HEADER_HEIGHT,
+    // The tasks' body starts below the dates and the milestones.
+    scrollMargin: HEADER_HEIGHT + milestonesTall,
   })
 
   // Every dependency between two drawn bars, a bar being dragged where it's going.
@@ -254,7 +286,7 @@ export function ProjectTimeline({
   }, [rows, range, dayWidth, preview, tops])
 
   // ---- Keeping the same days in view -----------------------------------------
-  const { onScroll, goToday } = useTimelineView({
+  const { onScroll, goToday, scrollerRef } = useTimelineView({
     scrollRef,
     range,
     dayWidth,
@@ -311,7 +343,7 @@ export function ProjectTimeline({
   const onBarPointerDown = useStableCallback(
     (e: PointerEvent, task: TimelineTask, kind: EditKind) => {
       // A finger scrolls the timeline; on touch screens a tap opens the task.
-      if (!canEdit || e.button !== 0 || e.pointerType === "touch" || isPending(task)) return
+      if (!canMove(task) || e.button !== 0 || e.pointerType === "touch" || isPending(task)) return
       e.preventDefault()
       e.stopPropagation()
       const el = scrollRef.current
@@ -374,7 +406,7 @@ export function ProjectTimeline({
   // as Linear and ClickUp draw them. The keyboard's way is the task's panel.
   const onLinkStart = useStableCallback(
     (e: PointerEvent, task: TimelineTask) => {
-      if (!canEdit || e.button !== 0 || e.pointerType === "touch" || isPending(task)) return
+      if (!canMove(task) || e.button !== 0 || e.pointerType === "touch" || isPending(task)) return
       e.preventDefault()
       e.stopPropagation()
       const body = bodyRef.current
@@ -386,9 +418,11 @@ export function ProjectTimeline({
       }
       const b = bar.getBoundingClientRect()
       const start = local(b.right, b.top + b.height / 2)
+      // The task that would wait is the one changed: one the person may change.
       const targetAt = (x: number, y: number) => {
         const id = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-bar]")?.dataset.bar ?? null
-        return id && id !== task.task_uuid && !id.startsWith("temp-") ? id : null
+        const target = id && id !== task.task_uuid ? tasks.find((t) => t.task_uuid === id) : undefined
+        return target && !isPending(target) && canMove(target) ? target.task_uuid : null
       }
       setLinking({ from: task.task_uuid, x1: start.x, y1: start.y, x2: start.x, y2: start.y, target: null })
       const move = (ev: globalThis.PointerEvent) => {
@@ -429,7 +463,7 @@ export function ProjectTimeline({
         if (!isPending(task)) onOpenTask(task.task_uuid)
         return
       }
-      if (!canEdit || isPending(task) || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return
+      if (!canMove(task) || isPending(task) || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return
       // Alt+← and ⌘+← are Back; Ctrl+arrows move between words. None of them is a nudge.
       if (e.altKey || e.ctrlKey || e.metaKey) return
       e.preventDefault()
@@ -511,8 +545,22 @@ export function ProjectTimeline({
     return { x: b.left + nameWidth + x, y: b.top + (tops[row] ?? 0) }
   }
   const dnd = useDndSetup(words, keyDays)
-  const landing = useDragState((_, over) => over === GRID && aimed.current.day !== null)
-  const { setNodeRef: setGrid } = useDroppable({ id: GRID, disabled: !canEdit })
+  // The grid takes a task only where it would land: the day under the pointer
+  // (not the names, nor the Unscheduled panel drawn over the grid), or the day
+  // keyDays aimed. Anywhere else the task is over nothing, so letting go puts
+  // it back, and the words say so. The day rides on the collision to onCarry,
+  // from dnd-kit's own pointer: a move's delta counts the grid's scroll once
+  // the grid is under it, so a point made from the delta is off by that scroll.
+  const overADay: CollisionDetection = (args) => {
+    const p = args.pointerCoordinates
+    const day = p ? dayAtPoint(p.x, p.y) : aimed.current.day
+    return collisionDetection(args).flatMap((c) => {
+      if (c.id !== GRID) return [c]
+      if (!day) return []
+      return p ? [{ ...c, data: { ...c.data, day, row: rowAtPoint(p.y) } }] : [c]
+    })
+  }
+  const landing = useDragState()
   const onLift = (e: DragStartEvent) => {
     landing.handlers.onDragStart(e)
     aimed.current = { day: null, row: null }
@@ -520,21 +568,23 @@ export function ProjectTimeline({
   }
   const onCarry = (e: DragMoveEvent) => {
     landing.handlers.onDragMove(e)
-    const at = dragPoint(e)
     // The keyboard aims through keyDays.
-    if (!at) return
-    const day = e.over?.id === GRID ? dayAtPoint(at.x, at.y) : null
-    aim(day, day ? rowAtPoint(at.y) : null)
+    if (!eventPoint(e.activatorEvent)) return
+    const on = e.collisions?.find((c) => c.id === GRID)?.data
+    aim(on?.day ?? null, on?.row ?? null)
   }
   const onLand = (e: DragEndEvent) => {
     landing.handlers.onDragEnd(e)
     const keys = lifted?.keys ?? false
-    // The keyboard's task lands where keyDays aimed it, on the grid.
-    const day = e.over?.id === GRID || keys ? aimed.current.day : null
+    // Over the grid is over a day (overADay), from a pointer or the keys.
+    const day = e.over?.id === GRID ? aimed.current.day : null
     const task = unscheduled.find((t) => t.task_uuid === e.active.id)
-    aim(null, null)
+    // The ghost goes; the aimed day stays till the next lift, as dnd-kit says
+    // the drop's words, with that day, after onDragEnd.
+    setDropDay(null)
+    setDropRow(null)
     setLifted(null)
-    if (!canEdit || !task || !day || e.active.data.current?.type !== UNSCHEDULED_DRAG) return
+    if (!task || !canMove(task) || !day || e.active.data.current?.type !== UNSCHEDULED_DRAG) return
     follow.current = { id: task.task_uuid, focus: keys }
     watch.current = { until: Date.now() + WATCH_MS, skip: task.task_uuid }
     land(task.task_uuid)
@@ -564,7 +614,8 @@ export function ProjectTimeline({
   // 95px and gained a border when the data landed, and an empty timeline was
   // an icon with no tools.
   const failed = isError && !data
-  const loadingNow = (isLoading && !data) || !zoomReady
+  // The milestones come with the first paint, so they never push the tasks down after it.
+  const loadingNow = (isLoading && !data) || !zoomReady || (!!milestoneRead.isLoading && !milestoneRead.data)
   const noTasks = !failed && !loadingNow && !!data && data.tasks.length === 0
   const drawn = !failed && !loadingNow && !noTasks
 
@@ -577,6 +628,22 @@ export function ProjectTimeline({
     zoom === "day"
       ? Array.from({ length: Math.ceil(range.days / 7) }, (_, i) => i * 7 * dayWidth)
       : null
+  // Weekends as sunken columns, week lines, and today's line: under the tasks and the milestones alike.
+  const backdrop = (
+    <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: nameWidth, width: gridWidth }}>
+      {weekShade && (
+        <div
+          data-weekends=""
+          className="absolute inset-0"
+          style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0 ${5 * dayWidth}px, var(--sunken) ${5 * dayWidth}px ${7 * dayWidth}px)` }}
+        />
+      )}
+      {gridLines?.map((left) => <div key={left} className="absolute inset-y-0 w-px bg-line" style={{ left }} />)}
+      {todayLeft >= 0 && todayLeft < gridWidth && (
+        <div data-today-line="" className="absolute inset-y-0 z-[5] w-[1.5px] -translate-x-1/2 bg-brand" style={{ left: todayLeft + dayWidth / 2 }} />
+      )}
+    </div>
+  )
 
   // The first reveal: bars grow from their starts, 16ms apart by row, then the arrows draw.
   const grow = useGrow(`timeline:${key}`, drawn)
@@ -758,38 +825,38 @@ export function ProjectTimeline({
       {toolRow}
 
       <div className={frame}>
-        <DndContext {...dnd} {...landing.handlers} onDragStart={onLift} onDragMove={onCarry} onDragEnd={onLand} onDragCancel={onPutBack}>
+        <DndContext {...dnd} collisionDetection={overADay} {...landing.handlers} onDragStart={onLift} onDragMove={onCarry} onDragEnd={onLand} onDragCancel={onPutBack}>
         <div
-          ref={scrollRef}
+          ref={scrollerRef}
           role="region"
           aria-label="Timeline"
           className="relative min-w-0 flex-1 select-none overflow-auto overscroll-x-contain"
-          style={{ scrollPaddingLeft: nameWidth, scrollPaddingTop: HEADER_HEIGHT }}
+          // A bar brought into view stops beside the names, by a scroll margin on
+          // what scrolls under them (globals.css, data-scroll-lead), never a padding
+          // here: the names and the group toggles, sticky inside, then move nothing
+          // when they take the focus (V-63).
+          data-scroll-lead=""
+          style={{ "--scroll-lead": `${nameWidth}px`, scrollPaddingTop: HEADER_HEIGHT } as React.CSSProperties}
           onScroll={onScroll}
         >
           <TimelineHeader range={range} zoom={zoom} dayWidth={dayWidth} today={today} nameWidth={nameWidth} />
-          <div
-            ref={(el) => {
-              bodyRef.current = el
-              setGrid(el)
-            }}
+          <TimelineMilestones
+            shown={shownMilestones}
+            range={range}
+            dayWidth={dayWidth}
+            nameWidth={nameWidth}
+            gridWidth={gridWidth}
+            today={today}
+            backdrop={backdrop}
+            retry={milestonesFailed ? () => void milestoneRead.mutate() : undefined}
+          />
+          <GridDrop
+            disabled={!canEdit}
+            bodyRef={bodyRef}
             className="relative"
             style={{ height: Math.max(virtualizer.getTotalSize(), nothingDated ? 320 : 0), width: nameWidth + gridWidth }}
           >
-            {/* Weekends as sunken columns, week lines, and today's line. */}
-            <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: nameWidth, width: gridWidth }}>
-              {weekShade && (
-                <div
-                  data-weekends=""
-                  className="absolute inset-0"
-                  style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0 ${5 * dayWidth}px, var(--sunken) ${5 * dayWidth}px ${7 * dayWidth}px)` }}
-                />
-              )}
-              {gridLines?.map((left) => <div key={left} className="absolute inset-y-0 w-px bg-line" style={{ left }} />)}
-              {todayLeft >= 0 && todayLeft < gridWidth && (
-                <div data-today-line="" className="absolute inset-y-0 z-[5] w-[1.5px] -translate-x-1/2 bg-brand" style={{ left: todayLeft + dayWidth / 2 }} />
-              )}
-            </div>
+            {backdrop}
 
             {/* Dependencies: 1.5px paths with rounded elbows from the end of a task to the start of the one waiting on it; dashed danger where the plan can't be kept. */}
             {showDeps && (links.length > 0 || linking) && (
@@ -864,7 +931,7 @@ export function ProjectTimeline({
 
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]
-              const top = item.start - HEADER_HEIGHT
+              const top = item.start - HEADER_HEIGHT - milestonesTall
               if (row.kind === "group") {
                 return (
                   <TimelineGroupRow
@@ -911,7 +978,7 @@ export function ProjectTimeline({
                   lateTail={late ? todayLeft + dayWidth - (box.left + box.width) : 0}
                   done={task.task_status === "done"}
                   milestone={!taskDate(task.task_start_date) && !!taskDate(task.task_due_date)}
-                  canEdit={canEdit && !pending}
+                  canEdit={canMove(task) && !pending}
                   stickAt={nameWidth + STICK_INSET}
                   blocked={task.task_blocked_open ?? 0}
                   onLinkStart={given ? undefined : onLinkStart}
@@ -962,15 +1029,15 @@ export function ProjectTimeline({
                 )}
               </div>
             )}
-          </div>
+          </GridDrop>
         </div>
 
         {sideShown && (
-          <UnscheduledPanel tasks={unscheduled} statuses={statuses} canEdit={canEdit} onOpenTask={onOpenTask} onClose={() => setSideOpen(false)} away={lifted?.id} />
+          <UnscheduledPanel tasks={unscheduled} statuses={statuses} canMove={canMove} onOpenTask={onOpenTask} onClose={() => setSideOpen(false)} away={lifted?.id} />
         )}
         {/* The row a mouse or a finger carries (lifted, e3). A keyboard's task
             travels as the ghost bar alone, which says the date it lands on. */}
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay className={DRAG_OVERLAY} dropAnimation={null}>
           {liftedTask && !lifted?.keys ? (
             <div data-drag-state="lifted" className="flex h-9 w-[240px] items-center gap-2.5 rounded-md bg-raised px-2.5 text-sm shadow-e3">
               {liftedStatus && <TaskStatusCell status={liftedStatus} label="tip" />}
@@ -986,6 +1053,26 @@ export function ProjectTimeline({
         panel sets what it waits on.
       </p>
     </div>
+  )
+}
+
+/**
+ * The grid as the drop target for a task from Unscheduled. useDroppable reads
+ * the DndContext above the component that calls it, so it is called here,
+ * inside the timeline's own: called in ProjectTimeline, which draws that
+ * context, the grid registered with none, and a task carried by mouse or
+ * finger was over nothing and went back to Unscheduled.
+ */
+function GridDrop({ disabled, bodyRef, ...props }: { disabled: boolean; bodyRef: React.RefObject<HTMLDivElement | null> } & React.ComponentProps<"div">) {
+  const { setNodeRef } = useDroppable({ id: GRID, disabled })
+  return (
+    <div
+      {...props}
+      ref={(el) => {
+        bodyRef.current = el
+        setNodeRef(el)
+      }}
+    />
   )
 }
 

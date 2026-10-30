@@ -1,5 +1,6 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { onSessionEnd } from "@/lib/sessionEnd"
+import { jwtClaims } from "@/lib/jwt"
 
 // The member's collaboration token, fetched once and reused until it is about
 // to expire.
@@ -24,15 +25,8 @@ let generation = 0
 
 /** Seconds since the epoch at which a JWT expires, or 0 when it cannot be read. */
 export function jwtExpiry(token: string): number {
-  const part = token.split(".")[1]
-  if (!part) return 0
-  try {
-    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "="))
-    const exp = Number(JSON.parse(json)?.exp)
-    return Number.isFinite(exp) ? exp : 0
-  } catch {
-    return 0
-  }
+  const exp = Number(jwtClaims(token)?.exp)
+  return Number.isFinite(exp) ? exp : 0
 }
 
 /** Whether a token can still be used for a new connection. Pure. */

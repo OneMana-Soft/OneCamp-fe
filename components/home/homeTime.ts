@@ -8,9 +8,11 @@
  *                 dusk in the evening, lake at night (the one place a hue means
  *                 time);
  *   classifyEvent past, current or future against now;
- *   joinState     whether an event's Join shows, and how loudly.
+ *   joinState     whether an event's Join shows, and how loudly;
+ *   eventTitleOf  what an event is called on Home.
  */
 import type { CampHue } from "@/lib/campHue"
+import { linksAsHosts } from "@/lib/links/hostOf"
 
 /** The arc, in the composition's 320 x 168 space: (24,150) to (300,150) through a control at (162,-110). */
 export const ARC = { x0: 24, y0: 150, cx: 162, cy: -110, x1: 300, y1: 150 } as const
@@ -63,6 +65,16 @@ export function orbitPoint(cx: number, cy: number, r: number, deg: number): { x:
 /** The fixed slots, so the drawing is the same from load to load: people and the agent on r74, events on r52. */
 export const OUTER_SLOTS = [-40, 130, 210, 330] as const
 export const INNER_SLOTS = [60, 250, 170] as const
+
+/**
+ * An event's title as Home says it: its links as their hosts (a link can carry
+ * a meeting's password). The API leaves an untitled event's title out, so a
+ * focus block without one is "Focus time" and any other "Untitled event",
+ * never a blank in "Now: , until 3:30 PM".
+ */
+export function eventTitleOf(ev: { event_title?: string; event_is_focus?: boolean }): string {
+  return linksAsHosts(ev.event_title).trim() || (ev.event_is_focus ? "Focus time" : "Untitled event")
+}
 
 export interface TimedEvent {
   event_start_time: string

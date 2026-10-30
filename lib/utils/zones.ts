@@ -1,7 +1,6 @@
 /**
- * Time zones as people know them: "Eastern Time · New York (GMT-4)" rather
- * than the database's "America/New_York". The booking page's visitor and the
- * calendar's Event Form pick from the same list (components/ui/zonePicker).
+ * Time zones as people know them: "Eastern Time · New York (GMT-4)", never
+ * "America/New_York". Every picker shares the list (components/ui/zonePicker).
  * Pure but for the browser's zone list, read once a picker first opens.
  */
 
@@ -23,14 +22,16 @@ export function zoneName(tz: string, style: "long" | "longGeneric" | "shortOffse
   }
 }
 
-/** "New York": the place a zone is named for. */
-export const zoneCity = (tz: string) => (tz.split("/").pop() || tz).replace(/_/g, " ")
+const RENAMED: Record<string, string> = { Calcutta: "Kolkata", Saigon: "Ho Chi Minh", Kiev: "Kyiv", Katmandu: "Kathmandu", Rangoon: "Yangon", Godthab: "Nuuk", Faeroe: "Faroe", Truk: "Chuuk", Ponape: "Pohnpei", Enderbury: "Kanton", Asmera: "Asmara" }
+
+/** "New York": the place a zone is named for, by today's name ("Asia/Calcutta" is Kolkata). */
+export const zoneCity = (tz: string) => ((c) => RENAMED[c] ?? c)(tz.split("/").pop() || tz).replace(/_/g, " ")
 
 /** "India Standard Time (GMT+5:30)". */
 export function zoneLabel(tz: string): string {
   const name = zoneName(tz, "long")
   const off = zoneName(tz, "shortOffset")
-  return name ? `${name}${off ? ` (${off})` : ""}` : tz.replace(/_/g, " ")
+  return name ? `${name}${off ? ` (${off})` : ""}` : zoneCity(tz)
 }
 
 /**

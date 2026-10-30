@@ -12,12 +12,28 @@ const field = (type: FieldType, config: Record<string, unknown> = {}): TableFiel
 })
 
 describe("the web's field kinds", () => {
-  it("are the server's twelve (business/FieldTypes registry.go), each once", () => {
+  it("are the server's kinds (business/FieldTypes registry.go), each once", () => {
     const ids = FIELD_KINDS.map((k) => k.id)
     expect(new Set(ids).size).toBe(ids.length)
     expect([...ids].sort()).toEqual(
-      ["checkbox", "date", "email", "formula", "multi_select", "number", "person", "relation", "rollup", "select", "text", "url"].sort(),
+      [
+        "checkbox", "date", "email", "formula", "multi_select", "number", "person", "relation", "rollup", "select", "text", "url",
+        // Tables B1's (D-TB-3).
+        "status", "people", "long_text", "phone", "duration", "rating", "autonumber", "created_time", "created_by", "modified_time", "modified_by",
+        // Tables T-AT's files.
+        "attachment",
+      ].sort(),
     )
+  })
+
+  it("offer each in its group of the new column menu, the old person kind aside", () => {
+    const offered = FIELD_KINDS.filter((k) => k.offered)
+    expect(offered.map((k) => k.id)).not.toContain("person")
+    // Groups in order, never interleaved: the menu draws a header where one starts.
+    const groups = offered.map((k) => k.group).filter((g, i, all) => all.indexOf(g) === i)
+    expect(groups).toEqual(["Basic", "Advanced", "About each row"])
+    expect(offered.filter((k) => k.group === "About each row").map((k) => k.id)).toEqual(["autonumber", "created_time", "created_by", "modified_time", "modified_by"])
+    expect(offered.filter((k) => k.group === "About each row").every((k) => k.fromRow && !k.stored)).toBe(true)
   })
 
   it("read a kind this web doesn't know yet as text", () => {
@@ -25,11 +41,11 @@ describe("the web's field kinds", () => {
   })
 
   it("say which cells are stored, and which are worked out on each read", () => {
-    expect(FIELD_KINDS.filter((k) => !k.stored).map((k) => k.id)).toEqual(["formula", "rollup"])
+    expect(FIELD_KINDS.filter((k) => !k.stored).map((k) => k.id)).toEqual(["formula", "rollup", "autonumber", "created_time", "created_by", "modified_time", "modified_by"])
   })
 
   it("let a new row start with a value only where a cell can hold one the settings can pick", () => {
-    expect(FIELD_KINDS.filter((k) => k.defaults).map((k) => k.id)).toEqual(["text", "number", "select", "date", "checkbox", "url", "email", "person"])
+    expect(FIELD_KINDS.filter((k) => k.defaults).map((k) => k.id)).toEqual(["text", "number", "select", "status", "date", "checkbox", "url", "email", "phone", "long_text", "person", "duration", "rating"])
   })
 
   it("read typed numbers, and say why one isn't", () => {
@@ -58,5 +74,29 @@ describe("the web's field kinds", () => {
     expect(fieldKind("formula").defaultSummary(field("formula", { result: "number" }))).toBe("sum")
     expect(fieldKind("text").summaries(field("text"))).not.toContain("sum")
     expect(fieldKind("number").summaries(field("number"))).toContain("median")
+  })
+
+  it("read the B1 kinds' typing as the server does, and say why it isn't one", () => {
+    expect(fieldKind("duration").parse!("90", field("duration"), "en-US")).toEqual({ value: 5400 })
+    expect(fieldKind("duration").parse!("1h30", field("duration"), "en-US")).toEqual({ value: 5400 })
+    expect(fieldKind("duration").parse!("soon", field("duration"), "en-US")).toEqual({ error: '"Cost" takes a duration, such as 90, 1:30 or 1h 30m: "soon" isn\'t one' })
+    expect(fieldKind("rating").parse!("9", field("rating", { max: 10 }), "en-US")).toEqual({ value: 9 })
+    expect(fieldKind("rating").parse!("9", field("rating"), "en-US")).toEqual({ error: '"Cost" is rated from 1 to 5: "9" isn\'t a rating' })
+    expect(fieldKind("phone").parse!("call me", field("phone"), "en-US")).toEqual({ error: '"Cost" takes a phone number: "call me" isn\'t one' })
+  })
+
+  it("add up the B1 kinds as STEP5's spec E says", () => {
+    expect(fieldKind("status").defaultSummary(field("status"))).toBe("groups")
+    expect(fieldKind("people").defaultSummary(field("people"))).toBe("filled")
+    expect(fieldKind("phone").defaultSummary(field("phone"))).toBe("filled")
+    expect(fieldKind("duration").defaultSummary(field("duration"))).toBe("sum")
+    expect(fieldKind("rating").defaultSummary(field("rating"))).toBe("average")
+    expect(fieldKind("created_time").defaultSummary(field("created_time"))).toBe("span")
+    expect(fieldKind("created_by").defaultSummary(field("created_by"))).toBe("none")
+    expect(fieldKind("duration").numberText!(45000, field("duration"))).toBe("12h 30m")
+    expect(fieldKind("rating").numberText!(3.84, field("rating"))).toBe("3.8 ★")
+    expect(filterKind(field("duration"))).toBe("number")
+    expect(filterKind(field("created_time"))).toBe("date")
+    expect(filterKind(field("people"))).toBe("list")
   })
 })

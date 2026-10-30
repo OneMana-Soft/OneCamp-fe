@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render } from "@testing-library/react"
 
 // ThemeSync inside the real ActiveThemeProvider, with the mode (next-themes)
@@ -20,6 +20,12 @@ vi.mock("swr", () => ({
 vi.mock("@/components/activeTheme/useThemeBackendSync", () => ({ useThemeBackendSync: () => {} }))
 
 const saved = (color: string, mode: string) => ({ data: { user_theme_color: color, user_theme_mode: mode } })
+
+// Loaded once before any test's clock runs (V-61, lib/testing/inTestImportsGuard): the fresh copy
+// each test imports then only runs it again, without transforming its graph inside the test's 5 s.
+beforeAll(async () => {
+  await import("@/components/activeTheme/ThemeSync")
+})
 
 async function mount() {
   const { ActiveThemeProvider, useThemeConfig } = await import("@/components/activeTheme/activeTheme")

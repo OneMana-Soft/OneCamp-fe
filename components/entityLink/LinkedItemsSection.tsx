@@ -5,7 +5,7 @@
 // once on open; add/remove update from the mutation response (no refetch).
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { sectionTitle } from "@/lib/ui/fieldRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { FileText, LayoutDashboard, X, Lock, Loader2 } from "@/lib/icons"
@@ -77,7 +77,7 @@ export function LinkedItemsList({
   canEdit: boolean
   onRemove: (refType: "doc" | "board", refUUID: string) => void
 }) {
-  const router = useRouter()
+  const router = useAppRouter()
   return (
     <>
       {docs.map((d) => {

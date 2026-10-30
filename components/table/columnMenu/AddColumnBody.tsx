@@ -15,7 +15,7 @@ import { PopoverContent } from "@/components/ui/popover"
 import { OverlayBody, OverlayFooter, OverlayHeader } from "@/components/ui/overlay"
 import type { FieldType, TableField } from "@/services/tableService"
 import { FormulaEditor } from "@/components/table/FormulaEditor"
-import { RelationSettings, RollupSettings, relationDraftOf, relationReady, rollupReady, type RelationDraft, type RollupDraft } from "@/components/table/LinkSettings"
+import { RelationSettings, RollupSettings, relationDraftOf, relationReady, rollupConfigOf, rollupReady, type RelationDraft, type RollupDraft } from "@/components/table/LinkSettings"
 import { FIELD_KINDS, fieldKind } from "@/lib/fieldTypes/registry"
 import { CommandList, CommandTile, type CommandListItem } from "@/components/ui/CommandList"
 import type { ColumnCreateInput } from "@/components/table/ColumnMenu"
@@ -29,7 +29,8 @@ export function AddColumnBody({
 }: {
   tableId: string
   fields: TableField[]
-  onCreate: (input: ColumnCreateInput) => Promise<void>
+  /** Resolves false when the column wasn't made: the form stays, with what was typed in it. */
+  onCreate: (input: ColumnCreateInput) => Promise<unknown>
   onClose: () => void
 }) {
   const [step, setStep] = React.useState<FieldType | null>(null)
@@ -46,8 +47,7 @@ export function AddColumnBody({
   const create = async (input: ColumnCreateInput) => {
     setBusy(true)
     try {
-      await onCreate(input)
-      onClose()
+      if ((await onCreate(input)) !== false) onClose()
     } finally {
       setBusy(false)
     }
@@ -59,14 +59,17 @@ export function AddColumnBody({
       setName(uniqueName(label))
       return
     }
+    // A select starts with no options; a status with its three, which the
+    // server gives one sent without any (business/FieldTypes).
     void create({ name: uniqueName(label), type, config: type === "select" || type === "multi_select" ? { options: [] } : undefined })
   }
-  const items: CommandListItem[] = FIELD_KINDS.map((t) => {
+  const items: CommandListItem[] = FIELD_KINDS.filter((t) => t.offered).map((t) => {
     const G = t.glyph
     return {
       id: t.id,
       label: t.label,
       text: t.label,
+      group: t.group,
       tile: (
         <CommandTile>
           <G />
@@ -89,7 +92,7 @@ export function AddColumnBody({
             void create({
               name: name.trim(),
               type: step,
-              config: step === "formula" ? { formula } : step === "relation" ? { ...relation } : { ...rollup },
+              config: step === "formula" ? { formula } : step === "relation" ? { ...relation } : rollupConfigOf(rollup),
             })
           }}
         >
@@ -114,7 +117,7 @@ export function AddColumnBody({
             <Button type="button" size="sm" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={busy || !name.trim() || !ready}>
+            <Button type="submit" size="sm" disabled={!name.trim() || !ready} busy={busy}>
               Add column
             </Button>
           </OverlayFooter>

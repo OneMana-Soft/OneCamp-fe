@@ -43,15 +43,16 @@ export function ErrorState({
       // Names the likely cause and rules out the frightening one: "is my work gone?".
       description={detail ?? "Nothing has been lost. This is usually a connection problem: try again in a moment."}
       className={cn(compact && "py-6 [&_[data-empty-illustration]>svg]:size-12", className)}
-      action={
-        onRetry ? (
-          <Button variant="outline" size="sm" onClick={onRetry} disabled={retrying} className="gap-1.5">
-            <RefreshCw className={retrying ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
-            {retrying ? "Retrying…" : "Try again"}
-          </Button>
-        ) : undefined
-      }
+      action={tryAgain(onRetry, retrying)}
     />
   )
 }
+
+export const tryAgain = (onRetry?: () => void, retrying?: boolean) =>
+  onRetry && (
+    <Button variant="outline" size="sm" onClick={onRetry} disabled={retrying} className="gap-1.5">
+      <RefreshCw className={retrying ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+      {retrying ? "Retrying…" : "Try again"}
+    </Button>
+  )
 

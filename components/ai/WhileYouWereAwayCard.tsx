@@ -82,7 +82,7 @@ function WhileYouWereAwayCard({
   const channels = useSelector((s: RootState) => s.users.userSidebar.userChannels)
   const chats = useSelector((s: RootState) => s.users.userSidebar.userChats)
   // Whether this server has AI at all: unknown while its config is on the way.
-  const ai = useFeatureState(FEATURE_AI)
+  const ai = useFeatureState(FEATURE_AI, { onFailure: "unavailable" })
   // /ai/status is an in-memory config read on the server (no DB, no model
   // call), and SWR dedupes it across the app — so gating on it is effectively
   // free and stops us offering a button that would silently do nothing when an

@@ -79,8 +79,10 @@ describe("Button", () => {
     expect(layer).toMatch(/--ix-press-scale: 0\.98;/)
   })
 
-  it("puts a kbd hint inside a primary on an 18% white fill", () => {
-    expect(buttonVariants()).toContain("[&_.kbd]:bg-white/[0.18]")
+  it("draws a kbd hint inside a primary on the button's own fill, its key cap an inset white ring (AA in light)", () => {
+    const primary = buttonVariants()
+    expect(primary).toContain("[&_.kbd]:bg-transparent [&_.kbd]:ring-1 [&_.kbd]:ring-inset [&_.kbd]:ring-white/40")
+    expect(primary).not.toContain("[&_.kbd]:bg-white/")
   })
 })
 
@@ -199,6 +201,24 @@ describe("the owned glyphs", () => {
     expect(glyph("progress")).toMatch(/var\(--camp-sun\)[\s\S]*M8 4.5a3.5 3.5 0 0 1 0 7z/)
     expect(glyph("review")).toMatch(/var\(--camp-dusk\)/)
     expect(glyph("done")).toMatch(/fill="var\(--camp-moss\)"/)
+    expect(glyph("cancelled")).toMatch(/fill="var\(--ink-3\)"/)
+  })
+
+  // A hue's strong cut is a mark at 3:1 on the page, a card and its own tint,
+  // not on another's: a task's sun read 2.44:1 on a lake calendar block
+  // (DESIGN-BUILD-22, 27 Oct 2026). On a tint the glyph's hues take their ink
+  // step, a mark at 3:1 on every tint (app/paletteContrast.test.ts).
+  it("draws its hues in their ink step on a tint, and its neutrals as they are", () => {
+    const glyph = (status: Parameters<typeof StatusGlyph>[0]["status"], hue?: Parameters<typeof StatusGlyph>[0]["hue"]) => {
+      cleanup()
+      render(<StatusGlyph status={status} hue={hue} onTint />)
+      return document.querySelector("[data-status-glyph]")!.innerHTML
+    }
+    expect(glyph("progress")).toMatch(/stroke="var\(--camp-sun-ink\)"[\s\S]*fill="var\(--camp-sun-ink\)"/)
+    expect(glyph("review")).toMatch(/stroke="var\(--camp-dusk-ink\)"[\s\S]*fill="var\(--camp-dusk-ink\)"/)
+    expect(glyph("done")).toMatch(/fill="var\(--camp-moss-ink\)"/)
+    expect(glyph("progress", "lake")).toMatch(/fill="var\(--camp-lake-ink\)"/)
+    expect(glyph("todo")).toMatch(/stroke="var\(--ink-2\)"/)
     expect(glyph("cancelled")).toMatch(/fill="var\(--ink-3\)"/)
   })
 

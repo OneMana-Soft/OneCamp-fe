@@ -193,11 +193,13 @@ describe("every place wears its area's hue, and what names no area ink", () => {
     expect(read("components/ui/principalTag.tsx")).toMatch(/guest: \{ label: "Guest"[^}]*tone: "bg-camp-sun-tint text-camp-sun-ink"/)
     expect(read("components/channel/channelGuestTag.tsx")).toMatch(/bg-camp-sun-tint text-camp-sun-ink/)
     expect(read("app/styles/admin/people.css")).toMatch(/\.people-tag-guest \{\s*background: var\(--camp-sun-tint\);\s*color: var\(--camp-sun-ink\);/)
+    // A call's tiles and its chat draw the one tag of components/livekit/personTag.
+    expect(read("components/livekit/personTag.tsx")).toMatch(/Guest: "bg-camp-sun-tint text-camp-sun-ink"/)
     // Every hand-drawn tag that reads "Guest" draws it in sun.
     const tags = [
-      "components/calendar/rsvp/guestFaces.tsx",
+      // The card's guests' row (C3 moved it out of guestFaces.tsx).
+      "components/calendar/rsvp/guestRow.tsx",
       "components/calendar/rsvp/guestList.tsx",
-      "components/livekit/CallStage.tsx",
       "components/project/ProjectShareDialog.tsx",
       "app/guest/p/[token]/page.tsx",
     ]

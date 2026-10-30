@@ -1,24 +1,20 @@
 "use client"
 
-import * as React from 'react'
 import type { ImageOptions } from '@tiptap/extension-image'
 import { Image as TiptapImage } from '@tiptap/extension-image'
-import type { ReactNodeViewProps } from '@tiptap/react'
-import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { ReactNodeViewRenderer } from '@tiptap/react'
 import { filterFiles, type FileError, type FileValidationOptions } from '../../utils'
 import { TextSelection } from '@tiptap/pm/state'
 import { findImageById, ImageUploads, placeholderContent, runImageUpload, startImageUploads, type ImageUploadFn } from './uploads'
+import { lazyNodeView } from '../lazyNodeView'
 
 // The view loads when a picture first shows (I20), its space held meanwhile.
 // loadImageView loads it ahead, where a picture is about to show.
 export const loadImageView = () => import('./components/image-view-block')
-const View = React.lazy(() => loadImageView().then((m) => ({ default: m.ImageViewBlock })))
-function LazyImage({ ref: _ref, ...props }: ReactNodeViewProps<HTMLElement>) {
-  const { width: w, height: h } = props.node.attrs
-  const style = w && h ? { width: w, maxWidth: '100%', aspectRatio: `${w} / ${h}` } : { minHeight: 160 }
-  const e = React.createElement
-  return e(React.Suspense, { fallback: e(NodeViewWrapper, { 'data-node-loading': '' }, e('div', { style })) }, e(View, props))
-}
+const LazyImage = lazyNodeView(
+  () => loadImageView().then((m) => m.ImageViewBlock),
+  ({ width: w, height: h }) => (w && h ? { width: w, maxWidth: '100%', aspectRatio: `${w} / ${h}` } : { minHeight: 160 }),
+)
 
 // align, crop and href, as data-* (lib/codec/media.ts).
 const dataAttr = (key: string) => ({

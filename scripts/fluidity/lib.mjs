@@ -142,6 +142,35 @@ function probe() {
   })
   watch("largest-contentful-paint", (e) => (P.lcp = e.startTime))
 
+  // The frames in which test() holds, counted from the call until done is set
+  // (or 600 frames): surfaces.mjs's blank frames (a region showing nothing)
+  // and chat.mjs's empty flashes (a conversation with messages saying it has
+  // none) are both counted this way.
+  P.frameWatch = (test) => {
+    const W = { frames: 0, hits: 0, done: false }
+    const tick = () => {
+      if (W.done) return
+      W.frames++
+      if (test()) W.hits++
+      if (W.frames < 600) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+    return W
+  }
+
+  // The page's script elements by address. Next 16.3.8 puts a segment's
+  // chunks in twice on a client navigation: Turbopack's loader inserts
+  // <script src> without async, then React 19 hoists the RSC payload's
+  // <script async src> and dedupes only against async ones. A real browser
+  // takes the copy from its cache but runs it again (FLUIDITY-LEAD-7, 21 Oct
+  // 2026; found by DOCS-F1B-2). Read at a step's mark and end, never while
+  // it runs, so it costs the page nothing.
+  P.scriptCounts = () => {
+    const n = {}
+    for (const s of document.querySelectorAll("script[src]")) n[s.src] = (n[s.src] || 0) + 1
+    return n
+  }
+
   // What moves, and by which property: transform and opacity run on the
   // compositor; colours and shadows repaint; width, height, top, margins and
   // the like lay the page out again on every frame they run.
@@ -195,16 +224,29 @@ function probe() {
         ? t
         : t.displayName || t.name || (t.render && (t.render.displayName || t.render.name)) || (t.type && nameOf(t.type)) || "anonymous"
   let current = null
-  const tally = (f) => {
+  // Renders inside a library's own tree (a whiteboard's canvas), counted apart
+  // as well: the tree under the element that takes the prop named by
+  // window.__fluInsideProp (FLUIDITY-LEAD-4, 21 Oct 2026; fluid-22's "no
+  // renders outside the canvas while panning").
+  P.rendersInside = 0
+  const opens = (f) => {
+    const k = window.__fluInsideProp
+    const p = f.memoizedProps
+    return !!k && p !== null && typeof p === "object" && k in p
+  }
+  const tally = (f, inside) => {
     P.renders++
+    if (inside) P.rendersInside++
     if (current) current.renders++
     const n = nameOf(f.type)
     P.byName[n] = (P.byName[n] || 0) + 1
+    if (current && current.byName) current.byName[n] = (current.byName[n] || 0) + 1
     if (typeof f.selfBaseDuration === "number") P.selfMs[n] = (P.selfMs[n] || 0) + f.selfBaseDuration
   }
-  const mount = (f) => {
-    if (COMPONENT.has(f.tag)) tally(f)
-    for (let c = f.child; c; c = c.sibling) mount(c)
+  const mount = (f, inside) => {
+    const ins = inside || opens(f)
+    if (COMPONENT.has(f.tag)) tally(f, ins)
+    for (let c = f.child; c; c = c.sibling) mount(c, ins)
   }
   // An origin is a component that rendered when the component above it did
   // not: its own state, store subscription or context changed. That is where
@@ -213,12 +255,13 @@ function probe() {
     for (let x = f; x; x = x.return) if (COMPONENT.has(x.tag)) return nameOf(x.type)
     return "root"
   }
-  const update = (next, prev, parentRendered) => {
+  const update = (next, prev, parentRendered, inside) => {
     const isComponent = COMPONENT.has(next.tag)
     const rendered = isComponent && (next.flags & 1) === 1
+    const ins = inside || opens(next)
     let storm = null
     if (rendered) {
-      tally(next)
+      tally(next, ins)
       if (!parentRendered) {
         // Which of its hooks (by position) or contexts changed: the reason.
         const why = []
@@ -239,10 +282,10 @@ function probe() {
     if (next.child !== prev.child) {
       const below = isComponent ? rendered : parentRendered
       for (let c = next.child; c; c = c.sibling) {
-        if (c.alternate) update(c, c.alternate, below)
+        if (c.alternate) update(c, c.alternate, below, ins)
         else {
           const from = P.renders
-          mount(c)
+          mount(c, ins)
           const k = `${owner(next)} > ${nameOf(c.type)}`
           if (P.renders > from) P.mountRoots[k] = (P.mountRoots[k] || 0) + (P.renders - from)
         }
@@ -266,6 +309,8 @@ function probe() {
     onPostCommitFiberRoot() {},
     onCommitFiberRoot(_id, root) {
       current = { t: performance.now(), renders: 0 }
+      // Each commit's components by name, while a step asks (surfaces.mjs --names).
+      if (window.__fluCommitNames) current.byName = Object.create(null)
       try {
         const next = root.current
         if (next.alternate) update(next, next.alternate, false)
@@ -296,7 +341,9 @@ export async function installProbe(context) {
 
 export async function demoContext(browser, { base, viewport = { width: 1440, height: 900 }, storageState } = {}) {
   const ctx = await browser.newContext({ viewport, storageState, serviceWorkers: "block" })
-  const guard = { blocked: [], faked: [], fakes: [], droppedFrames: 0, scriptBytes: 0, scriptGzip: 0, scripts: [] }
+  // A script's address counts once per context (netBytes says why); a copy
+  // fetched again is kept apart, in repeats and repeatBytes.
+  const guard = { blocked: [], faked: [], fakes: [], droppedFrames: 0, scriptBytes: 0, scriptGzip: 0, scripts: [], counted: new Set(), repeats: 0, repeatBytes: 0 }
   ctx.__guard = guard
   await ctx.addInitScript(probe)
   const cors = { "access-control-allow-origin": FE, "access-control-allow-credentials": "true" }
@@ -317,7 +364,12 @@ export async function demoContext(browser, { base, viewport = { width: 1440, hei
         const headers = { ...resp.headers() }
         if (headers.location) headers.location = headers.location.replace(base, FE)
         const body = await resp.body()
-        if (/javascript/.test(headers["content-type"] || "") || url.pathname.endsWith(".js")) {
+        const isScript = /javascript/.test(headers["content-type"] || "") || url.pathname.endsWith(".js")
+        if (isScript && guard.counted.has(url.pathname + url.search)) {
+          guard.repeats++
+          guard.repeatBytes += body.length
+        } else if (isScript) {
+          guard.counted.add(url.pathname + url.search)
           const gz = gzipSync(body, { level: 6 }).length
           guard.scriptBytes += body.length
           guard.scriptGzip += gz
@@ -444,7 +496,7 @@ export async function enterDemo(page) {
 export async function mark(page) {
   return page.evaluate(() => {
     const P = window.__flu
-    return { t: performance.now(), commits: P.commits.length, renders: P.renders, byName: { ...P.byName }, selfMs: { ...P.selfMs }, origins: { ...P.origins }, mountRoots: { ...P.mountRoots }, storms: { ...P.storms } }
+    return { t: performance.now(), commits: P.commits.length, renders: P.renders, inside: P.rendersInside || 0, byName: { ...P.byName }, selfMs: { ...P.selfMs }, origins: { ...P.origins }, mountRoots: { ...P.mountRoots }, storms: { ...P.storms }, scripts: P.scriptCounts?.() ?? {} }
   })
 }
 
@@ -475,6 +527,13 @@ export async function since(page, from) {
     }
     const mountRoots = diff(P.mountRoots, from.mountRoots)
     const storms = diff(P.storms, from.storms)
+    // Script elements added for an address the document already had: each
+    // runs the chunk again (P.scriptCounts). A new document's mark has none.
+    const scriptsAgain = {}
+    for (const [src, n] of Object.entries(P.scriptCounts?.() ?? {})) {
+      const again = n - Math.max((from.scripts || {})[src] || 0, 1)
+      if (again > 0) scriptsAgain[src] = again
+    }
     const selfMs = {}
     for (const [k, v] of Object.entries(P.selfMs)) {
       const d = v - ((from.selfMs || {})[k] || 0)
@@ -487,13 +546,28 @@ export async function since(page, from) {
       loaf: P.loaf.filter(after),
       ro: P.ro ? { ...P.ro } : null,
       shifts: P.shifts.filter(after),
-      commits: P.commits.slice(from.commits),
+      commits: P.commits.slice(from.commits).map(({ byName, ...c }) => c),
+      // The first commits' components by name (surfaces.mjs --names): what the first frames drew.
+      commitNames: P.commits
+        .slice(from.commits)
+        .filter((c) => c.byName)
+        .slice(0, 3)
+        .map((c) => ({
+          atMs: Math.round(c.t - from.t),
+          renders: c.renders,
+          names: Object.entries(c.byName)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 30)
+            .map(([k, v]) => `${k}×${v}`),
+        })),
       renders: P.renders - from.renders,
+      rendersInside: (P.rendersInside || 0) - (from.inside || 0),
       byName,
       selfMs,
       origins,
       mountRoots,
       storms,
+      scriptsAgain,
       lcp: P.lcp,
     }
   }, from)
@@ -582,6 +656,7 @@ export async function since(page, from) {
     shifts: raw.shifts,
     commits: raw.commits.length,
     renders: raw.renders,
+    rendersInside: raw.rendersInside,
     maxCommitRenders: raw.commits.reduce((a, c) => Math.max(a, c.renders), 0),
     top,
     topApp,
@@ -589,6 +664,11 @@ export async function since(page, from) {
     mountRoots: Object.entries(raw.mountRoots || {}).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${k} ×${v}`),
     storms: Object.entries(raw.storms || {}).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${k} ×${v}`),
     slowest,
+    // Every component that rendered and every origin, by count (surfaces.mjs --names).
+    byNameAll: raw.byName,
+    originsAll: raw.origins,
+    commitNames: raw.commitNames,
+    scriptsAgain: raw.scriptsAgain,
     motion: { composited, painted, layout: [...layout.entries()].map(([k, n]) => `${n}× ${k}`) },
     lcp: Math.round(raw.lcp),
   }
@@ -915,12 +995,23 @@ export function sumSelectors(events, top = 15) {
  * Counts what the page downloads, by kind, from the network's own numbers
  * (bytes on the wire, compressed as served). `take()` returns the totals since
  * the last take and starts again.
+ *
+ * A script counts once per document, by its address (FLUIDITY-LEAD-7, 21 Oct
+ * 2026). Routing requests (fakeApp.mjs, demoContext) turns the browser's HTTP
+ * cache off, so a chunk asked for again went over the wire again: a route
+ * prefetched on sight, and every client navigation, where Next 16.3.8 puts a
+ * segment's chunks in twice (P.scriptCounts). A real browser serves those
+ * from its cache, and Next's chunks are immutable. The bytes fetched again
+ * are kept apart (repeatKB), and `cold()` forgets every address: a new tab
+ * with nothing cached, which a step that loads its own document is.
  */
 export async function netBytes(cdp) {
   await cdp.send("Network.enable")
   const kinds = new Map()
   const urls = new Map()
-  const fresh = () => ({ script: 0, other: 0, scripts: 0, requests: 0, files: [] })
+  // Each script address counted in this document, with its bytes.
+  let counted = new Map()
+  const fresh = () => ({ script: 0, other: 0, scripts: 0, requests: 0, files: [], repeat: 0, repeats: 0 })
   let seen = fresh()
   cdp.on("Network.responseReceived", (e) => {
     kinds.set(e.requestId, e.type)
@@ -928,20 +1019,33 @@ export async function netBytes(cdp) {
   })
   cdp.on("Network.loadingFinished", (e) => {
     const kind = kinds.get(e.requestId)
+    const url = urls.get(e.requestId) ?? ""
     seen.requests++
-    if (kind === "Script") {
+    if (kind === "Script" && counted.has(url)) {
+      seen.repeat += e.encodedDataLength
+      seen.repeats++
+    } else if (kind === "Script") {
+      counted.set(url, e.encodedDataLength)
       seen.script += e.encodedDataLength
       seen.scripts++
-      seen.files.push({ file: scriptName(urls.get(e.requestId) ?? ""), kb: Math.round(e.encodedDataLength / 102.4) / 10 })
+      seen.files.push({ file: scriptName(url), kb: Math.round(e.encodedDataLength / 102.4) / 10 })
     } else seen.other += e.encodedDataLength
     kinds.delete(e.requestId)
     urls.delete(e.requestId)
   })
   return {
     take() {
-      const out = { scriptKB: Math.round(seen.script / 1024), otherKB: Math.round(seen.other / 1024), scripts: seen.scripts, requests: seen.requests, topScripts: topScripts(seen.files) }
+      const out = { scriptKB: Math.round(seen.script / 1024), otherKB: Math.round(seen.other / 1024), scripts: seen.scripts, requests: seen.requests, topScripts: topScripts(seen.files), repeatKB: Math.round(seen.repeat / 1024), repeats: seen.repeats }
       seen = fresh()
       return out
+    },
+    /** A new document with nothing cached: every script counts again. */
+    cold() {
+      counted = new Map()
+    },
+    /** The bytes a script's address was counted at (0 when it wasn't). */
+    bytesOf(url) {
+      return counted.get(url) ?? 0
     },
   }
 }
@@ -966,5 +1070,207 @@ export function addNet(a, b) {
     scripts: a.scripts + b.scripts,
     requests: a.requests + b.requests,
     topScripts: topScripts([...(a.topScripts ?? []), ...(b.topScripts ?? [])]),
+    repeatKB: (a.repeatKB ?? 0) + (b.repeatKB ?? 0),
+    repeats: (a.repeats ?? 0) + (b.repeats ?? 0),
+  }
+}
+
+/**
+ * A step's scripts that ran twice (since()'s scriptsAgain: script elements
+ * put in again for an address the document already had), with their KB as
+ * counted on the wire (netBytes' bytesOf): runs, kb and the biggest few.
+ * Undefined when there were none.
+ */
+export function scriptsTwice(again, bytesOf) {
+  const all = Object.entries(again ?? {})
+  if (!all.length) return undefined
+  const kb = (src, n) => (n * bytesOf(src)) / 1024
+  all.sort((a, b) => kb(...b) - kb(...a))
+  return {
+    runs: all.reduce((n, [, k]) => n + k, 0),
+    kb: Math.round(all.reduce((n, e) => n + kb(...e), 0)),
+    top: all.slice(0, 6).map(([src, n]) => `${scriptName(src)} ${Math.round(kb(src, n))}KB${n > 1 ? ` ×${n}` : ""}`),
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Two fingers, and the main thread's work after a moment (FLUIDITY-LEAD-4,
+// 21 Oct 2026, for the whiteboard: fluid-22).
+// ----------------------------------------------------------------------------
+
+const touchWait = (ms) => new Promise((r) => setTimeout(r, ms))
+const fingers = (pts) => pts.map((p, i) => ({ x: Math.round(p.x), y: Math.round(p.y), radiusX: 4, radiusY: 4, force: 1, id: i + 1 }))
+const framesHeld = (cdp, on) => cdp.send("Runtime.evaluate", { expression: `window.__fluFramesHeld = ${on}` }).catch(() => {})
+
+/**
+ * Two fingers moving together across `box`, as a phone pans a canvas that
+ * takes one finger for selecting (a whiteboard): the strokes of fingerScroll
+ * (touchStrokes: down and right positive, the fingers moving against the
+ * scroll), with the second finger `spread` px beside the first. Frames while
+ * the fingers are still don't count (startFrames).
+ * @returns {Promise<number>} the strokes made
+ */
+export async function twoFingerPan(cdp, { box, dx = 0, dy = 0, speed = 900, stepMs = 16, holdMs = 80, gapMs = 60, spread = 90 }) {
+  const strokes = touchStrokes({ box, dx, dy })
+  const pair = (p) => fingers([{ x: p.x - spread / 2, y: p.y }, { x: p.x + spread / 2, y: p.y }])
+  try {
+    for (const { from, to } of strokes) {
+      const len = Math.hypot(to.x - from.x, to.y - from.y)
+      const moves = Math.max(2, Math.ceil(len / Math.max(1, (speed * stepMs) / 1000)))
+      await framesHeld(cdp, false)
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pair(from) })
+      for (let i = 1; i <= moves; i++) {
+        await touchWait(stepMs)
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pair({ x: from.x + ((to.x - from.x) * i) / moves, y: from.y + ((to.y - from.y) * i) / moves }) })
+      }
+      await framesHeld(cdp, true)
+      await touchWait(holdMs)
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      await touchWait(gapMs)
+    }
+  } finally {
+    await framesHeld(cdp, false)
+  }
+  return strokes.length
+}
+
+/**
+ * A pinch about (x, y): two fingers `from` px apart moving to `to` px apart
+ * (wider zooms in) in `steps`, then lifted. Frames while still don't count.
+ */
+export async function pinch(cdp, { x, y, from = 120, to = 260, steps = 30, stepMs = 16, holdMs = 80 }) {
+  const pair = (d) => fingers([{ x: x - d / 2, y }, { x: x + d / 2, y }])
+  try {
+    await framesHeld(cdp, false)
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pair(from) })
+    for (let i = 1; i <= steps; i++) {
+      await touchWait(stepMs)
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pair(from + ((to - from) * i) / steps) })
+    }
+    await framesHeld(cdp, true)
+    await touchWait(holdMs)
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  } finally {
+    await framesHeld(cdp, false)
+  }
+}
+
+/**
+ * The browser's trace over `fn` (toplevel tasks, DevTools' timeline and user
+ * timing marks), as events: mainThreadAfter reads the main thread's work from
+ * them. The trace adds a little to every task, so a step that asks for it is
+ * compared only with the same step on another build. stacks: the script
+ * stack behind each forced layout and style recalculation as well (forcedWork
+ * reads them).
+ */
+export async function traceEvents(cdp, fn, { stacks = false } = {}) {
+  const events = []
+  const onData = (e) => {
+    for (const x of e.value) events.push(x)
+  }
+  cdp.on("Tracing.dataCollected", onData)
+  const done = new Promise((r) => cdp.once("Tracing.tracingComplete", r))
+  const includedCategories = ["toplevel", "disabled-by-default-devtools.timeline", "blink.user_timing", "__metadata"]
+  if (stacks) includedCategories.push("devtools.timeline", "disabled-by-default-devtools.timeline.stack", "v8.execute")
+  await cdp.send("Tracing.start", { traceConfig: { includedCategories, recordMode: "recordAsMuchAsPossible" }, transferMode: "ReportEvents" })
+  try {
+    await fn()
+  } finally {
+    await cdp.send("Tracing.end")
+    await done
+    cdp.off("Tracing.dataCollected", onData)
+  }
+  return events
+}
+
+/**
+ * The main thread's work from the user timing mark `mark` (performance.mark
+ * in the page) for `windowMs`: the ms of its tasks (the task the mark falls
+ * in counts whole: it is the one that began the work), how many there were,
+ * and the longest. Null when the mark isn't in the trace.
+ * @returns {{ ms: number, tasks: number, longestMs: number } | null}
+ */
+export function mainThreadAfter(events, mark, windowMs = 1000) {
+  const m = events.find((e) => e.name === mark && String(e.cat).includes("blink.user_timing"))
+  if (!m) return null
+  const on = (e) => e.pid === m.pid && e.tid === m.tid && e.ph === "X" && typeof e.dur === "number"
+  // DevTools' own task events where the trace has them, else the scheduler's (never both: they nest).
+  let tasks = events.filter((e) => on(e) && e.name === "RunTask")
+  if (!tasks.length) tasks = events.filter((e) => on(e) && e.name === "ThreadControllerImpl::RunTask")
+  const t0 = m.ts
+  const t1 = t0 + windowMs * 1000
+  let us = 0
+  let n = 0
+  let longest = 0
+  for (const e of tasks) {
+    const end = e.ts + e.dur
+    if (end <= t0 || e.ts >= t1) continue
+    // From the task's own start, the one holding the mark included; up to the window's end.
+    const d = Math.min(end, t1) - e.ts
+    us += d
+    n++
+    longest = Math.max(longest, d)
+  }
+  return { ms: Math.round(us / 100) / 10, tasks: n, longestMs: Math.round(longest / 100) / 10 }
+}
+
+/**
+ * What the longest task after the user timing mark `mark` was made of (a
+ * diagnosis: surfaces.mjs --trace <step>, on a build with names kept): its
+ * ms; the layouts and style recalculations a script forced inside it, each
+ * with the script stack that forced it (a trace taken with stacks); and the
+ * script calls and events that ran in it, by time. Null when the mark isn't
+ * in the trace.
+ */
+export function forcedWork(events, mark, windowMs = 1500) {
+  const m = events.find((e) => e.name === mark && String(e.cat).includes("blink.user_timing"))
+  if (!m) return null
+  const on = (e) => e.pid === m.pid && e.tid === m.tid && e.ph === "X" && typeof e.dur === "number"
+  let tasks = events.filter((e) => on(e) && e.name === "RunTask")
+  if (!tasks.length) tasks = events.filter((e) => on(e) && e.name === "ThreadControllerImpl::RunTask")
+  tasks = tasks.filter((e) => e.ts + e.dur > m.ts && e.ts < m.ts + windowMs * 1000)
+  if (!tasks.length) return { taskMs: 0 }
+  const task = tasks.reduce((a, b) => (b.dur > a.dur ? b : a))
+  const inTask = events.filter((e) => on(e) && e.ts >= task.ts && e.ts + e.dur <= task.ts + task.dur)
+  const ms = (us) => Math.round(us / 100) / 10
+  const frame = (f) => `${f.functionName || "(anonymous)"} @${String(f.url || "").split("/").pop().split("?")[0]}:${f.lineNumber ?? "?"}:${f.columnNumber ?? "?"}`
+  // A forced one carries the stack of the script that read layout or style.
+  const forced = (name) => {
+    const all = inTask.filter((e) => e.name === name)
+    const withStack = all.filter((e) => e.args?.beginData?.stackTrace?.length)
+    const byStack = new Map()
+    for (const e of withStack) {
+      const k = e.args.beginData.stackTrace.slice(0, 6).map(frame).join(" < ")
+      const v = byStack.get(k) || { ms: 0, n: 0 }
+      v.ms += e.dur
+      v.n++
+      byStack.set(k, v)
+    }
+    return {
+      ms: ms(all.reduce((a, e) => a + e.dur, 0)),
+      n: all.length,
+      forcedMs: ms(withStack.reduce((a, e) => a + e.dur, 0)),
+      forced: [...byStack.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, 8).map(([k, v]) => `${ms(v.ms)} ms ×${v.n}: ${k}`),
+    }
+  }
+  // Script and events in the task, by time (a nested call counts in its caller's time too).
+  const calls = new Map()
+  for (const e of inTask) {
+    let name = null
+    if (e.name === "FunctionCall") name = `call ${e.args?.data?.functionName || "(anonymous)"} @${String(e.args?.data?.url || "").split("/").pop().split("?")[0]}`
+    else if (e.name === "EventDispatch") name = `event ${e.args?.data?.type}`
+    else if (e.name === "TimerFire" || e.name === "FireAnimationFrame" || e.name === "RunMicrotasks" || e.name === "EvaluateScript" || e.name === "v8.compile" || e.name === "Paint" || e.name === "PrePaint" || e.name === "Layerize") name = e.name
+    if (!name) continue
+    const v = calls.get(name) || { ms: 0, n: 0 }
+    v.ms += e.dur
+    v.n++
+    calls.set(name, v)
+  }
+  return {
+    taskMs: ms(task.dur),
+    taskAtMs: ms(task.ts - m.ts),
+    layout: forced("Layout"),
+    style: forced("UpdateLayoutTree"),
+    calls: [...calls.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, 12).map(([k, v]) => `${ms(v.ms)} ms ×${v.n}: ${k}`),
   }
 }

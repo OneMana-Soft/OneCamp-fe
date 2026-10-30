@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest"
-import { clockHour, clockRange, clockTime, readsTwelveHour } from "./clock"
+import { afterEach, describe, expect, it } from "vitest"
+import { clockHour, clockRange, clockTime, readsTwelveHour, setAccountClock } from "./clock"
 import { pinTestClock } from "@/lib/testing/testClock"
 
 // Today is TEST_TODAY wherever the code under test reads the time.
@@ -116,5 +116,28 @@ describe("clockRange", () => {
     expect(clockRange(new Date("2026-10-24T08:30:00Z"), new Date("2026-10-25T09:30:00Z"), london)).toBe("Sat\u00a009:30 – Sun\u00a009:30")
     // 24 hours by the watch, 23 on the wall: it ends before the hour it began at, and says so.
     expect(clockRange(new Date("2026-10-24T09:30:00Z"), new Date("2026-10-25T09:30:00Z"), london)).toBe("10:30 – 09:30")
+  })
+})
+
+// Calendar A3b: the clock the person keeps on their account, on every device.
+describe("the account's clock", () => {
+  const afternoon = new Date(2026, 9, 12, 15, 10)
+  afterEach(() => setAccountClock(undefined))
+
+  it("writes every time in the kept clock, over the locale's", () => {
+    setAccountClock("24")
+    expect(clockTime(afternoon, us)).toBe("15:10")
+    expect(readsTwelveHour(us)).toBe(false)
+    setAccountClock("12")
+    expect(clockTime(afternoon, gb)).toBe("3:10\u00a0pm")
+    expect(readsTwelveHour(gb)).toBe(true)
+  })
+
+  it("leaves Automatic, or nothing kept, to the locale, and an explicit choice still wins", () => {
+    setAccountClock("auto")
+    expect(clockTime(afternoon, us)).toBe("3:10\u00a0PM")
+    expect(clockTime(afternoon, gb)).toBe("15:10")
+    setAccountClock("24")
+    expect(clockTime(afternoon, { ...gb, hour12: true })).toBe("3:10\u00a0pm")
   })
 })

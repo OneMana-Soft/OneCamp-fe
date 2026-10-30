@@ -3,10 +3,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 const makeRequest = vi.hoisted(() => vi.fn())
 const toastSpy = vi.hoisted(() => vi.fn())
+// The kinds of event the server lists, or none when that request fails.
+const catalogue = vi.hoisted(() => ({ types: ["post.created", "task.created"] as string[] | undefined }))
 
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) =>
-    url.includes("event") ? { data: { event_types: ["post.created", "task.created"] }, isLoading: false } : { data: { channels_list: [] }, isLoading: false },
+    url.includes("event")
+      ? { data: catalogue.types && { event_types: catalogue.types }, isLoading: false }
+      : { data: { channels_list: [] }, isLoading: false },
 }))
 vi.mock("@/components/admin/useEveryChannel", () => ({
   useEveryChannel: () => ({ channels: [], isLoading: false, isError: false }),
@@ -64,6 +68,13 @@ describe("new webhook", () => {
     expectChannelsOnly()
   })
 
+  // CR-29's MF1 (24 Oct 2026): the channel select kept an id of its own in its Field, so the label named nothing:
+  // an unnamed combobox, and an untitled sheet on a phone.
+  it("names its channel select by its label", () => {
+    render(<WebhookCreateDialog open onOpenChange={() => {}} onSuccess={() => {}} />)
+    expect(screen.getByRole("combobox", { name: "Channel to post in" })).toBeTruthy()
+  })
+
   // Each event was a <span> with an onClick: not focusable, no role, no
   // pressed state, so a keyboard could not choose one.
   it("lets a keyboard choose events, as checkboxes", async () => {
@@ -95,11 +106,36 @@ describe("new webhook", () => {
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "CRM sync" } })
     await chooseOutgoing()
     fireEvent.change(screen.getByLabelText(/^Address to send to/), { target: { value: "http://crm.example.com" } })
+    fireEvent.click(screen.getByRole("checkbox", { name: "post.created" }))
     fireEvent.click(screen.getByRole("button", { name: "Create webhook" }))
     const url = screen.getByLabelText(/^Address to send to/)
     await waitFor(() => expect(url.getAttribute("aria-invalid")).toBe("true"))
     expect(screen.getByText(/starts with https:\/\//)).toBeTruthy()
     expect(toastSpy).not.toHaveBeenCalled()
+  })
+
+  // An outgoing webhook is sent only the events ticked. With none it was made
+  // anyway, said "it is sent every event", and was sent nothing (V-112).
+  it("keeps Create waiting until an outgoing webhook has an event ticked, and says why", async () => {
+    render(<WebhookCreateDialog open onOpenChange={() => {}} onSuccess={() => {}} />)
+    const create = screen.getByRole("button", { name: "Create webhook" })
+    // An incoming webhook is sent no events: nothing to wait for.
+    expect(create.getAttribute("aria-disabled")).toBeNull()
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "CRM sync" } })
+    await chooseOutgoing()
+    fireEvent.change(screen.getByLabelText(/^Address to send to/), { target: { value: "https://crm.example.com" } })
+    const why = "Choose at least one event to send: a webhook with none is sent nothing."
+    expect(create.getAttribute("aria-disabled")).toBe("true")
+    expect(create.getAttribute("data-disabled-reason")).toBe(why)
+    expect(screen.getByText(why)).toBeTruthy()
+    expect(screen.queryByText(/every event/)).toBeNull()
+    fireEvent.click(create)
+    expect(makeRequest).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "post.created" }))
+    expect(create.getAttribute("aria-disabled")).toBeNull()
+    fireEvent.click(create)
+    await waitFor(() => expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ events: ["post.created"] }) })))
   })
 })
 
@@ -139,6 +175,33 @@ describe("the doc events", () => {
   })
 })
 
+// zoom-15: a call's beginning and end reach a webhook only from the calls in
+// channels and meetings its maker can open, as ids, times and counts; a DM's
+// or a group chat's call never does.
+describe("the call events", () => {
+  it("say who they reach, beside them", async () => {
+    const { WebhookEventChoice } = await import("@/components/admin/WebhookCreateDialog")
+    render(<WebhookEventChoice events={["post.created", "call.started", "call.ended"]} chosen={[]} onChange={() => {}} idPrefix="t" />)
+    expect(screen.getByRole("group", { name: "call" }).getAttribute("aria-describedby")).toBe("t-n-call")
+    expect(document.getElementById("t-n-call")?.textContent).toBe(
+      "Sent only for calls in channels and meetings whoever sets up the webhook can open. Ids, times and how many joined, never a name or anything said. A call in a DM or a group chat is never sent.",
+    )
+  })
+
+  it("stay ticked on a webhook that has them when the server's list doesn't load", async () => {
+    catalogue.types = undefined
+    onTestFinished(() => {
+      catalogue.types = ["post.created", "task.created"]
+    })
+    const webhook = { id: "w3", name: "Call log", type: "outgoing" as const, target_url: "https://calls.example.com", bot_name: "Bot", events: '["call.started","call.ended"]', is_active: true }
+    render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={webhook} />)
+    for (const name of ["call.started", "call.ended"]) {
+      const box = await screen.findByRole("checkbox", { name })
+      await waitFor(() => expect(box.getAttribute("aria-checked")).toBe("true"))
+    }
+  })
+})
+
 describe("edit webhook", () => {
   const webhook = { id: "w2", name: "CRM sync", type: "outgoing" as const, target_url: "https://crm.example.com", bot_name: "Bot", events: '["task.created"]', is_active: true }
 
@@ -167,5 +230,67 @@ describe("edit webhook", () => {
   it("says an incoming webhook posts only in channels", () => {
     render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={{ id: "w3", name: "Deploys", type: "incoming", bot_name: "Deploys", is_active: true }} />)
     expectChannelsOnly()
+  })
+
+  it("names an incoming webhook's channel select by its label", () => {
+    render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={{ id: "w3", name: "Deploys", type: "incoming", bot_name: "Deploys", is_active: true }} />)
+    expect(screen.getByRole("combobox", { name: "Channel to post in" })).toBeTruthy()
+  })
+
+  // One kept from before V-112 can have no events: it is sent nothing, so Save
+  // waits for a tick, as the server does.
+  it("keeps Save waiting while an outgoing webhook has no event ticked", async () => {
+    render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={{ ...webhook, events: undefined }} />)
+    const save = screen.getByRole("button", { name: "Save changes" })
+    await waitFor(() => expect(save.getAttribute("aria-disabled")).toBe("true"))
+    expect(save.getAttribute("data-disabled-reason")).toBe("Choose at least one event to send: a webhook with none is sent nothing.")
+    fireEvent.click(save)
+    expect(makeRequest).not.toHaveBeenCalled()
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "post.created" }))
+    expect(save.getAttribute("aria-disabled")).toBeNull()
+    fireEvent.click(save)
+    await waitFor(() => expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ events: ["post.created"] }) })))
+  })
+
+  it("saves an incoming webhook, which is sent no events", async () => {
+    render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={{ id: "w3", name: "Deploys", type: "incoming", bot_name: "Deploys", is_active: true }} />)
+    const save = screen.getByRole("button", { name: "Save changes" })
+    expect(save.getAttribute("aria-disabled")).toBeNull()
+    fireEvent.click(save)
+    await waitFor(() => expect(makeRequest).toHaveBeenCalled())
+  })
+
+  // Save sent the scope the dialog showed, and it showed the whole workspace
+  // when it wasn't told the webhook's own: one set up for a channel or a
+  // project was widened by any save (V-113). The server keeps a webhook's
+  // scope when a change names none.
+  it("keeps the webhook's own scope unless the admin changes it", async () => {
+    const PROJECT = "4b0c8f2e-6d1a-4c55-9e0b-2f3a1c7d8e90"
+    const OTHER = "9a1d2c3b-4e5f-4a6b-8c7d-0e1f2a3b4c5d"
+    // What the server keeps: the scope a change names, or the one it had.
+    const after = (had: { scope_type: string; scope_entity_id?: string }) => {
+      const sent = makeRequest.mock.calls[0][0].payload
+      return "scope_type" in sent ? { scope_type: sent.scope_type, scope_entity_id: sent.scope_entity_id } : had
+    }
+    const project = { scope_type: "project", scope_entity_id: PROJECT }
+    // Told its scope, and not told it (as the list opened it): renaming keeps it.
+    for (const [opened, had] of [[{ ...webhook, ...project }, project], [webhook, { scope_type: "channel", scope_entity_id: "c1" }]] as const) {
+      makeRequest.mockClear()
+      render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={opened} />)
+      fireEvent.change(await screen.findByLabelText(/^Name/), { target: { value: "CRM sync, renamed" } })
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+      await waitFor(() => expect(makeRequest).toHaveBeenCalled())
+      expect(after(had)).toEqual(had)
+      cleanup()
+    }
+
+    // A scope the admin chooses is sent.
+    makeRequest.mockClear()
+    render(<WebhookEditDialog open onOpenChange={() => {}} onSuccess={() => {}} webhook={{ ...webhook, ...project }} />)
+    fireEvent.change(await screen.findByLabelText("Project ID"), { target: { value: OTHER } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+    await waitFor(() => expect(makeRequest).toHaveBeenCalled())
+    expect(after(project)).toEqual({ scope_type: "project", scope_entity_id: OTHER })
   })
 })

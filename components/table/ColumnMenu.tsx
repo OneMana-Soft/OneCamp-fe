@@ -3,15 +3,22 @@
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
-import { AlertTriangle, ChevronDown, Loader2, Plus } from "@/lib/icons"
+import { AlertTriangle, ChevronDown, Loader2, Plus, Square } from "@/lib/icons"
 import { Spark } from "@/components/ui/graphics"
-import { fieldProblem, formulaOf, isNumeric, parseFieldConfig, type FieldPatch, type FieldType, type TableField } from "@/services/tableService"
+import { alignsRight, fieldProblem, formulaOf, parseFieldConfig, type AIFill, type FieldType, type TableField } from "@/services/tableService"
+import type { FieldPatch } from "@/services/tableCalls"
+import { fillDone, fillProgress } from "@/lib/tables/aiFills"
 import { fieldKind } from "@/lib/fieldTypes/registry"
 import { ix } from "@/lib/ui/interactive"
 import { returnFocusOnlyForKeys } from "@/lib/ui/inputModality"
-import { lazyView } from "@/components/task/LazyView"
+import { lazyView } from "@/lib/lazy/lazyView"
 
 export type ColumnPage = "main" | "type" | "options" | "format" | "formula" | "relation" | "rollup" | "ai" | "settings"
+
+/** The page that sets up a field of this type (a formula's, a relation's or a rollup's), or null for a type with none. */
+export function settingsPageOf(type: FieldType | undefined): ColumnPage | null {
+  return type === "formula" || type === "relation" || type === "rollup" ? type : null
+}
 
 /**
  * A column's save from its menu: what it changes, and nothing else
@@ -44,8 +51,8 @@ export function aiPromptOf(config: { [k: string]: unknown }): string {
  */
 const MenuPart = lazyView(() => import("@/components/table/columnMenu/ColumnMenuBody"))
 const AddPart = lazyView(() => import("@/components/table/columnMenu/AddColumnBody"))
-const warmMenu = () => void MenuPart.warm().catch(() => {})
-const warmAdd = () => void AddPart.warm().catch(() => {})
+const warmMenu = () => void MenuPart.prefetch()
+const warmAdd = () => void AddPart.prefetch()
 
 /** Both menus' chunks, loaded: what a test that opens a menu waits for first. */
 export const loadColumnMenus = () => Promise.all([MenuPart.warm(), AddPart.warm()])
@@ -79,6 +86,9 @@ export type ColumnHeaderProps = {
   onFilter?: () => void
   onHide?: () => void
   onFilled: () => void
+  /** The column's running AI fill, and how to stop it. */
+  fill?: AIFill
+  onStopFill?: () => void
   onHover?: (index: number | null) => void
   onResizeStart?: (e: React.PointerEvent, index: number) => void
   onAutoFit?: (index: number) => void
@@ -93,10 +103,10 @@ export type ColumnHeaderProps = {
  * are made, with no Save button (columnMenu/ColumnMenuBody).
  */
 export function ColumnHeader(props: ColumnHeaderProps) {
-  const { field, canManage, frozen, index, openPage, onOpenPage, onHover, onResizeStart, onAutoFit } = props
+  const { field, canManage, frozen, index, openPage, onOpenPage, onHover, onResizeStart, onAutoFit, fill, onStopFill } = props
   const open = openPage !== null
   const page = openPage ?? "main"
-  const numeric = isNumeric(field)
+  const numeric = alignsRight(field)
   const Glyph = fieldKind(field.type).glyph
   const config = parseFieldConfig(field)
   const savedAiPrompt = aiPromptOf(config)
@@ -113,7 +123,7 @@ export function ColumnHeader(props: ColumnHeaderProps) {
         <span className="sr-only">{fieldKind(field.type).label}</span>
       </span>
       <span className="truncate">{field.name}</span>
-      {savedAiPrompt && <Spark size={12} className="shrink-0 text-agent" />}
+      {savedAiPrompt && <Spark size={12} className={cn("shrink-0 text-agent", fill && "animate-pulse")} />}
       {savedAiPrompt ? <span className="sr-only">Filled by AI</span> : null}
       {problem && <AlertTriangle className="size-3.5 shrink-0 text-danger-ink" aria-label={problem} />}
     </span>
@@ -131,7 +141,7 @@ export function ColumnHeader(props: ColumnHeaderProps) {
       title={tip}
       {...ix("row")}
       data-state={open ? "open" : "closed"}
-      className={cn("group/col flex h-9 w-full items-center gap-1 px-3 text-ui-sm font-medium text-ink-2 hover:text-ink", open && "text-ink")}
+      className={cn("group/col flex h-9 w-full items-center gap-1 px-3 text-ui-sm font-medium text-ink-2 hover:text-ink", open && "text-ink", fill && onStopFill && "pr-9")}
     >
       {label}
       <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity group-hover/col:opacity-100 group-focus-visible/col:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
@@ -148,6 +158,7 @@ export function ColumnHeader(props: ColumnHeaderProps) {
     <th
       scope="col"
       data-frozen={frozen || undefined}
+      data-sticky-lead={frozen || undefined}
       data-col-index={index}
       onPointerEnter={() => onHover?.(index)}
       onPointerLeave={() => onHover?.(null)}
@@ -181,6 +192,28 @@ export function ColumnHeader(props: ColumnHeaderProps) {
           </PopoverContent>
         ) : null}
       </Popover>
+      {fill ? (
+        <>
+          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-agent-muted">
+            <span className="block h-full origin-left bg-agent transition-transform duration-500" style={{ transform: `scaleX(${Math.min(fill.asked, fill.total) / Math.max(fill.total, 1)})` }} />
+          </span>
+          <span role="status" className="sr-only">
+            {fillProgress(fill)} in {field.name}
+          </span>
+          {onStopFill ? (
+            <button
+              type="button"
+              onClick={onStopFill}
+              aria-label={`Stop filling ${field.name}: ${fillDone(fill)}`}
+              title={`Stop filling: ${fillDone(fill)}`}
+              {...ix("icon")}
+              className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-agent-ink"
+            >
+              <Square className="size-3 fill-current" aria-hidden />
+            </button>
+          ) : null}
+        </>
+      ) : null}
       {/* Resize: an 8 px edge (T06). Widths are this reader's, per table. */}
       {onResizeStart ? (
         <span
@@ -205,7 +238,7 @@ export function AddColumn({
 }: {
   tableId: string
   fields: TableField[]
-  onCreate: (input: ColumnCreateInput) => Promise<void>
+  onCreate: (input: ColumnCreateInput) => Promise<unknown>
 }) {
   const [open, setOpen] = React.useState(false)
   return (

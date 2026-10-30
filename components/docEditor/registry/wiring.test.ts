@@ -23,4 +23,11 @@ describe("the integrator's wiring", () => {
     const view = readFileSync('components/views/DocView.tsx', 'utf8')
     expect(view.match(/<SlotOutlet slot="session"/g) ?? []).toHaveLength(1)
   })
+
+  // Pages inside (docs C7a part 4) sits at the doc's foot, under its body.
+  it('has the doc input draw the foot slot after the editor, once', () => {
+    const input = readFileSync('components/docEditor/docInput.tsx', 'utf8')
+    expect(input.match(/<SlotOutlet slot="foot"/g) ?? []).toHaveLength(1)
+    expect(input.indexOf('<SlotOutlet slot="foot"')).toBeGreaterThan(input.indexOf('<EditorContent'))
+  })
 })

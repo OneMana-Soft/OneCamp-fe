@@ -14,11 +14,11 @@ import * as React from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useTranslation } from "react-i18next"
+import { useTranslation } from "@/lib/utils/i18n"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { SettingsCard, SettingsCardFooter, SettingsRowsSkeleton, SwitchRow } from "@/components/ui/settingsSection"
-import { useSaveStatus } from "@/components/ui/saveStatus"
+import { switchOffer, useSaveStatus } from "@/components/ui/saveStatus"
 import { AppLanguageCombobox } from "@/components/dialog/appLanguageCombobox"
 import { Check } from "@/lib/icons"
 import { normalizeHandle } from "@/lib/validation/names"
@@ -278,13 +278,14 @@ export function AppearOnlineCard() {
   const [optimistic, setOptimistic] = useState<boolean | null>(null)
   if (!profile) return null
   const online = optimistic ?? profile.user_status === USER_STATUS_ONLINE
-  const change = async (next: boolean) => {
+  const change = async (next: boolean): Promise<boolean> => {
     setOptimistic(next)
-    await run(async () => {
+    const held = await run(async () => {
       const outcome = await save({ user_status: next ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE })
       if (!outcome.ok) throw new Error(outcome.message)
-    })
+    }, switchOffer("Appear online", next, change))
     setOptimistic(null)
+    return held
   }
   return (
     <SettingsCard>

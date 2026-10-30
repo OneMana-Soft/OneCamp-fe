@@ -341,7 +341,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({ actions, onClos
                     </>
                 ) : (
                     <>
-                        <Button size="sm" onClick={confirm} disabled={busy} aria-keyshortcuts="Control+Enter Meta+Enter">
+                        <Button size="sm" onClick={confirm} busy={busy} aria-keyshortcuts="Control+Enter Meta+Enter">
                             {busy ? `${head.running}…` : head.label}
                             {!busy ? <kbd className="kbd ml-1 hidden sm:inline-flex">{confirmKeys}</kbd> : null}
                         </Button>

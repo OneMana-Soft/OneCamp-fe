@@ -1,8 +1,9 @@
 /**
- * An admin's export of the workspace's docs (business/ContentIO
+ * An admin's export of the workspace's docs and boards (business/ContentIO
  * workspaceExport.go): every doc they can open, and the private docs whose
- * owners let them in, as a zip of Markdown in folders that follow the page
- * tree. It runs as a job; its progress arrives as the Content IO job message
+ * owners let them in, as Markdown in folders that follow the page tree, and
+ * every board they can open, as an Excalidraw file with its pictures in a
+ * Boards folder, all in one zip. It runs as a job; its progress arrives as the Content IO job message
  * (CONTENT_IO_JOB_EVENT) and the list answers it too.
  */
 
@@ -19,6 +20,8 @@ export const WORKSPACE_EXPORT_ROUTES = {
 export interface WorkspaceExport extends ContentIOJob {
   /** How many docs it wrote. */
   exported?: number
+  /** How many boards it wrote; absent for none, and for an export from before boards went in. */
+  exported_boards?: number
   /** When the server removes its zip; absent once it has, and before it is made. */
   kept_until?: string
 }
@@ -51,27 +54,37 @@ const count = (n: number, one: string, many: string) => `${n.toLocaleString('en'
 /** An export's meta line: when it started, and what it holds once made. */
 export function exportMeta(e: WorkspaceExport): string[] {
   const out = [`Started ${shortDateTime(new Date(e.created_at))}`]
-  if (e.status === 'done') out.push(count(e.exported ?? 0, 'doc', 'docs'))
+  if (e.status === 'done') {
+    out.push(count(e.exported ?? 0, 'doc', 'docs'))
+    if ((e.exported_boards ?? 0) > 0) out.push(count(e.exported_boards ?? 0, 'board', 'boards'))
+  }
   return out
 }
 
+/** Why the server leaves a board out when its drawing can't be read (ContentIO's boardUnread). */
+export const BOARD_UNREAD = 'the board could not be read'
+
 /**
- * What an export left out, in words: the private docs as one line ("3
- * private docs: their owners haven't let them in"), then the docs it couldn't
- * read, by title, a few and how many more.
+ * What an export left out, in words: the private docs and boards as a line
+ * each ("3 private docs left out: their owners haven't let them in"), and a
+ * board's pictures past its file's budget; then the docs it couldn't read, by
+ * title, a few and how many more, and the boards likewise.
  */
 export function leftOut(e: WorkspaceExport, shown = 3): string[] {
   const skipped = e.skipped ?? []
   const lines: string[] = []
   const unread: string[] = []
+  const unreadBoards: string[] = []
   for (const s of skipped) {
     if (s.why === 'it could not be read') unread.push(s.what)
+    else if (s.why === BOARD_UNREAD) unreadBoards.push(s.what)
     else lines.push(`${s.what} left out: ${s.why}.`)
   }
-  if (unread.length > 0) {
-    const named = unread.slice(0, shown).map((t) => `‘${t}’`).join(', ')
-    const more = unread.length > shown ? ` and ${count(unread.length - shown, 'other', 'others')}` : ''
-    lines.push(`Couldn't be read, so not in it: ${named}${more}.`)
+  const named = (titles: string[]) => {
+    const more = titles.length > shown ? ` and ${count(titles.length - shown, 'other', 'others')}` : ''
+    return titles.slice(0, shown).map((t) => `‘${t}’`).join(', ') + more
   }
+  if (unread.length > 0) lines.push(`Couldn't be read, so not in it: ${named(unread)}.`)
+  if (unreadBoards.length > 0) lines.push(`Boards that couldn't be read, so not in it: ${named(unreadBoards)}.`)
   return lines
 }

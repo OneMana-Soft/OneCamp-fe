@@ -10,7 +10,7 @@
 // Someone an import already knows finds their name filled in. It says who
 // invited them and to which workspace, as the email did.
 
-import { LoaderCircle, Users } from "@/lib/icons";
+import { Users } from "@/lib/icons";
 import { SpotError, SpotInbox, SpotWelcome } from "@/components/ui/graphics/spots"
 import { Button } from "@/components/ui/button"
 import { useCallback, useEffect, useRef, useState, Suspense } from "react"
@@ -304,8 +304,7 @@ function SignupForm() {
 
             {errorField === null && <FormProblem>{error}</FormProblem>}
 
-            <Button type="submit" size="lg" className={authControlXl} aria-busy={isLoading || undefined}>
-              {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+            <Button type="submit" size="lg" className={authControlXl} busy={isLoading}>
               {isLoading ? "Joining…" : joinLabel}
             </Button>
           </form>

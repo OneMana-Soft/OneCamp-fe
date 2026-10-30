@@ -1,5 +1,6 @@
 "use client"
 
+import { RestrictedMark } from "@/components/task/BlockedBadge"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { fieldKeyDown } from "@/lib/keys/ime"
 
@@ -18,6 +19,8 @@ import type { NewSubTaskDraft, TaskInfoInterface } from "@/types/task"
 
 type SubtasksSectionProps = {
     isAdmin: boolean
+    /** The task above is restricted: their own locks go unsaid. */
+    restricted?: boolean
     subtasks: TaskInfoInterface[]
     projectMembers: UserProfileDataInterface[]
     onToggleStatus: (task_uuid: string, newStatus: "done" | "todo") => void
@@ -40,7 +43,7 @@ const EMPTY_DRAFT: NewSubTaskDraft = { task_name: "", task_assignee_uuid: "", ta
  * bar's end. "+ Add subtask" becomes a field; Enter adds and keeps a field
  * for the next.
  */
-export function SubtasksSection({ isAdmin, subtasks, projectMembers, onToggleStatus, onRename, onUpdateAssignee, onOpen, onCreateSubtask }: SubtasksSectionProps) {
+export function SubtasksSection({ isAdmin, restricted = false, subtasks, projectMembers, onToggleStatus, onRename, onUpdateAssignee, onOpen, onCreateSubtask }: SubtasksSectionProps) {
     const [adding, setAdding] = useState(false)
     const [draft, setDraft] = useState("")
     const [draftKey, setDraftKey] = useState(0)
@@ -99,6 +102,7 @@ export function SubtasksSection({ isAdmin, subtasks, projectMembers, onToggleSta
                         key={subtask.task_uuid}
                         subtask={subtask}
                         isAdmin={isAdmin}
+                        locked={!restricted && !!subtask.task_restricted}
                         projectMembers={projectMembers}
                         justDone={justDone.has(subtask.task_uuid)}
                         onToggle={toggle}
@@ -171,6 +175,7 @@ function AddRow({ value, onChange, onAdd, onCancel }: { value: string; onChange:
 type SubtaskItemProps = {
     subtask: TaskInfoInterface
     isAdmin: boolean
+    locked: boolean
     projectMembers: UserProfileDataInterface[]
     justDone: boolean
     onToggle: (task: TaskInfoInterface) => void
@@ -179,11 +184,13 @@ type SubtaskItemProps = {
     onOpen: (task_uuid: string) => void
 }
 
-const SubtaskItem = React.memo(function SubtaskItem({ subtask, isAdmin, projectMembers, justDone, onToggle, onRename, onUpdateAssignee, onOpen }: SubtaskItemProps) {
+const SubtaskItem = React.memo(function SubtaskItem({ subtask, isAdmin, locked, projectMembers, justDone, onToggle, onRename, onUpdateAssignee, onOpen }: SubtaskItemProps) {
     const isCompleted = subtask.task_status === "done"
     return (
         <li className="group/sub -ml-1 flex h-[30px] items-center gap-2 rounded-md px-1 transition-colors hover:bg-hover" data-subtask={subtask.task_uuid}>
             <SubtaskBox checked={isCompleted} spring={justDone && isCompleted} disabled={!isAdmin} name={subtask.task_name} onToggle={() => onToggle(subtask)} />
+            {subtask.task_key && <span data-subtask-key="" className="shrink-0 text-meta font-[510] tabular-nums text-ink-3">{subtask.task_key}</span>}
+            <RestrictedMark restricted={locked} />
             <div className="min-w-0 flex-1 text-sm font-[450]">
                 {isAdmin && !isCompleted ? (
                     <ResizeableTextInput

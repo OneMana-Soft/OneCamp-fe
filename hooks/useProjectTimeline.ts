@@ -9,6 +9,7 @@ import { appMutate } from "@/lib/swrMutate"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { timelineKey } from "@/lib/timelineKey"
+import { milestonesPath } from "@/lib/work/milestones"
 import { shiftedPatches, type ShiftedTask, type TaskDates, type TimelineData, type TimelineTask } from "@/lib/timeline"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { ProjectsPost } from "@/services/endpoints/projects"
@@ -87,6 +88,8 @@ export function useProjectTimeline(projectId: string) {
             const untouched = shifted.filter((s) => versions.current.get(s.task_uuid) === sent.get(s.task_uuid))
             optimisticUpdateTasks(shiftedPatches(untouched), projectId)
             if (untouched.length < shifted.length) revalidateTaskKeys(projectId)
+            // A milestone's bar covers its tasks' days: they're read again.
+            void appMutate(milestonesPath(projectId))
             if (!latest()) return
             // A fetch that started before the save may have put the old dates in the cache.
             optimisticUpdateTask({ task_uuid: id, ...dates }, projectId)

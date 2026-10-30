@@ -62,6 +62,12 @@ export interface HubRowProps extends Omit<React.HTMLAttributes<HTMLElement>, "ti
   opens?: boolean
   /** The keyboard's place in a list whose focus stays elsewhere (Mail's j and k): an inset ring, unlike selected. */
   cursor?: boolean
+  /**
+   * The title and the second line take up to two lines each, not one: a
+   * mention's place ("in #engineering") and its words, which a phone cut
+   * to "#en…" and a computer to "Thurs…".
+   */
+  clamp?: boolean
 }
 
 export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow(
@@ -82,6 +88,7 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
     as = "div",
     opens,
     cursor,
+    clamp,
     className,
     onClick,
     onFocus,
@@ -134,8 +141,10 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
       <span className="hub-row-lead">{lead}</span>
       <span className="min-w-0">
         <span
+          data-hub-title=""
           className={cn(
-            "block min-w-0 truncate",
+            "block min-w-0",
+            clamp ? "line-clamp-2 whitespace-normal" : "truncate",
             density === "compact" && "text-ui font-book",
             density === "two-line" && "text-ui font-medium",
             // A phone's feed row may take two lines (A4): on one, "Jonas
@@ -148,8 +157,10 @@ export const HubRow = React.forwardRef<HTMLElement, HubRowProps>(function HubRow
         </span>
         {second ? (
           <span
+            data-hub-second=""
             className={cn(
-              "mt-px block min-w-0 truncate",
+              "mt-px block min-w-0",
+              clamp ? "line-clamp-2 whitespace-normal" : "truncate",
               density === "two-line" && "text-meta text-ink-3",
               density === "feed" && "text-ui-sm leading-5 text-ink-2",
             )}

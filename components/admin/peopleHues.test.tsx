@@ -11,7 +11,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: "" }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: vi.fn(async () => ({ data: { data: [], has_more: false } })), post: vi.fn() }, OWN_ERRORS: {} }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: vi.fn(async () => ({ data: { data: [], has_more: false } })), post: vi.fn() } }))
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn(), useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({ email_enabled: true }) }))
 // One answer object, as SWR keeps it between renders: a new object on every

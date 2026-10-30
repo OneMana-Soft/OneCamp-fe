@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch"
 import { OptionsEditor } from "@/components/fields/OptionsEditor"
 import { Calendar, CheckSquare, ChevronDown, ChevronUp, CircleDot, Coins, Hash, Link, ListTodo, Plus, Trash2, Type, User } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
+import { deletedTitle, offerUndo, restore } from "@/services/restoreService"
 import { useProjectFields, type FieldInput } from "@/hooks/useProjectFields"
 import { FIELD_TYPES, typeLabel, type FieldOption, type FieldType, type TaskField } from "@/lib/tasks/fields"
 import { STATUS_COLORS } from "@/lib/taskStatus"
@@ -74,7 +75,7 @@ export function FieldKind({ type }: { type: FieldType }) {
 }
 
 export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { projectId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { fields, create, update, reorder, remove } = useProjectFields(open ? projectId : undefined)
+  const { fields, create, update, reorder, remove, refresh, refreshTasks, http } = useProjectFields(open ? projectId : undefined)
   const [busy, setBusy] = useState(false)
   const { toast } = useToast()
 
@@ -122,7 +123,10 @@ export function ProjectFieldsDialog({ projectId, open, onOpenChange }: { project
               last={i === fields.length - 1}
               onMove={(dir) => move(i, dir)}
               onSave={(input) => run(() => update(f.id, input))}
-              onDelete={() => run(() => remove(f.id), `Deleted ${f.name}`)}
+              onDelete={() => run(async () => {
+                await remove(f.id)
+                offerUndo(deletedTitle(f.name), () => restore(http, "field", f.id, () => Promise.all([refresh(), refreshTasks()])))
+              })}
             />
           ))}
         </div>
@@ -327,7 +331,7 @@ function AddField({ busy, onAdd }: { busy: boolean; onAdd: (input: FieldInput) =
             className="h-8 w-16 text-xs uppercase"
           />
         )}
-        <Button type="submit" size="sm" className="h-8 gap-1" disabled={busy || !name.trim() || needsOptions}>
+        <Button type="submit" size="sm" className="h-8 gap-1" disabled={!name.trim() || needsOptions} busy={busy}>
           <Plus className="h-4 w-4" />
           Add field
         </Button>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation";
+import { useAppRouter } from "@/lib/navigation/appRouter";
 import { useDispatch } from "react-redux";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "@/lib/icons";
@@ -14,7 +14,7 @@ import { app_board_path } from "@/types/paths";
 // InlineBoardCreator flow without the inline title input (kept minimal for the
 // compact mobile top bar; the title is editable on the board itself).
 export function MobileBoardCreateButton() {
-    const router = useRouter();
+    const router = useAppRouter();
     const dispatch = useDispatch();
     const { makeRequest, isSubmitting } = usePost();
 

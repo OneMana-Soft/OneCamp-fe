@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { fieldKeyDown, isComposingKey } from "@/lib/keys/ime"
-import { Plus, Loader2, Search, MoreHorizontal, Pencil, Trash2, ArrowUpRight, RotateCcw } from "@/lib/icons"
+import { Plus, Loader2, Search, MoreHorizontal, Pencil, Trash2, ArrowUpRight, RotateCcw, Upload } from "@/lib/icons"
 import { DataTable, createTable, deleteTable, generateTable, updateTable } from "@/services/tableService"
 import { useConfirm } from "@/hooks/useConfirm"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -24,8 +24,19 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { tablePath } from "@/lib/tables/route"
 import { restoreTable } from "@/lib/tables/ledger"
 import { useUndoToast } from "@/components/table/ledger/useUndoToast"
-import { TablesTrash } from "@/components/table/trash/TablesTrash"
 import { areaHue } from "@/lib/areas"
+import { lazyView } from "@/lib/lazy/lazyView"
+
+/**
+ * The deleted tables (TablesTrash): a chunk of its own, with its dialog and a
+ * phone's drawer, loaded as the pointer or the focus reaches Trash, never with
+ * the list's first screen.
+ */
+const TrashPart = lazyView(() => import("@/components/table/trash/TablesTrash"))
+const warmTrash = () => void TrashPart.prefetch()
+/** A spreadsheet into tables (ImportSheetDialog): its own chunk, warmed as the pointer or the focus reaches Import. */
+const ImportPart = lazyView(() => import("@/components/table/import/ImportSheetDialog"))
+const warmImport = () => void ImportPart.prefetch()
 
 /** What the AI bar suggests: a click fills the input. */
 const SUGGESTIONS = [
@@ -61,6 +72,7 @@ export default function TablesPage() {
   const [query, setQuery] = React.useState("")
   const [renaming, setRenaming] = React.useState<string | null>(null)
   const [trashOpen, setTrashOpen] = React.useState(false)
+  const [importing, setImporting] = React.useState(false)
   const offerUndo = useUndoToast(React.useCallback(() => void mutate(), [mutate]))
   const renameNext = React.useRef<string | null>(null)
   const searchRef = React.useRef<HTMLInputElement>(null)
@@ -179,16 +191,21 @@ export default function TablesPage() {
           />
           <kbd className="kbd">/</kbd>
         </label>
-        <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted tables" onClick={() => setTrashOpen(true)}>
+        <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted tables" onPointerEnter={warmTrash} onFocus={warmTrash} onClick={() => setTrashOpen(true)}>
           <RotateCcw className="size-4" />
         </Button>
-        <Button onClick={handleCreate} disabled={creating} size="sm" className="gap-1.5">
-          {creating ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+        <Button variant="secondary" size="sm" className="gap-1.5" aria-label="Import a spreadsheet" onPointerEnter={warmImport} onFocus={warmImport} onClick={() => setImporting(true)}>
+          <Upload className="size-3.5" />
+          <span className="hidden sm:inline">Import</span>
+        </Button>
+        <Button onClick={handleCreate} busy={creating} size="sm" className="gap-1.5">
+          <Plus className="size-3.5" />
           New table
           <kbd className="kbd ml-0.5 hidden sm:inline-flex">T</kbd>
         </Button>
       </div>
-      {trashOpen ? <TablesTrash onClose={() => setTrashOpen(false)} onRestored={() => void mutate()} /> : null}
+      {importing ? <ImportPart.View fallback={null} render={(m) => <m.ImportSheetDialog onClose={() => setImporting(false)} onDone={() => void mutate()} />} /> : null}
+      {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TablesTrash onClose={() => setTrashOpen(false)} onRestored={() => void mutate()} />} /> : null}
 
       {/* The AI bar, where AI is on: with it off (or on the edition without
           it) Generate could only fail. */}

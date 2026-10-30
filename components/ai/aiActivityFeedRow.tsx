@@ -152,7 +152,7 @@ export function AIActivityFeedRow({ item: it, chain = "idle", sweepIndex = 0, br
             meta={it.at ? formatListTimestamp(it.at) : undefined}
             className={cn(
                 broken && "after:pointer-events-none after:absolute after:inset-y-2 after:left-0 after:w-0.5 after:rounded-full after:bg-destructive",
-                separated && "before:pointer-events-none before:absolute before:left-14 before:right-4 before:top-0 before:h-px before:bg-line hover:before:opacity-0",
+                separated && "after:pointer-events-none after:absolute after:left-14 after:right-4 after:top-0 after:h-px after:bg-line hover:after:opacity-0",
             )}
             {...(evidence
                 ? {

@@ -4,39 +4,40 @@
 // a chunk that fails to load, the page reloads itself once and gets the new
 // build. A stylesheet that fails to load is the same case, and left the page
 // unstyled; a font that fails is not, so only stylesheets count. The guard
-// stops a loop if the files really are missing. Offline, a chunk that fails
-// is the network, not a deploy: a reload would show the browser's offline
-// page and lose what the page holds (a doc's edits made offline), so the
-// page is left as it is.
+// stops a loop if the files really are missing.
+//
+// Only when the server says that code is gone (V-64, 29 Oct). A chunk fails
+// with no network too, and the device may still say it is online (Wi-Fi with
+// no internet, a dead cell link): the reload then threw the page away, with
+// what it held (a fresh doc, and every key typed into it after). So the file
+// that failed is asked for again (HEAD, never from the cache, CHUNK_PROBE_MS
+// at most), and only a 404 or a 410 reloads. No answer, a slow one, or the
+// file there after all leaves the page as it is, except a boot file (one that
+// failed before the page's load event, which the page can't run without):
+// there after all, it reloads too. And a reload that is due waits while the
+// page holds work it would lose (holdReload).
+//
+// One probe for the page: the early script (lib/chunkRecoveryScript, in the
+// root layout, so a failure while the app itself loads is caught too) answers
+// every <script> or stylesheet that fails and every chunk error nobody caught,
+// and the app's own catches ask it through reloadForNewBuild (lib/newBuild).
 
-const KEY = "oc_chunk_reload_at"
+export const CHUNK_RELOAD_KEY = "oc_chunk_reload_at"
 export const CHUNK_RELOAD_GUARD_MS = 30_000
+/** How long the failed file's probe may take: no answer by then is the network, not a deploy. */
+export const CHUNK_PROBE_MS = 4_000
+/** How often a reload that waits on held work looks again. */
+export const CHUNK_HELD_POLL_MS = 1_000
+
+/** A code chunk's load failure, as webpack and Turbopack word it. */
+export const CHUNK_ERROR = /ChunkLoadError|Loading chunk [\w-]+ failed|Failed to load chunk|Loading CSS chunk/i
+/** The app's own code and stylesheets. */
+export const STATIC_FILE = /\/_next\/static\//
+/** The file a chunk error names. */
+export const CHUNK_FILE = /\/_next\/static\/[^\s"'()]+/
 
 /** Whether an error is a code chunk that failed to load. Pure. */
 export function isChunkLoadError(err: unknown): boolean {
   const e = err as { name?: string; message?: string } | null
-  const text = `${e?.name ?? ""} ${e?.message ?? String(err ?? "")}`
-  return /ChunkLoadError|Loading chunk [\w-]+ failed|Failed to load chunk|Loading CSS chunk/i.test(text)
+  return CHUNK_ERROR.test(`${e?.name ?? ""} ${e?.message ?? String(err ?? "")}`)
 }
-
-/** Reloads once per guard window; false when it already did. */
-export function reloadForNewBuild(now = Date.now()): boolean {
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return false
-  try {
-    const last = Number(sessionStorage.getItem(KEY) || 0)
-    if (now - last < CHUNK_RELOAD_GUARD_MS) return false
-    sessionStorage.setItem(KEY, String(now))
-  } catch {
-    /* storage blocked: still worth one reload */
-  }
-  location.reload()
-  return true
-}
-
-/**
- * The same, as a script that runs before the app does (root layout), so a
- * failure while the app itself is loading is caught too.
- */
-export const CHUNK_RECOVERY_SCRIPT = `(function(){var K=${JSON.stringify(KEY)},G=${CHUNK_RELOAD_GUARD_MS};function again(){if(navigator.onLine===false)return;try{var t=+sessionStorage.getItem(K)||0;if(Date.now()-t<G)return;sessionStorage.setItem(K,String(Date.now()))}catch(e){}location.reload()}
-window.addEventListener("error",function(e){var t=e.target,b=/\\/_next\\/static\\//;if(t&&((t.tagName==="SCRIPT"&&b.test(t.src||""))||(t.tagName==="LINK"&&t.rel==="stylesheet"&&b.test(t.href||""))))again()},true);
-window.addEventListener("unhandledrejection",function(e){var r=e.reason,m=String((r&&(r.name+" "+r.message))||r||"");if(/ChunkLoadError|Loading chunk [\\w-]+ failed|Failed to load chunk|Loading CSS chunk/i.test(m))again()})})();`

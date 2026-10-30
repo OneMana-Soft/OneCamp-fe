@@ -57,17 +57,32 @@ export interface Cursor {
  */
 export type Anchor = { at: 'latest' } | { at: 'unread' } | { at: 'message'; id: string }
 
-/** What useConversation answers for a conversation. */
-export interface ConversationState {
-  /** Oldest first. */
-  messages: Message[]
+/** One direction of paging: whether there is more, whether it is being asked for, how to ask. */
+export interface PageWay {
+  has: boolean
+  loading: boolean
+  ask(): void
+  /** Set when the last page that way failed: ask again (SD-BUG-1). */
+  retry?: () => void
+}
+
+/** What useConversation answers for a conversation: its list, paged. */
+export interface ConversationState<Row = unknown> {
+  /** The rows held, oldest first. */
+  rows: Row[]
   /**
-   * 'loading' before the first answer and 'error' when it failed: a
-   * conversation that couldn't be read never shows as empty (CH12).
+   * 'loading' before the first answer is in the store and 'error' when it
+   * failed: a conversation that couldn't be read never shows as empty (CH12).
    */
   status: 'loading' | 'ready' | 'error'
   /** Asks again. */
   retry(): void
+  /** The message a link opened it at. */
+  anchor?: string
+  older: PageWay
+  newer: PageWay
+  /** Jump to latest: leaves a link, else the latest page, and follows the end. */
+  toLatest(): void
 }
 
 /** Whether a target is a thread. Pure. */

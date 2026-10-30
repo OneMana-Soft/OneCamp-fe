@@ -41,8 +41,10 @@ function valuesFor(initial: EventDraftValues | undefined, at: Date | undefined):
         title: initial.title,
         notes: notesText(initial.description),
         notesKept: initial.description ?? "",
-        kind: initial.isAway ? "out_of_office" : initial.isFocus ? "focus" : "event",
-        guests: initial.guests.map((p) => ({ uuid: p.uuid, email: p.email ?? "", name: p.name, optional: false })),
+        // Time for a task (quick create's Task, or a copy of a block) is a block, and has nobody on it.
+        kind: initial.task ? "task_block" : initial.isAway ? "out_of_office" : initial.isFocus ? "focus" : "event",
+        task: initial.task ?? null,
+        guests: initial.task ? [] : initial.guests.map((p) => ({ uuid: p.uuid, email: p.email ?? "", name: p.name, optional: false })),
     };
 }
 
@@ -94,7 +96,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                 Cancel
             </Button>
-            <Button type="submit" form={formId} disabled={submitting} aria-busy={submitting || undefined}>
+            <Button type="submit" form={formId} busy={submitting}>
                 {submitting ? "Creating…" : "Create event"}
             </Button>
         </>
@@ -150,8 +152,9 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* No padding of its own (the body and footer pad themselves), so --dlg-pad says 0:
                 the v3 footer bleeds by --dlg-pad, and 20 px of bleed pushed Create event
-                out past the dialog's edge. */}
-            <DialogContent className="gap-0 p-0 [--dlg-pad:0px] sm:max-w-[560px]" data-event-dialog="">
+                out past the dialog's edge. --sheet-gutter says the 24 px they pad their
+                sides with, which a phone's sheet keeps under the footer too (app/overlay.css 8b). */}
+            <DialogContent className="gap-0 p-0 [--dlg-pad:0px] [--sheet-gutter:24px] sm:max-w-[560px]" data-event-dialog="">
                 <DialogTitle className="sr-only">New event</DialogTitle>
                 <DialogDescription className="sr-only">{description}</DialogDescription>
                 <form id={formId} onSubmit={onSubmit} onKeyDown={submitOnModEnter} className="flex max-h-[85dvh] flex-col">

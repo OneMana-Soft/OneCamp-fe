@@ -9,6 +9,8 @@ import { Provider } from "react-redux"
 
 const answers: Record<string, unknown> = {}
 const mutate = vi.fn()
+// The box reads its conversation's command catalog as it draws (LazyCommandSurface).
+vi.mock("@/services/commandService", () => ({ fetchCommandCatalog: async () => ({ commands: [] }) }))
 vi.mock("@/hooks/useFetch", () => ({
     useFetch: (url: string) => ({ isLoading: false, isError: undefined, mutate, lastRequestStartedAt: 1, ...(answers[url.split("/").pop() || ""] as object) }),
     useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me", user_name: "Sam Rivera" } } }),

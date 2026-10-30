@@ -9,7 +9,9 @@ import { Provider } from "react-redux"
 // channel. They read the draft when sending now, and only the composer
 // (which draws it) follows it.
 
-vi.mock("@/lib/axiosInstance", () => ({ default: { post: () => new Promise(() => {}) }, OWN_ERRORS: {} }))
+// How many were unread is known at once: hooks/useUnreadOnOpen has its own test.
+vi.mock("@/hooks/useUnreadOnOpen", () => ({ useUnreadOnOpen: () => 0 }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: () => new Promise(() => {}) } }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock("@/hooks/useScheduledMessages", () => ({ useScheduleMessage: () => vi.fn() }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
@@ -37,7 +39,7 @@ const { default: store } = await import("@/store/store")
 const { updateChannelInputText } = await import("@/store/slice/channelSlice")
 const { createOrUpdateChatBody } = await import("@/store/slice/chatSlice")
 const { createOrUpdateGroupChatBody } = await import("@/store/slice/groupChatSlice")
-const { ChannelView } = await import("./ChannelView")
+const { ChannelConversation: ChannelView } = await import("@/components/conversation/ChannelConversation")
 const { ChatView } = await import("./ChatView")
 const { GroupChatView } = await import("./GroupChatView")
 

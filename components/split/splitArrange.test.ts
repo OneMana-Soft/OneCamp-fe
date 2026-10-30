@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { aimAt, dropMarks, stopsFor, type Spot } from "./SplitArrange"
+import { aimAt, dropMarks, ghostAt, ghostWords, stopsFor, swapWith, type Spot } from "./SplitArrange"
 
 // Split view's arrange layer (release-1010/design/split/ANALYSIS.md §5): where
 // a held view lands, where the arrow keys stop, and the marks a drop draws.
@@ -40,5 +40,28 @@ describe("the marks a drop between views draws (design verdict, 20 Oct)", () => 
   it("takes a narrower held view's own width, and draws no line for a swap (it tints the whole target)", () => {
     expect(dropMarks({ key: "main", zone: "before" }, [spot("main", 248, 500), spot("doc:b", 756, 160)], "doc:b")?.slotWidth).toBe(160)
     expect(dropMarks({ key: "main", zone: "swap" }, row, "doc:b")).toBeNull()
+  })
+})
+
+// Design r5 (21 Oct): the ghost carries the action, so no chip of its own can
+// sit under it, and it never runs off the window's edge.
+describe("the ghost", () => {
+  it("says the held view's name, or over a swap the swap, cut at a word to what it holds", () => {
+    expect(ghostWords("Pricing notes", null)).toBe("Pricing notes")
+    expect(swapWith("Q4 launch plan")).toBe("Swap with Q4 launch plan")
+    expect(ghostWords("Pricing notes", "Q4 launch plan")).toBe("Swap with Q4 launch plan")
+    const long = ghostWords("Pricing notes", "Quarterly planning for the platform team")
+    expect(long).toBe("Swap with Quarterly planning…")
+    expect(long.length).toBeLessThanOrEqual(30)
+  })
+
+  it("sits below and right of the pointer, and stays 8px inside the window", () => {
+    const view = { width: 1440, height: 900 }
+    const size = { width: 200, height: 40 }
+    expect(ghostAt({ x: 600, y: 30 }, size, view)).toEqual({ x: 614, y: 40 })
+    // Carried by the rightmost view's bar, it ran off the window's edge.
+    expect(ghostAt({ x: 1300, y: 30 }, size, view)).toEqual({ x: 1232, y: 40 })
+    expect(ghostAt({ x: 600, y: 890 }, size, view)).toEqual({ x: 614, y: 852 })
+    expect(ghostAt({ x: -40, y: -40 }, size, view)).toEqual({ x: 8, y: 8 })
   })
 })

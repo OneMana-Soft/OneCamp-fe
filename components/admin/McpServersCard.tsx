@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
 import { StatusWord } from "@/components/ui/statusWord"
 import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
+import { InstantSwitch } from "@/components/ui/instantSwitch"
 import { useFetch } from "@/hooks/useFetch"
 import { AdminGet } from "@/services/endpoints/admin"
 import { useToast } from "@/hooks/use-toast"
@@ -18,7 +18,7 @@ import {
   setMcpServerEnabled,
   deleteMcpServer,
 } from "@/services/mcpService"
-import { McpServerEditDialog } from "./McpServerEditDialog"
+import dynamic from "next/dynamic"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { McpToolRiskBadge, McpToolRiskLegend } from "./McpToolRisk"
@@ -26,6 +26,9 @@ import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SpotPlug } from "@/components/ui/graphics"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+
+// The add and edit dialog loads when it opens.
+const McpServerEditDialog = dynamic(() => import("./McpServerEditDialog").then((m) => m.McpServerEditDialog), { ssr: false })
 
 /**
  * The MCP servers agents can use, and the catalogue of checked connectors.
@@ -51,16 +54,8 @@ const McpServersCard = ({ embedded = false }: { embedded?: boolean } = {}) => {
   const catalog = catalogData?.data || []
 
   const handleToggle = async (s: McpServer, next: boolean) => {
-    setBusyId(s.id)
-    try {
-      await setMcpServerEnabled(s.id, next)
-      toast({ title: next ? `${s.name} is on` : `${s.name} is off` })
-      mutate()
-    } catch {
-      // interceptor surfaces the error
-    } finally {
-      setBusyId(null)
-    }
+    await setMcpServerEnabled(s.id, next)
+    void mutate()
   }
 
   const handleDelete = async (s: McpServer) => {
@@ -189,10 +184,11 @@ const McpServersCard = ({ embedded = false }: { embedded?: boolean } = {}) => {
                     </p>
                   ) : (
                     <div className="flex shrink-0 items-center gap-1">
-                      <Switch
+                      <InstantSwitch
                         checked={s.enabled}
                         disabled={busyId === s.id}
-                        onCheckedChange={(v) => handleToggle(s, v)}
+                        onSave={(v) => handleToggle(s, v)}
+                        what={(v) => (v ? `${s.name} is on` : `${s.name} is off`)}
                         aria-label={`Use ${s.name}`}
                       />
                       <Button variant="ghost" size="icon" aria-label={`Edit ${s.name}`} className="h-8 w-8" onClick={() => setEditing(s)} title="Edit">

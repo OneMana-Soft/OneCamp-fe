@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Copy, Check, ExternalLink, Link2, Globe } from "@/lib/icons"
-import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLink, type ResourceGuestLinks } from "@/services/guestService"
+import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLinks } from "@/services/guestService"
 import { PublishSection } from "@/components/guest/PublishSection"
 import { useFetch } from "@/hooks/useFetch"
 import { Tile } from "@/components/ui/graphics/Tile"
@@ -53,6 +53,26 @@ const EXPIRY_OPTIONS = [
   { label: "90 days", hours: 24 * 90 },
   { label: "Does not expire", hours: NEVER },
 ]
+
+/** The lifetimes allowed under guest.link.max_days (0: no limit). Pure. */
+export function expiryOptions(maxDays: number | undefined): { label: string; hours: number }[] {
+  if (!maxDays || maxDays <= 0) return EXPIRY_OPTIONS
+  const most = maxDays * 24
+  const within = EXPIRY_OPTIONS.filter((o) => o.hours !== NEVER && o.hours <= most)
+  if (!within.some((o) => o.hours === most)) within.push({ label: maxDays === 1 ? "1 day" : maxDays === 365 ? "1 year" : `${maxDays} days`, hours: most })
+  return within
+}
+
+/** The limit in words, or "". Pure. */
+export function capLine(maxDays: number | undefined): string {
+  if (!maxDays || maxDays <= 0) return ""
+  return `Links in this workspace last at most ${maxDays === 1 ? "1 day" : maxDays === 365 ? "1 year" : `${maxDays} days`}.`
+}
+
+/** The chosen lifetime if offered, else the longest. Pure. */
+function offered(hours: number, options: { hours: number }[]): number {
+  return options.some((o) => o.hours === hours) ? hours : options[options.length - 1].hours
+}
 
 // What each kind of shared resource is called and what its guest may do. A
 // resource with a write capability offers it as the second permission.
@@ -103,11 +123,13 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
   const [open, setOpen] = React.useState(embedded)
 
   // The resource's live links, so whoever shares can also turn one off.
-  const links = useFetch<{ data: ResourceGuestLink[] }>(canShare && resourceId ? resourceGuestLinksKey(resourceType, resourceId) : "")
+  const links = useFetch<ResourceGuestLinks>(canShare && resourceId ? resourceGuestLinksKey(resourceType, resourceId) : "")
   const [turningOff, setTurningOff] = React.useState<string | null>(null)
 
   if (!canShare) return null
 
+  const options = expiryOptions(links.data?.max_days)
+  const ttl = offered(ttlHours, options)
   const kind = RESOURCE[resourceType]
   const writeCapability = kind.write
   const supportsComment = writeCapability !== null
@@ -116,11 +138,11 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
   const handleCreate = async () => {
     setCreating(true)
     try {
-      const neverExpires = ttlHours === NEVER
+      const neverExpires = ttl === NEVER
       const res = await createGuestLink(
         resourceType,
         resourceId,
-        neverExpires ? undefined : ttlHours,
+        neverExpires ? undefined : ttl,
         supportsComment ? capability : "view",
         neverExpires,
       )
@@ -188,12 +210,12 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
         <div data-link-options="" className="flex flex-wrap items-end gap-2 sm:flex-nowrap">
           <div className="min-w-0 flex-1 space-y-1.5">
             <Label htmlFor={expiryId} className="text-xs text-muted-foreground">Link expires</Label>
-            <Select value={String(ttlHours)} onValueChange={(v) => setTtlHours(Number(v))}>
+            <Select value={String(ttl)} onValueChange={(v) => setTtlHours(Number(v))}>
               <SelectTrigger id={expiryId} className="h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {EXPIRY_OPTIONS.map((o) => (
+                {options.map((o) => (
                   <SelectItem key={o.hours} value={String(o.hours)}>
                     {o.label}
                   </SelectItem>
@@ -215,7 +237,7 @@ function GuestLinkPanel({ resourceType, resourceId, canShare, embedded = false }
               </Select>
             </div>
           )}
-          <Button onClick={handleCreate} disabled={creating} className="h-9 shrink-0 max-sm:h-11 max-sm:w-full">
+          <Button onClick={handleCreate} busy={creating} className="h-9 shrink-0 max-sm:h-11 max-sm:w-full">
             <Link2 className="mr-1.5 h-4 w-4" />
             {creating ? "Creating…" : "Create link"}
           </Button>
@@ -334,13 +356,17 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
     ? ["On", permissionOf(first.capability), first.expires_at ? `expires ${format(new Date(first.expires_at), "d MMM")}` : "doesn't expire", ...(live.some((l) => l.slug) ? ["published as a web page"] : [])].join(" · ")
     : on
       ? "On · make the link below"
-      : "Off"
+      : resourceType === "doc" && (links.data?.publish_allowed ?? true)
+        ? "Off · Turn on to share a link or publish it as a web page"
+        : "Off"
 
+  const options = expiryOptions(links.data?.max_days)
+  const ttl = offered(ttlHours, options)
   const create = async () => {
     setCreating(true)
     try {
-      const never = ttlHours === NEVER
-      const res = await createGuestLink(resourceType, resourceId, never ? undefined : ttlHours, kind.write ? capability : "view", never)
+      const never = ttl === NEVER
+      const res = await createGuestLink(resourceType, resourceId, never ? undefined : ttl, kind.write ? capability : "view", never)
       setLink(guestResourceLink(resourceType, res.token))
       void links.mutate()
     } catch (e: unknown) {
@@ -392,7 +418,7 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
     })
   }
 
-  const expiryLabel = EXPIRY_OPTIONS.find((o) => o.hours === ttlHours)?.label ?? ""
+  const expiryLabel = options.find((o) => o.hours === ttl)?.label ?? ""
   return (
     <AccessCard
       tile={<LinkAccessTile />}
@@ -414,15 +440,20 @@ function GuestLinkCard({ resourceType, resourceId, canShare }: GuestLinkSectionP
                   />
                 ) : null}
                 <GhostMenu
-                  label={ttlHours === NEVER ? "Does not expire" : `Expires in ${expiryLabel}`}
+                  label={ttl === NEVER ? "Does not expire" : `Expires in ${expiryLabel}`}
                   name="Link expires"
-                  options={EXPIRY_OPTIONS.map((o) => ({ value: String(o.hours), label: o.hours === NEVER ? o.label : `Expires in ${o.label}` }))}
+                  options={options.map((o) => ({ value: String(o.hours), label: o.hours === NEVER ? o.label : `Expires in ${o.label}` }))}
                   onSelect={(v) => setTtlHours(Number(v))}
                 />
                 <Button variant="secondary" size="sm" className="ml-auto h-7 gap-1.5" onClick={() => void create()} disabled={creating}>
                   {creating ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Link2 className="size-3.5" aria-hidden="true" />}
                   Create link
                 </Button>
+                {capLine(links.data?.max_days) ? (
+                  <p className="basis-full text-meta text-ink-3" data-link-cap="">
+                    {capLine(links.data?.max_days)}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <>

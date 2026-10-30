@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { TOUCH_QUERY } from "@/lib/ui/touchScreen"
 
 /** Overlays are sheets on a phone, portrait or landscape; tablets keep popovers (design/drawers-v3 §5.4). */
-export const SHEET_QUERY = "(max-width: 639px), (pointer: coarse) and (max-height: 500px)"
+export const SHEET_QUERY = `(max-width: 639px), ${TOUCH_QUERY} and (max-height: 500px)`
 
 const query = () => (typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(SHEET_QUERY) : null)
 

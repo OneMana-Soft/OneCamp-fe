@@ -49,6 +49,18 @@ describe("the keyboard shortcuts list", () => {
     expect(document.querySelector("[data-shortcut-columns]")!.className).toMatch(/md:grid-cols-2/)
   })
 
+  it("scrolls its list alone, under a header and filter that stay, faded at its ends with room after the last row", () => {
+    openList()
+    const dialog = document.querySelector("[data-shortcuts-dialog]")!
+    const list = document.querySelector("[data-shortcut-columns]")!
+    expect(dialog.className).toMatch(/\boverflow-hidden\b/)
+    expect(dialog.className).not.toMatch(/\boverflow-y-auto\b/)
+    expect(list.className).toMatch(/\boverflow-y-auto\b/)
+    expect(list.className).toMatch(/\bmin-h-0\b/)
+    expect(list.getAttribute("data-edge-fade")).toBe("block")
+    expect(list.className).toMatch(/\bpb-8\b/)
+  })
+
   it("opens with the focus in the filter, not on the close button", () => {
     openList()
     expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Filter shortcuts" }))
@@ -109,6 +121,22 @@ describe("the calendar's group", () => {
 
 // SD-64: a Slack person's ⌘/ (Ctrl+/) did nothing, and F1 opened the
 // browser's help. Both open the list; ⌘/ from a message box too, as Slack's.
+// A page's own keys (a call's, calls meet-18) come first while the page is
+// up, from the page's own chunk, and go with it.
+describe("a page's own group", () => {
+  it("comes first while the page shows it, and goes with the page", async () => {
+    const { showPageKeys } = await import("@/lib/shortcuts/pageGroups")
+    const hide = showPageKeys({ title: "This call", rows: [{ keys: "M or Ctrl/⌘ + D", does: "Turn your microphone on or off" }] })
+    openList()
+    expect(screen.getAllByRole("heading", { level: 3 })[0].textContent).toBe("This call")
+    expect(screen.getByText("Turn your microphone on or off")).toBeTruthy()
+    cleanup()
+    hide()
+    openList()
+    expect(screen.queryByRole("heading", { level: 3, name: "This call" })).toBeNull()
+  })
+})
+
 describe("opening the list", () => {
   const isOpen = () => document.querySelectorAll("[data-shortcuts-dialog]").length
 

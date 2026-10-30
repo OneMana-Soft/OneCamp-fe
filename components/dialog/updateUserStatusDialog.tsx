@@ -24,8 +24,8 @@ import {useStatusIsExpired} from "@/hooks/useStatusIsExpired";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { PeopleGet } from "@/services/endpoints/people";
 import {isStandardReaction} from "@/lib/utils/reaction/checker";
-import {DateField, TimeField, timeValueOf} from "@/components/ui/date-field";
-import {format} from "date-fns";
+import {DateTimeField} from "@/components/ui/date-time-field";
+import {quarterUp, toLocalInputValue} from "@/lib/messages/schedulePresets";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {usePost} from "@/hooks/usePost";
@@ -97,12 +97,11 @@ const CLEAR_CHIPS: { code: StatusTime | 'custom'; label: string }[] = [
   { code: 'custom', label: 'Custom' },
 ]
 
+/** A custom end's day and time, each as its picker on a phone is titled. */
+const CLEARS = ['Clears on', 'Clears at'] as const
+
 /** A custom end's first offer: an hour from now, on the next quarter hour (the time list's steps). */
-function anHourOn(now = new Date()): Date {
-  const at = new Date(now.getTime() + 3_600_000)
-  at.setHours(0, Math.ceil((at.getHours() * 60 + at.getMinutes()) / 15) * 15, 0, 0)
-  return at
-}
+const anHourOn = (now = new Date()) => quarterUp(new Date(now.getTime() + 3_600_000))
 
 /** When a status clears, as a person says it: "30 minutes", "This week", "Until 12 Oct, 5:00 PM". Pure. */
 export function expiryWords(code: string | null | undefined, at?: Date): string {
@@ -179,14 +178,6 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
     if (custom) customRow.current?.scrollIntoView?.({ block: "nearest" })
   }, [custom])
   const customPassed = custom && (!expiresAt || expiresAt.getTime() <= Date.now())
-  const setCustomPart = (part: 'day' | 'time', value: string) => {
-    const [a, b, c] = value.split(/[-:]/).map(Number)
-    if (Number.isNaN(a) || Number.isNaN(b)) return
-    const next = new Date(expiresAt ?? anHourOn())
-    if (part === 'day') next.setFullYear(a, b - 1, c)
-    else next.setHours(a, b, 0, 0)
-    setExpiresAt(next)
-  }
 
   // A sheet where overlays are sheets (components/ui/overlay: a phone, in
   // portrait or landscape), a popover elsewhere. Width alone gave a phone in
@@ -374,29 +365,21 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
               )
             })}
           </div>
-          {/* Custom: the day and the time, in the status itself. Each field
-              opens the shared picker, a popover by it on a computer and a
-              sheet of its own over this one on a phone, never a dialog laid
-              over the menu (it took the focus from the popover and closed it,
-              and on a phone it sat over the sheet with no name). */}
+          {/* Custom: the day and the time, in the status itself (the shared
+              DateTimeField). Each half opens its picker by it on a computer
+              and as a panel of this sheet on a phone, never a dialog laid over
+              the menu (it took the focus from the popover and closed it, and on
+              a phone it sat over the sheet with no name). */}
           {custom ? (
-              <div ref={customRow} data-status-custom="" className="mt-2 grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-2">
-                <DateField
-                    aria-label="Clears on"
-                    value={expiresAt ? format(expiresAt, 'yyyy-MM-dd') : ''}
-                    min={format(new Date(), 'yyyy-MM-dd')}
-                    required
+              <div ref={customRow} data-status-custom="" className="mt-2">
+                <DateTimeField
+                    aria-labelledby="status-clears-label"
+                    labels={CLEARS}
+                    value={expiresAt ? toLocalInputValue(expiresAt) : ''}
+                    min={toLocalInputValue(new Date())}
                     aria-invalid={customPassed || undefined}
                     aria-describedby={customPassed ? 'status-custom-passed' : undefined}
-                    onChange={(v) => setCustomPart('day', v)}
-                />
-                <TimeField
-                    aria-label="Clears at"
-                    value={expiresAt ? timeValueOf(expiresAt) : ''}
-                    after={expiresAt && expiresAt.toDateString() === new Date().toDateString() ? timeValueOf(new Date()) : undefined}
-                    aria-invalid={customPassed || undefined}
-                    aria-describedby={customPassed ? 'status-custom-passed' : undefined}
-                    onChange={(v) => setCustomPart('time', v)}
+                    onChange={(v) => v && setExpiresAt(new Date(v))}
                 />
               </div>
           ) : null}

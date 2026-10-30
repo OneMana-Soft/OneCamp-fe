@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 const { post } = vi.hoisted(() => ({ post: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post } }))
 
 import { invite, resendInvitation } from "./invitationService"
 import { PostEndpointUrl } from "@/services/endPoints"

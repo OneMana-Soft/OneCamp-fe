@@ -66,13 +66,19 @@ describe("the grouped list (work.md W18, W19)", () => {
     expect(screen.queryByText("Medium")).toBeNull()
   })
 
-  it("keeps a row's hover-only controls out of the tree until the row is reached", () => {
+  // The select box joins while the row is pointed at, and leaves with the
+  // pointer; the priority picker is a plain button whose menu joins only when
+  // it opens (F-1 #2, components/ui/menuOnDemand).
+  it("keeps a row's hover-only controls out of the tree until the row is reached, and lets them go after", () => {
     const { container } = renderList([t("1", "todo"), t("2", "todo")])
+    const row = container.querySelector<HTMLElement>("[data-task-id='1']")!
     expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(0)
-    expect(screen.queryByRole("button", { name: "Priority of Task 1" })).toBeNull()
-    fireEvent.pointerEnter(container.querySelector("[data-task-id='1']")!)
+    expect(screen.getByRole("button", { name: "Priority of Task 1" }).getAttribute("aria-expanded")).toBe("false")
+    expect(screen.queryByRole("menu")).toBeNull()
+    fireEvent.pointerEnter(row)
     expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(1)
-    expect(screen.getByRole("button", { name: "Priority of Task 1" })).toBeTruthy()
+    fireEvent.pointerLeave(row)
+    expect(container.querySelectorAll("[role=checkbox]")).toHaveLength(0)
   })
 
   it("adds a task in the group its + belongs to", () => {

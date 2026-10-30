@@ -10,17 +10,17 @@ import { SPLASH_DEVICES, splashLinks } from "@/lib/pwa/splash"
 const ROOT = join(__dirname, "..", "..")
 
 describe("the browser's bar", () => {
-  it("continues the phone's top bar (the sheet), and the frame from 640px", () => {
-    expect(chromeToken(390, "")).toBe("--sheet")
-    expect(chromeToken(639, "")).toBe("--sheet")
-    expect(chromeToken(640, "")).toBe("--canvas")
-    expect(chromeToken(1440, "")).toBe("--canvas")
+  // Where the phone shell ends (640px) is ThemeColorMeta's query
+  // (themeColorMetaReads.test).
+  it("continues the phone's top bar (the sheet), and the frame on a computer", () => {
+    expect(chromeToken(true, "")).toBe("--sheet")
+    expect(chromeToken(false, "")).toBe("--canvas")
   })
 
   it("goes black while a large sheet pushes the page back as a card", () => {
     // vaul paints the body black behind the scaled page.
-    expect(chromeToken(390, "black")).toBe("black")
-    expect(chromeToken(390, "rgb(0, 0, 0)")).toBe("black")
+    expect(chromeToken(true, "black")).toBe("black")
+    expect(chromeToken(true, "rgb(0, 0, 0)")).toBe("black")
   })
 })
 

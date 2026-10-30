@@ -6,7 +6,9 @@ import type * as WhenQuiet from "./whenQuiet"
 // Each test takes the module afresh: the fake clock starts again at every
 // test, and the last press or scroll another test left must not count.
 let runWhenQuiet: typeof WhenQuiet.runWhenQuiet
+let runWhenSettled: typeof WhenQuiet.runWhenSettled
 let QUIET_MS: number
+let SETTLE_MS: number
 
 // Work the page can put off (a preload) waits for a quiet spell, then runs one
 // task per idle moment. The right panel's preload, started by the first key,
@@ -19,7 +21,7 @@ beforeEach(async () => {
   vi.stubGlobal("requestIdleCallback", (cb: () => void) => setTimeout(cb, 0) as unknown as number)
   vi.stubGlobal("cancelIdleCallback", (id: number) => clearTimeout(id))
   vi.resetModules()
-  ;({ runWhenQuiet, QUIET_MS } = await import("./whenQuiet"))
+  ;({ runWhenQuiet, runWhenSettled, QUIET_MS, SETTLE_MS } = await import("./whenQuiet"))
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -118,5 +120,35 @@ describe("work put off until the page is quiet", () => {
     cancel()
     await pass(QUIET_MS * 2)
     expect(none).toEqual([])
+  })
+})
+
+// Work for after the first screen has settled (web push's SDK, 21 Oct 2026):
+// it came at 2-3 s, inside a phone's first screen at 4x (fluid-15).
+describe("work put off until the first screen has settled", () => {
+  it("waits SETTLE_MS, then a quiet spell, then runs", async () => {
+    const { ran, list } = tasks()
+    runWhenSettled(list.slice(0, 1))
+    await pass(SETTLE_MS - 20)
+    expect(ran).toEqual([])
+    // Settled, and a key half a second later: the quiet spell starts again from it.
+    await pass(520)
+    fireEvent.keyDown(window, { key: "j" })
+    await pass(QUIET_MS - 20)
+    expect(ran).toEqual([])
+    await pass(100)
+    expect(ran).toEqual(["task"])
+  })
+
+  it("runs nothing once cancelled, before or during its wait for quiet", async () => {
+    const { ran, list } = tasks()
+    runWhenSettled(list)()
+    await pass(SETTLE_MS + QUIET_MS + 100)
+    expect(ran).toEqual([])
+    const cancel = runWhenSettled(list)
+    await pass(SETTLE_MS + 10)
+    cancel()
+    await pass(QUIET_MS + 100)
+    expect(ran).toEqual([])
   })
 })

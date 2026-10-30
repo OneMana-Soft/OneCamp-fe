@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { inputSizing } from "@/components/ui/input"
+import { Field } from "@/components/ui/field"
 
 /**
  * A select's trigger takes its height from the rule a text field uses
@@ -61,5 +62,37 @@ describe("a select's height", () => {
 
   it("does not pass dense on to the element", () => {
     expect(trigger({ dense: true }).hasAttribute("dense")).toBe(false)
+  })
+})
+
+describe("a select in a Field", () => {
+  // DESIGN-BUILD-14's M1 (24 Oct 2026): Field gives its one child its id and aria props, and a Select's root draws
+  // no element, so the label never named the trigger, and the help and the error never described it.
+  it("names its trigger with the field's label, and the field's help and error describe it", () => {
+    render(
+      <Field label="Country" help="Its public holidays." error="Choose a country.">
+        <Select value="">
+          <SelectTrigger>
+            <SelectValue placeholder="Choose one" />
+          </SelectTrigger>
+        </Select>
+      </Field>,
+    )
+    const trigger = screen.getByRole("combobox", { name: "Country" })
+    const described = trigger.getAttribute("aria-describedby")?.split(" ").map((id) => document.getElementById(id)?.textContent)
+    expect(described).toEqual(["Its public holidays.", "Choose a country."])
+    expect(trigger.getAttribute("aria-invalid")).toBe("true")
+  })
+})
+
+describe("a select's text", () => {
+  // Beside a field on a phone its value read 14px against the field's 16px.
+  it("is a field's size: 16px on a phone and 14px from md up, dense or not", () => {
+    for (const dense of [false, true]) {
+      const c = classesOf(trigger({ dense }))
+      expect(c).toEqual(expect.arrayContaining(["text-base", "md:text-sm"]))
+      expect(c).not.toContain("text-sm")
+      cleanup()
+    }
   })
 })

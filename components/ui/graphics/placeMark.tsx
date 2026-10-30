@@ -3,7 +3,7 @@ import { StatusGlyph, type StatusKind } from "@/components/ui/graphics/glyphs"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { DocIcon } from "@/components/docEditor/DocIcon"
-import { Clock, LayoutDashboard, MessageCircle, MessageSquare, Paperclip, Users } from "@/lib/icons"
+import { CalendarDays, Clock, LayoutDashboard, MessageCircle, MessageSquare, Paperclip, Users } from "@/lib/icons"
 import { knownDocIcon } from "@/lib/docLook"
 import { placeHue, type PlaceHue } from "@/lib/placeHue"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
@@ -11,9 +11,9 @@ import { avatarSeed } from "@/lib/utils/getAvatarColor"
 /**
  * What a listed thing is, for its mark: a place (a person, a project, a
  * channel, a doc, a team, a board), a task, or a hit that isn't a place (a
- * message, a reply or a DM, a file).
+ * message, a reply or a DM, a file, an event).
  */
-export type PlaceMarkKind = "person" | "project" | "channel" | "doc" | "task" | "team" | "board" | "message" | "reply" | "file"
+export type PlaceMarkKind = "person" | "project" | "channel" | "doc" | "task" | "team" | "board" | "message" | "reply" | "file" | "event"
 
 export interface MarkedPlace {
   kind: PlaceMarkKind | null | undefined
@@ -29,7 +29,7 @@ export interface MarkedPlace {
   status?: StatusKind
 }
 
-const GLYPH = { team: Users, board: LayoutDashboard, message: MessageSquare, reply: MessageCircle, file: Paperclip }
+const GLYPH = { team: Users, board: LayoutDashboard, message: MessageSquare, reply: MessageCircle, file: Paperclip, event: CalendarDays }
 
 /** A doc's icon: its source's, or the one the app last saw where its source has none. */
 const docIcon = (p: MarkedPlace) => (p.icon === undefined ? knownDocIcon(p.id) : p.icon)
@@ -58,7 +58,8 @@ export function PlaceMark({ place }: { place: MarkedPlace }) {
     case "board":
     case "message":
     case "reply":
-    case "file": {
+    case "file":
+    case "event": {
       const Glyph = GLYPH[place.kind]
       return <Glyph className="size-4 text-ink-3" aria-hidden="true" />
     }

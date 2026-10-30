@@ -9,6 +9,9 @@
  * fine as it is. Pure.
  */
 
+import { hostOf } from "@/lib/links/hostOf"
+import { webURL } from "@/lib/links/webURL"
+
 export const LONG = 50
 
 const decode = (s: string) => {
@@ -69,15 +72,9 @@ export function urlLabel(href: string): string | null {
  * that isn't a web one.
  */
 export function shapeLabel(href: string): string | null {
-  const raw = href.trim()
-  let u: URL
-  try {
-    u = new URL(raw)
-  } catch {
-    return null
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null
-  const host = u.hostname.replace(/^www\./, "")
+  const u = webURL(href)
+  if (!u) return null
+  const host = hostOf(u)
   const parts = u.pathname.split("/").filter(Boolean)
   const named = shaped(u, host, parts)
   if (named) return named

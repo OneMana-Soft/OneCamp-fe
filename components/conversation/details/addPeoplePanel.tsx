@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "@/components/ui/command"
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxField, ComboboxInput, ComboboxList } from "@/components/ui/combobox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem"
 import { useFetch } from "@/hooks/useFetch"
@@ -12,7 +11,7 @@ import { displayNameOf } from "@/lib/personName"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { addPeople, shareChoicesKey, type ChatPlace, type Opened, type Share, type ShareChoice } from "@/lib/conversation/conversationApi"
 import { shareOptions } from "@/components/conversation/details/shareOptions"
-import { ChevronsUpDown, X } from "@/lib/icons"
+import { X } from "@/lib/icons"
 import type { UserListInterfaceResp, UserProfileDataInterface } from "@/types/user"
 
 /** How many people one Add takes, as the server does (business/Conversation maxAdded). */
@@ -107,7 +106,7 @@ export function AddPeoplePanel({ place, present, onAdded, onCancel, onPrivateCha
             {error && <p role="alert" className="text-meta text-danger-ink">{error}</p>}
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
-                <Button size="sm" onClick={() => void submit()} disabled={!chosen.length || busy} aria-busy={busy || undefined}>
+                <Button size="sm" onClick={() => void submit()} disabled={!chosen.length} busy={busy}>
                     {busy ? "Adding…" : addLabel}
                 </Button>
             </div>
@@ -121,41 +120,31 @@ function PeoplePicker({ place, chosen, onToggle }: {
     chosen: UserProfileDataInterface[]
     onToggle: (user: UserProfileDataInterface) => void
 }) {
-    const [open, setOpen] = useState(false)
     const users = useFetch<UserListInterfaceResp>(`${ChatGet.UserListNotBelongToDm}/${encodeURIComponent(place.id)}`)
     const picked = useMemo(() => new Set(chosen.map((u) => u.user_uuid)), [chosen])
     return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
-                    <span className="truncate text-ink-2">{chosen.length ? "Choose someone else" : "Choose people"}</span>
-                    <ChevronsUpDown className="size-4 shrink-0 text-ink-3" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent portalled={false} align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
-                <Command>
-                    <CommandInput placeholder="Search people" />
-                    <CommandList>
-                        <CommandEmpty>{users.isLoading ? "Loading people…" : "Nobody else to add"}</CommandEmpty>
-                        <CommandGroup>
-                            {(users.data?.users ?? []).map((user) => (
-                                <UserComboboxItem
-                                    key={user.user_uuid}
-                                    userUuid={user.user_uuid}
-                                    userName={displayNameOf(user)}
-                                    userFullName={user.user_full_name}
-                                    userHandle={user.user_handle}
-                                    userEmail={user.user_email_id}
-                                    userProfileObjectKey={user.user_profile_object_key}
-                                    isSelected={picked.has(user.user_uuid)}
-                                    isBot={user.is_bot}
-                                    onSelect={() => onToggle(user)}
-                                />
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
-            </PopoverContent>
-        </Popover>
+        <Combobox multiple>
+            <ComboboxField aria-label="People to add" placeholder={chosen.length ? "Choose someone else" : "Choose people"} />
+            <ComboboxContent label="People to add" portalled={false}>
+                <ComboboxInput placeholder="Find someone…" />
+                <ComboboxList>
+                    <ComboboxEmpty>{users.isLoading ? "Loading people…" : "Nobody else to add"}</ComboboxEmpty>
+                    {(users.data?.users ?? []).map((user) => (
+                        <UserComboboxItem
+                            key={user.user_uuid}
+                            userUuid={user.user_uuid}
+                            userName={displayNameOf(user)}
+                            userFullName={user.user_full_name}
+                            userHandle={user.user_handle}
+                            userEmail={user.user_email_id}
+                            userProfileObjectKey={user.user_profile_object_key}
+                            isSelected={picked.has(user.user_uuid)}
+                            isBot={user.is_bot}
+                            onSelect={() => onToggle(user)}
+                        />
+                    ))}
+                </ComboboxList>
+            </ComboboxContent>
+        </Combobox>
     )
 }

@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import { isPlainLeftClick } from "@/lib/ui/linkClick"
 
 // useInternalLinkRouter returns a click handler that intercepts clicks on
@@ -32,7 +32,7 @@ export function inAppPath(href: string, origin: string = typeof window !== "unde
 }
 
 export function useInternalLinkRouter(enabled: boolean = true) {
-    const router = useRouter()
+    const router = useAppRouter()
 
     return useCallback(
         (e: React.MouseEvent<HTMLElement>) => {

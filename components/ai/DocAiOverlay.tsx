@@ -21,9 +21,10 @@ import { useSheetMode } from "@/components/ui/overlayMode"
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
 import { aiBarOf, closeAiBar, panelPinOf, setPanelPin, subscribeAiBar, type BarRequest, type BarState } from "./docAiStore"
 import { pinRange, unpin } from "./docAiPlugin"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 const loadBar = () => import("./DocAiBar")
-const DocAiBar = React.lazy(loadBar)
+const DocAiBar = lazyPiece(loadBar)
 
 const CLOSED: BarState = { open: false, request: null, seq: 0 }
 const noop = () => () => {}

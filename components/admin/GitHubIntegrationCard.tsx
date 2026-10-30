@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
+import { SearchInput } from "@/components/ui/search-input"
 import { ErrorState } from "@/components/ui/error-state"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,7 +31,6 @@ import {
   GitPullRequest,
   Link2,
   RefreshCw,
-  Search,
   Settings2,
   Unlink,
 } from "@/lib/icons"
@@ -540,19 +540,14 @@ const GitHubIntegrationCard = () => {
               />
             </SettingsList>
             <div className="space-y-3">
-              <div className="relative">
-                <Label htmlFor="github-repo-search" className="sr-only">Search repositories</Label>
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                <Input
-                  id="github-repo-search"
-                  type="search"
-                  placeholder="Search repositories…"
-                  value={repoSearch}
-                  onChange={(e) => setRepoSearch(e.target.value)}
-                  disabled={reposLoading || repos.length === 0}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput
+                id="github-repo-search"
+                aria-label="Search repositories"
+                placeholder="Search repositories…"
+                value={repoSearch}
+                onValueChange={setRepoSearch}
+                disabled={reposLoading || repos.length === 0}
+              />
               {reposLoading ? (
                 <div role="status" aria-label="Loading your repositories" className="rounded-lg bg-raised px-3 py-2 shadow-e1">
                   <SkeletonRows rows={3} avatar={false} />

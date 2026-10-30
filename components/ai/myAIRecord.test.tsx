@@ -4,7 +4,7 @@ import { cleanup } from "@testing-library/react"
 import { downloadBlob } from "@/lib/utils/download"
 
 vi.mock("@/lib/utils/download", () => ({ downloadBlob: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: vi.fn() } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: vi.fn() } }))
 
 import axiosInstance from "@/lib/axiosInstance"
 import { downloadMyAIRecord } from "@/services/aiActivityService"

@@ -16,6 +16,10 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { ChevronDown, Pencil, Play, Plus, Square, Trash2 } from "@/lib/icons"
 import { formatClock, formatDuration, parseDuration, type TimeEntryView } from "@/lib/tasks/time"
 import { startTimer, stopTimer, useElapsed, useRunningTimer, useTaskTime, type SpanInput } from "@/hooks/useTaskTime"
+import { offerUndo, restore } from "@/services/restoreService"
+import axiosInstance from "@/lib/axiosInstance"
+import { appMutate } from "@/lib/swrMutate"
+import { GetEndpointUrl } from "@/services/endPoints"
 import { propertyLabel, propertyRow } from "@/lib/ui/propertyRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { localDay } from "@/lib/utils/timeZone"
@@ -77,9 +81,7 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
 
   return (
     <div className={propertyRow("start")} data-property="time">
-      <div className="pt-[7px]">
-        <span className={propertyLabel}>Time</span>
-      </div>
+      <span className={propertyLabel}>Time</span>
       <div className="min-w-0 grid gap-1 py-0.5">
         {/* -ml-2: each line's first control starts where every other value
             does, at the label column's edge (PTC-45: 8 px further in). */}
@@ -130,7 +132,10 @@ export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: strin
                       <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Change this time" onClick={() => setEditing(e)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Delete this time" onClick={() => act(() => remove(e.id), "Couldn't delete that time")}>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Delete this time" onClick={() => act(async () => {
+                        await remove(e.id)
+                        offerUndo(`Deleted ${formatDuration(e.seconds)}`, () => restore(axiosInstance, "time_entry", e.id, () => appMutate(`${GetEndpointUrl.TaskTime}/${taskUUID}`)))
+                      }, "Couldn't delete that time")}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </span>

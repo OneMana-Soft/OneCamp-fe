@@ -19,6 +19,7 @@ import { CopyLinkButton } from "@/components/dialog/shareParts"
 import { Copy, ExternalLink, Globe, KeyRound } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { publishLink, settingsOf, tidySlug, unpublishLink, type PublishSettings } from "@/lib/publish/publish"
+import { SECRET_HINT, secretProblem } from "@/lib/publish/secret"
 import type { ResourceGuestLink } from "@/services/guestService"
 
 /** One setting: its words on the left, its switch on the right. */
@@ -126,7 +127,7 @@ export function PublishSection({ links, publishAllowed = true, onChanged }: {
               />
             </label>
             {slugChanged ? (
-              <Button size="sm" type="submit" disabled={busy}>
+              <Button size="sm" type="submit" busy={busy}>
                 Save
               </Button>
             ) : (
@@ -178,8 +179,9 @@ export function PublishSection({ links, publishAllowed = true, onChanged }: {
               data-publish-password=""
               onSubmit={async (e) => {
                 e.preventDefault()
-                if (passwordDraft.length < 4) {
-                  setError("A password is 4 to 128 characters.")
+                const problem = secretProblem("password", passwordDraft)
+                if (problem) {
+                  setError(problem)
                   return
                 }
                 if (await save(settingsOf(published, { password: passwordDraft }))) {
@@ -192,12 +194,12 @@ export function PublishSection({ links, publishAllowed = true, onChanged }: {
                 type="password"
                 value={passwordDraft}
                 onChange={(e) => setPasswordDraft(e.target.value)}
-                placeholder={published.has_password ? "A new password" : "At least 4 characters"}
+                placeholder={published.has_password ? "A new password" : SECRET_HINT}
                 aria-label="Password"
                 autoComplete="new-password"
                 className="min-w-0 flex-1"
               />
-              <Button size="sm" type="submit" disabled={busy || !passwordDraft}>
+              <Button size="sm" type="submit" disabled={!passwordDraft} busy={busy}>
                 {published.has_password ? "Change" : "Set password"}
               </Button>
             </form>

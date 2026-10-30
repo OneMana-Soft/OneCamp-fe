@@ -25,6 +25,21 @@ describe("the call's settings in the room's metadata", () => {
     expect(m.muteOnEntry).toBe(false)
     expect(readCallMetadata("not json").muteOnEntry).toBe(false)
   })
+
+  // Package B: the board on the stage rides under "board" (business/CallControl metaBoard).
+  it("reads the board on the stage: which, whose, who draws and whether guests do", () => {
+    const m = readCallMetadata(JSON.stringify({ board: { uuid: "b-1", by: "0x2", draw: "presenter", guests: true } }))
+    expect(m.board).toEqual({ uuid: "b-1", by: "0x2", draw: "presenter", guests: true })
+    // The server's defaults: everyone draws, guests don't.
+    expect(readCallMetadata(JSON.stringify({ board: { uuid: "b-1", by: "0x2" } })).board).toEqual({ uuid: "b-1", by: "0x2", draw: "everyone", guests: false })
+  })
+
+  it("takes no board, or a board without its id, as none on the stage", () => {
+    expect(readCallMetadata(JSON.stringify({ isRecording: false })).board).toBeUndefined()
+    expect(readCallMetadata(JSON.stringify({ board: null })).board).toBeUndefined()
+    expect(readCallMetadata(JSON.stringify({ board: { by: "0x2", draw: "everyone" } })).board).toBeUndefined()
+    expect(readCallMetadata(JSON.stringify({ board: "b-1" })).board).toBeUndefined()
+  })
 })
 
 describe("the server's notices", () => {

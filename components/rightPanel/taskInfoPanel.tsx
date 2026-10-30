@@ -1,7 +1,30 @@
 "use client"
-import {startTransition, useCallback, useEffect, useMemo, useRef, useState} from "react"
-import { TagPicker } from "@/components/tags/TagPicker"
-import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
+import { startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
+import { TagPills } from "@/components/tags/TagPills"
+import { lazyPart } from "@/lib/lazy/lazyPart"
+import { PartRetry } from "@/components/ui/part-retry"
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
+import type { TaskCycleField as CycleField } from "@/components/task/taskCycleField"
+import type { TaskMilestoneField as MilestoneField } from "@/components/task/taskMilestoneField"
+import type ApprovalCard from "@/components/work/approvals/TaskApprovalCard"
+
+type TagPickerProps = { projectId: string | undefined; label: string; canEdit: boolean; onChange: (label: string) => void }
+
+// The tag picker is SA-3's combobox, a chunk of its own (lib/lazy/lazyPart):
+// its tags at rest while it comes, and Try again beside them if it can't.
+const tagPicker = lazyPart<TagPickerProps>(() => import("@/components/tags/TagPicker").then((m) => m.TagPicker), {
+  placeholder: function TagsAtRest({ label }) {
+    return <TagPills label={label} />
+  },
+  failed: function TagsRetry({ label, canEdit, retry }) {
+    return (
+      <span className="flex flex-wrap items-center gap-1">
+        <TagPills label={label} />
+        {canEdit && <PartRetry what="the tag picker" retry={retry} />}
+      </span>
+    )
+  },
+})
 import {Button} from "@/components/ui/button"
 import {useDispatch, useSelector} from "react-redux"
 import type {RootState} from "@/store/store"
@@ -36,28 +59,38 @@ import {usePost} from "@/hooks/usePost"
 import { useFeature, FEATURE_GITHUB } from "@/hooks/useClientConfig";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch"
-import { accessOf, canCommentTask, canEditTask } from "@/lib/work/access"
+import { useMessageCatchUp } from "@/hooks/useMessageCatchUp"
+import { accessHeldBack, accessOf, canCommentTask, canEditTask } from "@/lib/work/access"
 import { canDeleteTask } from "@/lib/work/canDelete"
 
 import {useToast} from "@/hooks/use-toast"
-import {
-    CreateTaskCommentInterface,
-    CreateTaskInterface,
-    NewSubTaskDraft,
-    RemoveTaskAttachmentInterface, TaskInfoInterface,
-    TaskInfoRawInterface,
-} from "@/types/task"
+import type { CreateTaskCommentInterface, CreateTaskInterface, NewSubTaskDraft, RemoveTaskAttachmentInterface, TaskInfoInterface, TaskInfoRawInterface } from "@/types/task"
 import {useUploadFile} from "@/hooks/useUploadFile"
 import {RightPanelTaskHeader} from "@/components/rightPanel/RightPanelTaskHeader"
+import { TaskTypeField } from "@/components/task/TaskTypeField"
+import { HIDDEN_TASK_NAME } from "@/lib/work/hiddenTask"
+import { useTaskPlace } from "@/lib/work/taskSequence"
+import type { TaskWorkType } from "@/types/task"
 import {openUI} from "@/store/slice/uiSlice"
 import {TaskCommentBox, TaskCommentNote} from "@/components/task/taskCommentComposer"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
 import {TaskRepeatField} from "@/components/task/taskRepeatField"
-import {TaskCycleField} from "@/components/task/taskCycleField"
+// The Cycle and Milestone rows (linear-16) show once their project's cycles or milestones are read, so each comes
+// in a chunk of its own, beside those reads: the task page stays under its source ceiling. Each is a lazyPart (as
+// is the approval card below): with no network, a part whose code can't come draws nothing and comes once the
+// browser is back online, where next/dynamic broke the whole panel, and warmTaskParts fetches them ahead.
+const cycleField = lazyPart<ComponentProps<typeof CycleField>>(() => import("@/components/task/taskCycleField").then((m) => m.TaskCycleField))
+const milestoneField = lazyPart<ComponentProps<typeof MilestoneField>>(() => import("@/components/task/taskMilestoneField").then((m) => m.TaskMilestoneField))
+const TaskCycleField = cycleField.Part
+const TaskMilestoneField = milestoneField.Part
 import {TaskTimeSection} from "@/components/task/taskTimeSection"
 import { TaskEstimateField } from "@/components/task/taskEstimateField"
 import { TaskFieldsSection } from "@/components/task/taskFieldsSection"
 import {TaskClientReview} from "@/components/task/taskClientReview"
+const approvalCard = lazyPart<ComponentProps<typeof ApprovalCard>>(() => import("@/components/work/approvals/TaskApprovalCard").then((m) => m.default))
+const TaskApprovalCard = approvalCard.Part
+// Points, shown only in a project that estimates in them (linear-05): its scale comes with the task.
+import { TaskPointsRow } from "@/components/task/taskPointsRow"
 import { useSaveOnEdit } from "@/hooks/useSaveOnEdit"
 import { useEarlierHistory } from "@/hooks/useEarlierHistory"
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice"
@@ -71,7 +104,7 @@ import {SubtasksSection} from "@/components/task/subtasksSection"
 import {TaskDescription} from "@/components/task/taskDescription"
 import {TaskPanelSkeleton} from "@/components/task/taskPanelSkeleton"
 import {TaskDependencies} from "@/components/task/TaskDependencies"
-import {useRouter} from "next/navigation"
+import { useAppRouter } from "@/lib/navigation/appRouter"
 import {app_my_task_path, app_task_path} from "@/types/paths"
 import {useMedia} from "@/context/MediaQueryContext"
 import {CreateOrUpdateCommentReaction} from "@/types/reaction";
@@ -91,6 +124,7 @@ import TaskStream from "@/components/task/TaskStream"
 import { DatesProperty, MoreFields, entranceStyle, usePanelEntrance } from "@/components/task/panelParts"
 import { propertyLabel, propertyRow, panelSection } from "@/lib/ui/propertyRow"
 import { useTaskTime } from "@/hooks/useTaskTime"
+import { PANEL_INCLUDE, seedPanelParts, type PanelParts } from "@/lib/work/panelIncludes"
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice"
 
 const CONSTANTS = {
@@ -127,11 +161,23 @@ type StreamFilter = "all" | "comments" | "history" | "github"
  */
 const PAGE_COLUMNS = "mx-auto w-full max-w-[1080px] lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-x-10 lg:px-8"
 
+// Only a restricted task, or one the reader may restrict, has the row (WA2b).
+const TaskVisibilityRow = lazyPiece(() => import("@/components/task/TaskVisibility").then((m) => ({ default: m.TaskVisibilityRow })))
+// The statuses dialog comes when it opens, as on the project's list and board.
+const ProjectStatusesDialog = lazyPiece(() => import("@/components/project/ProjectStatusesDialog").then((m) => ({ default: m.ProjectStatusesDialog })))
+/**
+ * Every part the panel draws on a chunk of its own, fetched ahead with its code (the offline layer's warm list, lib/offline/warmAhead, which TaskInPlace joins), so a
+ * task opens whole with no network (asana-12 (a)): a part left out said "Couldn't load the tag picker" in a task
+ * opened offline. Only the statuses dialog, which a press opens, comes when it opens (taskParts.test).
+ */
+export const warmTaskParts = () =>
+    Promise.all([tagPicker.warm(), cycleField.warm(), milestoneField.warm(), approvalCard.warm(), TaskVisibilityRow.warm()])
+
 export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPanelProps) {
     const dispatch = useDispatch()
     const post = usePost()
     const uploadFile = useUploadFile()
-    const router = useRouter()
+    const router = useAppRouter()
     const { isMobile, isDesktop } = useMedia();
     const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate();
     const { connectionState: mqttState } = useMqtt();
@@ -165,9 +211,10 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     const [scrolled, setScrolled] = useState(false)
     const [streamFilter, setStreamFilter] = useState<StreamFilter>("all")
     const entrance = usePanelEntrance()
-    const taskTime = useTaskTime(taskUUID)
-
-    const taskInfo = useFetch<TaskInfoRawInterface>(taskUUID ? `${GetEndpointUrl.GetTaskInfo}/${taskUUID}` : "", undefined, {
+    const taskInfo = useFetch<TaskInfoRawInterface & { included?: PanelParts }>(taskUUID ? `${GetEndpointUrl.GetTaskInfo}/${taskUUID}` : "", undefined, {
+        // The panel's other reads come with the task (?include=) and go under
+        // their own keys before the rows that read them mount (panelIncludes).
+        onFetched: (d) => seedPanelParts(taskUUID, d?.data?.task_project?.project_uuid, d?.included),
         // Long-interval fallback refresh. Catches missed MQTT messages
         // and GitHub-side changes (title, status, PR state) without
         // being noisy. Real-time comment/reaction updates come via
@@ -181,7 +228,13 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         refreshInterval: isMqttHealthy ? 5 * 60 * 1000 : 60 * 1000,
         refreshWhenHidden: false,
         refreshWhenOffline: false,
-    })
+    }, { params: { include: PANEL_INCLUDE } })
+    // Its comments and changes come on the project's topic, which goes live
+    // with the connection's other topics once the broker answers them: read
+    // before then, the task is read again, as an open conversation is (F5).
+    useMessageCatchUp(() => void taskInfo.mutate(), !!taskInfo.data)
+    // Its time comes with the task, so it waits for it.
+    const taskTime = useTaskTime(taskInfo.data ? taskUUID : "")
     // On its own page the tab says the task's name ("Task · OneCamp" said
     // which section, not which task: PTC-38); in a panel the page beside it
     // keeps its own.
@@ -270,6 +323,9 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     )
 
     const parentTask = useMemo(() => taskInfo.data?.data.task_parent_task, [taskInfo.data?.data.task_parent_task])
+    // Where it sits in the list or board it was opened from, for previous
+    // and next (STEP4 #8); J and K there are the list's own keys.
+    const place = useTaskPlace(taskUUID)
 
 
     const handleChangeTask = useCallback(
@@ -292,6 +348,28 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
             }
         },
         [isMobile, isDesktop, router, dispatch],
+    )
+    // A new type shows at once in the panel, and the lists catch up.
+    const taskInfoKey = taskUUID ? `${GetEndpointUrl.GetTaskInfo}/${taskUUID}` : ""
+    const showType = useCallback(
+        (t: TaskWorkType | undefined) => {
+            patchCached<TaskInfoRawInterface>(taskInfoKey, (d) => (d?.data ? { ...d, data: { ...d.data, task_work_type: t } } : d))
+            revalidateTaskListsDebounced(800)
+        },
+        [taskInfoKey, revalidateTaskListsDebounced],
+    )
+
+    // WA2b: the panel's lock follows at once, the lists on their next read.
+    const showRestricted = useCallback(
+        (restricted: boolean) => {
+            patchCached<TaskInfoRawInterface>(taskInfoKey, (d) => (d?.data ? { ...d, data: { ...d.data, task_restricted: restricted } } : d))
+            revalidateTaskListsDebounced(800)
+        },
+        [taskInfoKey, revalidateTaskListsDebounced],
+    )
+    const alwaysIn = useMemo(
+        () => [taskInfo.data?.data.task_assignee?.user_uuid, taskInfo.data?.data.task_created_by?.user_uuid].filter((id): id is string => !!id),
+        [taskInfo.data?.data.task_assignee?.user_uuid, taskInfo.data?.data.task_created_by?.user_uuid],
     )
 
     const updateTaskName = useCallback(
@@ -602,7 +680,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     );
                 })
         },
-        [post, taskUUID, taskInfo],
+        [post, taskUUID],
     )
 
     const removeTaskPreviewFile = useCallback(
@@ -895,6 +973,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
             removeComment={(id, idx) => handleDeleteTaskComment(id, idx + start)}
             updateComment={(id, body, idx) => handleUpdateTaskComment(id, body, idx + start)}
             getMediaURL={`${GetEndpointUrl.GetProjectMedia}/${taskInfo.data?.data.task_project.project_uuid}`}
+            canReact={canComment}
         />
     )
 
@@ -917,7 +996,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     noun="task"
                     onRetry={() => void taskInfo.mutate()}
                     back={onPage ? { label: "Back to My Tasks", href: app_my_task_path } : isDesktop ? { label: "Close", onClick: () => dispatch(closeRightPanel()) } : undefined}
-                    goneDetail="If someone sent you the link, it may be in a project you're not in."
+                    goneDetail="If someone sent you the link, it may be in a project you're not in, or kept to a few people."
                     noAccessDetail="It's in a project you're not in. Ask one of the project's admins to add you."
                     className="m-auto pt-0"
                 />
@@ -945,7 +1024,10 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     scrolled={scrolled}
                     onPage={onPage}
                     deleted={taskIsDeleted}
-                    parent={parentTask ? { name: parentTask.task_name, onOpen: () => handleChangeTask(parentTask.task_uuid) } : undefined}
+                    parent={parentTask?.task_uuid ? (parentTask.task_hidden ? { name: HIDDEN_TASK_NAME } : { name: parentTask.task_name, onOpen: () => handleChangeTask(parentTask.task_uuid) }) : undefined}
+                    taskKey={taskInfo.data?.data.task_key}
+                    place={place}
+                    onOpenTask={handleChangeTask}
                     hasGitHubLink={!!(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch)}
                 />
                 {taskIsDeleted && (
@@ -978,21 +1060,29 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                     className={cn(
                         "px-6 pb-6 pt-[18px]",
                         onPage && cn(PAGE_COLUMNS, "lg:pt-8 lg:[&>*]:col-start-1"),
+                        // A phone reads the title, then what the task is, then its properties (design-23).
+                        "max-sm:flex max-sm:flex-col",
                     )}
                     style={entranceStyle(entrance, "body")}
                 >
 
-                    {/* The title: title-2, edited in place, a hover ground behind it (W29). */}
-                    <div className="-mx-1 mb-4 rounded-md transition-colors hover:bg-hover focus-within:bg-transparent" style={entranceStyle(entrance, "title")}>
-                        <ResizeableTextInput
-                            key={titleKey}
-                            delay={3000}
-                            content={taskInfo.data?.data.task_name || ""}
-                            textUpdate={(s: string) => saveName({ taskName: s, taskUUID })}
-                            disabled={!canEdit}
-                            className="!min-h-0 !border-0 !bg-transparent !px-1 !py-0.5 !text-title-2 !shadow-none"
-                        />
+                    {/* The title: title-2, edited in place, a hover ground behind it (W29).
+                        Read only, it is text in the title's ink, not a disabled field's ink-3. */}
+                    <div className={cn("-mx-1 mb-4 rounded-md max-sm:order-[-2]", canEdit && "transition-colors hover:bg-hover focus-within:bg-transparent")} style={entranceStyle(entrance, "title")}>
+                        {canEdit ? (
+                            <ResizeableTextInput
+                                key={titleKey}
+                                delay={3000}
+                                content={taskInfo.data?.data.task_name || ""}
+                                textUpdate={(s: string) => saveName({ taskName: s, taskUUID })}
+                                className="!min-h-0 !border-0 !bg-transparent !px-1 !py-0.5 !text-title-2 !shadow-none"
+                            />
+                        ) : (
+                            <p className="whitespace-pre-wrap break-words px-1 py-0.5 text-title-2">{taskInfo.data?.data.task_name}</p>
+                        )}
                     </div>
+
+                    <TaskApprovalCard taskUUID={taskUUID} members={projectMembers} status={selectedStatus} />
 
                     {/* The six properties that always show, then the rest (W29). */}
                     <div
@@ -1008,11 +1098,22 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         onSelectPriority={handlePrioritySelect}
                         onManageStatuses={access.manage && projectUUID ? () => setManagingStatuses(true) : undefined}
                     />
-                    {access.manage && projectUUID && (
-                        <ProjectStatusesDialog
-                            projectId={projectUUID}
-                            open={managingStatuses}
-                            onOpenChange={setManagingStatuses}
+                    {access.manage && projectUUID && managingStatuses && (
+                        <Suspense fallback={null}>
+                            <ProjectStatusesDialog
+                                projectId={projectUUID}
+                                open={managingStatuses}
+                                onOpenChange={setManagingStatuses}
+                            />
+                        </Suspense>
+                    )}
+                    {projectUUID && (
+                        <TaskTypeField
+                            taskUUID={taskUUID}
+                            projectUUID={projectUUID}
+                            type={taskInfo.data?.data.task_work_type}
+                            canEdit={canEdit && !taskIsDeleted}
+                            onChanged={showType}
                         />
                     )}
 
@@ -1048,14 +1149,31 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             canEdit={canEdit}
                         />
                     )}
+                    {projectUUID && (
+                        <TaskPointsRow taskUUID={taskUUID} projectUUID={projectUUID} points={taskInfo.data?.data.task_estimate_points} canEdit={canEdit} />
+                    )}
                     {/* Tags: chips for everyone, the picker for whoever can edit. */}
                     {(canEdit || taskLabel.trim() !== "") && (
                         <div className={propertyRow()} data-property="labels">
                             <span className={propertyLabel}>Labels</span>
                             <div className="min-w-0">
-                                <TagPicker projectId={projectUUID} label={taskLabel} canEdit={canEdit} onChange={editLabel} />
+                                <tagPicker.Part projectId={projectUUID} label={taskLabel} canEdit={canEdit} onChange={editLabel} />
                             </div>
                         </div>
+                    )}
+                    {projectUUID && !taskIsDeleted && (taskInfo.data?.data.task_restricted || taskInfo.data?.data.task_access?.restrict) && (
+                        <Suspense fallback={<div className="h-8" />}>
+                        <TaskVisibilityRow
+                            taskUUID={taskUUID}
+                            taskName={taskInfo.data?.data.task_name || ""}
+                            restricted={!!taskInfo.data?.data.task_restricted}
+                            canChange={!!taskInfo.data?.data.task_access?.restrict}
+                            members={projectMembers}
+                            alwaysIn={alwaysIn}
+                            onChanged={showRestricted}
+                            onOpenTask={handleChangeTask}
+                        />
+                        </Suspense>
                     )}
                     {projectUUID && <TaskTimeSection taskUUID={taskUUID} estimateMinutes={taskInfo.data?.data.task_estimate_minutes} />}
 
@@ -1067,6 +1185,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                             dueDate={dueDate}
                         />
                         <TaskCycleField taskUUID={taskUUID} projectId={projectUUID} isAdmin={canEdit} />
+                        <TaskMilestoneField taskUUID={taskUUID} projectId={projectUUID} canEdit={canEdit} />
                         {projectUUID && (
                             <TaskFieldsSection
                                 key={taskUUID}
@@ -1083,15 +1202,18 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
 
                     {settled ? (<>
                     {/* Its own component: typing renders the editor, not the panel. */}
-                    <TaskDescription
-                        taskUUID={taskUUID}
-                        projectUUID={taskInfo.data?.data.task_project?.project_uuid || ""}
-                        html={taskInfo.data?.data.task_description || ""}
-                        canEdit={canEdit}
-                    />
+                    <div className="max-sm:order-[-1] max-sm:mb-5">
+                        <TaskDescription
+                            taskUUID={taskUUID}
+                            projectUUID={taskInfo.data?.data.task_project?.project_uuid || ""}
+                            html={taskInfo.data?.data.task_description || ""}
+                            canEdit={canEdit}
+                        />
+                    </div>
 
                     <SubtasksSection
                         isAdmin={canEdit}
+                        restricted={!!taskInfo.data?.data.task_restricted}
                         subtasks={taskSubTasks}
                         projectMembers={projectMembers}
                         onToggleStatus={(id, newStatus) => {
@@ -1235,9 +1357,11 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                                 itemClassName="h-6 px-2 text-xs md:h-6"
                             />
                         </div>
-                        {taskInfo.isError ? (
+                        {taskInfo.isError && !taskInfo.data?.data ? (
                             // Not "no comments yet" on a failed fetch: that invites a
-                            // comment onto a thread that may already have one.
+                            // comment onto a thread that may already have one. A
+                            // refresh that fails under the task on screen (offline,
+                            // say) says nothing: its activity is the one shown.
                             <ErrorState subject="the activity" onRetry={() => void taskInfo.mutate()} className="py-8" />
                         ) : streamFilter === "github" ? (
                             <GitHubActivityTab taskUUID={taskUUID} />
@@ -1272,7 +1396,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
             </div>
             )}
 
-            {!canComment ? <TaskCommentNote frame={onPage ? PAGE_COLUMNS : undefined} /> : settled ? <TaskCommentBox
+            {!canComment ? <TaskCommentNote frame={onPage ? PAGE_COLUMNS : undefined} later={accessHeldBack(taskUUID, taskInfo.data?.data)} /> : settled ? <TaskCommentBox
                 taskUUID={taskUUID}
                 frame={onPage ? PAGE_COLUMNS : undefined}
                 projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}

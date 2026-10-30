@@ -25,6 +25,7 @@ import { NO_ASSIGNEE, groupByAssignee } from "@/lib/board/groupBy"
 import { colorDot, isClosedStatus, statusOptionOf, type StatusCategory, type StatusOption, type TaskStatusFields } from "@/lib/taskStatus"
 import { endsOf, wayKept, wayOf, type DependencyFacets } from "@/lib/tasks/dependency"
 import { taskDate } from "@/lib/tasks/taskDate"
+import type { WorkAccess } from "@/lib/work/types"
 
 /** A task as GET /project/{id}/timeline sends it. */
 export interface TimelineTask extends TaskStatusFields {
@@ -48,8 +49,10 @@ export interface TimelineData {
   tasks: TimelineTask[]
   /** How many tasks the project has; more than tasks.length when the timeline holds only the newest. */
   total: number
-  /** Whether the reader may move tasks: the project's admins, as for every task edit. */
+  /** Whether the reader may move any task here. */
   can_edit: boolean
+  /** Which tasks the reader may move, by canEditTask (lib/work/access). */
+  project_access: WorkAccess
 }
 
 /** A task made a moment ago, which the server hasn't named yet (taskCreateForm). */

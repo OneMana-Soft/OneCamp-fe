@@ -32,7 +32,7 @@ import { useEffect } from "react"
  * The observer is deliberately indifferent to WHO changed the theme: next-themes
  * writing `dark` onto <html>, ActiveThemeProvider swapping `theme-*` on <body>,
  * or the OS flipping appearance while the mode is "system". Anything that
- * restyles the shell re-runs the read.
+ * restyles the shell re-runs the read, once per look.
  */
 
 /** Normalises any CSS colour the browser understands into #rrggbb. */
@@ -58,24 +58,49 @@ function toHexColor(value: string): string | null {
  * black, and the status area goes black with it, as iOS's page sheets do.
  * Pure.
  */
-export function chromeToken(width: number, bodyBackground: string): "--sheet" | "--canvas" | "black" {
+export function chromeToken(phone: boolean, bodyBackground: string): "--sheet" | "--canvas" | "black" {
   if (/\bblack\b|rgb\(0, 0, 0\)/.test(bodyBackground)) return "black"
-  return width < 640 ? "--sheet" : "--canvas"
+  return phone ? "--sheet" : "--canvas"
 }
 
 export function ThemeColorMeta() {
   useEffect(() => {
+    // Covers mode="system": the OS flipping appearance restyles the shell.
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
+    // Crossing 640px swaps the phone shell for the desktop one.
+    const phone = window.matchMedia("(max-width: 639.98px)")
+    // The colour of each look, keyed by what it can depend on, read with no
+    // style recalc or layout: a query's matches, not innerWidth, which a
+    // phone's Chrome lays the page out to answer. Not the inline styles: on
+    // <html> and <body> they hold measurements (--app-vvh, --mobile-drawer-h)
+    // and behaviours (overscroll, pointer-events), written as often as every
+    // frame, and never a colour; vaul's black is in the token. Read on every
+    // such write, the colour cost a recalc a frame (a board's moves, 22 Oct).
+    // A page flips between a few looks; eight bound it.
+    const looks = new Map<string, string>()
     const apply = () => {
       // The app's chrome (the sidebar on the frame; the phone's top bar on
       // the sheet) is what the browser bar continues. Tokens are declared on
       // body (where the theme class is), so they are read there: on <html>
       // they are still the unthemed value. body's background is the fallback.
-      const token = chromeToken(window.innerWidth, document.body.style.background || document.body.style.backgroundColor)
-      const value = token === "black" ? "#000000" : getComputedStyle(document.body).getPropertyValue(token).trim()
-      const background = value || getComputedStyle(document.body).backgroundColor
-      if (!background) return
-      const hex = toHexColor(background)
-      if (!hex) return
+      const { documentElement: html, body } = document
+      const token = chromeToken(phone.matches, body.style.background || body.style.backgroundColor)
+      const look = [token, media.matches, html.className, html.dataset.theme, body.className, body.dataset.theme].join("\n")
+      let hex = looks.get(look)
+      if (!hex) {
+        const value = token === "black" ? "#000000" : getComputedStyle(body).getPropertyValue(token).trim()
+        const background = value || getComputedStyle(body).backgroundColor
+        const found = background ? toHexColor(background) : null
+        // Nothing to show yet: the next change asks again.
+        if (!found) return
+        hex = found
+        // Nor is the fallback kept: the tokens may not be styled yet.
+        if (value) {
+          const oldest = looks.keys().next().value
+          if (looks.size >= 8 && oldest !== undefined) looks.delete(oldest)
+          looks.set(look, hex)
+        }
+      }
       // One per media query from the first paint (app/layout, lib/pwa/grounds):
       // the browser shows the first that matches, so every one takes the colour.
       const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
@@ -104,11 +129,7 @@ export function ThemeColorMeta() {
     observer.observe(document.documentElement, options)
     observer.observe(document.body, options)
 
-    // Covers mode="system": the OS flipping appearance restyles the shell.
-    const media = window.matchMedia("(prefers-color-scheme: dark)")
     media.addEventListener("change", schedule)
-    // Crossing 640px swaps the phone shell for the desktop one.
-    const phone = window.matchMedia("(max-width: 639.98px)")
     phone.addEventListener?.("change", schedule)
 
     return () => {

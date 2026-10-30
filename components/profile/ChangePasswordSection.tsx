@@ -7,8 +7,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { SettingsRowsSkeleton } from "@/components/ui/settingsSection"
-import { LoaderCircle, Check } from "@/lib/icons"
+import { SettingsCardError, SettingsRowsSkeleton } from "@/components/ui/settingsSection"
+import { Check } from "@/lib/icons"
 import { AuthField, PasswordField } from "@/components/auth/AuthShell"
 import AuthService from "@/services/auth/AuthService"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -158,8 +158,7 @@ function PasswordDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+            <Button type="submit" busy={submitting}>
               {submitting ? "Saving…" : hasPassword ? "Change password" : "Set password"}
             </Button>
           </div>
@@ -196,19 +195,7 @@ export function ChangePasswordSection() {
     )
   }
 
-  if (hasPassword === "failed") {
-    return (
-      <div className="set-row flex items-center justify-between gap-6">
-        <div className="min-w-0">
-          <h3 className="text-sm font-medium leading-5">Couldn&apos;t check your password</h3>
-          <p className="text-xs text-muted-foreground text-pretty">Nothing has changed. This is usually a connection problem: try again in a moment.</p>
-        </div>
-        <Button variant="secondary" size="sm" className="shrink-0" onClick={load}>
-          Try again
-        </Button>
-      </div>
-    )
-  }
+  if (hasPassword === "failed") return <SettingsCardError title="Couldn't check your password" onRetry={load} />
 
   return (
     <div data-setting-row="" className="set-row flex items-center justify-between gap-6">

@@ -19,7 +19,6 @@ vi.mock("@/hooks/useFetch", () => ({
 }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => ({}) }))
-vi.mock("@/services/aiService", () => ({ useTranslateText: () => ({ translateText: async () => null, isSubmitting: false }) }))
 // The body as the editor would be given it, without an editor.
 vi.mock("@/components/textInput/textInput", () => ({
   default: ({ content }: { content?: string }) => <div data-testid="body">{content}</div>,
@@ -31,7 +30,6 @@ vi.mock("@/lib/utils/useInternalLinkRouter", () => ({ useInternalLinkRouter: () 
 vi.mock("@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel", () => ({
   MessageDesktopHoverOptionsForMainChatAndChannel: () => null,
 }))
-vi.mock("@/components/ai/SaveToMemoryButton", () => ({ SaveToMemoryButton: () => null }))
 // A phone row opens its thread by navigating: a press on a guest's card must not.
 const push = vi.hoisted(() => vi.fn())
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/app/channel/c1" }))

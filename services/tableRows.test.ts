@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 // every row, page by page, instead of the rows the page holds (TAB-BUG-2).
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get, post }, OWN_ERRORS: { suppressErrorToast: true } }))
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get, post } }))
 vi.mock("@/lib/utils/timeZone", () => ({ browserTZ: () => "Asia/Kolkata" }))
 // A reader who writes 1.234,5, whatever the machine running the tests writes.
 vi.mock("@/lib/format/number", async (importOriginal) => ({
@@ -13,7 +13,8 @@ vi.mock("@/lib/format/number", async (importOriginal) => ({
   numberSigns: () => ({ decimal: ",", group: "." }),
 }))
 
-const { createRow, patchRow, previewConversion, readEveryRow, relationWrite, updateField, writableValues } = await import("@/services/tableService")
+const { createRow, patchRow, readEveryRow, relationWrite, writableValues } = await import("@/services/tableService")
+const { previewConversion, updateField } = await import("@/services/tableCalls")
 
 afterEach(() => {
   get.mockReset()

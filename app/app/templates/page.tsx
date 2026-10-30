@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import dynamic from "next/dynamic"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
@@ -14,7 +15,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Sparkles, Workflow, Table as TableIcon, Loader2, Download, Trash2, FileText, FolderKanban } from "@/lib/icons"
+import { Sparkles, Workflow, Table as TableIcon, Loader2, Download, Trash2, FileText, FolderKanban, LayoutDashboard } from "@/lib/icons"
 import { Tile } from "@/components/ui/graphics"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
@@ -27,6 +28,7 @@ import { SafeHtml } from "@/components/safeHtml/SafeHtml"
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml"
 import { templateGlyph, templateHue } from "@/lib/docTemplates"
 import { docTemplatePayload } from "@/services/docHomeService"
+
 import { cn } from "@/lib/utils/helpers/cn"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
@@ -50,6 +52,7 @@ type GalleryKind = TemplateKind | "project"
 
 const KIND_META: Record<GalleryKind, { label: string; icon: typeof Sparkles }> = {
   doc: { label: "Doc", icon: FileText },
+  board: { label: "Board", icon: LayoutDashboard },
   project: { label: "Project", icon: FolderKanban },
   agent: { label: "Agent", icon: Sparkles },
   workflow: { label: "Automation", icon: Workflow },
@@ -59,6 +62,7 @@ const KIND_META: Record<GalleryKind, { label: string; icon: typeof Sparkles }> =
 const FILTERS: { value: "" | GalleryKind; label: string }[] = [
   { value: "", label: "All" },
   { value: "doc", label: "Docs" },
+  { value: "board", label: "Boards" },
   { value: "project", label: "Projects" },
   { value: "agent", label: "Agents" },
   { value: "workflow", label: "Automations" },
@@ -69,6 +73,12 @@ const isKind = (v: string | null): v is GalleryKind => !!v && v in KIND_META
 
 /** A card's kind: a tag, so rounded-sm, as every chip is (app/radiusScale.test.ts). */
 const kindTag = "rounded-sm bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground"
+
+// A doc or a board starts here: used, not installed.
+const startsHere = (kind: TemplateKind) => kind === "doc" || kind === "board"
+
+// Loaded after the cards.
+const BoardTemplateDrawing = dynamic(() => import("@/components/board/teamTemplateDrawing"), { ssr: false })
 
 /** A doc template's tile: its own hue and glyph (lib/docTemplates). */
 function DocTemplateTile({ t, size = "sm" }: { t: MarketplaceTemplate; size?: "sm" | "md" }) {
@@ -102,7 +112,8 @@ export default function TemplatesPage() {
   // about 170px, and the grid jumped twice.
   const { data, isLoading, isError: sharedFailed, mutate } = useFetch<{ data: MarketplaceTemplate[] }>(query, undefined, { keepPreviousData: true })
   const projectTemplates = useProjectTemplates(kind === "" || kind === "project")
-  const templates = shared ? data?.data || [] : []
+  // A body that isn't a list (an older server's, a proxy's) lists nothing rather than crashing the page.
+  const templates = shared && Array.isArray(data?.data) ? data.data : []
   const projects = projectTemplates.templates
   const firstLoad = (shared && isLoading && !data) || (!shared && projectTemplates.isLoading)
   // Either read failing says so: a gallery missing half of itself would say
@@ -119,9 +130,9 @@ export default function TemplatesPage() {
     setBusyId(t.id)
     try {
       const res = await installTemplate(t.id)
-      toast(res.kind === "doc" ? { title: `Started “${res.name}”`, description: "Opening it now." } : { title: `Installed "${res.name}"`, description: "Opening it now." })
+      toast(startsHere(res.kind) ? { title: `Started “${res.name}”`, description: "Opening it now." } : { title: `Installed "${res.name}"`, description: "Opening it now." })
       setSelected(null)
-      router.push(installedPath(res))
+      router.push(installedPath(res, t.id))
     } catch {
       // surfaced by interceptor
     } finally {
@@ -155,7 +166,7 @@ export default function TemplatesPage() {
     <div className="container mx-auto max-w-5xl px-4 py-8">
       <PageHeader eyebrow="Shared by your team" title="Templates" className="mb-6">
         <p className="text-sm text-muted-foreground">
-          Docs and projects to start from, and agents, automations and tables, ready to install as your own copy.
+          Docs, boards and projects to start from, and agents, automations and tables, ready to install as your own copy.
         </p>
       </PageHeader>
 
@@ -209,7 +220,9 @@ export default function TemplatesPage() {
           description={
             kind === "project"
               ? "Save a project as a template from its menu, and everyone who creates projects can start from it."
-              : "Publish an agent, automation, or table you built so your team can install it in one click."
+              : kind === "board"
+                ? "Save a board as a template from its More menu, and anyone in the workspace can start a board from it."
+                : "Publish an agent, automation, or table you built so your team can install it in one click."
           }
           className="rounded-2xl border border-border/60 px-6 py-16"
         />
@@ -226,7 +239,15 @@ export default function TemplatesPage() {
                 className="flex flex-col gap-2 rounded-xl border border-border/60 p-4 text-left transition-colors hover:border-border"
               >
                 <div className="flex items-center gap-2">
-                  {t.kind === "doc" ? <DocTemplateTile t={t} /> : <span className="text-lg">{t.icon || <Icon className="h-5 w-5 text-muted-foreground" />}</span>}
+                  {t.kind === "doc" ? (
+                    <DocTemplateTile t={t} />
+                  ) : t.kind === "board" ? (
+                    <span className="relative block h-9 w-12 shrink-0 overflow-hidden rounded-md bg-sunken shadow-e1" aria-hidden="true">
+                      <BoardTemplateDrawing template={t} height={36} pad={4} className="rounded-md" />
+                    </span>
+                  ) : (
+                    <span className="text-lg">{t.icon || <Icon className="h-5 w-5 text-muted-foreground" />}</span>
+                  )}
                   <span className={kindTag}>
                     {t.kind === "doc" ? docTemplatePayload(t).category || meta.label : meta?.label || t.kind}
                   </span>
@@ -288,6 +309,11 @@ export default function TemplatesPage() {
               {selected.description && (
                 <p className="text-sm text-muted-foreground">{selected.description}</p>
               )}
+              {selected.kind === "board" && (
+                <div className="group/tpl rounded-lg bg-sunken p-4" data-board-template-preview={selected.id}>
+                  <BoardTemplateDrawing template={selected} height={220} className="rounded-md" count />
+                </div>
+              )}
               {selected.kind === "doc" && docTemplatePayload(selected).preview && (
                 // How a doc from it starts: the server's preview, cleaned again here.
                 <div className="max-h-64 overflow-hidden rounded-lg bg-sunken p-4" data-template-preview={selected.id}>
@@ -301,15 +327,15 @@ export default function TemplatesPage() {
               )}
 
               <div className="flex items-center gap-2">
-                <Button onClick={() => handleInstall(selected)} disabled={busyId === selected.id} className="gap-1.5">
-                  {busyId === selected.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : selected.kind === "doc" ? (
+                <Button onClick={() => handleInstall(selected)} busy={busyId === selected.id} className="gap-1.5">
+                  {selected.kind === "doc" ? (
                     <FileText className="h-4 w-4" />
+                  ) : selected.kind === "board" ? (
+                    <LayoutDashboard className="h-4 w-4" />
                   ) : (
                     <Download className="h-4 w-4" />
                   )}
-                  {selected.kind === "doc" ? "Use template" : "Install"}
+                  {startsHere(selected.kind) ? "Use template" : "Install"}
                 </Button>
                 {/* OneCamp's own doc templates are every workspace's: nobody removes them. */}
                 {!(selected.kind === "doc" && docTemplatePayload(selected).builtin) && (
@@ -404,7 +430,7 @@ function ProjectTemplateDialog({ template: t, onClose }: { template: TemplateSum
             </div>
 
             <div className="flex items-center gap-2">
-              <Button onClick={() => use(t.id)} disabled={busy} className="gap-1.5">
+              <Button onClick={() => use(t.id)} busy={busy} className="gap-1.5">
                 <FolderKanban className="h-4 w-4" />
                 Use template
               </Button>

@@ -56,6 +56,16 @@ describe("publishing a doc's link as a web page", () => {
     expect(api.publishLink).toHaveBeenLastCalledWith("g-1", { slug: "our-launch", indexable: false, allow_copies: false })
   })
 
+  it("refuses a password under six characters before sending it, with the server's words", async () => {
+    render(<PublishSection links={[published]} onChanged={() => {}} />)
+    fireEvent.click(screen.getByRole("switch", { name: "Require a password" }))
+    expect(screen.getByLabelText("Password").getAttribute("placeholder")).toBe("At least 6 characters")
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "abcde" } })
+    fireEvent.click(screen.getByRole("button", { name: "Set password" }))
+    expect(await screen.findByText("A password is 6 to 128 characters.")).toBeTruthy()
+    expect(api.publishLink).not.toHaveBeenCalled()
+  })
+
   it("sets a password, takes it off, and unpublishes", async () => {
     api.publishLink.mockResolvedValue({ ...published, has_password: true })
     api.unpublishLink.mockResolvedValue(view)

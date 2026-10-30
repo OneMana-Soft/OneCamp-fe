@@ -2,18 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 const calls: string[] = []
 let answers: Array<{ data: unknown }> = []
-vi.mock("@/lib/axiosInstance", () => {
-  const next = async (method: string, url: string) => {
-    calls.push(`${method} ${url}`)
-    const a = answers.shift()
-    if (!a) throw new Error("no answer")
-    return a
-  }
-  return {
-    default: { post: (url: string) => next("POST", url), get: (url: string) => next("GET", url) },
-    OWN_ERRORS: { suppressErrorToast: true },
-  }
-})
+async function next(method: string, url: string) {
+  calls.push(`${method} ${url}`)
+  const a = answers.shift()
+  if (!a) throw new Error("no answer")
+  return a
+}
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
+  default: { post: (url: string) => next("POST", url), get: (url: string) => next("GET", url) },
+}))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn() }))
 
 const { draftProjectPlan } = await import("./useProjectTemplates")

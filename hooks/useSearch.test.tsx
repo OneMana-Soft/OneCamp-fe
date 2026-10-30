@@ -12,7 +12,7 @@ import store from "@/store/store"
 
 const pending = new Map<string, (data: unknown) => void>()
 const failing = new Map<string, (status: number) => void>()
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: {
     get: (url: string) =>
       new Promise((resolve, reject) => {

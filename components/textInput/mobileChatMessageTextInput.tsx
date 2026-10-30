@@ -3,8 +3,9 @@
 import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { SendHorizontal } from "@/lib/icons";
-import DraggableDrawer from "@/components/drawers/dragableDrawer";
-import { useEffect, useRef, useState } from "react";
+import { PhoneComposerDrawer } from "@/components/textInput/phoneComposerDrawer";
+import { ThreadCommandSurface } from "@/components/command/ThreadCommandSurface";
+import { useState } from "react";
 import { openUI } from "@/store/slice/uiSlice";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -25,33 +26,13 @@ import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
 const NO_DRAFT = {}
 
 export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId: string, chatMessageUUID: string }) => {
-    const editorRef = useRef<HTMLDivElement>(null);
-    const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
     const [isExpanded, setIsExpanded] = useState(false);
-    const [initialHeight, setInitialHeight] = useState(126); // Default height
     const dispatch = useDispatch();
 
     const post = usePost()
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const chatCommentState = useSelector((state: RootState) => state.chatComments.chatCommentInputState[chatMessageUUID] || NO_DRAFT);
-
-
-    useEffect(() => {
-        if (!contentRef.current) return;
-
-        const resizeObserver = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                // Update initialHeight based on the entire content height
-                // The card and its 12px margins, plus the 12px grip above it.
-                setInitialHeight(Math.max(entry.contentRect.height, 30) + 12);
-            }
-        });
-
-        resizeObserver.observe(contentRef.current);
-
-        return () => resizeObserver.disconnect();
-    }, []);
 
 
     const handleSend = (latestContent?: string) => {
@@ -87,40 +68,40 @@ export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId
     }
 
     return (
-        <DraggableDrawer isExpanded={isExpanded} setIsExpanded={setIsExpanded} initialHeight={initialHeight}>
-            <div ref={contentRef}> {/* Wrap all content in a ref */}
-                <div ref={editorRef}>
-                    <MinimalTiptapTextInput
-                        key={chatMessageUUID}
-                        attachmentOnclick={() => { dispatch(openUI({ key: 'chatCommentFileUpload' }))
+        <PhoneComposerDrawer
+            expanded={isExpanded}
+            onExpandedChange={setIsExpanded}
+            answers={<ThreadCommandSurface kind="dm" conversation={chatId} thread={chatMessageUUID} />}
+        >
+            <MinimalTiptapTextInput
+                key={chatMessageUUID}
+                attachmentOnclick={() => { dispatch(openUI({ key: 'chatCommentFileUpload' }))
  }}
-                        throttleDelay={300}
-                        variant="phone"
-                        expanded={isExpanded}
-                        onExpandedChange={setIsExpanded}
-                        output="html"
-                        content={chatCommentState.commentBody}
-                        placeholder={THREAD_COMPOSER_PLACEHOLDER}
-                        editable={true}
-                        buttonOnclick={handleSend}
-                        ButtonIcon={SendHorizontal}
-                        hasAttachments={(chatCommentState.filesUploaded?.length ?? 0) > 0}
-                        editorClassName="focus:outline-none"
-                        onChange={(content ) => {
+                throttleDelay={300}
+                variant="phone"
+                expanded={isExpanded}
+                onExpandedChange={setIsExpanded}
+                output="html"
+                content={chatCommentState.commentBody}
+                placeholder={THREAD_COMPOSER_PLACEHOLDER}
+                editable={true}
+                buttonOnclick={handleSend}
+                ButtonIcon={SendHorizontal}
+                hasAttachments={(chatCommentState.filesUploaded?.length ?? 0) > 0}
+                editorClassName="focus:outline-none"
+                onChange={(content ) => {
 
-                            dispatch(createOrUpdateChatCommentBody({threadId: chatMessageUUID, body: content as string}))
-                        }}
-                    >
+                    dispatch(createOrUpdateChatCommentBody({threadId: chatMessageUUID, body: content as string}))
+                }}
+            >
 
 
 
-                    </MinimalTiptapTextInput>
-                    <div className='px-3'>
-                        <ChatCommentFileUpload chatMessageUUID={chatMessageUUID} chatUUID={chatId}/>
+            </MinimalTiptapTextInput>
+            <div className='px-3'>
+                <ChatCommentFileUpload chatMessageUUID={chatMessageUUID} chatUUID={chatId}/>
 
-                    </div>
-                </div>
             </div>
-        </DraggableDrawer>
+        </PhoneComposerDrawer>
     );
 };

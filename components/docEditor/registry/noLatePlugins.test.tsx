@@ -18,9 +18,8 @@ import { installRangeRects } from "@/lib/testing/rangeRects"
 // overlay its AI keys (blocks.spec, 15 Oct 2026). A view that comes and goes
 // (a bubble menu) attaches to the editor instead (utils/pluginView.ts).
 
-vi.mock("@/lib/axiosInstance", () => ({
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({
   default: { get: vi.fn(async () => ({ status: 200, data: {} })), post: vi.fn(async () => ({ data: {} })) },
-  OWN_ERRORS: { suppressErrorToast: true },
 }))
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => undefined }))
 vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))

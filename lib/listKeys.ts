@@ -4,7 +4,16 @@
  * a field of what is selected. Pure, for its test.
  */
 
-export type ListField = "status" | "assignee" | "tags" | "priority" | "due"
+export type ListField = "status" | "assignee" | "tags" | "priority" | "due" | "cycle" | "milestone"
+
+/**
+ * What every list's selection can change. A cycle is the backlog's alone: only it offers one. A milestone is a
+ * project's: its lists offer one (PROJECT_FIELDS).
+ */
+export const LIST_FIELDS: readonly ListField[] = ["status", "assignee", "tags", "priority", "due"]
+
+/** A project's lists: every list's fields, and its milestones. */
+export const PROJECT_FIELDS: readonly ListField[] = [...LIST_FIELDS, "milestone"]
 
 export type ListAction =
   | { type: "move"; by: 1 | -1; extend: boolean }
@@ -54,6 +63,12 @@ export function listKey(e: Keys): ListAction | null {
       return { type: "edit", field: "priority" }
     case "d":
       return { type: "edit", field: "due" }
+    // Shift + C, as Linear has it: C alone makes a new task.
+    case "C":
+      return e.shiftKey ? { type: "edit", field: "cycle" } : null
+    // Shift + M, as Linear has it: a milestone of the list's project.
+    case "M":
+      return e.shiftKey ? { type: "edit", field: "milestone" } : null
   }
   return null
 }
@@ -100,5 +115,8 @@ export const LIST_SHORTCUTS: { keys: string; does: string }[] = [
   { keys: "T (or L)", does: "Its tags" },
   { keys: "P", does: "Its priority" },
   { keys: "D", does: "Its due date" },
+  { keys: "Shift + C", does: "Move it into a cycle, on a project's backlog" },
+  { keys: "Shift + M", does: "Put it in one of the project's milestones" },
+  { keys: "Alt + ↓ / ↑", does: "Move it one place in a project's manual order" },
   { keys: "Esc", does: "Clear the selection" },
 ]

@@ -103,6 +103,15 @@ describe("the token list", () => {
     fireEvent.click(screen.getByRole("button", { name: "New token" }))
     expect(onCreatingChange).toHaveBeenCalledWith(true)
   })
+
+  // Since 17 Oct a token never carries its owner's admin powers (the server's
+  // helpers.ActsThroughToken), so an admin making one for admin work is told
+  // before the refusals, not by them.
+  it("says a token acts with a member's powers, never an admin's", () => {
+    answers["/api-tokens"] = { data: { data: [] }, isLoading: false, isError: undefined, mutate }
+    render(<ApiTokensCard creating={false} onCreatingChange={() => {}} />)
+    expect(screen.getByText(/act as you with a member's powers, never an admin's/)).toBeInTheDocument()
+  })
 })
 
 describe("making a token", () => {
@@ -198,6 +207,24 @@ describe("the token, shown once", () => {
     expect(onCreatingChange).not.toHaveBeenCalledWith(false)
     act(() => confirm.mock.calls[0][0].onConfirm())
     expect(onCreatingChange).toHaveBeenCalledWith(false)
+  })
+
+  // A copy the clipboard refused counted as one: closing asked nothing, and
+  // once the failure faded the card said "Token copied" (CR-15, 23 Oct).
+  it("still asks before closing after a copy the clipboard refused, and never says copied", async () => {
+    const onCreatingChange = await makeOne()
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error("Write permission denied."))
+    vi.useFakeTimers()
+    try {
+      await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "Copy token" })))
+      act(() => void vi.advanceTimersByTime(1_500))
+      expect(within(dialog()).queryByRole("button", { name: "Token copied" })).toBeNull()
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Done" }))
+      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Close without copying?" }))
+      expect(onCreatingChange).not.toHaveBeenCalledWith(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("closes without asking once it has been copied", async () => {
