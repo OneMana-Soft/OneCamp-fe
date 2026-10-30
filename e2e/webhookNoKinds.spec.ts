@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type BrowserContextOptions, type Locator, type Page, type Request, type TestInfo } from "@playwright/test"
 
-import { reviewShot, SAM, SHOT_THEMES, stubBackend } from "./stubbedApp"
+import { reviewShot, SAM, SHOT_THEMES, stubBackend, untilStill } from "./stubbedApp"
 
 // V-112: an outgoing webhook is sent only the kinds of event it names, so one
 // that names none is sent nothing. New and Edit wait until a kind is ticked
@@ -203,6 +203,10 @@ for (const [device, use] of Object.entries(DEVICES)) {
         await expectChannelScope(dialog)
         const save = await expectWaitsForAnEvent(page, "Save changes")
         await shotInThemes(page, `webhook-edit-waits-${device}`)
+        // A forced click skips the wait for a still target, and on a phone the sheet can still be moving after the
+        // scroll above: wait until nothing moves and the waiting Save is wholly on screen.
+        await untilStill(page)
+        await expect(save).toBeInViewport({ ratio: 1 })
         await save.click({ force: true })
         await dialog.getByRole("checkbox", { name: "post.created" }).click()
         await expect(save).not.toHaveAttribute("aria-disabled")
