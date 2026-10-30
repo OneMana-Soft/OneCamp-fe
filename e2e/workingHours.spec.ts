@@ -8,7 +8,16 @@ import { SAM, stubBackend } from "./stubbedApp"
 // form saying when a time is outside a guest's hours. With SHOTS_DIR set,
 // each state is saved for review.
 
-const NOW = new Date(2026, 9, 21, 10, 0)
+// The zone every test here runs in, pinned for the browser (timezoneId) and the
+// account (its zone) alike, never read from the runner: CI runs in UTC, a laptop
+// in IST, and the hours below are this zone's (+05:30 all year). India's zone by
+// the name Chromium reports for it (ICU's id; IANA's newer name is Asia/Kolkata):
+// the app matches the account's zone to the browser's by name, and given
+// "Asia/Kolkata" Chromium still says "Asia/Calcutta".
+const ZONE = "Asia/Calcutta"
+const at = (day: number, h: number, m = 0) =>
+  new Date(`2026-10-${String(day).padStart(2, "0")}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00+05:30`)
+const NOW = at(21, 10)
 const MAYA = { user_uuid: "5e1f0000-0000-4000-8000-0000000000a2", user_name: "Maya Chen", user_full_name: "Maya Chen" }
 
 async function open(page: Page, testInfo: TestInfo, path: string, prefs: Record<string, unknown>) {
@@ -31,9 +40,9 @@ async function open(page: Page, testInfo: TestInfo, path: string, prefs: Record<
       msg: "ok",
       data: {
         suggestions: [
-          { start: new Date(2026, 9, 22, 10, 0).toISOString(), end: new Date(2026, 9, 22, 10, 30).toISOString(), free: [SAM.user_uuid, MAYA.user_uuid], reason: "Everyone's free" },
-          { start: new Date(2026, 9, 22, 11, 0).toISOString(), end: new Date(2026, 9, 22, 11, 30).toISOString(), free: [SAM.user_uuid, MAYA.user_uuid], reason: "Everyone's free" },
-          { start: new Date(2026, 9, 22, 16, 0).toISOString(), end: new Date(2026, 9, 22, 16, 30).toISOString(), free: [SAM.user_uuid], away: [MAYA.user_uuid], reason: "1 of 2 free · outside Maya's hours" },
+          { start: at(22, 10, 0).toISOString(), end: at(22, 10, 30).toISOString(), free: [SAM.user_uuid, MAYA.user_uuid], reason: "Everyone's free" },
+          { start: at(22, 11, 0).toISOString(), end: at(22, 11, 30).toISOString(), free: [SAM.user_uuid, MAYA.user_uuid], reason: "Everyone's free" },
+          { start: at(22, 16, 0).toISOString(), end: at(22, 16, 30).toISOString(), free: [SAM.user_uuid], away: [MAYA.user_uuid], reason: "1 of 2 free · outside Maya's hours" },
         ],
       },
     },
@@ -57,7 +66,7 @@ async function shot(page: Page, name: string, theme: string) {
   await page.screenshot({ path: `${dir}/${name}-${page.viewportSize()?.width}-${theme}.png` })
 }
 
-const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone
+test.use({ timezoneId: ZONE })
 
 for (const theme of ["light", "dark"] as const) {
   test.describe(`working hours at 1280, ${theme}`, () => {
@@ -71,7 +80,7 @@ for (const theme of ["light", "dark"] as const) {
       await section.scrollIntoViewIfNeeded()
       await shot(page, "hours-unset", theme)
       await section.getByRole("button", { name: "Use it" }).click()
-      await expect.poll(() => puts.find((p) => p.key === "zone")?.value).toBe(tz())
+      await expect.poll(() => puts.find((p) => p.key === "zone")?.value).toBe(ZONE)
       await section.getByRole("switch", { name: /Set working hours/ }).click()
       await expect.poll(() => Object.keys((puts.find((p) => p.key === "calendar.working_hours")?.value ?? {}) as object)).toEqual(["1", "2", "3", "4", "5"])
       await expect(section.locator("[data-hours-day]")).toHaveCount(7)
@@ -80,7 +89,7 @@ for (const theme of ["light", "dark"] as const) {
 
     test("the week draws your hours", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
-      await open(page, testInfo, "/app/calendar?date=2026-10-21&view=week", { zone: tz(), week_start: 1, clock: "auto", "calendar.working_hours": { "1": [{ start: "08:00", end: "12:00" }, { start: "13:00", end: "16:00" }], "3": [{ start: "08:00", end: "16:00" }] }, "calendar.default_length": 60 })
+      await open(page, testInfo, "/app/calendar?date=2026-10-21&view=week", { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": { "1": [{ start: "08:00", end: "12:00" }, { start: "13:00", end: "16:00" }], "3": [{ start: "08:00", end: "16:00" }] }, "calendar.default_length": 60 })
       const monday = page.locator('[data-day-col="0"]')
       await expect(monday).toBeVisible({ timeout: 60_000 })
       // Monday: before 8, lunch, after 16. Tuesday: off all day.
@@ -92,7 +101,7 @@ for (const theme of ["light", "dark"] as const) {
     // Calendar head 6 (gcal-3): up to two zones beside yours, a column each.
     test("settings keep other zones beside yours, each with a name", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
-      const puts = await open(page, testInfo, "/app/settings/profile", { zone: tz(), week_start: 1, clock: "auto", "calendar.working_hours": null, "calendar.zones": [] })
+      const puts = await open(page, testInfo, "/app/settings/profile", { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": null, "calendar.zones": [] })
       const zones = page.locator("[data-other-zones]")
       await expect(zones).toBeVisible({ timeout: 60_000 })
       await zones.scrollIntoViewIfNeeded()
@@ -125,7 +134,7 @@ for (const theme of ["light", "dark"] as const) {
 
     test("Find a time says why a time suits only some, and the form says when it's outside a guest's hours", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
-      await open(page, testInfo, "/app/calendar?date=2026-10-21&view=week", { zone: tz(), week_start: 1, clock: "auto", "calendar.working_hours": null, "calendar.default_length": 60 })
+      await open(page, testInfo, "/app/calendar?date=2026-10-21&view=week", { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": null, "calendar.default_length": 60 })
       await page.locator("[data-new-event]").click()
       const dialog = page.locator("[data-event-dialog]")
       await dialog.getByRole("textbox", { name: "Title" }).fill("Pricing walkthrough")
@@ -151,7 +160,7 @@ test.describe("the account's clock and booking hours at 1280", () => {
 
   test("a 24-hour clock kept on the account writes the week's hours that way, over the browser's", async ({ page }, testInfo) => {
     test.setTimeout(180_000)
-    const prefs = { zone: tz(), week_start: 1, clock: "auto", "calendar.working_hours": null, "calendar.default_length": 60 }
+    const prefs = { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": null, "calendar.default_length": 60 }
     const puts = await open(page, testInfo, "/app/settings/profile", prefs)
     const section = page.locator("[data-working-hours]")
     await expect(section).toBeVisible({ timeout: 60_000 })
@@ -169,14 +178,14 @@ test.describe("the account's clock and booking hours at 1280", () => {
 
   test("a new booking page starts from your working days and hours", async ({ page }, testInfo) => {
     test.setTimeout(180_000)
-    await open(page, testInfo, "/app/calendar/booking", { zone: tz(), week_start: 1, clock: "auto", "calendar.working_hours": { "2": [{ start: "10:00", end: "12:00" }, { start: "13:00", end: "18:00" }], "4": [{ start: "10:00", end: "16:00" }] }, "calendar.default_length": 60 })
+    await open(page, testInfo, "/app/calendar/booking", { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": { "2": [{ start: "10:00", end: "12:00" }, { start: "13:00", end: "18:00" }], "4": [{ start: "10:00", end: "16:00" }] }, "calendar.default_length": 60 })
     await page.getByRole("button", { name: /New booking page/ }).click({ timeout: 60_000 })
     const days = page.getByRole("group", { name: "Days" })
     await expect(days.locator('[aria-pressed="true"]')).toHaveText(["Tue", "Thu"])
     await expect(page.locator("[data-booking-preview]")).toContainText("10:00")
     // The zone as people know it, never its database name ("Asia/Calcutta").
-    await expect(page.locator("[data-booking-preview]")).not.toContainText(tz())
-    await expect(page.getByRole("combobox", { name: "Time zone" })).not.toContainText(tz())
+    await expect(page.locator("[data-booking-preview]")).not.toContainText(ZONE)
+    await expect(page.getByRole("combobox", { name: "Time zone" })).not.toContainText(ZONE)
     await shot(page, "booking-from-hours", "light")
   })
 })
@@ -185,7 +194,7 @@ test.describe("working hours on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: "light" })
   test("the settings fit a phone", async ({ page }, testInfo) => {
     test.setTimeout(180_000)
-    await open(page, testInfo, "/app/settings/profile", { zone: tz(), week_start: 1, clock: "auto", "calendar.working_hours": { "1": [{ start: "09:00", end: "12:30" }, { start: "13:30", end: "17:00" }] }, "calendar.default_length": 60 })
+    await open(page, testInfo, "/app/settings/profile", { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": { "1": [{ start: "09:00", end: "12:30" }, { start: "13:30", end: "17:00" }] }, "calendar.default_length": 60 })
     const section = page.locator("[data-working-hours]")
     await expect(section).toBeVisible({ timeout: 60_000 })
     await section.locator("[data-hours-week]").scrollIntoViewIfNeeded()
@@ -203,7 +212,7 @@ for (const theme of ["light", "dark"] as const) {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme, timezoneId: "Asia/Kolkata" })
     test("the day shows them beside yours, and their settings fit", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
-      await open(page, testInfo, "/app/calendar?date=2026-10-21&view=day", { zone: tz(), week_start: 1, clock: "auto", "calendar.working_hours": null, "calendar.zones": [{ zone: "America/New_York", label: "NYC" }, { zone: "Asia/Tokyo" }] })
+      await open(page, testInfo, "/app/calendar?date=2026-10-21&view=day", { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": null, "calendar.zones": [{ zone: "America/New_York", label: "NYC" }, { zone: "Asia/Tokyo" }] })
       await expect(page.locator('[data-zone-hours="Asia/Tokyo"]')).toBeVisible({ timeout: 60_000 })
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
       // Each zone's hours stay in its own column: at 48 px "1:30pm" ran into Tokyo's "12:30pm".
