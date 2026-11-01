@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page, type Request, type TestInfo } from "@playwright/test"
 
+import { displayNameOf } from "../lib/personName"
 import { SAM, SHOT_THEMES, reviewShot, stubBackend, withStatus } from "./stubbedApp"
 
 // linear-15: a project's plan on its home: where it stands among the five
@@ -76,7 +77,7 @@ function apply(s: Server, c: Record<string, unknown>) {
     p.status = own ? { category: own.category, id: own.id, name: own.name, color: own.color } : { category: cat!.key, name: cat!.name, color: cat!.color }
   }
   if ("priority" in c) p.priority = (c.priority as string) ?? ""
-  if ("lead_uuid" in c) p.lead = c.lead_uuid ? { user_uuid: c.lead_uuid as string, name: [SAM, OZ].find((m) => m.user_uuid === c.lead_uuid)!.user_full_name ?? "" } : null
+  if ("lead_uuid" in c) p.lead = c.lead_uuid ? { user_uuid: c.lead_uuid as string, name: displayNameOf([SAM, OZ].find((m) => m.user_uuid === c.lead_uuid)) } : null
   if ("start" in c) p.start = c.start as Plan["start"]
   if ("target" in c) p.target = c.target as Plan["target"]
   if ("labels" in c || "new_labels" in c) {
@@ -162,10 +163,11 @@ for (const theme of SHOT_THEMES) {
         await expect(chip(page, "priority")).toHaveAccessibleName("Priority: high")
 
         await press(chip(page, "lead"))
-        // Its admins and members only: a guest never leads.
-        await expect(option(page, "Gil Guest")).toHaveCount(0)
-        await press(option(page, "Oz Ito"))
-        await expect(chip(page, "lead")).toHaveText(/Oz Ito/)
+        // Its admins and members only: a guest never leads. Each is named by the one rule (lib/personName), the
+        // display name first, as the server names the lead: Gil Guest is "gil", Oz Ito is "oz".
+        await expect(option(page, "gil")).toHaveCount(0)
+        await press(option(page, "oz"))
+        await expect(chip(page, "lead")).toHaveAccessibleName("Lead: oz")
         expect(s.posts.at(-1)).toEqual({ lead_uuid: OZ.user_uuid })
 
         await press(chip(page, "dates"))

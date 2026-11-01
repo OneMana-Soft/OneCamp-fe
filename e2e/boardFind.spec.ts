@@ -196,6 +196,37 @@ async function findFromMenu(page: Page) {
   return panel
 }
 
+/** A phone's Find sheet, opened from Board options as a person would, at rest. */
+async function findOnPhone(page: Page) {
+  await expect(page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
+  await page.getByRole("button", { name: "Board options" }).tap()
+  await page.getByRole("menuitem", { name: "Find and replace" }).tap()
+  const sheet = page.locator("[data-board-find]")
+  await expect(sheet).toBeVisible({ timeout: 30_000 })
+  await settled(sheet)
+  return sheet
+}
+
+/**
+ * The phone's camera that puts an element's words in V-201's band: under the Find sheet's top, yet inside the canvas's
+ * upper half. What sits above the canvas differs by build (the demo adds its shared-account note), and the band is half
+ * of it, so a first look measures this build's canvas and resting sheet. The words go in the band's middle, at 100% or
+ * smaller, so they take at most half of it.
+ */
+async function bandCamera(browser: Browser, theme: (typeof SHOT_THEMES)[number], id: string): Promise<Camera> {
+  const { context, page, collab } = await open(browser, "phone", "sam", `/app/board/${BOARD}`, theme)
+  const sheet = await findOnPhone(page)
+  const canvas = (await page.locator(".excalidraw canvas.interactive").boundingBox())!
+  const top = (await sheet.boundingBox())!.y
+  await context.close()
+  const band = canvas.y + canvas.height / 2 - top
+  expect(band, "the canvas's upper half runs under the Find sheet's top").toBeGreaterThan(0)
+  const words = byId(collab, id)!
+  const zoom = Math.min(1, band / 2 / words.height!)
+  // On screen, the words start at canvas.y + (words.y + scrollY) * zoom: here, a quarter of the band or more below the top.
+  return { scrollX: 0, scrollY: (top + (band - words.height! * zoom) / 2 - canvas.y) / zoom - words.y!, zoom }
+}
+
 /** The search page's hit on the board, its passage shown, opened as a person would. */
 async function openHit(page: Page, device: keyof typeof DEVICES, theme: string) {
   const row = page.locator('[data-search-row="board"]')
@@ -344,12 +375,7 @@ test(`on a phone, Find is a sheet that stays open on a jump, and the match it go
 test(`on a phone, a typed word's match under the sheet comes up above it before any step, unselected (phone, ${theme})`, async ({ browser }) => {
   test.setTimeout(120_000)
   const { context, page, collab } = await open(browser, "phone", "sam", `/app/board/${BOARD}`, theme)
-  await expect(page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
-  await page.getByRole("button", { name: "Board options" }).tap()
-  await page.getByRole("menuitem", { name: "Find and replace" }).tap()
-  const sheet = page.locator("[data-board-find]")
-  await expect(sheet).toBeVisible({ timeout: 30_000 })
-  await settled(sheet)
+  const sheet = await findOnPhone(page)
   const field = sheet.getByRole("textbox", { name: "Find on board" })
   await field.pressSequentially("caterer", { delay: 30 })
   await expect(sheet.locator("[data-board-find-count]")).toHaveText("1 of 1")
@@ -367,19 +393,16 @@ test(`on a phone, a typed word's match under the sheet comes up above it before 
 })
 
 // V-201: what a phone's Find sheet leaves in view is the canvas above the sheet's top. The canvas's upper half runs
-// under the sheet by half of what sits above the canvas: on the demo, the board's header and its shared-account note,
-// about 75 px. Words in that band counted as in view, so typing left them under the sheet.
+// under the sheet by half of what sits above the canvas: the board's header, and on the demo its shared-account note
+// too (a band of about 75 px there, about 26 px on a customer's build). Words in that band counted as in view, so
+// typing left them under the sheet.
 test(`on a phone, a typed word's match just under the sheet's top comes up above it (phone, ${theme})`, async ({ browser }) => {
   test.setTimeout(120_000)
-  // The camera 310 px down the scene, so the caterer's words sit just under the sheet's top.
-  const camera = { scrollX: 0, scrollY: -310, zoom: 1 }
+  // The camera puts the caterer's words just under the sheet's top, measured on this build (a camera fixed for the
+  // demo's layout put them above the sheet on every other build).
+  const camera = await bandCamera(browser, theme, "caterer-label")
   const { context, page, collab } = await open(browser, "phone", "sam", `/app/board/${BOARD}`, theme, camera)
-  await expect(page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
-  await page.getByRole("button", { name: "Board options" }).tap()
-  await page.getByRole("menuitem", { name: "Find and replace" }).tap()
-  const sheet = page.locator("[data-board-find]")
-  await expect(sheet).toBeVisible({ timeout: 30_000 })
-  await settled(sheet)
+  const sheet = await findOnPhone(page)
   // The words, as the board holds them, start in the band: under the sheet's top, yet inside the canvas's upper half.
   const words = byId(collab, "caterer-label")!
   const canvas = (await page.locator(".excalidraw canvas.interactive").boundingBox())!

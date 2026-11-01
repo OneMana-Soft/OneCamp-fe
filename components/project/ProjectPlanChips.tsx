@@ -22,6 +22,7 @@ import { CalendarRange, CircleUser, Plus, Tag } from "@/lib/icons"
 import { statusHueOf } from "@/lib/taskStatus"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
+import { displayNameOf, personKeywords } from "@/lib/personName"
 import { MOST_PLAN_LABELS, PLAN_CATEGORIES, categoryKind, nextLabelColor, spanWords, type PlanField, type PlanMember, type PlanPick, type PlanRegistry, type ProjectPlan } from "@/lib/work/projectPlan"
 
 const PlanPopover = dynamic(() => import("@/components/project/ProjectPlanPickers").then((m) => m.PlanPopover), { ssr: false })
@@ -33,7 +34,7 @@ const chip = "chip h-7 min-w-0 shrink-0 gap-1.5 text-xs text-ink-2"
 const ghost = "text-ink-3"
 /** How many labels the chip names before "+n". */
 const LABELS_SHOWN = 2
-const nameOf = (m: PlanMember) => m.user_full_name || m.user_name
+const nameOf = (m: PlanMember) => displayNameOf(m)
 
 type Opened = { open: boolean; onOpenChange: (open: boolean) => void }
 
@@ -255,7 +256,7 @@ function LeadPicker({ plan, members, onPick, opened, chipEl }: PickerProps & { m
             <ComboboxItem
               key={m.user_uuid}
               value={m.user_uuid}
-              keywords={[nameOf(m), m.user_name]}
+              keywords={personKeywords(m)}
               checked={m.user_uuid.toLowerCase() === current}
               onSelect={() => onPick({ lead_uuid: m.user_uuid }, { lead: { user_uuid: m.user_uuid, name: nameOf(m) } })}
             >

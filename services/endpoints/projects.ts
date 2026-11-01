@@ -58,8 +58,6 @@ export enum ProjectsGet {
     GetGitHubTaskActivity = "/task/github-activity",
     GetGitHubSearchIssues = "/task/github-search-issues",
     GetGitHubSearchPRs = "/task/github-search-prs",
-    // A channel's automatic check-ins: GET/POST /ch/{channel}/checkins; one is
-    // /ch/checkins/{id}/edit|pause|delete|ask.
     CheckIns = "/ch",
 }
 

@@ -1,26 +1,14 @@
-import { readFileSync } from "node:fs"
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
+import { demoBuild } from "./demoBuild"
 import { stubBackend } from "./stubbedApp"
 
 // The demo's free offer on Home's first screen (15 Oct 2026): the median demo
 // visit lasted 55 seconds, and the offer used to wait ninety. In the demo build
 // it is on the first screen, whole, at 1280 x 800 and on a 390 x 664 phone (an
 // iPhone 13's page), clear of the phone's tab bar; in any other build, a
-// customer's, it is nowhere, and neither is the guide it sits with.
-//
-// Which build this is: NEXT_PUBLIC_DEMO_MODE as the suite's environment sets
-// it, else as the repository's .env.production does, which next build reads.
-// A customer's repository has no such line, so this checks the absence there.
-function demoBuild(): boolean {
-  const set = process.env.NEXT_PUBLIC_DEMO_MODE
-  if (set !== undefined) return set === "true"
-  try {
-    return /^NEXT_PUBLIC_DEMO_MODE=true\s*$/m.test(readFileSync(".env.production", "utf8"))
-  } catch {
-    return false
-  }
-}
+// customer's, it is nowhere, and neither is the guide it sits with. Which
+// build this is: demoBuild (e2e/demoBuild.ts).
 
 const SIZES = [
   { name: "on a 1280 x 800 screen", viewport: { width: 1280, height: 800 }, isMobile: false },
