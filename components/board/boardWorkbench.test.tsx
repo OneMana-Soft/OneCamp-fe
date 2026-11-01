@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react"
 import * as Y from "yjs"
 import { boardScene, convertForTest } from "@/lib/testing/boardScene"
 import { warmBeforeTests } from "@/lib/testing/lazyCode"
@@ -43,6 +43,30 @@ vi.mock("@/lib/board/notes", async (importOriginal) => {
       seen()
       return real.isStickyNote(...a)
     },
+  }
+})
+// Every ask for a note on the board (StickyTool's place goes through addNotes): Board options opening makes none (V-250).
+const noteAsks = vi.hoisted(() => vi.fn())
+vi.mock("@/components/board/boardOps", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/board/boardOps")>()
+  return { ...real, addNotes: (...a: Parameters<typeof real.addNotes>) => (noteAsks(), real.addNotes(...a)) }
+})
+// Find's code on a line the tests hold (V-195): asked says whether the workbench has asked for it, open() lets it in.
+const findCode = vi.hoisted(() => {
+  let open = () => {}
+  const gate = new Promise<void>((resolve) => (open = resolve))
+  return { asked: false, gate, open: () => open() }
+})
+vi.mock("./findPanel", async () => {
+  findCode.asked = true
+  await findCode.gate
+  const { BoardSidePanel, SIDE_PANELS } = await import("./boardSidePanel")
+  return {
+    default: ({ editable, onClose }: { editable: boolean; onClose: () => void }) => (
+      <BoardSidePanel {...SIDE_PANELS.find(editable)} onClose={onClose}>
+        <input aria-label="Find on board" />
+      </BoardSidePanel>
+    ),
   }
 })
 
@@ -478,5 +502,32 @@ describe("the board's exports and its file in (miro-36)", () => {
     expect(s.elements().some((e) => e.id === "a")).toBe(false)
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "2 things from retro.excalidraw laid on the board" }))
     xl.loadFromBlob.mockReset()
+  })
+})
+
+describe("the side panels' code (V-195)", () => {
+  // In this order: the first case asks for Find's code, which stays held until the second lets it in.
+  it("is asked for as the page's Board options opens, before any panel is", async () => {
+    noteAsks.mockClear()
+    const s = boardScene()
+    const view = render(<BoardWorkbench api={s.api} provider={provider()} boardId="b1" editable synced quiet={false} command={null} style="clean" />)
+    expect(findCode.asked).toBe(false)
+    view.rerender(<BoardWorkbench api={s.api} provider={provider()} boardId="b1" editable synced quiet={false} command={{ kind: "warm", at: 1 }} style="clean" />)
+    await waitFor(() => expect(findCode.asked).toBe(true))
+    expect(screen.queryByRole("complementary", { name: "Find and replace" })).toBeNull()
+    // The command's kinds each have their own branch: a bare else for "note" dropped a note at every opening (V-250).
+    expect(noteAsks).not.toHaveBeenCalled()
+  })
+
+  it("draws Find's frame at once with the panel's shape while its code comes, and the panel then fills that same frame", async () => {
+    const s = boardScene()
+    const view = render(<BoardWorkbench api={s.api} provider={provider()} boardId="b1" editable synced quiet={false} command={null} style="clean" />)
+    view.rerender(<BoardWorkbench api={s.api} provider={provider()} boardId="b1" editable synced quiet={false} command={{ kind: "find", at: 2 }} style="clean" />)
+    const frame = screen.getByRole("complementary", { name: "Find and replace" })
+    expect(within(frame).getByRole("status", { name: "Loading" })).toBeTruthy()
+    findCode.open()
+    expect(await within(frame).findByRole("textbox", { name: "Find on board" })).toBeTruthy()
+    expect(screen.getByRole("complementary", { name: "Find and replace" })).toBe(frame)
+    expect(within(frame).queryByRole("status", { name: "Loading" })).toBeNull()
   })
 })

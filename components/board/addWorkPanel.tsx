@@ -16,7 +16,7 @@
 
 import * as React from "react"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { BoardSidePanel } from "@/components/board/boardSidePanel"
+import { BoardSidePanel, SIDE_PANELS } from "@/components/board/boardSidePanel"
 import { islandsOver } from "@/components/board/islands"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { SearchInput } from "@/components/ui/search-input"
@@ -216,7 +216,7 @@ export default function AddWorkPanel({ api, onClose, reads }: { api: ExcalidrawI
   }
 
   return (
-    <BoardSidePanel name="Add from OneCamp" closeLabel="Close Add from OneCamp" detent="half" onClose={onClose} data-add-work="">
+    <BoardSidePanel {...SIDE_PANELS.addWork()} onClose={onClose}>
       <div className="px-1.5 pb-1.5 pt-0.5">
         <SearchInput
           value={query}

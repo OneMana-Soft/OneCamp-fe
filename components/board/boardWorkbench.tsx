@@ -37,21 +37,38 @@ import { useBoardVoting } from "@/components/board/useBoardVoting"
 import { BoardHereNow } from "@/components/board/boardHereNow"
 import { BoardMap } from "@/components/board/boardMap"
 import { useBottomRow } from "@/components/board/bottomRow"
+import { BoardSideFrame, SIDE_PANELS, SidePanelShape } from "@/components/board/boardSidePanel"
+import { lazyPanel } from "@/lib/lazy/lazyPanel"
+import { lazyChunk } from "@/lib/loadChunk"
 import { useMedia } from "@/context/MediaQueryContext"
 
 const TemplatePicker = dynamic(() => import("@/components/board/templatePicker"), { ssr: false })
-const FramesPanel = dynamic(() => import("@/components/board/framesPanel"), { ssr: false })
-const TagFilterPanel = dynamic(() => import("@/components/board/tagFilterPanel"), { ssr: false })
-const AddWorkPanel = dynamic(() => import("@/components/board/addWorkPanel"), { ssr: false })
-const FindPanel = dynamic(() => import("@/components/board/findPanel"), { ssr: false })
 const SaveBoardTemplate = dynamic(() => import("@/components/board/saveBoardTemplate"), { ssr: false })
 const BoardExport = dynamic(() => import("@/components/board/boardExport"), { ssr: false })
+// The side panels, each its own chunk, drawn in their frame from the first frame (BoardSideFrame, V-195): the panel's
+// shape while its code comes, at 10 s the slow line with Try again, or a failure (lib/lazy/lazyPanel). Board options
+// warms the chunks it lists as it opens (lib/loadChunk), so a panel drawn after finds its code in, or on its way.
+const PANEL = "this panel"
+const SIDE_CODE = {
+  frames: () => import("@/components/board/framesPanel").then((m) => m.default),
+  tagFilter: () => import("@/components/board/tagFilterPanel").then((m) => m.default),
+  addWork: () => import("@/components/board/addWorkPanel").then((m) => m.default),
+  find: () => import("@/components/board/findPanel").then((m) => m.default),
+}
+const FramesPanel = lazyPanel(SIDE_CODE.frames, PANEL, SidePanelShape)
+const TagFilterPanel = lazyPanel(SIDE_CODE.tagFilter, PANEL, SidePanelShape)
+const AddWorkPanel = lazyPanel(SIDE_CODE.addWork, PANEL, SidePanelShape)
+const FindPanel = lazyPanel(SIDE_CODE.find, PANEL, SidePanelShape)
+const WARM = { frames: lazyChunk(SIDE_CODE.frames), tagFilter: lazyChunk(SIDE_CODE.tagFilter), addWork: lazyChunk(SIDE_CODE.addWork), find: lazyChunk(SIDE_CODE.find) }
 
 const NOBODY = { id: "", name: "" }
 
-/** A press in the page's chrome, for a tool here: a new `at` each time. */
+/**
+ * A press in the page's chrome, for a tool here: a new `at` each time. "warm" is the page's Board options opening:
+ * the side panels it lists fetch their code then, so a tap on one rarely waits (V-195).
+ */
 export interface BoardCommand {
-  kind: "note" | "templates" | "frames" | "tagFilter" | "addWork" | "find" | "saveTemplate" | "export" | "openFile"
+  kind: "note" | "templates" | "frames" | "tagFilter" | "addWork" | "find" | "saveTemplate" | "export" | "openFile" | "warm"
   at: number
 }
 
@@ -199,7 +216,7 @@ export default function BoardWorkbench({
   const [pickerOpen, setPickerOpen] = React.useState(false)
   // The side panel open, one at a time in one place: Frames, Filter by tag, Add from OneCamp (miro-13 2), or Find
   // and replace (miro-05).
-  const [side, setSide] = React.useState<"frames" | "tagFilter" | "addWork" | "find" | null>(null)
+  const [side, setSide] = React.useState<keyof typeof SIDE_PANELS | null>(null)
   const closeSide = () => setSide(null)
   // What Find was last asked: its words (a search hit's), when (each ask focuses it again), and whether a link asked.
   const [find, setFind] = React.useState({ query: "", at: 0, fromLink: false })
@@ -254,8 +271,18 @@ export default function BoardWorkbench({
     } else if (command.kind === "saveTemplate") setSaving(true)
     else if (command.kind === "export") setExporting(true)
     else if (command.kind === "openFile") fileRef.current?.click()
-    else setNoteNow(command.at)
+    else if (command.kind === "note") setNoteNow(command.at)
   }, [command])
+  // Board options opened: the side panels it lists fetch their code now (V-195). Find and Filter by tag are everyone's;
+  // Frames and Add from OneCamp an editor's. A second warm of a panel whose code is in, or on its way, asks nothing.
+  React.useEffect(() => {
+    if (command?.kind !== "warm") return
+    WARM.find.warm()
+    WARM.tagFilter.warm()
+    if (!editable) return
+    WARM.frames.warm()
+    if (WithAddWorkReads) WARM.addWork.warm()
+  }, [command, editable, WithAddWorkReads])
 
   // A template from the picker: the library's drawn from its skeleton in the board's style, a team's copied as it was saved.
   const applyTemplate = (a: ExcalidrawImperativeAPI, t: BoardPick) => (isTeamPick(t) ? layTeamTemplate(a, t.templateId) : insertBoardTemplate(a, t, style ?? undefined))
@@ -336,6 +363,29 @@ export default function BoardWorkbench({
 
   if (!api) return null
 
+  // The side panel open, in its frame (V-195): the frame rises at once, and the panel fills it once its code is in.
+  const sidePanel =
+    side === "frames" ? (
+      <FramesPanel api={api} provider={provider} boardId={boardId} editable={editable} onClose={closeSide} />
+    ) : side === "find" ? (
+      <FindPanel
+        api={api}
+        editable={editable}
+        query={find.query}
+        at={find.at}
+        fromLink={find.fromLink}
+        onMissed={() => {
+          toast({ title: "Those words are no longer on the board", description: "They may have been changed or deleted.", tone: "info" })
+          if (findFirstVisit.current) frameDrawing(api)
+        }}
+        onClose={closeSide}
+      />
+    ) : side === "tagFilter" ? (
+      <TagFilterPanel api={api} tags={filterTags} onTags={setFilterTags} tagHues={tagHues} editable={editable} onClose={closeSide} />
+    ) : side === "addWork" && editable && WithAddWorkReads ? (
+      <WithAddWorkReads>{(reads) => <AddWorkPanel api={api} onClose={closeSide} reads={reads} />}</WithAddWorkReads>
+    ) : null
+
   return (
     <>
       <BoardTools api={api} editable={editable} boardId={boardId} synced={synced} quiet={quiet || pickerOpen} onMoreTemplates={() => setPickerOpen(true)} style={style ?? undefined} />
@@ -355,24 +405,10 @@ export default function BoardWorkbench({
       {editable && selection.editingNote && <HideExcalidrawPanel />}
       {editable && selection.frame && !selection.editing && <FrameBar api={api} frameId={selection.frame} boardId={boardId} />}
       {pickerOpen && editable && <TemplatePicker onUse={(t) => applyTemplate(api, t)} onClose={() => setPickerOpen(false)} />}
-      {side === "frames" && <FramesPanel api={api} provider={provider} boardId={boardId} editable={editable} onClose={closeSide} />}
-      {side === "find" && (
-        <FindPanel
-          api={api}
-          editable={editable}
-          query={find.query}
-          at={find.at}
-          fromLink={find.fromLink}
-          onMissed={() => {
-            toast({ title: "Those words are no longer on the board", description: "They may have been changed or deleted.", tone: "info" })
-            if (findFirstVisit.current) frameDrawing(api)
-          }}
-          onClose={closeSide}
-        />
-      )}
-      {side === "tagFilter" && <TagFilterPanel api={api} tags={filterTags} onTags={setFilterTags} tagHues={tagHues} editable={editable} onClose={closeSide} />}
-      {side === "addWork" && editable && WithAddWorkReads && (
-        <WithAddWorkReads>{(reads) => <AddWorkPanel api={api} onClose={closeSide} reads={reads} />}</WithAddWorkReads>
+      {side && sidePanel && (
+        <BoardSideFrame key={side} {...SIDE_PANELS[side](editable)} onClose={closeSide}>
+          {sidePanel}
+        </BoardSideFrame>
       )}
       {side === null && filterTags.length > 0 && (
         <TagFilterPill api={api} tags={filterTags} onOpen={() => setSide("tagFilter")} onClear={() => setFilterTags([])} />

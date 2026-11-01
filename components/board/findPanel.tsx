@@ -21,7 +21,7 @@ import { CAPTURE } from "@/lib/board/binding"
 import { MAX_MATCHES } from "@/lib/text/findPattern"
 import { findOnBoard, replaceOnBoard, searchMatchesOf, unreplaceOnBoard, wordsOf, type BoardMatch, type FindElement, type FindKind } from "@/lib/board/findOnBoard"
 import { fontCss, loadConvert, rewordElements, type Convert } from "@/components/board/boardOps"
-import { BoardSidePanel } from "@/components/board/boardSidePanel"
+import { BoardSidePanel, SIDE_PANELS } from "@/components/board/boardSidePanel"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { sceneToLocal } from "@/lib/board/viewport"
 import { boxAllInView, offsetsOf, viewBesidePanel } from "@/lib/board/panelView"
@@ -253,7 +253,7 @@ export default function FindPanel({
     : undefined
 
   return (
-    <BoardSidePanel name={editable ? "Find and replace" : "Find on board"} closeLabel="Close find" detent="half" footer={footer} onClose={onClose} data-board-find="">
+    <BoardSidePanel {...SIDE_PANELS.find(editable)} footer={footer} onClose={onClose}>
       <div role="search" aria-label="Find on board" className="sticky top-0 z-10 flex flex-col gap-1 bg-pop pb-1.5">
         <div className="flex items-center gap-1">
           <input

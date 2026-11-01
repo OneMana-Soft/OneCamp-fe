@@ -617,10 +617,17 @@ test(`a presenter holds everyone on their view: a held phone comes back when mov
   const ANN = displayNameOf(USERS.ann)
   const ann = await open(browser, "computer", { on, user: USERS.ann, theme })
   const vic = await open(browser, "phone", { on, user: USERS.vic, theme })
+  // The phone looks somewhere else first, so following has somewhere to take it.
+  await scrollBoard(vic.page, 700)
+  await expect.poll(() => sameMiddle(ann.page, vic.page), { message: "the phone looks elsewhere before anyone presents" }).toBe(false)
 
   await ann.bar.getByRole("button", { name: "Present", exact: true }).click()
-  // Vic says no first: moving the board stops following, as in Miro.
+  // Following starts on Ann's view though nothing else changes: her pointer stays on the bar's button, off the canvas.
+  // The follow used to wait for this screen's view, read a render after following started, then for Ann's next
+  // change, so the phone said "Following" from where it was (V-258).
   await expect(vic.bar).toContainText(`Following ${ANN}`)
+  await expect.poll(() => sameMiddle(ann.page, vic.page), { timeout: 10_000, message: "the phone is taken to the presenter's view as presenting starts" }).toBe(true)
+  // Vic says no first: moving the board stops following, as in Miro.
   await scrollBoard(vic.page, 700)
   await expect(vic.bar).toContainText(`${ANN} is presenting`)
   // Holding everyone takes back those who said no.

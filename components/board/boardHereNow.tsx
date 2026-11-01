@@ -22,7 +22,7 @@ import { usePublishIdle } from "@/components/docEditor/presence/idle"
 import { readPresence } from "@/components/docEditor/presence/read"
 import { onEscape } from "@/lib/keys/onEscape"
 import { BRING_FIELD, boardBusOf, bringsIn, centreOn, pointerOf } from "@/lib/board/hereNow"
-import { followScene } from "@/lib/board/viewport"
+import { followScene, viewOf } from "@/lib/board/viewport"
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 
@@ -105,7 +105,7 @@ export function BoardHereNow({ provider, api, boardId, host, editable = false }:
     if (!awareness || !api) return
     const s = api.getAppState()
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-    awareness.setLocalStateField(BRING_FIELD, { id, view: { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value, width: s.width, height: s.height } })
+    awareness.setLocalStateField(BRING_FIELD, { id, view: viewOf(s) })
     toast({ title: "Everyone here now sees what you see" })
   }, [awareness, api, toast])
   const seen = React.useRef(new Set<string>())
@@ -117,7 +117,7 @@ export function BoardHereNow({ provider, api, boardId, host, editable = false }:
         const s = api.getAppState()
         const back = { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom }
         setFollowed(null)
-        const next = followScene(b.view, { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value, width: s.width, height: s.height })
+        const next = followScene(b.view, viewOf(s))
         if (next) api.updateScene({ appState: next })
         toast({
           title: `${b.name || "Someone"} brought everyone here`,

@@ -15,6 +15,7 @@ import { UserProfileInterface } from "@/types/user";
 import { BoardInfoResponse } from "@/types/board";
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
 import { warmCollabToken } from "@/lib/collabToken";
+import { focusHandOff } from "@/lib/ui/focusHandOff";
 import { usePost } from "@/hooks/usePost";
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID";
 import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, Sparkles, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter, ListTodo } from "@/lib/icons";
@@ -175,6 +176,10 @@ export default function BoardPage() {
   // A press in the chrome for one of the board's tools (lazy, the workbench).
   const [command, setCommand] = React.useState<BoardCommand | null>(null);
   const run = (kind: BoardCommand["kind"]) => setCommand({ kind, at: Date.now() });
+  // Board options' hand-off of the focus as it closes (lib/ui/focusHandOff): a pick that opens one of our panels or
+  // dialogs leaves the focus to it. The menu warms the panels' code as it opens, so Find's field took the focus before
+  // the menu had faded, and the menu then gave it back to More: what was typed went to the button (V-195).
+  const [handOff] = React.useState(focusHandOff);
   const [boardStyle, setBoardStyle] = useBoardStyle(provider ?? null, synced);
 
   // The board's name, renamed in place in the top-left cluster.
@@ -277,14 +282,14 @@ export default function BoardPage() {
   // board's cluster (Excalidraw's hamburger and Library button are hidden),
   // then the board's: who viewed it, its history, linked tasks, delete.
   const menu = (trigger: React.ReactElement, align: "start" | "end" = "start") => (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => open && run("warm")}>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent align={align} sideOffset={8} className="w-60">
+      <DropdownMenuContent align={align} sideOffset={8} className="w-60" onCloseAutoFocus={handOff.onCloseAutoFocus}>
         {/* A computer has these at the top; a phone's cluster has no room. */}
         {isMobile && hasEditAccess && (
           <>
             {TOOLS.map(([kind, label, Icon]) => (
-              <DropdownMenuItem key={kind} onClick={() => run(kind)}>
+              <DropdownMenuItem key={kind} onClick={handOff.to(() => run(kind))}>
                 <Icon className="mr-2 size-4" />
                 {label}
               </DropdownMenuItem>
@@ -295,7 +300,7 @@ export default function BoardPage() {
         {excalApi && (
           <>
             {/* PDF of the frames, the notes as CSV, a board file or a picture (miro-36). */}
-            <DropdownMenuItem onClick={() => run("export")}>
+            <DropdownMenuItem onClick={handOff.to(() => run("export"))}>
               <Download className="mr-2 size-4" />
               Export…
             </DropdownMenuItem>
@@ -304,12 +309,12 @@ export default function BoardPage() {
               Library
             </DropdownMenuItem>
             {/* Ours (miro-05): Find and replace, lit on the canvas; Excalidraw's own can't replace or be told what to find. */}
-            <DropdownMenuItem onClick={() => run("find")}>
+            <DropdownMenuItem onClick={handOff.to(() => run("find"))}>
               <Search className="mr-2 size-4" />
               {hasEditAccess ? "Find and replace" : "Find on board"}
             </DropdownMenuItem>
             {/* Notes without the tags picked fade back, on this screen only (miro-07 5). */}
-            <DropdownMenuItem onClick={() => run("tagFilter")}>
+            <DropdownMenuItem onClick={handOff.to(() => run("tagFilter"))}>
               <Filter className="mr-2 size-4" />
               Filter by tag
             </DropdownMenuItem>
@@ -341,16 +346,16 @@ export default function BoardPage() {
         {hasEditAccess && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardViewers", data: { boardId } }))}>
+            <DropdownMenuItem onClick={handOff.to(() => dispatch(openUI({ key: "boardViewers", data: { boardId } })))}>
               <Eye className="mr-2 size-4" />
               Viewed by
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardVersionHistory", data: { boardId } }))}>
+            <DropdownMenuItem onClick={handOff.to(() => dispatch(openUI({ key: "boardVersionHistory", data: { boardId } })))}>
               <History className="mr-2 size-4" />
               Version history
             </DropdownMenuItem>
             {/* For anyone in the workspace to start a board from (miro-19 3). */}
-            <DropdownMenuItem onClick={() => run("saveTemplate")} disabled={!excalApi}>
+            <DropdownMenuItem onClick={handOff.to(() => run("saveTemplate"))} disabled={!excalApi}>
               <LayoutTemplate className="mr-2 size-4" />
               Save as template
             </DropdownMenuItem>
@@ -366,7 +371,7 @@ export default function BoardPage() {
         {isOwner && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={confirmDelete} className="text-danger-ink focus:text-danger-ink">
+            <DropdownMenuItem onClick={handOff.to(confirmDelete)} className="text-danger-ink focus:text-danger-ink">
               <Trash className="mr-2 size-4" />
               Delete board
             </DropdownMenuItem>

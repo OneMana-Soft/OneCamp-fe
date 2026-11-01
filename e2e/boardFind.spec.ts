@@ -4,6 +4,7 @@ import { expect, test, type Browser, type BrowserContextOptions, type Locator, t
 // board. Nothing leaves the machine.
 import { USERS, collabFor, fakeApp } from "../scripts/fluidity/fakeApp.mjs"
 import { boardDoc, boardDocName, boardFixtures, frame, note, ordered } from "../scripts/fluidity/fakeBoard.mjs"
+import { holdChunk } from "./holdChunk"
 import { settled } from "./sheetLayout"
 import { SHOT_THEMES, reviewShot } from "./stubbedApp"
 
@@ -187,6 +188,11 @@ async function findFromMenu(page: Page) {
   await page.getByRole("menuitem", { name: "Find and replace" }).click()
   const panel = page.locator("[data-board-find]")
   await expect(panel).toBeVisible({ timeout: 30_000 })
+  // The menu leaves the focus to Find's field as it goes (lib/ui/focusHandOff). Board options warms the panel's code
+  // as it opens, so the field took the focus before the menu had faded, and the menu then gave it back to More:
+  // whatever was typed after that went to the button (V-195, wI34).
+  await expect(page.getByRole("menu")).toHaveCount(0)
+  await expect(panel.getByRole("textbox", { name: "Find on board" })).toBeFocused()
   return panel
 }
 
@@ -387,14 +393,16 @@ test(`on a phone, a typed word's match just under the sheet's top comes up above
 })
 
 // The sheet's top is taken from where it comes to rest, not from where it is while it rises: a search hit's link goes
-// to its first match as soon as the board's words are in, which can be mid-rise. The page's animations run twenty
-// times slower here, so the jump surely comes while the sheet is on its way up.
+// to its first match as soon as the board's words are in, which can be mid-rise. The page's animations run a hundred
+// times slower here until then, so the jump surely comes while the sheet is on its way up: the sheet's frame rises
+// at the tap (V-195), and on a busy machine the words came in 2 s later, when a rise twenty times slower was nearly
+// done. Once the jump is checked, they run at full speed again, so the sheet comes to rest at once.
 test(`on a phone, a search hit's jump while the sheet still rises lands the match above where the sheet comes to rest (phone, ${theme})`, async ({ browser }) => {
   test.setTimeout(120_000)
   const { context, page } = await open(browser, "phone", "sam", "/app/search?q=launch%20budget", theme)
   const cdp = await context.newCDPSession(page)
   await cdp.send("Animation.enable")
-  await cdp.send("Animation.setPlaybackRate", { playbackRate: 0.05 })
+  await cdp.send("Animation.setPlaybackRate", { playbackRate: 0.01 })
   const row = page.locator('[data-search-row="board"]')
   await expect(row).toBeVisible({ timeout: 30_000 })
   await row.locator("a[data-search-result]").tap()
@@ -402,6 +410,7 @@ test(`on a phone, a search hit's jump while the sheet still rises lands the matc
   await expect(sheet.locator("[data-board-find-count]")).toHaveText("1 of 1", { timeout: 30_000 })
   const rise = await sheet.evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).m42)
   expect(rise, "the sheet is still rising when Find goes to its match").toBeGreaterThan(20)
+  await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 })
   await settled(sheet)
   await expect.poll(() => litAbove(page, sheet), { timeout: 10_000, message: "the match is lit above the sheet at rest" }).toBe(true)
   await context.close()
@@ -483,4 +492,55 @@ test(`a viewer finds on a board but never replaces: no Replace, and the board's 
   await reviewShot(page, "board-find-empty", theme)
   await context.close()
 })
+
+// V-195 (DB-71's MUST): on a phone that lost Find's code, the menu closed and the board said nothing for 30 s: no
+// sheet, no "slow", no Try again. Now Board options asks for that code as it opens; a tap that still waits raises Find's
+// frame at once with its name and the panel's shape, at about 10 s it says it's slow, with Try again, and once the code
+// lands the panel fills the frame it rose in. The held chunk is the one with the panel's count (findPanel only).
+for (const device of ["phone", "computer"] as const) {
+  test(`on a slow line, Find's frame rises at once, says it's slow at 10 s, and the panel fills it once its code lands (${device}, ${theme})`, async ({ browser }) => {
+    test.setTimeout(120_000)
+    const { context, page } = await open(browser, device, "sam", `/app/board/${BOARD}`, theme)
+    const code = await holdChunk(page, "data-board-find-count")
+    await expect(page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
+    // Board options asks for Find's code as it opens, before Find is tapped.
+    if (device === "phone") await page.getByRole("button", { name: "Board options" }).tap()
+    else await page.getByRole("toolbar", { name: "Board", exact: true }).getByRole("button", { name: "More", exact: true }).click()
+    const warmed = await expect
+      .poll(() => code.asked(), { timeout: 10_000 })
+      .toBe(true)
+      .then(
+        () => true,
+        () => false,
+      )
+
+    const item = page.getByRole("menuitem", { name: "Find and replace" })
+    const tapped = Date.now()
+    if (device === "phone") await item.tap()
+    else await item.click()
+    const frame = page.locator("[data-board-find]")
+    await expect(frame, "Find's frame rises while its code is held").toBeVisible({ timeout: 5_000 })
+    console.log(`V-195 ${device}: Find's frame was up ${Date.now() - tapped} ms after the tap`)
+    await expect(frame).toHaveAccessibleName("Find and replace")
+    await expect(frame.getByRole("status", { name: "Loading" })).toBeVisible()
+    await reviewShot(page, `board-find-coming-${device}`, theme)
+
+    // At about 10 s the slow line, with Try again, in the frame.
+    const slow = frame.getByRole("alert")
+    await expect(slow, "at about 10 s Find says it's slow").toBeVisible({ timeout: 20_000 })
+    await expect(slow).toContainText("taking longer than it should")
+    await expect(slow.getByRole("button", { name: "Try again" })).toBeVisible()
+    await reviewShot(page, `board-find-slow-${device}`, theme)
+
+    // The code lands: the panel fills the frame it rose in, the same element, so a phone's sheet rises once.
+    const risen = await frame.elementHandle()
+    code.release()
+    await expect(frame.getByRole("textbox", { name: "Find on board" })).toBeVisible({ timeout: 15_000 })
+    expect(await risen!.evaluate((el) => el.isConnected && el.matches("[data-board-find]")), "the frame the panel fills is the one that rose").toBe(true)
+    await expect(frame.getByRole("alert")).toHaveCount(0)
+    await expect(frame.getByRole("textbox", { name: "Replace with" })).toBeVisible()
+    expect(warmed, "opening Board options asked for Find's code before Find was tapped").toBe(true)
+    await context.close()
+  })
+}
 }

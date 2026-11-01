@@ -65,7 +65,7 @@ import {
   type CompactBar,
   type Votable,
 } from "@/lib/board/facilitation"
-import { followScene, sceneToLocal } from "@/lib/board/viewport"
+import { followScene, sceneToLocal, viewOf } from "@/lib/board/viewport"
 
 interface Props {
   provider: HocuspocusProvider
@@ -235,12 +235,11 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
     }
   }, [presenters, following, presenting])
 
-  // Follow: show what they show, fitted to this screen.
+  // Follow: show what they show, fitted to this screen as the board has it now, from the moment following starts.
   React.useEffect(() => {
-    if (!presenter || !view) return
-    const next = followScene(presenter.view, view)
+    if (!presenter) return
+    const next = followScene(presenter.view, viewOf(api.getAppState()))
     if (next) api.updateScene({ appState: next })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- view changes because of this very update
   }, [presenter, api])
 
   // Held, a move of our own comes back to the presenter's view once the board settles.

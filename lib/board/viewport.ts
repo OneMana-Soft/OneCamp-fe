@@ -77,3 +77,12 @@ export function followScene(
   // Excalidraw brands its zoom (NormalizedZoomValue); followView keeps it within the 0.1 to 30 it allows.
   return { scrollX: f.scrollX, scrollY: f.scrollY, zoom: { value: f.zoom as never } }
 }
+
+/**
+ * What a board's own state shows (Excalidraw's appState, read as it is asked): the view a bring sends, and the `now`
+ * that followScene fits a shared view to. Read from the board itself, never from a view a render behind: useBoardView
+ * reads one only once following starts, so a follower waited on its presenter's next change to move (V-258).
+ */
+export function viewOf(s: { scrollX: number; scrollY: number; zoom: { value: number }; width: number; height: number }) {
+  return { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value, width: s.width, height: s.height }
+}

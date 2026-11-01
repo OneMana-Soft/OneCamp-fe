@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { followScene, followView, viewAboveSheet, viewCentre } from "@/lib/board/viewport"
+import { followScene, followView, viewAboveSheet, viewCentre, viewOf } from "@/lib/board/viewport"
 
 describe("viewAboveSheet: what of the board a phone's sheet leaves in view", () => {
   const view = { scrollX: -100, scrollY: -50, zoom: 1, width: 390, height: 780, offsetLeft: 0, offsetTop: 64 }
@@ -36,5 +36,19 @@ describe("followScene: the camera that shows a view on this screen", () => {
     expect(followScene(presenter, { ...f, scrollX: f.scrollX + 0.4, zoom: f.zoom + 0.0009, ...phone })).toBeNull()
     expect(followScene(presenter, { ...f, scrollX: f.scrollX + 1, ...phone })).not.toBeNull()
     expect(followScene(presenter, { ...f, zoom: f.zoom * 1.01, ...phone })).not.toBeNull()
+  })
+})
+
+describe("viewOf: what a board's own state shows", () => {
+  it("is the state's camera and canvas as they are, its zoom a plain number, and nothing else of the state", () => {
+    const state = { scrollX: -100, scrollY: -50, zoom: { value: 1.5 }, width: 390, height: 844, offsetLeft: 0, offsetTop: 64, theme: "dark" }
+    expect(viewOf(state)).toEqual({ scrollX: -100, scrollY: -50, zoom: 1.5, width: 390, height: 844 })
+  })
+
+  it("is what followScene fits a shared view to: a screen already there is left alone, one elsewhere is moved", () => {
+    const presenter = { scrollX: -100, scrollY: -50, zoom: 1, width: 1280, height: 800 }
+    const f = followView(presenter, { width: 390, height: 844 })
+    expect(followScene(presenter, viewOf({ scrollX: f.scrollX, scrollY: f.scrollY, zoom: { value: f.zoom }, width: 390, height: 844 }))).toBeNull()
+    expect(followScene(presenter, viewOf({ scrollX: 0, scrollY: 0, zoom: { value: 1 }, width: 390, height: 844 }))).not.toBeNull()
   })
 })
