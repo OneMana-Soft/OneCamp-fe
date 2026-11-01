@@ -9,6 +9,7 @@ import { GitBranch } from "@/lib/icons";
 import { useToast } from "@/hooks/use-toast"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
+import { taskBranchName } from "@/lib/work/taskBranchName"
 
 interface Props {
   open: boolean
@@ -26,8 +27,7 @@ export default function CreateBranchDialog({ open, onOpenChange, onSuccess, task
   const [error, setError] = useState<string | null>(null)
 
   const handleOpen = () => {
-    const slug = taskName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").substring(0, 50)
-    setBranchName(`feature/${taskId.substring(0, 8)}-${slug}`)
+    setBranchName(taskBranchName(taskId, taskName))
     setError(null)
   }
 

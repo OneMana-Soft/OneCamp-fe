@@ -47,6 +47,11 @@ export default defineConfig({
     // Keep navigation timeout tight in non-CI to surface flakes early;
     // CI environments are slower so we let it stretch.
     navigationTimeout: isCI ? 30_000 : 10_000,
+    // The app's service worker (public/sw.js, asana-12) registers for every member and, once in control, fetches the
+    // app's own pages and files itself, out of page.route's reach: a spec that stubs or holds a same-origin page
+    // (stubbedApp holdPages) would no longer hold it. Specs therefore run without it, and the specs about the worker
+    // itself (offlineTasks' cold start) put it in control on purpose with serviceWorkers: "allow".
+    serviceWorkers: "block",
   },
 
   projects: [

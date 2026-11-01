@@ -34,6 +34,17 @@ describe("the call's settings in the room's metadata", () => {
     expect(readCallMetadata(JSON.stringify({ board: { uuid: "b-1", by: "0x2" } })).board).toEqual({ uuid: "b-1", by: "0x2", draw: "everyone", guests: false })
   })
 
+  // Slides control (meet-14): the frame everyone is shown rides as board.slide (CallControl tellBoard).
+  it("reads the slide everyone is shown, and none for the whole board or one the server wouldn't have written", () => {
+    const board = (slide: unknown) => readCallMetadata(JSON.stringify({ board: { uuid: "b-1", by: "0x2", draw: "everyone", slide } })).board
+    expect(board("f-Q4_2")).toEqual({ uuid: "b-1", by: "0x2", draw: "everyone", guests: false, slide: "f-Q4_2" })
+    expect(board(undefined)).not.toHaveProperty("slide")
+    expect(board("")).not.toHaveProperty("slide")
+    expect(board("not a frame")).not.toHaveProperty("slide")
+    expect(board("x".repeat(65))).not.toHaveProperty("slide")
+    expect(board(7)).not.toHaveProperty("slide")
+  })
+
   it("takes no board, or a board without its id, as none on the stage", () => {
     expect(readCallMetadata(JSON.stringify({ isRecording: false })).board).toBeUndefined()
     expect(readCallMetadata(JSON.stringify({ board: null })).board).toBeUndefined()

@@ -2,8 +2,9 @@
 
 import { clockTime } from "@/lib/utils/date/clock"
 import { browserTZ } from "@/lib/utils/timeZone"
+import { zoneHere } from "@/lib/utils/zoneHere"
 import { zoneCity, zoneLabel } from "@/lib/utils/zones"
-import { zoneHere, type OtherZone } from "@/lib/calendar/otherZones"
+import type { OtherZone } from "@/lib/calendar/otherZones"
 
 /*
  * The zones a person keeps beside their own on the day and the week (calendar

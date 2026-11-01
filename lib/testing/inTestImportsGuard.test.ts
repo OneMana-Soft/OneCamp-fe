@@ -35,7 +35,7 @@ function whereOf(node: ts.Node): Where {
     if (!ts.isCallExpression(p)) continue
     const name = callName(p).replace(/\.(only|skip|each|concurrent|sequential|todo|fails)$/, "")
     if (name === "it" || name === "test") return "test"
-    if (/^(before|after)(All|Each)$/.test(name)) return "hook"
+    if (/^(before|after)(All|Each)$/.test(name) || name === "warmBeforeTests") return "hook"
     if (name === "vi.mock" || name === "vi.doMock") return "mock"
     if (name === "describe") return "top"
   }

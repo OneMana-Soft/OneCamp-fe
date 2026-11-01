@@ -1,6 +1,7 @@
 import { useSWRConfig } from "swr";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { GetEndpointUrl } from "@/services/endPoints";
+import { revalidateWhileReading } from "@/lib/swrMutate";
 import type { TaskInfoInterface } from "@/types/task";
 import { isTimelineKey } from "@/lib/timelineKey";
 // The two small helpers, not lib/workload and lib/timeline whole: those came
@@ -17,10 +18,16 @@ type TaskLists = Record<string, unknown>;
 /** A board's columns, by status category, as its cache keys them. */
 const BOARD_COLUMNS = ["backlog", "todo", "in_progress", "in_review", "done", "canceled"];
 
-export const useTaskUpdate = () => {
+export const useTaskUpdate = ({ live = false }: { live?: boolean } = {}) => {
     const { mutate, cache } = useSWRConfig();
+    // live: patches of changes the server already has (hooks/useWorkChanges)
+    // ask again for a list being read, rather than lose that read. This
+    // member's own never do: a read out before their POST lands would take
+    // back the card just drawn.
+    const revalidate = useMemo(() => live && revalidateWhileReading(cache), [live, cache]);
 
-    const getTaskKeys = useCallback((projectId: string) => {
+    // A project's task lists, or (no project) every task list open.
+    const getTaskKeys = useCallback((projectId?: string) => {
         const projectListPath = GetEndpointUrl.GetProjectTaskList;
         const projectKanbanPath = GetEndpointUrl.GetProjectTaskListForKanban;
         const userListPath = GetEndpointUrl.GetUserTaskList;
@@ -33,9 +40,9 @@ export const useTaskUpdate = () => {
             
             // Check for project-specific endpoints
             if (pathname.startsWith(projectListPath) || pathname.startsWith(projectKanbanPath)) {
-                return pathname.includes(projectId);
+                return projectId === undefined || pathname.includes(projectId);
             }
-            if (isTimelineKey(pathname)) return isTimelineKey(pathname, projectId);
+            if (isTimelineKey(pathname)) return projectId === undefined || isTimelineKey(pathname, projectId);
             
             // Check for user-specific endpoints
             return pathname === userListPath || pathname === userKanbanPath;
@@ -47,9 +54,9 @@ export const useTaskUpdate = () => {
         Array.from(cache.keys() as IterableIterator<string>).filter(isWorkloadKey).forEach(key => void mutate(key));
         getTaskKeys(projectId).forEach(key => {
             // Disable immediate revalidation to prevent blinking
-            mutate(key, (currentData: { data?: TaskLists } | undefined) => withNewTask(key, currentData, newTask), { revalidate: false });
+            mutate(key, (currentData: { data?: TaskLists } | undefined) => withNewTask(key, currentData, newTask), { revalidate });
         });
-    }, [cache, mutate, getTaskKeys]);
+    }, [cache, mutate, getTaskKeys, revalidate]);
 
     // The workload holds tasks of every project, its own way: the assignee as
     // assignee_uuid, the other fields it shows under the task's own names. A
@@ -83,11 +90,11 @@ export const useTaskUpdate = () => {
                 refetch = !remove && patches.some(p => reshapes(p, listed.has(p.task_uuid)));
                 const tasks = remove ? current.data.tasks.filter(t => !byId.has(t.task_uuid)) : current.data.tasks.map(patched);
                 return { ...current, data: { ...current.data, tasks } };
-            }, { revalidate: false }).then(() => {
+            }, { revalidate }).then(() => {
                 if (refetch) void mutate(key);
             });
         });
-    }, [cache, mutate]);
+    }, [cache, mutate, revalidate]);
 
     // Changes tasks in every list of the project that holds them: one change
     // to each list, whatever the number of tasks, and only the tasks changed
@@ -127,9 +134,9 @@ export const useTaskUpdate = () => {
                     data.user_tasks = patchList(data.user_tasks, url.searchParams);
                 }
                 return { ...currentData, data };
-            }, { revalidate: false });
+            }, { revalidate });
         });
-    }, [mutate, getTaskKeys]);
+    }, [mutate, getTaskKeys, revalidate]);
 
     // Several tasks' fields at once (the dates of a chain of tasks moved
     // along, say). A task moving to another board column goes through
@@ -198,6 +205,9 @@ export const useTaskUpdate = () => {
             if (beforeAt >= 0) target.splice(beforeAt + 1, 0, moved);
             else if (afterAt >= 0) target.splice(afterAt, 0, moved);
             else if (newIndex !== undefined) target.splice(newIndex, 0, moved);
+            // A status that keeps it in its column names no place (a teammate's
+            // change heard live, or the mover's own heard back): it stays put.
+            else if (toKey === fromKey) target.splice(at, 0, moved);
             else target.unshift(moved);
             data[toKey] = target;
             if (toKey !== fromKey) afterMove?.(data, prefix, found, moved);
@@ -228,9 +238,9 @@ export const useTaskUpdate = () => {
                     data.user_tasks = patchList(data.user_tasks, url.searchParams);
                 }
                 return { ...currentData, data };
-            }, { revalidate: false });
+            }, { revalidate });
         });
-    }, [mutate, getTaskKeys, optimisticUpdateTasks, patchWorkload]);
+    }, [mutate, getTaskKeys, optimisticUpdateTasks, patchWorkload, revalidate]);
 
     const optimisticDeleteTask = useCallback((taskUuid: string, projectId: string) => {
         patchWorkload([{ task_uuid: taskUuid }], true);
@@ -274,12 +284,13 @@ export const useTaskUpdate = () => {
                     });
                 }
                 return { ...currentData, data };
-            }, { revalidate: false });
+            }, { revalidate });
         });
-    }, [mutate, getTaskKeys, patchWorkload]);
+    }, [mutate, getTaskKeys, patchWorkload, revalidate]);
 
-    // Every list of the project fetched again, and the workload, which may hold its tasks.
-    const revalidateTaskKeys = useCallback((projectId: string) => {
+    // Every list of the project (or, with none, every task list open) fetched
+    // again, and the workload, which may hold its tasks.
+    const revalidateTaskKeys = useCallback((projectId?: string) => {
         const matchedKeys = getTaskKeys(projectId);
         matchedKeys.forEach(key => mutate(key));
         Array.from(cache.keys() as IterableIterator<string>).filter(isWorkloadKey).forEach(key => mutate(key));

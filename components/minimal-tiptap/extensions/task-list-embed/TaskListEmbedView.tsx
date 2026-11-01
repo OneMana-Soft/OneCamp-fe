@@ -22,7 +22,7 @@ import { displayNameOf } from "@/lib/personName"
 import { canEditTask } from "@/lib/work/access"
 import { PostEndpointUrl } from "@/services/endPoints"
 import type { TaskInfoInterface } from "@/types/task"
-import { COLUMNS, OPEN, tasksIn, useProjectBoard } from "./useProjectBoard"
+import { COLUMNS, OPEN, tasksIn, useProjectBoard } from "@/hooks/useProjectBoard"
 import { EmbedFrame, EmbedNote, embedState } from "./embedFrame"
 
 const SHOW_LABEL: Record<TaskListShow, string> = { open: "Open", mine: "Mine", all: "All" }

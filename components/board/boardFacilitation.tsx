@@ -21,7 +21,7 @@
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { Ellipsis, Pause, Play, Plus, Presentation, Timer, Vote, X } from "@/lib/icons"
+import { Ellipsis, Lock, Pause, Play, Plus, Presentation, Timer, Vote, X } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { celebrate } from "@/lib/celebrateSoon"
@@ -65,7 +65,7 @@ import {
   type CompactBar,
   type Votable,
 } from "@/lib/board/facilitation"
-import { followView, sceneToLocal } from "@/lib/board/viewport"
+import { followScene, sceneToLocal } from "@/lib/board/viewport"
 
 interface Props {
   provider: HocuspocusProvider
@@ -186,6 +186,11 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   const [presenters, setPresenters] = React.useState<Presenter[]>([])
   const [presenting, setPresenting] = React.useState(false)
   const [following, setFollowing] = React.useState<number | null>(null)
+  // Presenting, holding everyone on this view until we let them move (miro-21 3).
+  const [holding, setHolding] = React.useState(false)
+  React.useEffect(() => {
+    if (!presenting) setHolding(false)
+  }, [presenting])
   // Where the board is looking: for vote dots, and for presenting and
   // following. Off the rest of the time, so a pan costs this panel nothing.
   const view = useBoardView(api, !!voting || presenting || following !== null)
@@ -210,19 +215,22 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
         userId: user.id,
         name: user.name,
         view: { scrollX: view.scrollX, scrollY: view.scrollY, zoom: view.zoom, width: view.width, height: view.height },
+        hold: holding,
       })
     }, 80)
     return () => clearTimeout(t)
-  }, [awareness, presenting, view, user.id, user.name])
+  }, [awareness, presenting, view, user.id, user.name, holding])
   React.useEffect(() => () => awareness?.setLocalStateField(PRESENTING_FIELD, null), [awareness])
 
-  // Someone starts presenting: follow them, unless we already said no to them.
+  // Someone starts presenting: follow them, unless we already said no to them. A presenter who holds everyone
+  // takes back those who said no.
   const presenter = presenters.find((p) => p.clientId === following) ?? null
+  const held = !!presenter?.hold
   React.useEffect(() => {
     if (presenting) return
     if (following !== null && !presenters.some((p) => p.clientId === following)) setFollowing(null)
     if (following === null) {
-      const next = presenters.find((p) => !declined.current.has(p.clientId))
+      const next = presenters.find((p) => p.hold || !declined.current.has(p.clientId))
       if (next) setFollowing(next.clientId)
     }
   }, [presenters, following, presenting])
@@ -230,19 +238,28 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   // Follow: show what they show, fitted to this screen.
   React.useEffect(() => {
     if (!presenter || !view) return
-    const f = followView(presenter.view, { width: view.width, height: view.height })
-    if (Math.abs(f.scrollX - view.scrollX) < 0.5 && Math.abs(f.scrollY - view.scrollY) < 0.5 && Math.abs(f.zoom - view.zoom) < 0.001) return
-    api.updateScene({ appState: { scrollX: f.scrollX, scrollY: f.scrollY, zoom: { value: f.zoom as never } } })
+    const next = followScene(presenter.view, view)
+    if (next) api.updateScene({ appState: next })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- view changes because of this very update
   }, [presenter, api])
 
-  // Moving the board yourself stops following, as in Miro.
+  // Held, a move of our own comes back to the presenter's view once the board settles.
+  React.useEffect(() => {
+    if (!held || !presenter || !view) return
+    const next = followScene(presenter.view, view)
+    if (!next) return
+    const t = setTimeout(() => api.updateScene({ appState: next }), 250)
+    return () => clearTimeout(t)
+  }, [held, presenter, view, api])
+
+  // Moving the board yourself stops following, as in Miro, unless the presenter holds everyone.
   const stopFollowing = React.useCallback(() => {
+    if (held) return
     if (following !== null) declined.current.add(following)
     setFollowing(null)
-  }, [following])
+  }, [following, held])
   React.useEffect(() => {
-    if (following === null) return
+    if (following === null || held) return
     const canvas = document.querySelector(".excalidraw") as HTMLElement | null
     if (!canvas) return
     const stop = () => stopFollowing()
@@ -252,7 +269,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
       canvas.removeEventListener("wheel", stop)
       canvas.removeEventListener("pointerdown", stop)
     }
-  }, [following, stopFollowing])
+  }, [following, stopFollowing, held])
 
   // ---- Render ------------------------------------------------------------
   const timeUp = !!timer && left === 0 && timer.pausedLeftMs === undefined
@@ -291,7 +308,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   }
   const barRef = React.useRef<HTMLDivElement>(null)
   const [room, setRoom] = React.useState<HTMLDivElement | null>(null)
-  const barWords = [compact, compactBar.presenter, (presenter ?? presenters[0])?.name, compactBar.voting, voting?.byName, votesLeft, !!voting?.closedAt, timer ? timeUp : null, editable]
+  const barWords = [compact, held, holding, compactBar.presenter, (presenter ?? presenters[0])?.name, compactBar.voting, voting?.byName, votesLeft, !!voting?.closedAt, timer ? timeUp : null, editable]
   const given = useGiveWay(barRef, room, compact ? giveWaySteps(compactBar).length : 0, barWords.join("|"))
   const forms = barForms(compactBar, given)
 
@@ -316,6 +333,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
       <Segment key="presenting" tone="about-you" fit={compact}>
         <Presentation className="size-4 shrink-0" aria-hidden />
         <span className="shrink-0">{compact ? "Presenting" : "You're presenting"}</span>
+        {!compact && <SegmentButton onClick={() => setHolding((h) => !h)}>{holding ? "Let everyone move" : "Hold everyone"}</SegmentButton>}
         {!compact && <SegmentButton onClick={() => setPresenting(false)}>Stop</SegmentButton>}
       </Segment>,
     )
@@ -337,9 +355,10 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
         ) : (
           <NamedState name={name} after="is presenting" />
         )}
+        {held && <span className={forms.presenter === "icon" || forms.presenter === "name" ? "sr-only" : "shrink-0 text-ink-3"}>{" · held"}</span>}
         {!compact &&
           (presenter ? (
-            <SegmentButton onClick={stopFollowing}>Stop</SegmentButton>
+            !held && <SegmentButton onClick={stopFollowing}>Stop</SegmentButton>
           ) : (
             <SegmentButton onClick={() => follow(presenters[0])}>Follow</SegmentButton>
           ))}
@@ -511,18 +530,24 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
     const [presentingRows, votingRows, timerRows] = groups
     if (presenting) {
       presentingRows.push(
+        <DropdownMenuItem key="hold" onSelect={() => setHolding((h) => !h)}>
+          <Lock />
+          {holding ? "Let everyone move" : "Hold everyone"}
+        </DropdownMenuItem>,
         <DropdownMenuItem key="stop" onSelect={() => setPresenting(false)}>
           <Presentation />
           Stop presenting
         </DropdownMenuItem>,
       )
     } else if (presenter) {
-      presentingRows.push(
-        <DropdownMenuItem key="unfollow" onSelect={stopFollowing}>
-          <Presentation />
-          Stop following
-        </DropdownMenuItem>,
-      )
+      // Held, there is no Stop following: only the presenter lets everyone move.
+      if (!held)
+        presentingRows.push(
+          <DropdownMenuItem key="unfollow" onSelect={stopFollowing}>
+            <Presentation />
+            Stop following
+          </DropdownMenuItem>,
+        )
     } else if (presenters.length > 0) {
       presentingRows.push(
         <DropdownMenuItem key="follow" onSelect={() => follow(presenters[0])}>

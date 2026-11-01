@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 // Your profile as a page (design v3, admin D1, mock M7b). The identity band is
@@ -59,11 +60,11 @@ import { hueFor } from "@/lib/campHue"
 
 afterEach(cleanup)
 
+// Its sections are a chunk of their own, which the shell warms once the first screen has settled
+// (components/profile/profileSections, fluid-14): warmed before the tests (V-138), never inside one.
+warmBeforeTests(async () => (await import("@/components/profile/profileSections")).warmProfileSections())
+
 const renderPage = async () => {
-  // Its sections are a chunk of their own, which the shell warms once the
-  // first screen has settled (components/profile/profileSections, fluid-14).
-  const { warmProfileSections } = await import("@/components/profile/profileSections")
-  await warmProfileSections()
   await act(async () => void render(<ProfileSettingsPage />))
 }
 

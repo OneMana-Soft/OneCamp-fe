@@ -42,7 +42,8 @@ export function eventGuests(event: CalendarEventInterface, selfId: string | unde
     const p = g.user_uuid ? people.get(g.user_uuid) : undefined
     if (g.user_uuid && p) {
       faces.push({ key: g.user_uuid, name: displayNameOf(p) || "Someone", seed: avatarSeed(p), response: g.response, note: g.note,
-        src: photo(p.user_profile_object_key), detail: addressOrHandleOf(p) || undefined, proposal: g.proposal })
+        src: photo(p.user_profile_object_key), detail: addressOrHandleOf(p) || undefined, proposal: g.proposal,
+        ...(g.out_of_office ? { away: true } : {}) })
     } else if (!g.user_uuid) {
       // A guest by email. The public demo blanks every address its shared
       // visitor could read (helpers/demoPrivacy.go): they show without one.

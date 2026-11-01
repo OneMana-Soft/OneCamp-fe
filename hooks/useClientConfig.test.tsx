@@ -15,6 +15,7 @@ vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosIns
 const { CLIENT_CONFIG_KEY } = await import("@/lib/clientConfigKey")
 const { useAIAvailable, useFeature, useFeatureState, FEATURE_AI, FEATURE_CALLS } = await import("./useClientConfig")
 const { FeaturesNotice } = await import("@/components/banner/FeaturesNotice")
+const { isAppOffline, noteNetworkFailure, noteNetworkOk } = await import("@/lib/connectivity")
 
 const SERVER = { data: { data: { upload_limit_mb: 10, upload_limit_bytes: 10 << 20, transcription_mode: "frontend", features: { ai: true, calls: true }, email_enabled: true } } }
 
@@ -48,6 +49,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  // The server answers again: no test leaves the app offline for the next.
+  noteNetworkOk()
 })
 
 describe("what this server has, when its read fails", () => {
@@ -70,6 +73,23 @@ describe("what this server has, when its read fails", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     await waitFor(() => expect(screen.getByText("Search or ask · Huddle")).toBeTruthy())
     expect(screen.queryByRole("status")).toBeNull()
+  })
+
+  // DESIGN-BUILD-58 M1 (asana-12's cold start): offline, the read failed for the reason the offline pill already says,
+  // so the banner stays quiet and the pill speaks; back online, a read that still fails is said here.
+  it("stays quiet while the app is offline, and says so once it is back and still knows nothing", async () => {
+    get.mockRejectedValue(new Error("Network Error"))
+    // Two requests with no answer: the server counts as unreachable, the app's one offline state (lib/connectivity).
+    noteNetworkFailure()
+    noteNetworkFailure()
+    expect(isAppOffline()).toBe(true)
+    page()
+    await waitFor(() => expect(get).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.queryByRole("status")).toBeNull()
+    act(() => noteNetworkOk())
+    const notice = await screen.findByRole("status")
+    expect(notice.textContent).toContain("Couldn't check what this workspace has.")
   })
 
   it("asks again on its own after a failure", async () => {

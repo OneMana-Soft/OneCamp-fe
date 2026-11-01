@@ -19,17 +19,6 @@ export interface Slot {
 
 export const defaultHours = (tz: string = browserTZ()): WorkingHours => ({ days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", tz })
 
-/** Every zone the browser knows, the viewer's own first. */
-export function timeZones(first: string = browserTZ()): string[] {
-  let all: string[] = []
-  try {
-    all = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") ?? []
-  } catch {
-    all = []
-  }
-  return [first, ...all.filter((z) => z !== first)]
-}
-
 /** "2026-10-06": the calendar day an instant falls on in a zone. */
 export function dayKey(iso: string | Date, tz: string): string {
   // Kept by the one cache: the booking page asked for a new one per slot (CAL-BUG-20).

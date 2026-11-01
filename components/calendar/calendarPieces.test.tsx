@@ -17,7 +17,7 @@ vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (opts: { title: string;
 
 import { MonthView } from "./monthView"
 import { EventPopover, whenLabel } from "./eventPopover"
-import { eventCallChoice, eventCallOf, joinLinkOf } from "@/lib/calendar/joinLink"
+import { eventCallChoice, eventCallOf, inviteesSkipLobby, joinLinkOf } from "@/lib/calendar/joinLink"
 import { QuickCreateCard } from "./quickCreateCard"
 import { CalendarsPanel } from "./calendarsPopover"
 import { CalendarAgenda, nextItemId } from "./calendarAgenda"
@@ -287,6 +287,19 @@ describe("an event's own call", () => {
     expect(eventCallChoice(ev({ event_description: "<p>Join https://meet.example.com/abc</p>" }), may)).toBeNull()
     expect(eventCallChoice(ev({ event_call: CALL }), { ...may, mayChange: false })).toBeNull()
     expect(eventCallChoice(ev({ event_call: CALL }), { ...may, google: true })).toBeNull()
+  })
+
+  it("lets whoever may change the event say whether its guests by email skip its call's lobby, while it has its own call and hasn't ended", () => {
+    const may = { mayChange: true, google: false, ended: false, outsideGuests: true }
+    expect(inviteesSkipLobby(ev({ event_call: CALL }), may)).toBe(true)
+    expect(inviteesSkipLobby(ev({ event_call: { ...CALL, invitees_wait: true } }), may)).toBe(false)
+    // Members never wait, so with no guest from outside there is nothing to choose.
+    expect(inviteesSkipLobby(ev({ event_call: CALL }), { ...may, outsideGuests: false })).toBeNull()
+    expect(inviteesSkipLobby(ev({ event_call: CALL }), { ...may, mayChange: false })).toBeNull()
+    expect(inviteesSkipLobby(ev({ event_call: CALL }), { ...may, google: true })).toBeNull()
+    expect(inviteesSkipLobby(ev({ event_call: CALL }), { ...may, ended: true })).toBeNull()
+    expect(inviteesSkipLobby(ev({ event_description: "<p>Join https://meet.example.com/abc</p>" }), may)).toBeNull()
+    expect(inviteesSkipLobby(ev(), may)).toBeNull()
   })
 
   it("opens from the card in the same tab", () => {

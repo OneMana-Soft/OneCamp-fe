@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/combobox"
 import { cn } from "@/lib/utils/helpers/cn"
 import { tagTone } from "@/lib/tags"
-import { useProjectTags } from "@/components/tags/TagPicker"
+import { useProjectTags } from "@/hooks/useProjectTags"
 
 /** The board's tag filter: show tasks carrying any of the chosen tags. */
 export function TagFilter({ projectId, active, onChange }: { projectId: string; active: string[]; onChange: (tags: string[]) => void }) {

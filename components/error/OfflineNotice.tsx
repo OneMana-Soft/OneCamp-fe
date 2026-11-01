@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import { useHostPill, usePillHosted, usePillStoodIn } from "@/components/error/pillPlace"
-import { isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
+import { isAppOffline, isServerUnreachable, noteNetworkOk, subscribeConnectivity } from "@/lib/connectivity"
 import { useMqttConnectionState, useMqttReconnect } from "@/components/mqtt/mqttContext"
 import { FAST_RECONNECT_TRIES } from "@/lib/mqtt/reconnectDelay"
 import { useUpdateReady } from "@/hooks/useUpdateReady"
@@ -43,14 +43,6 @@ import { emptyOfflineStatus, getOfflineStatus, reviewOfflineChanges, sendOffline
  * is enough.
  */
 
-function subscribeOnline(onChange: () => void) {
-  window.addEventListener("online", onChange)
-  window.addEventListener("offline", onChange)
-  return () => {
-    window.removeEventListener("online", onChange)
-    window.removeEventListener("offline", onChange)
-  }
-}
 const browserOnline = () => navigator.onLine
 const assumeOnline = () => true
 const assumeReachable = () => false
@@ -79,8 +71,10 @@ export type ConnectionPill =
 
 /** What the pill should say now, if anything. */
 function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload: () => void; reconnect?: () => void } {
-  const online = useSyncExternalStore(subscribeOnline, browserOnline, assumeOnline)
+  const online = useSyncExternalStore(subscribeConnectivity, browserOnline, assumeOnline)
   const unreachable = useSyncExternalStore(subscribeConnectivity, isServerUnreachable, assumeReachable)
+  // The app's ONE connectivity state (lib/connectivity): the reads that got no answer wait on it too (hooks/useFetch).
+  const offline = useSyncExternalStore(subscribeConnectivity, isAppOffline, assumeReachable)
   const connectionState = useMqttConnectionState()
   const reconnect = useMqttReconnect()
   const update = useUpdateReady()
@@ -113,7 +107,7 @@ function useConnectionPill(): { pill: ConnectionPill; retry: () => void; reload:
   const changes = (n: number) => `${n} ${n === 1 ? "change" : "changes"}`
   const needYou = kept.conflicts.length + kept.failed.length + kept.held.length
   let pill: ConnectionPill = null
-  if (!online || unreachable) {
+  if (offline) {
     const title = !online ? "You're offline" : "Can't reach the server"
     const detail = `${changes(waiting)} waiting`
     if (kept.full) pill = { kind: "offline", title, detail, line: "That's as many as this device keeps. New changes can't be kept until these are sent." }

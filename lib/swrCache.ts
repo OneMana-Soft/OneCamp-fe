@@ -35,6 +35,8 @@
 import type { Cache } from "swr"
 
 import { onSessionEnd } from "@/lib/sessionEnd"
+import { rememberedMember } from "@/lib/memberMark"
+import { unanswered } from "@/lib/http/answered"
 import { CLIENT_CONFIG_KEY } from "@/lib/clientConfigKey"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { MAX_ENTRIES, RecentCache } from "@/lib/recentCache"
@@ -79,9 +81,21 @@ const KEPT: readonly string[] = [
   CLIENT_CONFIG_KEY,
 ]
 
-/** Whether a response is written down for the next load (KEPT). Pure. */
+/**
+ * A project's board, per project id: what a cold start needs to open the board
+ * the member left (asana-12), its statuses included (lib/projectStatusesKey:
+ * the board draws its columns once they're read). Over budget, a board gives
+ * way first, the least recently opened first, and never makes room by leaving
+ * out a first screen.
+ */
+const BOARDS: readonly (string | RegExp)[] = [GetEndpointUrl.GetProjectInfo, GetEndpointUrl.GetProjectTaskListForKanban, /^\/project\/[^/?]+\/statuses$/]
+
+const under = (paths: readonly (string | RegExp)[], key: string) =>
+  paths.some((path) => (typeof path === "string" ? key === path || key.startsWith(`${path}/`) || key.startsWith(`${path}?`) : path.test(key)))
+
+/** Whether a response is written down for the next load (KEPT or BOARDS). Pure. */
 export function isKept(key: unknown): key is string {
-  return typeof key === "string" && KEPT.some((path) => key === path || key.startsWith(`${path}/`) || key.startsWith(`${path}?`))
+  return typeof key === "string" && (under(KEPT, key) || under(BOARDS, key))
 }
 
 /** The response that says who is signed in. */
@@ -94,7 +108,7 @@ function memberOf(value: unknown): string | null {
 }
 
 type SerialisedEntry = [string, unknown]
-type SerialisedCache = { v: number; member: string; entries: SerialisedEntry[] }
+type SerialisedCache = { v: number; member: string; profile?: unknown; entries: SerialisedEntry[] }
 
 function dropStored(): void {
   try {
@@ -103,6 +117,9 @@ function dropStored(): void {
     /* storage unavailable: nothing was written either */
   }
 }
+
+// The server's word that a key isn't the member's to read: signed out (401), refused (403), or gone (404).
+const refused = (error: unknown) => [401, 403, 404].includes(Number((error as { response?: { status?: unknown } })?.response?.status))
 
 /**
  * The cache SWR uses: a RecentCache that knows whose responses it holds.
@@ -122,15 +139,26 @@ export class MemberCache extends RecentCache<unknown> {
   private retired = false
   private held: SerialisedEntry[]
   private heldFor: string | null
+  // The profile written down with the held answers, for a start the server never answers (keptProfile).
+  private keptProfile: unknown
+  // Each answer let in from the device, by key, until this page has its own (serverSaid).
+  private fromDevice = new Map<string, unknown>()
 
-  constructor(held: SerialisedEntry[] = [], heldFor: string | null = null) {
+  constructor(held: SerialisedEntry[] = [], heldFor: string | null = null, keptProfile?: unknown) {
     super()
     this.held = held
     this.heldFor = heldFor
+    this.keptProfile = keptProfile
+  }
+
+  /** The profile kept for the member the held answers are for, while no profile has been set here. */
+  offlineProfile(): unknown {
+    if (this.member || this.retired || !this.heldFor) return undefined
+    return (this.keptProfile as { data?: unknown } | undefined)?.data
   }
 
   set(key: string, value: unknown): this {
-    super.set(key, value)
+    super.set(key, this.fromDevice.has(key) ? this.serverSaid(key, value) : value)
     if (key === PROFILE_KEY) this.signedIn(memberOf(value))
     return this
   }
@@ -138,7 +166,20 @@ export class MemberCache extends RecentCache<unknown> {
   clear(): void {
     this.held = []
     this.heldFor = null
+    this.keptProfile = undefined
+    this.fromDevice.clear()
     super.clear()
+  }
+
+  // An answer the device kept shows until the server's word on its key. A refusal takes it back, so the screen
+  // shows the refusal (a member since removed, a thing since deleted), never what the device kept; no answer, or a
+  // failing server, isn't its word, and it stays (offline). Once this page has its own answer, SWR's rules hold.
+  private serverSaid(key: string, value: unknown): unknown {
+    const v = (value ?? {}) as { data?: unknown; error?: unknown }
+    const kept = v.data === this.fromDevice.get(key)
+    if (kept && !refused(v.error)) return value
+    this.fromDevice.delete(key)
+    return kept ? { ...v, data: undefined } : value
   }
 
   private signedIn(member: string | null): void {
@@ -152,6 +193,7 @@ export class MemberCache extends RecentCache<unknown> {
       return
     }
     this.member = member
+    this.keptProfile = undefined
     const held = this.held
     const heldFor = this.heldFor
     this.held = []
@@ -160,7 +202,11 @@ export class MemberCache extends RecentCache<unknown> {
       if (heldFor !== null) dropStored()
       return
     }
-    for (const [key, value] of held) if (!this.has(key)) super.set(key, value)
+    for (const [key, value] of held) {
+      if (this.has(key)) continue
+      super.set(key, value)
+      this.fromDevice.set(key, (value as { data?: unknown } | null)?.data)
+    }
     // Recent again, so letting the others in never pushes it out.
     this.get(PROFILE_KEY)
   }
@@ -176,9 +222,11 @@ function isPersistable(value: unknown): boolean {
   if (typeof value !== "object") return true
   const v = value as Record<string, unknown>
   // SWR's internal shape is { data, error, isValidating, isLoading, ... }.
-  // Persist only when there's data and no error.
+  // Persist the data unless the server refused the key. No answer, or a failing server, isn't its word, so the last
+  // answer stays (offline, every kept key's refresh fails beside its data). A refused answer is never written back,
+  // even one this page fetched itself: serverSaid takes back only what the device kept.
   if ("data" in v || "error" in v) {
-    return v.data !== undefined && v.error === undefined
+    return v.data !== undefined && !refused(v.error)
   }
   return true
 }
@@ -189,22 +237,37 @@ function isPersistable(value: unknown): boolean {
  * they said a response was on its way when none was (lib/swrMutate
  * patchCached reads them). They're written false rather than left out: SWR
  * takes a missing flag as loading, and screens that wait on it showed a
- * skeleton over the cached data.
+ * skeleton over the cached data. A failed refresh's error is this page's too,
+ * so it's left out (JSON drops the undefined), and the next load finds the data.
  */
 function atRest(value: unknown): unknown {
-  if (value === null || typeof value !== "object" || !("isValidating" in value || "isLoading" in value)) return value
-  return { ...(value as Record<string, unknown>), isValidating: false, isLoading: false }
+  if (value === null || typeof value !== "object" || !("isValidating" in value || "isLoading" in value || "error" in value)) return value
+  return { ...(value as Record<string, unknown>), isValidating: false, isLoading: false, error: undefined }
+}
+
+// The member's own profile, written down beside their answers for a start the server never answers
+// (keptProfile). Never another member's; nothing when there is none.
+function profilePart(map: Map<string, unknown>, member: string): string {
+  const profile = Map.prototype.get.call(map, PROFILE_KEY)
+  if (memberOf(profile) !== member || !isPersistable(profile)) return ""
+  try {
+    return `"profile":${JSON.stringify(atRest(profile))},`
+  } catch {
+    return ""
+  }
 }
 
 /**
  * The cache as written down for `member`: the most recently read entries that
- * are kept (isKept) and fit in budget, oldest first so a reload restores their
+ * are kept (isKept) and fit in budget, first screens before boards, oldest first so a reload restores their
  * order. Each entry is serialised once (this used to re-serialise the whole
  * cache once per entry it dropped when over budget). Pure, for its test.
  */
 export function serialise(map: Map<string, unknown>, member: string, budget = MAX_CACHE_BYTES): string {
   const recentFirst: [string, unknown][] =
     map instanceof RecentCache ? map.recentFirst().map((k) => [k, Map.prototype.get.call(map, k)]) : [...map.entries()].reverse()
+  // First screens first, then boards (a stable sort keeps each one's recency), so a board gives way first.
+  recentFirst.sort(([a], [b]) => Number(under(BOARDS, a)) - Number(under(BOARDS, b)))
   const parts: string[] = []
   let used = 0
   for (const [key, value] of recentFirst) {
@@ -220,7 +283,7 @@ export function serialise(map: Map<string, unknown>, member: string, budget = MA
     parts.push(part)
     used += part.length + 1
   }
-  return `{"v":${CACHE_VERSION},"member":${JSON.stringify(member)},"entries":[${parts.reverse().join(",")}]}`
+  return `{"v":${CACHE_VERSION},"member":${JSON.stringify(member)},${profilePart(map, member)}"entries":[${parts.reverse().join(",")}]}`
 }
 
 function persist(map: MemberCache): void {
@@ -258,7 +321,7 @@ function rehydrate(): MemberCache {
     // Defensive: only what this build keeps, under string keys, from a
     // tampered or older payload.
     const kept = parsed.entries.filter((e): e is SerialisedEntry => Array.isArray(e) && isKept(e[0]))
-    return new MemberCache(kept, parsed.member)
+    return new MemberCache(kept, parsed.member, memberOf(parsed.profile) === parsed.member ? parsed.profile : undefined)
   } catch {
     // Corrupt JSON. Drop and start fresh.
     dropStored()
@@ -325,3 +388,16 @@ onSessionEnd(forgetCache)
 // The Offline Store (lib/offline) is the member's too and goes with the
 // session: its wipe loads only then, so no route's first load carries it.
 onSessionEnd(() => import("@/lib/offline/wipe").then((m) => m.wipeOfflineStore()))
+
+/**
+ * The profile this device kept for the member it last confirmed, for a start
+ * the server never answered: no network, or nothing getting through
+ * (AppProtectedRoute, asana-12). Only while this browser's member mark is set
+ * (every sign-out clears it, and this cache with it), only before a profile
+ * has been set on this page, and only for the member the kept answers are
+ * for. A refusal or any other answer is the server's word: nothing kept is used.
+ */
+export function keptProfile(error: unknown): unknown {
+  if (!unanswered(error) || !rememberedMember() || !current) return undefined
+  return current.offlineProfile()
+}

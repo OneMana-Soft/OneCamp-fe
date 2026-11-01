@@ -138,18 +138,17 @@ function ConversationComposer({ conversation, handleSend, placeholder, phone, au
 
     if (phone) {
         return (
-            <>
+            <PhoneComposerDrawer expanded={expanded} onExpandedChange={setExpanded} answers={commands}>
+                {/* In the sheet, which floats over the page's foot: drawn under it, nobody saw them. */}
                 {above && <div className="px-3">{above(send, conversation)}</div>}
                 {reply && <div className="px-3">{reply}</div>}
-                <PhoneComposerDrawer expanded={expanded} onExpandedChange={setExpanded} answers={commands}>
-                    {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
-                    {box("phone", { expanded, onExpandedChange: setExpanded })}
-                    <div className="px-3">
-                        <BoxFiles conversation={conversation} draft={draft} />
-                    </div>
-                    {picker}
-                </PhoneComposerDrawer>
-            </>
+                {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
+                {box("phone", { expanded, onExpandedChange: setExpanded })}
+                <div className="px-3">
+                    <BoxFiles conversation={conversation} draft={draft} />
+                </div>
+                {picker}
+            </PhoneComposerDrawer>
         )
     }
     return (

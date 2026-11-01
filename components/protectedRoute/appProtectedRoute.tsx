@@ -1,5 +1,7 @@
 "use client";
 
+import { keptProfile } from "@/lib/swrCache";
+import { onRefusal } from "@/lib/http/answered";
 import { useAppRouter } from '@/lib/navigation/appRouter';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { APP_BOOT_RETRY_ATTR, appBootState, endAppBoot, hasAppBoot, holdAppBoot, leaveAppBoot, slowAppBoot } from "@/lib/appBoot";
@@ -48,7 +50,39 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
     // the effect re-running while we wait on the BE logout.
     const handledRef = useRef(false);
     const ready = !!userProfile.data?.data;
-    const failed = !!userProfile.isError && !sessionGone(userProfile.isError);
+    // No network at the start, or nothing getting through: the member this
+    // device last confirmed, from what it kept for them (lib/swrCache
+    // keptProfile; asana-12): never after a refusal, which signs out below.
+    // The server's answer, when one comes, decides.
+    const refused = sessionGone(userProfile.isError);
+    const kept = !ready && userProfile.isError && !refused ? keptProfile(userProfile.isError) : undefined;
+    const failed = !!userProfile.isError && !refused && !kept;
+    const { mutate } = userProfile;
+    useEffect(() => {
+        if (kept) void mutate(kept as UserProfileInterface, { revalidate: false });
+    }, [kept, mutate]);
+    // A change the server refused (a queued write's 403): asked again, so a
+    // member deactivated or removed while offline is signed out on reconnect.
+    useEffect(() => onRefusal(() => void mutate()), [mutate]);
+    // While the page runs on that kept profile, it asks again whenever the
+    // device is back online or the page is looked at again: useFetchOnlyOnce
+    // never asks on its own, and a refusal (a member deactivated or removed
+    // meanwhile) must sign out here as it would have online.
+    const [openedOn, setOpenedOn] = useState<unknown>(undefined);
+    if (kept && openedOn !== kept) setOpenedOn(kept);
+    const onKept = ready && openedOn !== undefined && userProfile.data === openedOn;
+    useEffect(() => {
+        if (!onKept) return;
+        const askAgain = () => {
+            if (document.visibilityState !== "hidden") void mutate();
+        };
+        window.addEventListener("online", askAgain);
+        document.addEventListener("visibilitychange", askAgain);
+        return () => {
+            window.removeEventListener("online", askAgain);
+            document.removeEventListener("visibilitychange", askAgain);
+        };
+    }, [onKept, mutate]);
     // The splash (lib/appBoot): the layout's, on screen since the first paint
     // or put up now if the app was opened from the sign-in page, held while
     // the profile is asked for, and faded out over the app once it is there,

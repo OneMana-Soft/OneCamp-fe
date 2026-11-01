@@ -58,6 +58,16 @@
 html[data-task-sheet] {
   --phone-floor: var(--mobile-drawer-h, env(safe-area-inset-bottom));
 }
+/* The offline pill floats 8px above that comment box for as long as the
+   device is offline, over the sheet's last rows (DESIGN-BUILD-58 M2). The
+   task's body keeps the pill's room clear at its end, so scrolled to the end
+   no row sits under it: three of the pill's 16px lines and its 12px of
+   padding (.shell-footpill, app/globals.css), and 8px on each side. The
+   sheet comes only to a device that lost the network (TaskInPlace is its
+   chunk), where the pill speaks. */
+html[data-task-sheet] [data-task-body="panel"] {
+  padding-bottom: calc(3 * 16px + 12px + 2 * 8px);
+}
 .dark {
   --e-bar: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 -8px 24px -12px rgb(0 0 0 / 0.7);
 }
@@ -795,8 +805,11 @@ html[data-keyboard="open"] .v3-dialog[role="dialog"][data-v3-sheet] {
      screen (the tab bar, a composer: --phone-floor), 12px clear of it,
      min(100% - 32px, 360px) wide and centred; swiped down to go. While the
      keyboard is up the bottom is the keyboard's, and while a sheet is open it
-     is the sheet's (html[data-sheet], components/ui/drawer: a toast covered
-     Add section, 22 Oct; a menu, popover or select is a sheet here too,
+     is the sheet's (html[data-sheet], the page's one sheet mark, which every
+     sheet primitive sets through components/ui/sheetMark, counted: a drawer,
+     a dialog or confirm drawn as one, the task's sheet; never an html:has(),
+     app/globals.css AppShellMark; a toast covered Add section, 22 Oct; a
+     menu, popover or select is a sheet here too,
      html[data-float], components/ui/floatMark: a call's notice covered More's
      Raise your hand, 26 Oct), so they come in under the top bar instead. So they
      do while the field in use meets the foot slot (data-slot="top",
@@ -806,7 +819,13 @@ html[data-keyboard="open"] .v3-dialog[role="dialog"][data-v3-sheet] {
      and one under the bar covered its place pill (DESIGN-BUILD-20, 26 Oct).
      The bar's slot when that is lower, as when its top scrolled away. A row
      docked under the bar (a doc's connection row, --docked-row-h) moves the
-     bar's slot down by its height: the save notice covered it (V-21). */
+     bar's slot down by its height: the save notice covered it (V-21).
+     Under the bar can be ON a tall sheet's header (the filter sheet's title
+     and Export CSV, V-111), so while one is open components/ui/toastFootSlot
+     measures it and places them (data-sheet-slot, --toast-sheet-top): in the
+     dimmed gap above its top edge when they fit there, else over its content
+     under its header row; never over its buttons, and never under the safe
+     top (DESIGN-BUILD-43). */
   @media (max-width: 639.98px) {
     .toast-viewport {
       --toast-dir: -1;
@@ -852,6 +871,9 @@ html[data-keyboard="open"] .v3-dialog[role="dialog"][data-v3-sheet] {
       top: 0;
       bottom: auto;
       transform-origin: 50% 0%;
+    }
+    html[data-sheet="open"] .toast-viewport[data-sheet-slot] {
+      top: max(var(--toast-sheet-top), calc(var(--app-vv-top, 0px) + env(safe-area-inset-top) + 8px));
     }
   }
   @media (max-width: 639.98px) and (prefers-reduced-motion: reduce) {

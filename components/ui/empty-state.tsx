@@ -28,6 +28,8 @@ interface EmptyStateProps {
   tone?: EmptyStateTone
   /** The section's camp hue, for the icon's tint tile; without it the icon stands bare. */
   hue?: MarkHue
+  /** A state a screen reader must hear when it appears: ErrorState's "alert". */
+  role?: "alert"
 }
 
 export function EmptyState({
@@ -41,11 +43,13 @@ export function EmptyState({
   headingLevel = 3,
   tone = "muted",
   hue,
+  role,
 }: EmptyStateProps) {
   const accent = tone === "accent"
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
   return (
     <div
+      role={role}
       className={cn(
         "flex flex-col items-center justify-center gap-3 text-center",
         // The accent's copy is wider (max-w-sm): px-6 would cost it a line at 360px.

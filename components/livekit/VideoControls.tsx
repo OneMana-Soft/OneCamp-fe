@@ -4,6 +4,7 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import { useLocalParticipant, useMediaDeviceSelect, useRoomContext } from "@livekit/components-react"
 import { supportsAudioOutputSelection } from "livekit-client"
+import { SHARE_PUBLISH, shareCapture } from "@/lib/calls/shareCapture"
 import {
   BarChart3,
   Captions,
@@ -63,6 +64,11 @@ import { writeDevicePref, type DevicePrefs } from "./callDevices"
 import { heldNext, heldReason } from "./callHolds"
 import type { CallHold } from "@/lib/calls/holds"
 import { focusHandOff } from "@/lib/ui/focusHandOff"
+import { usePipWindow } from "@/hooks/usePipWindow"
+import { openOnLeave } from "@/lib/pip/pipWindow"
+import { CALL_PIP_SIZE, lastSpeaker, pipVideo } from "@/lib/calls/callPip"
+import { CallPip } from "./CallPip"
+import { PipGlyph } from "./pipGlyph"
 
 // The dock's buttons and words, shared with the green room (DockButton), so
 // the green room's first load has them without the call's dock.
@@ -257,7 +263,21 @@ export interface CallDockProps {
    * as Zoom's and Meet's do; for everyone else it leaves at once.
    */
   onEndForAll?: () => void
+  /**
+   * Picture-in-picture (meet-14): the call in a small window over other tabs
+   * and apps, as Meet's. `open` while it's up, when the control closes it;
+   * `unavailable` says why it can't open in this browser.
+   */
+  pip?: { open: boolean; unavailable?: string; onToggle: () => void }
 }
+
+/** Picture-in-picture's failures (meet-14), as the dock says them. */
+const PIP_UNAVAILABLE = "Picture-in-picture isn't available in this browser"
+const PIP_FAILURES = {
+  unavailable: { title: PIP_UNAVAILABLE, description: "Open the call in Chrome, Edge or Safari for it." },
+  refused: { title: "Picture-in-picture didn't open", description: "Try again from the dock." },
+  noPicture: { title: "No picture to pop out", description: "This browser pops out a camera or a shared screen, and every camera is off." },
+} satisfies Record<string, CallFailure>
 
 /**
  * Toasts stay 12px above the dock (components/ui/toast.tsx): notices sat over
@@ -453,6 +473,23 @@ export function CallDock(p: CallDockProps) {
               icon={p.layout === "grid" ? <LayoutGrid /> : <SquareUser />}
               onClick={() => p.onLayoutChange?.(p.layout === "grid" ? "speaker" : "grid")}
             />
+          </span>
+        ) : null}
+        {p.pip ? (
+          <span className="hidden @3xl:flex">
+            {p.pip.unavailable ? (
+              // Dimmed but still pressable, as Share's: the tooltip and a toast say why.
+              <DockButton label="Picture-in-picture" short="Pop out" aria-disabled icon={<PipGlyph />} onClick={() => showCallFailure(PIP_FAILURES.unavailable)} hint={p.pip.unavailable} />
+            ) : (
+              <DockButton
+                label={p.pip.open ? "Close picture-in-picture" : "Picture-in-picture"}
+                short="Pop out"
+                state={p.pip.open ? "active" : "on"}
+                pressed={p.pip.open}
+                icon={<PipGlyph />}
+                onClick={p.pip.onToggle}
+              />
+            )}
           </span>
         ) : null}
         {p.onToggleRecording ? (
@@ -725,7 +762,7 @@ function NewDot() {
 
 /** The phone's "More": everything the bottom bar has no room for, as 52px rows. */
 function MoreMenu(p: CallDockProps) {
-  const any = p.onToggleShare || p.board || p.onToggleRecording || p.onToggleCaptions || p.onLayoutChange || p.onChatToggle || p.people || p.effects || p.activities || p.breakouts
+  const any = p.onToggleShare || p.board || p.onToggleRecording || p.onToggleCaptions || p.onLayoutChange || p.onChatToggle || p.people || p.effects || p.activities || p.breakouts || p.pip
   const lit = !!p.activities?.lit && !p.activities.open
   // A row that opens a panel beside the stage hands the focus to it; any other row gives it back to More only for keys.
   const [handOff] = React.useState(focusHandOff)
@@ -823,6 +860,16 @@ function MoreMenu(p: CallDockProps) {
               {p.layout === "grid" ? <LayoutGrid /> : <SquareUser />}
               {p.layout === "grid" ? "Switch to speaker view" : "Switch to grid view"}
             </DropdownMenuItem>
+          ) : null}
+          {p.pip ? (
+            p.pip.unavailable ? (
+              <ReasonItem icon={PipGlyph} label="Picture-in-picture" reason="Not available in this browser" className="h-[52px]" data-pip-unavailable="" />
+            ) : (
+              <DropdownMenuItem onClick={p.pip.onToggle} className="h-[52px]">
+                <PipGlyph />
+                {p.pip.open ? "Close picture-in-picture" : "Picture-in-picture"}
+              </DropdownMenuItem>
+            )
           ) : null}
           {p.onToggleRecording ? (
             <DropdownMenuItem onClick={p.onToggleRecording} className="h-[52px]">
@@ -927,11 +974,36 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
   // The microphone's one switch, holds and all, for an "asked to unmute" notice's Unmute too (unmuteToast).
   React.useEffect(() => publishSwitch(room, "microphone", mic), [room, mic])
   const camera = useHeldSwitch(held, "camera", useDeviceSwitch("camera", React.useCallback((on: boolean) => localParticipant.setCameraEnabled(on), [localParticipant])))
-  const share = useHeldSwitch(held, "share", useDeviceSwitch("screen", React.useCallback((on: boolean) => localParticipant.setScreenShareEnabled(on), [localParticipant])))
+  // A share takes the tab's sound with it, sent as music (meet-14; shareCapture).
+  const share = useHeldSwitch(held, "share", useDeviceSwitch("screen", React.useCallback((on: boolean) => localParticipant.setScreenShareEnabled(on, shareCapture(), SHARE_PUBLISH), [localParticipant])))
   const toggleMic = React.useCallback(() => mic.toggle(isMicrophoneEnabled), [mic, isMicrophoneEnabled])
   const toggleCamera = React.useCallback(() => camera.toggle(isCameraEnabled), [camera, isCameraEnabled])
   const toggleShare = React.useCallback(() => share.toggle(isScreenShareEnabled), [share, isScreenShareEnabled])
   const leave = () => (onDisconnect ? onDisconnect() : void room.disconnect())
+
+  // Picture-in-picture (meet-14): the call in a window of its own; where the
+  // browser has only a video's own (Safari), the picture you'd look for.
+  const pip = usePipWindow()
+  const { kind: pipKind, open: openPipWindow, openVideo, close: closePip } = pip
+  const pipOpen = !!pip.win || !!pip.video
+  const openPip = React.useCallback(async () => {
+    if (pipKind === "document") {
+      await openPipWindow(CALL_PIP_SIZE).catch(() => showCallFailure(PIP_FAILURES.refused))
+      return
+    }
+    const you = localParticipant.identity
+    const video = pipVideo(document, { speaker: lastSpeaker(room.remoteParticipants.values(), you), you })
+    if (!video) return showCallFailure(PIP_FAILURES.noPicture)
+    if (!(await openVideo(video))) showCallFailure(PIP_FAILURES.refused)
+  }, [pipKind, openPipWindow, openVideo, localParticipant, room])
+  const togglePip = React.useCallback(() => (pipOpen ? closePip() : void openPip()), [pipOpen, closePip, openPip])
+  // Chrome opens it by itself when you leave the tab mid-call, as Meet's does.
+  React.useEffect(() => (pipKind === "document" ? openOnLeave(() => void openPipWindow(CALL_PIP_SIZE).catch(() => {})) : undefined), [pipKind, openPipWindow])
+  // Back to the call: the window goes, and the call's tab comes forward.
+  const backToCall = React.useCallback(() => {
+    closePip()
+    window.focus()
+  }, [closePip])
 
   // Meet's and Zoom's keys as this computer has them (callKeys' aliases).
   const [mac] = React.useState(isMacLike)
@@ -969,38 +1041,53 @@ export function VideoControls({ onDisconnect, ...rest }: VideoControlsProps) {
   }, [actions, mac])
 
   return (
-    <CallDock
-      {...rest}
-      micOn={isMicrophoneEnabled}
-      talking={talking}
-      cameraOn={isCameraEnabled}
-      sharing={isScreenShareEnabled}
-      onToggleMic={() => void toggleMic()}
-      onToggleCamera={() => void toggleCamera()}
-      onToggleShare={() => void toggleShare()}
-      shareUnavailable={shareable ? undefined : SCREEN_UNAVAILABLE}
-      onDisconnect={leave}
-      micMenu={
-        <RoomDeviceMenu
-          kind="audioinput"
-          label="Microphone"
-          off={!isMicrophoneEnabled}
-          extra={rest.effects ? { label: "Noise reduction…", onSelect: rest.effects.onToggle } : undefined}
-          option={
-            keyboard
-              ? {
-                  label: "Hold Space to talk",
-                  checked: talk,
-                  onChange: (on) => {
-                    setTalk(on)
-                    writePushToTalk(on)
-                  },
-                }
-              : undefined
-          }
+    <>
+      {pip.win ? (
+        <CallPip
+          win={pip.win}
+          micOn={isMicrophoneEnabled}
+          cameraOn={isCameraEnabled}
+          held={held}
+          onToggleMic={() => void toggleMic()}
+          onToggleCamera={() => void toggleCamera()}
+          onBack={backToCall}
+          onLeave={leave}
         />
-      }
-      cameraMenu={<RoomDeviceMenu kind="videoinput" label="Camera" off={!isCameraEnabled} extra={rest.effects ? { label: "Background effects…", onSelect: rest.effects.onToggle } : undefined} />}
-    />
+      ) : null}
+      <CallDock
+        {...rest}
+        micOn={isMicrophoneEnabled}
+        talking={talking}
+        cameraOn={isCameraEnabled}
+        sharing={isScreenShareEnabled}
+        onToggleMic={() => void toggleMic()}
+        onToggleCamera={() => void toggleCamera()}
+        onToggleShare={() => void toggleShare()}
+        shareUnavailable={shareable ? undefined : SCREEN_UNAVAILABLE}
+        onDisconnect={leave}
+        pip={{ open: pipOpen, unavailable: pipKind ? undefined : PIP_UNAVAILABLE, onToggle: togglePip }}
+        micMenu={
+          <RoomDeviceMenu
+            kind="audioinput"
+            label="Microphone"
+            off={!isMicrophoneEnabled}
+            extra={rest.effects ? { label: "Noise reduction…", onSelect: rest.effects.onToggle } : undefined}
+            option={
+              keyboard
+                ? {
+                    label: "Hold Space to talk",
+                    checked: talk,
+                    onChange: (on) => {
+                      setTalk(on)
+                      writePushToTalk(on)
+                    },
+                  }
+                : undefined
+            }
+          />
+        }
+        cameraMenu={<RoomDeviceMenu kind="videoinput" label="Camera" off={!isCameraEnabled} extra={rest.effects ? { label: "Background effects…", onSelect: rest.effects.onToggle } : undefined} />}
+      />
+    </>
   )
 }

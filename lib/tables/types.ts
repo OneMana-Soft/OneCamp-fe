@@ -26,6 +26,11 @@ export type ChangeKind =
   | "redo"
   | "restore"
   | "field"
+  // A step over a view (G2b): find and replace, trimming spaces, removing duplicate rows, splitting a column.
+  | "replace"
+  | "trim"
+  | "dedupe"
+  | "split"
 
 /**
  * One cell's value before and after a write, or a whole row's (field ""), a

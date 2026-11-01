@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { DataTableGrid, SelectionPart } from "@/components/table/DataTableGrid"
-import { BoardPart, CalendarPart, ChartPart, FormsPart, GalleryPart, ListPart, TimelinePart, MadeByAiPart, MenusPart, PresencePart, RecordPart, RulesPart, SaveDotPart, SharePart, TrashPart, ViewsPart, warmView } from "@/components/table/lazyParts"
+import { BoardPart, CalendarPart, ChartPart, CleanupPart, FindPart, FormsPart, GalleryPart, ListPart, TimelinePart, MadeByAiPart, MenusPart, PresencePart, RecordPart, RulesPart, SaveDotPart, SharePart, TrashPart, ViewsPart, warmView } from "@/components/table/lazyParts"
 import { warmCellPickers } from "@/components/table/cellPickerPart"
 import { monthOf } from "@/lib/tables/month"
 import {
@@ -53,7 +53,10 @@ import { useCellCommit } from "@/lib/tables/useCellCommit"
 import { tablesPath } from "@/lib/tables/route"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { undoneNote } from "@/lib/tables/undoneNote"
-import { onMac, undoKey } from "@/lib/tables/undoKeys"
+import { findKey, onMac, undoKey } from "@/lib/tables/undoKeys"
+import type { CleanStep, TransformMatch } from "@/lib/tables/transform"
+import type { FindMarks } from "@/lib/tables/findMarks"
+import type { ViewRows } from "@/lib/tables/viewRows"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { focusCarry } from "@/lib/ui/focusCarry"
 import { ix } from "@/lib/ui/interactive"
@@ -198,13 +201,14 @@ export default function TableDetailPage() {
   const windowed = held.windowed
   usePageName(held.bundle?.table?.name)
   const { bundle, isLoading, isError, refresh } = held
-  // A row's record and a cell's picker are a click away: their chunks load
-  // once the table is drawn and the page is idle.
+  // A row's record, the find bar and a cell's picker are a click or a key
+  // away: their chunks load once the table is drawn and the page is idle.
   const loaded = !!bundle
   React.useEffect(() => {
     if (!loaded) return
     const warm = () => {
       void RecordPart.prefetch()
+      void FindPart.prefetch()
       void SelectionPart.prefetch()
       warmCellPickers()
     }
@@ -557,12 +561,29 @@ export default function TableDetailPage() {
     [activeView, listMode, shownRows, setOpenRow],
   )
 
+  // Find and replace over the view's every row (G2b), in the grid and the
+  // list: the bar (each opening counted: it takes the focus back), the match
+  // it's at, for the grid to bring into sight; and a clean-up's dialog.
+  const [finding, setFinding] = React.useState<{ mode: "find" | "replace"; opened: number } | null>(null)
+  const [foundAt, setFoundAt] = React.useState<TransformMatch | null>(null)
+  // The phone's list draws its own rows, so it marks the bar's matches and brings the one it's at into sight (G2b-2).
+  const [listMarks, setListMarks] = React.useState<FindMarks | null>(null)
+  const [cleaning, setCleaning] = React.useState<{ step: CleanStep; field?: string } | null>(null)
+  const finds = activeView === "grid" || activeView === "list"
+  const openFind = React.useCallback((mode: "find" | "replace") => setFinding((f) => ({ mode, opened: (f?.opened ?? 0) + 1 })), [])
+
   // ⌘Z undoes the reader's latest change to the table, ⌘⇧Z redoes it (A2),
   // when they aren't typing into a field, whose text the browser undoes.
+  // ⌘F finds, ⌘⇧H (Ctrl+H off a Mac) replaces, from a cell's box too.
   React.useEffect(() => {
     if (!bundle?.table) return
     const mac = onMac()
     const onKey = (e: KeyboardEvent) => {
+      const find = finds && !openRow ? findKey(e, mac) : null
+      if (find) {
+        e.preventDefault()
+        return openFind(find)
+      }
       const want = undoKey(e, mac)
       if (!want) return
       e.preventDefault()
@@ -581,7 +602,7 @@ export default function TableDetailPage() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [bundle?.table, tableId, toast, reload])
+  }, [bundle?.table, tableId, toast, reload, finds, openRow, openFind])
 
   // R adds a row, / searches (T05).
   React.useEffect(() => {
@@ -649,6 +670,15 @@ export default function TableDetailPage() {
   const openShown = !!openRow && shownRows.some((r) => r.id === openRow)
   const sortedFields = fieldOrder(fields)
   const hidden = new Set(display.hidden)
+  const shownFields = sortedFields.filter((f) => !hidden.has(f.id))
+
+  // The view now, for a call over its every row (lib/tables/viewRows). A filter
+  // on me waits for a profile on its way; one unread fails it, never empties it.
+  const viewNow = async (): Promise<ViewRows> => {
+    const who = me ?? (namesMe(rules.filters) ? (await profile.mutate())?.data?.user_uuid : null)
+    if (who === undefined) throw new Error("the profile couldn't be read")
+    return { tableId, fields, rows, complete: held.complete, rules, me: who, answers: bundle.row_query, query }
+  }
 
   // The export reads every row the view shows: a chunk of its own, read on
   // use, off the table's first screen.
@@ -656,12 +686,9 @@ export default function TableDetailPage() {
     if (exporting.current) return
     exporting.current = true
     try {
-      // A filter on me needs who that is: a profile still on its way is read
-      // first, and one that can't be read fails the export, never empties it.
-      const who = me ?? (namesMe(rules.filters) ? (await profile.mutate())?.data?.user_uuid : null)
-      if (who === undefined) throw new Error("the profile couldn't be read")
+      const v = await viewNow()
       const { exportRows: write } = await import("@/lib/tables/exportRows")
-      await write({ format, tableId, name: t.name, shown: sortedFields.filter((f) => !hidden.has(f.id)), widths: display.widths, fields, rows, complete: held.complete, total: held.total, rules, me: who, answers: bundle.row_query, query, toast })
+      await write({ ...v, format, name: t.name, shown: shownFields, widths: display.widths, total: held.total, toast })
     } catch {
       toast({ tone: "error", variant: "destructive", title: "Couldn't export the table", description: "Check your connection and try again." })
     } finally {
@@ -822,6 +849,8 @@ export default function TableDetailPage() {
                   onShare={(visibility) => saveTable({ visibility })}
                   onExport={(format) => void exportAs(format)}
                   onTrash={() => setTrashOpen(true)}
+                  onFind={finds ? () => openFind("replace") : undefined}
+                  onClean={rowsView(activeView) ? (step) => setCleaning({ step }) : undefined}
                   tableId={tableId}
                   bundle={bundle}
                 />
@@ -926,6 +955,24 @@ export default function TableDetailPage() {
             notice={refusedInBody ? null : (refused ?? held.sumsOut)}
             noticeRetry={held.recount ? { busy: held.recounting, onRetry: held.recount } : null}
           />}
+          {finding && finds ? (
+            <FindPart.View
+              fallback={null}
+              render={(m) => (
+                <m.FindBar
+                  mode={finding.mode}
+                  opened={finding.opened}
+                  tableId={tableId}
+                  shown={shownFields}
+                  view={viewNow}
+                  onReveal={(m, focus) => (focus ? m.field && goTo(m.row, m.field) : !listMode && setFoundAt(m))}
+                  onFound={listMode ? setListMarks : undefined}
+                  onChanged={reload}
+                  onClose={() => (setFinding(null), setFoundAt(null), setListMarks(null))}
+                />
+              )}
+            />
+          ) : null}
           {/* The grid waits for its rules as itself: its header, and its rows as
               on their way, in the element the rows then fill. */}
           {ruling && (activeView !== "grid" || listMode) ? (
@@ -946,6 +993,7 @@ export default function TableDetailPage() {
                       onOpen={setOpenRow}
                       onNearEnd={held.complete ? undefined : holdMore}
                       scrollTo={listTo}
+                      found={listMarks}
                       edits={commit.edits}
                       empty={noRows ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
                     />
@@ -977,6 +1025,10 @@ export default function TableDetailPage() {
                 hidden={display.hidden}
                 widths={display.widths}
                 onWidth={(id, px) => changeDisplay({ widths: { ...display.widths, [id]: px } })}
+                frozen={display.frozen}
+                onFreeze={(n) => changeDisplay({ frozen: n })}
+                reveal={foundAt}
+                onClean={(step, field) => setCleaning({ step, field })}
                 summary={ruling ? undefined : display.summary}
                 onSummary={(id, fn) => changeDisplay({ summary: { ...display.summary, [id]: fn } })}
                 loaded={heldPart}
@@ -1115,6 +1167,13 @@ export default function TableDetailPage() {
       ) : null}
 
       {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TableTrash tableId={tableId} fields={fields} onClose={() => setTrashOpen(false)} onRestored={reload} />} /> : null}
+
+      {cleaning ? (
+        <CleanupPart.View
+          fallback={null}
+          render={(m) => <m.CleanupDialog step={cleaning.step} field={cleaning.field} tableId={tableId} shown={shownFields} view={viewNow} onChanged={reload} onClose={() => setCleaning(null)} />}
+        />
+      ) : null}
 
       {forms ? (
         <FormsPart.View fallback={null} render={(m) => <m.TableFormsDialog tableId={tableId} tableName={t.name} open onOpenChange={setForms} />} />

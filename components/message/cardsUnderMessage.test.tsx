@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
@@ -33,6 +34,9 @@ const { ThreadParticipants } = await import("./threadParticipants")
 const { BottomMenu } = await import("./bottomMenu")
 const { Provider } = await import("react-redux")
 const { default: store } = await import("@/store/store")
+// The cards' code loads with the first message that has one: warmed before the tests (V-138), so a wait below is for
+// a render, never for a chunk a busy machine takes seconds to bring.
+warmBeforeTests(() => import("@/components/message/workLinkCardsBody"))
 
 afterEach(cleanup)
 
@@ -140,10 +144,6 @@ describe("cards under a message", () => {
 
   it("tint a doc card's tile in the doc's own hue", async () => {
     const id = "f75cbe7f-9ee2-4513-b2dc-46aba48a34aa"
-    // The cards' code loads with the first message that has one. It's loaded
-    // here first, so the wait below is for a render, never for a chunk that a
-    // busy machine takes longer than waitFor's second to bring.
-    await import("@/components/message/workLinkCardsBody")
     const { container } = render(<WorkLinkCards text={`see /app/doc/${id}`} />)
     const tile = await waitFor(() => {
       const t = container.querySelector("[data-card-tile]")

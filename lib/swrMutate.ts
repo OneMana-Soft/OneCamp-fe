@@ -1,4 +1,4 @@
-import { mutate as globalMutate, type Cache, type ScopedMutator } from "swr"
+import { mutate as globalMutate, type Arguments, type Cache, type ScopedMutator } from "swr"
 
 import { onSessionEnd } from "@/lib/sessionEnd"
 
@@ -32,6 +32,13 @@ export const appMutate: ScopedMutator = ((...args: Parameters<ScopedMutator>) =>
 export function cachedData<T>(key: string): T | undefined {
   return boundCache?.get(key)?.data as T | undefined
 }
+
+/**
+ * SWR's revalidate for a patch of what the server already has, decided as
+ * patchCached decides it: ask again only while the entry is being read, since
+ * SWR drops a read that a patch overlaps (WCL-2b: a teammate's new task).
+ */
+export const revalidateWhileReading = (cache: Cache) => (_data: unknown, key: Arguments) => typeof key === "string" && cache.get(key)?.isValidating === true
 
 /**
  * Corrects what cached responses say, for a change the server already has (a

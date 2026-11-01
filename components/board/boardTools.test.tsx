@@ -60,6 +60,26 @@ describe("a board's tools", () => {
     expect(screen.queryByText("Start with a template")).toBeNull()
   })
 
+  it("step the empty card aside for a drag, so what is let go on it lands on the board; a drag let go elsewhere brings it back", async () => {
+    const { api } = fakeApi()
+    render(<BoardTools api={api} editable boardId={BOARD} />)
+    await screen.findByText("Start with a template")
+    const card = document.querySelector("[data-empty-canvas]")!
+    expect(card.className).toContain("pointer-events-auto")
+    // A drag comes over the page: at once the card takes no pointer, so a drop goes through it; then it goes.
+    act(() => {
+      fireEvent.dragEnter(document.body)
+    })
+    expect(card.className).toContain("pointer-events-none")
+    await act(() => new Promise((r) => setTimeout(r, 400)))
+    expect(screen.queryByText("Start with a template")).toBeNull()
+    // Let go somewhere that lays nothing: the board is still empty, so its templates are offered again.
+    act(() => {
+      fireEvent.drop(document.body)
+    })
+    expect(await screen.findByText("Start with a template")).toBeTruthy()
+  })
+
   it("read the scene only when its shapes change, not on each frame of a pan", async () => {
     const { api, emit } = fakeApi([{ id: "a", type: "rectangle", isDeleted: false }])
     render(<BoardTools api={api} editable boardId={BOARD} />)

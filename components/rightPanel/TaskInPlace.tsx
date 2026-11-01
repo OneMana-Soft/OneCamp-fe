@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, type ReactNode } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
+import { isAppOffline } from "@/lib/connectivity"
 import { inPlace } from "@/lib/navigation/appRouter"
 import { taskInPlace } from "@/lib/navigation/inPlace"
 import { keptTaskOf } from "@/lib/offline/keptTask"
@@ -20,8 +21,10 @@ const warmSheet = () => Promise.all([panelLoaders.task().then((m) => m.warmTaskP
 
 /**
  * Where the one rule acts (lib/navigation/inPlace, asana-12 (a)): while the
- * browser is offline, a link to a task's page, or a move in code to one,
- * opens the task in the right panel (a sheet on a phone), and nothing moves.
+ * app is offline (its ONE state, lib/connectivity isAppOffline: the browser's
+ * offline, or a server gone unanswered), a link to a task's page, or a move in
+ * code to one, opens the task in the right panel (a sheet on a phone), and
+ * nothing moves.
  *
  * A chunk of its own (LayoutContent): only a device that loses the network
  * uses it, so no route's first load carries it (V-49). The task's panel, with
@@ -36,7 +39,7 @@ export function TaskInPlace({ body }: { body?: ReactNode }) {
   useEffect(() => warmAhead(warmSheet), [])
   useEffect(() => {
     const take = (href: string) => {
-      const task = taskInPlace(href, navigator.onLine, location.href)
+      const task = taskInPlace(href, !isAppOffline(), location.href)
       if (task === null) return false
       // A task's page reads by its key too (/app/task/Q4-12: the panel's own Open the full page and Copy link give
       // it). The device keeps tasks by id, so a key opens the task kept under it; one it keeps none under is asked

@@ -3,10 +3,10 @@
 import { Link2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { cn } from "@/lib/utils/helpers/cn"
 import { sectionTitle } from "@/lib/ui/fieldRow"
-import { ANSWER_WORD, countsLine, responseOf } from "@/lib/calendar/answers"
+import { answerWordOf, countsLine, responseOf } from "@/lib/calendar/answers"
 import { GuestFace, type FaceGuest } from "@/components/calendar/rsvp/guestFaces"
 import { Proposals } from "@/components/calendar/rsvp/proposalsChunk"
 import type { EventProposal } from "@/types/calendar"
@@ -83,7 +83,7 @@ export function EventGuestList({
                 <div className="min-w-0 flex-1">
                   <div className="flex min-h-6 min-w-0 items-center gap-1.5">
                     <span className="truncate text-foreground">{g.name}</span>
-                    {g.outside ? <span className={cn(HUE_CLASS.sun, "shrink-0 rounded-[5px] bg-hue-tint px-1 text-micro text-hue-ink")}>Guest</span> : null}
+                    {g.outside ? <PrincipalTag kind="guest" /> : null}
                     {g.detail ? <span className="truncate text-xs text-muted-foreground">{g.detail}</span> : null}
                   </div>
                   {g.note ? <p className="text-meta text-ink-2">“{g.note}”</p> : null}
@@ -93,7 +93,7 @@ export function EventGuestList({
                   {unsent ? <p className="text-meta text-ink-3">{unsent}</p> : null}
                 </div>
                 {guests.answered ? (
-                  <span className="flex min-h-6 shrink-0 items-center text-meta text-ink-3">{g.organiser ? "organiser" : ANSWER_WORD[responseOf(g.response)]}</span>
+                  <span className="flex min-h-6 shrink-0 items-center text-meta text-ink-3">{answerWordOf(g)}</span>
                 ) : null}
                 {organiser && g.outside && g.email && onCopyLink ? (
                   <Button variant="ghost" size="icon-sm" className="-my-0.5" aria-label={`Copy ${g.name}'s answer link`} title="Copy their answer link" onClick={() => onCopyLink(g.email!, g.name)}>

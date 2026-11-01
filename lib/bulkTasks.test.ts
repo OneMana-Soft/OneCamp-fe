@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { bulkOp, bulkRequest, notDone, tagState } from "./bulkTasks"
+import { bulkOp, bulkRequest, notDone, selectionTags, tagState } from "./bulkTasks"
 import { BUILT_IN_STATUSES } from "./taskStatus"
 import { PostEndpointUrl } from "@/services/endPoints"
 import type { TaskInfoInterface } from "@/types/task"
@@ -91,5 +91,19 @@ describe("one change to many tasks", () => {
     expect(tagState(ts, "B")).toBe("all")
     expect(tagState(ts, "a")).toBe("some")
     expect(tagState(ts, "c")).toBe("none")
+  })
+})
+
+// The selection bar's tag picker and the palette's Add or remove tag… list the
+// same tags, the same way (linear-28 H1b).
+describe("the tags across a selection", () => {
+  it("lists the tasks' own tags and then the project's, once each whatever the case, a tag on every task marked", () => {
+    const tasks = [task({ task_uuid: "a", task_label: "web, Launch" }), task({ task_uuid: "b", task_label: "web" })]
+    expect(selectionTags(tasks, [{ name: "launch" }, { name: "ops" }])).toEqual([
+      { name: "web", current: true },
+      { name: "Launch", current: false },
+      { name: "ops", current: false },
+    ])
+    expect(selectionTags([task()], [])).toEqual([])
   })
 })

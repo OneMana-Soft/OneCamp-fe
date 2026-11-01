@@ -10,6 +10,8 @@ const room = vi.hoisted(() => ({ muted: true, speaking: false }))
 vi.mock("@livekit/components-react", () => ({
   ParticipantTile: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   VideoTrack: () => null,
+  // Outside a call's room, everyone has their own hue (callHues).
+  useMaybeRoomContext: () => undefined,
   useConnectionQualityIndicator: () => ({ quality: "good" }),
   useEnsureTrackRef: (t: unknown) => t,
   useIsMuted: () => room.muted,

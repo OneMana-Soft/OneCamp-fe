@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import { SAM, reviewShot, stubBackend } from "./stubbedApp"
+import { expectToastClearsSheet } from "./toastClearsSheet"
 
 // A project's time report as a CSV file, on a production build. The time
 // dialog's Download CSV saves the report under the name the server gives,
@@ -38,8 +39,9 @@ const report = {
 }
 const NAME = "Spring fair time 2026-10-01 to 2026-10-31.csv"
 /**
- * What the API says when the project went, or the reader's access to it did, while the dialog was open:
- * WorkAccess's refusal for a project they can't view (a 404). The dialog's ranges are a month or less, so
+ * What the API says when the reader can no longer read the project while the dialog is open (it isn't there,
+ * or their access went): WorkAccess's refusal for a project they can't view (a 404). A trashed project stays
+ * readable to its members, so it can be restored, and its report still downloads. The dialog's ranges are a month or less, so
  * the range refusal ("A report covers a year at most.") can't reach it; projectTimeDialog.test holds that one.
  */
 const WHY = "Project not found"
@@ -137,7 +139,7 @@ for (const theme of ["light", "dark"] as const) {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme })
     test.beforeEach(() => test.skip(theme === "dark" && !process.env.SHOTS_DIR, "dark only for the review shots"))
 
-    test("from the project's menu, a refused download says why in the server's own words", async ({ page }, testInfo) => {
+    test("from the project's menu, a refused download says why in the server's own words, over none of the sheet's buttons", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
       const { asked } = await openProject(page, testInfo, theme, "refused")
       await page.getByRole("button", { name: "Project actions" }).tap()
@@ -148,6 +150,8 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByText(WHY, { exact: true })).toBeInViewport({ timeout: 15_000 })
       await expect(page.getByText("Couldn't download the report", { exact: true })).toHaveCount(1)
       expect(asked).toHaveLength(1)
+      // The time dialog is a sheet on a phone: the toast keeps off its By person, its range and its Download CSV (V-111).
+      await expectToastClearsSheet(page.getByText(WHY, { exact: true }))
       await reviewShot(page, "time-download-refused-phone", theme)
     })
   })

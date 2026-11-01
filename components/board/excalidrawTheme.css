@@ -523,3 +523,25 @@
     margin-left: 0;
   }
 }
+
+/* ---- cards (lib/board/cards) --------------------------------------------- */
+
+/* Excalidraw's grey "Click to interact" pill sat over a card's middle and hid
+   its name (DB-54): a card says it itself, ringed in the brand's colour with a
+   hint in its top row (components/board/boardEmbeds CardShell and UseHint).
+   Other sites framed on the board keep Excalidraw's pill. */
+.excalidraw .excalidraw__embeddable-container__inner:has([data-board-card]) > .excalidraw__embeddable-hint {
+  display: none;
+}
+
+/* A card is its own link: Excalidraw's link popup stays shut over a selected card, as its badge does
+   (boardExcalidraw marks the board while the popup is open over one; W6-A2). */
+[data-card-link-popup] .excalidraw .excalidraw-hyperlinkContainer {
+  display: none;
+}
+
+/* Nor its style panel while only cards are selected: strokes, fills and the link editor mean nothing for a live card,
+   and the panel would cover the card just laid (boardExcalidraw marks the board; DB-56 MUST 1). */
+[data-cards-selected] .excalidraw.excalidraw .App-menu__left {
+  display: none;
+}

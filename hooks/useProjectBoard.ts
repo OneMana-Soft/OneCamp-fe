@@ -28,8 +28,9 @@ export const tasksIn = (board: ProjectInfoInterface | undefined, key: (typeof CO
   ((board?.[key] as TaskInfoInterface[] | undefined) ?? []).filter((t) => !!t.task_uuid)
 
 /**
- * A project's tasks in a doc (docs C1's /tasks and /board), as the project's
- * board reads them: the same request, so the two share a cache and move
+ * A project's tasks, as the project's board reads them, wherever else they are
+ * shown: in a doc (docs C1's /tasks and /board) and in a whiteboard's Add from
+ * OneCamp panel (miro-13 2). The same request, so they share a cache and move
  * together. Read only for someone in the project (its chip says who may: the
  * server decides); kept live, so a task of the project that changes anywhere
  * reads the board again, once for a burst. "Mine" is each reader's own.

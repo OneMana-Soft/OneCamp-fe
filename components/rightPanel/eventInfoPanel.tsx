@@ -13,10 +13,12 @@ import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ErrorState } from "@/components/ui/error-state";
 import { UserProfileInterface } from "@/types/user";
 import { Trash2, CalendarClock, Sparkles, LogOut, Ellipsis, Video, VideoOff } from "@/lib/icons";
-import { eventCallChoice, eventCallOf, joinOffer } from "@/lib/calendar/joinLink";
+import { eventCallChoice, eventCallOf, inviteesSkipLobby, joinOffer } from "@/lib/calendar/joinLink";
 import { useEventCallActions } from "@/components/calendar/useEventCallActions";
+import { EventOptionCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EventMenuRows, type EventMenuItem } from "@/components/calendar/eventMenu";
+import { PhoneBarActions } from "@/components/navigationBar/mobile/phoneBarActions";
 import { Edit2 } from "@/lib/icons";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { SpotError } from "@/components/ui/graphics";
@@ -24,7 +26,9 @@ import { OWN_HUE } from "@/components/calendar/calendarTones";
 import { isCampHue } from "@/lib/campHue";
 import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { EventPanelSkeleton } from "@/components/rightPanel/eventPanelSkeleton";
+import { useSlowAfter } from "@/hooks/useSlowAfter";
+import { SLOW_LINE } from "@/lib/http/slowLine";
 import { fieldLabel, fieldRow, sectionTitle } from "@/lib/ui/fieldRow";
 import { cn } from "@/lib/utils/helpers/cn";
 import { allDayItem } from "@/components/calendar/calendarLayout";
@@ -47,7 +51,7 @@ import type { EventFormValues, FormProblem } from "@/lib/calendar/eventForm";
 import { isRichNotes } from "@/lib/calendar/richNotes";
 import { useWhenIdle } from "@/hooks/useWhenIdle";
 import { isInstanceId, seriesIdOf } from "@/lib/calendar/instanceId";
-import { apiEventUrl, deleteApiEventRequest, dismissProposalRequest, guestLinkRequest, nudgeGuestsRequest, patchApiEventRequest, readApiEventRequest, readerZone, type Answer, type ApiEvent } from "@/lib/calendar/eventsApi";
+import { apiEventUrl, eventArtefactsUrl, deleteApiEventRequest, deleteCallArtefactRequest, restoreCallArtefactRequest, dismissProposalRequest, guestLinkRequest, nudgeGuestsRequest, patchApiEventRequest, readApiEventRequest, readerZone, type Answer, type ApiEvent } from "@/lib/calendar/eventsApi";
 import { eventGuests } from "@/components/calendar/rsvp/eventGuests";
 import { EventGuestList } from "@/components/calendar/rsvp/guestList";
 import type { FaceGuest } from "@/components/calendar/rsvp/guestFaces";
@@ -57,9 +61,12 @@ import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { toast } from "@/hooks/use-toast";
 import { TellGuestsView, useTellGuests } from "@/components/calendar/tellGuests";
 import { lazyPiece } from "@/lib/lazy/lazyPiece";
+import { deletedTitle, offerUndo, restoreBy } from "@/services/restoreService";
+import type { CallToDelete } from "@/components/calendar/eventRecordings";
 
 // Google's G, shown only on its events: a chunk of its own, off the event page's first load.
 const GoogleMark = lazyPiece(() => import("@/components/ui/graphics/GoogleMark").then((m) => ({ default: m.GoogleMark })));
+const EventRecordings = lazyPiece(() => import("@/components/calendar/eventRecordings").then((m) => ({ default: m.EventRecordings })));
 
 // What only an edit, a question or a menu's item needs, each a chunk of its
 // own, as the calendar's grid keeps them (calendarApp.tsx): the repeat editor
@@ -111,12 +118,16 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
     );
     // Its own call is for whoever may change it to add and take off (calendar B11).
     const callActions = useEventCallActions(eventUUID, () => mutate());
+    // The lobby switch as asked, until the event read again says so (meet-02).
+    const [skipAsked, setSkipAsked] = useState<boolean | null>(null);
     const { cache, mutate: globalMutate } = useSWRConfig();
     const listed = React.useMemo(() => listedCopy(cache, eventUUID), [cache, eventUUID]);
     const gone = isUnavailable(isError);
     const found = eventRes?.data ?? (gone ? undefined : listed);
     // A Google all-day event by its dates, never its instants (CAL-BUG-2).
     const event = React.useMemo(() => (found ? placedByDates(found) : undefined), [found]);
+    // Still reading it after 10 s (a slow line): said, with Try again, and the event comes in by itself once read (V-180).
+    const [slow, readAgain] = useSlowAfter(!event && !isError);
     const { data: selfProfile } = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const dispatch = useDispatch();
     // Where events repeat (the calendar's one store), the calendar's own API
@@ -124,12 +135,15 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
     // version a change is made from. An instance of a series is changed or
     // deleted through it, for the scope the person picks (D-CAL-6).
     const repeats = useFeature(FEATURE_CALENDAR_REPEATS);
+    const ownApi = repeats && eventUUID && !eventUUID.startsWith("gcal-");
     const { data: apiRes, mutate: mutateApi } = useFetch<{ data: ApiEvent }>(
-        repeats && eventUUID && !eventUUID.startsWith("gcal-") ? apiEventUrl(eventUUID) : "",
+        ownApi ? apiEventUrl(eventUUID) : "",
         undefined,
         undefined,
         OWN_ERRORS,
     );
+    // Its calls' recordings and notes, by the calendar's read rule (meet-02).
+    const { data: artefacts, mutate: readArtefacts } = useFetch<{ data?: unknown[] }>(ownApi ? eventArtefactsUrl(eventUUID) : "", undefined, undefined, OWN_ERRORS);
     const apiEvent = apiRes?.data;
     const { ask: askScope, prompt: scopePrompt } = useScopePrompt();
     const { ask: askTell, prompt: tellPrompt } = useTellGuests();
@@ -226,7 +240,19 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
         }
         return (
             <EventPanelFrame inPanel={inPanel}>
-                {isError ? <ErrorState subject="this event" onRetry={() => void mutate()} className="pt-10" /> : <EventPanelSkeleton />}
+                {isError || slow ? (
+                    <ErrorState
+                        subject="this event"
+                        detail={isError ? undefined : SLOW_LINE}
+                        onRetry={() => {
+                            readAgain();
+                            void mutate();
+                        }}
+                        className="pt-10"
+                    />
+                ) : (
+                    <EventPanelSkeleton />
+                )}
             </EventPanelFrame>
         );
     }
@@ -390,6 +416,13 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
     const guestView = eventGuests(event, currentUserUUID);
     const ended = end <= new Date();
     const callChoice = eventCallChoice(event, { mayChange: mayEdit, google: onGoogle, ended });
+    const skipLobby = inviteesSkipLobby(event, { mayChange: mayEdit, google: onGoogle, ended, outsideGuests: guestView.faces.some((f) => f.outside) });
+    // One change at a time: the switch waits, busy, while the first is asked.
+    const setSkipLobby = async (on: boolean) => {
+        setSkipAsked(on);
+        await callActions.setInviteesWait(!on);
+        setSkipAsked(null);
+    };
     const answering = !onGoogle && !isCreator && guestView.answered && guestView.mine !== undefined && !ended;
     const answer = async (a: Answer, note?: string, proposal?: EventProposal | null) => {
         const ok = await sendAnswer({ post, askScope, selfId: currentUserUUID }, event, a, note, proposal);
@@ -450,10 +483,28 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
         }
         void mutateApi();
     };
+    // What one of its calls made, its recording and transcript (calls
+    // follow-up 1): deleted by whoever may change the event (mayEdit, as the
+    // server rules), soft, so Undo brings it back. The list is a lazy chunk
+    // and only presents; the request, the read again and the Undo are here.
+    const deleteArtefact = async (c: CallToDelete) => {
+        // It leaves the list at once, so it can't be pressed twice; the read
+        // again below brings it back if the server refused.
+        void readArtefacts((now) => now && { ...now, data: now.data?.filter((r) => (r as { key?: unknown } | null)?.key !== c.key) }, { revalidate: false });
+        try {
+            await post.makeRequest(deleteCallArtefactRequest(eventUUID, c.key, c.what));
+            offerUndo(deletedTitle(c.label, c.what), () => restoreBy(() => post.makeRequest(restoreCallArtefactRequest(eventUUID, c.key)), () => readArtefacts()));
+        } catch {
+            // The toast said why.
+        } finally {
+            // What's there now: without it, or as a refusal found it (a 404: deleted already).
+            void readArtefacts();
+        }
+    };
     // What the person can do with the event, once: quiet icon buttons in the
     // right panel's header, where hovering names them; on the phone's page,
     // where nothing hovers, Edit with its name and the rest in a labelled menu
-    // (PTC-53).
+    // (PTC-53), the app bar's.
     const viewActions: EventAction[] = [
         ...(callChoice === "remove"
             ? [{ label: "Remove call", icon: VideoOff, onSelect: callActions.remove, destructive: true }]
@@ -493,6 +544,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                 ]
               : []),
     ];
+    const phoneMain = viewActions.find((a) => a.main);
 
     const actions = isEditing ? (
         <>
@@ -514,9 +566,12 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                 </Button>
             ))}
         </>
-    ) : (
-        <PhoneEventActions actions={viewActions} />
-    );
+    ) : phoneMain ? (
+        <Button variant="secondary" size="sm" onClick={phoneMain.onSelect}>
+            <phoneMain.icon aria-hidden="true" />
+            {phoneMain.label}
+        </Button>
+    ) : null;
 
     return (
         <EventPanelFrame
@@ -562,6 +617,17 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                                     Join call
                                 </a>
                             </Button>
+                        ) : null}
+                        {skipLobby !== null ? (
+                            <div className="mt-3" data-event-call-lobby="">
+                                <EventOptionCheckbox
+                                    label="Invited guests skip the lobby"
+                                    hint="Guests you invited by email come straight in with their own link. When it's off, they knock and wait to be let in."
+                                    checked={skipAsked ?? skipLobby}
+                                    pending={skipAsked !== null}
+                                    onChange={(on) => void setSkipLobby(on)}
+                                />
+                            </div>
                         ) : null}
 
                         <dl className="mt-6">
@@ -664,6 +730,24 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                                 <p className="text-sm text-muted-foreground">No notes.</p>
                             )}
                         </section>
+                        {artefacts?.data?.length ? (
+                            <Suspense fallback={null}>
+                                <EventRecordings
+                                    body={artefacts}
+                                    selfUUID={currentUserUUID}
+                                    onPlay={(call) => {
+                                        // The one player reads the call by the event's own routes: its recording, or that it
+                                        // wasn't recorded, and its words when it kept some (head C2).
+                                        const at = `${eventArtefactsUrl(eventUUID)}/${encodeURIComponent(call.key)}`;
+                                        dispatch(openUI({ key: "recordingPlayer", data: { mediaPath: `${at}/recording`, transcriptPath: call.transcript ? `${at}/transcript` : undefined, fileName: `${event.event_title} ${call.recorded ? "recording" : "transcript"}`, home: "event" } }));
+                                    }}
+                                    onDelete={mayEdit ? deleteArtefact : undefined}
+                                    // Beside the calendar, a link that leaves the event closes the panel, so the page it
+                                    // opens isn't squeezed beside it (DESIGN-BUILD-61's MUST 1); a phone's page just leaves.
+                                    onLeave={inPanel ? close : undefined}
+                                />
+                            </Suspense>
+                        ) : null}
 
                     </div>
                 ) : draft ? (
@@ -684,6 +768,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
                                     organiser={isCreator}
                                     exclude={currentUserUUID ? [currentUserUUID] : []}
                                     problem={problem}
+                                    ownTimeRefused={apiEvent?.own_time_refused}
                                     titleClassName="font-sans text-xl font-medium tracking-tight sm:text-2xl"
                                     autoFocusTitle
                                     layout="panel"
@@ -705,6 +790,7 @@ export default function EventInfoPanel({ eventUUID, onClose, editRequest }: Even
             {prepUsed ? (
                 <MeetingPrep.View render={(m) => <m.default open={prepOpen} onOpenChange={setPrepOpen} eventUUID={event.event_uuid} />} fallback={null} />
             ) : null}
+            {!inPanel && !isEditing ? <PhoneEventMenu actions={viewActions.filter((a) => !a.main)} /> : null}
             {scopePrompt}
             {tellPrompt}
         </EventPanelFrame>
@@ -718,31 +804,26 @@ interface EventAction extends EventMenuItem {
     main?: boolean;
 }
 
-/** The phone page's actions (PTC-53): the main one with its name, the rest in a labelled menu. */
-function PhoneEventActions({ actions }: { actions: EventAction[] }) {
-    const main = actions.find((a) => a.main);
-    const rest = actions.filter((a) => !a.main);
+/**
+ * The phone page's labelled menu (PTC-53), in the app bar: the page's one "…",
+ * as the bar leaves the calendar's own options off an event's page. In a row
+ * of its own it sat under the bar's, alone when there was no Edit (DB-48).
+ */
+function PhoneEventMenu({ actions }: { actions: EventAction[] }) {
+    if (!actions.length) return null;
     return (
-        <>
-            {main ? (
-                <Button variant="secondary" size="sm" onClick={main.onSelect}>
-                    <main.icon aria-hidden="true" />
-                    {main.label}
-                </Button>
-            ) : null}
-            {rest.length ? (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label="More actions">
-                            <Ellipsis />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-52">
-                        <EventMenuRows items={rest} />
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            ) : null}
-        </>
+        <PhoneBarActions>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="More actions">
+                        <Ellipsis />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                    <EventMenuRows items={actions} />
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </PhoneBarActions>
     );
 }
 
@@ -751,7 +832,7 @@ function PhoneEventActions({ actions }: { actions: EventAction[] }) {
  * header and its body's inset never move between them. In the desktop right
  * panel the shared 48px header carries "Event", the view's actions and the
  * close button; on the phone's own page the app bar already says where you
- * are and has the way back, so the actions take a row of their own.
+ * are and has the way back (and the menu), so Edit takes a row of its own.
  */
 function EventPanelFrame({ inPanel, actions, footer, children }: { inPanel: boolean; actions?: React.ReactNode; footer?: React.ReactNode; children: React.ReactNode }) {
     return (
@@ -771,24 +852,6 @@ function EventPanelFrame({ inPanel, actions, footer, children }: { inPanel: bool
                     {footer}
                 </div>
             ) : null}
-        </div>
-    );
-}
-
-/** The panel's shape while the event loads: a title, its calendar, three facts. */
-function EventPanelSkeleton() {
-    return (
-        <div role="status" aria-label="Loading the event">
-            <Skeleton className="h-7 w-3/5" />
-            <Skeleton className="mt-3 h-4 w-28" />
-            <div className="mt-6 space-y-2" aria-hidden="true">
-                {[0, 1, 2].map((i) => (
-                    <div key={i} className={fieldRow()}>
-                        <Skeleton className="h-3 w-16" />
-                        <Skeleton className={cn("h-4", i === 1 ? "w-28" : "w-40")} />
-                    </div>
-                ))}
-            </div>
         </div>
     );
 }

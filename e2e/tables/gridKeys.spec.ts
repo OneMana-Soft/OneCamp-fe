@@ -1,5 +1,7 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Browser, type BrowserContextOptions, type TestInfo } from "@playwright/test"
 
+import { finger } from "../finger"
+import { holdChunk } from "../holdChunk"
 import { SAM } from "../stubbedApp"
 import { TableServer } from "./tableServer"
 
@@ -76,3 +78,95 @@ test("at 1280, a click into a cell at rest while another holds the focus types w
   await expect(cell("1:1")).toHaveValue("Hall B east")
   await sam.close()
 })
+
+// V-148: the keys between cells and a column's drag come with the live cells'
+// chunk, off the table's first load. Keys pressed before it lands wait, and
+// all go once it does, in order; a column's edge dragged keeps the width it
+// reached, for this reader across a reload.
+
+/** The live cells' chunk: it alone registers the grid's moves (gridMoves, which gridCells re-exports). */
+const MOVES_MARK = /["']gridKeyDown["'],|gridKeyDown:\(\)=>/
+
+/** The table in its grid (a phone shows the list unless the reader chose the grid), seeded once: a reload keeps what the page saved. */
+async function openGrid(browser: Browser, testInfo: TestInfo, options: BrowserContextOptions, hold?: RegExp) {
+  const server = new TableServer(fields, rows())
+  const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), viewport: { width: 1280, height: 900 }, ...options })
+  const page = await context.newPage()
+  const chunk = hold ? await holdChunk(page, hold) : null
+  await server.attach(page, testInfo, SAM)
+  await context.addInitScript((id) => {
+    localStorage.setItem("oc_keys_tip_seen", "1")
+    if (!sessionStorage.getItem("seeded")) {
+      sessionStorage.setItem("seeded", "1")
+      localStorage.setItem(`onecamp:tableDisplay:${id}`, JSON.stringify({ list: false }))
+    }
+  }, server.id)
+  await page.goto(`/app/tables/${server.id}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+  const cell = (at: string) => page.locator(`[data-cell="${at}"]`)
+  await expect(cell("2:2")).toBeAttached({ timeout: 60_000 })
+  return { page, context, chunk, cell }
+}
+
+for (const device of [
+  { name: "at 1280", options: {}, touch: false },
+  { name: "at 390 by touch", options: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }, touch: true },
+]) {
+  test(`${device.name}, keys pressed before the cells' code lands all go once it does, in order`, async ({ browser }, testInfo) => {
+    const { page, context, chunk, cell } = await openGrid(browser, testInfo, device.options, MOVES_MARK)
+    await expect.poll(() => chunk!.asked(), { timeout: 30_000 }).toBe(true)
+    // A finger selects a cell at rest: its box holds the focus, shut (its text box ignores taps until then).
+    const first = device.touch ? page.locator('[data-cell-box]:has([data-cell="0:0"])') : cell("0:0")
+    await (device.touch ? first.tap() : first.click())
+    await expect(first).toBeFocused()
+    // Down, Enter (down from a text cell), then right: held while the code comes.
+    await page.keyboard.press("ArrowDown")
+    await page.keyboard.press("Enter")
+    await page.keyboard.press("ArrowRight")
+    await expect(first).toBeFocused()
+    chunk!.release()
+    await expect(cell("2:1")).toBeFocused({ timeout: 30_000 })
+    // And from there at once.
+    await page.keyboard.press("ArrowUp")
+    await expect(cell("1:1")).toBeFocused()
+    await chunk!.done()
+    await context.close()
+  })
+
+  test(`${device.name}, a column's edge dragged ${device.touch ? "by a finger" : "by the mouse"} keeps the width it reached, after a reload too`, async ({ browser }, testInfo) => {
+    const { page, context } = await openGrid(browser, testInfo, device.options)
+    const head = page.locator('thead th[data-col-index="1"]')
+    const width = async () => (await head.boundingBox())!.width
+    if (device.touch) {
+      // At 390 the Where column runs past the glass: its scroller brings the edge 90 px in from the right first.
+      await head.evaluate((th) => {
+        let s = th.parentElement
+        while (s && !(s.scrollWidth > s.clientWidth && /auto|scroll/.test(getComputedStyle(s).overflowX))) s = s.parentElement
+        const over = th.getBoundingClientRect().right - (window.innerWidth - 90)
+        if (s && over > 0) s.scrollLeft += over
+      })
+    }
+    const before = await head.boundingBox()
+    if (!before) throw new Error("the Where column's header isn't drawn")
+    // Its 8 px edge, 2 px in from the header's right side, taken 60 px right.
+    const x = before.x + before.width - 2
+    const y = before.y + before.height / 2
+    if (device.touch) {
+      const f = await finger(page)
+      await f.down(x, y)
+      for (const dx of [15, 30, 45, 60]) await f.move(x + dx, y)
+      await f.up()
+    } else {
+      await page.mouse.move(x, y)
+      await page.mouse.down()
+      await page.mouse.move(x + 60, y, { steps: 4 })
+      await page.mouse.up()
+    }
+    await expect.poll(width).toBeGreaterThan(before.width + 57)
+    const dragged = await width()
+    expect(dragged).toBeLessThan(before.width + 63)
+    await page.reload({ waitUntil: "domcontentloaded" })
+    await expect(page.locator('[data-cell="2:2"]')).toBeAttached({ timeout: 60_000 })
+    await expect.poll(width, { timeout: 30_000 }).toBeCloseTo(dragged, 0)
+    await context.close()
+  })
+}

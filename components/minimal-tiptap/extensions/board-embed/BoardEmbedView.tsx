@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { displayNameOf } from "@/lib/personName"
 import type { TaskInfoInterface } from "@/types/task"
 import { EmbedFrame, embedState } from "../task-list-embed/embedFrame"
-import { COLUMNS, tasksIn, useProjectBoard } from "../task-list-embed/useProjectBoard"
+import { COLUMNS, tasksIn, useProjectBoard } from "@/hooks/useProjectBoard"
 
 /** Cards a column shows before "N more". */
 const PER_COLUMN = 12

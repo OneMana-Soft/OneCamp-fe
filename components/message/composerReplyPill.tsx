@@ -1,6 +1,7 @@
 "use client"
 
 import { X } from "@/lib/icons"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/helpers/cn"
 import { quoteBarClass } from "@/components/message/quoteBar"
 
@@ -22,14 +23,9 @@ export function ComposerReplyPill({ authorName, text, onCancel }: ComposerReplyP
       <span className="text-muted-foreground">Replying to</span>
       <span className="font-medium text-foreground">{authorName || "message"}</span>
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{text || ""}</span>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
-        aria-label="Cancel reply"
-      >
-        <X className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
+      <Button type="button" variant="ghost" size="icon-xs" onClick={onCancel} className="h-5 w-5 shrink-0" aria-label="Cancel reply">
+        <X className="h-3.5 w-3.5" />
+      </Button>
     </div>
   )
 }

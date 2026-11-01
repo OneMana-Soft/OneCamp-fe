@@ -124,6 +124,9 @@ import { loadTablePageParts } from "@/components/table/lazyParts"
 
 // The column menus, the cell pickers and the page's views, record and dialogs are chunks of their own
 // (lazyView): loaded once, before these tests, they draw at once.
+// The parts are loaded first, but never the find bar's or the clean-ups' (G2b) beside them: those read
+// lib/tables/applyRules too, and loaded beside RulesPart they took the real module while the mock above
+// was still being made, so the export's rules probe read nothing.
 beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), loadTablePageParts()]))
 
 beforeEach(() => {

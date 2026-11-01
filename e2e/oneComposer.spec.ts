@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
+import { hoverWhenReachable } from "./menuReach"
+import { expectSeen, holdUntil } from "./sheetLayout"
 import { SAM, stubBackend } from "./stubbedApp"
+import { overlapping, reachesIn } from "./touchReach"
 
 // One message box for a channel, a DM and a group (chat A1 step 2c), in a
 // real browser with no backend, at 1280 and at 390 with touch, light and
@@ -98,6 +101,55 @@ for (const view of views) {
         await expect(box).toContainText("Shipping notes attached")
 
         if (process.env.SHOTS) await tab.screenshot({ path: `${process.env.SHOTS}/composer-${c.kind}-${view.name}-${scheme}.png` })
+        await context.close()
+      })
+    }
+  }
+}
+
+// A quote reply sits on the box it answers into (V-125): on a phone, in the message sheet with it (a long press, then
+// Quote), seen and on top, with a Cancel reply a finger takes across 44px; on a computer, from the message's More
+// actions. Drawn in the page under the phone's sheet, the pill passed a visibility check while nobody could see it.
+for (const view of views) {
+  for (const scheme of ["light", "dark"] as const) {
+    for (const c of conversations) {
+      test(`at ${view.name}, ${scheme}: a quote reply in a ${c.kind} sits on its box, seen, and Cancel reply takes it off`, async ({ browser }, testInfo) => {
+        test.setTimeout(150_000)
+        const context = await browser.newContext({
+          baseURL: String(testInfo.project.use.baseURL), viewport: view.viewport, colorScheme: scheme,
+          ...(view.phone ? { isMobile: true, hasTouch: true } : {}),
+        })
+        const tab = await context.newPage()
+        await answer(tab, testInfo, [])
+        await tab.goto(c.url, { waitUntil: "domcontentloaded", timeout: 120_000 })
+        const message = tab.locator("[data-message-row]").getByText(c.seen)
+        await expect(message).toBeVisible({ timeout: 60_000 })
+        if (view.phone) {
+          const sheet = tab.locator("[data-message-sheet]")
+          await holdUntil(tab, message, sheet)
+          await sheet.getByRole("button", { name: "Quote" }).tap()
+        } else {
+          const row = tab.locator("[data-message-row]").filter({ hasText: c.seen }).first()
+          await hoverWhenReachable(row)
+          await row.getByRole("button", { name: "More actions" }).click()
+          await tab.getByRole("menuitem", { name: "Reply with quote" }).click()
+        }
+
+        const pill = tab.getByText("Replying to", { exact: true }).locator("xpath=..")
+        await expect(pill).toContainText(c.seen)
+        await expectSeen(pill)
+        const cancel = pill.getByRole("button", { name: "Cancel reply" })
+        await expectSeen(cancel)
+        if (view.phone) {
+          // In the sheet, every control a finger takes reaches 44px, and none reaches over another.
+          const reaches = await reachesIn(tab, "[data-composer-sheet]")
+          expect(reaches.map((r) => r.name)).toContain("Cancel reply")
+          expect(overlapping(reaches)).toEqual([])
+        }
+        if (process.env.SHOTS) await tab.screenshot({ path: `${process.env.SHOTS}/quote-reply-${c.kind}-${view.name}-${scheme}.png` })
+
+        await (view.phone ? cancel.tap() : cancel.click())
+        await expect(tab.getByText("Replying to", { exact: true })).toHaveCount(0)
         await context.close()
       })
     }

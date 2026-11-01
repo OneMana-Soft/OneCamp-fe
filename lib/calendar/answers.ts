@@ -13,6 +13,8 @@ export interface AnsweringGuest {
   name?: string
   response: string
   note?: string
+  /** Their decline is their out of office's (calendar head 5c). */
+  out_of_office?: boolean
 }
 
 /** Each answer in a sentence's words: "Maya Chen, going". */
@@ -28,6 +30,19 @@ export function responseOf(r: string | undefined): GuestResponse {
   return r === "accepted" || r === "declined" || r === "tentative" ? r : "needs_action"
 }
 
+/** A decline their out of office made, in the guest lists' words and their counts' (calendar head 5c). */
+const AWAY_WORD = "out of office"
+
+/** Whether an answer is a decline their out of office made: the one rule for its word and its count. */
+function awayDecline(response: string | undefined, away: boolean | undefined): boolean {
+  return responseOf(response) === "declined" && !!away
+}
+
+/** A guest's answer as an event's guest lists say it: the organiser, a decline their out of office made, or ANSWER_WORD. */
+export function answerWordOf(g: { response?: string; organiser?: boolean; away?: boolean }): string {
+  return g.organiser ? "organiser" : awayDecline(g.response, g.away) ? AWAY_WORD : ANSWER_WORD[responseOf(g.response)]
+}
+
 /** Someone's own answer among the guests (by their uuid), or nothing when they aren't one. */
 export function answerOfMe<T extends AnsweringGuest>(guests: T[] | undefined, selfId: string | undefined): T | undefined {
   if (!selfId) return undefined
@@ -39,6 +54,8 @@ export interface AnswerCounts {
   maybe: number
   no: number
   waiting: number
+  /** Declines their out of office made, counted under their own word (head 5c); absent for none. */
+  away?: number
 }
 
 /** How many said each, the organiser among the going when they are named. */
@@ -48,6 +65,7 @@ export function answerCounts(guests: AnsweringGuest[] | undefined, withOrganiser
     const r = responseOf(g.response)
     if (r === "accepted") c.going++
     else if (r === "tentative") c.maybe++
+    else if (awayDecline(g.response, g.out_of_office)) c.away = (c.away ?? 0) + 1
     else if (r === "declined") c.no++
     else c.waiting++
   }
@@ -60,6 +78,7 @@ export function countsLine(c: AnswerCounts): string {
   if (c.going) parts.push(`${c.going} going`)
   if (c.maybe) parts.push(`${c.maybe} maybe`)
   if (c.no) parts.push(`${c.no} not going`)
+  if (c.away) parts.push(`${c.away} ${AWAY_WORD}`)
   if (c.waiting) parts.push(`${c.waiting} no answer`)
   return parts.join(" · ")
 }
@@ -74,9 +93,9 @@ export function inAnswerOrder<T extends AnsweringGuest>(guests: T[]): T[] {
     .map((x) => x.g)
 }
 
-/** A face's accessible name: "Maya Chen, going"; "Sam Rivera, organiser". */
-export function faceLabel(name: string, response: string | undefined, organiser = false): string {
-  return `${name}, ${organiser ? "organiser" : ANSWER_WORD[responseOf(response)]}`
+/** A face's accessible name: "Maya Chen, going"; "Sam Rivera, organiser"; "Ana Silva, out of office". */
+export function faceLabel(g: { name: string; response?: string; organiser?: boolean; away?: boolean }): string {
+  return `${g.name}, ${answerWordOf(g)}`
 }
 
 /** What to call a guest invited by email: their name, else their address. */

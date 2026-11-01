@@ -235,4 +235,31 @@ describe("the kind badge", () => {
     const { container } = render(<KindBadge kind="reaction" emoji="🎉" />)
     expect(container.textContent).toBe("🎉")
   })
+
+  it("marks a rule with the Rules tool's glyph, in the dusk tone", () => {
+    expect(KIND_BADGE_TONE.rule).toBe("bg-camp-dusk-tint text-camp-dusk-ink")
+    const { container } = render(<KindBadge kind="rule" />)
+    const badge = container.querySelector("[data-kind-badge=rule]")
+    expect(badge?.querySelector("svg.lucide-workflow")).toBeTruthy()
+    expect(badge?.className).toContain("bg-camp-dusk-tint text-camp-dusk-ink")
+  })
+
+  // A row with no one behind its sentence (a rule's notice) leads with its
+  // kind: the badge at the face's size, in the face's place, with no ring.
+  it("leads a row at the face's size, and otherwise sits at the face's corner", () => {
+    const { container } = render(
+      <>
+        <KindBadge kind="rule" lead={32} />
+        <KindBadge kind="rule" lead={24} />
+        <KindBadge kind="mention" />
+      </>,
+    )
+    const [feed, compact, corner] = Array.from(container.querySelectorAll<HTMLElement>("[data-kind-badge]"))
+    expect(feed.dataset.lead).toBe("32")
+    expect(feed.className.split(" ")).toEqual(expect.arrayContaining(["hub-kind-badge", "static", "size-8", "shadow-none", "[&_svg]:size-4"]))
+    expect(compact.dataset.lead).toBe("24")
+    expect(compact.className.split(" ")).toEqual(expect.arrayContaining(["static", "size-6", "shadow-none", "[&_svg]:size-3"]))
+    expect(corner.dataset.lead).toBeUndefined()
+    expect(corner.className).toBe("hub-kind-badge bg-brand-muted text-brand-text")
+  })
 })

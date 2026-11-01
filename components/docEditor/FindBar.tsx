@@ -18,6 +18,7 @@ import type { Editor } from "@tiptap/core"
 import { TextSelection } from "@tiptap/pm/state"
 import { CaseSensitive, ChevronDown, ChevronRight, ChevronUp, Replace, ReplaceAll, Search, WholeWord, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { FindIconButton as IconButton } from "@/components/ui/findIconButton"
 import { PHONE_QUERY } from "@/context/MediaQueryContext"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { actionById } from "@/components/docEditor/registry/registry"
@@ -66,41 +67,6 @@ function useFind(editor: Editor): FindState {
     [editor],
   )
   return React.useSyncExternalStore(subscribe, () => findStateOf(editor), () => findStateOf(editor))
-}
-
-function IconButton({
-  "aria-label": label,
-  pressed,
-  expanded,
-  onClick,
-  children,
-  disabled,
-}: {
-  "aria-label": string
-  pressed?: boolean
-  expanded?: boolean
-  onClick(): void
-  children: React.ReactNode
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-pressed={pressed}
-      aria-expanded={expanded}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "grid size-7 shrink-0 place-items-center rounded-md text-ink-3 outline-none transition-colors duration-[140ms] hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40 max-sm:size-9",
-        "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand [&_svg]:size-4",
-        pressed && "bg-press text-ink",
-      )}
-    >
-      {children}
-    </button>
-  )
 }
 
 function FindBar({ editor, ctx, asked, onClose }: { editor: Editor; ctx: ActionContext; asked: { n: number; replace: boolean }; onClose(query: string): void }) {

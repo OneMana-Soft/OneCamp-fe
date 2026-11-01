@@ -7,13 +7,16 @@
  * presenter lets everyone; guests only once guests may); its presenter's
  * name; and the presenter's bar for exactly who may use it
  * (lib/calls/control's boardControls), which names the guests who drew on it
- * as the collaboration server records them (guestAuthors). A guest's own stage
- * is CallGuestBoardStage. Loaded when a board first goes up, so no call
- * route's first load carries the canvas.
+ * as the collaboration server records them (guestAuthors); and its slides
+ * (stageSlides): the camera follows the room's slide, and whoever may take the
+ * board down moves it. A guest's own stage is CallGuestBoardStage. Loaded
+ * when a board first goes up, so no call route's first load carries the
+ * canvas.
  */
 
 import * as React from "react"
 import type * as Y from "yjs"
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import BoardCanvas from "@/components/board/boardCanvas"
 import { CanvasPending } from "@/components/guest/canvasPending"
 import { Button } from "@/components/ui/button"
@@ -39,6 +42,7 @@ import { asGuest } from "./callLevels"
 import type { CallBoard } from "./callState"
 import { STAGE_BOARD_FRAME, boardBarClass, useBoardCompact, useToolRowEdgeFade } from "./boardFrame"
 import { CALL_SURFACE, STAGE_OVERLAY } from "./callSurface"
+import { StageSlides, useStageSlide } from "./stageSlides"
 
 /** Who changed an element last, when a call's guest did: the collaboration server's record. */
 interface GuestAuthor {
@@ -105,6 +109,10 @@ export default function CallBoardStage({
   const compact = useBoardCompact(frameRef)
   // A phone's tool row scrolls inside the frame, and fades as every strip does.
   useToolRowEdgeFade(frameRef)
+  // The room's slide: everyone's camera follows it.
+  const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
+  const slide = board.slide ?? ""
+  const refit = useStageSlide(openError ? null : api, board.uuid, slide, frameRef)
 
   const canvas = openError ? (
     <div className="grid h-full place-items-center p-6 text-center">
@@ -123,10 +131,15 @@ export default function CallBoardStage({
       // The call's stage is dark whatever the app's theme: one theme for the
       // board's chrome too, or its light islands took the call's light ink.
       theme="dark"
+      onApiReady={setApi}
+      opensAt={board.slide}
     />
     ) : (
     <CanvasPending />
     )
+
+  const slides =
+    api && !openError ? <StageSlides api={api} doc={provider?.document} slide={slide} moves={controls.stop} act={act} refit={refit} stage={frameRef} /> : null
 
   return (
     <div
@@ -140,7 +153,8 @@ export default function CallBoardStage({
           {presenter}&apos;s board
         </span>
         {controls.run || controls.stop ? (
-          <div role="toolbar" aria-label="Board controls" className="pointer-events-auto flex shrink-0 items-center gap-1.5">
+          <div role="toolbar" aria-label="Board controls" className="pointer-events-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+            {controls.stop ? slides : null}
             {controls.run ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -178,7 +192,9 @@ export default function CallBoardStage({
               </Button>
             ) : null}
           </div>
-        ) : null}
+        ) : (
+          slides
+        )}
       </div>
       <div className="relative min-h-0 flex-1">{canvas}</div>
     </div>

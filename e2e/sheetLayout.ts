@@ -503,3 +503,19 @@ export async function footIsGutter(sheet: Locator, what: string): Promise<void> 
   expect(Math.abs(foot - want), `${what}: a foot of ${foot.toFixed(1)}px under a gutter of ${gutter.toFixed(1)}px, where ${want.toFixed(1)}px belongs`).toBeLessThanOrEqual(1)
   expect(foot, `${what}: a foot of ${foot.toFixed(1)}px, under the 16px floor`).toBeGreaterThanOrEqual(15.5)
 }
+
+/**
+ * Seen, not only in the page: whole on the screen, and on top at its middle. A phone's message box is a sheet that
+ * floats over the page's foot, and what was drawn in the page under it (a DM's bar, a quote reply's pill) passed a
+ * visibility check while nobody could read it or tap it.
+ */
+export async function expectSeen(said: Locator): Promise<void> {
+  await expect(said).toBeVisible({ timeout: 20_000 })
+  await expect(said).toBeInViewport({ ratio: 1 })
+  const onTop = await said.evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+    return !!top && el.contains(top)
+  })
+  expect(onTop, `something covers ${said}`).toBe(true)
+}

@@ -27,6 +27,8 @@ export interface ViewWindowOptions {
   firstScreen: number
   initialRect: { width: number; height: number }
   scrollPaddingStart?: number
+  /** The room a row brought into sight (scrollToIndex) keeps from the box's foot, as scrollPaddingStart does from its top. */
+  scrollPaddingEnd?: number
   /** How near the last row read the window gets before the view reads on: a few screens. */
   nearEnd: number
   /** The window neared the last row read, or passed it: the place of the last row in sight. */
@@ -45,7 +47,7 @@ export interface ViewWindowOptions {
  * 100,000 rows, b15e80557); one made with the rows, each time a window of
  * rows landed.
  */
-export function useViewWindow({ given, count, tail, rowPx, sizeOf, readTo, scrollRef, overscan, firstScreen, initialRect, scrollPaddingStart, nearEnd, onNearEnd }: ViewWindowOptions) {
+export function useViewWindow({ given, count, tail, rowPx, sizeOf, readTo, scrollRef, overscan, firstScreen, initialRect, scrollPaddingStart, scrollPaddingEnd, nearEnd, onNearEnd }: ViewWindowOptions) {
   const size = (i: number) => sizeOf?.(i) ?? rowPx
   const virtualizer = useVirtualizer({
     count,
@@ -53,6 +55,7 @@ export function useViewWindow({ given, count, tail, rowPx, sizeOf, readTo, scrol
     estimateSize: size,
     overscan,
     scrollPaddingStart,
+    scrollPaddingEnd,
     initialRect,
   })
   // With a new row height, every place moves: worked out again, and drawn.

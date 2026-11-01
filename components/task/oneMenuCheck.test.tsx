@@ -12,7 +12,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 // one is current ends its rows with it (as a select's chosen option has it),
 // each row saying which through aria-checked or aria-current.
 
-vi.mock("@/components/tags/TagPicker", () => ({
+vi.mock("@/hooks/useProjectTags", () => ({
   useProjectTags: () => ({ tags: [{ name: "Bug", count: 3 }, { name: "Design", count: 1 }] }),
 }))
 vi.mock("@/lib/utils/i18n", () => ({ useTranslation: () => ({ t: (k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? k }), useWord: (_key: string, fallback: string) => fallback }))

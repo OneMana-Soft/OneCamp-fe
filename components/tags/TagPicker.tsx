@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import type { AxiosRequestConfig } from "axios"
+import type { ScopedMutator } from "swr"
 import { Plus } from "@/lib/icons"
 import {
   Combobox,
@@ -15,28 +15,38 @@ import {
 } from "@/components/ui/combobox"
 import { ErrorState } from "@/components/ui/error-state"
 import { cn } from "@/lib/utils/helpers/cn"
-import { useFetch } from "@/hooks/useFetch"
+import { projectTagsKey, useProjectTags, type ProjectTag } from "@/hooks/useProjectTags"
+import { readInto } from "@/lib/http/readInto"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { ProjectsGet } from "@/services/endpoints/projects"
 import { MAX_TAGS, MAX_TAG_LENGTH, joinTags, splitTags } from "@/lib/tags"
 import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { TagPills } from "@/components/tags/TagPills"
 
-export interface ProjectTag {
-  name: string
-  count: number
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+
+/** The picker's list: the task's tags the project's list doesn't know yet first, then the project's, most used first. */
+function tagOptions(current: string[], known: ProjectTag[]): ProjectTag[] {
+  return [...current.filter((c) => !known.some((k) => same(k.name, c))).map((name) => ({ name, count: 0 })), ...known]
+}
+
+/** The label with the tag put on, or taken off: the picker's toggle and the palette's. A full set takes no more. */
+export function toggledLabel(label: string, tag: string): string {
+  const current = splitTags(label)
+  if (current.some((c) => same(c, tag))) return joinTags(current.filter((c) => !same(c, tag)))
+  return current.length >= MAX_TAGS ? label : joinTags([...current, tag])
 }
 
 /**
- * The tags in use in a project, most used first (GET /project/{id}/tags).
- * `requestConfig` is the read's own, as useFetch's: a caller that draws
- * `failed` itself passes OWN_ERRORS.
+ * The palette's Add or remove tag… (linear-28 H1b): the picker's list, the
+ * project's tags read now through the picker's own key, those on the task
+ * marked. A full set lists only its own, to take off.
  */
-export function useProjectTags(projectId: string | undefined, requestConfig?: AxiosRequestConfig) {
-  const { data, isError, mutate } = useFetch<{ data: ProjectTag[] }>(projectId ? `${ProjectsGet.ProjectTime}/${projectId}/tags` : "", undefined, undefined, requestConfig)
-  // failed: the read failed and nothing read before it is left to show.
-  return { tags: data?.data ?? [], failed: Boolean(isError) && !data, refresh: mutate }
+export async function tagChoices(mutate: ScopedMutator, projectId: string, label: string): Promise<{ name: string; current: boolean }[]> {
+  const known = (await readInto<{ data?: ProjectTag[] | null }>(mutate, projectTagsKey(projectId))).data ?? []
+  const current = splitTags(label)
+  const listed = tagOptions(current, known).map((t) => ({ name: t.name, current: current.some((c) => same(c, t.name)) }))
+  return current.length >= MAX_TAGS ? listed.filter((t) => t.current) : listed
 }
 
 /**
@@ -59,17 +69,17 @@ export function TagPicker({
   const [query, setQuery] = React.useState("")
   const { tags: known, failed, refresh } = useProjectTags(canEdit && open ? projectId : undefined, OWN_ERRORS)
   const current = splitTags(label)
-  const has = (t: string) => current.some((c) => c.toLowerCase() === t.toLowerCase())
+  const has = (t: string) => current.some((c) => same(c, t))
   const typed = query.trim().slice(0, MAX_TAG_LENGTH)
   const exists = typed !== "" && (known.some((k) => k.name.toLowerCase() === typed.toLowerCase()) || has(typed))
   const full = current.length >= MAX_TAGS
 
   const toggle = (t: string) => {
-    onChange(joinTags(has(t) ? current.filter((c) => c.toLowerCase() !== t.toLowerCase()) : [...current, t]))
+    onChange(toggledLabel(label, t))
     setQuery("")
   }
   // Tags this task has that the project list doesn't know yet come first, then the project's.
-  const options = [...current.filter((c) => !known.some((k) => k.name.toLowerCase() === c.toLowerCase())).map((name) => ({ name, count: 0 })), ...known]
+  const options = tagOptions(current, known)
 
   if (!canEdit) return <TagPills label={label} />
 

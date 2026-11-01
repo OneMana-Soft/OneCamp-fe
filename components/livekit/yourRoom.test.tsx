@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 import { SWRConfig } from "swr"
 
 import type { MyRoom } from "@/services/roomService"
@@ -42,6 +43,11 @@ async function open() {
 }
 
 const taken = { response: { status: 409, data: { code: "taken", msg: "That address is taken. Try another." } } }
+
+// A saved change offers Undo through a toast whose parts load on first use (components/ui/saveStatus.tsx:
+// import("@/components/ui/undoToast")), with nothing awaiting them: on a busy machine one test's offer came after its
+// clearAllMocks, in the next test's toasts (V-138). Warmed before the tests, each offer comes inside its own test.
+warmBeforeTests(() => import("@/components/ui/undoToast"))
 
 describe("your room", () => {
   beforeEach(() => {

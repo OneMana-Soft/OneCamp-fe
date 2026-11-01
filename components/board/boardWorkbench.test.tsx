@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react"
 import * as Y from "yjs"
 import { boardScene, convertForTest } from "@/lib/testing/boardScene"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 
 const xl = vi.hoisted(() => ({ exportToSvg: vi.fn(), serializeAsJSON: vi.fn(), loadFromBlob: vi.fn() }))
 vi.mock("@excalidraw/excalidraw", () => ({
@@ -48,6 +49,19 @@ vi.mock("@/lib/board/notes", async (importOriginal) => {
 import BoardWorkbench, { useBoardSelection, useTypedNoteFit } from "./boardWorkbench"
 import { useBoardStyle } from "./boardStyle"
 import { noteSkeleton } from "@/lib/board/notes"
+
+// V-138 rule 2: the workbench's whole lazy chain (from LAZY_CODE_TRACE=1: the drawing library every mount asks for, and
+// the panels, the template library and the export its presses open) is warmed once before the tests, so the template
+// picker, Frames, tags, saving a template and the exports spend none of a test's 5 s waiting for code.
+warmBeforeTests(
+  () => import("@excalidraw/excalidraw"),
+  () => import("./templatePicker"),
+  () => import("./framesPanel"),
+  () => import("./tagFilterPanel"),
+  () => import("./saveBoardTemplate"),
+  () => import("./boardExport"),
+  () => import("@/lib/board/templateLibrary"),
+)
 
 // The board's tools in one lazy chunk (whiteboard W-1): it reads the scene's
 // selection once a change, answers the page's presses, and lays a template

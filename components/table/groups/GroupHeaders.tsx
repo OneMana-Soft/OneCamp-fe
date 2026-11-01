@@ -14,7 +14,7 @@ import { statusGroupOf } from "@/lib/fieldTypes/kindsMore"
 import { filterKind } from "@/lib/fieldTypes/registry"
 import { defaultSummary, summarizeServed, summarizeValues, type Summary } from "@/lib/tables/summary"
 import { formatLocale } from "@/lib/tables/numberFormat"
-import type { SummaryFn } from "@/lib/tables/display"
+import { frozenMarks, type SummaryFn } from "@/lib/tables/display"
 import { groupLabel, type GroupLayout, type GroupOf } from "@/lib/tables/groups"
 import type { GroupRule } from "@/lib/tables/viewRules"
 import { alignsRight, optionsOf, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
@@ -130,12 +130,15 @@ export const GroupHeaderRow = React.memo(function GroupHeaderRow({
   place,
   height,
   fields,
+  frozen = 1,
   summary,
   held,
   ...head
 }: HeaderProps & {
   place: number
   height: number
+  /** How many leading columns stay put sideways, as the grid's: the toggle sits in the first, the rest hold totals. */
+  frozen?: number
   /** The grid's columns, in order. */
   fields: TableField[]
   summary?: Record<string, SummaryFn>
@@ -163,11 +166,11 @@ export const GroupHeaderRow = React.memo(function GroupHeaderRow({
       <td data-gutter="" data-sticky-lead="" className={cell} />
       {fields.map((f, i) =>
         i === 0 ? (
-          <td key={f.id} data-field={f.id} data-frozen="" data-sticky-lead="" className={cell}>
+          <td key={f.id} data-field={f.id} {...frozenMarks(0, frozen)} className={cell}>
             <Toggle {...head} />
           </td>
         ) : (
-          <td key={f.id} data-field={f.id} className={cell}>
+          <td key={f.id} data-field={f.id} {...frozenMarks(i, frozen)} className={cell}>
             {totals[i - 1] ? (
               <span className={cn("flex items-center gap-1 truncate px-3 text-meta", alignsRight(f) && "justify-end")} title={totals[i - 1]?.title}>
                 {totals[i - 1]?.label ? <span className="text-ink-3">{totals[i - 1]?.label}</span> : null}

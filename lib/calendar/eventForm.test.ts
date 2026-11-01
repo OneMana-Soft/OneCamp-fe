@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { pinTestClock } from "@/lib/testing/testClock"
+import { readZoneNamesAsGiven } from "@/lib/testing/zoneNamesAsGiven"
 import type { ApiEvent } from "@/lib/calendar/eventsApi"
 import type { CalendarEventInterface } from "@/types/calendar"
 import {
@@ -64,6 +65,13 @@ describe("a new event's values", () => {
 })
 
 describe("an event's values", () => {
+  // V-135: an end kept under the start zone's other name is no end zone of its own, read or saved.
+  it("read an end in the start's zone under its other name as no end zone", () => {
+    const v = eventValues(api({ start: { at: new Date(2026, 9, 16, 9, 15).toISOString(), zone: "Asia/Kolkata" }, end: { at: new Date(2026, 9, 16, 10, 15).toISOString(), zone: "Asia/Calcutta" } }), null, "UTC")
+    expect(v).toMatchObject({ zone: "Asia/Kolkata", endZone: "" })
+    expect(eventInput({ ...v, endZone: "Asia/Calcutta" }).end).not.toHaveProperty("zone")
+  })
+
   it("read every field the API sends", () => {
     const v = eventValues(api(), [30], "UTC")
     expect(v).toMatchObject({ kind: "event", title: "Design review", location: "Studio", zone: "Europe/London", endZone: "", hue: "moss", showAs: "busy", reminders: [30] })
@@ -138,6 +146,13 @@ describe("what the form saves", () => {
 
 describe("a change", () => {
   const was = eventValues(api(), null, "UTC")
+
+  // V-135: one zone under its other name ("Europe/Kiev" for "Europe/Kyiv") is no change of time, so guests aren't told
+  // the event moved.
+  it("reads a zone's other name as no change of time", () => {
+    const kyiv = { ...was, zone: "Europe/Kyiv" }
+    expect(patchChanges(eventPatch({ ...kyiv, zone: "Europe/Kiev" }, kyiv, 4, true))).toBe(false)
+  })
 
   it("names only what differs, at the version it was opened on", () => {
     const p = eventPatch({ ...was, title: "Design review, round 2" }, was, 4, true)
@@ -242,5 +257,72 @@ describe("out of office that declines (head 5b)", () => {
     expect(eventPatch(v, v, 3, true).out_of_office).toBeUndefined()
     expect(eventPatch({ ...v, oooMessage: "Back Friday." }, v, 3, true).out_of_office).toEqual({ decline: "all", message: "Back Friday." })
     expect(eventPatch({ ...v, oooDecline: "none" }, v, 3, true).out_of_office).toEqual({ decline: "none", message: "On leave." })
+  })
+})
+
+describe("a working location (head 5d)", () => {
+  const home = (extra: Partial<ApiEvent> = {}) =>
+    api({ kind: "working_location", title: "Home", location: "Home", attendees: [], transparency: "transparent", all_day: true, start: { date: "2026-10-19" }, end: { date: "2026-10-20" }, ...extra })
+
+  it("is read as one from the API and from the calendar's list", () => {
+    expect(eventValues(home(), null, "UTC").kind).toBe("working_location")
+    const listed = listedValues(
+      { event_uuid: "w1", event_title: "Home", event_start_time: new Date(2026, 9, 19).toISOString(), event_end_time: new Date(2026, 9, 20).toISOString(), event_working_location: "Home" } as CalendarEventInterface,
+      "UTC",
+    )
+    expect(listed.kind).toBe("working_location")
+  })
+
+  it("asks where, and sends its title as its place: never busy, nobody on it, repeating when asked, never to Google", () => {
+    const v = {
+      ...newEventValues("UTC", NOW),
+      kind: "working_location" as const,
+      title: " ",
+      allDay: true,
+      location: "Studio",
+      rule: "FREQ=WEEKLY;BYDAY=MO,FR",
+      syncToGoogle: true,
+      guests: [{ uuid: "maya", email: "", name: "Maya", optional: false }],
+    }
+    expect(formProblem(v)).toEqual({ field: "title", message: "Say where you're working" })
+    const input = eventInput({ ...v, title: " Home " })
+    expect(input).toMatchObject({ kind: "working_location", title: "Home", location: "Home", attendees: [], transparency: "transparent", recurrence: { rule: "FREQ=WEEKLY;BYDAY=MO,FR" } })
+    expect(input.sync_to_google).toBeUndefined()
+  })
+
+  it("moves its place with its title and keeps its repeat (V-2); an event made one takes its title as its place", () => {
+    const was = eventValues(home({ recurrence: { rule: "FREQ=WEEKLY;BYDAY=MO" } }), null, "UTC")
+    expect(eventPatch({ ...was, title: "Office" }, was, 4, true)).toEqual({ sequence: 4, title: "Office", location: "Office" })
+    expect(eventPatch({ ...was, rule: "FREQ=WEEKLY;BYDAY=MO,FR" }, was, 4, true)).toEqual({ sequence: 4, recurrence: { rule: "FREQ=WEEKLY;BYDAY=MO,FR" } })
+    const event = eventValues(api({ title: "Lisbon office", attendees: [] }), null, "UTC")
+    expect(eventPatch({ ...event, kind: "working_location" }, event, 4, true)).toEqual({ sequence: 4, kind: "working_location", location: "Lisbon office" })
+  })
+})
+
+// V-135 on WebKit, which reads each zone name as given. One zone under its other name is still one zone by its clock.
+// But a zone picked under another zone's name is what the person picked, even where the two clocks have always
+// agreed (London and Dublin): the server keeps it and decides whether the time moved.
+describe("zones where the runtime reads each name as given (WebKit)", () => {
+  let undo = () => {}
+  afterEach(() => undo())
+  const load = async () => {
+    vi.resetModules()
+    undo = readZoneNamesAsGiven()
+    return import("./eventForm")
+  }
+
+  it("saves a zone picked under another zone's name, though the two clocks agree", async () => {
+    const f = await load()
+    const was = { ...f.eventValues(api(), null, "UTC"), zone: "Europe/London" }
+    expect(f.eventPatch({ ...was, zone: "Europe/Dublin" }, was, 4, true).start?.zone).toBe("Europe/Dublin")
+  })
+
+  // An end in another zone is the person's, read and saved, though its clock be the start's: a flight from London
+  // lands in Dublin. WebKit's clocks say one zone, but only a name says which place.
+  it("keeps an end in another zone whose clock agrees with the start's, read and saved", async () => {
+    const f = await load()
+    const v = f.eventValues(api({ start: { at: new Date(2026, 9, 16, 9, 15).toISOString(), zone: "Europe/London" }, end: { at: new Date(2026, 9, 16, 10, 35).toISOString(), zone: "Europe/Dublin" } }), null, "UTC")
+    expect(v).toMatchObject({ zone: "Europe/London", endZone: "Europe/Dublin" })
+    expect(f.eventInput(v).end).toMatchObject({ zone: "Europe/Dublin" })
   })
 })

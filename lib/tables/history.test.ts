@@ -53,6 +53,15 @@ describe("a row's history, line by line", () => {
     ])
   })
 
+  it("says which step over the view made it: a find and replace, a trim, a dedupe or a split (G2b)", () => {
+    const change = [{ field: "notes", before: "acme ", after: "Acme" }]
+    const line = (kind: HistoryItem["kind"]) => historyLines(item({ kind, changes: change }), fields)[0]
+    expect(line("replace")).toMatch(/^Maya changed Notes .* \(find and replace\)$/)
+    expect(line("trim")).toMatch(/ \(trimming spaces\)$/)
+    expect(line("split")).toMatch(/ \(splitting a column\)$/)
+    expect(line("dedupe")).toMatch(/ \(removing duplicate rows\)$/)
+  })
+
   it("quotes a long value short", () => {
     const long = "word ".repeat(40)
     expect(valueText(fields[1], long).length).toBe(60)

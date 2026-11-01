@@ -13,7 +13,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Download, Eye, EyeOff, FileSpreadsheet, Globe, LayoutTemplate, List, Lock, RotateCcw, Trash2, Upload } from "@/lib/icons"
+import { AlignLeft, Download, Eraser, Eye, EyeOff, FileSpreadsheet, Globe, LayoutTemplate, List, Lock, Replace, RotateCcw, Scissors, Trash2, Upload } from "@/lib/icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils/helpers/cn"
 import { fieldKind } from "@/lib/fieldTypes/registry"
@@ -27,7 +27,9 @@ import { readColors, type RowColors } from "@/lib/tables/applyRules"
 import { restoreTable } from "@/lib/tables/ledger"
 import { tablePath, tablesPath } from "@/lib/tables/route"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
-import { PublishPart } from "@/components/table/lazyParts"
+import { CleanupPart, FindPart, PublishPart } from "@/components/table/lazyParts"
+import { onMac } from "@/lib/tables/undoKeys"
+import type { CleanStep } from "@/lib/tables/transform"
 import { useShowMadeByAi } from "@/components/table/MadeByAiNote"
 import { lazyView } from "@/lib/lazy/lazyView"
 
@@ -82,7 +84,8 @@ export function FieldsMenu({ trigger, open, onOpenChange, fields, hidden, onHidd
  * its Undo brings the table back, and opens it. So are saving it as a
  * template and importing a spreadsheet's rows into it, whose dialogs are
  * chunks mounted the first time they open; imported rows reach the page as
- * any write's do.
+ * any write's do. Find and replace and the clean-ups (G2b) work over the
+ * view's every row: the page opens their bar and dialogs.
  */
 export function TableMoreMenu({
   trigger,
@@ -94,6 +97,8 @@ export function TableMoreMenu({
   onShare,
   onExport,
   onTrash,
+  onFind,
+  onClean,
 }: MenuProps & {
   tableId: string
   bundle: TableBundle
@@ -104,6 +109,10 @@ export function TableMoreMenu({
   /** The view as a file: a CSV, or an Excel workbook. */
   onExport: (format: "csv" | "xlsx") => void
   onTrash: () => void
+  /** Find and replace over the view: none where the view has no find (a board, a chart). */
+  onFind?: () => void
+  /** A clean-up over the view's rows: none where the view has none. */
+  onClean?: (step: CleanStep) => void
 }) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -115,6 +124,8 @@ export function TableMoreMenu({
   const [publishing, setPublishing] = React.useState(false)
   const [publishSeen, setPublishSeen] = React.useState(false)
   const [importing, setImporting] = React.useState(false)
+  // Find leaves the focus in its bar, not back on More.
+  const findChosen = React.useRef(false)
   // What the templates gallery replays on install: the structure, and only the shared views (a view of one's own isn't theirs to give).
   const template = () => ({
     table: { name: bundle.table.name, description: bundle.table.description || undefined, icon: bundle.table.icon || undefined, visibility: bundle.table.visibility },
@@ -149,12 +160,25 @@ export function TableMoreMenu({
           if (o) {
             void PublishPart.prefetch()
             void ImportPart.prefetch()
+            if (onFind) void FindPart.prefetch()
+            if (onClean) void CleanupPart.prefetch()
           }
           onOpenChange(o)
         }}
       >
         <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="content-float w-56 rounded-xl p-1 shadow-e3">
+        <DropdownMenuContent
+          align="end"
+          className="content-float w-56 rounded-xl p-1 shadow-e3"
+          onCloseAutoFocus={(e) => {
+            // Find opens once the menu is gone: opened from inside it, the
+            // closing menu kept the focus from the bar's box on a phone.
+            if (!findChosen.current) return
+            findChosen.current = false
+            e.preventDefault()
+            onFind?.()
+          }}
+        >
           <DropdownMenuItem onSelect={share}>
             {shared ? <Lock /> : <Globe />}
             <span className="flex-1">{shared ? "Make private" : "Show to the workspace"}</span>
@@ -177,6 +201,34 @@ export function TableMoreMenu({
           <DropdownMenuItem onSelect={() => onExport("xlsx")}>
             <FileSpreadsheet /> Export Excel
           </DropdownMenuItem>
+          {onFind || onClean ? <DropdownMenuSeparator /> : null}
+          {onFind ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                findChosen.current = true
+              }}
+              aria-keyshortcuts={onMac() ? "Meta+Shift+H" : "Control+H"}
+            >
+              <Replace /> <span className="flex-1">Find and replace</span>
+              <kbd aria-hidden="true" className="kbd max-sm:hidden">
+                {onMac() ? "⌘⇧H" : "Ctrl+H"}
+              </kbd>
+            </DropdownMenuItem>
+          ) : null}
+          {onClean ? (
+            <>
+              <DropdownMenuItem onSelect={() => onClean("dedupe")}>
+                <Eraser /> Remove duplicate rows…
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onClean("trim")}>
+                <AlignLeft /> Trim spaces…
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onClean("split")}>
+                <Scissors /> Split text column…
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          {onFind || onClean ? <DropdownMenuSeparator /> : null}
           <DropdownMenuItem onSelect={onTrash}>
             <RotateCcw /> Trash
           </DropdownMenuItem>

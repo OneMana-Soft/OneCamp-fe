@@ -186,6 +186,11 @@ test.describe("on a phone, by touch", () => {
     expect(Math.round(n.y), "the notice, 12px under the place pill").toBe(pillEnd + 12)
     expect(Math.round(n.y + n.height), "the notice ends above More's first row").toBeLessThan(firstRow)
     await reviewShot(page, "notice-in-page-more", "light")
+    // And in dark (DESIGN-BUILD-43), in the same place.
+    await page.emulateMedia({ colorScheme: "dark" })
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/)
+    expect(Math.round((await box(notice)).y), "the notice, 12px under the place pill, in dark").toBe(pillEnd + 12)
+    await reviewShot(page, "notice-in-page-more", "dark")
 
     await page.keyboard.press("Escape")
     await expect(page.getByRole("menu")).toBeHidden()

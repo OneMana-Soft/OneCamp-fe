@@ -28,27 +28,36 @@ let description = ""
 let more: Record<string, unknown> = {}
 // The calendar's own API (its one store, where events repeat): off unless a test turns it on.
 let repeats = false
+// What its calls kept (meet-02), and the list's reads again.
+let kept: unknown[] | undefined
+const readKept = vi.fn(async () => undefined)
+// The event read once more while it is still on its way (V-180's Try again).
+const reread = vi.fn(async () => undefined)
 const standup = () => ({ event_uuid: eventId, event_title: "Standup", ...times, event_description: description, event_created_by: organiser, event_participants: participants, ...(booking ? { event_booking: booking } : {}), ...more })
 // The server's optional features (useClientConfig), asked of nothing here:
 // repeats are off, as on a server whose calendar isn't in its one store.
 // Guests' working hours (calendar A3): none kept here.
-vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({}) }))
+vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({ hours: {}, where: {} }) }))
 vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/useClientConfig")>()), useFeature: () => repeats }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
     // A list holds this month's events only (the old fallback's range).
     if (url.startsWith("/event/getEvents")) return { data: { data: [] }, isLoading: false, mutate: vi.fn() }
-    if (loading) return { data: undefined, isLoading: true, mutate: vi.fn() }
+    if (loading) return { data: undefined, isLoading: true, mutate: reread }
     if (failure) return { data: undefined, isLoading: false, isError: { response: failure }, mutate: vi.fn() }
     // The calendar's own API says what guests may do (guests_can_modify).
     if (url === `/calendar/events/${encodeURIComponent(eventId)}`) return { data: { data: { event_uuid: eventId, ...more } }, isLoading: false, mutate: vi.fn() }
+    if (url === `/calendar/events/${encodeURIComponent(eventId)}/call/artefacts`) return { data: kept ? { data: kept } : undefined, isLoading: false, mutate: readKept }
     return { data: url === `/event/getEvent/${encodeURIComponent(eventId)}` ? { data: standup() } : undefined, isLoading: false, mutate: vi.fn() }
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: SAM.user_uuid } } }),
 }))
 const makeRequest = vi.fn()
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest }) }))
+// A delete's Undo, as restoreService offers it (the toast's chunk loads on the offer); its restore is the real one.
+const offered = vi.fn()
+vi.mock("@/services/restoreService", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/restoreService")>()), offerUndo: (...args: unknown[]) => offered(...args) }))
 const dispatch = vi.fn()
 vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => dispatch }))
 // SWR's cache: a list already loaded (the calendar's month, Home's today).
@@ -69,10 +78,17 @@ vi.mock("@/lib/calendar/confirmDelete", async (importOriginal) => {
 import EventInfoPanel from "./eventInfoPanel"
 import { deleteEventRequest } from "@/lib/calendar/confirmDelete"
 import { addCallRequest } from "@/lib/calendar/eventsApi"
+import { pinTestClock, TEST_TODAY } from "@/lib/testing/testClock"
+import { openUI } from "@/store/slice/uiSlice"
+import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice"
 
 // The Event Form is a chunk of its own: its first load, on a busy machine, can
 // take longer than a test's usual 5 s.
 vi.setConfig({ testTimeout: 20_000 })
+
+// Every test reads its dates on one pinned day (15 Oct 2026, TEST_TODAY): the file
+// writes a dozen of them, so it sets its clock rather than read the machine's.
+pinTestClock()
 
 afterEach(() => {
   cleanup()
@@ -91,6 +107,9 @@ afterEach(() => {
   more = {}
   repeats = false
   organiser = SAM
+  kept = undefined
+  readKept.mockClear()
+  offered.mockReset()
 })
 
 /** An event's times, `fromMin` to `toMin` minutes from now. */
@@ -102,6 +121,8 @@ const around = (fromMin: number, toMin: number) => {
 function panel(props: { onClose?: () => void; uuid?: string } = {}) {
   return render(
     <TooltipProvider>
+      {/* The phone's app bar end, where the event's own page puts its menu (PhoneBarActions). */}
+      {props.onClose ? <div data-phone-bar-end="" /> : null}
       <EventInfoPanel eventUUID={props.uuid ?? "e1"} onClose={props.onClose} />
     </TooltipProvider>,
   )
@@ -239,6 +260,31 @@ describe("an event in the side panel", () => {
     expect(screen.queryByText("Event not found.")).toBeNull()
   })
 
+  it("says so when the event is still on its way at 10 s, and Try again reads it once more on its shape (V-180)", () => {
+    // The file's clock stands still on real timers (pinTestClock); this test counts 10 s on fake ones, on the same day.
+    vi.useRealTimers()
+    vi.useFakeTimers({ now: TEST_TODAY })
+    try {
+      loading = true
+      reread.mockClear()
+      panel()
+      expect(screen.getByRole("status", { name: "Loading the event" })).toBeTruthy()
+      act(() => vi.advanceTimersByTime(9_999))
+      expect(screen.queryByRole("alert")).toBeNull()
+      act(() => vi.advanceTimersByTime(1))
+      const alert = screen.getByRole("alert")
+      expect(alert.textContent).toContain("Couldn't load this event")
+      expect(alert.textContent).toContain("taking longer than it should")
+      fireEvent.click(within(alert).getByRole("button", { name: "Try again" }))
+      expect(reread).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole("status", { name: "Loading the event" })).toBeTruthy()
+      expect(screen.queryByRole("alert")).toBeNull()
+    } finally {
+      loading = false
+      vi.useRealTimers()
+    }
+  })
+
   it("on the phone's own page, leaves the way back to the app bar", () => {
     panel({ onClose: vi.fn() })
     expect(screen.queryByRole("button", { name: "Close panel" })).toBeNull()
@@ -250,6 +296,7 @@ describe("an event in the side panel", () => {
     panel({ onClose: vi.fn() })
     expect(screen.getByRole("button", { name: "Edit event" }).textContent).toBe("Edit event")
     expect(screen.queryByRole("button", { name: "Delete event" })).toBeNull()
+    expect(screen.getByRole("button", { name: "More actions" }).closest("[data-phone-bar-end]")).toBeTruthy()
     fireEvent.keyDown(screen.getByRole("button", { name: "More actions" }), { key: "Enter" })
     expect(screen.getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Prep brief", "Find a better time", "Delete event"])
   })
@@ -347,6 +394,129 @@ describe("a guest's proposed time", () => {
     expect(await screen.findByText(/^Proposes/, undefined, { timeout: 8000 })).toBeTruthy()
     expect(screen.queryByRole("button", { name: /^Dismiss .*'s proposal$/ })).toBeNull()
     expect(screen.queryByRole("button", { name: "Use this time" })).toBeNull()
+  })
+})
+
+// Calls follow-up 1: what an event's call made, its recording and transcript,
+// is deleted (soft) by whoever may change the event, as the server rules
+// (mayEdit), and Undo brings it back. The lazy list only presents: the panel
+// asks the server, reads the list again, and offers Undo.
+describe("an event's call recordings", () => {
+  const recorded = { key: "EG_1", started_at: "2026-09-28T09:31:00Z", ended_at: "2026-09-28T09:44:00Z", lines: 12, recorded: true }
+  const deleteSent = expect.objectContaining({ method: "DELETE", apiEndpoint: "/calendar/events", appendToUrl: "/e1/call/artefacts/EG_1" })
+
+  it("are deleted by whoever may change the event, read again, and offered back by Undo", async () => {
+    repeats = true
+    kept = [recorded]
+    panel()
+    await screen.findByRole("button", { name: "Play recording" }, { timeout: 8000 })
+    const del = screen.queryAllByRole("button", { name: "Delete recording" })
+    expect(del).toHaveLength(1)
+    fireEvent.click(del[0])
+    await waitFor(() => expect(offered).toHaveBeenCalledTimes(1))
+    expect(makeRequest).toHaveBeenCalledWith(deleteSent)
+    // It left the list at once (no second press), and the list was read again after.
+    const [leave, opts] = readKept.mock.calls[0] as unknown as [(now: unknown) => unknown, unknown]
+    expect(leave({ data: [recorded, { key: "EG_2" }] })).toEqual({ data: [{ key: "EG_2" }] })
+    expect(opts).toEqual({ revalidate: false })
+    expect(readKept.mock.calls.at(-1)).toEqual([])
+    const [title, undo] = offered.mock.calls[0] as [string, () => Promise<unknown>]
+    expect(title).toMatch(/^Deleted recording “.+ · 13 min”$/)
+    makeRequest.mockClear()
+    readKept.mockClear()
+    await undo()
+    expect(makeRequest).toHaveBeenCalledWith(expect.objectContaining({ method: "POST", apiEndpoint: "/calendar/events", appendToUrl: "/e1/call/artefacts/EG_1/restore", quiet: true }))
+    expect(readKept).toHaveBeenCalledTimes(1)
+  })
+
+  it("offer no Undo for a delete the server refused, and read the list again for what's there", async () => {
+    repeats = true
+    kept = [recorded]
+    makeRequest.mockRejectedValueOnce(Object.assign(new Error("Request failed with status code 404"), { response: { status: 404, data: { msg: "There's no such recording on this event." } } }))
+    panel()
+    await screen.findByRole("button", { name: "Play recording" }, { timeout: 8000 })
+    const del = screen.queryAllByRole("button", { name: "Delete recording" })
+    expect(del).toHaveLength(1)
+    fireEvent.click(del[0])
+    // Out of the list at once, then read again once the server has answered: it's back, as the server found it.
+    await waitFor(() => expect(readKept).toHaveBeenCalledTimes(2))
+    expect(readKept.mock.calls[1]).toEqual([])
+    expect(makeRequest).toHaveBeenCalledWith(deleteSent)
+    expect(offered).not.toHaveBeenCalled()
+  })
+
+  it("can be deleted by a guest the organiser lets change the event", async () => {
+    repeats = true
+    organiser = MAYA
+    participants = [SAM]
+    more = { guests_can_modify: true }
+    kept = [recorded]
+    panel()
+    await screen.findByRole("button", { name: "Play recording" }, { timeout: 8000 })
+    expect(screen.queryAllByRole("button", { name: "Delete recording" })).toHaveLength(1)
+  })
+
+  it("offer a guest who may only read the event no Delete", async () => {
+    repeats = true
+    organiser = MAYA
+    participants = [SAM]
+    kept = [recorded]
+    panel()
+    await screen.findByRole("button", { name: "Play recording" }, { timeout: 8000 })
+    expect(screen.queryAllByRole("button", { name: /^Delete (recording|transcript)$/ })).toHaveLength(0)
+  })
+
+  // Head C2 (meet-02 WIN): the one player reads a call by the event's own
+  // routes, its recording and its words, under the event's read rule.
+  it("play a recorded call by the event's own routes, its words beside it", async () => {
+    repeats = true
+    kept = [recorded]
+    panel()
+    fireEvent.click(await screen.findByRole("button", { name: "Play recording" }, { timeout: 8000 }))
+    const at = "/calendar/events/e1/call/artefacts/EG_1"
+    expect(dispatch).toHaveBeenCalledWith(openUI({ key: "recordingPlayer", data: { mediaPath: `${at}/recording`, transcriptPath: `${at}/transcript`, fileName: "Standup recording", home: "event" } }))
+  })
+
+  it("read a call that wasn't recorded by its transcript, in the same player", async () => {
+    repeats = true
+    kept = [{ key: "sess 2", started_at: "2026-09-21T09:31:00Z", ended_at: "2026-09-21T09:40:00Z", lines: 3, recorded: false }]
+    panel()
+    fireEvent.click(await screen.findByRole("button", { name: "Read transcript" }, { timeout: 8000 }))
+    const at = "/calendar/events/e1/call/artefacts/sess%202"
+    expect(dispatch).toHaveBeenCalledWith(openUI({ key: "recordingPlayer", data: { mediaPath: `${at}/recording`, transcriptPath: `${at}/transcript`, fileName: "Standup transcript", home: "event" } }))
+  })
+
+  // DB-61's MUST 1: in the side panel, a link that leaves the event closes the
+  // panel, so the chat or notes it opens get the page; the phone's own page
+  // is left by the link itself.
+  describe("left by a call's link", () => {
+    const GROUP = "9f3c2b1a0e9d8c7b6a5f4e3d2c1b0a99"
+    // jsdom can't navigate: the links' own clicks go nowhere.
+    const stay = (e: MouseEvent) => e.preventDefault()
+    afterEach(() => document.removeEventListener("click", stay))
+
+    it("closes the side panel", async () => {
+      document.addEventListener("click", stay)
+      repeats = true
+      kept = [{ ...recorded, notes_doc: "doc-1", recap_chat: GROUP }]
+      panel()
+      fireEvent.click(await screen.findByRole("link", { name: "Conversation" }, { timeout: 8000 }))
+      expect(dispatch).toHaveBeenCalledWith(closeRightPanel())
+      dispatch.mockClear()
+      fireEvent.click(screen.getByRole("link", { name: "Call notes" }))
+      expect(dispatch).toHaveBeenCalledWith(closeRightPanel())
+    })
+
+    it("leaves the phone's own page to the link", async () => {
+      document.addEventListener("click", stay)
+      repeats = true
+      kept = [{ ...recorded, recap_chat: GROUP }]
+      const onClose = vi.fn()
+      panel({ onClose })
+      fireEvent.click(await screen.findByRole("link", { name: "Conversation" }, { timeout: 8000 }))
+      expect(onClose).not.toHaveBeenCalled()
+      expect(dispatch).not.toHaveBeenCalledWith(closeRightPanel())
+    })
   })
 })
 

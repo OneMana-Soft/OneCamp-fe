@@ -17,9 +17,10 @@ import type { CalendarEventInterface, CalendarEventTask } from "@/types/calendar
 import { displayNameOf } from "@/lib/personName"
 import { notesText, notesToSave } from "@/lib/calendar/notes"
 import { movedEnd } from "@/lib/calendar/spanMove"
+import { sameName } from "@/lib/utils/sameZone"
 
-/** What an event is: a meeting, focus time, time off, or time for one of your tasks (B1). */
-export type FormKind = "event" | "focus" | "out_of_office" | "task_block"
+/** What an event is: a meeting, focus time, time off, time for one of your tasks (B1), or where you work that day (5d). */
+export type FormKind = "event" | "focus" | "out_of_office" | "task_block" | "working_location"
 export type ShowAs = "busy" | "free"
 export type Visibility = "default" | "public" | "private"
 
@@ -32,6 +33,8 @@ export interface FormGuest {
   optional: boolean
   /** Their answer, as the event has it; none for someone just added. */
   response?: ApiResponse
+  /** Declined by their out of office (calendar head 5c). */
+  away?: boolean
 }
 
 export interface EventFormValues {
@@ -134,7 +137,7 @@ function dateOf(w: ApiWhen | undefined): Date | null {
   return null
 }
 
-const kindOf = (k: string): FormKind => (k === "focus" || k === "out_of_office" || k === "task_block" ? k : "event")
+const kindOf = (k: string): FormKind => (k === "focus" || k === "out_of_office" || k === "task_block" || k === "working_location" ? k : "event")
 
 /** An event's values as the API gave it, with the reader's reminders (null for the default's). */
 export function eventValues(e: ApiEvent, reminders: number[] | null, zone: string): EventFormValues {
@@ -153,7 +156,7 @@ export function eventValues(e: ApiEvent, reminders: number[] | null, zone: strin
     startDate: day(start),
     lastDate: day(last < start ? start : last),
     zone: startZone,
-    endZone: e.end.zone && e.end.zone !== startZone ? e.end.zone : "",
+    endZone: e.end.zone && !sameName(e.end.zone, startZone) ? e.end.zone : "",
     rule: e.recurrence?.rule ?? "",
     guests: (e.attendees ?? []).map((a) => ({
       uuid: a.user_uuid ?? "",
@@ -161,6 +164,7 @@ export function eventValues(e: ApiEvent, reminders: number[] | null, zone: strin
       name: displayNameOf({ user_name: a.user_name, user_full_name: a.user_full_name }) || a.email || "",
       optional: a.role === "optional",
       response: a.response,
+      ...(a.out_of_office ? { away: true } : {}),
     })),
     location: e.location ?? "",
     notes: notesText(e.notes),
@@ -195,7 +199,7 @@ export function listedValues(e: CalendarEventInterface, zone: string): EventForm
   const end = new Date(e.event_end_time)
   return {
     ...newEventValues(zone, start, { start, end }),
-    kind: e.event_task ? "task_block" : e.event_is_away ? "out_of_office" : e.event_is_focus ? "focus" : "event",
+    kind: e.event_task ? "task_block" : e.event_is_away ? "out_of_office" : e.event_is_focus ? "focus" : e.event_working_location ? "working_location" : "event",
     task: e.event_task ?? null,
     title: e.event_title,
     notes: notesText(e.event_description),
@@ -210,7 +214,7 @@ export type FormProblem = { field: "title" | "end" | "task"; message: string }
 
 /** Why the values can't be saved; null when they can. */
 export function formProblem(v: EventFormValues): FormProblem | null {
-  if (!v.title.trim()) return { field: "title", message: "Give it a title" }
+  if (!v.title.trim()) return { field: "title", message: v.kind === "working_location" ? "Say where you're working" : "Give it a title" }
   if (v.title.length > 500) return { field: "title", message: "A title can be up to 500 characters" }
   if (v.kind === "task_block" && !v.task) return { field: "task", message: "Choose the task this is time for" }
   if (v.allDay) {
@@ -232,7 +236,7 @@ export function whenOf(v: EventFormValues): { start: ApiWhen; end: ApiWhen } {
   const span = v.kind === "out_of_office" ? wholeDays(v.start, v.end) : { start: v.start, end: v.end }
   return {
     start: { at: span.start.toISOString(), zone: v.zone },
-    end: { at: span.end.toISOString(), ...(v.endZone && v.endZone !== v.zone ? { zone: v.endZone } : {}) },
+    end: { at: span.end.toISOString(), ...(v.endZone && !sameName(v.endZone, v.zone) ? { zone: v.endZone } : {}) },
   }
 }
 
@@ -248,8 +252,24 @@ export function guestInputs(guests: FormGuest[]): ApiGuestInput[] {
 /** The notes as a save sends them: as kept when untouched, else the text in the form they were kept in. */
 export const savedNotes = (v: EventFormValues) => notesToSave(v.notes, v.notesKept)
 
-/** Focus time, time off and time for a task are yours: nobody else is on them, and they don't repeat yet. */
-const ownTime = (v: EventFormValues) => v.kind !== "event"
+/**
+ * Only an event has guests: focus time, time off, time for a task and a working location are yours alone. The form's
+ * one test for own time, wherever it asks (who comes, and what the event may offer: Block time for a task).
+ */
+export const meets = (v: Pick<EventFormValues, "kind">) => v.kind === "event"
+
+/** An event repeats, and so does a working location (Home every Friday); the rest of your own time doesn't yet. */
+const repeats = (v: EventFormValues) => v.kind === "event" || v.kind === "working_location"
+
+/** Where it is: a working location's place is its title, as the server reads it (placeOf); anything else's is its own field. */
+const placeOf = (v: EventFormValues) => (v.kind === "working_location" ? v.title : v.location).trim()
+
+/**
+ * Whether it may go on the writer's Google Calendar too: never a series, and never
+ * a working location, which Google keeps as a kind of its own (a plain all-day
+ * "Home" there is not one).
+ */
+export const mayAddToGoogle = (v: EventFormValues) => !v.rule && v.kind !== "working_location"
 
 /** A new event, as the API takes it. */
 export function eventInput(v: EventFormValues): ApiEventInput {
@@ -258,19 +278,20 @@ export function eventInput(v: EventFormValues): ApiEventInput {
     kind: v.kind,
     title: v.title.trim(),
     notes: savedNotes(v),
-    location: v.location.trim(),
+    location: placeOf(v),
     start,
     end,
-    attendees: ownTime(v) ? [] : guestInputs(v.guests),
-    ...(v.rule && !ownTime(v) ? { recurrence: { rule: v.rule } } : {}),
+    attendees: meets(v) ? guestInputs(v.guests) : [],
+    ...(v.rule && repeats(v) ? { recurrence: { rule: v.rule } } : {}),
     ...(v.hue ? { hue: v.hue } : {}),
-    transparency: v.showAs === "free" ? "transparent" : "opaque",
+    // A working location is never busy.
+    transparency: v.showAs === "free" || v.kind === "working_location" ? "transparent" : "opaque",
     visibility: v.visibility,
     guests_can_modify: v.guestsCanModify,
     guests_can_invite: v.guestsCanModify || v.guestsCanInvite,
     guests_can_see_guests: v.guestsCanSeeGuests,
-    ...(v.emailOnAnswers && v.guests.length && !ownTime(v) ? { email_on_answers: true } : {}),
-    ...(v.syncToGoogle && !v.rule ? { sync_to_google: true } : {}),
+    ...(v.emailOnAnswers && v.guests.length && meets(v) ? { email_on_answers: true } : {}),
+    ...(v.syncToGoogle && mayAddToGoogle(v) ? { sync_to_google: true } : {}),
     ...(v.calendarId ? { calendar_id: v.calendarId } : {}),
     // The task a block is time for, named once, when it is made.
     ...(v.kind === "task_block" && v.task ? { task_uuid: v.task.task_uuid } : {}),
@@ -286,7 +307,10 @@ const sameGuests = (a: FormGuest[], b: FormGuest[]) => {
   return ka.length === kb.length && ka.every((k, i) => k === kb[i])
 }
 
-const sameWhen = (a: ApiWhen, b: ApiWhen) => (a.at ?? "") === (b.at ?? "") && (a.zone ?? "") === (b.zone ?? "") && (a.date ?? "") === (b.date ?? "")
+// A zone picked again under a name this runtime reads as the same is no change; a zone picked under a name of its
+// own is one, even where its clock is the same (sameName: the server decides whether the time moved).
+const sameWhen = (a: ApiWhen, b: ApiWhen) =>
+  (a.at ?? "") === (b.at ?? "") && ((a.zone ?? "") === (b.zone ?? "") || sameName(a.zone, b.zone)) && (a.date ?? "") === (b.date ?? "")
 
 /**
  * A change, as the API takes it: only what differs from was, at the version
@@ -298,15 +322,15 @@ export function eventPatch(v: EventFormValues, was: EventFormValues, sequence: n
   if (v.kind !== was.kind) p.kind = v.kind
   if (v.title.trim() !== was.title.trim()) p.title = v.title.trim()
   if (v.notes !== was.notes) p.notes = savedNotes(v)
-  if (v.location.trim() !== was.location.trim()) p.location = v.location.trim()
+  if (placeOf(v) !== placeOf(was)) p.location = placeOf(v)
   const now = whenOf(v)
   const before = whenOf(was)
   if (!sameWhen(now.start, before.start) || !sameWhen(now.end, before.end)) {
     p.start = now.start
     p.end = now.end
   }
-  if (v.rule !== was.rule) p.recurrence = { rule: ownTime(v) ? "" : v.rule }
-  if (!sameGuests(v.guests, was.guests)) p.attendees = ownTime(v) ? [] : guestInputs(v.guests)
+  if (v.rule !== was.rule) p.recurrence = { rule: repeats(v) ? v.rule : "" }
+  if (!sameGuests(v.guests, was.guests)) p.attendees = meets(v) ? guestInputs(v.guests) : []
   if (v.hue !== was.hue) p.hue = v.hue
   if (v.showAs !== was.showAs) p.transparency = v.showAs === "free" ? "transparent" : "opaque"
   if (v.visibility !== was.visibility) p.visibility = v.visibility

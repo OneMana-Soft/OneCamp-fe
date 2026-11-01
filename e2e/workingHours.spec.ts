@@ -10,11 +10,10 @@ import { SAM, stubBackend } from "./stubbedApp"
 
 // The zone every test here runs in, pinned for the browser (timezoneId) and the
 // account (its zone) alike, never read from the runner: CI runs in UTC, a laptop
-// in IST, and the hours below are this zone's (+05:30 all year). India's zone by
-// the name Chromium reports for it (ICU's id; IANA's newer name is Asia/Kolkata):
-// the app matches the account's zone to the browser's by name, and given
-// "Asia/Kolkata" Chromium still says "Asia/Calcutta".
-const ZONE = "Asia/Calcutta"
+// in IST, and the hours below are this zone's (+05:30 all year). IANA's name, as
+// an account keeps it; Chromium reads it as ICU's "Asia/Calcutta", and the app
+// takes the two names as one zone (V-135), so the week still draws your hours.
+const ZONE = "Asia/Kolkata"
 const at = (day: number, h: number, m = 0) =>
   new Date(`2026-10-${String(day).padStart(2, "0")}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00+05:30`)
 const NOW = at(21, 10)
@@ -80,16 +79,23 @@ for (const theme of ["light", "dark"] as const) {
       await section.scrollIntoViewIfNeeded()
       await shot(page, "hours-unset", theme)
       await section.getByRole("button", { name: "Use it" }).click()
-      await expect.poll(() => puts.find((p) => p.key === "zone")?.value).toBe(ZONE)
+      // The zone the browser says it is in, under whichever of its names it uses.
+      const here = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
+      await expect.poll(() => puts.find((p) => p.key === "zone")?.value).toBe(here)
       await section.getByRole("switch", { name: /Set working hours/ }).click()
       await expect.poll(() => Object.keys((puts.find((p) => p.key === "calendar.working_hours")?.value ?? {}) as object)).toEqual(["1", "2", "3", "4", "5"])
       await expect(section.locator("[data-hours-day]")).toHaveCount(7)
       await shot(page, "hours-set", theme)
     })
 
+    // V-135: the account keeps the zone under the name this browser doesn't report, as one saved from another
+    // browser does (desktop Chrome saves "Asia/Calcutta", Safari and Firefox "Asia/Kolkata"). WebKit reads each name
+    // as given, so there only the zone's clocks can say the two are one.
     test("the week draws your hours", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
-      await open(page, testInfo, "/app/calendar?date=2026-10-21&view=week", { zone: ZONE, week_start: 1, clock: "auto", "calendar.working_hours": { "1": [{ start: "08:00", end: "12:00" }, { start: "13:00", end: "16:00" }], "3": [{ start: "08:00", end: "16:00" }] }, "calendar.default_length": 60 })
+      const reported = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
+      const kept = reported === "Asia/Calcutta" ? "Asia/Kolkata" : "Asia/Calcutta"
+      await open(page, testInfo, "/app/calendar?date=2026-10-21&view=week", { zone: kept, week_start: 1, clock: "auto", "calendar.working_hours": { "1": [{ start: "08:00", end: "12:00" }, { start: "13:00", end: "16:00" }], "3": [{ start: "08:00", end: "16:00" }] }, "calendar.default_length": 60 })
       const monday = page.locator('[data-day-col="0"]')
       await expect(monday).toBeVisible({ timeout: 60_000 })
       // Monday: before 8, lunch, after 16. Tuesday: off all day.

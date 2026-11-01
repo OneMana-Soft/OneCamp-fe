@@ -35,11 +35,18 @@ describe("a board's faces", () => {
   it("are where Excalidraw looks for them, set before Excalidraw loads by everything that renders it", () => {
     expect(EXCALIDRAW_ASSET_PATH).toBe(`/${excalidraw.dir}/`)
     expect(window.EXCALIDRAW_ASSET_PATH).toBe(EXCALIDRAW_ASSET_PATH)
+    // The one wrapper every board draws Excalidraw through sets it first, and so does each page that loads it.
+    const wrapper = read("components/board/boardExcalidraw.tsx")
+    const own = wrapper.indexOf('import "@/lib/board/excalidrawAssets"')
+    expect(own).toBeGreaterThan(-1)
+    expect(own).toBeLessThan(wrapper.indexOf('from "@excalidraw/excalidraw"'))
     for (const file of ["components/board/boardCanvas.tsx", "components/guest/GuestBoardViewer.tsx"]) {
       const src = read(file)
       const set = src.indexOf('import "@/lib/board/excalidrawAssets"')
+      const loads = ['import("@excalidraw/excalidraw")', 'import("@/components/board/boardExcalidraw")'].map((l) => src.indexOf(l)).filter((i) => i > -1)
       expect(set, file).toBeGreaterThan(-1)
-      expect(set, file).toBeLessThan(src.indexOf('import("@excalidraw/excalidraw")'))
+      expect(loads.length, file).toBeGreaterThan(0)
+      expect(set, file).toBeLessThan(Math.min(...loads))
     }
   })
 

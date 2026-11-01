@@ -38,7 +38,7 @@ const api = {
 // Who reads the panel: Sam, its organiser, unless a test reads it as a guest.
 const reader = vi.hoisted(() => ({ uuid: "" }))
 // Guests' working hours (calendar A3): none kept here.
-vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({}) }))
+vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({ hours: {}, where: {} }) }))
 // Whether the calendar's API hasn't answered yet (an edit begun before it does).
 const late = vi.hoisted(() => ({ api: false }))
 vi.mock("@/hooks/useFetch", () => ({
@@ -212,5 +212,24 @@ describe("an instance of a repeating event in its panel", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Don't send" }, { timeout: 5000 }))
     await waitFor(() => expect(makeRequest).toHaveBeenCalled())
     expect(makeRequest.mock.calls[0][0].payload).toMatchObject({ scope: "this", notify: "none" })
+  })
+})
+
+// CR-113 S1: the panel's edit hands the form what the event's read says the server refuses.
+describe("an edit of a meeting the server won't make own time", () => {
+  afterEach(() => {
+    delete (api as { own_time_refused?: unknown }).own_time_refused
+  })
+
+  it("offers only the own time the server takes, and says why on the rest", async () => {
+    const words = "Focus time is yours alone: it has no guests."
+    ;(api as { own_time_refused?: Record<string, string> }).own_time_refused = { focus: words }
+    panel()
+    fireEvent.click(screen.getByRole("button", { name: "Edit event" }))
+    expect(await screen.findByDisplayValue("Stand-up", {}, { timeout: 8000 })).toBeTruthy()
+    const focus = screen.getByRole("switch", { name: /^Focus time/ })
+    expect(focus.hasAttribute("disabled")).toBe(true)
+    expect(document.getElementById(focus.getAttribute("aria-describedby") ?? "")?.textContent).toBe(words)
+    expect(screen.getByRole("switch", { name: /^Away/ }).hasAttribute("disabled")).toBe(false)
   })
 })

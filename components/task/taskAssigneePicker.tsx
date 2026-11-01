@@ -14,8 +14,6 @@ import {
 } from "@/components/ui/combobox"
 import {UserProfileDataInterface} from "@/types/user";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
-import {useFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl} from "@/services/endPoints";
 import { propertyLabel, propertyRow, propertyValue } from "@/lib/ui/propertyRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { BotTag } from "@/components/ui/botTag"
@@ -31,21 +29,16 @@ type AssigneePickerProps = {
     members: UserProfileDataInterface[]
     assignee?: UserProfileDataInterface
     onChange: (userInfo: UserProfileDataInterface | undefined) => void
-    // includeAITeammates surfaces the workspace's DM-able AI teammates as an
-    // assignable group. Assigning a task to one hands the work to that agent
-    // (the durable agent-task engine runs it and posts status as comments).
-    // Opt-in so only the primary task assignee picker offers it.
-    includeAITeammates?: boolean
+    // The workspace's DM-able AI teammates (per-agent bot principals), listed as
+    // an assignable group, badged AI. Assigning a task to one hands the work to
+    // that agent (the durable agent-task engine runs it and posts status as
+    // comments). Only the task panel hands them in, from its one read
+    // (GetDMableAITargets), which the palette's Assign to lists too (linear-28);
+    // empty when AI is off or none are DM-able, so there is no dangling affordance.
+    aiTeammates?: UserProfileDataInterface[]
 }
 
-export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange, includeAITeammates }: AssigneePickerProps) {
-    // DM-able AI teammates (per-agent bot principals), badged AI. Empty when AI
-    // is off or none are DM-able, so there is no dangling affordance. Fetched
-    // only when opted in.
-    const aiTargets = useFetch<{ data: UserProfileDataInterface[] }>(
-        includeAITeammates ? GetEndpointUrl.GetDMableAITargets : ''
-    )
-    const aiTeammates = (includeAITeammates && aiTargets.data?.data) || []
+export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange, aiTeammates = [] }: AssigneePickerProps) {
 
     const resolve = (uuid: string): UserProfileDataInterface | undefined =>
         members.find((m) => m.user_uuid === uuid) || aiTeammates.find((m) => m.user_uuid === uuid)

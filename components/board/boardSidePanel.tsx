@@ -6,7 +6,7 @@
 // Loaded with the panels that use it, never with the board.
 
 import * as React from "react"
-import { Drawer, DrawerContent, type SheetDetent } from "@/components/ui/drawer"
+import { Drawer, DrawerContent, DrawerTitle, type SheetDetent } from "@/components/ui/drawer"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { Button } from "@/components/ui/button"
 import { X } from "@/lib/icons"
@@ -47,7 +47,7 @@ export function BoardSidePanel({
   if (sheet) {
     return (
       <Drawer open onOpenChange={(o) => !o && onClose()} detent={detent}>
-        <DrawerContent {...marks} header={<p className="text-heading text-ink">{name}</p>} footer={foot || undefined}>
+        <DrawerContent {...marks} header={<DrawerTitle asChild><p className="text-heading text-ink">{name}</p></DrawerTitle>} footer={foot || undefined}>
           <div className={cn("px-2", foot ? "pb-2" : "pb-6")}>{children}</div>
         </DrawerContent>
       </Drawer>

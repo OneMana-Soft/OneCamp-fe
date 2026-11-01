@@ -258,14 +258,23 @@ describe("someone who left with work under their name (docs C6-2)", () => {
 describe("a rule's notices", () => {
   it("name the task and open it only for a reader who may open it", () => {
     const told = notice("work.rule", { resource_kind: "task", resource_uuid: "t1", title: "Fix SSO", can_open: true })
-    expect(noticeWords(told)).toMatchObject({ verb: "A rule asks you to look at", place: "Fix SSO" })
+    expect(noticeWords(told)).toMatchObject({ actor: undefined, ownSubject: true, verb: "A rule asks you to look at", place: "Fix SSO" })
     expect(noticeHref(told)).toBe("/app/task/t1")
     expect(noticeHref({ ...told, title: undefined, can_open: false })).toBeNull()
   })
   it("take a stopped rule's owner to the project's Rules", () => {
     const stopped = notice("work.rule.paused", { resource_kind: "rule", resource_uuid: "r1", title: "Triage", can_open: true, data: { project_id: "p1" } })
-    expect(noticeWords(stopped).place).toBe("Triage")
+    expect(noticeWords(stopped)).toMatchObject({ actor: undefined, ownSubject: true, verb: "Your rule stopped itself:", place: "Triage" })
     expect(noticeHref(stopped)).toBe("/app/project/p1?tool=rules")
+  })
+  // A rule's notice wore a comment's bubble (DESIGN-BUILD-49, 30 Oct): it has a
+  // mark of its own, the one the project's Rules tool wears.
+  it("wear the rule's mark, and every other notice keeps its own", () => {
+    expect(noticeBadge(notice("work.rule"))).toBe("rule")
+    expect(noticeBadge(notice("work.rule.paused"))).toBe("rule")
+    expect(kindOf({ activity_type: "NOTICE", notice: notice("work.rule") } as UnifiedActivityItem)).toBe("rule")
+    expect(noticeBadge(notice("work.approval.requested"))).toBe("comment")
+    expect(noticeBadge(notice("doc.access_answered"))).toBe("invite")
   })
 })
 

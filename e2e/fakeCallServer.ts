@@ -11,24 +11,27 @@ import type { Page, WebSocketRoute } from "@playwright/test"
 // The protocol's messages come from livekit-client's own copy of
 // @livekit/protocol, so they are the ones the app decodes.
 const protocol = createRequire(require.resolve("livekit-client"))("@livekit/protocol")
-const { DataPacket, DataPacket_Kind, JoinResponse, ParticipantInfo, ParticipantInfo_State, ParticipantPermission, ParticipantUpdate, Room, ServerInfo, SessionDescription, SignalRequest, SignalResponse, TrackInfo, TrackPublishedResponse, TrackSource, UserPacket } = protocol
+const { DataPacket, DataPacket_Kind, JoinResponse, ParticipantInfo, ParticipantInfo_State, ParticipantPermission, ParticipantUpdate, Room, ServerInfo, SessionDescription, SignalRequest, SignalResponse, TrackInfo, TrackPublishedResponse, TrackSource, TrackType, UserPacket } = protocol
 
 /** Someone in the call: their identity, the name everyone sees, and their LiveKit attributes (the call's role travels there). */
 export interface FakePerson {
   identity: string
   name: string
   attributes?: Record<string, string>
+  /** Sharing their screen as they join; share() starts or stops it later. No media flows: the share is a publication, drawn as its tile. */
+  shares?: boolean
 }
 
 const ROOM = { sid: "RM_fake", name: "fake-call" }
 
-function personInfo(p: FakePerson, sid: string, state = ParticipantInfo_State.ACTIVE) {
+function personInfo(p: FakePerson, sid: string, state = ParticipantInfo_State.ACTIVE, sharing = !!p.shares) {
   return new ParticipantInfo({
     sid,
     identity: p.identity,
     name: p.name,
     attributes: p.attributes ?? {},
     state,
+    tracks: sharing ? [new TrackInfo({ sid: `TR_screen_${sid}`, type: TrackType.VIDEO, name: "screen", source: TrackSource.SCREEN_SHARE, width: 1920, height: 1080 })] : [],
     joinedAt: BigInt(Math.floor(Date.now() / 1000)),
     permission: new ParticipantPermission({ canSubscribe: true, canPublish: true, canPublishData: true }),
   })
@@ -49,6 +52,8 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
   // What the page has published (its source, as LiveKit names it) and whether it is muted now.
   const published: { sid: string; source: string; muted: boolean }[] = []
   let releaseJoin = () => {}
+  // Who among the others shares their screen now (FakePerson.shares, then share()).
+  const sharing = new Set((opts.others ?? []).filter((p) => p.shares).map((p) => p.identity))
   const joinHeld = opts.holdJoin ? new Promise<void>((resolve) => (releaseJoin = resolve)) : undefined
   const send = (message: { case: string; value: unknown }) => socket?.send(Buffer.from(new SignalResponse({ message }).toBinary()))
 
@@ -67,14 +72,18 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
   async function answer(sdp: string, gen: number): Promise<string | null> {
     return page.evaluate(
       async ({ offer, gen }: { offer: string; gen: number }) => {
-        type Server = { pc: RTCPeerConnection; reliable?: RTCDataChannel }
+        type Server = { pc: RTCPeerConnection; reliable?: RTCDataChannel; got?: number[][] }
         const w = window as unknown as { __fakeCallServer?: Server; __fakeCallServerGen?: number }
         if (w.__fakeCallServerGen !== gen) return null
         if (!w.__fakeCallServer) {
           const pc = new RTCPeerConnection()
           const server: Server = { pc }
           pc.ondatachannel = ({ channel }) => {
-            if (channel.label === "_reliable") server.reliable = channel
+            if (channel.label !== "_reliable") return
+            server.reliable = channel
+            // What the page sends on it, kept for received().
+            channel.binaryType = "arraybuffer"
+            channel.addEventListener("message", (e) => (server.got ??= []).push(Array.from(new Uint8Array(e.data as ArrayBuffer))))
           }
           w.__fakeCallServer = server
         }
@@ -123,7 +132,7 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
     const join = new JoinResponse({
       room: new Room({ ...ROOM, metadata }),
       participant: personInfo(opts.you, "PA_you"),
-      otherParticipants: (opts.others ?? []).map((p, i) => personInfo(p, `PA_other${i}`)),
+      otherParticipants: (opts.others ?? []).map((p, i) => personInfo(p, `PA_other${i}`, ParticipantInfo_State.ACTIVE, sharing.has(p.identity))),
       serverVersion: "1.9.0",
       serverInfo: new ServerInfo({ version: "1.9.0", protocol: 15 }),
       subscriberPrimary: false,
@@ -164,11 +173,12 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
       metadata = JSON.stringify(next)
       send({ case: "roomUpdate", value: { room: new Room({ ...ROOM, metadata }) } })
     },
-    /** A data packet from the server (no sender) on `topic`, over the reliable channel. */
-    async sendData(topic: string, payload: unknown) {
+    /** A data packet on `topic`, over the reliable channel: from the server (no sender), or from `from`, someone in the call, as LiveKit names a sender. */
+    async sendData(topic: string, payload: unknown, from?: string) {
       const bytes = new DataPacket({
         kind: DataPacket_Kind.RELIABLE,
-        value: { case: "user", value: new UserPacket({ payload: new TextEncoder().encode(JSON.stringify(payload)), topic }) },
+        participantIdentity: from ?? "",
+        value: { case: "user", value: new UserPacket({ payload: new TextEncoder().encode(JSON.stringify(payload)), topic, participantIdentity: from ?? "" }) },
       }).toBinary()
       await page.waitForFunction(() => (window as unknown as { __fakeCallServer?: { reliable?: RTCDataChannel } }).__fakeCallServer?.reliable?.readyState === "open")
       await page.evaluate((b: number[]) => (window as unknown as { __fakeCallServer: { reliable: RTCDataChannel } }).__fakeCallServer.reliable.send(new Uint8Array(b)), Array.from(bytes))
@@ -183,8 +193,29 @@ export async function fakeCallServer(page: Page, opts: { you: FakePerson; others
       if (i < 0) throw new Error(`${identity} isn't among the call's others`)
       send({ case: "update", value: new ParticipantUpdate({ participants: [personInfo(opts.others![i], `PA_other${i}`, ParticipantInfo_State.DISCONNECTED)] }) })
     },
+    /** Someone already in the call starts sharing their screen, or stops (a participant update with, or without, the share). */
+    share(identity: string, on = true) {
+      const i = (opts.others ?? []).findIndex((p) => p.identity === identity)
+      if (i < 0) throw new Error(`${identity} isn't among the call's others`)
+      if (on) sharing.add(identity)
+      else sharing.delete(identity)
+      send({ case: "update", value: new ParticipantUpdate({ participants: [personInfo(opts.others![i], `PA_other${i}`, ParticipantInfo_State.ACTIVE, on)] }) })
+    },
     /** Answers a join held by `holdJoin`, and every join after it. */
     releaseJoin: () => releaseJoin(),
+    /** Every data packet the page has sent on its reliable channel, in order: its topic and its payload, read as JSON. */
+    async received(): Promise<{ topic: string; json: unknown }[]> {
+      const got = await page.evaluate(() => (window as unknown as { __fakeCallServer?: { got?: number[][] } }).__fakeCallServer?.got ?? [])
+      return got.flatMap((b) => {
+        const packet = DataPacket.fromBinary(new Uint8Array(b))
+        if (packet.value.case !== "user") return []
+        try {
+          return [{ topic: packet.value.value.topic ?? "", json: JSON.parse(new TextDecoder().decode(packet.value.value.payload)) as unknown }]
+        } catch {
+          return []
+        }
+      })
+    },
     /** Every track the page has published, in order: its source (CAMERA, MICROPHONE…) and whether it is muted now. */
     published: () => published.map((t) => ({ ...t })),
     /** The token of every join so far, the latest last. */

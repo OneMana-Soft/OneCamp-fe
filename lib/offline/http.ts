@@ -28,7 +28,8 @@
  * A refusal (any answer from the server) is never answered from the device.
  */
 
-import axios, { AxiosError, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from "axios"
+import { unanswered } from "@/lib/http/answered"
+import { AxiosError, type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from "axios"
 import { offlineIdsIn as idsIn } from "@/lib/offline/offlineId"
 import { TASK_CREATES, TASK_WRITES } from "@/lib/offline/tasks"
 import { errorToastCopy, shownRecently } from "@/lib/utils/errorToast"
@@ -61,10 +62,9 @@ export function offlineCreate(url: string | undefined): string | undefined {
   return OFFLINE_CREATES.find((c) => path === c)
 }
 
-/** The request never reached the server, or nothing answered: not a refusal. */
+/** The request never reached the server, or nothing answered: not a refusal (lib/http/answered). */
 export function isNetworkFailure(e: unknown): boolean {
-  if (axios.isCancel(e)) return false
-  return axios.isAxiosError(e) ? !e.response : false
+  return unanswered(e)
 }
 
 declare module "axios" {

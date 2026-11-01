@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest"
-import { inHours, theirTime } from "./peopleHours"
+import { createElement, type ReactNode } from "react"
+import { describe, expect, it, vi } from "vitest"
+import { renderHook, waitFor } from "@testing-library/react"
+import { SWRConfig } from "swr"
+import { inHours, theirTime, usePeopleHours } from "./peopleHours"
 import { pinTestClock } from "@/lib/testing/testClock"
+import { OWN_ERRORS } from "@/lib/http/ownErrors"
+import { CalendarPost } from "@/services/endpoints/calendar"
+
+const post = vi.hoisted(() => vi.fn())
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { post: (...a: unknown[]) => post(...a) } }))
 
 // The dates below are their own instants; the clock is pinned all the same.
 pinTestClock()
@@ -26,5 +34,18 @@ describe("someone's working hours", () => {
 
   it("says the time it is for them", () => {
     expect(theirTime(new Date("2026-10-19T20:00:00Z"), "Europe/London")).toMatch(/^(21:00|9:00\sPM)$/)
+  })
+})
+
+// Head 5d: one read answers both their hours and, for a day, where each of them works.
+describe("what people's days say", () => {
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(SWRConfig, { value: { provider: () => new Map(), dedupingInterval: 0 } }, children)
+
+  it("asks once for their hours and where each works that day, each person once", async () => {
+    post.mockResolvedValue({ data: { data: { jonas }, private: [], where: { maya: "Home", jonas: "Lisbon office" } } })
+    const { result } = renderHook(() => usePeopleHours(["maya", "jonas", "maya", ""], "2026-10-19"), { wrapper })
+    await waitFor(() => expect(result.current).toEqual({ hours: { jonas }, where: { maya: "Home", jonas: "Lisbon office" } }))
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post).toHaveBeenCalledWith(CalendarPost.PeopleHours, { people: ["jonas", "maya"], day: "2026-10-19" }, OWN_ERRORS)
   })
 })

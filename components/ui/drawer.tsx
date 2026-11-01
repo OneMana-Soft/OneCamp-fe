@@ -8,6 +8,7 @@ import { lastInputWasPointer, watchInputModality } from "@/lib/ui/inputModality"
 import { watchMore } from "@/components/ui/moreMarks"
 import { focusDialogItself } from "@/components/ui/overlayFocus"
 import { PanelsContext, type Panel } from "@/components/ui/sheetPanels"
+import { useSheetMark } from "@/components/ui/sheetMark"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 /**
@@ -76,21 +77,6 @@ const CLOSE_GRACE_MS = 250
 
 const seconds = (v: string) => (v.trim().endsWith("ms") ? parseFloat(v) / 1000 : parseFloat(v)) || 0
 
-// Open sheets, so a sheet over a sheet keeps the mark (phone.css C9 reads it).
-let openSheets = 0
-
-function markSheetOpen(): () => void {
-  openSheets++
-  document.documentElement.setAttribute("data-sheet", "open")
-  let released = false
-  return () => {
-    if (released) return
-    released = true
-    openSheets = Math.max(0, openSheets - 1)
-    if (!openSheets) document.documentElement.removeAttribute("data-sheet")
-  }
-}
-
 /**
  * Radix keeps a closing sheet and its scrim in the page until their close
  * animation reports its end, and Chrome reports nothing when one is
@@ -99,22 +85,14 @@ function markSheetOpen(): () => void {
  * load). So once a close has had its animation's time and a little more,
  * its end is reported here: Escape, a swipe and a tap outside all close
  * through this one path.
- * It also marks the page while the sheet is open (html[data-sheet]).
  */
 function useCloseSettles<T extends HTMLElement>(forwarded: React.ForwardedRef<T>) {
   const [node, setNode] = React.useState<T | null>(null)
   React.useEffect(() => {
     if (!node) return
     let timer: ReturnType<typeof setTimeout> | undefined
-    let release: (() => void) | null = null
     const watch = () => {
       clearTimeout(timer)
-      const open = node.getAttribute("data-state") === "open"
-      if (open && !release) release = markSheetOpen()
-      else if (!open && release) {
-        release()
-        release = null
-      }
       if (node.getAttribute("data-state") !== "closed") return
       const style = getComputedStyle(node)
       const ms = (seconds(style.animationDuration) + seconds(style.animationDelay)) * 1000 + CLOSE_GRACE_MS
@@ -131,7 +109,6 @@ function useCloseSettles<T extends HTMLElement>(forwarded: React.ForwardedRef<T>
     return () => {
       observer.disconnect()
       clearTimeout(timer)
-      release?.()
     }
   }, [node])
   return React.useCallback(
@@ -200,6 +177,7 @@ const DrawerContent = React.forwardRef<
 >(({ className, children, overlayClassName, handleClassName, above, header, footer, onEscapeKeyDown, onOpenAutoFocus, onCloseAutoFocus, onFocusCapture, ...props }, ref) => {
   const detent = React.useContext(DetentContext)
   const settles = useCloseSettles(ref)
+  const marks = useSheetMark(settles)
   // Where the focus came from as it first went into the sheet: what opened it,
   // which a key that closes the sheet gives it back to.
   const opener = React.useRef<HTMLElement | null>(null)
@@ -258,7 +236,11 @@ const DrawerContent = React.forwardRef<
         <DrawerOverlay className={overlayClassName} />
       </DrawerClose>
       <DrawerPrimitive.Content
-        ref={settles}
+        ref={marks}
+        // The sheet primitives' one mark, which a dialog or a confirm drawn as a
+        // sheet and the task's sheet carry too: open, it marks the page
+        // (components/ui/sheetMark), which holds the phone's toasts off the
+        // sheet (app/phone.css C9, components/ui/toastFootSlot).
         data-v3-sheet=""
         data-overlay="sheet"
         // Its footer is its foot on a phone (app/overlay.css 8b), with nothing under it.

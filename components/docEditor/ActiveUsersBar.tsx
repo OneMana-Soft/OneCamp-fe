@@ -18,7 +18,7 @@ import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { AgentAvatar } from "@/components/ui/graphics"
 import { identityPerson } from "@/lib/identityHue"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
-import { useDocBus } from "@/components/docEditor/registry/commandBus"
+import { useDocBus } from "@/components/docEditor/registry/docBusContext"
 import { stateOf, usePresence } from "@/components/docEditor/presence/store"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 

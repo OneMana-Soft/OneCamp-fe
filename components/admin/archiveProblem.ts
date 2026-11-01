@@ -1,3 +1,14 @@
+type Refusal = { response?: { status?: number; data?: { error?: unknown; code?: unknown } } } | null | undefined
+
+/**
+ * A restore refused whole because one of its items has left the archive since
+ * its list loaded, restored or removed by someone else (404 not_in_archive).
+ * Nothing came back; the list the person chose from is out of date.
+ */
+export function leftTheArchive(err: unknown): boolean {
+  return (err as Refusal)?.response?.data?.code === "not_in_archive"
+}
+
 /**
  * What went wrong with an archive request, in words an admin can act on.
  *
@@ -5,12 +16,13 @@
  * dependency error (a driver message naming a table), which tells a person
  * nothing they can do. The refusals they can act on are said
  * plainly: too many requests at once, a run already going, a run's undo at
- * work already, a selection too large to restore in one go. Everything else
+ * work already, a selection too large to restore in one go, a restore naming
+ * something that has left the archive since its list loaded. Everything else
  * gets the caller's fallback, which says what didn't happen and what to try.
  * Pure.
  */
 export function archiveProblem(err: unknown, fallback: string): string {
-  const e = err as { response?: { status?: number; data?: { error?: unknown; code?: unknown } } } | null | undefined
+  const e = err as Refusal
   if (!e?.response) return "Couldn't reach the server. Check your connection and try again."
   const status = e.response.status
   const data = e.response.data ?? {}
@@ -18,6 +30,7 @@ export function archiveProblem(err: unknown, fallback: string): string {
   if (data.code === "already_running") return "This is being archived right now. Wait for that run to finish."
   if (data.code === "archive_running") return "Archiving is running right now. Try again when it finishes."
   if (data.code === "undo_running") return "This run is being restored already. It finishes on its own."
+  if (leftTheArchive(err)) return "Some of these aren't in the archive any more, so nothing was restored. Choose again from the list as it is now."
   const max = typeof data.error === "string" ? /maximum of (\d+)/.exec(data.error) : null
   if (max) return `Restore up to ${Number(max[1]).toLocaleString("en")} items at a time.`
   return fallback

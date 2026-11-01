@@ -2,6 +2,7 @@
 import { startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
 import { TagPills } from "@/components/tags/TagPills"
 import { lazyPart } from "@/lib/lazy/lazyPart"
+import { useSWRConfig } from "swr"
 import { PartRetry } from "@/components/ui/part-retry"
 import { lazyPiece } from "@/lib/lazy/lazyPiece";
 import type { TaskCycleField as CycleField } from "@/components/task/taskCycleField"
@@ -12,7 +13,10 @@ type TagPickerProps = { projectId: string | undefined; label: string; canEdit: b
 
 // The tag picker is SA-3's combobox, a chunk of its own (lib/lazy/lazyPart):
 // its tags at rest while it comes, and Try again beside them if it can't.
-const tagPicker = lazyPart<TagPickerProps>(() => import("@/components/tags/TagPicker").then((m) => m.TagPicker), {
+// Each part's module is fetched by one import(), which its row and the palette's actions on it share (linear-28 H1b):
+// the palette reads the row's choices and makes the row's own change through it, so no new chunk comes.
+const tagCode = () => import("@/components/tags/TagPicker")
+const tagPicker = lazyPart<TagPickerProps>(() => tagCode().then((m) => m.TagPicker), {
   placeholder: function TagsAtRest({ label }) {
     return <TagPills label={label} />
   },
@@ -30,6 +34,12 @@ import {useDispatch, useSelector} from "react-redux"
 import type {RootState} from "@/store/store"
 import {priorities, type prioritiesInterface} from "@/types/table"
 import { statusOptionOf, statusPatch, type TaskStatusFields } from "@/lib/taskStatus"
+import { offerPaletteEntries } from "@/lib/ui/paletteEntries"
+import type { TaskForPalette } from "@/lib/work/taskPaletteEntries"
+import { taskPageUrl } from "@/lib/work/taskLinks"
+import { displayNameOf } from "@/lib/personName"
+import { copyToClipboard } from "@/hooks/useCopyToClipboard"
+import { runWhenQuiet } from "@/lib/ui/whenQuiet"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch"
 import { usePageName } from "@/lib/utils/pageName"
@@ -51,7 +61,8 @@ import {
     updateTaskStatusInTaskList,
 } from "@/store/slice/taskInfoSlice"
 import {cn} from "@/lib/utils/helpers/cn"
-import { Trash2 } from "@/lib/icons";
+import { Trash2, WifiOff } from "@/lib/icons";
+import { isAppOffline, subscribeConnectivity } from "@/lib/connectivity";
 import {TaskGitHubSection} from "@/components/task/taskGitHubSection"
 import {TaskAttachmentsSection} from "@/components/task/taskAttachmentsSection"
 import {LinkedItemsSection} from "@/components/entityLink/LinkedItemsSection"
@@ -75,12 +86,13 @@ import {openUI} from "@/store/slice/uiSlice"
 import {TaskCommentBox, TaskCommentNote} from "@/components/task/taskCommentComposer"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
 import {TaskRepeatField} from "@/components/task/taskRepeatField"
-// The Cycle and Milestone rows (linear-16) show once their project's cycles or milestones are read, so each comes
-// in a chunk of its own, beside those reads: the task page stays under its source ceiling. Each is a lazyPart (as
-// is the approval card below): with no network, a part whose code can't come draws nothing and comes once the
-// browser is back online, where next/dynamic broke the whole panel, and warmTaskParts fetches them ahead.
-const cycleField = lazyPart<ComponentProps<typeof CycleField>>(() => import("@/components/task/taskCycleField").then((m) => m.TaskCycleField))
-const milestoneField = lazyPart<ComponentProps<typeof MilestoneField>>(() => import("@/components/task/taskMilestoneField").then((m) => m.TaskMilestoneField))
+// The Cycle and Milestone rows (linear-16) show once their project's cycles or milestones are read, so each is a
+// lazyPart of its own (as is the approval card below): with no network, a part whose code can't come draws nothing
+// and comes once the browser is back online, and warmTaskParts fetches them ahead.
+const cycleCode = () => import("@/components/task/taskCycleField")
+const milestoneCode = () => import("@/components/task/taskMilestoneField")
+const cycleField = lazyPart<ComponentProps<typeof CycleField>>(() => cycleCode().then((m) => m.TaskCycleField))
+const milestoneField = lazyPart<ComponentProps<typeof MilestoneField>>(() => milestoneCode().then((m) => m.TaskMilestoneField))
 const TaskCycleField = cycleField.Part
 const TaskMilestoneField = milestoneField.Part
 import {TaskTimeSection} from "@/components/task/taskTimeSection"
@@ -112,6 +124,7 @@ import {CommentInfoInterface} from "@/types/comment";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import { ErrorState } from "@/components/ui/error-state"
 import { LoadFailureState } from "@/components/ui/load-failure-state"
+import { OverlaySheetTitle } from "@/components/ui/sheetTitle"
 import { appMutate as mutate, patchCached } from "@/lib/swrMutate";
 import { optimistic } from "@/lib/optimistic";
 import { useDeleteTasks } from "@/hooks/useDeleteTasks";
@@ -166,12 +179,15 @@ const TaskVisibilityRow = lazyPiece(() => import("@/components/task/TaskVisibili
 // The statuses dialog comes when it opens, as on the project's list and board.
 const ProjectStatusesDialog = lazyPiece(() => import("@/components/project/ProjectStatusesDialog").then((m) => ({ default: m.ProjectStatusesDialog })))
 /**
- * Every part the panel draws on a chunk of its own, fetched ahead with its code (the offline layer's warm list, lib/offline/warmAhead, which TaskInPlace joins), so a
- * task opens whole with no network (asana-12 (a)): a part left out said "Couldn't load the tag picker" in a task
- * opened offline. Only the statuses dialog, which a press opens, comes when it opens (taskParts.test).
+ * Every part the panel draws on a chunk of its own, fetched ahead (lib/offline/warmAhead's list, which TaskInPlace
+ * joins), so a task opens whole with no network (asana-12 (a)). Only the statuses dialog, which a press opens, comes
+ * when it opens (taskParts.test).
  */
 export const warmTaskParts = () =>
     Promise.all([tagPicker.warm(), cycleField.warm(), milestoneField.warm(), approvalCard.warm(), TaskVisibilityRow.warm()])
+
+/** The palette's actions on the open task (linear-28): a chunk of their own, fetched once (the browser keeps it). */
+const loadTaskActions = () => import("@/lib/work/taskPaletteEntries")
 
 export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPanelProps) {
     const dispatch = useDispatch()
@@ -211,7 +227,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     const [scrolled, setScrolled] = useState(false)
     const [streamFilter, setStreamFilter] = useState<StreamFilter>("all")
     const entrance = usePanelEntrance()
-    const taskInfo = useFetch<TaskInfoRawInterface & { included?: PanelParts }>(taskUUID ? `${GetEndpointUrl.GetTaskInfo}/${taskUUID}` : "", undefined, {
+    const taskInfo = useFetch<TaskInfoRawInterface & { included?: PanelParts; partial?: boolean }>(taskUUID ? `${GetEndpointUrl.GetTaskInfo}/${taskUUID}` : "", undefined, {
         // The panel's other reads come with the task (?include=) and go under
         // their own keys before the rows that read them mount (panelIncludes).
         onFetched: (d) => seedPanelParts(taskUUID, d?.data?.task_project?.project_uuid, d?.included),
@@ -219,12 +235,6 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         // and GitHub-side changes (title, status, PR state) without
         // being noisy. Real-time comment/reaction updates come via
         // MQTT, so when MQTT is healthy we lengthen significantly.
-        //
-        // refreshWhenHidden: false (SWR default) means a backgrounded
-        // tab pauses; refreshWhenOffline: false (default) means an
-        // offline laptop doesn't burn retries. The user is reactivating
-        // the panel will trigger an immediate revalidate via SWR's
-        // built-in revalidateOnFocus.
         refreshInterval: isMqttHealthy ? 5 * 60 * 1000 : 60 * 1000,
         refreshWhenHidden: false,
         refreshWhenOffline: false,
@@ -233,6 +243,16 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     // with the connection's other topics once the broker answers them: read
     // before then, the task is read again, as an open conversation is (F5).
     useMessageCatchUp(() => void taskInfo.mutate(), !!taskInfo.data)
+    // A page built offline from what a board kept (keptPart) reads itself again once the app is back, however it was gone.
+    const partial = taskInfo.data?.partial === true
+    const refill = taskInfo.mutate
+    useEffect(() => {
+        if (!partial) return
+        if (!isAppOffline()) void refill()
+        return subscribeConnectivity(() => {
+            if (!isAppOffline()) void refill()
+        })
+    }, [partial, refill])
     // Its time comes with the task, so it waits for it.
     const taskTime = useTaskTime(taskInfo.data ? taskUUID : "")
     // On its own page the tab says the task's name ("Task · OneCamp" said
@@ -321,6 +341,9 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         () => taskInfo.data?.data.task_project.project_members || [],
         [taskInfo.data?.data.task_project.project_members],
     )
+    // The workspace's AI teammates a task can be handed to: one read, which the
+    // assignee picker and the palette's Assign to both list (CR-127).
+    const aiTeammates = useFetch<{ data: UserProfileDataInterface[] }>(GetEndpointUrl.GetDMableAITargets).data?.data
 
     const parentTask = useMemo(() => taskInfo.data?.data.task_parent_task, [taskInfo.data?.data.task_parent_task])
     // Where it sits in the list or board it was opened from, for previous
@@ -819,6 +842,72 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
         [taskUUID, updateTaskPriority, selectedPriority],
     )
 
+    // The palette acts on this task (linear-28) through the handlers above,
+    // so a change made there paints, is checked and is put back as one made
+    // here. One offer while the panel is open, read as the palette opens.
+    // The actions are made in a chunk of their own (lib/ui/paletteSurfaces):
+    // the panel's first load carries this offer alone (app/firstLoad.test.ts),
+    // and the chunk is fetched once the page is quiet, so the palette lists
+    // them as it opens (DESIGN-BUILD-57). Two panels can be open at once (the
+    // page, the right panel, a split pane): the one pressed or focused last
+    // offers again, and the palette lists the newest offer alone (CR-127).
+    const paletteTask = useRef<TaskForPalette<UserProfileDataInterface> | null>(null)
+    // The app's own cache (its SWR provider), where the rows keep what they read.
+    const { mutate: rowsCache } = useSWRConfig()
+    const offerAgain = useRef(() => {})
+    const usedHere = () => offerAgain.current()
+    useEffect(() => {
+        const task = taskInfo.data?.data
+        paletteTask.current = task
+            ? {
+                  taskUUID,
+                  taskKey: task.task_key,
+                  taskName: task.task_name,
+                  link: taskPageUrl(task.task_key, taskUUID),
+                  canEdit,
+                  status: selectedStatus?.value,
+                  statusOptions: statusOpts,
+                  onStatus: handleStatusSelect,
+                  priority: selectedPriority?.value,
+                  priorityOptions: priorities,
+                  onPriority: handlePrioritySelect,
+                  assigneeUUID: task.task_assignee?.user_uuid,
+                  members: projectMembers,
+                  aiTeammates,
+                  nameOf: displayNameOf,
+                  onAssignee: (who) => void updateTaskAssignee(who, taskUUID, task.task_assignee),
+                  // Tags, cycle and milestone (H1b): their rows' reads, made as a page opens, and their rows' own changes.
+                  tags: () => tagCode().then((m) => m.tagChoices(rowsCache, task.task_project.project_uuid, taskLabel)),
+                  onTag: (tag) => void tagCode().then((m) => editLabel(m.toggledLabel(taskLabel, tag))),
+                  cycles: () => cycleCode().then((m) => m.cycleChoices(rowsCache, taskUUID, task.task_project.project_uuid)),
+                  onCycle: (id) => void cycleCode().then((m) => m.pickCycleFor(rowsCache, taskUUID, task.task_project.project_uuid, id)),
+                  milestones: () => milestoneCode().then((m) => m.milestoneChoices(rowsCache, taskUUID, task.task_project.project_uuid)),
+                  onMilestone: (id) => void milestoneCode().then((m) => m.pickMilestoneFor(rowsCache, taskUUID, task.task_project.project_uuid, id)),
+                  copy: (text, message) => void copyToClipboard(text, message),
+              }
+            : null
+    })
+    useEffect(() => {
+        const offer = () =>
+            offerPaletteEntries({
+                id: "task",
+                group: "This task",
+                lead: true,
+                load: loadTaskActions,
+                entries: (code) => (paletteTask.current ? code.taskPaletteEntries(paletteTask.current) : []),
+            })
+        let stop = offer()
+        offerAgain.current = () => {
+            stop()
+            stop = offer()
+        }
+        const cancel = runWhenQuiet([loadTaskActions])
+        return () => {
+            cancel()
+            stop()
+        }
+    }, [])
+
     // A subtask's own change shows in the list of subtasks at once, and is
     // taken back there if the server refuses it.
     const changeSubtask = useCallback(
@@ -980,13 +1069,9 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     // The panel's shape, not a spinner: it fills in place (taskPanelSkeleton).
     if(taskInfo.isLoading) return <TaskPanelSkeleton />
 
-    // A task that isn't there for this person says so, with the way back:
-    // the server answers an id that names nothing, a task deleted for good
-    // and one in a project they aren't in alike (404). Only a read that
-    // failed offers Try again; it said "a connection problem" about a task
-    // that was never there (PTC-4). A page of its earlier history that
-    // answers so (the task was deleted, or they left its project, while the
-    // panel was open) is the same answer: not a list that can't go on.
+    // A task that isn't there for this person says so, with the way back: an id that names nothing, a task deleted
+    // for good and one in a project they aren't in all answer 404, and only a failed read offers Try again (PTC-4).
+    // A page of its history that answers so (deleted, or they left its project, while open) is the same answer.
     const cantOpen = !taskInfo.data?.data && taskInfo.isError ? taskInfo.isError : history.cantOpen
     if (cantOpen) {
         return (
@@ -1008,7 +1093,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
     const isDone = selectedStatus?.category === CONSTANTS.STATUS_DONE
 
     return (
-        <div className="flex flex-col h-full" data-task-panel="">
+        <div className="flex flex-col h-full" data-task-panel="" onPointerDownCapture={usedHere} onFocusCapture={usedHere}>
             <div>
                 <RightPanelTaskHeader
                     isAdmin={canEdit}
@@ -1044,6 +1129,12 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         )}
                     </div>
                 )}
+                {partial && (
+                    <div data-task-partial="" role="status" className="flex items-start gap-2 border-b bg-muted/40 px-5 py-2.5 text-ui-sm text-ink-3">
+                        <WifiOff className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                        <span>Offline, this is what this device kept of the task. Its comments, sub-tasks and history load once you&apos;re back online.</span>
+                    </div>
+                )}
             </div>
 
             <div
@@ -1067,8 +1158,9 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                 >
 
                     {/* The title: title-2, edited in place, a hover ground behind it (W29).
-                        Read only, it is text in the title's ink, not a disabled field's ink-3. */}
-                    <div className={cn("-mx-1 mb-4 rounded-md max-sm:order-[-2]", canEdit && "transition-colors hover:bg-hover focus-within:bg-transparent")} style={entranceStyle(entrance, "title")}>
+                        Read only, it is text in the title's ink, not a disabled field's ink-3.
+                        In the phone's sheet it names the sheet (V-111). */}
+                    <OverlaySheetTitle className={cn("-mx-1 mb-4 rounded-md max-sm:order-[-2]", canEdit && "transition-colors hover:bg-hover focus-within:bg-transparent")} style={entranceStyle(entrance, "title")}>
                         {canEdit ? (
                             <ResizeableTextInput
                                 key={titleKey}
@@ -1080,7 +1172,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         ) : (
                             <p className="whitespace-pre-wrap break-words px-1 py-0.5 text-title-2">{taskInfo.data?.data.task_name}</p>
                         )}
-                    </div>
+                    </OverlaySheetTitle>
 
                     <TaskApprovalCard taskUUID={taskUUID} members={projectMembers} status={selectedStatus} />
 
@@ -1123,7 +1215,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
                         members={projectMembers}
                         assignee={taskInfo.data?.data.task_assignee}
                         onChange={(uid) => void updateTaskAssignee(uid, taskUUID, taskInfo.data?.data.task_assignee)}
-                        includeAITeammates
+                        aiTeammates={aiTeammates}
                     />
 
                     <DatesProperty
@@ -1396,7 +1488,7 @@ export default function TaskInfoPanel({ taskUUID, onPage = false }: TaskInfoPane
             </div>
             )}
 
-            {!canComment ? <TaskCommentNote frame={onPage ? PAGE_COLUMNS : undefined} later={accessHeldBack(taskUUID, taskInfo.data?.data)} /> : settled ? <TaskCommentBox
+            {!canComment ? <TaskCommentNote frame={onPage ? PAGE_COLUMNS : undefined} later={accessHeldBack(taskUUID, taskInfo.data?.data, partial)} /> : settled ? <TaskCommentBox
                 taskUUID={taskUUID}
                 frame={onPage ? PAGE_COLUMNS : undefined}
                 projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}

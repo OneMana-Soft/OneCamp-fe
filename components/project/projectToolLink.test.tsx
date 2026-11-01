@@ -16,6 +16,10 @@ vi.mock("@/components/project/ProjectTimeDialog", () => ({ ProjectTimeDialog: sh
 vi.mock("@/components/project/ProjectFormsDialog", () => ({ ProjectFormsDialog: shown("forms") }))
 vi.mock("@/components/project/ProjectShareDialog", () => ({ ProjectShareDialog: shown("share") }))
 vi.mock("@/components/projectTemplates/SaveAsTemplateDialog", () => ({ SaveAsTemplateDialog: shown("template") }))
+// The project's links (basecamp-16), none here: which project each read of them named, none for nobody.
+const linksAsked: Array<string | undefined> = []
+vi.mock("@/hooks/useProjectLinks", () => ({ useProjectLinks: (projectId?: string) => (linksAsked.push(projectId), { links: [] }) }))
+vi.mock("@/components/project/ProjectLinksDialog", () => ({ ProjectLinksDialog: () => <div data-testid="links" /> }))
 
 const { ProjectToolButtons } = await import("@/components/project/ProjectToolButtons")
 
@@ -23,6 +27,7 @@ afterEach(() => {
   cleanup()
   replace.mockReset()
   search = ""
+  linksAsked.length = 0
 })
 
 describe("a link to a project's time", () => {
@@ -39,8 +44,19 @@ describe("a link to a project's time", () => {
     const { rerender } = render(<ProjectToolButtons projectId="q4-1" isAdmin={false} isMember={false} />)
     expect(screen.queryByTestId("time")).toBeNull()
     expect(replace).not.toHaveBeenCalled()
+    // Until it does, the project's links aren't read either.
+    expect(linksAsked.length).toBeGreaterThan(0)
+    expect(linksAsked.every((id) => id === undefined)).toBe(true)
     rerender(<ProjectToolButtons projectId="q4-1" isAdmin isMember />)
     expect(await screen.findByTestId("time")).toBeTruthy()
+    expect(linksAsked.at(-1)).toBe("q4-1")
+  })
+
+  it("opens the links its home's strip asks for, for a member", async () => {
+    search = "tool=links&tab=list"
+    render(<ProjectToolButtons projectId="q4-1" isAdmin={false} isMember />)
+    expect(await screen.findByTestId("links")).toBeTruthy()
+    expect(replace).toHaveBeenCalledWith("/app/project/q4-1?tab=list", { scroll: false })
   })
 
   it("opens nothing else a link names", () => {

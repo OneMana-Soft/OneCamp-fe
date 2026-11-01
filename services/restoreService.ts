@@ -1,9 +1,9 @@
 /**
  * What a delete keeps for its Undo (V-78): a project's field, status, cycle,
- * milestone or form (a table's form is a form too), a time entry, a draft
- * invoice.
+ * milestone, form (a table's form is a form too) or link (basecamp-16), a
+ * time entry, a draft invoice.
  */
-export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | "time_entry" | "invoice"
+export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | "link" | "time_entry" | "invoice"
 
 /**
  * Brings back what a delete took: POST /restore/{kind}/{id} on the caller's
@@ -21,9 +21,18 @@ export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | 
 type Http = { post: (path: string, body: object, config: { suppressErrorToast: boolean }) => Promise<unknown> }
 const QUIET = { suppressErrorToast: true }
 
-export async function restore(http: Http, kind: RestoreKind, id: string, readAgain?: () => Promise<unknown>): Promise<void> {
+export function restore(http: Http, kind: RestoreKind, id: string, readAgain?: () => Promise<unknown>): Promise<void> {
+  return restoreBy(() => http.post(`/restore/${kind}/${encodeURIComponent(id)}`, {}, QUIET), readAgain)
+}
+
+/**
+ * The same, for a home with a restore route of its own, which checks the
+ * caller by that home's rule (an event call's recording: by its event's, calls
+ * follow-up 1). send is that request, sent quietly.
+ */
+export async function restoreBy(send: () => Promise<unknown>, readAgain?: () => Promise<unknown>): Promise<void> {
   try {
-    await http.post(`/restore/${kind}/${encodeURIComponent(id)}`, {}, QUIET)
+    await send()
   } finally {
     // The toast says the restore's own outcome: a read again that fails never
     // replaces a refusal's words, nor turns a restore that worked into one.

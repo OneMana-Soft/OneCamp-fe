@@ -12,7 +12,7 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
 }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 // Guests' working hours (calendar A3): none kept here.
-vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({}) }))
+vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()), usePeopleHours: () => ({ hours: {}, where: {} }) }))
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }), useFetch: () => ({ data: undefined, mutate: () => {} }) }))
 vi.mock("@/components/common/peoplePicker", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/common/peoplePicker")>()),

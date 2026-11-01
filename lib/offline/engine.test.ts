@@ -10,7 +10,7 @@ vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosIns
 
 import { answerFor, queue, queueBehind, queueCreate, replayNow, saveAnswer, send, start, stop } from "@/lib/offline/engine"
 import { OfflineStore } from "@/lib/offline/store"
-import { noteAnswered } from "@/lib/http/answered"
+import { noteAnswered, onRefusal } from "@/lib/http/answered"
 import { Outbox, MAX_OPS, type Op } from "@/lib/offline/outbox"
 import { getOfflineStatus } from "@/lib/offline/status"
 import { wipeOfflineStore } from "@/lib/offline/wipe"
@@ -192,6 +192,34 @@ describe("the server failing, refusing or asking to wait", () => {
     expect(await waiting()).toEqual([])
     expect(getOfflineStatus().notice).toMatchObject({ refused: 1, gone: 0 })
     expect(await answerFor(LIST)).toBeDefined()
+  })
+
+  it("a 403 on a queued write tells whoever holds the session (a member removed meanwhile), and is never sent again", async () => {
+    const heard = vi.fn()
+    const off = onRefusal(heard)
+    await queue(STATUS, STATUS, "POST", { task_uuid: "t1", task_status: "done" })
+    goOnline()
+    http.get.mockResolvedValue({ data: { data: { task_uuid: "t1", task_status: "todo" } } })
+    http.request.mockRejectedValue(answered(403))
+    await replayNow()
+    expect(heard).toHaveBeenCalledTimes(1)
+    expect(await waiting()).toEqual([])
+    const sent = http.request.mock.calls.length
+    await replayNow()
+    expect(http.request.mock.calls.length, "no retry loop").toBe(sent)
+    off()
+  })
+
+  it("tells no one for a refusal that isn't a 403", async () => {
+    const heard = vi.fn()
+    const off = onRefusal(heard)
+    await queue(STATUS, STATUS, "POST", { task_uuid: "t1", task_status: "done" })
+    goOnline()
+    http.get.mockResolvedValue({ data: { data: { task_uuid: "t1", task_status: "todo" } } })
+    http.request.mockRejectedValue(answered(422))
+    await replayNow()
+    expect(heard).not.toHaveBeenCalled()
+    off()
   })
 
   it("keeps a change made online behind the task's kept ones, and sends them in order", async () => {
@@ -565,5 +593,64 @@ describe("what was made offline, as the screens read it (P7-1c)", () => {
     } finally {
       s.close()
     }
+  })
+})
+
+describe("a task this device kept only from a board (asana-12, DESIGN-BUILD-62 MUST 1)", () => {
+  const BOARD = "/project/taskListForKanban/p1"
+  const MEMBER = { role: "member", view: true, comment: true, create_tasks: true, edit_tasks: "all" }
+  const card = { task_uuid: "t9", task_name: "Write the launch announcement", task_status: "todo", task_key: "Q4-1", task_assignee: { user_uuid: "ann" } }
+
+  it("opens with no network from what the board kept, marked partial, with its project's access as the board was read", async () => {
+    await saveAnswer(BOARD, { msg: "ok", data: { project_uuid: "p1", project_name: "Q4 launch", project_is_member: 1, project_access: MEMBER, project_tasks_todo: [card] } })
+    const page = (await answerFor("/task/info/t9")) as { partial?: boolean; data: TaskLike & Record<string, unknown> }
+    expect(page.partial).toBe(true)
+    expect(page.data).toMatchObject({ ...card, task_comments: [], task_project: { project_uuid: "p1", project_name: "Q4 launch", project_access: MEMBER } })
+    expect(canEditTask(page.data, "ann")).toBe(true)
+    expect(canCommentTask(page.data)).toBe(true)
+    // A change made offline shows on it, as it does on the board.
+    expect(await queue(STATUS, STATUS, "POST", { task_uuid: "t9", task_status: "done" })).toBe("kept")
+    expect(((await answerFor("/task/info/t9")) as { data: { task_status: string } }).data.task_status).toBe("done")
+    // The device's answer is never kept as one the server gave.
+    const s = await OfflineStore.open("ann")
+    try {
+      expect(await s.read("/task/info/t9")).toBeUndefined()
+    } finally {
+      s.close()
+    }
+  })
+
+  it("grants nothing the board didn't say, answers nothing for a task it holds nothing of, and a kept page stays the answer", async () => {
+    await saveAnswer(BOARD, { msg: "ok", data: { project_uuid: "p1", project_tasks_todo: [card] } })
+    const bare = (await answerFor("/task/info/t9")) as { partial?: boolean; data: TaskLike }
+    expect(bare.partial).toBe(true)
+    expect(bare.data.task_project).toEqual({ project_uuid: "p1" })
+    expect(canEditTask(bare.data, "ann")).toBe(false)
+    expect(await answerFor("/task/info/t-unknown")).toBeUndefined()
+    await saveAnswer("/task/info/t9", { msg: "ok", data: { ...card, task_comments: [{ comment_uuid: "c1" }] } })
+    const read = (await answerFor("/task/info/t9")) as { partial?: boolean; data: { task_comments: unknown[] } }
+    expect(read.partial).toBeUndefined()
+    expect(read.data.task_comments).toHaveLength(1)
+  })
+})
+
+// CODE-REVIEWER-141 MUST 1 (row 2179): the server sends task_hidden only on a stub, and the store merges what it keeps,
+// so a kept flag must be as of the newest read: a whole read clears what a stub set, and a stub still sets it.
+describe("CR-141: the hidden flag is as of the newest read", () => {
+  const BOARD = "/project/taskListForKanban/p2"
+  const card = { task_uuid: "x2", task_name: "Sign the vendor contract", task_status: "todo", task_key: "V-7" }
+
+  it("a task once linked hidden opens offline after its own board shows it (restriction lifted)", async () => {
+    await saveAnswer("/task/info/t3", { msg: "ok", data: { task_uuid: "t3", task_project: { project_uuid: "p1" }, task_blocks: [{ task_uuid: "x2", task_hidden: true }] } })
+    await saveAnswer(BOARD, { msg: "ok", data: { project_uuid: "p2", project_name: "Vendors", project_tasks_todo: [card] } })
+    const page = (await answerFor("/task/info/x2")) as { partial?: boolean; data?: Record<string, unknown> } | undefined
+    expect(page?.partial).toBe(true)
+    expect(page?.data?.task_name).toBe("Sign the vendor contract")
+  })
+
+  it("a task its board showed, then linked hidden (restricted since), builds no page", async () => {
+    await saveAnswer(BOARD, { msg: "ok", data: { project_uuid: "p2", project_name: "Vendors", project_tasks_todo: [card] } })
+    await saveAnswer("/task/info/t3", { msg: "ok", data: { task_uuid: "t3", task_project: { project_uuid: "p1" }, task_blocks: [{ task_uuid: "x2", task_hidden: true }] } })
+    expect(await answerFor("/task/info/x2")).toBeUndefined()
   })
 })

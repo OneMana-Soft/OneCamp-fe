@@ -123,7 +123,7 @@ export function MobileTopNavigationBarThird() {
                 break
 
             case "calendar":
-                return <div className='flex space-x-1'>
+                return path[3] === "event" ? null : <div className='flex space-x-1'>
                     <Button aria-label='Calendar options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'calendarOptionsDrawer' }))}}><Ellipsis className='h-5'/></Button>
                 </div>
 

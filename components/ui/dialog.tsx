@@ -7,6 +7,7 @@ import { X } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
 import { ix } from "@/lib/ui/interactive"
 import { useSheetMode } from "@/components/ui/overlayMode"
+import { useSheetMark } from "@/components/ui/sheetMark"
 
 const Dialog = DialogPrimitive.Root
 
@@ -99,11 +100,13 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { size?: DialogSize; hideClose?: boolean }
 >(({ className, children, onOpenAutoFocus, size = "md", hideClose = false, ...props }, ref) => {
   const sheet = useSheetMode() ? "" : undefined
+  // Drawn as a sheet, it marks the page as every sheet does (components/ui/sheetMark).
+  const marks = useSheetMark(ref)
   return (
     <DialogPortal>
       <DialogOverlay data-v3-scrim={sheet} />
       <DialogPrimitive.Content
-        ref={ref}
+        ref={marks}
         data-size={size}
         data-v3-sheet={sheet}
         data-overlay="dialog"

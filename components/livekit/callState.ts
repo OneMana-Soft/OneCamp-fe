@@ -8,6 +8,7 @@ import { readBreakouts, type CallBreakouts } from "@/lib/calls/breakouts"
 import { holdsOf, type CallHold } from "@/lib/calls/holds"
 import type { Knock } from "@/lib/calls/lobby"
 import { readSignal, type SignalSender } from "@/lib/calls/signals"
+import { SLIDE_ID } from "@/lib/calls/slideId"
 
 /** Where captioned speech is turned into text: the CALLS-FE ↔ CALLS-BE contract's `where`. */
 export type TranscriptionWhere = "browser" | "server" | "deepgram" | "google" | "openai" | "custom"
@@ -58,6 +59,8 @@ export interface CallBoard {
   by: string
   draw: "everyone" | "presenter"
   guests: boolean
+  /** The frame everyone is shown (Slides control, meet-14): its element id; none for the whole board. */
+  slide?: string
 }
 
 export interface CallMetadata {
@@ -169,7 +172,8 @@ export function readCallMetadata(raw: string | null | undefined): CallMetadata {
   if (m.board && typeof m.board === "object") {
     const b = m.board as Record<string, unknown>
     const uuid = str(b.uuid)
-    if (uuid) meta.board = { uuid, by: str(b.by) ?? "", draw: b.draw === "presenter" ? "presenter" : "everyone", guests: b.guests === true }
+    const slide = str(b.slide)
+    if (uuid) meta.board = { uuid, by: str(b.by) ?? "", draw: b.draw === "presenter" ? "presenter" : "everyone", guests: b.guests === true, ...(slide && SLIDE_ID.test(slide) ? { slide } : {}) }
   }
   return meta
 }

@@ -16,7 +16,7 @@ export interface ViewState {
 
 /** How a table draws as a view keeps it: all but a phone's list mode and the groups a reader collapsed. */
 export function drawnAs(d: TableDisplay): ViewState["display"] {
-  return { rowHeight: d.rowHeight, hidden: d.hidden, summary: d.summary, widths: d.widths, boardGroup: d.boardGroup, colors: d.colors }
+  return { rowHeight: d.rowHeight, hidden: d.hidden, summary: d.summary, widths: d.widths, boardGroup: d.boardGroup, colors: d.colors, frozen: d.frozen }
 }
 
 /** A saved view as the page applies it, made good against the table's fields now. */

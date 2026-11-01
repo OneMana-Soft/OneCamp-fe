@@ -16,7 +16,7 @@ vi.mock("@/lib/loadChunk", () => ({
         said()
         return null
       }
-      return { keepOffTheField: slot.keep }
+      return { keepOff: slot.keep }
     },
   }),
 }))

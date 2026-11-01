@@ -6,7 +6,7 @@
  * Built on LiveKit's ParticipantTile for its contexts and click handling, with
  * our own contents in place of LiveKit's defaults.
  */
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import {
   ParticipantTile,
   VideoTrack,
@@ -18,7 +18,7 @@ import {
   type TrackReference,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react"
-import { ConnectionQuality, ParticipantKind, Track, type Participant } from "livekit-client"
+import { ConnectionQuality, Track, type Participant } from "livekit-client"
 import { Pin, PinOff } from "@/lib/icons"
 import type { PersonAction } from "@/lib/calls/control"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -29,6 +29,7 @@ import { useHandPlace } from "./handsQueue"
 const HandBadge = dynamic(() => import("./HandBadge").then((m) => m.HandBadge), { ssr: false })
 import { NamePlate, SpeakingRing, StageFace, useRing } from "./CallStage"
 import { guestName } from "./callLevels"
+import { isAgentParticipant, useCallHues } from "./callHues"
 import { useTileWho } from "./callSelf"
 import { PersonActionsMenu, useCallPart } from "./callHosting"
 
@@ -37,23 +38,20 @@ export function cameraIsOff(trackRef: Pick<TrackReferenceOrPlaceholder, "source"
   return trackRef.source === Track.Source.Camera && (!trackRef.publication || muted)
 }
 
-/** An agent in a call is a LiveKit agent participant: drawn as the agent square, never a person. */
-export function isAgentParticipant(p: { kind?: ParticipantKind } | undefined): boolean {
-  return p?.kind === ParticipantKind.AGENT
-}
-
 /**
- * A person whose camera is off, in their own colour, inside a LiveKit tile.
- * LiveKit's placeholder was the same grey silhouette for everybody.
+ * A person whose camera is off, in their colour in the call, inside a LiveKit
+ * tile. LiveKit's placeholder was the same grey silhouette for everybody. The
+ * tile's plate names them, so the face's own name is for the eye only.
  */
 export function CameraOffFace({ trackRef, size = "md" }: { trackRef: TrackReferenceOrPlaceholder; size?: "sm" | "md" | "lg" }) {
   const muted = useIsMuted(trackRef)
   const who = trackRef.participant
   const shown = useTileWho(who)
+  const hueOf = useCallHues()
   if (!cameraIsOff(trackRef, muted)) return null
   const { name } = guestName(shown.identity, shown.name || shown.identity || "Guest")
   // A small tile's plate already says the name.
-  return <StageFace identity={shown.identity} name={name} agent={isAgentParticipant(who)} showName={size !== "sm"} />
+  return <StageFace identity={shown.identity} name={name} hue={hueOf(shown.identity, name)} agent={isAgentParticipant(who)} showName={size !== "sm"} plateNames />
 }
 
 /** A participant's audio level, read 10 times a second while they speak, else 0. */
@@ -80,6 +78,7 @@ export function StageTile({
   contain = false,
   actionsFor,
   onAction,
+  layer,
   className,
 }: {
   trackRef?: TrackReferenceOrPlaceholder
@@ -95,6 +94,8 @@ export function StageTile({
    */
   actionsFor?: (participant: Participant) => PersonAction[]
   onAction?: (action: PersonAction, participant: Participant) => void
+  /** What is drawn over the picture, under the plate and the tile's controls: a shared screen's ink (callInk). */
+  layer?: ReactNode
   className?: string
 }) {
   const trackRef = useEnsureTrackRef(given)
@@ -113,6 +114,7 @@ export function StageTile({
   const showVideo = !!trackRef.publication && !cameraIsOff(trackRef, camMuted)
   // Your own part has no identity or name until the call connects: the call's token says both (callSelf).
   const shown = useTileWho(who)
+  const hueOf = useCallHues()
   const { name, guest } = guestName(shown.identity, shown.name || shown.identity || "Guest")
   const agent = isAgentParticipant(who)
   // Someone let in by the call's invite, as the server names their part (calls HU13).
@@ -126,19 +128,26 @@ export function StageTile({
       data-stage-tile=""
       className={cn(
         "group/tile relative h-full w-full overflow-hidden rounded-[14px] bg-[#16171A] ring-1 ring-inset ring-white/[0.06] [container-type:size] focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-brand",
+        // LiveKit's focus toggle, which ParticipantTile draws in every tile and shows on a hover or a tap: our pin is the
+        // one control in that corner, and the toggle never takes a Tab (DESIGN-BUILD-55). Important, as LiveKit's CSS is unlayered.
+        "[&_.lk-focus-toggle-button]:!hidden",
         reconnecting && "opacity-60",
         className,
       )}
     >
       <ParticipantTile trackRef={trackRef} onParticipantClick={onParticipantClick} className="!h-full !w-full !rounded-none !bg-transparent">
+        {/* Always contents of ours, if only an empty one: given none, LiveKit draws its own silhouette, mic and name in the tile (DESIGN-BUILD-55). */}
         {showVideo ? (
           <VideoTrack trackRef={trackRef as TrackReference} className={cn("h-full w-full", contain || screen ? "object-contain" : "object-cover")} />
-        ) : null}
+        ) : (
+          <></>
+        )}
       </ParticipantTile>
       <CameraOffFace trackRef={trackRef} size={size} />
       {/* A 4% white overlay on hover. */}
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-white/0 transition-colors group-hover/tile:bg-white/[0.04]" />
-      {!screen ? <SpeakingRing identity={shown.identity} name={name} opacity={ring} agent={agent} /> : null}
+      {layer}
+      {!screen ? <SpeakingRing identity={shown.identity} name={name} hue={hueOf(shown.identity, name)} opacity={ring} agent={agent} /> : null}
       {handPlace !== null && !screen ? <HandBadge place={handPlace} className="absolute left-2 top-2 z-[3]" /> : null}
       <NamePlate
         name={screen ? `${name} is presenting` : name}
@@ -179,6 +188,9 @@ export function StageTile({
           className={cn(
             "absolute right-2 top-2 z-[3] grid size-7 place-items-center rounded-[8px] bg-[rgb(11_12_14/0.72)] text-[#EEEEF0] transition-opacity focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-brand [&_svg]:size-3.5",
             pinned ? "opacity-100" : "opacity-0 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100",
+            // While you draw on this tile's share, the pin steps aside for the drawing bar, which a phone's narrow tile
+            // gives its whole width (callInk's data-ink-drawing; DESIGN-BUILD-57 MUST 1).
+            "group-has-[[data-ink-drawing]]/tile:hidden",
           )}
         >
           {pinned ? <PinOff /> : <Pin />}

@@ -267,3 +267,33 @@ describe("the canvas's theme", () => {
     await waitFor(() => expect(canvas.theme).toBe("dark"))
   })
 })
+
+// Slides control (meet-14): on a call's stage the guest's camera follows the
+// room's slide (components/livekit/stageSlides), which reads the frames and
+// their kept order through the viewer.
+describe("a call's guest and the room's slide", () => {
+  const drawn = [{ id: "f1", version: 1, versionNonce: 1, isDeleted: false }]
+
+  it("frames the drawing on a first visit, but leaves the camera to the stage when the board opens at a slide", async () => {
+    scene = drawn
+    collab = { provider: { document: new Y.Doc() }, synced: true, readOnly: true }
+    api.scrollToContent.mockClear()
+    render(viewer())
+    await waitFor(() => expect(api.scrollToContent).toHaveBeenCalledWith(drawn, expect.objectContaining({ fitToContent: true })))
+    cleanup()
+    scene = drawn
+    api.scrollToContent.mockClear()
+    render(viewer({ opensAt: "f1" }))
+    // Past the first framing's frame, and its first retry.
+    await new Promise((r) => setTimeout(r, 250))
+    expect(api.scrollToContent).not.toHaveBeenCalled()
+  })
+
+  it("hands the stage Excalidraw's API and the board's document", async () => {
+    const doc = new Y.Doc()
+    collab = { provider: { document: doc }, synced: true, readOnly: true }
+    const ready = vi.fn()
+    render(viewer({ onApiReady: ready }))
+    await waitFor(() => expect(ready).toHaveBeenCalledWith(api, doc))
+  })
+})

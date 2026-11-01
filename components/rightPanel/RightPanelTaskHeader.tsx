@@ -24,6 +24,7 @@ import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { chordMatches, chordWords, isMacLike } from "@/lib/keys/chord"
 import { showPageKeys } from "@/lib/shortcuts/pageGroups"
 import { app_project_path, app_task_path } from "@/types/paths"
+import { taskPageHref, taskPageUrl } from "@/lib/work/taskLinks"
 import { openUI } from "@/store/slice/uiSlice"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
@@ -179,10 +180,10 @@ export function RightPanelTaskHeader({
     }, [justDone])
 
     // The task's own page: what Open the full page goes to and Copy link copies.
-    const pageHref = `${app_task_path}/${taskKey || taskUUID}`
+    const pageHref = taskPageHref(taskKey, taskUUID)
     const copyTaskLink = useCallback(() => {
-        copyToClipboard.copy(`${window.location.protocol}//${window.location.host}${pageHref}`, "Link copied")
-    }, [pageHref, copyToClipboard])
+        copyToClipboard.copy(taskPageUrl(taskKey, taskUUID), "Link copied")
+    }, [taskKey, taskUUID, copyToClipboard])
 
     const handleMarkComplete = useCallback(
         (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -212,6 +213,8 @@ export function RightPanelTaskHeader({
     return (
         <div
             data-task-header=""
+            // The header row a sheet keeps the toasts under (components/ui/toastFootSlot).
+            data-sheet-header=""
             className={cn(
                 "@container/taskhead flex h-[52px] shrink-0 items-center gap-2 border-b pl-5 pr-2.5 transition-colors",
                 scrolled ? "border-line" : "border-transparent",

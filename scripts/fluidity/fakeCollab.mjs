@@ -96,6 +96,43 @@ export function readFrame(bytes) {
   return msg
 }
 
+/** A tab's sign-in to `name` with `token`, as the provider sends it. */
+export function authFrame(name, token) {
+  return frame(name, MSG.auth, (b) => { writeUint(b, 0); writeString(b, token) })
+}
+
+/** An awareness update for `name`: each entry's client, clock and state, as y-protocols encodes them. */
+export function awarenessFrame(name, entries) {
+  const body = []
+  writeUint(body, entries.length)
+  for (const e of entries) {
+    writeUint(body, e.clientId)
+    writeUint(body, e.clock)
+    writeString(body, JSON.stringify(e.state))
+  }
+  return frame(name, MSG.awareness, (b) => writeBytes(b, body))
+}
+
+/**
+ * An awareness update's states with each person's user stamped `edit`, as the collaboration service's
+ * presenceGuard.js stamps a member's from their sign-in (the member list), whatever the tab said. A state with no
+ * user object is left as it is. (This fake knows no guests: the service stamps a guest's user with nothing.)
+ */
+export function stampEdit(payload, edit) {
+  const r = new Reader(payload)
+  const out = []
+  const count = r.uint()
+  writeUint(out, count)
+  for (let n = count; n > 0; n--) {
+    writeUint(out, r.uint())
+    writeUint(out, r.uint())
+    const state = JSON.parse(r.string())
+    if (state && typeof state === "object" && state.user && typeof state.user === "object") state.user = { ...state.user, edit }
+    writeString(out, JSON.stringify(state))
+  }
+  return Uint8Array.from(out)
+}
+
 // As the collaboration service's lineage.js: an update that inserts an item at
 // the top of the body with nothing before or after it, into a body that has
 // content, is a whole second copy of the doc (a tab holding an earlier one).
@@ -207,8 +244,17 @@ export function createFakeCollab(o = {}) {
         return
       }
       if (m.type === MSG.awareness) {
-        entry.awareness = m.payload
-        broadcast(name, frame(name, MSG.awareness, (b) => writeBytes(b, m.payload)))
+        // Each person's user says whether they may edit, from this server's say (stampEdit). Unlike the
+        // service, a reader's presenting and bring pass on here, so a board e2e proves the tabs' own check; the
+        // service's drop is pinned by its presenceGuard.test.js. An update it can't read is dropped.
+        let stamped
+        try {
+          stamped = stampEdit(m.payload, !entry.readOnly)
+        } catch {
+          return
+        }
+        entry.awareness = stamped
+        broadcast(name, frame(name, MSG.awareness, (b) => writeBytes(b, stamped)))
         return
       }
       if (m.type === MSG.close) {

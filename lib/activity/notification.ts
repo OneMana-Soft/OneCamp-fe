@@ -50,6 +50,12 @@ export function kindOf(item: UnifiedActivityItem): KindBadgeKind {
 
 export interface Sentence {
   actor: UserProfileDataInterface | undefined
+  /**
+   * The verb is the whole sentence's subject ("A rule asks you to look at"): the
+   * row draws no name and no face. With no actor and no ownSubject, someone did
+   * it whom the sentence doesn't name, and the row says "Someone".
+   */
+  ownSubject?: true
   verb: string
   /** The place or object, in bold after the verb ("#engineering", "Customer onboarding"). */
   place: string
@@ -95,7 +101,7 @@ export function sentenceOf(item: UnifiedActivityItem): Sentence {
   }
   if (item.activity_type === "NOTICE" && item.notice) {
     const w = noticeWords(item.notice)
-    return { actor: w.actor, verb: w.verb, place: w.place, preview: w.preview, at: item.notice.created_at || item.time }
+    return { actor: w.actor, ownSubject: w.ownSubject, verb: w.verb, place: w.place, preview: w.preview, at: item.notice.created_at || item.time }
   }
   if (item.activity_type === "REACTION" && r) {
     const place = channelName(r.post?.post_channel?.ch_name) || (r.chat ? "a direct message" : "")

@@ -34,7 +34,7 @@ export function isToastHotkey(e: Pick<KeyboardEvent, "altKey" | "metaKey" | "ctr
   return !isTypedInto(t)
 }
 
-/** The toasts' foot slot (toastFootSlot.ts), fetched with the first field used. */
+/** The toasts' foot slot (toastFootSlot.ts), fetched with the first field or sheet. */
 const footSlot = lazyChunk(() => import("./toastFootSlot"))
 
 const ToastViewport = React.forwardRef<
@@ -67,20 +67,21 @@ const ToastViewport = React.forwardRef<
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
   }, [])
-  // On a phone the toasts keep off the field in use (toastFootSlot), code that
-  // loads with the first field used. When it can't come (no network), the next
-  // field used asks again (V-67): its failure never goes unanswered.
+  // On a phone the toasts keep off the field in use or a sheet (toastFootSlot),
+  // code that loads with the first field used or sheet. When it can't come (no
+  // network), the next field used asks again (V-67): its failure never goes
+  // unanswered.
   React.useEffect(() => {
     const vp = own.current!
     let stop: (() => void) | undefined
     let cancelled = false
     const onIn = (e: FocusEvent) => {
-      if (!isTypedInto(e.target)) return
+      if (!isTypedInto(e.target) && !(e.target as Element).closest?.("[data-v3-sheet]")) return
       document.removeEventListener("focusin", onIn)
       void footSlot
         .use(() => cancelled || document.addEventListener("focusin", onIn))
         .then((m) => {
-          if (m && !cancelled) stop = m.keepOffTheField(vp)
+          if (m && !cancelled) stop = m.keepOff(vp)
         })
     }
     document.addEventListener("focusin", onIn)

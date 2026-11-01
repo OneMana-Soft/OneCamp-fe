@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type TestInfo } from "@playwrigh
 import { expectToolsInLine } from "./boardTools"
 import { fakeCallServer, type FakePerson } from "./fakeCallServer"
 import { fakeSpeech, speechCounts } from "./fakeSpeech"
+import { facesClear } from "./stageFaces"
 import { reviewShot, SAM, SHOT_THEMES, stubBackend, withStatus } from "./stubbedApp"
 
 // Breakout rooms for whoever runs the call (calls package C, meet-10 and
@@ -286,6 +287,7 @@ for (const [label, viewport, touch] of [
       // A phone pages its tiles; a wide stage shows all four.
       if (!touch) await expect(page.locator("[data-name-plate]")).toHaveCount(4)
       await captionsClear(page, page.getByRole("toolbar", { name: "Call controls" }))
+      await expect.poll(() => facesClear(page), { message: "every face is clear of its name plate" }).toBe("clear")
       await shots(page, "captions-four-nobar")
 
       const open = { open: true, rooms: ROOMS, assigned: { [JO.identity]: 2, [PRIYA.identity]: 1 }, endsAt: Date.now() + 15 * 60_000 }
@@ -293,6 +295,7 @@ for (const [label, viewport, touch] of [
       const bar = page.getByRole("region", { name: "Breakout rooms" })
       await expect(bar).toContainText("Visit a breakout room")
       await captionsClear(page, bar)
+      await expect.poll(() => facesClear(page), { message: "every face is clear of its name plate" }).toBe("clear")
       await shots(page, "captions-four-bar")
     })
 
@@ -366,8 +369,9 @@ for (const [label, viewport, touch] of [
 
       server.releaseJoin()
       await expect.poll(server.connected, { message: "the room connected to the fake call server", timeout: 30_000 }).toBe(true)
-      // A phone pages its tiles, two to a page, your own first; a wide stage shows all three.
-      await expect(tiles).toHaveCount(touch ? 2 : 3)
+      // The stage fits all three on one page at both widths (stageLayout: no tile under 160x90), your own first.
+      await expect(tiles).toHaveCount(3)
+      await expect(tiles.first()).toContainText(SAM.user_full_name)
       await expect(tiles.filter({ hasText: SAM.user_full_name })).toHaveCount(1)
       await expect(tiles.filter({ hasText: "Guest" })).toHaveCount(0)
     })

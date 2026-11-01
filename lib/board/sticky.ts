@@ -81,18 +81,26 @@ export interface Box {
   height: number
 }
 
-const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+/** Whether two boxes share any of their area. */
+export const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 
 /**
  * Where the next note goes beside `from`: to its right (or below), past any
  * shape already there, so a quick run of notes never lands on top of
- * another. Pure.
+ * another. `size` is the note's side, or the width and height of what goes
+ * there (a card, lib/board/cards). Pure.
  */
-export function nextNoteSpot(from: Box, taken: readonly Box[], direction: "right" | "below" = "right", size = from.width): { x: number; y: number } {
+export function nextNoteSpot(
+  from: Box,
+  taken: readonly Box[],
+  direction: "right" | "below" = "right",
+  size: number | Pick<Box, "width" | "height"> = from.width,
+): { x: number; y: number } {
+  const { width, height } = typeof size === "number" ? { width: size, height: size } : size
   const step = (direction === "right" ? from.width : from.height) + NOTE_GAP
   for (let i = 1; i <= 50; i++) {
     const spot = direction === "right" ? { x: from.x + step * i, y: from.y } : { x: from.x, y: from.y + step * i }
-    const box = { ...spot, width: size, height: size }
+    const box = { ...spot, width, height }
     if (!taken.some((t) => overlaps(box, t))) return spot
   }
   return direction === "right" ? { x: from.x + step, y: from.y } : { x: from.x, y: from.y + step }

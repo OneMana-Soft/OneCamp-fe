@@ -4190,6 +4190,12 @@ padding: 0;
   display: grid;
   place-items: center;
 }
+/* A person's mark is the assignee picker's own avatar (components/ui/paletteMark), 28px on a phone there: 20 here at
+   every width, as every mark. */
+.palette-mark > .relative > span:first-child {
+  width: 20px;
+  height: 20px;
+}
 .palette[data-phone] .palette-meta {
   max-width: 34%;
 }
@@ -4337,25 +4343,40 @@ button.palette-source:focus-visible {
   color: var(--ink-3);
 }
 
-/* Space's peek: 360px beside the palette, e3 r12, in from 8px over 160ms.
-   Where the window has no room beside it, it sits at the right edge. */
+/* Space's peek: beside the palette or inside it, never over it
+   (DESIGN-BUILD-62). It is drawn in the palette, under the list. Where the
+   window has a gutter for it (1200px and up) it is fixed beside the palette:
+   12px clear of its edge, up to 360px wide and 16px in from the window's
+   (288px at 1280), e3 r12, in from 8px over 160ms. The open palette has no
+   transform, so fixed is the window's. Under 1200px the gutter can't hold its
+   keys on one line, so it stays where it is drawn: a raised card under the
+   list, which gives it room. */
 .palette-peek {
   position: fixed;
   z-index: var(--z-modal);
   top: 14dvh;
   left: calc(50% + 332px);
-  width: 360px;
+  width: min(360px, calc(50vw - 348px));
   padding: 16px;
   border-radius: 12px;
   background: var(--pop);
   box-shadow: var(--e3);
   animation: palette-peek-in 160ms var(--ease-out);
 }
-@media (max-width: 1399.98px) {
+@media (max-width: 1199.98px) {
   .palette-peek {
-    left: auto;
-    right: 16px;
-    top: calc(14dvh + 72px);
+    position: static;
+    flex: none;
+    width: auto;
+    margin: 0 6px 6px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--raised);
+    box-shadow: var(--e1);
+    animation: palette-fade-in 160ms var(--ease-out);
+  }
+  .palette:has(.palette-peek) .palette-list {
+    max-height: min(44dvh, 440px);
   }
 }
 

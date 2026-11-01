@@ -46,7 +46,24 @@ export function isServerUnreachable(): boolean {
   return unreachable
 }
 
+/**
+ * The app's ONE connectivity state: the browser has no network, or the server
+ * is unreachable. OfflineNotice says it, and a read that got no answer waits
+ * quietly only while it holds (hooks/useFetch).
+ */
+export function isAppOffline(): boolean {
+  return unreachable || (typeof navigator !== "undefined" && navigator.onLine === false)
+}
+
+let watching = false
+
+/** Hears every change of isAppOffline: the server's misses and answers, and the browser's network. */
 export function subscribeConnectivity(listener: Listener): () => void {
+  if (!watching) {
+    watching = true
+    window.addEventListener("online", emit)
+    window.addEventListener("offline", emit)
+  }
   listeners.add(listener)
   return () => {
     listeners.delete(listener)

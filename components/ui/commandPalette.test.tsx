@@ -5,6 +5,9 @@ import type { SearchResult } from "@/services/searchService"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { hueFor } from "@/lib/campHue"
+import { CHIP_TONE } from "@/lib/ui/chipTone"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { PEEK_READ_REST_MS } from "@/components/ui/palettePeek"
 
 const push = vi.fn()
 const dispatched = vi.fn()
@@ -35,17 +38,28 @@ vi.mock("react-redux", () => ({
 let answer: SearchResult[] = []
 let searchFails = false
 const asked: string[] = []
+// A task's own read (GET /task/info/{id}), by id; one missing answers 404.
+let taskInfo: Record<string, Record<string, unknown>> = {}
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     if (url) asked.push(url)
     if (url.startsWith("/search/unifiedSearch/") && searchFails) return { data: undefined, isError: Object.assign(new Error("Request failed with status code 500"), { response: { status: 500 } }), isLoading: false }
     if (url.startsWith("/search/unifiedSearch/")) return { data: { data: { page: answer } }, isLoading: false }
+    if (url.startsWith("/task/info/")) {
+      const task = taskInfo[url.slice("/task/info/".length)]
+      return task ? { data: { msg: "ok", data: task }, isLoading: false } : { data: undefined, isError: Object.assign(new Error("Request failed with status code 404"), { response: { status: 404 } }), isLoading: false }
+    }
     return { data: { data: { user_uuid: "me", user_is_admin: false } }, isLoading: false }
   },
   useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "me" } } }),
 }))
-// The search waits for a pause in typing; here every key is the pause.
-vi.mock("@/hooks/useDebounce", () => ({ useDebounce: <T,>(v: T) => v }))
+// The search waits for a pause in typing; here every key is the pause, except in a test that runs the real wait on
+// fake timers (the peek's rest). It is set before the palette mounts and put back after, so a mount never switches.
+let realDebounce = false
+vi.mock("@/hooks/useDebounce", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/hooks/useDebounce")>()
+  return { useDebounce: <T,>(v: T, delay?: number) => (realDebounce ? real.useDebounce(v, delay) : v) }
+})
 vi.mock("@/services/aiSearchService", () => ({
   unifiedSearch: vi.fn(async () => ({ enabled: false, groups: [] })),
   isAbortedRequest: () => false,
@@ -76,11 +90,13 @@ import { GO_KEYS } from "@/lib/goKeys"
 
 beforeEach(() => {
   answer = []
+  taskInfo = {}
   searchFails = false
   features = {}
   state.recentItems.items = []
   asked.length = 0
   push.mockClear()
+  realDebounce = false
 })
 afterEach(cleanup)
 
@@ -528,5 +544,309 @@ describe("previews and open beside (shell P3)", () => {
     expect(ev.defaultPrevented).toBe(false)
     expect(document.querySelector(".palette-peek")).toBeNull()
   })
+
+  // DESIGN-BUILD-62 MUST 1: the peek carries text, so a hit's context reaches it
+  // as words (hitContextText), never as String() of the row's element.
+  it("a search hit's preview says where the hit is from, as its row does, never [object Object]", () => {
+    answer = [{ type: "task", task: { task_id: "t-room", task_name: "Book the launch room", task_project_name: "Q4 launch" } }] as SearchResult[]
+    const input = open()
+    type(input, "launch room")
+    act(() => void fireEvent.keyDown(input, { key: "ArrowDown" }))
+    act(() => void fireEvent.keyDown(input, { key: "ArrowUp" }))
+    expect(document.querySelector(".palette [cmdk-item][data-selected=true]")?.textContent).toContain("Book the launch room")
+    act(() => void fireEvent.keyDown(input, { key: " " }))
+    const peek = document.querySelector(".palette-peek")
+    expect(peek?.textContent).toContain("Book the launch room")
+    expect(peek?.textContent).toContain("Q4 launch")
+    expect(peek?.textContent).not.toContain("[object Object]")
+  })
+
+  // DESIGN-BUILD-62 MUST 2: a preview sits beside the palette or inside it, never
+  // over it. It is drawn in the palette, under the list and above the footer's
+  // keys, and the CSS sets it beside the palette where the window has room for
+  // it (e2e/palettePeek.spec.ts measures it beside at 1280 and inside at 1024).
+  it("the preview is drawn in the palette, under the list and above the footer's keys", () => {
+    state.recentItems.items = [{ id: "d1", type: "doc", title: "Launch sync notes", path: "/app/doc/d1", timestamp: 1 }]
+    const input = open()
+    act(() => void fireEvent.keyDown(input, { key: " " }))
+    const peek = document.querySelector(".palette-peek")
+    expect(peek?.textContent).toMatch(/Launch sync notes/)
+    expect(document.querySelector(".palette")?.contains(peek)).toBe(true)
+    expect(peek?.previousElementSibling?.hasAttribute("cmdk-list")).toBe(true)
+    expect(peek?.nextElementSibling?.classList.contains("palette-footer")).toBe(true)
+  })
+
+  // V-db63-1 S2: a preview earns its place with what the row can't show, as
+  // Linear's peek opens an issue's properties and body.
+  const ROOM_HIT = {
+    type: "task",
+    task: {
+      task_id: "t-room", task_name: "Book the launch room", task_project_name: "Q4 launch", task_status: "inProgress", task_priority: "high",
+      task_assignee_user_full_name: "Maya Chen", task_desc: "<p>Ask facilities for the big room.</p><p>Then book the screens.</p>",
+    },
+  }
+  /** Onto the hit called `title` with the arrows, then Space: its preview. */
+  const peekTheHit = (input: HTMLInputElement, title: string) => {
+    act(() => void fireEvent.keyDown(input, { key: "ArrowDown" }))
+    act(() => void fireEvent.keyDown(input, { key: "ArrowUp" }))
+    expect(document.querySelector(".palette [cmdk-item][data-selected=true]")?.textContent).toContain(title)
+    act(() => void fireEvent.keyDown(input, { key: " " }))
+    return document.querySelector(".palette-peek")
+  }
+  const factOf = (kind: string) => document.querySelector(`.palette-peek [data-peek-fact="${kind}"]`)?.textContent ?? null
+
+  it("a task hit's preview shows its status, priority, assignee and its description's first line, and its due date from the task's one read", () => {
+    const due = new Date()
+    due.setDate(due.getDate() + 1)
+    due.setHours(17, 0, 0, 0)
+    answer = [ROOM_HIT] as SearchResult[]
+    taskInfo["t-room"] = {
+      task_name: "Book the launch room", task_status: "inProgress", task_custom_status_name: "Booking", task_priority: "high",
+      task_assignee: { user_name: "Maya Chen" }, task_due_date: due.toISOString(),
+    }
+    const input = open()
+    type(input, "launch room")
+    // Listing the hit reads nothing more: the task's read waits for its preview.
+    expect(asked.some((u) => u.startsWith("/task/info/"))).toBe(false)
+    const peek = peekTheHit(input, "Book the launch room")
+    expect(asked).toContain("/task/info/t-room")
+    expect(factOf("status")).toBe("Status: Booking")
+    expect(factOf("priority")).toBe("Priority: High")
+    expect(factOf("assignee")).toBe("Assignee: Maya Chen")
+    expect(factOf("due")).toBe("Due date: Tomorrow")
+    expect(peek?.querySelector("[data-peek-body]")?.textContent).toBe("Ask facilities for the big room.")
+    // Where it's from is its project; its assignee has a property of its own, so the preview names them once.
+    expect(peek?.textContent).toContain("Q4 launch")
+    expect(peek?.textContent?.match(/Maya Chen/g)).toHaveLength(1)
+  })
+
+  it("a task its preview can't read keeps the hit's own properties, with no due date", () => {
+    answer = [ROOM_HIT] as SearchResult[]
+    const input = open()
+    type(input, "launch room")
+    peekTheHit(input, "Book the launch room")
+    expect(asked).toContain("/task/info/t-room")
+    expect(factOf("status")).toBe("Status: In progress")
+    expect(factOf("priority")).toBe("Priority: High")
+    expect(factOf("assignee")).toBe("Assignee: Maya Chen")
+    expect(factOf("due")).toBeNull()
+  })
+
+  it("a doc hit's preview shows the first line of its body, and no properties", () => {
+    answer = [{ type: "doc", doc: { doc_uuid: "d-zephyr", doc_title: "Zephyr launch notes", doc_snippet: "Goals for the launch week\nOwners and dates", doc_created_by_user_full_name: "Ana Diaz" } }] as SearchResult[]
+    const input = open()
+    type(input, "zephyr")
+    const peek = peekTheHit(input, "Zephyr launch notes")
+    expect(peek?.querySelector("[data-peek-body]")?.textContent).toBe("Goals for the launch week")
+    expect(peek?.querySelector('[aria-label="Properties"]')).toBeNull()
+    expect(asked.some((u) => u.startsWith("/task/info/"))).toBe(false)
+  })
+
+  // DESIGN-BUILD-66's MUST 1: the properties are the design system's chips (components/ui/chip), as the task card draws
+  // them: the glyph inside the chip, a late due date in the danger tone, and each label a LabelChip with its hue's dot.
+  it("draws each property as the shared chip: a late due date in the danger tone, each label with its own hue's dot", () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    yesterday.setHours(0, 0, 0, 0)
+    answer = [ROOM_HIT] as SearchResult[]
+    taskInfo["t-room"] = { task_name: "Book the launch room", task_status: "inProgress", task_priority: "high", task_due_date: yesterday.toISOString(), task_label: "Launch, Ops" }
+    const input = open()
+    type(input, "launch room")
+    peekTheHit(input, "Book the launch room")
+    const facts = [...document.querySelectorAll(".palette-peek [data-peek-fact]")]
+    expect(facts.map((f) => f.getAttribute("data-peek-fact"))).toEqual(["status", "priority", "due", "label", "label"])
+    for (const f of facts) expect(f.querySelector("[data-chip]"), `${f.textContent} is a chip`).not.toBeNull()
+    const due = facts[2]
+    expect(due.textContent).toBe("Due date: Yesterday")
+    expect(due.getAttribute("data-due")).toBe("overdue")
+    const dueChip = due.querySelector("[data-chip]")!
+    for (const c of CHIP_TONE.danger.split(" ")) expect(dueChip.classList.contains(c), c).toBe(true)
+    expect(facts.slice(3).map((l) => l.textContent)).toEqual(["Label: Launch", "Label: Ops"])
+    expect(facts.slice(3).map((l) => l.querySelector("[data-chip-dot]")?.classList.contains(HUE_CLASS[hueFor(l.textContent!.slice("Label: ".length))]))).toEqual([true, true])
+  })
+
+  // CODE-REVIEWER-144's MUST 1 (row 2196): today's ink is pinned at the chip that draws it. Row 2193's symptom was a task
+  // due today in the danger ink, and the facts layer's pins can't see which tone the chip is given.
+  it("a task due today, at local midnight, reads Today on the sun chip, never the danger one", () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    answer = [ROOM_HIT] as SearchResult[]
+    taskInfo["t-room"] = { task_name: "Book the launch room", task_status: "inProgress", task_priority: "high", task_due_date: today.toISOString() }
+    const input = open()
+    type(input, "launch room")
+    peekTheHit(input, "Book the launch room")
+    const due = document.querySelector('.palette-peek [data-peek-fact="due"]')!
+    expect(due.textContent).toBe("Due date: Today")
+    expect(due.getAttribute("data-due")).toBe("today")
+    const dueChip = due.querySelector("[data-chip]")!
+    for (const c of CHIP_TONE.sun.split(" ")) expect(dueChip.classList.contains(c), c).toBe(true)
+    // Both tones carry shadow-none; the danger tone's own classes are its tint and its ink.
+    const sun = new Set(CHIP_TONE.sun.split(" "))
+    for (const c of CHIP_TONE.danger.split(" ").filter((c) => !sun.has(c))) expect(dueChip.classList.contains(c), c).toBe(false)
+  })
+
+  // CODE-REVIEWER-143's MUST 2: the preview reads a task only where the selection rests (PEEK_READ_REST_MS). Arrowing
+  // with the preview open reads none of the hits it passes, a doc's row between them included, and the task it stops on
+  // once, after the rest. The search's own pause and the peek's rest both run, on fake timers.
+  it("arrowing across hits with the preview open reads none it passes, and the task it rests on once, after the rest", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"] })
+    realDebounce = true
+    try {
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      tomorrow.setHours(0, 0, 0, 0)
+      const task = (id: string, name: string) => ({ type: "task", task: { task_id: id, task_name: name, task_project_name: "Q4 launch", task_status: "todo" } })
+      answer = [
+        task("t-room", "Zinnia room"),
+        task("t-screens", "Zinnia screens"),
+        { type: "doc", doc: { doc_uuid: "d-notes", doc_title: "Zinnia notes", doc_snippet: "Goals" } },
+        task("t-party", "Zinnia party"),
+      ] as SearchResult[]
+      for (const [id, name] of [["t-room", "Zinnia room"], ["t-screens", "Zinnia screens"], ["t-party", "Zinnia party"]]) {
+        taskInfo[id] = { task_name: name, task_status: "todo", task_due_date: tomorrow.toISOString() }
+      }
+      const reads = () => [...new Set(asked.filter((u) => u.startsWith("/task/info/")))]
+      const input = open()
+      type(input, "zinnia")
+      act(() => void vi.advanceTimersByTime(1_000))
+      // Space on a task is asked for: the preview it opens reads that task at once.
+      peekTheHit(input, "Zinnia room")
+      expect(reads()).toEqual(["/task/info/t-room"])
+      for (const passing of ["Zinnia screens", "Zinnia notes", "Zinnia party"]) {
+        act(() => void fireEvent.keyDown(input, { key: "ArrowDown" }))
+        act(() => void vi.advanceTimersByTime(PEEK_READ_REST_MS / 5))
+        expect(document.querySelector(".palette-peek")?.textContent, "the preview follows the selection").toContain(passing)
+      }
+      expect(reads(), "nothing read on the way").toEqual(["/task/info/t-room"])
+      expect(factOf("due")).toBeNull()
+      act(() => void vi.advanceTimersByTime(PEEK_READ_REST_MS))
+      expect(reads()).toEqual(["/task/info/t-room", "/task/info/t-party"])
+      expect(factOf("due")).toBe("Due date: Tomorrow")
+      act(() => void vi.advanceTimersByTime(PEEK_READ_REST_MS * 5))
+      expect(reads(), "resting longer reads nothing more").toEqual(["/task/info/t-room", "/task/info/t-party"])
+    } finally {
+      realDebounce = false
+      vi.useRealTimers()
+    }
+  })
 })
 
+
+// linear-28 to_win 2: Linear narrows its palette with a letter and Space (i, p,
+// u, d …). A letter and a space typed into the empty field set a scope, shown
+// as a chip where a page's crumb sits; the search asks the server for that kind
+// only (lib/search/scopePrefix), and only that kind shows. Backspace on the
+// empty field, or a tap on the chip, searches everything again.
+describe("scopes by a prefix (linear-28)", () => {
+  const scopeChip = () => document.querySelector<HTMLElement>("[data-palette-scope]")
+  const mixed = [
+    { type: "task", task: { task_id: "t1", task_name: "Book the room", task_project_name: "Q4 launch" } },
+    { type: "doc", doc: { doc_uuid: "d1", doc_title: "Room booking notes" } },
+  ] as SearchResult[]
+  const options = (heading: string) => within(group(heading)!).getAllByRole("option").map((o) => o.textContent)
+
+  it("narrows to tasks on t and a space: a chip, an empty field, and a request for tasks only", () => {
+    answer = mixed
+    const input = open()
+    type(input, "t ")
+    expect(input.value).toBe("")
+    expect(scopeChip()?.getAttribute("data-palette-scope")).toBe("tasks")
+    expect(scopeChip()?.textContent).toBe("Tasks")
+    expect(input.placeholder).toBe("Search tasks…")
+    type(input, "room")
+    expect(asked).toContain(`/search/unifiedSearch/${encodeURIComponent("type:task room")}`)
+    expect(options("Tasks")).toEqual([expect.stringContaining("Book the room")])
+    expect(group("Messages, docs and tasks")).toBeUndefined()
+  })
+
+  it("keeps only what its kind holds: no commands, and only its own places", () => {
+    let input = open()
+    type(input, "settings")
+    expect(group("Commands") ?? group("Settings")).toBeDefined()
+    cleanup()
+    input = open()
+    type(input, "t ")
+    type(input, "settings")
+    expect(group("Commands")).toBeUndefined()
+    cleanup()
+    input = open()
+    type(input, "t ")
+    type(input, "q4")
+    expect(group("Jump to")).toBeUndefined()
+    cleanup()
+    input = open()
+    type(input, "p ")
+    type(input, "q4")
+    expect(row(group("Jump to"), "Q4 launch")).toBeDefined()
+  })
+
+  it("searches everything again on Backspace in the empty field, or a tap on the chip", () => {
+    const input = open()
+    type(input, "d ")
+    expect(scopeChip()?.textContent).toBe("Docs")
+    act(() => void fireEvent.keyDown(input, { key: "Backspace" }))
+    expect(scopeChip()).toBeNull()
+    expect(input.placeholder).not.toBe("Search docs…")
+    type(input, "c ")
+    // With words in the field, Backspace edits the words and the scope stays.
+    type(input, "x")
+    act(() => void fireEvent.keyDown(input, { key: "Backspace" }))
+    expect(scopeChip()?.textContent).toBe("Channels")
+    act(() => void fireEvent.click(scopeChip()!))
+    expect(scopeChip()).toBeNull()
+  })
+
+  it("leaves i and a space as words, and sets no scope in Ask", () => {
+    features = { [FEATURE_AI]: true }
+    const input = open()
+    // A question starts "I …".
+    type(input, "i ")
+    expect(input.value).toBe("i ")
+    expect(scopeChip()).toBeNull()
+    cleanup()
+    const ask = open()
+    act(() => void fireEvent.keyDown(ask, { key: "Tab" }))
+    type(ask, "t ")
+    expect(ask.value).toBe("t ")
+    expect(scopeChip()).toBeNull()
+  })
+
+  it("sends its full search to the search page on the scope's chip", () => {
+    answer = mixed
+    const input = open()
+    type(input, "t ")
+    type(input, "room")
+    fireEvent.click(screen.getByText("Search all tasks for “room”"))
+    expect(push).toHaveBeenCalledWith("/app/search?query=room&in=tasks")
+  })
+
+  it("says plainly when the scope holds nothing, and offers the scope's full search", () => {
+    const input = open()
+    type(input, "p ")
+    type(input, "qz plan")
+    expect(screen.getByText("No projects called “qz plan”")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Search all projects" }))
+    expect(push).toHaveBeenCalledWith("/app/search?query=qz%20plan&in=projects")
+  })
+
+  it("lists the recent things of its kind before anything is typed", () => {
+    state.recentItems.items = [
+      { id: "t9", type: "task", title: "Book the room", path: "/app/task/t9", timestamp: 2 },
+      { id: "d1", type: "doc", title: "Launch sync notes", path: "/app/doc/d1", timestamp: 1 },
+    ]
+    const input = open()
+    type(input, "t ")
+    expect(options("Recent")).toEqual([expect.stringContaining("Book the room")])
+    expect(group("Suggested")).toBeUndefined()
+  })
+
+  it("ends with the palette: the next opening searches everything", () => {
+    const input = open()
+    type(input, "u ")
+    expect(scopeChip()?.textContent).toBe("People")
+    act(() => void fireEvent.keyDown(document, { key: "k", ctrlKey: true }))
+    const again = open(false)
+    expect(scopeChip()).toBeNull()
+    expect(again.placeholder).not.toBe("Search people…")
+  })
+})

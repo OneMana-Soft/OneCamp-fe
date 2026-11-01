@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { act, renderHook } from "@testing-library/react"
 import type { TaskInfoInterface } from "@/types/task"
@@ -26,6 +27,10 @@ const task = (id: string, extra: Partial<TaskInfoInterface> = {}) =>
 afterEach(() => {
   Object.values(h).forEach((f) => f.mockReset())
 })
+
+// The hook brings its work in when first used (useBulkTaskUpdate.ts: import("@/lib/work/bulkApply")): warmed before
+// the tests (V-138), so a busy machine's first import of it counts against no test's 5 s.
+warmBeforeTests(() => import("@/lib/work/bulkApply"))
 
 // PR2: a change to many tasks is one request (POST /task/bulk), not one per
 // task; what the server refused is put back and read again.

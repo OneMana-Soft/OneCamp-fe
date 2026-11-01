@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Check, ChevronDown, Globe, Plus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { zoneLabel, zoneLabels, zoneRows } from "@/lib/utils/zones"
+import { zoneHere } from "@/lib/utils/zoneHere"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 // The list is a chunk of its own, fetched when the trigger is pointed at or
@@ -47,6 +48,8 @@ export function ZonePicker({
   const named = React.useMemo(() => (open ? zoneRows() : []), [open])
   const items: CommandListItem[] = React.useMemo(() => {
     const q = query.trim().toLowerCase()
+    // The list names zones as this runtime reads them.
+    const picked = zoneHere(tz)
     return named
       .filter((n) => !q || n.hay.includes(q))
       .slice(0, 80)
@@ -58,7 +61,7 @@ export function ZonePicker({
         trailing: (
           <span className="ml-auto flex shrink-0 items-center gap-1.5 text-meta text-ink-3 tabular-nums">
             {n.off}
-            {n.z === tz ? <Check className="size-3.5 text-ink-2" aria-hidden="true" /> : null}
+            {n.z === tz || n.z === picked ? <Check className="size-3.5 text-ink-2" aria-hidden="true" /> : null}
           </span>
         ),
       }))

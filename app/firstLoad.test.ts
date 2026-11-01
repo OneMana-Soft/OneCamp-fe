@@ -4,7 +4,7 @@ import path from "path"
 import ts from "typescript"
 import { lineProblem, sourceMeasure } from "../scripts/fluidity/routes.mjs"
 
-import { chainOf, firstScreen, firstScreenEntries, sourceOf, walk } from "../scripts/fluidity/reach.mjs"
+import { chainOf, firstScreen, firstScreenEntries, routeReach, sourceOf, walk } from "../scripts/fluidity/reach.mjs"
 
 // What a visitor's first screen downloads. A new visitor waited 8 to 9
 // seconds for Home, a good part of it on code Home never runs: the editor
@@ -113,6 +113,12 @@ const PROJECT_LAZY = [
   "components/project/ForecastCardFrame.tsx",
   "components/project/ForecastCard.tsx",
   "lib/work/forecast.ts",
+  // The plan's chips and pickers are chunks of their own (linear-15, V-49): the route holds the row
+  // (ProjectPlanStrip), which reads and saves the plan; the chips come once it's read, the pickers at a first open.
+  "components/project/ProjectPlanChips.tsx",
+  "components/project/ProjectPlanPickers.tsx",
+  "components/ui/graphics/projectStatusGlyph.tsx",
+  "lib/work/projectPlan.ts",
   // The timeline's layout and the workload's sums: a list's writes need only
   // a date reader and the workload's address (lib/tasks/taskDate,
   // lib/workloadKey), and the two came in whole, 37 KB, through useTaskUpdate.
@@ -175,6 +181,13 @@ describe("a project's first screen", () => {
   it("keeps the source it pulls in under its ceiling", () => {
     const bytes = routeSource(PROJECT_ROUTE)
     expect(bytes, `the project route reaches ${bytes} bytes of source (ceiling ${PROJECT_ROUTE_SOURCE_CEILING})`).toBeLessThanOrEqual(PROJECT_ROUTE_SOURCE_CEILING)
+  })
+
+  // A new chunk that reaches the shared core re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13).
+  it("keeps the plan's chips and pickers off the shared core: the row hands them the plan, the save and the words", () => {
+    const { files, packages } = walk(["components/project/ProjectPlanChips.tsx", "components/project/ProjectPlanPickers.tsx"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect(["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts"].filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/)/.test(spec))).toEqual([])
   })
 })
 
@@ -348,7 +361,33 @@ const TABLE_LAZY = [
   // A link cell's face at rest, asked for by a table with link fields alone:
   // it made room for the bar's sums left out and asked again (V-48).
   "components/table/relationFace.tsx",
+  // G1's range: its keys, mouse and finger, fill handle, clipboard and writes
+  // are ONE chunk of its own (RANGE_PIECE), warmed when the page is idle and as
+  // the pointer or the focus reaches the grid. Its eager shell (gridRange)
+  // keeps the range's state and draws its overlay.
+  "components/table/rangePiece.tsx",
+  "components/table/rangeActions.tsx",
+  "lib/tables/cellRange.ts",
+  "lib/tables/clipboardGrid.ts",
+  "lib/tables/pastePlan.ts",
+  "lib/tables/fillSeries.ts",
+  // G2b's find bar and clean-up dialogs, each a chunk of its own, with the step
+  // over a view's rows and the view's naming, which the export shares.
+  "components/table/find/FindBar.tsx",
+  "components/table/cleanup/CleanupDialog.tsx",
+  "lib/tables/transform.ts",
+  "lib/tables/viewRows.ts",
 ]
+/**
+ * G1's range piece (31 Oct 2026). A NEW lazy chunk that imports what other
+ * pages load (the toast library, axios, the field kinds) makes Turbopack re-cut
+ * the shared chunks of every route: G1's first cut moved 22 public routes
+ * +392..+423 B and about 68 /app routes -933 B, none of their code changed.
+ * So the piece imports only code no other page loads, and its eager shell
+ * hands it the rest (toasts, the batch and its undo, error words, the field
+ * kinds, a cell's text as the export writes it).
+ */
+const RANGE_PIECE = ["components/table/rangePiece.tsx", "components/table/rangeActions.tsx"]
 /**
  * 1,547,717 bytes before the chain (b18j, 18 Oct 2026); 1,634,372 when it landed;
  * 1,635,087 once P-SPEED's MQTT context split met it (a recorded one-off);
@@ -370,6 +409,15 @@ describe("a table's first screen", () => {
   it("keeps the source it pulls in under its ceiling", () => {
     const bytes = routeSource(TABLE_ROUTE)
     expect(bytes, `the table route reaches ${bytes} bytes of source (ceiling ${TABLE_ROUTE_SOURCE_CEILING})`).toBeLessThanOrEqual(TABLE_ROUTE_SOURCE_CEILING)
+  })
+
+  it("keeps the range's piece to code no other page loads: its shell hands it the rest", () => {
+    expect(RANGE_PIECE.filter((f) => !existsSync(f))).toEqual([])
+    const piece = [...(walk(RANGE_PIECE.filter(existsSync)).files as Map<string, string | null>).keys()]
+    const others = pagesAndLayouts("app")
+      .filter((p) => p.endsWith("page.tsx") && p !== TABLE_ROUTE)
+      .map((p) => routeReach(p) as Map<string, string | null>)
+    expect(piece.filter((f) => others.some((r) => r.has(f)))).toEqual([])
   })
 })
 
@@ -743,5 +791,23 @@ describe("every route's ceilings", () => {
       return problem ? [`${f}: ${problem}`] : []
     })
     expect(problems).toEqual([])
+  })
+})
+
+// The palette's actions on the open task (linear-28) are made in a chunk of their own, which the palette fetches as
+// it opens (lib/ui/paletteSurfaces): the task page's first load carries the panel's offer, not the actions (H1 put
+// +947 B of gzip on it, 31 Oct). The chunk reaches no other module, so a new async chunk group brings none of the
+// shared core (swr, redux, the toast library), which re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13).
+describe("the palette's task actions", () => {
+  it("are on no first screen: the task page offers them, and the palette fetches them as it opens", () => {
+    const reached = reach("app/app/task/[task-id]/page.tsx")
+    const lazy = ["lib/work/taskPaletteEntries.ts", "lib/ui/paletteSurfaces.ts"]
+    expect(lazy.filter((f) => reached.has(f)).map((f) => chainOf(reached, f))).toEqual([])
+  })
+
+  it("bring nothing a route has already: their chunk reaches only the branch name's rule", () => {
+    const { files, packages } = walk(["lib/work/taskPaletteEntries.ts"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    expect([...files.keys()].filter((f) => f !== "lib/work/taskPaletteEntries.ts")).toEqual(["lib/work/taskBranchName.ts"])
+    expect(packages).toEqual([])
   })
 })

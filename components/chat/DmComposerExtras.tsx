@@ -42,7 +42,7 @@ export function DmComposerExtras({ conversation, send, peerName, isBot }: {
     return (
         <>
             {shown.length > 0 && (
-                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <div className="mb-2 flex flex-wrap items-center gap-1.5 pointer-coarse:gap-y-5">
                     <span className="mr-0.5 inline-flex items-center gap-1 text-2xs font-medium text-muted-foreground">
                         <Sparkles className="h-3 w-3 text-agent" aria-hidden="true" /> Try asking
                     </span>
@@ -50,6 +50,7 @@ export function DmComposerExtras({ conversation, send, peerName, isBot }: {
                         <button
                             key={s}
                             type="button"
+                            data-touch-target=""
                             onClick={() => send(`<p>${escapeText(s)}</p>`)}
                             className="rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-foreground transition-colors hover:bg-highlight active:bg-primary/5"
                         >

@@ -171,7 +171,7 @@ describe("notificationRoute", () => {
  */
 describe("service worker mirror", () => {
   const swSource = readFileSync(
-    resolve(__dirname, "../../public/firebase-messaging-sw.js"),
+    resolve(__dirname, "../../public/sw.js"),
     "utf8",
   )
 

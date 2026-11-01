@@ -54,4 +54,22 @@ describe("resultPath", () => {
     expect(resultPath(hit({ type: "event", event: { event_uuid: "e1" } }), ME)).toBe("/app/calendar/event/e1")
     expect(resultPath(hit({ type: "event", event: {} }), ME)).toBeNull()
   })
+
+  // miro-05 to_win 2: a hit on what is written on a board opens the board at those words, its Find on them.
+  it("opens a board at the words a hit found written on it, and plainly when only its name matched", () => {
+    const board = { board_uuid: "b1", board_title: "Launch" }
+    const at = (fragments: string[]) => resultPath(hit({ type: "board", board, highlight: { board_text: fragments } }), ME)
+    expect(at(["the <mark>launch</mark> <mark>budget</mark> is set. <mark>budget</mark> again"])).toBe("/app/board/b1?find=launch%20budget")
+    expect(at(["<mark>Maya&#39;s</mark> notes"])).toBe(`/app/board/b1?find=${encodeURIComponent("Maya's")}`)
+    // No words marked (or only the name matched): the board, as before.
+    expect(at(["nothing marked"])).toBe("/app/board/b1")
+    expect(resultPath(hit({ type: "board", board, highlight: { board_title: ["<mark>Launch</mark>"] } }), ME)).toBe("/app/board/b1")
+  })
+
+  it("opens nothing for a hit that names no doc, board, task, project, team or channel: never a page of \"undefined\"", () => {
+    for (const type of ["doc", "board", "task", "project", "team", "channel"]) {
+      expect(resultPath(hit({ type, [type]: {} }), ME), type).toBeNull()
+      expect(resultPath(hit({ type }), ME), type).toBeNull()
+    }
+  })
 })

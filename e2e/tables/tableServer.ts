@@ -1,6 +1,9 @@
 import { expect, type Browser, type BrowserContextOptions, type Page, type Request, type Route, type TestInfo } from "@playwright/test"
 
-import { SAM, stubBackend } from "../stubbedApp"
+import { brokerOn, mqttConfig, SAM, stubBackend } from "../stubbedApp"
+
+/** A table's live messages' type (services/mqttService Table_Row, the backend's MESSAGE_TABLE_ROW). */
+const TABLE_ROW = 26
 
 /** A second person, for a table to have two editors. */
 export const PRIYA = {
@@ -66,7 +69,8 @@ const fieldsJson = (table: string, fields: Field[]) => fields.map((f, i) => ({ i
  * as the API does: the bundle (its first 500 rows and the count), the rows
  * endpoint, row writes and the table's own settings. It keeps every write, so
  * a test can say what each person sent. No live message reaches a page: each
- * holds its copy until it asks again, as when MQTT is down.
+ * holds its copy until it asks again, as when MQTT is down; unless the table
+ * is live, when the page hears its topic and say() speaks there.
  */
 export class TableServer {
   readonly id = "6c0f5a1e-2b3d-4e5f-8a9b-0c1d2e3f4a5b"
@@ -74,7 +78,16 @@ export class TableServer {
   visibility: "workspace" | "private" = "workspace"
   readonly fields: Field[]
   rows: Row[]
-  readonly writes: { kind: "create" | "patch" | "update" | "table" | "field" | "view" | "form"; rowId?: string; body: Record<string, unknown> }[] = []
+  readonly writes: { kind: "create" | "patch" | "update" | "table" | "field" | "view" | "form" | "batch"; rowId?: string; body: Record<string, unknown> }[] = []
+  /** The tables' trash (A2), as GET /tables/trash lists it: other tables, deleted. */
+  readonly trash: { table: { id: string; name: string } & Record<string, unknown>; deleted_by_name?: string }[] = []
+  /** The tables deleted for good from the trash (POST /tables/{id}/purge, V-121), in order. */
+  readonly purged: string[] = []
+  /** How many times the trash was read, and how many of the next reads fail with a server error (V-130). */
+  trashReads = 0
+  trashReadsFail = 0
+  /** When set, those reads are refused instead (403), with these words, as the server refuses one. */
+  trashRefusal = ""
   /** The table's own forms (B5), as GET /tables/{id}/forms lists them. */
   readonly forms: Record<string, unknown>[] = []
   /** Other tables' fields, by table id, for a link's or a rollup's settings (tables B2). */
@@ -111,8 +124,17 @@ export class TableServer {
   windowsFailing = 0
   /** Every view query a page sent, in order. */
   readonly queries: ViewQuery[] = []
+  /** How many times a page read the table's bundle (GET /tables/<id>). */
+  bundleReads = 0
   /** The workspace's optional features, as /config/client answers them (AI's, for an AI column's fill). */
   features: Record<string, boolean> | null = null
+  /**
+   * Live (V-124): a page opened after this is set connects to a realtime
+   * broker of the test's own (stubbedApp brokerOn) and hears the table's
+   * topic, where say() sends what the server's fan-out would.
+   */
+  live = false
+  private broker: { publish(topic: string, payload: unknown): number; subscriptions(): string[] } | null = null
   /**
    * A column's AI fill (TABLES-LEAD-26): fillAnswers answer its requests in
    * turn (POST .../ai-fill), aiFill is the fill as GET /ai-fills lists it and
@@ -134,6 +156,24 @@ export class TableServer {
   private reader = ""
   aiFill: { id: string; table_id: string; field_id: string; started_by?: string; change_set?: string; total: number; asked: number; filled: number; state: string } | null = null
   readonly undos: string[] = []
+  /**
+   * Batches (POST .../rows/batch, tables G1): each body as sent; a number
+   * column refuses text that isn't a number, cell by cell, as Batch does
+   * (400 with errors); batchForbidden answers as for someone who can't
+   * change the table (403). changeSets keeps what each batch changed, so an
+   * undo (the page's Ctrl+Z names none: the latest) takes it back.
+   */
+  readonly batches: Record<string, unknown>[] = []
+  batchForbidden = false
+  readonly changeSets: { id: string; before: { id: string; values: Values }[]; created: string[]; deleted?: Row[]; undone?: boolean }[] = []
+  /**
+   * Steps over a view's rows (POST .../rows/transform, tables G2b): each body
+   * as sent. A find, a dry run and a write answer whoever opens the table, as
+   * the server's do (a write is a paste's, and whoever may open a table writes
+   * its rows). A write keeps a change set (the values before, the rows deleted)
+   * that one undo takes back.
+   */
+  readonly transforms: Record<string, unknown>[] = []
 
   constructor(fields: Field[], rows: Values[]) {
     // Its own copy: a field's change in one test isn't the next test's field.
@@ -337,6 +377,22 @@ export class TableServer {
     if (parts.length === 1 && req.method() === "GET") return json(200, { data: [this.table()] })
     const theirs = this.linked.get(parts[1])
     if (theirs && parts[2] === "fields" && req.method() === "GET") return json(200, { data: fieldsJson(parts[1], theirs) })
+    // The trash, and a delete for good from it: the table leaves the trash at once (202), as the server answers.
+    if (parts.length === 2 && parts[1] === "trash" && req.method() === "GET") {
+      this.trashReads++
+      if (this.trashReadsFail > 0) {
+        this.trashReadsFail--
+        return this.trashRefusal ? json(403, { msg: this.trashRefusal }) : json(500, { msg: "internal error" })
+      }
+      return json(200, { data: this.trash })
+    }
+    if (parts.length === 3 && parts[2] === "purge" && req.method() === "POST") {
+      const at = this.trash.findIndex((t) => t.table.id === parts[1])
+      if (at < 0) return json(404, { msg: "Table not found" })
+      this.trash.splice(at, 1)
+      this.purged.push(parts[1])
+      return json(202, { msg: "Deleted for good." })
+    }
     if (parts[1] !== this.id) return json(404, { msg: "table not found" })
     // Its fields alone, as a sheet's import into it reads them.
     if (parts.length === 3 && parts[2] === "fields" && req.method() === "GET") return json(200, { data: fieldsJson(this.id, this.fields) })
@@ -386,6 +442,18 @@ export class TableServer {
     }
     if (parts.length === 3 && parts[2] === "undo" && req.method() === "POST") {
       this.undos.push(String(body.change_set ?? ""))
+      const cs = body.change_set ? this.changeSets.find((c) => c.id === body.change_set) : this.changeSets.findLast((c) => !c.undone)
+      if (cs && !cs.undone) {
+        cs.undone = true
+        for (const b of cs.before) {
+          const r = this.rows.find((x) => x.id === b.id)
+          if (r) r.values = b.values
+        }
+        this.rows = this.rows.filter((r) => !cs.created.includes(r.id))
+        if (cs.deleted) this.rows = [...this.rows, ...cs.deleted].sort((a, b) => a.position - b.position)
+        this.writes.push({ kind: "batch", body: { undo: cs.id } })
+        return json(200, { data: { change_set: `u${cs.id.slice(1)}`, reversed: cs.id, kind: "paste", changes: cs.before.length + cs.created.length, skipped: 0 } })
+      }
       return json(200, { data: { change_set: "u0000001", reversed: body.change_set, kind: "ai", changes: this.aiFill?.filled ?? 0, skipped: 0 } })
     }
     // A field's change: kept, and its config as the server keeps it.
@@ -401,7 +469,10 @@ export class TableServer {
       const error = this.previewErrors.get(String(body.formula ?? ""))
       return json(200, { data: { result: "number", values: [], ...(error ? { error } : {}) } })
     }
-    if (parts.length === 2 && req.method() === "GET") return json(200, { data: this.bundle() })
+    if (parts.length === 2 && req.method() === "GET") {
+      this.bundleReads++
+      return json(200, { data: this.bundle() })
+    }
     if (parts.length === 3 && parts[2] === "update" && req.method() === "POST") {
       this.writes.push({ kind: "table", body })
       if (typeof body.name === "string") this.name = body.name
@@ -492,6 +563,43 @@ export class TableServer {
       }
       return json(200, { data: page ? { doc_uuid: page.doc, body: page.body, level: "edit" } : { level: "edit" } })
     }
+    if (parts.length === 4 && parts[2] === "rows" && parts[3] === "transform" && req.method() === "POST") return this.transform(body, json)
+    if (parts.length === 4 && parts[2] === "rows" && parts[3] === "batch" && req.method() === "POST") {
+      this.batches.push(body)
+      if (this.batchForbidden) return json(403, { msg: "you don't have access to this table" })
+      const numbers = new Set(this.fields.filter((f) => f.type === "number").map((f) => f.id))
+      const errors: { row: string; index?: number; field: string; msg: string }[] = []
+      const read = (values: Values, at: { row?: string; index?: number }): Values => {
+        const out: Values = {}
+        for (const [id, v] of Object.entries(values ?? {})) {
+          if (!numbers.has(id) || typeof v !== "string") out[id] = v
+          else if (v.trim() === "") out[id] = null
+          else if (Number.isFinite(Number(v.replace(/,/g, "")))) out[id] = Number(v.replace(/,/g, ""))
+          else errors.push({ row: at.row ?? "00000000-0000-0000-0000-000000000000", ...(at.index === undefined ? {} : { index: at.index }), field: id, msg: `"${v}" isn't a number` })
+        }
+        return out
+      }
+      const patched = ((body.patch as { row: string; values: Values }[] | undefined) ?? []).map((p) => ({ row: this.rows.find((x) => x.id === p.row), values: read(p.values, { row: p.row }) }))
+      const made = ((body.create as { values: Values }[] | undefined) ?? []).map((c, index) => read(c.values, { index }))
+      if (errors.length) return json(400, { msg: errors.length === 1 ? errors[0].msg : `${errors.length} rows can't be written`, errors })
+      const before = patched.flatMap(({ row }) => (row ? [{ id: row.id, values: { ...row.values } }] : []))
+      const updated = patched.flatMap(({ row, values }) => {
+        if (!row) return []
+        row.values = { ...row.values, ...values }
+        row.updated_at = new Date().toISOString()
+        return [this.rowJson(row)]
+      })
+      let at = this.rows.length ? Math.max(...this.rows.map((r) => r.position)) + 1 : 0
+      const created = made.map((values) => {
+        const r: Row = { id: `00000000-0000-4000-a000-${String(this.rows.length).padStart(12, "0")}`, position: at++, values, updated_at: new Date().toISOString() }
+        this.rows.push(r)
+        return r
+      })
+      const id = `c${String(this.changeSets.length + 1).padStart(7, "0")}`
+      this.changeSets.push({ id, before, created: created.map((r) => r.id) })
+      this.writes.push({ kind: "batch", body })
+      return json(200, { data: { change_set: id, created: created.map((r) => this.rowJson(r)), updated, deleted: [] } })
+    }
     if (parts.length === 5 && parts[2] === "rows" && req.method() === "POST") {
       const r = this.rows.find((x) => x.id === parts[3])
       if (!r) return json(404, { msg: "row not found" })
@@ -507,6 +615,66 @@ export class TableServer {
       return json(200, { data: this.rowJson(r) })
     }
     return json(404, { msg: "not in this test" })
+  }
+
+  /**
+   * A step over the view's rows, as business/DataTable transformRows runs the
+   * ones these tests use: a find and a replace of plain text (in any case
+   * unless match_case; whole_cell), a trim and a dedupe (the first row of
+   * each kept). The view is the rows named, in their order, or every row.
+   */
+  private transform(body: Record<string, unknown>, json: (status: number, body: unknown) => Promise<void>) {
+    this.transforms.push(body)
+    const step = String(body.step)
+    const fields = (body.fields as string[] | undefined) ?? []
+    const write = step !== "find" && !body.dry_run
+    if (!["find", "replace", "trim", "dedupe"].includes(step)) return json(400, { msg: "not in this test" })
+    const view = Array.isArray(body.rows) ? (body.rows as string[]).flatMap((id) => this.rows.filter((r) => r.id === id)) : [...this.rows].sort((a, b) => a.position - b.position)
+    const find = String(body.find ?? "")
+    const quoted = find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const pattern = new RegExp(body.whole_cell ? `^${quoted}$` : quoted, body.match_case ? "g" : "gi")
+    const text = (v: unknown) => (v === null || v === undefined ? "" : String(v))
+    // What a step makes of a cell: undefined when it leaves it as it is.
+    const changed = (v: unknown): string | undefined => {
+      const s = text(v)
+      if (step === "trim") return s.replace(/\s+/g, " ").trim() === s ? undefined : s.replace(/\s+/g, " ").trim()
+      if (!s.match(pattern)) return undefined
+      return step === "replace" ? s.replace(pattern, String(body.replace ?? "")) : s
+    }
+    const from = Number(body.from) || 0
+    const res = { walked: view.length, rows: 0, cells: 0, deleted: 0, matches: [] as { row: string; field?: string; at: number }[], capped: false, change_sets: [] as string[], skipped: [], skipped_count: 0, kept_changed: 0 }
+    const patches: { row: Row; values: Values }[] = []
+    const dups: Row[] = []
+    const firsts = new Set<string>()
+    view.forEach((row, at) => {
+      if (step === "dedupe") {
+        const key = JSON.stringify(fields.map((f) => row.values[f] ?? null))
+        if (!firsts.has(key)) return void firsts.add(key)
+        dups.push(row)
+        res.rows++
+        if (at >= from) res.matches.push({ row: row.id, at })
+        return
+      }
+      const values: Values = {}
+      for (const f of fields) {
+        const v = changed(row.values[f])
+        if (v === undefined) continue
+        values[f] = v
+        if (at >= from) res.matches.push({ row: row.id, field: f, at })
+      }
+      const n = Object.keys(values).length
+      if (!n) return
+      res.rows++
+      res.cells += n
+      patches.push({ row, values })
+    })
+    if (!write) return json(200, { data: res })
+    const id = `c${String(this.changeSets.length + 1).padStart(7, "0")}`
+    this.changeSets.push({ id, before: patches.map(({ row }) => ({ id: row.id, values: { ...row.values } })), created: [], deleted: dups })
+    for (const { row, values } of patches) row.values = { ...row.values, ...values }
+    this.rows = this.rows.filter((r) => !dups.includes(r))
+    this.writes.push({ kind: "batch", body })
+    return json(200, { data: { ...res, matches: [], rows: patches.length, deleted: dups.length, change_sets: [id], operation: `o${id.slice(1)}` } })
   }
 
   /**
@@ -526,12 +694,25 @@ export class TableServer {
       // The workspace's members: a people field's picker lists them.
       "/user/allUsers": { msg: "ok", users: this.people },
       ...(this.features ? { "/config/client": { msg: "ok", data: { features: this.features } } } : {}),
+      ...(this.live ? { "/config/mqttConfig": mqttConfig([`user/${person.user_uuid}`]) } : {}),
     })
+    if (this.live) this.broker = (await brokerOn(page)).broker
     // Registered after the stub, so it answers first for the table's calls.
     await page.route(
       (url) => url.origin !== app.origin && url.pathname.includes("/tables"),
       (route) => this.answer(route, route.request()),
     )
+  }
+
+  /** Says a change on the table's live topic, as business/Mqtt PublishTableRow does: how many pages heard it. */
+  say(data: Record<string, unknown>): number {
+    if (!this.broker) throw new Error("say() needs a live table: set live before open")
+    return this.broker.publish(`table/${this.id}`, { type: TABLE_ROW, data })
+  }
+
+  /** Whether a page listens on the table's live topic. */
+  listening(): boolean {
+    return !!this.broker?.subscriptions().includes(`table/${this.id}`)
   }
 
   /** Opens the table as a person, in a browser context of their own; on one of its saved views, given its id. */

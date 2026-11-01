@@ -1,7 +1,9 @@
 import {useEffect} from "react";
 import { useAppRouter } from "@/lib/navigation/appRouter";
-import { lazyPanel } from "@/lib/lazy/lazyPanel";
-import { TaskPanelSkeleton } from "@/components/task/taskPanelSkeleton";
+import { lazyPanel, PanelFrame } from "@/lib/lazy/lazyPanel";
+import { TaskPanelShape } from "@/components/task/taskPanelSkeleton";
+import { EventPanelLoading } from "@/components/rightPanel/eventPanelSkeleton";
+import { RightPanelFrame } from "@/components/rightPanel/panelFrame";
 import { app_inbox_path } from "@/types/paths";
 import {useDispatch, useSelector} from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -24,9 +26,9 @@ export const panelLoaders = {
     docAi: () => import("@/components/ai/DocAiAssistantPanel"),
 };
 const loaders = panelLoaders;
-const TaskInfoPanel = lazyPanel(() => loaders.task().then((m) => m.default), "the task", TaskPanelSkeleton);
+const TaskInfoPanel = lazyPanel(() => loaders.task().then((m) => m.default), "the task", TaskPanelShape);
 const DocCommentList = lazyPanel(() => loaders.doc().then((m) => m.DocCommentList), "the comments");
-const EventInfoPanel = lazyPanel(() => loaders.event().then((m) => m.default), "the event");
+const EventInfoPanel = lazyPanel(() => loaders.event().then((m) => m.default), "the event", EventPanelLoading);
 const AiChatPanel = lazyPanel(() => loaders.ai().then((m) => m.default), "the assistant");
 const DocAiAssistantPanel = lazyPanel(() => loaders.docAi().then((m) => m.DocAiAssistantPanel), "the assistant");
 
@@ -145,8 +147,6 @@ export const RightPanel = () => {
     }
 
 
-    return (<>
-
-        {renderRightPanel()}
-    </>)
+    // A panel still coming draws in the right panel's frame, with Close live (V-180).
+    return <PanelFrame.Provider value={RightPanelFrame}>{renderRightPanel()}</PanelFrame.Provider>
 }

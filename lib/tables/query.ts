@@ -45,7 +45,8 @@ export interface RowSpec {
 // filters name people and rows by name. A formula or a rollup goes as what
 // it gives (typeOf; airtable-03: the server keeps it or works it out per
 // read, and past what it can work out refuses in its own words).
-const TEXT = new Set<FieldType>(["text", "long_text", "url", "email", "phone"])
+// A person's own text: what a replace, a trim and a split change (the server's textKind).
+export const TEXT_KINDS: ReadonlySet<FieldType> = new Set<FieldType>(["text", "long_text", "url", "email", "phone"])
 const CHOICE = new Set<FieldType>(["select", "status"])
 const NUMBER = new Set<FieldType>(["number", "duration", "rating", "autonumber"])
 const DATE = new Set<FieldType>(["date", "created_time", "modified_time"])
@@ -66,7 +67,7 @@ function conditionOf(f: TableField, r: FilterRule): SpecFilter | "all" | null {
   if (takesMe(f) && r.value === ME && (r.op === "contains" || r.op === "not_contains"))
     return { field: ref(f), operator: r.op === "contains" ? "is" : "is_not", values: [{ text: ME }] }
   const type = typeOf(f)
-  if (type === null || !(TEXT.has(type) || CHOICE.has(type) || NUMBER.has(type) || DATE.has(type) || LIST.has(type) || type === "checkbox")) return null
+  if (type === null || !(TEXT_KINDS.has(type) || CHOICE.has(type) || NUMBER.has(type) || DATE.has(type) || LIST.has(type) || type === "checkbox")) return null
   if (r.op === "empty" || r.op === "not_empty" || r.op === "checked" || r.op === "unchecked") return { field: ref(f), operator: r.op }
   const want = goTrim(r.value ?? "")
   if (want === "") return "all"
@@ -143,7 +144,7 @@ export function rulesToSpec(rules: ViewRules, fields: TableField[], answers: Row
   const orders = (f: TableField, text: boolean) => {
     const type = typeOf(f)
     if (type === null) return false
-    return (text && TEXT.has(type)) || CHOICE.has(type) ? answers.sorts_text : NUMBER.has(type) || DATE.has(type) || type === "checkbox"
+    return (text && TEXT_KINDS.has(type)) || CHOICE.has(type) ? answers.sorts_text : NUMBER.has(type) || DATE.has(type) || type === "checkbox"
   }
   const groups: QueryGroup[] = []
   for (const g of fitted.groups ?? []) {

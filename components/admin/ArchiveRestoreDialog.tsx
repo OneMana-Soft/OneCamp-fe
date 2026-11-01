@@ -15,7 +15,7 @@ import { PostEndpointUrl } from "@/services/endPoints"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
-import { archiveProblem } from "@/components/admin/archiveProblem"
+import { archiveProblem, leftTheArchive } from "@/components/admin/archiveProblem"
 import { ARCHIVE_ENTITY_ORDER, archiveEntity } from "@/components/admin/archiveEntities"
 
 interface ArchivedItem {
@@ -127,6 +127,12 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
       onOpenChange(false)
     } catch (err) {
       setProblem(archiveProblem(err, "Couldn't restore them. Try again in a moment."))
+      // The whole batch was refused because one has left the archive since the list loaded: start the list over,
+      // with nothing chosen, so the next try names only what is still there.
+      if (leftTheArchive(err)) {
+        setSelected(new Set())
+        fetchItems(0, false)
+      }
     } finally {
       setRestoring(false)
     }

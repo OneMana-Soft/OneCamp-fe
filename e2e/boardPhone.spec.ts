@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import { finger } from "./finger"
-import { SAM, stubBackend } from "./stubbedApp"
+import { SAM, expectEveryCallAnswered, stubBackend } from "./stubbedApp"
 import { settled } from "./sheetLayout"
 
 // A project's board on a phone (390 x 844, touch), as the owner asked: "verify
@@ -60,6 +60,17 @@ async function openBoard(page: Page, testInfo: TestInfo) {
     [`/project/${P}/statuses`]: { msg: "ok", data: null },
     [`/project/${P}/fields`]: { msg: "ok", data: { fields: [], can_edit: true } },
     [`/project/${P}/tags`]: { msg: "ok", data: [] },
+    // The project page's own reads, answered as the other board specs answer
+    // them; left to the stub's 404, one came in as a toast over the card's sheet.
+    [`/project/membersInfo/${P}`]: { msg: "ok", data: project },
+    [`/project/${P}/updates`]: { msg: "ok", data: { updates: [], can_post: true } },
+    [`/project/${P}/cycles`]: { msg: "ok", data: { cycles: [], can_edit: true } },
+    [`/project/${P}/goals`]: { msg: "ok", data: { goals: [] } },
+    // No forecast yet: its chip keeps its place.
+    [`/project/${P}/forecast`]: { msg: "ok", data: null },
+    "/notices": { msg: "ok", data: [] },
+    // The board listens on the project's topic (useLiveEntity).
+    "/entities": { msg: "ok", data: [{ kind: "project", id: P, access: "view", data: { project_name: "Website relaunch" }, topic: `project/${P}` }] },
     "/task/moveTask": { msg: "ok", data: {} },
     "/task/time/": { msg: "ok", data: null },
     "/task/recurrence/": { msg: "ok", data: null },
@@ -162,14 +173,25 @@ test.describe("the board on a phone", () => {
     const sheet = page.locator("[data-card-sheet]")
     await expect(sheet).toBeVisible()
     await settled(sheet)
-    // The scrim, just above the sheet. The top of the screen is no place to
-    // tap: while a sheet is up, toasts come in there (app/phone.css C9), and
-    // a toast is not the way out of a sheet.
-    await page.touchscreen.tap(195, (await sheet.boundingBox())!.y - 40)
+    // The scrim above the sheet, at the first point up from 40px over it that
+    // no toast covers: while a sheet is up, a toast comes in just above it
+    // (components/ui/toastFootSlot), and a toast is not the way out of a
+    // sheet. A tap anywhere on the toasts' region, a toast or the list around
+    // it, is not outside the sheet.
+    const y = await page.evaluate((from) => {
+      for (let y = from; y >= 8; y -= 8) {
+        if (!document.elementFromPoint(195, y)?.closest('[role="region"][aria-label*="Notifications"]')) return y
+      }
+      return -1
+    }, (await sheet.boundingBox())!.y - 40)
+    expect(y, "a point of the scrim that no toast covers").toBeGreaterThan(0)
+    await page.touchscreen.tap(195, y)
     await expect(sheet).toBeHidden()
     await page.waitForTimeout(1000)
     expect(opened).toEqual([])
     expect(new URL(page.url()).pathname).toBe(`/app/project/${P}`)
+    // No stub's toast came in: the board and the sheet had every call answered.
+    await expectEveryCallAnswered(page)
   })
 
   test("one column per screen with the next peeking in, each on the 16px margin, the last too", async ({ page }, testInfo) => {

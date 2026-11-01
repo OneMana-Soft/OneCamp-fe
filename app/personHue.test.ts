@@ -43,6 +43,7 @@ const NON_PERSON_HUE = new Set([
   "components/projectTemplates/TemplatePicker.tsx", // templates
   "app/app/templates/page.tsx", // templates
   "components/tags/TagPicker.tsx", // tags
+  "components/ui/paletteMark.tsx", // a tag on a palette page, as the tag picker draws its dot (linear-28 H1b)
   "components/recording/recordingListRecording.tsx", // places
   "components/calendar/calendarTones.ts", // projects, events
   "components/message/workLinkCardsBody.tsx", // projects, docs, tables
@@ -146,7 +147,8 @@ describe("one colour per person", () => {
       for (const a of callArgs(src, "avatarSeed")) if (id(a)) offenders.push(`${f}: avatarSeed(${a}) is given an id`)
       // lib/celebrate cycles the hues for a burst's sparks: nobody's colour.
       // lib/projectHue shares the hues out among projects, from each one's hueFor.
-      if (!["lib/campHue.ts", "lib/boardHues.ts", "lib/celebrate.ts", "lib/projectHue.ts"].includes(f) && /CAMP_HUES\s*\[|%\s*CAMP_HUES\.length/.test(src)) offenders.push(`${f}: picks a camp hue by its own hash`)
+      // lib/shareHues shares them out among a call's people, from each one's personHue (V-190): it hashes nothing.
+      if (!["lib/campHue.ts", "lib/boardHues.ts", "lib/celebrate.ts", "lib/projectHue.ts", "lib/shareHues.ts"].includes(f) && /CAMP_HUES\s*\[|%\s*CAMP_HUES\.length/.test(src)) offenders.push(`${f}: picks a camp hue by its own hash`)
       if (/charCodeAt/.test(src) && /avatar/i.test(src)) offenders.push(`${f}: hashes text in a file that draws avatars`)
     }
     expect(offenders).toEqual([])

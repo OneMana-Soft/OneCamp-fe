@@ -1,13 +1,15 @@
 "use client"
 
-// A project's tools that open in a dialog: its time, its intake forms,
-// sharing it with a client and saving it as a template. One hook for the
-// desktop header's menu and the phone's buttons, so neither layout lacks one.
-// Time is for members; the rest are for the project's admins.
+// A project's tools that open in a dialog: its time, its links, its intake
+// forms, sharing it with a client and saving it as a template. One hook for
+// the desktop header's menu and the phone's buttons, so neither layout lacks
+// one. Time, rules and links are for members (a link is changed by the
+// project's admins only, as the server says); the rest are for its admins.
 //
 // ?tool=time opens the project's time, so a link (the demo's landing for
 // people leaving Toggl, a doc) can show logged hours rather than a header
-// with a clock icon somewhere in it (?tool=access, who can change tasks). Only
+// with a clock icon somewhere in it (?tool=access, who can change tasks;
+// ?tool=links, from the links on the project's home). Only
 // for someone it would open for; the parameter is dropped once used.
 
 import { useEffect, useState } from "react"
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Archive, Bell, ClipboardList, Clock, Globe, Hash, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
 import type { WorkAccess } from "@/lib/work/types"
 import { useArchiveProject } from "@/hooks/useArchiveProject"
+import { useProjectLinks } from "@/hooks/useProjectLinks"
 import { appMutate } from "@/lib/swrMutate"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { app_project_path } from "@/types/paths"
@@ -46,6 +49,7 @@ const SaveAsTemplateDialog = dynamic(() => import("@/components/projectTemplates
 const ProjectRulesDialog = dynamic(() => import("@/components/work/rules/ProjectRulesDialog"), { loading: () => null })
 const ProjectAccessDialog = dynamic(() => import("@/components/project/ProjectAccessDialog").then((m) => m.ProjectAccessDialog), { loading: () => null })
 const ProjectKeyTypesDialog = dynamic(() => import("@/components/project/ProjectKeyTypesDialog").then((m) => m.ProjectKeyTypesDialog), { loading: () => null })
+const ProjectLinksDialog = dynamic(() => import("@/components/project/ProjectLinksDialog").then((m) => m.ProjectLinksDialog), { loading: () => null })
 
 /** Starts the menu's dialogs loading, so the one chosen opens without a wait. */
 function warmTools() {
@@ -54,10 +58,11 @@ function warmTools() {
   void import("@/components/projectTemplates/SaveAsTemplateDialog")
   void import("@/components/project/ProjectAccessDialog")
   void import("@/components/project/ProjectKeyTypesDialog")
+  void import("@/components/project/ProjectLinksDialog")
 }
 const warmTime = () => void import("@/components/project/ProjectTimeDialog")
 
-type ToolKey = "time" | "rules" | "forms" | "share" | "template" | "access" | "keys"
+type ToolKey = "time" | "rules" | "links" | "forms" | "share" | "template" | "access" | "keys"
 export interface ProjectTool {
   key: ToolKey
   label: string
@@ -80,9 +85,9 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   const allowed = isAdmin || isMember
   useEffect(() => {
     // Waits for the project's info: until it says who this is, it's nobody.
-    const opens = (asked === "time" && allowed) || (asked === "rules" && allowed) || (asked === "access" && isAdmin)
+    const opens = ((asked === "time" || asked === "rules" || asked === "links") && allowed) || (asked === "access" && isAdmin)
     if (!opens) return
-    setOpen(asked === "access" ? "access" : asked === "rules" ? "rules" : "time")
+    setOpen(asked as ToolKey)
     const rest = new URLSearchParams(params?.toString() ?? "")
     rest.delete("tool")
     const q = rest.toString()
@@ -90,6 +95,8 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   }, [asked, allowed, isAdmin, params, pathname, router])
 
   const set = (which: ToolKey) => (o: boolean) => setOpen(o ? which : null)
+  // The project's links (basecamp-16): the home's strip reads the same list, so it is asked for once.
+  const links = useProjectLinks(allowed ? projectId : undefined)
   // A dialog renders (and its chunk loads) from its first opening on.
   const [opened, setOpened] = useState<Set<ToolKey>>(() => new Set())
   useEffect(() => {
@@ -100,6 +107,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
   const tools: ProjectTool[] = !allowed ? [] : [
     tool("time", "Time logged on this project", Clock),
     tool("rules", "Rules that run work", Workflow),
+    tool("links", "Links", Link2),
     ...(isAdmin ? [
       tool("forms", "Intake forms", ClipboardList),
       tool("share", "Share with a client", Globe),
@@ -112,6 +120,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
     <>
       {was("time") && <ProjectTimeDialog projectId={projectId} projectName={projectName} isAdmin={isAdmin} open={open === "time"} onOpenChange={set("time")} />}
       {open === "rules" && <ProjectRulesDialog projectId={projectId} onClose={() => setOpen(null)} />}
+      {open === "links" && <ProjectLinksDialog projectId={projectId} links={links} onClose={() => setOpen(null)} />}
       {isAdmin && was("forms") && <ProjectFormsDialog projectId={projectId} open={open === "forms"} onOpenChange={set("forms")} />}
       {isAdmin && was("share") && <ProjectShareDialog projectId={projectId} open={open === "share"} onOpenChange={set("share")} />}
       {isAdmin && was("template") && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}

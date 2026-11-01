@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useDragOverPage } from "@/hooks/useDragOverPage"
 import { useFetch } from "@/hooks/useFetch"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import { useToast } from "@/hooks/use-toast"
@@ -98,7 +99,14 @@ export default function BoardTools({ api, editable, synced = true, quiet = false
   // small scale, then it unmounts. It comes a beat after the sync, since the
   // shared shapes land on the scene a tick after it, so a full board never
   // flashes it.
-  const offer = empty && synced && !quiet
+  // It steps aside while anything is dragged over the page, too. It sits
+  // where a first drop lands, and what is let go on it never reaches the
+  // board: Excalidraw takes drops on its own container, and the card is no
+  // part of it. So for a drag (a task from Add from OneCamp, a file, a link)
+  // it takes no pointer and fades, and the drop lands on the board under it;
+  // a drag that ends anywhere else brings it back.
+  const dragging = useDragOverPage()
+  const offer = empty && synced && !quiet && !dragging
   const [cardShown, setCardShown] = React.useState(false)
   React.useEffect(() => {
     const t = setTimeout(() => setCardShown(offer), offer ? 250 : 160)
@@ -114,8 +122,9 @@ export default function BoardTools({ api, editable, synced = true, quiet = false
         className={cn(
           // 500 px gives each of the five a name's width: at 420 they read
           // "Retrosp…" and "User jou…". A phone lays them three to a row.
-          "content-float pointer-events-auto w-[min(92vw,500px)] rounded-[16px] bg-pop p-5 shadow-e3 transition-[opacity,transform] duration-[160ms] ease-[var(--ease-out)]",
-          !offer && "scale-[0.98] opacity-0",
+          "content-float w-[min(92vw,500px)] rounded-[16px] bg-pop p-5 shadow-e3 transition-[opacity,transform] duration-[160ms] ease-[var(--ease-out)]",
+          // On its way out it takes no pointer: a press or a drop goes to the board.
+          offer ? "pointer-events-auto" : "pointer-events-none scale-[0.98] opacity-0",
         )}
       >
         <p className="text-heading text-ink">Start with a template</p>

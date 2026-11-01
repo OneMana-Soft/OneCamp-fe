@@ -10,7 +10,9 @@ import store from "@/store/store"
 // between, once, as a reconnect does; an early one fetches nothing more.
 // Whenever a connection's subscriptions are answered, each open conversation
 // reads what came after its newest message (the gap between its first read
-// and the subscription, FLUIDITY-LEAD-8's rtGap).
+// and the subscription, FLUIDITY-LEAD-8's rtGap), and the open boards and
+// lists read the task changes they missed (WCL-2), as they do each time the
+// tab is shown again.
 
 const connect = vi.hoisted(() => ({
   onConnect: undefined as undefined | (() => void),
@@ -38,7 +40,11 @@ vi.mock("@/hooks/useMqttConnection", () => ({
     }
   },
 }))
-vi.mock("@/hooks/useMqttMessageHandler", () => ({ useMqttMessageHandler: () => ({ handleMessage: noop, cleanup: noop }) }))
+// The open boards and lists read the task changes they missed (WCL-2).
+const handler = vi.hoisted(() => ({ catchUpWork: vi.fn() }))
+vi.mock("@/hooks/useMqttMessageHandler", () => ({
+  useMqttMessageHandler: () => ({ handleMessage: noop, cleanup: noop, catchUpWork: handler.catchUpWork }),
+}))
 vi.mock("@/hooks/useMessageSyncManager", () => ({
   useMessageSyncManager: () => ({ markHealthy: noop, handleDisconnected: noop, handleConnectionEstablished: noop, handleForeground: noop }),
 }))
@@ -54,6 +60,7 @@ beforeEach(() => {
   vi.stubGlobal("requestIdleCallback", (cb: () => void) => setTimeout(cb, 0))
   vi.stubGlobal("cancelIdleCallback", (id: number) => clearTimeout(id))
   connect.onConnect = undefined
+  handler.catchUpWork.mockClear()
   connect.liveAt.clear()
   connect.subscribed.length = 0
 })
@@ -93,17 +100,39 @@ describe("the realtime engine", () => {
     expect(nonce()).toBe(before)
   })
 
-  it("asks the open conversations to catch up each time a connection's subscriptions are answered, early or late", async () => {
+  it("asks the open conversations and boards to catch up each time a connection's subscriptions are answered, early or late", async () => {
     await engineAt(1200)
     const catchUps = () => store.getState().messageResync.catchUpNonce
     const before = catchUps()
     connect.onConnect!()
     expect(catchUps(), "not on connecting: the subscriptions aren't answered yet").toBe(before)
+    expect(handler.catchUpWork, "nor the boards").not.toHaveBeenCalled()
     connect.onSubscribed!()
     expect(catchUps()).toBe(before + 1)
+    expect(handler.catchUpWork).toHaveBeenCalledTimes(1)
     connect.onConnect!()
     connect.onSubscribed!()
     expect(catchUps(), "and on every connection after").toBe(before + 2)
+    expect(handler.catchUpWork, "the boards too").toHaveBeenCalledTimes(2)
+  })
+
+  it("asks the open boards to catch up each time the tab is shown again, never on focus or on hiding", async () => {
+    await engineAt(1200)
+    const visibility = vi.spyOn(document, "visibilityState", "get")
+    const show = (state: DocumentVisibilityState) => {
+      visibility.mockReturnValue(state)
+      document.dispatchEvent(new Event("visibilitychange"))
+    }
+    // Once the engine listens, a tab shown again asks them once.
+    await vi.waitFor(() => {
+      show("visible")
+      expect(handler.catchUpWork).toHaveBeenCalledTimes(1)
+    })
+    window.dispatchEvent(new Event("focus"))
+    show("hidden")
+    expect(handler.catchUpWork, "not on focus, nor on hiding").toHaveBeenCalledTimes(1)
+    show("visible")
+    expect(handler.catchUpWork, "and again each time it's shown").toHaveBeenCalledTimes(2)
   })
 })
 

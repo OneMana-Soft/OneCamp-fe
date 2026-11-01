@@ -8,7 +8,8 @@ import { settled } from "./sheetLayout"
 // INTERACTION POLISH (DESIGN-BUILD-5, 22 Oct 2026), on a production build:
 //   - an open sheet owns the bottom of a phone's screen, as the keyboard does,
 //     so toasts come in under the top bar while one is up (app/phone.css C9,
-//     html[data-sheet] from components/ui/drawer);
+//     html[data-sheet], the one mark every sheet primitive sets through
+//     components/ui/sheetMark);
 //   - on a short phone a menu sheet keeps the group that holds what destroys
 //     at its foot, in reach, while the rest scrolls (components/ui/sheet-menu);
 //   - a sheet's and a dialog's description wraps pretty;

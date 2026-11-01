@@ -49,6 +49,8 @@ for (const view of VIEWS) {
       const members = tab.getByRole("region", { name: "Members · 3" })
       const failed = members.getByText("Couldn't load the members")
       await expect(failed).toBeVisible({ timeout: 30_000 })
+      // V-131: a screen reader hears it once, as an alert, since the toast stays quiet.
+      await expect(tab.getByRole("alert").filter({ hasText: "Couldn't load the members" }), "the failed read is announced as one alert").toHaveCount(1)
       await expect(tab.getByRole("region", { name: "Members · 0" })).toHaveCount(0)
       await expect(members.getByText("No members yet")).toHaveCount(0)
       await failed.scrollIntoViewIfNeeded()

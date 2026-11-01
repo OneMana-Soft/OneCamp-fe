@@ -242,6 +242,44 @@ test.describe("the docs home", () => {
     await expect(page.getByText("Restored “Old plan” and 2 pages inside", { exact: true })).toBeVisible()
   })
 
+  // V-131: a trash that couldn't be read is announced once, as an alert (the
+  // request's toast stays quiet while the error state is up), and Try again
+  // reads it again.
+  for (const phone of [false, true]) {
+    test(`at ${phone ? "390 with touch" : "1280"}, a trash that couldn't be read is one alert, and Try again reads it again`, async ({ browser }, testInfo) => {
+      const baseURL = String(testInfo.project.use.baseURL || "http://localhost:3001")
+      const app = new URL(baseURL)
+      const context = await browser.newContext({
+        baseURL,
+        ...(phone ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } : { viewport: { width: 1280, height: 900 } }),
+      })
+      const page = await context.newPage()
+      await serveHome(page, testInfo)
+      let failing = true
+      await page.route(
+        // The API's read only, as serveHome's: the app's own page, /app/doc/trash, ends the same way.
+        (url) => url.origin !== app.origin && url.pathname.endsWith("/doc/trash"),
+        (route) => {
+          const req = route.request()
+          if (!failing || req.method() !== "GET") return route.fallback()
+          const headers = { "access-control-allow-origin": req.headers()["origin"] || "*", "access-control-allow-credentials": "true" }
+          return route.fulfill({ status: 500, headers, json: { msg: "The trash is unavailable." } })
+        },
+      )
+      await page.goto("/app/doc/trash", { waitUntil: "domcontentloaded", timeout: 120_000 })
+      // The failed state is on screen first, so a missing alert is the role's, never the page's.
+      await expect(page.getByText("Couldn't load the trash")).toBeVisible({ timeout: 60_000 })
+      const alert = page.getByRole("alert").filter({ hasText: "Couldn't load the trash" })
+      await expect(alert, "the failed read is announced as one alert").toHaveCount(1)
+      failing = false
+      const again = page.getByRole("button", { name: "Try again" })
+      await (phone ? again.tap() : again.click())
+      await expect(page.locator(`[data-restore-row="${OLD_PLAN}"]`)).toContainText("Old plan", { timeout: 60_000 })
+      await expect(alert).toHaveCount(0)
+      await context.close()
+    })
+  }
+
   test("at a sheet's width on a computer, a sheet opened from the keys takes them and gives them back", async ({ browser }, testInfo) => {
     // Under 640 px a window shows the phone's shell and its sheets. A sheet
     // opened from the keys took none of them: they stayed on the page behind

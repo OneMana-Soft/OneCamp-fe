@@ -6,10 +6,13 @@ const makeRequest = vi.hoisted(() => vi.fn(async () => []))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest, isSubmitting: false }) }))
 const calendarList = vi.hoisted(() => ({ value: [] as { id: string; name: string; kind: string; container_kind?: string; container_id?: string; access: string }[] }))
 vi.mock("@/lib/calendar/calendarList", () => ({ useCalendarList: () => calendarList.value }))
-const peopleHours = vi.hoisted(() => ({ value: undefined as Record<string, { tz: string; week: Record<string, { start: string; end: string }[]> }> | undefined }))
+const peopleHours = vi.hoisted(() => ({ value: undefined as import("@/lib/calendar/peopleHours").PeopleDays | undefined, args: [] as unknown[] }))
 vi.mock("@/lib/calendar/peopleHours", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/calendar/peopleHours")>()),
-  usePeopleHours: () => peopleHours.value,
+  usePeopleHours: (...args: unknown[]) => {
+    peopleHours.args = args
+    return peopleHours.value
+  },
 }))
 // The task finder is a chunk of its own; here it offers one task.
 vi.mock("@/components/task/taskFinder", () => ({
@@ -180,7 +183,7 @@ describe("the one Event Form", () => {
 
   // Calendar A3: a time outside a guest's working hours, at their own time.
   it("says when a time is outside a guest's working hours, at their time", () => {
-    peopleHours.value = { maya: { tz: "Asia/Kolkata", week: { "1": [{ start: "10:00", end: "18:30" }] } } }
+    peopleHours.value = { hours: { maya: { tz: "Asia/Kolkata", week: { "1": [{ start: "10:00", end: "18:30" }] } } }, where: {} }
     // Monday 19 Oct 2026, 15:00 to 16:00 UTC: 20:30 in India.
     render(<Form start={base({ start: new Date("2026-10-19T15:00:00Z"), end: new Date("2026-10-19T16:00:00Z"), guests: [{ uuid: "maya", email: "", name: "Maya Chen", optional: false }] })} />)
     expect(document.querySelector("[data-outside-hours]")?.textContent).toMatch(/^That's (20:30|8:30\sPM) for Maya, outside their working hours\.$/)
@@ -192,22 +195,27 @@ describe("the one Event Form", () => {
     const start = new Date("2026-10-19T15:00:00Z")
     const here = Intl.DateTimeFormat().resolvedOptions().timeZone
     peopleHours.value = {
-      kai: { tz: "Pacific/Kiritimati", week: { "2": [{ start: "00:00", end: "23:59" }] } },
-      sam: { tz: here, week: { "1": [{ start: "00:00", end: "23:59" }] } },
+      hours: {
+        kai: { tz: "Pacific/Kiritimati", week: { "2": [{ start: "00:00", end: "23:59" }] } },
+        sam: { tz: here, week: { "1": [{ start: "00:00", end: "23:59" }] } },
+      },
+      where: {},
     }
     const guest = (uuid: string, name: string) => ({ uuid, email: "", name, optional: false })
     render(<Form start={base({ start, end: new Date("2026-10-19T15:30:00Z"), guests: [guest("kai", "Kai Tane"), guest("sam", "Sam Rivera")] })} />)
     // Kiritimati is 14 hours ahead of UTC: 05:00 on Tuesday.
     expect(document.querySelector("[data-guest-times]")?.textContent).toBe(`${clockTime(start)} your time · ${clockTime(new Date(2000, 0, 1, 5, 0))} for Kai (Kiritimati)`)
     cleanup()
-    peopleHours.value = { sam: peopleHours.value.sam }
+    peopleHours.value = { hours: { sam: peopleHours.value.hours.sam }, where: {} }
     render(<Form start={base({ start, end: new Date("2026-10-19T15:30:00Z"), guests: [guest("sam", "Sam Rivera")] })} />)
     expect(document.querySelector("[data-guest-times]")).toBeNull()
     peopleHours.value = undefined
   })
 
   it("says what stops a save at its field", () => {
-    render(<Form problem={{ field: "end", message: "It has to end after it starts" }} />)
+    // The form says the problem its values have: these end an hour before they start.
+    const ends = base()
+    render(<Form problem={{ field: "end", message: "It has to end after it starts" }} start={{ ...ends, end: new Date(ends.start.getTime() - 3_600_000) }} />)
     expect(screen.getByRole("alert").textContent).toBe("It has to end after it starts")
     expect(screen.getByLabelText("End").getAttribute("aria-invalid")).toBe("true")
   })
@@ -281,5 +289,129 @@ describe("time for a task", () => {
   it("isn't offered where the calendar keeps the old stores", () => {
     render(<Form full={false} creating />)
     expect(screen.queryByRole("button", { name: "Block time for a task" })).toBeNull()
+  })
+
+  // Own time isn't time for a task (DB-50's rule, for every kind of it): while Focus time, Away or a working
+  // location is on, the row is gone, and it comes back when the switch is off.
+  it.each(["Focus time", "Away", "Working location"])("isn't offered while %s is on", (kind) => {
+    const seen: EventFormValues[] = []
+    render(<Form seen={seen} creating start={base({ title: "" })} />)
+    const blockTime = () => screen.queryByRole("button", { name: "Block time for a task" })
+    expect(blockTime()).not.toBeNull()
+    const own = screen.getByRole("switch", { name: new RegExp(`^${kind}`) })
+    fireEvent.click(own)
+    expect(seen.at(-1)?.kind).not.toBe("event")
+    expect(blockTime()).toBeNull()
+    fireEvent.click(own)
+    expect(seen.at(-1)).toMatchObject({ kind: "event" })
+    expect(blockTime()).not.toBeNull()
+  })
+})
+
+describe("a working location (head 5d)", () => {
+  it("is a choice after Away that makes it a whole-day place, with only the rows a place has", () => {
+    const seen: EventFormValues[] = []
+    render(<Form seen={seen} creating googleConnected start={base({ title: "", start: new Date(2026, 9, 20, 14), end: new Date(2026, 9, 20, 15) })} />)
+    const options = Array.from(document.querySelectorAll("[data-event-option] label > span:first-child")).map((s) => s.textContent)
+    expect(options.slice(0, 3)).toEqual(["Focus time", "Away", "Working location"])
+    const blockTime = () => screen.queryByRole("button", { name: "Block time for a task" })
+    expect(blockTime()).not.toBeNull()
+    const place = screen.getByRole("switch", { name: /^Working location/ })
+    fireEvent.click(place)
+    expect(seen.at(-1)).toMatchObject({ kind: "working_location", allDay: true, startDate: "2026-10-20", lastDate: "2026-10-20" })
+    expect(screen.getByLabelText("Title").getAttribute("placeholder")).toBe("Where you're working")
+    expect(rowLabels()).toEqual(["All day", "Starts", "Ends", "Repeat", "Notes", "Calendar", "Place"])
+    expect(screen.queryByRole("switch", { name: /^Add to Google Calendar too/ })).toBeNull()
+    // Where you are all day isn't time for a task (DB-50): its row goes while the switch is on, and comes back off.
+    expect(blockTime()).toBeNull()
+    fireEvent.click(place)
+    expect(seen.at(-1)).toMatchObject({ kind: "event" })
+    expect(blockTime()).not.toBeNull()
+  })
+
+  it("picks Home or Office as its place, and a press on the one picked clears it", () => {
+    const seen: EventFormValues[] = []
+    render(<Form seen={seen} start={base({ kind: "working_location", title: "", allDay: true })} />)
+    const place = within(document.querySelector("[data-place-rows]") as HTMLElement)
+    fireEvent.click(place.getByRole("button", { name: "Home" }))
+    expect(seen.at(-1)?.title).toBe("Home")
+    expect(place.getByRole("button", { name: "Home" }).getAttribute("aria-pressed")).toBe("true")
+    expect(place.getByRole("button", { name: "Office" }).getAttribute("aria-pressed")).toBe("false")
+    fireEvent.click(place.getByRole("button", { name: "Home" }))
+    expect(seen.at(-1)?.title).toBe("")
+  })
+
+  it("says where guests work that day, three at most", () => {
+    peopleHours.value = { hours: {}, where: { maya: "Home", jonas: "Lisbon office", kai: "Office", sam: "Home" } }
+    const guest = (uuid: string, name: string) => ({ uuid, email: "", name, optional: false })
+    const guests = [guest("maya", "Maya Chen"), guest("lee", "Lee Park"), guest("jonas", "Jonas Weber"), guest("kai", "Kai Tane"), guest("sam", "Sam Rivera")]
+    render(<Form start={base({ start: new Date(2026, 9, 19, 15), end: new Date(2026, 9, 19, 16), guests })} />)
+    expect(peopleHours.args).toEqual([["maya", "lee", "jonas", "kai", "sam"], "2026-10-19"])
+    expect(document.querySelector("[data-guest-where]")?.textContent).toBe("Maya: Home · Jonas: Lisbon office · Kai: Office · 1 more")
+    peopleHours.value = undefined
+  })
+})
+
+// DB-51 (5d's read): its host (the create dialog, the panel's edit) says a problem when Create or Save is pressed, and
+// the alert stayed after the form was put right. Once one is said, the form says the problem as the form stands.
+describe("a problem the form says", () => {
+  const alert = () => screen.queryByRole("alert")?.textContent ?? null
+
+  it("goes as soon as the title is given, and comes back if it's cleared", () => {
+    render(<Form creating problem={{ field: "title", message: "Give it a title" }} start={base({ title: "" })} />)
+    expect(alert()).toBe("Give it a title")
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Planning" } })
+    expect(alert()).toBeNull()
+    expect(screen.getByLabelText("Title").getAttribute("aria-invalid")).toBeNull()
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: " " } })
+    expect(alert()).toBe("Give it a title")
+  })
+
+  it("goes when a working location's place is picked", () => {
+    render(<Form creating problem={{ field: "title", message: "Say where you're working" }} start={base({ kind: "working_location", title: "", allDay: true })} />)
+    expect(alert()).toBe("Say where you're working")
+    fireEvent.click(within(document.querySelector("[data-place-rows]") as HTMLElement).getByRole("button", { name: "Home" }))
+    expect(alert()).toBeNull()
+  })
+})
+
+// CR-113 S1: Focus time, Away and Working location could be switched on while editing a meeting with guests, and the
+// save was refused. The event's read says which own time a save keeping its guests can't make it, in the words the save
+// is refused with (own_time_refused); the form offers only the rest and says why on each switch it can't offer.
+describe("own time the server refuses", () => {
+  const REFUSED = {
+    focus: "Focus time is yours alone: it has no guests.",
+    out_of_office: "An out of office is yours alone: it has no guests.",
+    working_location: "A working location is yours alone: it has no guests.",
+  }
+  const guests = [{ uuid: "maya", email: "", name: "Maya", optional: false }]
+  // The ink of a switch row's name. A refused row reads as off, its name dimmed as a disabled setting's is (the shared
+  // SwitchRow's RowWords; DB-52); the server's words keep their own ink-3.
+  const nameInk = (own: HTMLElement) =>
+    (own.closest("[data-event-option]")?.querySelector("label > span:first-child")?.className ?? "").split(/\s+/).filter((c) => c.startsWith("text-ink"))
+
+  it.each([
+    ["Focus time", "focus"],
+    ["Away", "out_of_office"],
+    ["Working location", "working_location"],
+  ] as const)("%s can't be switched on, and its switch says why", (label, kind) => {
+    const seen: EventFormValues[] = []
+    render(<Form seen={seen} ownTimeRefused={REFUSED} start={base({ guests })} />)
+    const own = screen.getByRole("switch", { name: new RegExp(`^${label}`) })
+    expect(own.hasAttribute("disabled")).toBe(true)
+    expect(own.getAttribute("aria-checked")).toBe("false")
+    expect(document.getElementById(own.getAttribute("aria-describedby") ?? "")?.textContent).toBe(REFUSED[kind])
+    expect(nameInk(own)).toEqual(["text-ink-3"])
+    fireEvent.click(own)
+    expect(seen).toEqual([])
+  })
+
+  it("offers every switch when the server refuses none", () => {
+    render(<Form start={base({ guests })} />)
+    for (const label of ["Focus time", "Away", "Working location"]) {
+      const own = screen.getByRole("switch", { name: new RegExp(`^${label}`) })
+      expect(own.hasAttribute("disabled")).toBe(false)
+      expect(nameInk(own)).toEqual(["text-ink"])
+    }
   })
 })

@@ -24,6 +24,7 @@ vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async () => ({})) }) }))
 vi.mock("@/components/projectUpdates/ProjectHealthChip", () => ({ ProjectHealthChip: ({ className }: { className?: string }) => <span data-testid="health-chip" className={className} /> }))
 vi.mock("@/components/goals/ProjectGoalChip", () => ({ ProjectGoalChip: ({ className }: { className?: string }) => <a data-testid="goal-chip" className={className} /> }))
+vi.mock("@/components/project/ProjectLinksStrip", () => ({ ProjectLinksChip: ({ className }: { className?: string }) => <button data-testid="links-chip" className={className} /> }))
 
 const { ProjectListTabs } = await import("@/components/project/projectListTabs")
 
@@ -66,6 +67,11 @@ describe("the phone project's chips (PTC-43)", () => {
     expect(goal.className).toMatch(/\bmin-w-0\b/)
     expect(goal.className).toMatch(/\bshrink\b/)
     expect(screen.getByTestId("health-chip").className).toContain("shrink-0")
+    // The links chip (basecamp-16) keeps its size too, ahead of the goal, which alone gives way.
+    const links = screen.getByTestId("links-chip")
+    expect(links.className).toContain("shrink-0")
+    expect(links.parentElement).toBe(row)
+    expect(links.compareDocumentPosition(goal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
 

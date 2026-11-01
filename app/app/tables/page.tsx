@@ -30,9 +30,15 @@ import { lazyView } from "@/lib/lazy/lazyView"
 /**
  * The deleted tables (TablesTrash): a chunk of its own, with its dialog and a
  * phone's drawer, loaded as the pointer or the focus reaches Trash, never with
- * the list's first screen.
+ * the list's first screen. A read of it that fails is drawn here, with the
+ * shared error state this page already draws, so the chunk imports none of it.
  */
 const TrashPart = lazyView(() => import("@/components/table/trash/TablesTrash"))
+
+/** The trash's failed read (V-130): what was refused, if anything, and Try again. */
+const trashFailed = ({ detail, retry }: { detail?: string; retry: () => void }) => (
+  <ErrorState compact subject="the trash" onRetry={retry} detail={detail} />
+)
 const warmTrash = () => void TrashPart.prefetch()
 /** A spreadsheet into tables (ImportSheetDialog): its own chunk, warmed as the pointer or the focus reaches Import. */
 const ImportPart = lazyView(() => import("@/components/table/import/ImportSheetDialog"))
@@ -205,7 +211,7 @@ export default function TablesPage() {
         </Button>
       </div>
       {importing ? <ImportPart.View fallback={null} render={(m) => <m.ImportSheetDialog onClose={() => setImporting(false)} onDone={() => void mutate()} />} /> : null}
-      {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TablesTrash onClose={() => setTrashOpen(false)} onRestored={() => void mutate()} />} /> : null}
+      {trashOpen ? <TrashPart.View fallback={null} render={(m) => <m.TablesTrash onClose={() => setTrashOpen(false)} onRestored={() => void mutate()} renderFailed={trashFailed} />} /> : null}
 
       {/* The AI bar, where AI is on: with it off (or on the edition without
           it) Generate could only fail. */}

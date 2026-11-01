@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config"
 import react from "@vitejs/plugin-react"
 import path from "path"
+import { trackImportsPlugin } from "./lib/testing/trackImports"
 
 // Vitest config kept minimal. We mirror Next.js's `@/*` alias so test
 // files can import the same paths components use, jsdom for the DOM
@@ -12,11 +13,16 @@ import path from "path"
 // they start, so it is set before any of them do.
 process.env.LC_ALL = "en_US.UTF-8"
 
+// Run before each test file. lib/testing/trackImports passes over them, as it does over the tests.
+const setupFiles = ["./vitest.setup.ts"]
+
 export default defineConfig({
-  plugins: [react()],
+  // V-138: every app import() is known to the tests' one code wait (lib/testing/lazyCode) while it's in flight.
+  // Tests only: no app build reads this file.
+  plugins: [react(), trackImportsPlugin({ setupFiles })],
   test: {
     environment: "jsdom",
-    setupFiles: ["./vitest.setup.ts"],
+    setupFiles,
     include: ["**/*.{test,spec}.{ts,tsx}"],
     // Excluding next build artefacts, node_modules, and the Playwright
     // e2e directory. e2e/*.spec.ts uses @playwright/test, which can't

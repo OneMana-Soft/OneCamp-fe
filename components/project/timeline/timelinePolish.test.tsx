@@ -69,4 +69,39 @@ describe("the timeline's polish", () => {
     // October starts 3 days in (48 px); its name's room ends at the pill's left (360 - 22) less 8: 330 - 48 = 282 px.
     expect(october.style.maxWidth).toContain("282px")
   })
+
+  // V-223: on a month's first day the pill sits on the month's start, so its stop falls in the month before, and
+  // the month's own name kept its whole room and sat under the pill. It begins after the pill (and 8 px).
+  const label = (c: HTMLElement, month: string) => [...c.querySelectorAll<HTMLElement>("[data-month-label]")].find((l) => l.textContent?.startsWith(month))!
+
+  it("begins a month's name after the Today pill when the pill sits on the month's first day", () => {
+    // Weeks at 16 px a day from 28 Sep: November starts 34 days in (544 px) and ends at 1,024 px; today, 1 Nov, puts
+    // the pill's centre at 552 px. October ends before it (552 - 22 - 8 = 522: 474 px of room from 48).
+    const { container } = render(
+      <TimelineHeader range={{ from: new Date(2026, 8, 28), days: 70 }} zoom="week" dayWidth={16} today={new Date(2026, 10, 1)} nameWidth={240} />,
+    )
+    expect(label(container, "October").style.maxWidth).toContain("474px")
+    expect(label(container, "October").style.marginLeft).toBe("")
+    // November begins at the pill's right edge and 8 px (552 + 22 + 8 = 582), 38 px into its month: 442 px of room.
+    expect(label(container, "November").style.marginLeft).toBe("38px")
+    expect(label(container, "November").style.maxWidth).toContain("442px")
+  })
+
+  it("begins the next month's name after the pill on a month's last day, where the pill runs over its start", () => {
+    // Today, 31 Oct, 33 days in: the pill's centre is 536 px and its right edge 558, past November's start (544).
+    const { container } = render(
+      <TimelineHeader range={{ from: new Date(2026, 8, 28), days: 70 }} zoom="week" dayWidth={16} today={new Date(2026, 9, 31)} nameWidth={240} />,
+    )
+    expect(label(container, "October").style.maxWidth).toContain("458px")
+    expect(label(container, "November").style.marginLeft).toBe("22px")
+    expect(label(container, "November").style.maxWidth).toContain("458px")
+  })
+
+  it("does the same by day, where a day is 36 px", () => {
+    // Days from Monday 26 Oct: November starts 6 days in (216 px); the pill's centre is 234 px on 1 Nov.
+    const { container } = render(
+      <TimelineHeader range={{ from: new Date(2026, 9, 26), days: 56 }} zoom="day" dayWidth={36} today={new Date(2026, 10, 1)} nameWidth={240} />,
+    )
+    expect(label(container, "November").style.marginLeft).toBe("48px")
+  })
 })

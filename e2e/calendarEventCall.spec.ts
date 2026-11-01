@@ -5,8 +5,10 @@ import { SAM, SHOT_THEMES, reviewShot, stubBackend, withStatus } from "./stubbed
 // Calendar B11 (zoom-01, meet-02, zoom-15): an event carries its own call, made on demand. Its organiser adds it from
 // the event's card and takes it off again behind a red confirm. Every member joins it in the app, as themselves, from
 // the card and from Home's agenda: members never wait in its lobby (D-CL-5, Meet's Quick access for the
-// organisation). Its address is what a copy of the link shares, for the people outside who knock there. These are
-// the real pages on a backend stubbed with the server's answers; with SHOTS_DIR set each state is shot in both themes.
+// organisation). Its address is what a copy of the link shares, for the people outside who knock there. Its guests
+// by email come straight in with their own link, until whoever may change the event makes them knock (meet-02, Meet's
+// quick access off). These are the real pages on a backend stubbed with the server's answers; with SHOTS_DIR set each
+// state is shot in both themes.
 
 // Wednesday 21 October 2026, 10:00 on the browser's clock.
 const NOW = new Date(2026, 9, 21, 10, 0)
@@ -14,25 +16,37 @@ const at = (h: number, m = 0) => new Date(2026, 9, 21, h, m).toISOString()
 const ME = { ...SAM, user_name: "Sam Rivera" }
 const MAYA = { user_uuid: "5e1f0000-0000-4000-8000-0000000000a2", user_name: "Maya Chen", user_full_name: "Maya Chen" }
 
-// Sam's own with its call, about to start; Sam's own with none; Maya's with its call, Sam her guest.
+// Sam's own with its call, about to start; Sam's own with none; Maya's with its call, Sam her guest. At noon, Sam's
+// own with its call and a guest invited by email; at one, Maya's with its call and one, Sam her guest.
 const OWN = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c11"
 const PLAIN = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c12"
 const THEIRS = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c13"
+const LAUNCH = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c14"
+const PRESS = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c15"
 const callAt = (slug: string) => ({ slug, address: `/r/${slug}` })
 const ADDED = "quarterly-plan-q8w3e5r7"
+const ALEX = { email: "alex@example.org", name: "Alex Kim", role: "required", response: "needs_action" }
+const SKIP = "Invited guests skip the lobby"
+const SKIP_HINT = "Guests you invited by email come straight in with their own link. When it's off, they knock and wait to be let in."
+// The lobby switch is found by its row, so new words fail on the words and a missing switch never passes on a name.
+const LOBBY_ROW = "[data-event-call-lobby]"
 
-type Call = { slug: string; address: string } | null
+type Call = { slug: string; address: string; invitees_wait?: boolean } | null
 
 function events(calls: Map<string, Call>) {
   return [
     { event_uuid: OWN, event_title: "Design review", event_start_time: at(10, 5), event_end_time: at(11), event_created_by: ME, event_participants: [MAYA] },
     { event_uuid: PLAIN, event_title: "Quarterly plan", event_start_time: at(14), event_end_time: at(15), event_created_by: ME, event_participants: [MAYA] },
     { event_uuid: THEIRS, event_title: "Brand crit", event_start_time: at(16), event_end_time: at(17), event_created_by: MAYA, event_participants: [ME] },
+    { event_uuid: LAUNCH, event_title: "Launch sync", event_start_time: at(12), event_end_time: at(12, 45), event_created_by: ME, event_participants: [MAYA],
+      event_guests: [{ user_uuid: MAYA.user_uuid, role: "required", response: "accepted" }, ALEX] },
+    { event_uuid: PRESS, event_title: "Press prep", event_start_time: at(13), event_end_time: at(13, 45), event_created_by: MAYA, event_participants: [ME],
+      event_guests: [{ user_uuid: SAM.user_uuid, role: "required", response: "accepted" }, ALEX] },
   ].map((e) => ({ ...e, event_call: calls.get(e.event_uuid) ?? null }))
 }
 
-/** A call route that fails: `fail`'s method answers as the calendar does a fault it didn't expect, once `held` lets go. */
-type Failing = { fail?: "POST" | "DELETE"; held?: Promise<void> }
+/** A call route that fails: `fail`'s method (or the lobby's) answers as the calendar does a fault it didn't expect, once `held` lets go. */
+type Failing = { fail?: "POST" | "DELETE" | "lobby"; held?: Promise<void> }
 
 /** A promise the test lets go of, so a request is seen in flight. */
 function gate() {
@@ -47,6 +61,8 @@ async function openDay(page: Page, testInfo: TestInfo, { fail, held }: Failing =
     [OWN, callAt("design-review-k3x9p2qa")],
     [PLAIN, null],
     [THEIRS, callAt("brand-crit-7h2m4d1s")],
+    [LAUNCH, callAt("launch-sync-2v6n8c4x")],
+    [PRESS, callAt("press-prep-5t9b3w6e")],
   ])
   const sent: string[] = []
   await page.clock.setFixedTime(NOW)
@@ -62,6 +78,18 @@ async function openDay(page: Page, testInfo: TestInfo, { fail, held }: Failing =
     "/event/getEvent/": (url: URL) => ({ msg: "ok", data: events(calls).find((e) => e.event_uuid === url.pathname.split("/").pop()) }),
     "/calendar/events/": async (url: URL, request: Request) => {
       const parts = url.pathname.split("/")
+      if (parts.at(-2) === "call" && parts.at(-1) === "lobby") {
+        const id = parts.at(-3) ?? ""
+        const wait = (request.postDataJSON() as { invitees_wait: boolean }).invitees_wait
+        sent.push(`POST lobby ${id} ${wait}`)
+        if (fail === "lobby") {
+          await held
+          return withStatus(503, { msg: "Something went wrong. Try again in a moment." })
+        }
+        const now = calls.get(id)
+        if (now) calls.set(id, { ...now, invitees_wait: wait })
+        return { msg: "ok", data: calls.get(id) }
+      }
       if (parts.at(-1) === "call") {
         const id = parts.at(-2) ?? ""
         sent.push(`${request.method()} ${id}`)
@@ -211,6 +239,63 @@ for (const theme of SHOT_THEMES) {
         await press(card(page).getByRole("button", { name: "More" }))
         await expect(page.getByRole("menuitem", { name: "Copy call link" })).toBeVisible()
         await expect(page.getByRole("menuitem", { name: "Remove call" })).toHaveCount(0)
+      })
+
+      test("lets its organiser make its guests by email knock, from the event's page, and let them straight in again", async ({ page }, testInfo) => {
+        test.setTimeout(180_000)
+        const sent = await openDay(page, testInfo)
+        await press(page.locator(`[data-event-uuid="${LAUNCH}"]`).first())
+        await press(card(page).getByRole("button", { name: "Open details" }))
+        const skip = page.locator(LOBBY_ROW).getByRole("switch")
+        await expect(skip).toBeChecked({ timeout: 30_000 })
+        await expect.soft(skip).toHaveAccessibleName(SKIP)
+        await expect.soft(skip).toHaveAccessibleDescription(SKIP_HINT)
+        await skip.scrollIntoViewIfNeeded()
+        await reviewShot(page, "event-call-lobby-on", theme)
+        await press(skip)
+        await expect(skip).not.toBeChecked()
+        await expect.poll(() => sent).toEqual([`POST lobby ${LAUNCH} true`])
+        await reviewShot(page, "event-call-lobby-off", theme)
+        await press(skip)
+        await expect(skip).toBeChecked()
+        await expect.poll(() => sent).toEqual([`POST lobby ${LAUNCH} true`, `POST lobby ${LAUNCH} false`])
+      })
+
+      test("keeps its guests by email coming straight in when the server can't change it, and the toast says why", async ({ page }, testInfo) => {
+        test.setTimeout(180_000)
+        const { held, open } = gate()
+        const sent = await openDay(page, testInfo, { fail: "lobby", held })
+        await press(page.locator(`[data-event-uuid="${LAUNCH}"]`).first())
+        await press(card(page).getByRole("button", { name: "Open details" }))
+        const skip = page.locator(LOBBY_ROW).getByRole("switch")
+        await expect(skip).toBeChecked({ timeout: 30_000 })
+        await press(skip)
+        // Shown as asked, and waiting, while the server answers: a second press can't ask again.
+        await expect(skip).not.toBeChecked()
+        await expect(skip).toBeDisabled()
+        await expect(skip).toHaveAttribute("aria-busy", "true")
+        open()
+        await expect(page.getByText("Couldn't change who waits", { exact: true })).toBeVisible({ timeout: 20_000 })
+        await expect(skip).toBeChecked()
+        await expect(skip).toBeEnabled()
+        await expect(skip).not.toHaveAttribute("aria-busy")
+        await reviewShot(page, "event-call-lobby-failed", theme)
+        expect(sent).toEqual([`POST lobby ${LAUNCH} true`])
+      })
+
+      test("offers no lobby switch to a guest of the event who may not change it, nor on an event whose guests are all members", async ({ page }, testInfo) => {
+        test.setTimeout(180_000)
+        await openDay(page, testInfo)
+        await press(page.locator(`[data-event-uuid="${PRESS}"]`).first())
+        await press(card(page).getByRole("button", { name: "More" }))
+        await press(page.getByRole("menuitem", { name: "Open" }))
+        await expect(page.locator("[data-event-guests]")).toBeVisible({ timeout: 30_000 })
+        await expect(page.locator(LOBBY_ROW)).toHaveCount(0)
+        await page.goto("/app/calendar?date=2026-10-21&view=day", { waitUntil: "domcontentloaded", timeout: 120_000 })
+        await press(page.locator(`[data-event-uuid="${OWN}"]`).first())
+        await press(card(page).getByRole("button", { name: "Open details" }))
+        await expect(page.locator("[data-event-guests]")).toBeVisible({ timeout: 30_000 })
+        await expect(page.locator(LOBBY_ROW)).toHaveCount(0)
       })
 
       test("is joined from Home's agenda in the app", async ({ page }, testInfo) => {

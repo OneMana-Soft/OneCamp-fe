@@ -19,12 +19,14 @@ import {
   TASK,
   TASK_CREATES,
   TASK_WRITES,
+  keptPart,
   madeHere,
   madeOffline,
   overlay,
   projectKind,
   projectOfPage,
   sameValue,
+  taskInfoOf,
   taskInfoUrl,
   taskKind,
   withCreates,
@@ -34,7 +36,7 @@ import {
 import { onOfflineWipe, wipeOfflineStore } from "@/lib/offline/wipe"
 import { resetOfflineStatus, setOfflineStatus, setSendNow } from "@/lib/offline/status"
 import { interceptRequests, keepsOffline } from "@/lib/offline/http"
-import { answeredAt, onAnswered } from "@/lib/http/answered"
+import { answeredAt, heardRefusal, onAnswered } from "@/lib/http/answered"
 import { acrossTabs } from "@/lib/acrossTabs"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { UserProfileDataInterface } from "@/types/user"
@@ -227,7 +229,7 @@ export async function answerFor(url: string): Promise<unknown> {
     .filter((o) => o.action === "create")
     .map((o) => ({ endpoint: o.url.split("?")[0], id: o.id, payload: o.payload, at: o.queuedAt }))
   const kept = await store.read(url).catch(() => undefined)
-  let answer = kept ? kept.answer : madeHere(url, creates)
+  let answer = kept ? kept.answer : (madeHere(url, creates) ?? (await keptTaskPage(url)))
   if (answer === undefined) return undefined
   // A task made here offers what the member may do in its project, as its
   // board or list was read (asana-12); nothing when that project wasn't read.
@@ -238,6 +240,17 @@ export async function answerFor(url: string): Promise<unknown> {
   )
   if (typeof given === "object" && given !== null) fromDevice.add(given)
   return given
+}
+
+/**
+ * A task's page whose own read wasn't kept, from what a board or list kept of the task (lib/offline/tasks keptPart),
+ * so a card of a kept board never opens to nothing offline. Never for an id of the device's own: a task made here
+ * whose create no longer waits isn't one the device can answer for.
+ */
+async function keptTaskPage(url: string): Promise<unknown> {
+  const id = taskInfoOf(url)
+  if (!id || madeOffline(id) || !store) return undefined
+  return keptPart(url, (await store.get(TASK, id).catch(() => undefined))?.value)
 }
 
 /** A project as kept from its board or list (lib/offline/tasks projectsIn). */
@@ -430,6 +443,9 @@ export async function send(waiting: Op): Promise<Outcome> {
     })
     return { kind: "sent", made: op.action === "create" ? madeId(op.kind, res?.data?.data) : undefined }
   } catch (e) {
+    // Refused: the change goes (never sent again), and the session is asked
+    // about, since a member removed meanwhile is refused everything.
+    if (statusOf(e) === 403) heardRefusal()
     return outcomeOf(e, true)
   }
 }

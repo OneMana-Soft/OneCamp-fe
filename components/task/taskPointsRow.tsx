@@ -45,10 +45,13 @@ export function TaskPointsRow({ taskUUID, projectUUID, points, canEdit }: Omit<P
   // A reader the project refuses (403, 404: a task's assignee from outside it, who may open the task but not its
   // project) has no points to see: no row, as for hours or a scale not read yet. A read that failed, or came with
   // the task as that part's error, says so in the row with Try again; for a task made on this device, which the
-  // server hasn't got yet, it says calmly when points can be set (main, 29 Oct): no error, and never no row.
+  // server hasn't got yet, it says calmly when points can be set (main, 29 Oct): no error, and never no row. That
+  // holds whatever the scale's read is doing: while the app is offline the read waits and says no failure
+  // (hooks/useFetch), so the row can't wait for a failure to say it.
   const refused = !!estimates.isError && loadFailure(estimates.isError) !== "failed"
   const failed = !refused && (!!estimates.isError || (answer !== undefined && !answer.data))
-  if (refused || (!failed && !scale)) return null
+  const later = !scale && madeOffline(taskUUID)
+  if (refused || (!failed && !scale && !later)) return null
   return (
     <div className={propertyRow()} data-property="points" data-field-empty={points === undefined ? "" : undefined}>
       <span className={propertyLabel}>Points</span>
