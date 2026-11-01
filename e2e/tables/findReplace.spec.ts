@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Locator, type Page, type TestInfo } from "@playwright/test"
 
+import { demoBuild } from "../demoBuild"
 import { SAM } from "../stubbedApp"
 import { TableServer } from "./tableServer"
 
@@ -233,8 +234,11 @@ test("at 390 with touch, a find over a phone's list marks the row it's at, shows
   // A row of the list, by its order's number.
   const item = (n: number) => page.locator("[data-table-list] li").filter({ hasText: new RegExp(`^Order ${n}(?!\\d)`) })
   await expect(item(1)).toBeVisible({ timeout: 60_000 })
-  // The demo's banner is up over the page, as a visitor first sees it (the bar rode up under it, DESIGN-BUILD-67).
-  await expect(page.locator("[data-app-banners]")).toBeVisible()
+  // The demo's banner is up over the page, as a visitor first sees it (the bar rode up under it, DESIGN-BUILD-67);
+  // a customer's build shows none there.
+  const banners = page.locator("[data-app-banners]")
+  if (demoBuild()) await expect(banners).toBeVisible()
+  else await expect(banners).toBeHidden()
   // The rows' text never moves as a find marks and unmarks: order 1's title, before a find, with matches, with
   // none and after Close (it moved 8 px while marking, DESIGN-BUILD-67 MUST 2).
   const title = item(1).getByText(/^Order 1$/)

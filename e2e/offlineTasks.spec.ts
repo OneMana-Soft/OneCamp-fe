@@ -841,22 +841,21 @@ for (const theme of SHOT_THEMES) {
           test.setTimeout(180_000)
           const server: Maker = { up: true, made: [], leaked: [] }
           // The task panel's tag picker never reaches the device (its words mark its chunk); every other chunk does.
-          // The board's own label filter carries the picker too and draws with the board, first: that chunk comes,
-          // and every OTHER chunk with the picker's words is cut while online (the warm list's fetch fails, as on a
-          // flaky network), and fails with the rest once the network goes. The panel's parts now come at the page's first
-          // idle moment (lib/offline/warmAhead, V-100), not after a press, so the cut is on from the start.
+          // The picker is a chunk of its own, which only the panel asks for (taskInfoPanel's tagCode), so every chunk
+          // with its words is cut: while online (the warm list's fetch fails, as on a flaky network), and with the rest
+          // once the network goes. The panel's parts come at the page's first idle moment (lib/offline/warmAhead, V-100),
+          // not after a press, so the cut is on from the start. E3 (v2.77.0): the cut used to let the first chunk with
+          // the picker's words through as the board's label filter's, which no longer carries the picker. On a customer
+          // build that first chunk was the panel's own, so the picker came and its room never said it couldn't.
           const cut: string[] = []
-          let boards: string | null = null
           await page.route("**/_next/static/chunks/**", async (route) => {
             const response = await route.fetch().catch(() => null)
             const body = response ? await response.text() : ""
             const url = route.request().url()
-            const picker = body.includes(". Change labels")
-            if (picker && boards === null) boards = url
             // A cut file stays cut, the build's own check included (lib/chunkRecoveryScript's HEAD, which has no
             // body to know it by): a file that answers that check reads as a page left behind by a new build, and
             // the page reloads.
-            const cutting = (picker && url !== boards) || cut.includes(url)
+            const cutting = body.includes(". Change labels") || cut.includes(url)
             if (response && cutting && !cut.includes(url)) cut.push(url)
             if (!response || cutting) await route.abort().catch(() => {})
             else await route.fulfill({ response, body })

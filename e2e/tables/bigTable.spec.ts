@@ -44,6 +44,55 @@ async function shootThemes(page: Page, name: string) {
   await page.emulateMedia({ colorScheme: "light" })
 }
 
+/**
+ * A summary cell brought whole into sight, as a person brings it. The bar
+ * sticks to the foot of the grid's own scroll box, and scrollIntoViewIfNeeded
+ * scrolls that box to the cell's column. On a phone the page scrolls as a
+ * whole over that box (table.css), and the call left the page where it was:
+ * on a customer build the box's foot stayed 41 px under the screen (the
+ * release 2.77 triage, E7-E11). A finger on the rows moves only the rows
+ * (overscroll-contain), so the finger swipes the page up where it is above
+ * the grid, as a person's does, until the page can go no further.
+ */
+async function sumInSight(page: Page, cell: Locator, phone: boolean) {
+  await cell.scrollIntoViewIfNeeded()
+  if (!phone) return
+  const scroller = page.locator("[data-app-scroller]")
+  const room = () => scroller.evaluate((s) => s.scrollHeight - s.clientHeight - s.scrollTop)
+  const touch = await finger(page)
+  for (let swipe = 0; swipe < 4 && (await room()) > 1; swipe++) {
+    // From the middle of what is above the grid, up to the top of the page.
+    const { top, gridTop } = await page.evaluate(() => ({
+      top: document.querySelector("[data-app-scroller]")!.getBoundingClientRect().top,
+      gridTop: document.querySelector("[data-table-grid]")!.getBoundingClientRect().top,
+    }))
+    const from = Math.round((top + gridTop) / 2)
+    const to = Math.round(top + 4)
+    await touch.down(195, from)
+    for (let i = 1; i <= 12; i++) {
+      await touch.move(195, Math.round(from + ((to - from) * i) / 12))
+      // One move a frame, as a finger moves.
+      await page.waitForTimeout(16)
+    }
+    await touch.up()
+    await flingEnded(scroller)
+  }
+  expect(await room(), "the page swiped to its end").toBeLessThanOrEqual(1)
+}
+
+/**
+ * The mouse moved onto a summary cell, as a person moves it, once the grid
+ * holds still. hover() scrolls its target into view first, and on the sticky
+ * bar that scroll moved the grid's own box; on a customer build a scroll came
+ * 2 ms after the pointerover, and the page's one tip, which hides on a scroll
+ * (components/ui/tipLayer.tsx), never showed (the release 2.77 triage, E5-E6).
+ */
+async function mouseOnto(page: Page, cell: Locator) {
+  await flingEnded(page.locator("[data-table-grid]"))
+  const b = (await cell.boundingBox())!
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
+}
+
 // TAB-BUG-2: a table past 500 rows. A new row's place was worked out from the
 // rows the page held, so it went after the 500th, where the page never
 // looked, and never appeared. The server now puts it last, and the page reads
@@ -196,7 +245,7 @@ test.describe("a view the server answers in windows", () => {
         await page.keyboard.press("Escape")
         await expect(page.getByRole("menu")).toHaveCount(0)
       } else {
-        await partial.hover()
+        await mouseOnto(page, partial)
         await expect(page.locator("[data-tip-layer]")).toHaveText("Sum of 500 loaded")
         await shootThemes(page, `sums-left-out-tip-${at}`)
       }
@@ -319,7 +368,7 @@ test.describe("a view the server answers in windows", () => {
       await expect(total).toBeVisible({ timeout: 15_000 })
       expect(server.queries.filter((q) => q.count).flatMap((q) => q.spec.summaries ?? [])).toContainEqual({ field: "field:double", fns: ["sum"] })
       // The formula's total whole in the shot, at 390 too: the grid scrolled to Double (DB-40).
-      await total.scrollIntoViewIfNeeded()
+      await sumInSight(page, total, phone)
       await expect(total).toBeInViewport({ ratio: 1 })
       await shootThemes(page, `formula-total-${at}`)
       await sam.close()
@@ -468,7 +517,7 @@ test.describe("a view the server answers in windows", () => {
       expect(server.say({ action: "computed", fields: ["double"] }), "the page heard the fill's end").toBe(1)
       const total = bar.getByRole("button", { name: "Double summary: Sum 99,900,000" })
       await expect(total).toHaveCount(1, { timeout: 5_000 })
-      await total.scrollIntoViewIfNeeded()
+      await sumInSight(page, total, phone)
       await expect(total).toBeInViewport({ ratio: 1 })
       await expect(bar.getByRole("button", { name: /^Double summary: Sum –/ })).toHaveCount(0)
       expect(fromFirst(), "the view's windows aren't read again").toBe(2)
@@ -522,7 +571,7 @@ test.describe("a view the server answers in windows", () => {
       await expect(bar.getByRole("button", { name: "Amount summary: Sum 49,950,000" })).toBeVisible({ timeout: 15_000 })
       const refused = bar.getByRole("button", { name: `Double summary: Sum –. ${tooMany}` })
       await expect(refused).toContainText("–")
-      await refused.scrollIntoViewIfNeeded()
+      await sumInSight(page, refused, phone)
       await expect(refused).toBeInViewport({ ratio: 1 })
       if (phone) {
         await refused.tap()
@@ -531,7 +580,7 @@ test.describe("a view the server answers in windows", () => {
         await page.keyboard.press("Escape")
         await expect(page.getByRole("menu")).toHaveCount(0)
       } else {
-        await refused.hover()
+        await mouseOnto(page, refused)
         await expect(page.locator("[data-tip-layer]")).toHaveText(tooMany)
         await shootThemes(page, `formula-sum-refused-tip-${at}`)
       }
@@ -573,7 +622,7 @@ test.describe("a view the server answers in windows", () => {
       // Nothing asks again by itself.
       await page.clock.fastForward(120_000)
       expect(counted()).toBe(4)
-      await out.scrollIntoViewIfNeeded()
+      await sumInSight(page, out, phone)
       await expect(out).toBeInViewport({ ratio: 1 })
       await shootThemes(page, `formula-sum-left-out-${at}`)
       // The server adds them up now: Try again totals Double, and the notice goes.
@@ -628,7 +677,7 @@ test.describe("a view the server answers in windows", () => {
       // Never asked of the server, so it never waits for the server's.
       expect(server.queries.filter((q) => q.count).flatMap((q) => q.spec?.summaries ?? []).map((s) => s.field)).not.toContain("field:label")
       await expect(stale).toBeVisible()
-      await stale.scrollIntoViewIfNeeded()
+      await sumInSight(page, stale, phone)
       // Its words and its "–" whole on screen (at 390 the wide text column runs past the grid's edge; what it says doesn't).
       for (const part of [stale.getByText("Sum of 500 loaded", { exact: true }), stale.locator("[data-sum-value]")]) await expect(part).toBeInViewport({ ratio: 1 })
       await expect(stale.locator("[data-sum-value]")).toHaveText("–")
@@ -638,7 +687,7 @@ test.describe("a view the server answers in windows", () => {
         await shootThemes(page, `stale-sum-menu-${at}`)
         await page.keyboard.press("Escape")
       } else {
-        await stale.hover()
+        await mouseOnto(page, stale)
         await shootThemes(page, `stale-sum-tip-${at}`)
       }
       await sam.close()

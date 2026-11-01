@@ -12,6 +12,7 @@ import { ProjectsGet } from "@/services/endpoints/projects"
 import type { CheckIn, CheckInInput } from "@/lib/checkins"
 
 export function useCheckIns(channelId: string | undefined) {
+  // GET/POST /ch/{channel}/checkins; one check-in is /ch/checkins/{id}/edit|pause|delete|ask.
   const key = channelId ? `${ProjectsGet.CheckIns}/${channelId}/checkins` : ""
   const { data, isLoading, isError, mutate } = useFetch<{ data: { checkins: CheckIn[]; can_edit: boolean } }>(key, undefined, undefined, OWN_ERRORS)
   const act = useCallback(

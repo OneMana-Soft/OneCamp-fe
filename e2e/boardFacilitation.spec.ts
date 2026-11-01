@@ -556,11 +556,21 @@ async function sameMiddle(a: Page, b: Page) {
   return Math.abs(p.x - q.x) < 2 && Math.abs(p.y - q.y) < 2
 }
 
-/** Scroll the board on this screen, as a wheel or a trackpad does. */
-async function scrollBoard(page: Page, dy: number) {
+/** Scroll the board on this screen, as a wheel or a trackpad does: `dy` down, and `dx` right. */
+async function scrollBoard(page: Page, dy: number, dx = 0) {
   const box = (await page.locator(".excalidraw canvas.interactive").boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-  await page.mouse.wheel(0, dy)
+  await page.mouse.wheel(dx, dy)
+}
+
+/** Whether any of the board's elements is in what this screen's canvas shows, by its camera. */
+async function showsAny(page: Page, on: ReturnType<typeof shareBoard>) {
+  const cam = (await cameraOf(page))!
+  const box = (await page.locator(".excalidraw canvas.interactive").boundingBox())!
+  const [left, top] = [-cam.scrollX, -cam.scrollY]
+  const [right, bottom] = [left + box.width / cam.zoom, top + box.height / cam.zoom]
+  const elements = Array.from(on.collab.doc(NAME).getMap("elements").values()) as { x: number; y: number; width: number; height: number; isDeleted?: boolean }[]
+  return elements.some((e) => !e.isDeleted && e.x < right && e.x + e.width > left && e.y < bottom && e.y + e.height > top)
 }
 
 for (const theme of SHOT_THEMES) {
@@ -572,9 +582,11 @@ test(`Bring everyone here moves every screen to the bringer's view once, and Go 
   const vic = await open(browser, "phone", { on, user: USERS.vic, theme })
   await expect.poll(async () => (await cameraOf(vic.page))?.scrollY ?? null).toBe(0)
 
-  // Ann looks somewhere else, then brings everyone there from Here now.
-  await scrollBoard(ann.page, 900)
-  await expect.poll(async () => (await cameraOf(ann.page))?.scrollY ?? 0, { timeout: 10_000 }).toBeLessThan(-200)
+  // Ann looks somewhere else, then brings everyone there from Here now: right of the notes, past their width. A phone
+  // fitted to her view shows all of her width and more above and below it than she sees (followView), so a view below
+  // the notes still reached them on the phone wherever no shared-account note shortens the canvases, as on the demo.
+  await scrollBoard(ann.page, 0, 900)
+  await expect.poll(async () => (await cameraOf(ann.page))?.scrollX ?? 0, { timeout: 10_000 }).toBeLessThan(-800)
   await ann.page.locator("[data-presence-stack]").click()
   await expect(ann.page.getByRole("button", { name: "Bring everyone here" })).toBeVisible()
   await reviewShot(ann.page, "board-bring-list", theme)
@@ -593,7 +605,9 @@ test(`Bring everyone here moves every screen to the bringer's view once, and Go 
   expect(t.x + t.width, "the toast ends inside the phone").toBeLessThanOrEqual(390)
   expect(t.y + t.height, "the toast ends above the phone's foot").toBeLessThanOrEqual(vic.page.viewportSize()!.height)
   // One floating control at a time on the phone's foot (design review, 1 Nov: the toast covered half of it). Ann
-  // looks at empty board, so the phone offers Excalidraw's "Scroll back to content", and the toast stands clear above it.
+  // looks at empty board, and so does the phone, so it offers Excalidraw's "Scroll back to content", and the toast
+  // stands clear above it.
+  expect(await showsAny(vic.page, on), "the phone shows none of the notes").toBe(false)
   const pill = await boxOf(vic.page.locator(".excalidraw .scroll-back-to-content"))
   expect(overlap(t, pill), "the toast keeps off Scroll back to content").toBeNull()
   expect(pill.y - (t.y + t.height), "the toast stands at least 8 px above Scroll back to content").toBeGreaterThanOrEqual(8)
