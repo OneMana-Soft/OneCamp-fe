@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { useEffect } from "react"
 import { act, cleanup, render, screen } from "@testing-library/react"
 import useSWR, { SWRConfig } from "swr"
-import { RecentCache, isKept, localStorageProvider, serialise } from "./swrCache"
+import { RecentCache, isKept, keptProfile, localStorageProvider, serialise } from "./swrCache"
+import { MEMBER_KEY } from "./memberMark"
 import { CLIENT_CONFIG_KEY } from "./clientConfigKey"
+import { projectStatusesKey } from "./projectStatusesKey"
 import { SESSION_ENDED_KEY, endSession } from "./sessionEnd"
 
 // Tests for the SWR cache provider's persistence + safety logic.
@@ -41,6 +44,7 @@ describe("localStorageProvider", () => {
     store("sam", [
       ["/user/sidebarNav", { data: { hello: "world" } }],
       ["/dm/getLatestChatList", { data: [1, 2, 3] }],
+      ["/project/info/p1", { data: { name: "Q4 launch" } }],
     ])
 
     const map = provider()
@@ -49,15 +53,20 @@ describe("localStorageProvider", () => {
     expect(map.get("/user/sidebarNav")).toBeUndefined()
 
     map.set("/user/profile", profileOf("sam"))
-    expect(map.size).toBe(3)
+    expect(map.size).toBe(4)
     expect((map.get("/user/sidebarNav") as { data: { hello: string } }).data.hello).toBe("world")
+    expect((map.get("/project/info/p1") as { data: { name: string } }).data.name).toBe("Q4 launch")
   })
 
   it("drops another member's entries unseen, from storage too", () => {
-    store("sam", [["/user/sidebarNav", { data: "sam's channels" }]])
+    store("sam", [
+      ["/user/sidebarNav", { data: "sam's channels" }],
+      ["/project/taskListForKanban/p1", { data: "sam's board" }],
+    ])
     const map = provider()
     map.set("/user/profile", profileOf("alex"))
     expect(map.get("/user/sidebarNav")).toBeUndefined()
+    expect(map.get("/project/taskListForKanban/p1")).toBeUndefined()
     expect([...map.keys()]).toEqual(["/user/profile"])
     expect(localStorage.getItem(STORE)).toBeNull()
   })
@@ -134,7 +143,8 @@ describe("localStorageProvider", () => {
     map.set("/user/profile", profileOf("sam"))
     map.set("/user/sidebarNav", { data: 1 })
     leave()
-    expect(stored()).toEqual({ v: 3, member: "sam", entries: [["/user/sidebarNav", { data: 1 }]] })
+    // The profile goes beside them, and it is this member's (keptProfile, asana-12).
+    expect(stored()).toEqual({ v: 3, member: "sam", profile: profileOf("sam"), entries: [["/user/sidebarNav", { data: 1 }]] })
   })
 
   it("writes down only what the first screens show, never a credential", () => {
@@ -146,10 +156,12 @@ describe("localStorageProvider", () => {
     map.set("/admin/ai/config", { data: { api_key: "sk-x" } })
     map.set("/integration/google-calendar/auth-url", { data: "https://accounts.google.com/o/oauth2/auth?state=x" })
     map.set("/user/sidebarNav", { data: 1 })
+    map.set("/project/info/p1", { data: 4 })
     map.set("/po/latestPosts/ch1", { data: 2 })
     map.set("/ch/userActiveChannelsWithLatestPost?pageIndex=0&pageSize=20", { data: 3 })
     leave()
     expect(stored().entries.map((e: [string]) => e[0])).toEqual([
+      "/project/info/p1",
       "/user/sidebarNav",
       "/po/latestPosts/ch1",
       "/ch/userActiveChannelsWithLatestPost?pageIndex=0&pageSize=20",
@@ -182,6 +194,7 @@ describe("localStorageProvider", () => {
     const map = provider()
     map.set("/user/profile", profileOf("sam"))
     map.set("/user/sidebarNav", { data: { name: "Sam" } })
+    map.set("/project/taskListForKanban/p1", { data: [{ task_uuid: "t1" }] })
     leave()
     await endSession()
     expect(localStorage.getItem(STORE)).toBeNull()
@@ -217,7 +230,7 @@ describe("localStorageProvider", () => {
     second.set("/user/profile", profileOf("alex"))
     second.set("/user/sidebarNav", { data: "second member" })
     leave()
-    expect(stored()).toEqual({ v: 3, member: "alex", entries: [["/user/sidebarNav", { data: "second member" }]] })
+    expect(stored()).toEqual({ v: 3, member: "alex", profile: profileOf("alex"), entries: [["/user/sidebarNav", { data: "second member" }]] })
   })
 })
 
@@ -259,6 +272,57 @@ describe("the cache under SWR", () => {
     expect(screen.queryByText("sam's channels")).toBeNull()
     expect(localStorage.getItem(STORE)).toBeNull()
   })
+
+  describe("when the server refuses what the device kept", () => {
+    const failure = (status?: number) =>
+      Object.assign(new Error(status ? `Request failed with status code ${status}` : "Network Error"), {
+        isAxiosError: true,
+        ...(status ? { response: { status } } : { code: "ERR_NETWORK" }),
+      })
+    // ProjectView in miniature: what the cache holds while it holds it, the refusal's state once it doesn't.
+    function Screen({ path, answer }: { path: string; answer: () => Promise<string> }) {
+      const { data, error } = useSWR<string>(path, answer, { shouldRetryOnError: false })
+      return (
+        <>
+          <p>{data ?? (error ? "not yours to open" : "loading")}</p>
+          {error ? <i>the server was asked</i> : null}
+        </>
+      )
+    }
+    function Member({ path, answer }: { path: string; answer: () => Promise<string> }) {
+      const { data } = useSWR("/user/profile", async () => profileOf("sam").data)
+      return data ? <Screen path={path} answer={answer} /> : <p>waiting for the profile</p>
+    }
+    const openAt = (path: string, answer: () => Promise<string>) =>
+      render(
+        <SWRConfig value={{ provider: localStorageProvider, dedupingInterval: 0 }}>
+          <Member path={path} answer={answer} />
+        </SWRConfig>,
+      )
+
+    it.each([
+      ["a project's board", 403, "/project/info/p1"],
+      ["a project's board", 404, "/project/info/p1"],
+      ["its kanban list", 403, "/project/taskListForKanban/p1"],
+      ["a first screen", 403, "/user/sidebarNav"],
+      ["a first screen", 401, "/user/sidebarNav"],
+    ])("lets %s go when the server refuses it (%i): the screen shows the refusal", async (_what, status, path) => {
+      store("sam", [[path, { data: "what the device kept" }]])
+      openAt(path, () => Promise.reject(failure(status)))
+      expect(await screen.findByText("not yours to open")).toBeTruthy()
+      expect(screen.queryByText("what the device kept")).toBeNull()
+    })
+
+    it.each([
+      ["nothing answers", undefined],
+      ["the server fails (500)", 500],
+    ])("keeps it when %s: that isn't the server's word on it", async (_what, status) => {
+      store("sam", [["/project/info/p1", { data: "what the device kept" }]])
+      openAt("/project/info/p1", () => Promise.reject(failure(status)))
+      expect(await screen.findByText("the server was asked")).toBeTruthy()
+      expect(screen.getByText("what the device kept")).toBeTruthy()
+    })
+  })
 })
 
 describe("isKept", () => {
@@ -283,8 +347,20 @@ describe("isKept", () => {
     expect(isKept(CLIENT_CONFIG_KEY)).toBe(true)
   })
 
+  // A project's board, per project, so a cold start opens the board the member left (asana-12). Its statuses too: the
+  // board draws its columns once they're read, so a board kept without them waited offline for a read nobody kept
+  // (a12quick1 at offlineTasks:1106; main, 30 Oct 23:3x: every read the board needs is kept).
+  it("keeps a project's board, per project: its info, its kanban list and its statuses", () => {
+    for (const key of ["/project/info/p1", "/project/taskListForKanban/p1", projectStatusesKey("p1")]) expect(isKept(key), key).toBe(true)
+  })
+
   it("keeps nothing else", () => {
     for (const key of [
+      "/project/membersInfo/p1",
+      "/project/p1/statuses/s1",
+      "/project/p1/fields",
+      "/project/p1",
+      "/project/infos/p1",
       "/user/profile",
       "/user/profile/u2",
       "/config/mqttConfig",
@@ -335,6 +411,20 @@ describe("RecentCache", () => {
 })
 
 describe("serialise", () => {
+  it("makes room by leaving out a board, the least recently opened first, never a first screen", () => {
+    const body = { data: "x".repeat(40) }
+    const map = new Map<string, unknown>([
+      ["/user/sidebarNav", body],
+      ["/project/info/old", body],
+      ["/project/info/new", body],
+      ["/po/latestPosts/ch1", body],
+    ])
+    // Room for three: the first screens read before both boards stay, and so does the board opened last.
+    const one = JSON.stringify(["/project/info/old", body]).length + 1
+    const written = JSON.parse(serialise(map, "sam", one * 3 + 2)).entries.map((e: [string]) => e[0])
+    expect(written).toEqual(["/project/info/new", "/user/sidebarNav", "/po/latestPosts/ch1"])
+  })
+
   it("writes down the most recent kept entries that fit, oldest first", () => {
     const m = new Map<string, unknown>([
       ["/dm/latestChat/old", { data: "o".repeat(50) }],
@@ -365,5 +455,131 @@ describe("serialise", () => {
   it("writes an entry down at rest, neither on its way nor loading", () => {
     const out = JSON.parse(serialise(new Map([["/user/sidebarNav", { data: 1, isValidating: true, isLoading: false, _k: "/a" }]]), "sam"))
     expect(out.entries).toEqual([["/user/sidebarNav", { data: 1, isValidating: false, isLoading: false, _k: "/a" }]])
+  })
+
+  // Offline, every kept key's refresh fails beside its data, and a load that wrote down only error-free entries left
+  // the next cold start with nothing (asana-12, a12quick2 :1142). No answer, or a failing server, isn't the server's
+  // word on the key, so its last answer is kept, written at rest without the error. A refusal (401, 403, 404, as
+  // serverSaid reads it) is the server's word, so that answer is never written back. That includes one this page
+  // fetched itself: serverSaid takes back only what the device kept, so such an answer keeps its data beside the
+  // refusal, and only this rule stops it here.
+  it("keeps an answer whose refresh failed, at rest without the error; never writes back a refused one, even one this page fetched itself", () => {
+    const failed = (status?: number) =>
+      status === undefined
+        ? Object.assign(new Error("Network Error"), { isAxiosError: true, code: "ERR_NETWORK" })
+        : Object.assign(new Error(`Request failed with status code ${status}`), { isAxiosError: true, response: { status } })
+    const map = new Map<string, unknown>([
+      ["/user/sidebarNav", { data: 1, error: failed(), isValidating: true, isLoading: true }],
+      ["/po/latestPosts/ch1", { data: 2, error: failed(500) }],
+      ["/project/info/p1", { data: 3, error: failed(403) }],
+      ["/project/info/p2", { data: 4, error: failed(404) }],
+      ["/dm/latestChat/c1", { data: 5, error: failed(401) }],
+    ])
+    expect(JSON.parse(serialise(map, "sam")).entries).toEqual([
+      ["/user/sidebarNav", { data: 1, isValidating: false, isLoading: false }],
+      ["/po/latestPosts/ch1", { data: 2, isValidating: false, isLoading: false }],
+    ])
+  })
+})
+
+describe("opening offline as the member this device last confirmed (asana-12)", () => {
+  afterEach(() => {
+    cleanup()
+    localStorage.clear()
+  })
+
+  // A request that never reached the server, as axios reports it.
+  const unanswered = Object.assign(new Error("Network Error"), { isAxiosError: true, code: "ERR_NETWORK" })
+  const refused = Object.assign(new Error("Request failed with status code 401"), { isAxiosError: true, response: { status: 401 } })
+  const never = () => new Promise<never>(() => {})
+  function Sidebar() {
+    const { data } = useSWR<string>("/user/sidebarNav", never)
+    return <p>{data ?? "loading the sidebar"}</p>
+  }
+  // AppProtectedRoute, in miniature: nothing until the profile has answered, or
+  // went unanswered with one kept on this device.
+  function App({ failure }: { failure: Error }) {
+    const { data, error, mutate } = useSWR<unknown>(
+      "/user/profile",
+      async () => {
+        throw failure
+      },
+      { shouldRetryOnError: false },
+    )
+    useEffect(() => {
+      const kept = error ? keptProfile(error) : undefined
+      if (kept) void mutate(kept, { revalidate: false })
+    }, [error, mutate])
+    return data ? <Sidebar /> : <p>waiting for the profile</p>
+  }
+  const open = (failure: Error) =>
+    render(
+      <SWRConfig value={{ provider: localStorageProvider, dedupingInterval: 0 }}>
+        <App failure={failure} />
+      </SWRConfig>,
+    )
+  const keep = (member: string, profileFor = member) =>
+    localStorage.setItem(
+      STORE,
+      JSON.stringify({ v: 3, member, profile: profileOf(profileFor), entries: [["/user/sidebarNav", { data: `${member}'s channels` }]] }),
+    )
+
+  it("writes the profile down with the member's answers", () => {
+    const out = JSON.parse(serialise(new Map<string, unknown>([["/user/profile", profileOf("sam")], ["/user/sidebarNav", { data: 1 }]]), "sam"))
+    expect(out.profile?.data?.data?.user_uuid).toBe("sam")
+    expect(out.entries.map(([k]: [string]) => k)).toEqual(["/user/sidebarNav"])
+  })
+
+  it("writes down no profile that isn't the member's", () => {
+    const out = JSON.parse(serialise(new Map<string, unknown>([["/user/profile", profileOf("alex")]]), "sam"))
+    expect(out.profile).toBeUndefined()
+  })
+
+  it("opens with it, and the member's kept answers, when the profile goes unanswered", async () => {
+    keep("sam")
+    localStorage.setItem(MEMBER_KEY, "1")
+    open(unanswered)
+    expect(await screen.findByText("sam's channels")).toBeTruthy()
+  })
+
+  it("doesn't when the server answered: a refusal (401, 403) or any other answer is the server's word", async () => {
+    keep("sam")
+    localStorage.setItem(MEMBER_KEY, "1")
+    open(refused)
+    await act(async () => {})
+    expect(screen.getByText("waiting for the profile")).toBeTruthy()
+    for (const status of [401, 403, 500]) {
+      const answered = Object.assign(new Error(`HTTP ${status}`), { isAxiosError: true, response: { status } })
+      expect(keptProfile(answered), String(status)).toBeUndefined()
+    }
+    // A request the page cancelled wasn't left unanswered by the network.
+    expect(keptProfile(Object.assign(new Error("canceled"), { isAxiosError: true, code: "ERR_CANCELED" }))).toBeUndefined()
+    // The same device, unanswered: it would open.
+    expect(keptProfile(unanswered)).toEqual(profileOf("sam").data)
+  })
+
+  it("doesn't once this browser's member mark is gone", async () => {
+    keep("sam")
+    open(unanswered)
+    await act(async () => {})
+    expect(screen.getByText("waiting for the profile")).toBeTruthy()
+  })
+
+  it("doesn't with a profile kept for someone else", async () => {
+    keep("sam", "alex")
+    localStorage.setItem(MEMBER_KEY, "1")
+    open(unanswered)
+    await act(async () => {})
+    expect(screen.getByText("waiting for the profile")).toBeTruthy()
+    expect(screen.queryByText("sam's channels")).toBeNull()
+  })
+
+  it("is nothing once the session has ended", async () => {
+    keep("sam")
+    localStorage.setItem(MEMBER_KEY, "1")
+    provider()
+    await endSession()
+    localStorage.setItem(MEMBER_KEY, "1")
+    expect(keptProfile(unanswered)).toBeUndefined()
   })
 })

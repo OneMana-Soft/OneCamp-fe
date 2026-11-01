@@ -28,11 +28,13 @@ export enum TablesPost {
     ChangeTableLinks = "/tables", // append /{id}/rows/{rowId}/links
     PreviewTableFormula = "/tables", // append /{id}/formula/preview
     BatchTableRows = "/tables", // append /{id}/rows/batch (up to 1,000 rows, one change set)
+    TransformTableRows = "/tables", // append /{id}/rows/transform (find, replace, trim, dedupe or split over a view; one Undo)
     MoveTableRows = "/tables", // append /{id}/rows/move
     UndoTableChange = "/tables", // append /{id}/undo
     RedoTableChange = "/tables", // append /{id}/redo
     RestoreTableTrash = "/tables", // append /{id}/trash/restore
     RestoreTable = "/tables", // append /{id}/restore
+    PurgeTable = "/tables", // append /{id}/purge
     AggregateTable = "/tables", // append /{id}/aggregate (read-only)
     QueryTableRows = "/tables", // append /{id}/query (read-only: a window of a view's rows, in its order)
     ExportTable = "/tables", // append /{id}/export (read-only: a view as an Excel workbook)

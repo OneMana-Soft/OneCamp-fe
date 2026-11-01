@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import { SAM, reviewShot, stubBackend } from "./stubbedApp"
+import { expectToastClearsSheet } from "./toastClearsSheet"
 
 // A project's task list as a CSV file (asana-16, jira-16), on a production
 // build. Display's Export CSV on a computer, and the sort and filter sheet's on
@@ -117,8 +118,10 @@ for (const theme of ["light", "dark"] as const) {
     })
 
     // Asked for as a file, a refusal comes back as one too: its words are read
-    // back from it, and the toast says them (V-97). A project deleted while
-    // its list is open is refused in the API's words.
+    // back from it, and the toast says them (V-97). A project the person can
+    // no longer read while its list is open (it isn't there, or their access
+    // went) is refused in the API's words. A trashed project stays readable
+    // to its members, so it can be restored, and its export still saves.
     test("a refused export says why in the server's own words", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
       const { asked } = await openList(page, testInfo, theme, undefined, { status: 404, msg: "Project not found" })
@@ -151,11 +154,15 @@ for (const theme of ["light", "dark"] as const) {
       expect(asked).toHaveLength(1)
       // Exact: while the toast opens, its screen-reader announcement
       // ("Notification Exported the first …") holds the same words.
-      await expect(page.getByText("Exported the first 50,000 of 50,001 tasks", { exact: true })).toBeVisible()
+      const told = page.getByText("Exported the first 50,000 of 50,001 tasks", { exact: true })
+      await expect(told).toBeVisible()
       await expect(page.getByText("Filter the list to export the rest.", { exact: true })).toBeVisible()
+      // The sheet stays open, and the toast keeps off its title, its Export CSV and its Clear filters and Apply (V-111).
+      await expectToastClearsSheet(told)
+      await reviewShot(page, "csv-export-told-sheet", theme)
     })
 
-    test("the sheet's Export CSV, refused, says why in the server's own words", async ({ page }, testInfo) => {
+    test("the sheet's Export CSV, refused, says why in the server's own words, over none of the sheet's buttons", async ({ page }, testInfo) => {
       test.setTimeout(180_000)
       const { asked } = await openList(page, testInfo, theme, undefined, { status: 404, msg: "Project not found" })
       await page.getByRole("button", { name: "Filter tasks" }).tap()
@@ -166,6 +173,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(words).toBeInViewport({ timeout: 15_000 })
       await expect(page.getByText("Couldn't export the list", { exact: true })).toHaveCount(1)
       expect(asked).toHaveLength(1)
+      await expectToastClearsSheet(words)
       await reviewShot(page, "csv-export-refused-sheet", theme)
     })
   })

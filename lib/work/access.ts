@@ -28,12 +28,12 @@ export function accessOf(p?: ProjectLike | null): WorkAccess {
 }
 
 /**
- * Whether what the reader may do with a task isn't known on this device: one made here with no network (asana-12)
- * whose project's access the device never kept. Nothing makes that access up (lib/offline/tasks withKeptProject),
- * so its page says it can be changed once back online, never that it is view-only (CR-81 MF3).
+ * Whether what the reader may do with a task isn't known here: one made offline (asana-12), or one whose page was
+ * built from what a board kept (partly: lib/offline/tasks keptPart), with no access kept for its project. Nothing
+ * makes that access up (withKeptProject), so its page says it can change once back online, never view-only (CR-81 MF3).
  */
-export function accessHeldBack(taskUUID: string | undefined, t?: TaskLike | null): boolean {
-  if (!t || t.task_access || !madeOffline(taskUUID)) return false
+export function accessHeldBack(taskUUID: string | undefined, t?: TaskLike | null, partly = false): boolean {
+  if (!t || t.task_access || !(partly || madeOffline(taskUUID))) return false
   const p = t.task_project
   return !p?.project_access && p?.project_is_admin === undefined && p?.project_is_member === undefined
 }

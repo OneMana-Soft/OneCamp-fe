@@ -79,6 +79,12 @@ export function targetWords(m: Pick<Milestone, "target_date" | "progress">, now:
   return { text: shortDate(day, now), late: m.target_date! < localDay(now) && !finished(m.progress) }
 }
 
+/** A milestone as a palette choice names it: its name, then its target day when it has one ("Beta · 14 Nov"). */
+export function milestoneChoiceLabel(m: Pick<Milestone, "name" | "target_date" | "progress">, now: Date = new Date()): string {
+  const target = targetWords(m, now)
+  return target ? `${m.name} · ${target.text}` : m.name
+}
+
 /** Where a milestone sits on a timeline: its tasks' days (the thin bar), its target day (the diamond), and the days both cover. */
 export interface MilestoneDays {
   start: Date

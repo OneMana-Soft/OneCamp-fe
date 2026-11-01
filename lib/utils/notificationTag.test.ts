@@ -63,7 +63,7 @@ describe("a push notification's tag", () => {
 })
 
 describe("the service worker", () => {
-  const source = readFileSync(resolve(__dirname, "../../public/firebase-messaging-sw.js"), "utf8")
+  const source = readFileSync(resolve(__dirname, "../../public/sw.js"), "utf8")
   const BEGIN = "// --- BEGIN notification tag"
   const END = "// --- END notification tag ---"
 

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 // The board's canvas is in OneCamp's materials (content.md B04): Excalidraw's
@@ -59,4 +59,31 @@ describe("the board canvas's chrome", () => {
       expect(src.indexOf("excalidrawTheme.css")).toBeGreaterThan(src.indexOf("@excalidraw/excalidraw/index.css"))
     })
   }
+})
+
+describe("a card on the canvas wears OneCamp's marks, not Excalidraw's (DB-54)", () => {
+  it("Excalidraw's hover pill is hidden on cards only, so it never covers a card's name", () => {
+    expect(css).toMatch(/\.excalidraw__embeddable-container__inner:has\(\[data-board-card\]\) > \.excalidraw__embeddable-hint \{\s*display: none;/)
+  })
+
+  it("Excalidraw's link popup stays shut over a selected card: a card is its own link (boardExcalidraw marks the board)", () => {
+    expect(css).toMatch(/\[data-card-link-popup\] \.excalidraw \.excalidraw-hyperlinkContainer \{\s*display: none;/)
+  })
+
+  it("no style panel while only cards are selected: its strokes and fills mean nothing for a live card (DB-56 MUST 1)", () => {
+    expect(css).toMatch(/\[data-cards-selected\] \.excalidraw\.excalidraw \.App-menu__left \{\s*display: none;/)
+  })
+
+  it("Excalidraw draws no link badge beside a card, which keeps its link (patches/@excalidraw__excalidraw)", () => {
+    // The badge's one test, in both of the package's builds: a linked element that isn't selected gets the badge.
+    const dist = "node_modules/@excalidraw/excalidraw/dist"
+    for (const build of ["dev", "prod"]) {
+      const src = readdirSync(`${dist}/${build}`)
+        .filter((f) => f.endsWith(".js"))
+        .map((f) => readFileSync(`${dist}/${build}/${f}`, "utf8"))
+        .join("\n")
+      expect(src, build).not.toMatch(/\.link\s*&&\s*!\s*\w+\.selectedElementIds\[/)
+      expect(src, build).toMatch(/\.link\s*&&\s*\w+\.customData\?\.kind\s*!==\s*"card"\s*&&\s*!\s*\w+\.selectedElementIds\[/)
+    }
+  })
 })

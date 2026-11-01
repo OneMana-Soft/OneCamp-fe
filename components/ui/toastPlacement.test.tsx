@@ -89,7 +89,9 @@ describe("where toasts are drawn", () => {
   // B-2's sections sheet at 390: a toast came up over Add section, at the
   // sheet's foot (DESIGN-BUILD-5, 22 Oct 2026). While a sheet is open it owns
   // the bottom of the screen, as the keyboard does, so toasts come in under
-  // the top bar then too. The sheet marks the page (components/ui/drawer).
+  // the top bar then too. Every sheet marks the page (html[data-sheet],
+  // components/ui/sheetMark): a drawer, a dialog or confirm drawn as one, and
+  // the task's sheet (V-111).
   // A menu, popover or select is a phone's sheet too (app/overlay.css 8,
   // components/ui/floatMark): a call's notice came in over More's rows, on
   // Raise your hand (DESIGN-BUILD-20, 26 Oct).
@@ -124,6 +126,34 @@ describe("where toasts are drawn", () => {
     }
     check("toast-viewport", /bottom: auto !important/)
     check("toast-root", /transform-origin: 50% 0%/)
+  })
+
+  // V-111 (DESIGN-BUILD-43): under the bar was ON a tall sheet's header (the
+  // filter sheet's title and Export CSV). While a sheet is open, the place
+  // toastFootSlot measures wins, and it never goes under the safe top.
+  it("goes where the open sheet leaves room, by toastFootSlot's measure, never under the safe top", () => {
+    const rules: { selector: string; decls: string }[] = []
+    postcss.parse(read("app/phone.css")).walkRules((r) => {
+      if (r.selector.includes("[data-sheet-slot]")) rules.push({ selector: r.selector, decls: r.nodes.map(String).join("; ") })
+    })
+    expect(rules).toEqual([
+      {
+        selector: 'html[data-sheet="open"] .toast-viewport[data-sheet-slot]',
+        decls: "top: max(var(--toast-sheet-top), calc(var(--app-vv-top, 0px) + env(safe-area-inset-top) + 8px))",
+      },
+    ])
+    const vp = document.createElement("ol")
+    vp.className = "toast-viewport"
+    vp.dataset.sheetSlot = "above"
+    document.body.append(vp)
+    try {
+      expect(vp.matches(rules[0].selector), "no sheet open: C9's own place").toBe(false)
+      document.documentElement.setAttribute("data-sheet", "open")
+      expect(vp.matches(rules[0].selector), "a sheet open: the measured place").toBe(true)
+    } finally {
+      vp.remove()
+      document.documentElement.removeAttribute("data-sheet")
+    }
   })
 
   // On a call's own page the call sits under the app bar and any banner, and

@@ -18,6 +18,10 @@ describe("an archive request's problem", () => {
     expect(archiveProblem(refusal(409, { error: "x", code: "archive_running" }), "fallback")).toBe("Archiving is running right now. Try again when it finishes.")
     expect(archiveProblem(refusal(409, { code: "undo_running", msg: "this run is being restored already" }), "fallback")).toBe("This run is being restored already. It finishes on its own.")
     expect(archiveProblem(refusal(400, { error: "entity_ids exceeds maximum of 1000 per request" }), "fallback")).toBe("Restore up to 1,000 items at a time.")
+    // V-141: one id that has left the archive (restored or removed since the list loaded) refuses the whole batch.
+    expect(archiveProblem(refusal(404, { code: "not_in_archive", msg: "not in the archive: p1" }), "fallback")).toBe(
+      "Some of these aren't in the archive any more, so nothing was restored. Choose again from the list as it is now.",
+    )
   })
 
   it("never shows a raw server error", () => {

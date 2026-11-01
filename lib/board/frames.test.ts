@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
-import { FRAME_PRESETS, frameLink, frameOrderOf, framePreset, layoutFrame, linkedFromSearch, moveFrame, nextFrameName, orderFrames } from "./frames"
+import { FRAME_PRESETS, frameLink, findFromSearch, frameOrderOf, framePreset, layoutFrame, linkedFromSearch, moveFrame, nextFrameName, orderFrames } from "./frames"
 
 const item = (id: string, x: number, y: number, w = 180, h = 180) => ({ id, x, y, width: w, height: h })
 
@@ -90,6 +90,14 @@ describe("a link to an element", () => {
   it("is read as Excalidraw's own Copy link to object writes it: an element's id or a group's", () => {
     expect(linkedFromSearch("?element=note-3")).toBe("note-3")
     expect(linkedFromSearch(`?element=${"x".repeat(300)}`)).toBeNull()
+  })
+
+  it("is not the words a search hit asks the board to find (?find=), which are read on their own, 200 at most", () => {
+    expect(linkedFromSearch("?find=launch")).toBeNull()
+    expect(findFromSearch("?find=launch%20budget")).toBe("launch budget")
+    expect(findFromSearch("?find=%20%20")).toBeNull()
+    expect(findFromSearch("?frame=f1")).toBeNull()
+    expect(findFromSearch(`?find=${"x".repeat(201)}`)).toBeNull()
   })
 })
 

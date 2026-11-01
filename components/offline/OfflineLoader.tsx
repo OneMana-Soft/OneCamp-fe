@@ -13,6 +13,7 @@ import { emptyOfflineStatus, getOfflineStatus, reviewOfflineChanges, subscribeOf
 import { keepsOffline } from "@/lib/offline/http"
 import { OFFLINE_MADE, OFFLINE_REFRESH, discard, resolveConflict, retryChange, start, stop, type ScreenCache } from "@/lib/offline/engine"
 import { COMMENT } from "@/lib/offline/tasks"
+import { keepWhatLoaded, registerAppWorker } from "@/lib/pwa/serviceWorker"
 import { withNewTask } from "@/lib/tasks/taskLists"
 import { madeTaskComment } from "@/store/slice/createTaskCommentSlice"
 import { OfflineChanges } from "@/components/offline/OfflineChanges"
@@ -35,6 +36,11 @@ export function OfflineLoader() {
   useEffect(() => {
     if (!member) return
     void start(member, cache as unknown as ScreenCache)
+    // The app's pages and files on this device as well (public/sw.js), so a
+    // cold start with no network opens them (asana-12).
+    void registerAppWorker()
+      .then((registration) => (registration ? keepWhatLoaded(member) : undefined))
+      .catch(() => {})
     return () => stop()
   }, [member, cache])
 

@@ -5,7 +5,7 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useMedia } from "@/context/MediaQueryContext";
-import { PHONE_FOOTER, useExcalidrawParts, useExcalidrawPhoneUI } from "@/components/board/excalidrawPart";
+import { PHONE_FOOTER, SCROLL_BACK, useExcalidrawParts, useExcalidrawPhoneUI } from "@/components/board/excalidrawPart";
 import { cn } from "@/lib/utils/helpers/cn";
 import { fromFoot, useRootPlaceOf } from "@/components/livekit/rootPlace";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -15,14 +15,15 @@ import { UserProfileInterface } from "@/types/user";
 import { BoardInfoResponse } from "@/types/board";
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
 import { warmCollabToken } from "@/lib/collabToken";
+import { focusHandOff } from "@/lib/ui/focusHandOff";
 import { usePost } from "@/hooks/usePost";
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID";
-import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter } from "@/lib/icons";
+import { Loader2, Share2, Ellipsis, Trash, MessageCircle, History, Eye, WifiOff, LayoutGrid, Search, HelpCircle, Download, Upload, Library, Layers, Plus, LayoutTemplate, Filter, ListTodo } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { LoadFailureState } from "@/components/ui/load-failure-state";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ActiveUsersBar } from "@/components/docEditor/ActiveUsersBar";
-import { DocBusContext } from "@/components/docEditor/registry/commandBus";
+import { DocBusContext } from "@/components/docEditor/registry/docBusContext";
 import { boardBusOf } from "@/lib/board/hereNow";
 import { saveDotCopy } from "@/components/docEditor/SaveDot";
 import {
@@ -48,6 +49,14 @@ import { FacilitationFailed } from "@/components/board/facilitationDock";
 import BoardComments from "@/components/board/boardComments";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import WithAddWorkReads from "@/components/board/addWorkReads";
+
+// In the cluster, and in a phone's menu.
+const TOOLS = [
+  ["templates", "Templates", LayoutGrid],
+  ["frames", "Frames", Layers],
+  ["addWork", "Add from OneCamp", ListTodo],
+] as const;
 
 // "board:" namespace prefix shared with the collaboration service so a single
 // Hocuspocus server routes board vs doc documents to the right backend.
@@ -140,12 +149,14 @@ export default function BoardPage() {
   // footer's place, the drawing fade) starts once it's there.
   const [wrap, setWrap] = React.useState<HTMLDivElement | null>(null);
   // On a phone the board's foot is a stack: Excalidraw's footer (undo, redo,
-  // the style palette, delete), the board's own buttons, the facilitation bar,
-  // and a selection's bar (components/board/phoneDock), each marked
-  // data-phone-foot. The highest top among them is published as a composer's is
-  // (--mobile-drawer-h, app/phone.css C9), so the save notice, the offline pill
-  // and every board toast sit above the stack instead of over its controls.
-  const foot = useExcalidrawParts(wrap, `${PHONE_FOOTER}, [data-phone-foot]`, isMobile);
+  // the style palette, delete) and its "Scroll back to content", the board's
+  // own buttons, the facilitation bar, and a selection's bar
+  // (components/board/phoneDock), each marked data-phone-foot. The highest top
+  // among them is published as a composer's is (--mobile-drawer-h, app/phone.css
+  // C9), so the save notice, the offline pill and every board toast sit above
+  // the stack instead of over its controls: a brought viewer's toast covered
+  // Scroll back to content (design review, 1 Nov).
+  const foot = useExcalidrawParts(wrap, `${PHONE_FOOTER}, ${SCROLL_BACK}, [data-phone-foot]`, isMobile);
   useRootPlaceOf("--mobile-drawer-h", foot, fromFoot);
   useDrawingFade(wrap, excalApi);
   // Excalidraw draws its phone UI on its own box (under 730 wide, or under 500
@@ -159,6 +170,10 @@ export default function BoardPage() {
   // A press in the chrome for one of the board's tools (lazy, the workbench).
   const [command, setCommand] = React.useState<BoardCommand | null>(null);
   const run = (kind: BoardCommand["kind"]) => setCommand({ kind, at: Date.now() });
+  // Board options' hand-off of the focus as it closes (lib/ui/focusHandOff): a pick that opens one of our panels or
+  // dialogs leaves the focus to it. The menu warms the panels' code as it opens, so Find's field took the focus before
+  // the menu had faded, and the menu then gave it back to More: what was typed went to the button (V-195).
+  const [handOff] = React.useState(focusHandOff);
   const [boardStyle, setBoardStyle] = useBoardStyle(provider ?? null, synced);
 
   // The board's name, renamed in place in the top-left cluster.
@@ -261,27 +276,25 @@ export default function BoardPage() {
   // board's cluster (Excalidraw's hamburger and Library button are hidden),
   // then the board's: who viewed it, its history, linked tasks, delete.
   const menu = (trigger: React.ReactElement, align: "start" | "end" = "start") => (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => open && run("warm")}>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent align={align} sideOffset={8} className="w-60">
+      <DropdownMenuContent align={align} sideOffset={8} className="w-60" onCloseAutoFocus={handOff.onCloseAutoFocus}>
         {/* A computer has these at the top; a phone's cluster has no room. */}
         {isMobile && hasEditAccess && (
           <>
-            <DropdownMenuItem onClick={() => run("templates")}>
-              <LayoutGrid className="mr-2 size-4" />
-              Templates
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => run("frames")}>
-              <Layers className="mr-2 size-4" />
-              Frames
-            </DropdownMenuItem>
+            {TOOLS.map(([kind, label, Icon]) => (
+              <DropdownMenuItem key={kind} onClick={handOff.to(() => run(kind))}>
+                <Icon className="mr-2 size-4" />
+                {label}
+              </DropdownMenuItem>
+            ))}
             <DropdownMenuSeparator />
           </>
         )}
         {excalApi && (
           <>
             {/* PDF of the frames, the notes as CSV, a board file or a picture (miro-36). */}
-            <DropdownMenuItem onClick={() => run("export")}>
+            <DropdownMenuItem onClick={handOff.to(() => run("export"))}>
               <Download className="mr-2 size-4" />
               Export…
             </DropdownMenuItem>
@@ -289,12 +302,13 @@ export default function BoardPage() {
               <Library className="mr-2 size-4" />
               Library
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => excalApi.toggleSidebar({ name: "default", tab: "search" })}>
+            {/* Ours (miro-05): Find and replace, lit on the canvas; Excalidraw's own can't replace or be told what to find. */}
+            <DropdownMenuItem onClick={handOff.to(() => run("find"))}>
               <Search className="mr-2 size-4" />
-              Find on board
+              {hasEditAccess ? "Find and replace" : "Find on board"}
             </DropdownMenuItem>
             {/* Notes without the tags picked fade back, on this screen only (miro-07 5). */}
-            <DropdownMenuItem onClick={() => run("tagFilter")}>
+            <DropdownMenuItem onClick={handOff.to(() => run("tagFilter"))}>
               <Filter className="mr-2 size-4" />
               Filter by tag
             </DropdownMenuItem>
@@ -326,16 +340,16 @@ export default function BoardPage() {
         {hasEditAccess && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardViewers", data: { boardId } }))}>
+            <DropdownMenuItem onClick={handOff.to(() => dispatch(openUI({ key: "boardViewers", data: { boardId } })))}>
               <Eye className="mr-2 size-4" />
               Viewed by
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => dispatch(openUI({ key: "boardVersionHistory", data: { boardId } }))}>
+            <DropdownMenuItem onClick={handOff.to(() => dispatch(openUI({ key: "boardVersionHistory", data: { boardId } })))}>
               <History className="mr-2 size-4" />
               Version history
             </DropdownMenuItem>
             {/* For anyone in the workspace to start a board from (miro-19 3). */}
-            <DropdownMenuItem onClick={() => run("saveTemplate")} disabled={!excalApi}>
+            <DropdownMenuItem onClick={handOff.to(() => run("saveTemplate"))} disabled={!excalApi}>
               <LayoutTemplate className="mr-2 size-4" />
               Save as template
             </DropdownMenuItem>
@@ -351,7 +365,7 @@ export default function BoardPage() {
         {isOwner && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={confirmDelete} className="text-danger-ink focus:text-danger-ink">
+            <DropdownMenuItem onClick={handOff.to(confirmDelete)} className="text-danger-ink focus:text-danger-ink">
               <Trash className="mr-2 size-4" />
               Delete board
             </DropdownMenuItem>
@@ -395,7 +409,7 @@ export default function BoardPage() {
 
         {/* The board's tools: templates, the sticky tool, the notes and frame bars, frames. */}
         {provider && (
-          <BoardWorkbench api={excalApi} provider={provider} boardId={boardId} editable={hasEditAccess} synced={synced} quiet={false} command={command} style={boardStyle} title={title} user={me} host={wrap} />
+          <BoardWorkbench api={excalApi} provider={provider} boardId={boardId} editable={hasEditAccess} synced={synced} quiet={false} command={command} style={boardStyle} title={title} user={me} host={wrap} addWorkReads={WithAddWorkReads} />
         )}
 
         {/* Timer, dot voting and follow-the-presenter */}
@@ -471,12 +485,11 @@ export default function BoardPage() {
               )}
               {hasEditAccess && (
                 <>
-                  <ClusterButton label="Templates" onClick={() => run("templates")}>
-                    <LayoutGrid />
-                  </ClusterButton>
-                  <ClusterButton label="Frames" onClick={() => run("frames")}>
-                    <Layers />
-                  </ClusterButton>
+                  {TOOLS.map(([kind, label, Icon]) => (
+                    <ClusterButton key={kind} label={label} onClick={() => run(kind)}>
+                      <Icon />
+                    </ClusterButton>
+                  ))}
                   <ClusterButton
                     label={commentMode ? "Click the board to place a comment" : "Comment"}
                     active={commentMode}

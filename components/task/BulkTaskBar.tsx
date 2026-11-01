@@ -9,25 +9,30 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { TaskStatusCell } from "@/components/task/taskStatusCell"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
 import { DesktopNavigationChatAvatar } from "@/components/navigationBar/desktop/desktopNavigationChatAvatar"
-import { useProjectTags } from "@/components/tags/TagPicker"
+import { projectTagsKey, useProjectTags, type ProjectTag } from "@/hooks/useProjectTags"
 import { cn } from "@/lib/utils/helpers/cn"
 import { toast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
+import { useSWRConfig } from "swr"
 import { useSelectedIds } from "@/hooks/useListSelection"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useBulkTaskUpdate, type BulkResult } from "@/hooks/useBulkTaskUpdate"
 import { useDeleteTasks } from "@/hooks/useDeleteTasks"
-import { DatePanel } from "@/components/ui/date-field-panels"
+import { DatePanel, quickDays } from "@/components/ui/date-field-panels"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { priorities } from "@/types/table"
 import { ProjectsGet } from "@/services/endpoints/projects"
-import { MAX_TAG_LENGTH, splitTags, tagTone } from "@/lib/tags"
-import { notDone, tagState, tasksCount, whyNotDone, type BulkChange } from "@/lib/bulkTasks"
+import { MAX_TAG_LENGTH, tagTone } from "@/lib/tags"
+import { notDone, selectionTags, tagState, tasksCount, whyNotDone, type BulkChange } from "@/lib/bulkTasks"
 import type { CycleChoice } from "@/lib/work/backlog"
 import { useProjectMilestones } from "@/hooks/useProjectMilestones"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { targetWords } from "@/lib/work/milestones"
+import { milestoneChoiceLabel, milestonesPath, targetWords, type Milestone, type MilestonesAnswer } from "@/lib/work/milestones"
+import { readInto } from "@/lib/http/readInto"
+import { offerPaletteEntries } from "@/lib/ui/paletteEntries"
+import { runWhenQuiet } from "@/lib/ui/whenQuiet"
+import type { SelectionForPalette } from "@/lib/work/taskPaletteEntries"
 import type { ListField } from "@/lib/listKeys"
 import type { SelectionStore } from "@/lib/listSelection"
 import type { StatusOption } from "@/lib/taskStatus"
@@ -47,11 +52,19 @@ const FIELDS: { field: ListField; label: string; key: string }[] = [
 
 const kbd = "kbd"
 
+/** The palette's actions for a task or a selection: a chunk of their own, the task panel's too (linear-28). */
+const loadTaskActions = () => import("@/lib/work/taskPaletteEntries")
+
+/** Where a project's people are read: the Assignee list's key, and the palette's. */
+const membersKey = (projectId: string) => `${ProjectsGet.GetProjectMemberInfo}/${projectId}`
+
 /**
  * The selection's toolbar: how many are selected and what to change about
  * them, the pickers S, A, T and P open from the keyboard (and Shift+C, the
  * cycles of a project's backlog; Shift+M, a project's milestones). Changes only the tasks this person may
- * change (a project's admins), and says so for the rest.
+ * change (a project's admins), and says so for the rest. While tasks are
+ * selected, the palette (⌘K) offers the same fields, first, and a pick there
+ * is this bar's own change (linear-28: Linear's ⌘K acts on the selection).
  */
 export function BulkTaskBar({
   store,
@@ -101,14 +114,86 @@ export function BulkTaskBar({
     })
   }, [blocked, editable.length, onPicker])
 
-  if (selected.length === 0) return null
-  const readOnly = selected.length - editable.length
-
+  // Each field's change, the pickers' below and the palette's: the request for
+  // the tasks this person may change, then what it did, said once.
+  const n = editable.length
   const run = async (change: BulkChange, done: string) => {
     onPicker(null)
     const r = await bulk(editable, change)
     report(r, done)
   }
+  const change = {
+    status: (value: string) => run({ field: "status", value, options }, `${moved(n)} to ${options.find((o) => o.value === value)?.label ?? value}`),
+    priority: (value: string) => run({ field: "priority", value }, `Set ${tasksCount(n)} to ${priorities.find((p) => p.value === value)?.label ?? value} priority`),
+    assignee: (user: UserProfileDataInterface | null) =>
+      run({ field: "assignee", user }, user ? `Assigned ${tasksCount(n)} to ${displayNameOf(user)}` : `Unassigned ${tasksCount(n)}`),
+    /** An ISO time, or "" to take the due date off. */
+    due: (value: string) => run({ field: "due", value }, value ? `Set ${tasksCount(n)} due ${shortDate(new Date(value))}` : `Took the due date off ${tasksCount(n)}`),
+    cycle: (value: string) => run({ field: "cycle", value }, `${moved(n)} to ${cycles?.find((c) => c.id === value)?.label ?? "the backlog"}`),
+    milestone: (value: string, name: string) =>
+      run({ field: "milestone", value }, value ? `Put ${tasksCount(n)} in ${name}` : `Took ${tasksCount(n)} out of their milestone`),
+    tag: (tag: string, add: boolean) => run({ field: "tags", tag, add }, add ? `Tagged ${tasksCount(n)} “${tag}”` : `Took “${tag}” off ${tasksCount(n)}`),
+  }
+  // The fields this list offers: the buttons below, and the palette's actions.
+  const fields = FIELDS.filter(({ field }) => (field !== "cycle" || cycles) && (field !== "milestone" || !!listProjectId))
+
+  // The palette acts on the selection (linear-28 H1b). What it lists is made
+  // from this render's handlers as it opens, reading what a page needs (the
+  // people, the tags, the milestones) through the keys the pickers below read.
+  const { mutate: rowsCache } = useSWRConfig()
+  const paletteSelection = React.useRef<SelectionForPalette<UserProfileDataInterface> | null>(null)
+  React.useEffect(() => {
+    let read: Milestone[] = []
+    paletteSelection.current =
+      n === 0
+        ? null
+        : {
+            // Assigning asks for the tasks of one project, as the A button does.
+            fields: fields.filter(({ field }) => field !== "assignee" || !!project).map(({ field, key }) => ({ field, key })),
+            statusOptions: options,
+            onStatus: (value) => void change.status(value),
+            priorityOptions: [...priorities].reverse(),
+            onPriority: (value) => void change.priority(value),
+            people: async () => (project ? ((await readInto<ProjectInfoRawInterface>(rowsCache, membersKey(project))).data?.project_members ?? []) : []),
+            nameOf: displayNameOf,
+            onAssignee: (who) => void change.assignee(who ?? null),
+            tags: async () =>
+              selectionTags(editable, project ? ((await readInto<{ data?: ProjectTag[] | null }>(rowsCache, projectTagsKey(project))).data ?? []) : []),
+            onTag: (tag) => void change.tag(tag, tagState(editable, tag) !== "all"),
+            // Asked for as the page opens, so a selection kept past midnight still starts at today.
+            get dueDays() {
+              return quickDays().map((q) => ({ value: q.day.toISOString(), label: q.label }))
+            },
+            onDue: (value) => void change.due(value),
+            cycles: (cycles ?? []).map((c) => ({ value: c.id, label: c.dates ? `${c.label} · ${c.dates}` : c.label })),
+            onCycle: (id) => void change.cycle(id),
+            milestones: async () => {
+              read = project ? ((await readInto<MilestonesAnswer>(rowsCache, milestonesPath(project))).data?.milestones ?? []) : []
+              return read.map((m) => ({ value: m.id, label: milestoneChoiceLabel(m) }))
+            },
+            onMilestone: (id) => void change.milestone(id, read.find((m) => m.id === id)?.name ?? ""),
+          }
+  })
+  // One offer while tasks are selected, under how many; its chunk is fetched once the page is quiet.
+  const count = selected.length
+  React.useEffect(() => {
+    if (count === 0) return
+    const stop = offerPaletteEntries({
+      id: "tasks",
+      group: `${tasksCount(count)} selected`,
+      lead: true,
+      load: loadTaskActions,
+      entries: (code) => (paletteSelection.current ? code.selectionPaletteEntries(paletteSelection.current) : []),
+    })
+    const cancel = runWhenQuiet([loadTaskActions])
+    return () => {
+      cancel()
+      stop()
+    }
+  }, [count])
+
+  if (selected.length === 0) return null
+  const readOnly = selected.length - editable.length
 
   return (
     <div
@@ -130,7 +215,7 @@ export function BulkTaskBar({
           </span>
         )}
         {editable.length > 0 &&
-          FIELDS.filter(({ field }) => (field !== "cycle" || cycles) && (field !== "milestone" || !!listProjectId)).map(({ field, label, key }) => {
+          fields.map(({ field, label, key }) => {
             const needsProject = field === "assignee" && !project
             return (
               <Popover key={field} open={picker === field && !needsProject} onOpenChange={(o) => onPicker(o ? field : null)}>
@@ -151,24 +236,20 @@ export function BulkTaskBar({
                     <OptionList
                       placeholder="Move to…"
                       items={options.map((o) => ({ value: o.value, search: `${o.label} ${o.value}`, node: <TaskStatusCell status={o} />, indent: o.custom }))}
-                      onPick={(value) =>
-                        run({ field: "status", value, options }, `${moved(editable.length)} to ${options.find((o) => o.value === value)?.label ?? value}`)
-                      }
+                      onPick={change.status}
                     />
                   )}
                   {field === "priority" && (
                     <OptionList
                       placeholder="Set priority…"
                       items={[...priorities].reverse().map((p) => ({ value: p.value, search: p.label, node: <TaskPriorityCell priority={p} /> }))}
-                      onPick={(value) => run({ field: "priority", value }, `Set ${tasksCount(editable.length)} to ${priorities.find((p) => p.value === value)?.label ?? value} priority`)}
+                      onPick={change.priority}
                     />
                   )}
                   {field === "assignee" && project && (
                     <AssigneeList
                       projectId={project}
-                      onPick={(user) =>
-                        run({ field: "assignee", user }, user ? `Assigned ${tasksCount(editable.length)} to ${displayNameOf(user)}` : `Unassigned ${tasksCount(editable.length)}`)
-                      }
+                      onPick={change.assignee}
                     />
                   )}
                   {field === "due" && (
@@ -176,11 +257,11 @@ export function BulkTaskBar({
                     <DatePanel
                       clearable
                       onPick={(d) => {
-                        run({ field: "due", value: d.toISOString() }, `Set ${tasksCount(editable.length)} due ${shortDate(d)}`)
+                        void change.due(d.toISOString())
                         onPicker(null)
                       }}
                       onClear={() => {
-                        run({ field: "due", value: "" }, `Took the due date off ${tasksCount(editable.length)}`)
+                        void change.due("")
                         onPicker(null)
                       }}
                     />
@@ -192,18 +273,16 @@ export function BulkTaskBar({
                         ...cycles.map((c) => ({ value: c.id, search: `${c.label} ${c.dates}`, node: <ChoiceItem label={c.label} detail={c.dates} /> })),
                         { value: "", search: "Backlog", node: <span>Backlog</span> },
                       ]}
-                      onPick={(value) => run({ field: "cycle", value }, `${moved(editable.length)} to ${cycles.find((c) => c.id === value)?.label ?? "the backlog"}`)}
+                      onPick={change.cycle}
                     />
                   )}
                   {field === "milestone" && project && (
                     <MilestoneList
                       projectId={project}
-                      onPick={(value, name) =>
-                        run({ field: "milestone", value }, value ? `Put ${tasksCount(editable.length)} in ${name}` : `Took ${tasksCount(editable.length)} out of their milestone`)
-                      }
+                      onPick={change.milestone}
                     />
                   )}
-                  {field === "tags" && <TagList projectId={project} tasks={editable} onPick={(tag, add) => run({ field: "tags", tag, add }, add ? `Tagged ${tasksCount(editable.length)} “${tag}”` : `Took “${tag}” off ${tasksCount(editable.length)}`)} />}
+                  {field === "tags" && <TagList projectId={project} tasks={editable} onPick={change.tag} />}
                 </PopoverContent>
               </Popover>
             )
@@ -310,7 +389,7 @@ function OptionList({
 }
 
 function AssigneeList({ projectId, onPick }: { projectId: string; onPick: (user: UserProfileDataInterface | null) => void }) {
-  const info = useFetch<ProjectInfoRawInterface>(`${ProjectsGet.GetProjectMemberInfo}/${projectId}`)
+  const info = useFetch<ProjectInfoRawInterface>(membersKey(projectId))
   const members = info.data?.data.project_members ?? []
   return (
     <Command>
@@ -341,12 +420,8 @@ function AssigneeList({ projectId, onPick }: { projectId: string; onPick: (user:
 function TagList({ projectId, tasks, onPick }: { projectId: string | undefined; tasks: TaskInfoInterface[]; onPick: (tag: string, add: boolean) => void }) {
   const [query, setQuery] = React.useState("")
   const { tags: known } = useProjectTags(projectId)
-  const names = React.useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const t of tasks) for (const tag of splitTags(t.task_label)) seen.set(tag.toLowerCase(), tag)
-    for (const k of known) if (!seen.has(k.name.toLowerCase())) seen.set(k.name.toLowerCase(), k.name)
-    return [...seen.values()]
-  }, [tasks, known])
+  // The palette's Add or remove tag… lists the same tags (lib/bulkTasks).
+  const names = React.useMemo(() => selectionTags(tasks, known).map((t) => t.name), [tasks, known])
   const typed = query.trim().slice(0, MAX_TAG_LENGTH)
   const isNew = typed !== "" && !names.some((n) => n.toLowerCase() === typed.toLowerCase())
   return (

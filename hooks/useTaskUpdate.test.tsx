@@ -185,6 +185,17 @@ describe("a card moved on a board (optimisticUpdateTask)", () => {
     await waitFor(() => expect(read(board)?.project_tasks_todo.map((t) => t.task_uuid)).toEqual(["b", "c", "a"]))
     expect(read(board)?.project_tasks_todo[0]).toBe(b)
   })
+
+  // A teammate's change of status heard live (WCL-2), or a mover's own change
+  // heard back, names no place: a card that stays in its column stays put.
+  it("keeps its place when a status keeps it in its column", async () => {
+    const [a, b, c] = ["a", "b", "c"].map((id) => ({ ...task(id), task_status: "todo" }))
+    const { hook, read } = await withLists({ [board]: { project_tasks_todo: [a, b, c] } })
+    act(() => hook.current.optimisticUpdateTask({ task_uuid: "b", task_status: "todo", task_custom_status: "s-triage" }, "p1"))
+    await waitFor(() => expect((read(board)?.project_tasks_todo[1] as { task_custom_status?: string }).task_custom_status).toBe("s-triage"))
+    expect(read(board)?.project_tasks_todo.map((t) => t.task_uuid)).toEqual(["a", "b", "c"])
+    expect(read(board)?.project_tasks_todo[0]).toBe(a)
+  })
 })
 
 describe("optimisticDeleteTask", () => {

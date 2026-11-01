@@ -36,9 +36,11 @@ export const TimelineHeader = memo(function TimelineHeader({
   const todayKey = zoom === "day" ? today.toISOString() : ""
   const gridWidth = range.days * dayWidth
   const todayShown = todayLeft >= 0 && todayLeft < gridWidth
-  // Where the "Today" pill begins, less 8 px: a month's name in the same row
-  // gives way before it, rather than touching it (DESIGN-BUILD-3, T-1).
+  // Where the "Today" pill begins, less 8 px, and where it ends, plus 8: a
+  // month's name in the same row gives way before it, rather than touching it
+  // (DESIGN-BUILD-3, T-1), or begins after it when it covers the month's start.
   const pillStop = todayShown ? todayLeft + dayWidth / 2 - PILL_HALF - 8 : null
+  const pillClear = todayLeft + dayWidth / 2 + PILL_HALF + 8
   return (
     <div
       data-timeline-header=""
@@ -57,6 +59,8 @@ export const TimelineHeader = memo(function TimelineHeader({
         {top.map((t) => {
           // The name's room ends at its month's end, or before the pill when the pill is in its month.
           const end = pillStop !== null && pillStop > t.left && pillStop < t.left + t.width ? pillStop : t.left + t.width
+          // On a month's first day (or the day before) the pill covers its start: the name begins after the pill (V-223).
+          const start = pillStop !== null && pillStop <= t.left && pillClear > t.left ? Math.min(pillClear, end) : t.left
           return (
           <div key={t.key} className="absolute top-0 h-6" style={{ left: t.left, width: t.width }}>
             {t.width >= 36 && (
@@ -68,7 +72,7 @@ export const TimelineHeader = memo(function TimelineHeader({
               <span
                 data-month-label=""
                 className="sticky flex h-6 flex-wrap overflow-hidden px-2 text-xs font-[510] leading-6 text-ink-2"
-                style={{ left: nameWidth, maxWidth: `min(${end - t.left}px, ${stuckRoom(end)})` }}
+                style={{ left: nameWidth, marginLeft: start - t.left || undefined, maxWidth: `min(${end - start}px, ${stuckRoom(end)})` }}
               >
                 <span aria-hidden="true" className="h-6 w-0" />
                 <span className="whitespace-nowrap">{t.label}</span>

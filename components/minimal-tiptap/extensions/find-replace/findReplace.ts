@@ -24,11 +24,10 @@ import { Plugin, PluginKey, type EditorState, type Transaction } from "@tiptap/p
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
 import { changedRange } from "@/components/minimal-tiptap/utils/changedRange"
 import { isComposingKey } from "@/lib/keys/ime"
+import { MAX_MATCHES, matchesIn, patternOf, type FindOptions } from "@/lib/text/findPattern"
 
-interface FindOptions {
-  caseSensitive: boolean
-  wholeWord: boolean
-}
+// The matcher is shared with a board's Find (lib/text/findPattern); the bar and the tests read it here too.
+export { MAX_MATCHES, patternOf }
 
 export interface Match {
   from: number
@@ -44,21 +43,8 @@ export interface FindState extends FindOptions {
   decorations: DecorationSet
 }
 
-/** At most this many matches are found (a count past it reads "5,000+"). */
-export const MAX_MATCHES = 5000
-
 /** What separates the text of an inline atom (a mention, an equation): nothing typed matches across it. */
 const ATOM = "￼"
-
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-
-/** The pattern a query is searched with. Null for an empty query. */
-export function patternOf(query: string, { caseSensitive, wholeWord }: FindOptions): RegExp | null {
-  if (!query) return null
-  const body = escape(query)
-  const src = wholeWord ? `(?<![\\p{L}\\p{N}_])${body}(?![\\p{L}\\p{N}_])` : body
-  return new RegExp(src, caseSensitive ? "gu" : "giu")
-}
 
 /** Every match of a query in a doc, in order. */
 export function findMatches(doc: PMNode, query: string, options: FindOptions): Match[] {
@@ -82,14 +68,7 @@ export function findMatches(doc: PMNode, query: string, options: FindOptions): M
       while (k > 0 && offsets[k] > i) k--
       return starts[k] + (i - offsets[k])
     }
-    re.lastIndex = 0
-    for (let m = re.exec(text); m && out.length < MAX_MATCHES; m = re.exec(text)) {
-      if (m[0] === "") {
-        re.lastIndex++
-        continue
-      }
-      out.push({ from: at(m.index), to: at(m.index + m[0].length - 1) + 1 })
-    }
+    for (const m of matchesIn(text, re, MAX_MATCHES - out.length)) out.push({ from: at(m.index), to: at(m.index + m.length - 1) + 1 })
     return false
   })
   return out

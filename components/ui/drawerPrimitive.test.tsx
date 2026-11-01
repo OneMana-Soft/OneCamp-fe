@@ -417,7 +417,9 @@ describe("an options menu (C7)", () => {
 })
 
 describe("while a sheet is open", () => {
-  afterEach(() => document.documentElement.removeAttribute("data-sheet"))
+  // The page's one sheet mark (html[data-sheet]), which every sheet primitive
+  // sets, never an html:has() (app/globals.css, AppShellMark).
+  const marked = () => document.documentElement.getAttribute("data-sheet") === "open"
 
   // B-2's sections sheet at 390: a toast came up over Add section, at the
   // sheet's foot (DESIGN-BUILD-5, 22 Oct 2026). app/phone.css C9 moves toasts
@@ -425,9 +427,9 @@ describe("while a sheet is open", () => {
   // too, so the sheet marks the page and C9 reads the mark (one place).
   it("marks the page, and unmarks it when the sheet goes", () => {
     const { unmount } = render(<Sheet detent="menu" />)
-    expect(document.documentElement.getAttribute("data-sheet")).toBe("open")
+    expect(marked()).toBe(true)
     unmount()
-    expect(document.documentElement.hasAttribute("data-sheet")).toBe(false)
+    expect(marked()).toBe(false)
   })
 
   it("keeps the mark while any sheet is open: a sheet over a sheet, then the one under it", () => {
@@ -438,11 +440,11 @@ describe("while a sheet is open", () => {
       </>
     )
     const { rerender, unmount } = render(<Two top />)
-    expect(document.documentElement.getAttribute("data-sheet")).toBe("open")
+    expect(marked()).toBe(true)
     rerender(<Two top={false} />)
-    expect(document.documentElement.getAttribute("data-sheet")).toBe("open")
+    expect(marked()).toBe(true)
     unmount()
-    expect(document.documentElement.hasAttribute("data-sheet")).toBe(false)
+    expect(marked()).toBe(false)
   })
 
   it("drops the mark as soon as a sheet starts to close, before its slide ends", async () => {
@@ -455,10 +457,10 @@ describe("while a sheet is open", () => {
       </Drawer>
     )
     const { rerender } = render(<Closing open />)
-    expect(document.documentElement.getAttribute("data-sheet")).toBe("open")
+    expect(marked()).toBe(true)
     rerender(<Closing open={false} />)
     await new Promise((r) => setTimeout(r, 0))
-    expect(document.documentElement.hasAttribute("data-sheet")).toBe(false)
+    expect(marked()).toBe(false)
   })
 
   it("wraps a description's lines pretty, never leaving one word alone", () => {

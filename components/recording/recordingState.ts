@@ -23,23 +23,38 @@ export interface NothingToPlay {
 const SAYS: Record<NothingToPlayState, Omit<NothingToPlay, "state">> = {
   failed: {
     title: "This recording couldn't be saved",
-    detail: "Something went wrong while the call was being recorded, so there's nothing to play. It can be deleted from its channel's or chat's recordings.",
+    detail: "Something went wrong while the call was being recorded, so there's nothing to play.",
     short: "Couldn't be saved",
   },
   empty: {
     title: "Nothing was recorded",
-    detail: "No camera, microphone or screen came through before it stopped, so there's nothing to play. It can be deleted from its channel's or chat's recordings.",
+    detail: "No camera, microphone or screen came through before it stopped, so there's nothing to play.",
     short: "Nothing recorded",
   },
 }
 
+/**
+ * Where a recording is kept, which is where it can be deleted: a channel's or a
+ * chat's recordings, or an event's "Recordings & notes" (its call's, meet-02).
+ */
+export type RecordingHome = "conversation" | "event"
+
+const DELETED_FROM: Record<RecordingHome, string> = {
+  conversation: "It can be deleted from its channel's or chat's recordings.",
+  event: "It can be deleted from its event's Recordings & notes.",
+}
+
 /** What a recording says when its status leaves nothing to play; null for one that plays or is on its way. Pure. */
-export function nothingToPlay(status: unknown): NothingToPlay | null {
-  return status === "failed" || status === "empty" ? { state: status, ...SAYS[status] } : null
+export function nothingToPlay(status: unknown, home: RecordingHome = "conversation"): NothingToPlay | null {
+  if (status !== "failed" && status !== "empty") return null
+  const says = SAYS[status]
+  return { state: status, ...says, detail: `${says.detail} ${DELETED_FROM[home]}` }
 }
 
 /** What the player's transcript read has answered so far. */
 export interface TranscriptRead {
+  /** It has a transcript route to read. An event's call plays by the event's own route, with none. */
+  source: boolean
   /** Its first page has answered, with words or with a failure. */
   answered: boolean
   /** The lines it has. */
@@ -58,10 +73,13 @@ export interface TranscriptRead {
  * of the two isn't known, so it waits, and the sheet lays out once: deciding
  * early drew the stage's message full width, then moved it when the words
  * came (DESIGN-BUILD-29). A failed read keeps the panel, which says so with
- * Try again, so the words of a failed recording don't vanish. `status` is the
- * player's, or the row's while the player's is on its way. Pure.
+ * Try again, so the words of a failed recording don't vanish. A player with no
+ * transcript to read keeps no panel: it can't know the words, so it doesn't
+ * say there are none beside a row that counts them (an event's call, meet-02).
+ * `status` is the player's, or the row's while the player's is on its way. Pure.
  */
 export function transcriptLayout(status: unknown, read: TranscriptRead): "panel" | "none" | "wait" {
+  if (!read.source) return "none"
   if (read.lines > 0 || nothingToPlay(status) === null) return "panel"
   if (!read.answered) return "wait"
   return read.failed ? "panel" : "none"

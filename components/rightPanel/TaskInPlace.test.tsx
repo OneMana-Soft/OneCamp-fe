@@ -3,6 +3,7 @@ import { act, cleanup, render } from "@testing-library/react"
 import { Provider } from "react-redux"
 import { configureStore } from "@reduxjs/toolkit"
 import type { ReactNode } from "react"
+import { noteNetworkFailure, noteNetworkOk } from "@/lib/connectivity"
 
 // The sheet's code comes to the device ahead through the offline layer's warm list (lib/offline/warmAhead, its own
 // tests); here only that the sheet joins it once, as it mounts. The one open rule is the router's (inPlace).
@@ -102,6 +103,7 @@ describe("TaskInPlace opens a task's link in place while offline", () => {
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    noteNetworkOk()
     document.body.innerHTML = ""
   })
 
@@ -137,6 +139,18 @@ describe("TaskInPlace opens a task's link in place while offline", () => {
       expect(press("/app/task/LCH-9")).toBe(true)
     })
     expect(opened()).toBe("LCH-9")
+  })
+
+  // Offline is the app's ONE connectivity state (lib/connectivity isAppOffline), the one the pill says: the browser
+  // can report a network while the server goes unanswered (asana-12, a12quick2 :1118, where the press navigated and
+  // the worker served its offline page). A task opened offline never navigates.
+  it("by the app's one connectivity state: the browser's network up, the server unanswered twice", () => {
+    noteNetworkFailure()
+    noteNetworkFailure()
+    const { store } = setup()
+    const id = "0f8fad5b-d9cb-469f-a165-70867728950e"
+    expect(press(`/app/task/${id}`)).toBe(true)
+    expect(store.getState().rightPanel.rightPanelState.data.taskUUID).toBe(id)
   })
 
   it("leaves a link to a task's page to the browser while online", () => {

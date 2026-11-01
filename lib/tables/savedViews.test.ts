@@ -11,7 +11,7 @@ const view = (over: Partial<TableView>): TableView => ({ id: "v1", table_id: "t"
 const state = (over: Partial<ViewState> = {}): ViewState => ({
   layout: "grid",
   rules: { sort: [], filters: [], match: "all" },
-  display: { rowHeight: "medium", hidden: [], summary: {}, widths: {}, boardGroup: null, colors: null },
+  display: { rowHeight: "medium", hidden: [], summary: {}, widths: {}, boardGroup: null, colors: null, frozen: 1 },
   ...over,
 })
 
@@ -37,9 +37,16 @@ describe("a saved view", () => {
       state({
         layout: "board",
         rules: { sort: [{ field: "notes", dir: "desc" }], filters: [{ field: "notes", op: "contains", value: "call" }], match: "any" },
-        display: { rowHeight: "tall", hidden: ["stage"], summary: { notes: "count" }, widths: { notes: 300 }, boardGroup: null, colors: null },
+        display: { rowHeight: "tall", hidden: ["stage"], summary: { notes: "count" }, widths: { notes: 300 }, boardGroup: null, colors: null, frozen: 1 },
       }),
     )
+  })
+
+  it("keeps how many columns stay frozen (G2b), up to three", () => {
+    const frozen = (n: unknown) => viewStateOf(view({ config: JSON.stringify({ display: { frozen: n } }) }), fields).display.frozen
+    expect(frozen(3)).toBe(3)
+    expect(frozen(2)).toBe(2)
+    expect(frozen(7)).toBe(1)
   })
 
   it("that holds nothing it can read shows the table as it draws by default", () => {

@@ -2,8 +2,9 @@
 
 // The grid's live cells (content.md T08): the one cell in use draws through
 // these, with its state, pickers and saves; every other cell is drawn at
-// rest (cellFaces' restCell). A chunk of its own (DataTableGrid's liveCells),
+// rest (cellFaces' restCell). A chunk of its own (DataTableGrid's LiveCells),
 // off the table's first screen; the record panel draws its fields with them.
+// The grid's moves (gridMoves: the keys between cells, a column's drag) ride in it.
 
 import { rowLines } from "@/lib/tables/display"
 import * as React from "react"
@@ -38,6 +39,9 @@ import {
   type CellContext,
   type CellProps,
 } from "@/components/table/cellFaces"
+
+// The grid's keys between cells and its column drag come with the live cells (V-148).
+export { columnDrag, gridKeyDown } from "@/components/table/gridMoves"
 
 /** A files cell (FilesCell.tsx): a chunk of its own, as few tables have one. */
 const filesPart = lazyView(() => import("@/components/table/FilesCell"))

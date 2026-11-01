@@ -55,6 +55,13 @@ describe("the board canvas", () => {
     expect(src).toMatch(/wrapRef\.current\.dataset\.boardRemote = String\(remoteMergesRef\.current\)/)
   })
 
+  it("leaves a board that opens at a frame to the caller that puts the camera on it, as a link's ?frame= is", () => {
+    // A call's slide (components/livekit/stageSlides): a first visit with no saved camera doesn't frame the whole drawing over it.
+    const firstFit = effect("// No saved camera")
+    expect(firstFit).toMatch(/if \(linkedRef\.current \|\| opensAt\) \{\s+viewportRestoredRef\.current = true\s+return\s+\}/)
+    expect(firstFit).toMatch(/\}, \[api, sceneReady, synced, boardId, opensAt\]\)/)
+  })
+
   it("starts from the empty scene's fingerprint, so Excalidraw's first call is no change", () => {
     expect(src).toMatch(/const lastSignatureRef = React\.useRef\(sceneSignature\(\[\]\)\)/)
   })

@@ -43,6 +43,27 @@ function metAtCentre(row: Locator) {
 }
 
 /**
+ * Whether a finger's tap reaches a control across 44 px, centred on it, however small it is drawn: a tap just inside
+ * that span, above and below its box, meets the control, or, where it sits among others (`among`: a card holding its
+ * actions), one of theirs. It measures the page as drawn, so it proves the coarse-pointer reach app/phone.css gives
+ * every [data-touch-target] control, not a size written in the source.
+ */
+export async function takesAFinger(control: Locator, among?: Locator) {
+  const group = among ? await among.elementHandle() : null
+  try {
+    return await control.evaluate((el, box) => {
+      const b = el.getBoundingClientRect(), x = b.left + b.width / 2, out = Math.max(0, (44 - b.height) / 2 - 1)
+      return [b.top - out, b.bottom + out].every((y) => {
+        const hit = document.elementFromPoint(x, y)?.closest("a, button")
+        return !!hit && (hit === el || (!!box && box.contains(hit)))
+      })
+    }, group)
+  } finally {
+    await group?.dispose()
+  }
+}
+
+/**
  * The shared radio item marks the chosen row with the app's one check
  * (MenuCheck, meet-18), in its 16px slot, and no other row: a production
  * build's computed style, not jsdom's.

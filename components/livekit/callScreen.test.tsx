@@ -11,6 +11,8 @@ vi.mock("@livekit/components-react", () => ({
   useIsMuted: () => muted,
   useMediaDeviceSelect: () => ({ devices: [], activeDeviceId: "", setActiveMediaDevice: vi.fn() }),
   useRoomContext: () => ({ disconnect: vi.fn() }),
+  // Outside a call's room, everyone has their own hue (callHues).
+  useMaybeRoomContext: () => undefined,
   useLocalParticipant: () => ({
     localParticipant: { setMicrophoneEnabled: vi.fn(), setCameraEnabled: vi.fn(), setScreenShareEnabled: vi.fn() },
     isMicrophoneEnabled: true,
@@ -163,6 +165,16 @@ describe("the call stage", () => {
     muted = false
     const { container } = render(<CameraOffFace trackRef={{ participant: person("maya", "Maya Chen"), source: Track.Source.Camera, publication: {} } as never} />)
     expect(container.querySelector("[data-camera-off]")).toBeNull()
+  })
+
+  it("names the person once for a screen reader: in a tile its plate does, so the face's name is for the eye", () => {
+    const named = (root: HTMLElement) => Array.from(root.querySelectorAll("span")).find((s) => s.textContent === "Maya Chen")
+    const { container: tile } = render(<CameraOffFace trackRef={{ participant: person("maya", "Maya Chen"), source: Track.Source.Camera } as never} />)
+    expect(named(tile)?.closest("[aria-hidden=true]")).toBeTruthy()
+    // The green room's face has no plate beside it: there its name is the name.
+    const { container: room } = render(<StageFace identity="maya" name="Maya Chen" fixedSize={96} />)
+    expect(named(room)).toBeTruthy()
+    expect(named(room)?.closest("[aria-hidden=true]")).toBeNull()
   })
 
   it("says who is recording, as a status, without a pulse", () => {
@@ -345,7 +357,8 @@ describe("the call stage's frame", () => {
     const { readFileSync } = await import("node:fs")
     const { resolve } = await import("node:path")
     const src = readFileSync(resolve(__dirname, "VideoConference.tsx"), "utf8")
-    expect(src.match(/STAGE_FRAME\)/g)?.length).toBe(2)
+    // One element for both, measured for Stage Layout (lib/calls/stageLayout).
+    expect(src.match(/STAGE_FRAME\)/g)?.length).toBe(1)
     expect(STAGE_FRAME.split(" ")).toEqual(
       expect.arrayContaining([
         "px-3",

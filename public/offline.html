@@ -1,0 +1,127 @@
+<!doctype html>
+<!--
+  The page public/sw.js serves for an app page this device hasn't kept, while nothing gets through (asana-12).
+  Its contract with the worker:
+  - the body carries data-offline-page;
+  - the last-page token (sw.js LAST_PAGE) stands in data-last-page and in the link's href, and the worker puts the
+    last page kept there (HTML-escaped), or "" when there is none, which hides the link.
+  Standalone: no script or style from the app, no request but its own font, light and dark as the app's ui-theme says.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>You’re offline · OneCamp</title>
+<script>
+  // The app's own choice (components theme: ui-theme = light, dark or system), before the first paint.
+  (function () {
+    var theme = 'system';
+    try { theme = localStorage.getItem('ui-theme') || 'system'; } catch (e) { /* storage blocked */ }
+    var dark = theme === 'dark' || (theme !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    if (dark) document.documentElement.classList.add('dark');
+  })();
+</script>
+<style>
+  @font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url(/fonts/inter/inter-latin.dd8a4575.woff2) format('woff2');
+  }
+  :root {
+    --frame: #F3F4F6;
+    --sheet: #FFFFFF;
+    --ink: #16171B;
+    --ink-2: #5B5D65;
+    --line: rgba(20, 22, 30, 0.075);
+    --brand: oklch(0.5808 0.1764 40.35);
+    --brand-text: oklch(0.5534 0.1739 38.40);
+    --on-brand: #FFFFFF;
+    --glow: oklch(0.5808 0.1764 40.35 / 0.16);
+    color-scheme: light;
+  }
+  :root.dark {
+    --frame: #0B0C0E;
+    --sheet: #131416;
+    --ink: #EEEEF0;
+    --ink-2: #A8ABB1;
+    --line: rgba(255, 255, 255, 0.065);
+    --brand: oklch(0.7250 0.1811 45.30);
+    --brand-text: oklch(0.7514 0.1610 46.76);
+    --on-brand: #0B0C0E;
+    --glow: oklch(0.7250 0.1811 45.30 / 0.18);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(60rem 30rem at 50% -10%, var(--glow), transparent 70%), var(--frame);
+    color: var(--ink);
+    font: 400 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: grid;
+    place-items: center;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  main {
+    width: 100%;
+    max-width: 400px;
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px -12px rgba(0, 0, 0, 0.18);
+    padding: 32px 24px 24px;
+    text-align: center;
+  }
+  .mark { width: 56px; height: 56px; margin: 0 auto 20px; position: relative; }
+  .mark svg { display: block; width: 100%; height: 100%; }
+  .mark circle { stroke: var(--brand); }
+  .mark .dot {
+    position: absolute; right: -2px; top: -2px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--sheet); display: grid; place-items: center;
+  }
+  .mark .dot::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ink-2); opacity: 0.6; }
+  h1 { font-size: 20px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 8px; text-wrap: balance; }
+  p { margin: 0; color: var(--ink-2); text-wrap: pretty; }
+  .actions { display: grid; gap: 8px; margin-top: 24px; }
+  .button {
+    display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px;
+    border-radius: 12px; font: inherit; font-weight: 500; text-decoration: none; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: var(--ink);
+    transition: background-color 120ms ease, transform 120ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .button.primary { background: var(--brand); border-color: transparent; color: var(--on-brand); }
+  .button:hover { background: var(--line); }
+  .button.primary:hover { background: var(--brand-text); }
+  .button:active { transform: scale(0.98); }
+  .button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  body[data-last-page=""] .kept { display: none; }
+  body:not([data-last-page=""]) .none { display: none; }
+  @media (prefers-reduced-motion: reduce) { .button { transition: none; } .button:active { transform: none; } }
+</style>
+</head>
+<body data-offline-page data-last-page="__ONECAMP_LAST_PAGE__">
+<main>
+  <div class="mark" aria-hidden="true">
+    <svg viewBox="0 0 512 512" fill="none"><circle cx="256" cy="256" r="176" stroke-width="56"/></svg>
+    <span class="dot"></span>
+  </div>
+  <h1>You’re offline</h1>
+  <p class="kept">This page hasn’t been opened on this device yet, so it can’t open without a network.</p>
+  <p class="none">OneCamp opens here once you’re back online.</p>
+  <div class="actions">
+    <a class="button primary kept" href="__ONECAMP_LAST_PAGE__">Open your last page</a>
+    <button class="button" type="button" id="again">Try again</button>
+  </div>
+</main>
+<script>
+  document.getElementById('again').addEventListener('click', function () { location.reload(); });
+  window.addEventListener('online', function () { location.reload(); });
+</script>
+</body>
+</html>

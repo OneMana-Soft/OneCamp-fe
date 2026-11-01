@@ -20,9 +20,11 @@ import { ReminderRows } from "@/components/calendar/form/reminderRows"
 import { HueRow } from "@/components/calendar/form/hueRow"
 import { fieldLabel, fieldRow, inlineChoice } from "@/lib/ui/fieldRow"
 import { cn } from "@/lib/utils/helpers/cn"
-import { withAllDay, withStart, type EventFormValues, type FormProblem, type OOODecline } from "@/lib/calendar/eventForm"
+import { formProblem, mayAddToGoogle, meets, withAllDay, withStart, type EventFormValues, type FormProblem, type OOODecline } from "@/lib/calendar/eventForm"
 import { inHours, theirTime, usePeopleHours, zoneDiffers } from "@/lib/calendar/peopleHours"
-import { AlertTriangle, Globe, ListTodo, X } from "@/lib/icons"
+import { AlertTriangle, Globe, ListTodo, Pin, X } from "@/lib/icons"
+import { ToggleChip } from "@/components/ui/toggleChip"
+import { format } from "date-fns"
 import { clockTime } from "@/lib/utils/date/clock"
 import { zoneCity } from "@/lib/utils/zones"
 import { Button } from "@/components/ui/button"
@@ -48,8 +50,10 @@ export interface EventFormProps {
   /** A new event: free times to pick from, and a copy in Google Calendar. */
   creating?: boolean
   googleConnected?: boolean
-  /** What stops a save, shown at its field. */
+  /** What stopped a save (its host says it when Create or Save is pressed); from then on the form says, at its field, what stops a save as the form stands. */
   problem?: FormProblem | null
+  /** The own time, by kind, a save keeping the event's guests can't make it, in the server's words (its read's own_time_refused): offered off, saying why. */
+  ownTimeRefused?: Partial<Record<string, string>>
   /** The title's look where the form sits: the dialog's, or the panel's. */
   titleClassName?: string
   autoFocusTitle?: boolean
@@ -62,6 +66,9 @@ export interface EventFormProps {
 
 const Layout = React.createContext<"dialog" | "panel">("dialog")
 
+/** A working location's quick places (head 5d); any other is typed as its title. */
+const PLACES = ["Home", "Office"]
+
 /**
  * The one Event Form (calendar FORM; PROGRAM.md A7): the full dialog, the
  * right panel and the phone's page edit an event with it, every field once,
@@ -71,10 +78,12 @@ const Layout = React.createContext<"dialog" | "panel">("dialog")
  * task have no guests and don't repeat; a server with the old stores keeps
  * the fields it has. A new event can be made time for one of your tasks (B1).
  */
-export function EventForm({ values: v, onChange, full, organiser, exclude = [], creating, googleConnected, problem, titleClassName, autoFocusTitle, layout = "dialog" }: EventFormProps) {
+export function EventForm({ values: v, onChange, full, organiser, exclude = [], creating, googleConnected, problem: said, ownTimeRefused, titleClassName, autoFocusTitle, layout = "dialog" }: EventFormProps) {
   const id = React.useId()
   const set = (patch: Partial<EventFormValues>) => onChange({ ...v, ...patch })
-  const meeting = v.kind === "event"
+  const meeting = meets(v)
+  // Once a save was stopped, the problem is said as the form stands, for every host: put right, the alert goes (DB-51).
+  const problem = said ? formProblem(v) : null
   // Focus time and time for a task run from a time to a time.
   const timed = v.kind === "focus" || v.kind === "task_block"
   // A block is named for its task until it's given a name; it has nobody on it.
@@ -94,7 +103,7 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
           aria-label="Title"
           aria-invalid={problem?.field === "title" || undefined}
           aria-describedby={problem?.field === "title" ? `${id}-problem` : undefined}
-          placeholder={v.kind === "focus" ? "Focus time" : v.kind === "out_of_office" ? "Away" : v.kind === "task_block" ? v.task?.task_name || "Time for a task" : "Event title"}
+          placeholder={v.kind === "focus" ? "Focus time" : v.kind === "out_of_office" ? "Away" : v.kind === "working_location" ? "Where you're working" : v.kind === "task_block" ? v.task?.task_name || "Time for a task" : "Event title"}
           className={cn("w-full bg-transparent font-display text-title-2 font-semibold text-ink outline-none placeholder:text-ink-3", titleClassName)}
         />
         {problem?.field === "title" ? (
@@ -171,7 +180,7 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
         </>
       )}
 
-      {full && meeting ? (
+      {full && (meeting || v.kind === "working_location") ? (
         <Row label="Repeat" htmlFor={`${id}-repeat`}>
           <RepeatControl id={`${id}-repeat`} start={v.allDay ? new Date(`${v.startDate}T12:00:00`) : v.start} rule={v.rule} onChange={(rule) => set({ rule })} />
         </Row>
@@ -206,7 +215,7 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
         </Row>
       ) : null}
 
-      {full ? (
+      {full && v.kind !== "working_location" ? (
         <Row label="Place" htmlFor={`${id}-place`}>
           <Input id={`${id}-place`} value={v.location} onChange={(e) => set({ location: e.target.value })} placeholder="Add a room, an address or a call link" />
         </Row>
@@ -223,7 +232,7 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
         />
       </Row>
 
-      {full ? (
+      {full && v.kind !== "working_location" ? (
         <Row label="Reminders" htmlFor={`${id}-reminders`} align="start">
           <ReminderRows id={`${id}-reminders`} reminders={v.reminders} allDay={v.allDay} onChange={(reminders) => set({ reminders })} />
         </Row>
@@ -266,6 +275,7 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
           <>
             <FocusTimeCheckbox
               checked={v.kind === "focus"}
+              refused={ownTimeRefused?.focus}
               hint="Pause your notifications while this runs. Someone who really needs you can still use Notify anyway."
               onChange={(on) =>
                 set({
@@ -278,6 +288,7 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
             />
             <AwayCheckbox
               checked={v.kind === "out_of_office"}
+              refused={ownTimeRefused?.out_of_office}
               onChange={(on) => set({ kind: on ? "out_of_office" : "event", ...(on && !v.title.trim() ? { title: "Away" } : {}) })}
             />
             {full && v.kind === "out_of_office" ? (
@@ -311,13 +322,37 @@ export function EventForm({ values: v, onChange, full, organiser, exclude = [], 
                 ) : null}
               </div>
             ) : null}
+            {full ? (
+              <EventOptionCheckbox
+                label="Working location"
+                hint="Where you work that day: on your calendar, and beside you when people pick a time with you."
+                checked={v.kind === "working_location"}
+                refused={ownTimeRefused?.working_location}
+                onChange={(on) => onChange(on ? withAllDay({ ...v, kind: "working_location" }, true) : { ...v, kind: "event" })}
+              />
+            ) : null}
+            {full && v.kind === "working_location" ? (
+              // Its quick places sit right under its switch, indented as its children, as the away rows do.
+              <div className="mb-1 ml-1 border-l-2 border-line pl-3" data-place-rows="">
+                <Row label="Place">
+                  <div className="flex flex-wrap gap-1.5">
+                    {PLACES.map((place) => (
+                      <ToggleChip key={place} tone="neutral" pressed={v.title.trim() === place} onPressedChange={(on) => set({ title: on ? place : "" })}>
+                        {place}
+                      </ToggleChip>
+                    ))}
+                  </div>
+                </Row>
+              </div>
+            ) : null}
           </>
         )}
-        {creating && full && v.kind !== "task_block" ? <BlockTimeOption dueBy={blockDueBy(v.start)} onPick={pickTask} /> : null}
+        {/* Own time of any kind isn't time for a task, so only an event offers one (DB-50's rule, for every kind). */}
+        {creating && full && meeting ? <BlockTimeOption dueBy={blockDueBy(v.start)} onPick={pickTask} /> : null}
         {full && meeting && organiser && v.guests.length > 0 ? (
           <EventOptionCheckbox label="Email me when guests answer" hint="You're told in OneCamp either way." checked={v.emailOnAnswers} onChange={(emailOnAnswers) => set({ emailOnAnswers })} />
         ) : null}
-        {creating && googleConnected && !v.rule ? (
+        {creating && googleConnected && mayAddToGoogle(v) ? (
           <EventOptionCheckbox label="Add to Google Calendar too" hint="It goes on your Google Calendar as well as here." checked={v.syncToGoogle} onChange={(syncToGoogle) => set({ syncToGoogle })} />
         ) : null}
       </div>
@@ -352,18 +387,21 @@ function Row({ label, htmlFor, align = "center", children }: { label: string; ht
 /**
  * The time at each guest's end (calendar A3), for those who keep hours: one
  * quiet line, "10:00 your time · 05:30 for Jonas (London)", when a guest's
- * clock reads otherwise; then who it is outside the working hours of,
+ * clock reads otherwise; where they work that day, by their working
+ * locations (head 5d); then who it is outside the working hours of,
  * "That's 21:00 for Jonas, outside their working hours", three at most and
  * then how many more. Notes, not refusals: the event can still be saved.
  */
 function GuestHours({ guests, start, end }: { guests: EventFormValues["guests"]; start: Date; end: Date }) {
   const members = guests.filter((g) => g.uuid)
-  const hours = usePeopleHours(members.map((g) => g.uuid))
-  if (!hours || end <= start) return null
+  const people = usePeopleHours(members.map((g) => g.uuid), format(start, "yyyy-MM-dd"))
+  if (!people || end <= start) return null
+  const { hours, where } = people
   const first = (g: { name: string }) => g.name.split(" ")[0] || g.name
   const elsewhere = members.filter((g) => hours[g.uuid] && zoneDiffers(start, hours[g.uuid].tz))
   const outside = members.filter((g) => hours[g.uuid] && !inHours(hours[g.uuid], start, end))
-  if (!elsewhere.length && !outside.length) return null
+  const placed = members.filter((g) => where[g.uuid])
+  if (!elsewhere.length && !outside.length && !placed.length) return null
   return (
     <div className="grid gap-0.5 pt-1.5">
       {elsewhere.length ? (
@@ -372,6 +410,15 @@ function GuestHours({ guests, start, end }: { guests: EventFormValues["guests"];
           <span>
             {[`${clockTime(start)} your time`, ...elsewhere.slice(0, 3).map((g) => `${theirTime(start, hours[g.uuid].tz)} for ${first(g)} (${zoneCity(hours[g.uuid].tz)})`)].join(" · ")}
             {elsewhere.length > 3 ? ` · ${elsewhere.length - 3} more` : ""}
+          </span>
+        </p>
+      ) : null}
+      {placed.length ? (
+        <p className="flex items-start gap-1.5 text-meta text-ink-3" data-guest-where="">
+          <Pin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {placed.slice(0, 3).map((g) => `${first(g)}: ${where[g.uuid]}`).join(" · ")}
+            {placed.length > 3 ? ` · ${placed.length - 3} more` : ""}
           </span>
         </p>
       ) : null}

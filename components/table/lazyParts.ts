@@ -44,8 +44,11 @@ export const MenusPart = lazyView(() => import("@/components/table/TableMenus"))
 export const SaveDotPart = lazyView(() => import("@/components/docEditor/SaveDot"))
 /** The table's saved views (migration 512). */
 export const ViewsPart = lazyView(() => import("@/components/table/views/TableViews"))
+/** G2b: find and replace over the view (warmed when the page is idle), and the clean-ups' dialogs. */
+export const FindPart = lazyView(() => import("@/components/table/find/FindBar"))
+export const CleanupPart = lazyView(() => import("@/components/table/cleanup/CleanupDialog"))
 
-/** Every part's chunk, loaded: what a test of the page waits for first. */
+/** Every part's chunk, loaded: what a test of the page waits for first (not FindPart's or CleanupPart's: see tablePage.test). */
 export const loadTablePageParts = () =>
   Promise.all([
     RulesPart.warm(),

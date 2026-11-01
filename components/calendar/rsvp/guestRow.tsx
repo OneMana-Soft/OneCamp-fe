@@ -1,9 +1,9 @@
 "use client"
 
 import { useDeferredValue, useState } from "react"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { cn } from "@/lib/utils/helpers/cn"
-import { ANSWER_WORD, responseOf } from "@/lib/calendar/answers"
+import { answerWordOf } from "@/lib/calendar/answers"
 import { FACES_BEFORE_FOLD, GuestFace, type FaceGuest } from "@/components/calendar/rsvp/guestFaces"
 
 const NO_FACES: FaceGuest[] = []
@@ -51,8 +51,8 @@ export function GuestFaces({ guests, summary, className }: { guests: FaceGuest[]
             <li key={g.key} className="flex min-h-7 min-w-0 items-center gap-2 text-ui-sm">
               <GuestFace g={g} size={24} />
               <span className="min-w-0 flex-1 truncate text-ink">{g.name}</span>
-              {g.outside ? <span className={cn(HUE_CLASS.sun, "shrink-0 rounded-[5px] bg-hue-tint px-1 text-micro text-hue-ink")}>Guest</span> : null}
-              <span className="shrink-0 text-meta text-ink-3">{g.organiser ? "organiser" : ANSWER_WORD[responseOf(g.response)]}</span>
+              {g.outside ? <PrincipalTag kind="guest" /> : null}
+              <span className="shrink-0 text-meta text-ink-3">{answerWordOf(g)}</span>
             </li>
           ))}
         </ul>

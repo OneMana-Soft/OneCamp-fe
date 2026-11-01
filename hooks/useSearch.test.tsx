@@ -25,6 +25,7 @@ const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }))
 
 import { useSearch } from "./useSearch"
+import type { SearchScope } from "@/lib/search/scopes"
 
 afterEach(() => {
   cleanup()
@@ -110,5 +111,39 @@ describe("Enter in the search field", () => {
     const { result } = renderHook(() => useSearch({ initialQuery: " launch ", debounceMs: 0 }), { wrapper })
     act(() => result.current.handleSearchSubmit())
     expect(push).toHaveBeenLastCalledWith("/app/search?query=launch")
+  })
+})
+
+describe("a search in one scope", () => {
+  // linear-28: the palette's prefix scope (lib/search/scopePrefix) is the
+  // search's own. Its request, the pages Show more fetches and the full
+  // search all carry the scope's kinds; the results still say the words typed.
+  const scoped = `/search/unifiedSearch/${encodeURIComponent("type:task launch")}`
+
+  it("asks for the scope's kinds with the words, and Show more stays in the scope", async () => {
+    const { result } = renderHook(() => useSearch({ debounceMs: 0, scope: "tasks" }), { wrapper })
+    act(() => result.current.setInputValue("launch"))
+    await waitFor(() => expect(pending.has(scoped)).toBe(true))
+    act(() => pending.get(scoped)!({ data: { page: [{ type: "task", task: { task_id: "t1", task_name: "Launch" } }], has_more: true, next: "c2" } }))
+    await waitFor(() => expect(result.current.hasMore).toBe(true))
+    expect(result.current.resultsFor).toBe("launch")
+    act(() => void result.current.loadMore())
+    await waitFor(() => expect(pending.has(`${scoped}?after=c2`)).toBe(true))
+  })
+
+  it("is a new search when only the scope changes", async () => {
+    const { rerender } = renderHook(({ scope }) => useSearch({ initialQuery: "launch", debounceMs: 0, scope }), {
+      wrapper,
+      initialProps: { scope: null as SearchScope | null },
+    })
+    await waitFor(() => expect(pending.has("/search/unifiedSearch/launch")).toBe(true))
+    rerender({ scope: "tasks" })
+    await waitFor(() => expect(pending.has(scoped)).toBe(true))
+  })
+
+  it("opens the full search on the scope's chip", () => {
+    const { result } = renderHook(() => useSearch({ initialQuery: "launch", debounceMs: 0, scope: "docs" }), { wrapper })
+    act(() => result.current.handleSearchSubmit())
+    expect(push).toHaveBeenLastCalledWith("/app/search?query=launch&in=docs")
   })
 })

@@ -15,6 +15,7 @@
  */
 
 import { onSessionEnd } from "@/lib/sessionEnd"
+import { forgetKeptPages } from "@/lib/pwa/serviceWorker"
 
 /** The one database: whoever is signed in owns it (meta.member). */
 export const OFFLINE_DB = "onecamp-offline"
@@ -29,8 +30,12 @@ export function onOfflineWipe(close: () => void): () => void {
   }
 }
 
-/** Delete the whole store: every answer kept and every change waiting. */
+/**
+ * Delete the whole store: every answer kept and every change waiting, and the
+ * app's pages the service worker keeps for the member (lib/pwa/serviceWorker).
+ */
 export function wipeOfflineStore(): Promise<void> {
+  const pages = forgetKeptPages()
   for (const close of [...closers]) {
     try {
       close()
@@ -38,8 +43,8 @@ export function wipeOfflineStore(): Promise<void> {
       // Closing is best effort; the delete below still runs.
     }
   }
-  if (typeof indexedDB === "undefined") return Promise.resolve()
-  return new Promise((resolve) => {
+  if (typeof indexedDB === "undefined") return pages
+  const store = new Promise<void>((resolve) => {
     let request: IDBOpenDBRequest
     try {
       request = indexedDB.deleteDatabase(OFFLINE_DB)
@@ -53,6 +58,7 @@ export function wipeOfflineStore(): Promise<void> {
     // (that tab's own endSession closes it), and nothing here waits for that.
     request.onblocked = () => resolve()
   })
+  return Promise.all([pages, store]).then(() => undefined)
 }
 
 onSessionEnd(wipeOfflineStore)

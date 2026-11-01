@@ -2,7 +2,9 @@
 // assert on DOM state with `.toBeInTheDocument()`, `.toHaveTextContent()`
 // and friends without re-importing them per file.
 import "@testing-library/jest-dom/vitest"
-import { afterEach, expect, vi } from "vitest"
+import { afterEach, beforeAll, expect, vi } from "vitest"
+// First from the app's tree: it puts trackLoad where the transformed import()s call it, before any app module runs.
+import { waitingOnCode, waitsOnCode } from "@/lib/testing/lazyCode"
 import { listenForEscape } from "@/lib/keys/escape"
 import { GetEndpointUrl } from "@/services/endPoints"
 
@@ -17,6 +19,21 @@ vi.mock("@/lib/addOns/attachments", () => vi.importActual("@/lib/addOns/core"))
 // test of an edition's add-ons gives them itself.
 vi.mock("@/lib/addOns/messages", () => vi.importActual("@/lib/addOns/core"))
 vi.mock("@/lib/addOns/attachments", () => vi.importActual("@/lib/addOns/core"))
+
+// V-138: a test waits for what code draws, never races the code that draws it. Every app import() is known while
+// it's in flight (vitest.config.ts hands each one to lib/testing/lazyCode's trackLoad; lazyChunk's loads are app
+// import()s like the rest, so the registry has that one source), and Testing Library's waits (findBy, waitFor) that
+// fail while that code is coming wait for it, then try once more with their usual budget. No timeout rises.
+// Test-only: no route carries a byte of it.
+// Wrapped in beforeAll, after the file's own imports, never at setup: Testing Library brings React DOM, and a
+// render-count file must import lib/testing/reactRenders before React DOM loads (INTEGRATOR-57's wW32 gate).
+if (typeof window !== "undefined" && waitsOnCode) {
+  beforeAll(async () => {
+    const { configure, getConfig } = await import("@testing-library/react")
+    const { asyncWrapper } = getConfig()
+    configure({ asyncWrapper: (attempt) => asyncWrapper(() => waitingOnCode(attempt)) })
+  })
+}
 
 // The one Escape, started as the root providers start it for every page: a
 // component that answers Escape registers with onEscape and is heard here.

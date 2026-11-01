@@ -107,7 +107,7 @@ export function useHostActions(sessionId: string | undefined) {
   const send = React.useCallback(
     async (
       action: CallAction,
-      opts: { identity?: string; source?: string; on?: boolean; what?: CallHold; name?: string; ticket?: string; board?: string; draw?: CallBoard["draw"]; rooms?: string[]; room?: number; minutes?: number; text?: string } = {},
+      opts: { identity?: string; source?: string; on?: boolean; what?: CallHold; name?: string; ticket?: string; board?: string; draw?: CallBoard["draw"]; slide?: string; rooms?: string[]; room?: number; minutes?: number; text?: string } = {},
     ): Promise<boolean> => {
       if (!sessionId) return false
       try {
@@ -120,6 +120,7 @@ export function useHostActions(sessionId: string | undefined) {
           ticket: opts.ticket,
           board: opts.board,
           draw: opts.draw,
+          slide: opts.slide,
           rooms: opts.rooms,
           room: opts.room,
           minutes: opts.minutes,

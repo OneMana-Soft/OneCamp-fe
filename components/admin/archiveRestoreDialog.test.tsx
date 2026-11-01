@@ -73,6 +73,28 @@ describe("restoring archived items", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
+  // V-141: one id that has left the archive since the list loaded refuses the whole batch (404 not_in_archive).
+  // The dialog says nothing was restored, loads the list as it is now and clears the selection, so the next
+  // try names only what is still there; before, it said "try again", and trying again was refused again.
+  it("when some have left the archive, says nothing was restored, loads the list anew and clears the selection", async () => {
+    get.mockResolvedValueOnce({ data: { items, total: 2 } }).mockResolvedValueOnce({ data: { items: [items[1]], total: 1 } })
+    post.mockRejectedValue({ response: { status: 404, data: { code: "not_in_archive", msg: "not in the archive: p1" } } })
+    const onOpenChange = vi.fn()
+    open(vi.fn(), onOpenChange)
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Kickoff notes for the Northwind rebrand" }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Q3 retro: what we'd change" }))
+    fireEvent.click(screen.getByRole("button", { name: "Restore 2 items" }))
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(
+        "Some of these aren't in the archive any more, so nothing was restored. Choose again from the list as it is now.",
+      ),
+    )
+    await waitFor(() => expect(screen.queryByRole("checkbox", { name: "Kickoff notes for the Northwind rebrand" })).toBeNull())
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole("checkbox", { name: "Q3 retro: what we'd change" }).getAttribute("aria-checked")).toBe("false")
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
   it("says how many came back, and closes", async () => {
     get.mockResolvedValue({ data: { items, total: 2 } })
     post.mockResolvedValue({ data: { msg: "Items restored", count: 2 } })

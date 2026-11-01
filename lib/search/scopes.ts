@@ -33,7 +33,7 @@ const SCOPE_OF: Record<SearchResult["type"], Exclude<SearchScope, "all">> = {
   event: "events",
 }
 
-export function scopeOf(result: SearchResult): Exclude<SearchScope, "all"> {
+export function scopeOf(result: Pick<SearchResult, "type">): Exclude<SearchScope, "all"> {
   return SCOPE_OF[result.type] ?? "messages"
 }
 

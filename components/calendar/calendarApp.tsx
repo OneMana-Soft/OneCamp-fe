@@ -48,6 +48,7 @@ import type { OtherCalendarsState } from "@/components/calendar/otherCalendarsLa
 import type { OpenHow } from "@/components/calendar/eventPopover";
 import { lazyView } from "@/lib/lazy/lazyView";
 import { browserTZ } from "@/lib/utils/timeZone";
+import { sameZone } from "@/lib/utils/sameZone";
 import { useWhenIdle } from "@/hooks/useWhenIdle";
 import { useMinute } from "@/components/calendar/NowLine";
 import { HueBlock } from "@/components/calendar/HueBlock";
@@ -285,9 +286,9 @@ export function CalendarApp() {
     const { data: bookingRes } = useFetch<{ data: unknown[] }>(calendarsOpen || railShown ? CalendarGet.GetBookingPages : "");
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const selfId = selfProfile?.data?.data?.user_uuid;
-    // Your working hours (calendar A3), drawn where your zone is the grid's.
+    // Your working hours (calendar A3), drawn where your zone is the grid's: one zone by any of its names (V-135).
     const prefs = usePreferences();
-    const workHours = prefs?.zone === browserTZ() ? (prefs?.["calendar.working_hours"] as Record<string, { start: string; end: string }[]> | null) : null;
+    const workHours = sameZone(typeof prefs?.zone === "string" ? prefs.zone : "", browserTZ()) ? (prefs?.["calendar.working_hours"] as Record<string, { start: string; end: string }[]> | null) : null;
     // Zones you keep beside yours (head 6): a column each.
     const keptZones = prefs?.["calendar.zones"];
     const zones = Array.isArray(keptZones) ? (keptZones as { zone: string; label?: string }[]) : undefined;

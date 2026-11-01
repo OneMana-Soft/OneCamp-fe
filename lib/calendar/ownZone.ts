@@ -6,7 +6,8 @@
 
 import { clockRange, clockTime } from "@/lib/utils/date/clock"
 import { zoneCity } from "@/lib/utils/zones"
-import { zoneHere } from "@/lib/calendar/otherZones"
+import { sameZone } from "@/lib/utils/sameZone"
+import { zoneHere } from "@/lib/utils/zoneHere"
 import type { CalendarEventInterface } from "@/types/calendar"
 
 /**
@@ -19,8 +20,7 @@ export function ownZoneLine(event: Pick<CalendarEventInterface, "event_zone" | "
   const zone = event.event_zone
   const endZone = event.event_end_zone || zone
   if (!zone || !endZone) return ""
-  const [at, until, here] = [zoneHere(zone), zoneHere(endZone), zoneHere(reader)]
-  if (!at || !until || (at === here && until === here)) return ""
-  if (at === until) return `${clockRange(start, end, { timeZone: zone })} in ${zoneCity(zone)}`
+  if (!zoneHere(zone) || !zoneHere(endZone) || (sameZone(zone, reader) && sameZone(endZone, reader))) return ""
+  if (sameZone(zone, endZone)) return `${clockRange(start, end, { timeZone: zone })} in ${zoneCity(zone)}`
   return `${clockTime(start, { timeZone: zone })} in ${zoneCity(zone)} – ${clockTime(end, { timeZone: endZone })} in ${zoneCity(endZone)}`
 }

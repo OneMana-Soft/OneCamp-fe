@@ -2,8 +2,9 @@
  * Other people's working hours, in their own zones (calendar A3): read once
  * for the people an event names (POST /event/hours), and what follows from
  * them: whether a time falls in someone's hours, and what time it is for
- * them. Someone who keeps no hours is never "outside" them. Pure, but for
- * the hook.
+ * them. Someone who keeps no hours is never "outside" them. Asked for a day,
+ * the same read says where each works that day (head 5d). Pure, but for the
+ * hook.
  */
 import useSWR from "swr"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -49,12 +50,22 @@ export function zoneDiffers(at: Date, tz: string): boolean {
   return theirs.day !== at.getDay() || theirs.minutes !== at.getHours() * 60 + at.getMinutes()
 }
 
-/** The kept hours of these people, by id (those who keep none are left out). */
-export function usePeopleHours(people: string[]): Record<string, PersonHours> | undefined {
+/**
+ * What one read says of some people, by id: their kept hours, and where each
+ * works on the day asked about, by their working location. Those who keep
+ * none, or have none that day, are left out.
+ */
+export interface PeopleDays {
+  hours: Record<string, PersonHours>
+  where: Record<string, string>
+}
+
+/** The kept hours of these people and, given a day ("YYYY-MM-DD"), where each works that day: one read. */
+export function usePeopleHours(people: string[], day?: string): PeopleDays | undefined {
   const ids = [...new Set(people.filter(Boolean))].sort()
-  const { data } = useSWR(ids.length ? [CalendarPost.PeopleHours, ids.join(",")] : null, async () => {
-    const res = await axiosInstance.post(CalendarPost.PeopleHours, { people: ids }, OWN_ERRORS)
-    return (res.data?.data ?? {}) as Record<string, PersonHours>
+  const { data } = useSWR(ids.length ? [CalendarPost.PeopleHours, ids.join(","), day ?? ""] : null, async (): Promise<PeopleDays> => {
+    const res = await axiosInstance.post(CalendarPost.PeopleHours, { people: ids, ...(day ? { day } : {}) }, OWN_ERRORS)
+    return { hours: res.data?.data ?? {}, where: res.data?.where ?? {} }
   })
   return data
 }

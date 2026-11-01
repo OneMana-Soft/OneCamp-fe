@@ -193,18 +193,25 @@ describe("every place wears its area's hue, and what names no area ink", () => {
     expect(read("app/styles/admin/people.css")).toMatch(/\.people-tag-guest \{\s*background: var\(--camp-sun-tint\);\s*color: var\(--camp-sun-ink\);/)
     // A call's tiles and its chat draw the one tag of components/livekit/personTag.
     expect(read("components/livekit/personTag.tsx")).toMatch(/Guest: "bg-camp-sun-tint text-camp-sun-ink"/)
-    // Every hand-drawn tag that reads "Guest" draws it in sun.
-    const tags = [
-      // The card's guests' row (C3 moved it out of guestFaces.tsx).
+    // Any element in the app's source that reads "Guest" draws it in sun: in
+    // the sun's classes, or as the people pages' PersonTag in its guest tone
+    // (people.css, above). PrincipalTag draws its own label, sun at its source.
+    const sun = /camp-sun|HUE_CLASS\.sun|tone="guest"/
+    const drawnIn = (src: string) => [...src.matchAll(/<[A-Za-z][^<]*>Guest</g)].map((m) => m[0])
+    // The scan sees a tag in either form of className, and tells sun from not.
+    expect(drawnIn(`<span className={cn(HUE_CLASS.sun, "px-1")}>Guest</span>`).map((d) => sun.test(d))).toEqual([true])
+    expect(drawnIn(`<span title="x" className="rounded px-1">Guest</span>`).map((d) => sun.test(d))).toEqual([false])
+    for (const f of ["app", "components", "lib", "hooks"].flatMap(sources)) {
+      for (const d of drawnIn(read(f))) expect(d, f).toMatch(sun)
+    }
+    // Where a member meets a guest, a tag still says so: the shared one, or the place's own in sun.
+    const places = [
+      // The event card's guests: its row (C3 moved it out of guestFaces.tsx) and its list.
       "components/calendar/rsvp/guestRow.tsx",
       "components/calendar/rsvp/guestList.tsx",
       "components/project/ProjectShareDialog.tsx",
       "app/guest/p/[token]/page.tsx",
     ]
-    for (const f of tags) {
-      const drawn = [...read(f).matchAll(/className=(?:"[^"]*"|\{[^}]*\})>Guest</g)].map((m) => m[0])
-      expect(drawn.length, f).toBeGreaterThan(0)
-      for (const d of drawn) expect(d, f).toMatch(/camp-sun|HUE_CLASS\.sun/)
-    }
+    for (const f of places) expect(read(f), f).toMatch(/<PrincipalTag kind="guest"|>Guest</)
   })
 })

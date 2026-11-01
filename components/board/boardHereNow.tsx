@@ -21,7 +21,10 @@ import { FollowFrame, type FollowLeader } from "@/components/docEditor/presence/
 import { usePublishIdle } from "@/components/docEditor/presence/idle"
 import { readPresence } from "@/components/docEditor/presence/read"
 import { onEscape } from "@/lib/keys/onEscape"
-import { boardBusOf, centreOn, pointerOf } from "@/lib/board/hereNow"
+import { BRING_FIELD, boardBusOf, bringsIn, centreOn, pointerOf } from "@/lib/board/hereNow"
+import { followScene, viewOf } from "@/lib/board/viewport"
+import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
 
 type Change = { added: number[]; updated: number[]; removed: number[] }
 
@@ -32,7 +35,7 @@ const nameOf = (leader: FollowLeader) => leader.name || "them"
  * frame over its canvas. `host` is the board page's own element: following
  * stops when this person presses or scrolls the canvas inside it.
  */
-export function BoardHereNow({ provider, api, boardId, host }: { provider: HocuspocusProvider; api: ExcalidrawImperativeAPI | null; boardId: string; host: HTMLElement | null }) {
+export function BoardHereNow({ provider, api, boardId, host, editable = false }: { provider: HocuspocusProvider; api: ExcalidrawImperativeAPI | null; boardId: string; host: HTMLElement | null; editable?: boolean }) {
   const awareness = provider.awareness
   const key = boardBusOf(boardId).key
 
@@ -95,9 +98,44 @@ export function BoardHereNow({ provider, api, boardId, host }: { provider: Hocus
     [awareness, followed, jump, stop],
   )
 
+  // Bring everyone here (miro-21 1): an editor's tab says where it looks, under a new id; every other tab on the
+  // board shows that place once, fitted to its own screen, and can go back. Someone who comes later is never moved.
+  const { toast } = useToast()
+  const bringAll = React.useCallback(() => {
+    if (!awareness || !api) return
+    const s = api.getAppState()
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    awareness.setLocalStateField(BRING_FIELD, { id, view: viewOf(s) })
+    toast({ title: "Everyone here now sees what you see" })
+  }, [awareness, api, toast])
+  const seen = React.useRef(new Set<string>())
   React.useEffect(() => {
-    setPresenceControl(key, { jump, follow, following: followed?.client ?? null })
-  }, [key, jump, follow, followed])
+    if (!awareness || !api) return
+    bringsIn(awareness.getStates(), awareness.clientID, seen.current)
+    const onChange = () => {
+      for (const b of bringsIn(awareness.getStates(), awareness.clientID, seen.current)) {
+        const s = api.getAppState()
+        const back = { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom }
+        setFollowed(null)
+        const next = followScene(b.view, viewOf(s))
+        if (next) api.updateScene({ appState: next })
+        toast({
+          title: `${b.name || "Someone"} brought everyone here`,
+          action: (
+            <ToastAction altText="Go back to where you were" onClick={() => api.updateScene({ appState: back })}>
+              Go back
+            </ToastAction>
+          ),
+        })
+      }
+    }
+    awareness.on("change", onChange)
+    return () => awareness.off("change", onChange)
+  }, [awareness, api, toast])
+
+  React.useEffect(() => {
+    setPresenceControl(key, { jump, follow, following: followed?.client ?? null, bringAll: editable ? bringAll : undefined })
+  }, [key, jump, follow, followed, editable, bringAll])
   React.useEffect(() => () => setPresenceControl(key, null), [key])
 
   // Under the board's own top bar (its tools sit at the top centre).

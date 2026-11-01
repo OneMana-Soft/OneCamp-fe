@@ -7,6 +7,7 @@ import PresenceList from "@/components/docEditor/presence/PresenceList"
 import { usePresence } from "@/components/docEditor/presence/store"
 import type { ActiveUser } from "@/components/docEditor/ActiveUsersBar"
 import { boardBusOf, centreOn } from "@/lib/board/hereNow"
+import { followView } from "@/lib/board/viewport"
 import { BoardHereNow } from "./boardHereNow"
 
 // Here now on a board (miro-04 4), through the presence stack's own list: Jump
@@ -62,13 +63,13 @@ const users: ActiveUser[] = [
   { id: SAM.id, name: SAM.name, color: "#2563eb" },
 ]
 
-function Board({ provider, api }: { provider: unknown; api: unknown }) {
+function Board({ provider, api, editable = false }: { provider: unknown; api: unknown; editable?: boolean }) {
   const [host, setHost] = React.useState<HTMLDivElement | null>(null)
   const bus = React.useMemo(() => boardBusOf("b1"), [])
   return (
     <div ref={setHost} data-board-page="">
       <div className="excalidraw" data-testid="board" />
-      <BoardHereNow provider={provider as never} api={api as never} boardId="b1" host={host} />
+      <BoardHereNow provider={provider as never} api={api as never} boardId="b1" host={host} editable={editable} />
       <DocBusContext.Provider value={bus}>
         <PresenceList users={users} onDone={() => {}} />
       </DocBusContext.Provider>
@@ -88,6 +89,8 @@ function open() {
 }
 const SCREEN = { width: 1000, height: 800, zoom: 1 }
 const annAt = (x: number, y: number) => ({ user: ANN, pointer: { x, y } })
+/** Ann as the relay stamps her when she may edit the board (her user says edit), so her bring moves the others. */
+const annEditing = (x: number, y: number) => ({ ...annAt(x, y), user: { ...ANN, edit: true } })
 
 afterEach(cleanup)
 
@@ -202,5 +205,56 @@ describe("Here now on a board", () => {
     render(<Board provider={{ awareness: a.awareness }} api={s.api} />)
     fireEvent.click(screen.getByRole("button", { name: `Jump to ${ANN.name}` }))
     expect(s.writes).toHaveLength(0)
+  })
+})
+
+// Bring everyone here (miro-21 1): only someone who may edit the board brings; every other tab shows the place once,
+// fitted to its own screen; a tab that opens later is never moved by a bring made before it came.
+describe("Bring everyone here on a board", () => {
+  it("is offered only to those who may edit the board, and says where this screen looks under a new id each time", () => {
+    const s = boardScene([], { scrollX: -200, scrollY: 50 })
+    const a = awarenessFor(1)
+    a.tab(1, { user: SAM })
+    a.tab(7, annAt(500, 300))
+    const { rerender } = render(<Board provider={{ awareness: a.awareness }} api={s.api} />)
+    expect(screen.queryByRole("button", { name: "Bring everyone here" })).toBeNull()
+    rerender(<Board provider={{ awareness: a.awareness }} api={s.api} editable />)
+    fireEvent.click(screen.getByRole("button", { name: "Bring everyone here" }))
+    const first = a.awareness.getLocalState()?.bring as { id: string; view: unknown }
+    expect(first.view).toEqual({ scrollX: -200, scrollY: 50, zoom: 1, width: 1000, height: 800 })
+    fireEvent.click(screen.getByRole("button", { name: "Bring everyone here" }))
+    expect((a.awareness.getLocalState()?.bring as { id: string }).id).not.toBe(first.id)
+    // Bringing never moves the one who brings.
+    expect(s.writes).toHaveLength(0)
+  })
+
+  it("shows another tab's bring once, fitted to this screen, and never one made before this tab opened", () => {
+    const s = boardScene()
+    const a = awarenessFor(1)
+    const view = { scrollX: -400, scrollY: -300, zoom: 2, width: 1600, height: 900 }
+    a.tab(1, { user: SAM })
+    a.tab(7, { ...annEditing(500, 300), bring: { id: "before", view } })
+    render(<Board provider={{ awareness: a.awareness }} api={s.api} />)
+    a.tab(7, { ...annEditing(510, 300), bring: { id: "before", view } })
+    expect(s.writes, "a bring made before this tab opened").toHaveLength(0)
+    a.tab(7, { ...annEditing(510, 300), bring: { id: "now", view } })
+    const f = followView(view, { width: 1000, height: 800 })
+    expect(s.writes.at(-1)?.appState).toEqual({ scrollX: f.scrollX, scrollY: f.scrollY, zoom: { value: f.zoom } })
+    const shown = s.writes.length
+    a.tab(7, { ...annEditing(600, 300), bring: { id: "now", view } })
+    expect(s.writes, "the same bring again").toHaveLength(shown)
+  })
+
+  // Main's ruling (1 Nov): the relay stamps each person's user with edit from the board's member list, and a tab
+  // honours a bring only from edit: true, so a viewer's tab claiming to bring everyone moves nobody.
+  it("never moves this screen for a bring from someone the relay doesn't stamp an editor", () => {
+    const s = boardScene()
+    const a = awarenessFor(1)
+    const view = { scrollX: -400, scrollY: -300, zoom: 2, width: 1600, height: 900 }
+    a.tab(1, { user: SAM })
+    render(<Board provider={{ awareness: a.awareness }} api={s.api} />)
+    a.tab(7, { ...annAt(500, 300), user: { ...ANN, edit: false }, bring: { id: "forged", view } })
+    a.tab(8, { user: { id: "u-vic", name: "Vic Reader" }, bring: { id: "forged-2", view } })
+    expect(s.writes, "a bring from a viewer, or from a tab the relay didn't stamp").toHaveLength(0)
   })
 })

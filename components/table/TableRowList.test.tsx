@@ -147,3 +147,143 @@ describe("a list whose view colours its rows", () => {
     expect(screen.getAllByRole("listitem").map((li) => li.querySelector("[data-row-hue]")?.getAttribute("data-row-hue") ?? null)).toEqual([null, "sun", null])
   })
 })
+
+// G2b-2 LIVE (DB-65's MUST 1, 1 Nov): on a phone's list a find marked nothing. "e" stepped from 1 of 11 to 2 of 11
+// and no row or value read apart, while Replace wrote the match the reader couldn't see.
+describe("a find over a phone's list", () => {
+  const wide: TableField[] = [
+    ...fields,
+    { id: "city", table_id: "t", name: "City", type: "text", config: "{}", position: 2 },
+    { id: "owner", table_id: "t", name: "Owner", type: "text", config: "{}", position: 3 },
+    { id: "status", table_id: "t", name: "Status", type: "select", config: JSON.stringify({ options: [{ label: "Open" }, { label: "Paid" }] }), position: 4 },
+    { id: "vendor", table_id: "t", name: "Vendor", type: "text", config: "{}", position: 5 },
+  ]
+  const wideRows = (n: number): TableRow[] =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `r${i}`,
+      table_id: "t",
+      position: i,
+      created_at: "",
+      updated_at: "",
+      values: JSON.stringify({ item: `Line ${i}`, cost: i, city: i === 3 ? "Leeds" : "York", owner: "Sam", status: "Open", vendor: i === 1 ? "Acme Ltd" : "Brill" }),
+    }))
+  const li = (n: number) => screen.getByRole("button", { name: new RegExp(`^Line ${n}(?!\\d)`) }).closest("li")!
+  let unsized: () => void = () => {}
+  beforeEach(() => {
+    unsized = sizeBoxes("data-list-scroll", { width: 390, height: 720 })
+  })
+  afterEach(() => unsized())
+
+  it("marks the row it's at as the grid marks its cell, tints the other rows with matches, and shows each matched value in its row", () => {
+    const matches = [
+      { row: "r1", field: "vendor", at: 1 },
+      { row: "r3", field: "city", at: 3 },
+    ]
+    const draw = (found: { matches: typeof matches; current?: (typeof matches)[number] } | null) => <TableRowList fields={wide} edits={new Map()} rows={wideRows(6)} onOpen={() => {}} found={found} />
+    const { rerender } = render(draw({ matches, current: matches[0] }))
+    expect(li(1).getAttribute("data-found")).toBe("at")
+    expect(li(3).getAttribute("data-found")).toBe("")
+    expect(li(0).hasAttribute("data-found")).toBe(false)
+    // Vendor is past the three values the row's summary names (Cost, City, Owner): the match shows it, by name and value, marked.
+    expect(li(1).querySelector('[data-found-value="at"]')?.textContent).toBe("Vendor Acme Ltd")
+    // A matched value the summary names is marked where the reader looks for it.
+    expect(li(3).querySelector('[data-found-value=""]')?.textContent).toBe("City Leeds")
+    // A row with no match keeps its summary as it was.
+    expect(li(0).textContent).toBe("Line 0Cost 0·City York·Owner Sam")
+    // The find closed: nothing marked.
+    rerender(draw(null))
+    expect(document.querySelectorAll("li[data-found], [data-found-value]")).toHaveLength(0)
+  })
+
+  it("marks the title when the match is in it", () => {
+    const current = { row: "r2", field: "item", at: 2 }
+    render(<TableRowList fields={wide} edits={new Map()} rows={wideRows(6)} onOpen={() => {}} found={{ matches: [current], current }} />)
+    expect(li(2).getAttribute("data-found")).toBe("at")
+    expect(li(2).querySelector('[data-found-value="at"]')?.textContent).toBe("Line 2")
+    expect(li(2).textContent).toBe("Line 2Cost 2·City York·Owner Sam")
+  })
+
+  it("moves the mark as the find steps, and brings the row it's at into sight at every step", () => {
+    const scrolled = vi.fn()
+    const was = Element.prototype.scrollTo
+    Element.prototype.scrollTo = scrolled as unknown as typeof Element.prototype.scrollTo
+    try {
+      const matches = [
+        { row: "r1", field: "vendor", at: 1 },
+        { row: "r400", field: "item", at: 400 },
+        { row: "r400", field: "owner", at: 400 },
+      ]
+      const rows = wideRows(500)
+      const draw = (current: (typeof matches)[number]) => <TableRowList fields={wide} edits={new Map()} rows={rows} onOpen={() => {}} found={{ matches, current }} />
+      const { rerender } = render(draw(matches[0]))
+      expect(li(1).getAttribute("data-found")).toBe("at")
+      scrolled.mockClear()
+      rerender(draw(matches[1]))
+      expect(li(1).getAttribute("data-found")).toBe("")
+      // Row 400's place, 24,000 px down: the list scrolls to it, and the row stops 12 px clear of the box's edge,
+      // never flush on it (its end, 24,060 px, sits 12 px over the 720 px box's foot).
+      expect(Math.max(0, ...scrolled.mock.calls.map((c) => (c[0] as ScrollToOptions).top ?? 0))).toBeGreaterThan(380 * 60)
+      expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ top: 400 * 60 + 60 + 12 - 720 }))
+      // Another match in the same row: brought into sight again, as the reader may have scrolled away since.
+      scrolled.mockClear()
+      rerender(draw(matches[2]))
+      expect(scrolled).toHaveBeenCalled()
+    } finally {
+      Element.prototype.scrollTo = was
+    }
+  })
+
+  it("stops a row it steps back up to 12 px under the box's top, never flush on it", () => {
+    const scrolled = vi.fn()
+    const was = Element.prototype.scrollTo
+    Element.prototype.scrollTo = scrolled as unknown as typeof Element.prototype.scrollTo
+    try {
+      const matches = [
+        { row: "r2", field: "item", at: 2 },
+        { row: "r400", field: "item", at: 400 },
+      ]
+      const rows = wideRows(500)
+      const draw = (current: (typeof matches)[number]) => <TableRowList fields={wide} edits={new Map()} rows={rows} onOpen={() => {}} found={{ matches, current }} />
+      const { rerender } = render(draw(matches[1]))
+      // The reader is down at row 400, where the step there left the list (its end 12 px over the 720 px box's foot).
+      scrollBox(document.querySelector<HTMLElement>("[data-list-scroll]")!, 400 * 60 + 60 + 12 - 720)
+      scrolled.mockClear()
+      rerender(draw(matches[0]))
+      // Row 2's place, 120 px down: the list scrolls back up to it, and the row stops 12 px under the box's top.
+      expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ top: 2 * 60 - 12 }))
+    } finally {
+      Element.prototype.scrollTo = was
+    }
+  })
+
+  it("brings a match in a row it hasn't read yet into sight, at the match's place in the view", () => {
+    const scrolled = vi.fn()
+    const was = Element.prototype.scrollTo
+    Element.prototype.scrollTo = scrolled as unknown as typeof Element.prototype.scrollTo
+    try {
+      // 30 rows read of a view of 2,000: the find is at the 1,501st, which the list holds only as a place.
+      const current = { row: "r1500", field: "city", at: 1500 }
+      render(<TableRowList fields={wide} edits={new Map()} rows={wideRows(30)} count={2000} onOpen={() => {}} found={{ matches: [current], current }} />)
+      // Its place, 90,000 px down: the list scrolls to it, and reads it there.
+      expect(Math.max(0, ...scrolled.mock.calls.map((c) => (c[0] as ScrollToOptions).top ?? 0))).toBeGreaterThan(1480 * 60)
+    } finally {
+      Element.prototype.scrollTo = was
+    }
+  })
+
+  it("leads a row's values with the match it's at, ahead of the row's other matches", () => {
+    // Row 1 matches in City and in Vendor, and the find is at Vendor, the later field: it comes first, as the
+    // line under the title clips at a phone's width and a value past its edge isn't seen.
+    const matches = [
+      { row: "r1", field: "city", at: 1 },
+      { row: "r1", field: "vendor", at: 1 },
+    ]
+    render(<TableRowList fields={wide} edits={new Map()} rows={wideRows(6)} onOpen={() => {}} found={{ matches, current: matches[1] }} />)
+    const marked = [...li(1).querySelectorAll("[data-found-value]")].map((n) => [n.getAttribute("data-found-value"), n.textContent])
+    expect(marked).toEqual([
+      ["at", "Vendor Acme Ltd"],
+      ["", "City York"],
+    ])
+    expect(li(1).textContent).toBe("Line 1Vendor Acme Ltd·City York·Cost 1")
+  })
+})

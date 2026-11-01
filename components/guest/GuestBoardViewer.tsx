@@ -25,6 +25,7 @@
  *   - make no thumbnails.
  */
 
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 import * as React from "react"
 import dynamic from "next/dynamic"
 import * as Y from "yjs"
@@ -43,7 +44,11 @@ import "@/lib/board/excalidrawAssets"
 import "@/components/board/excalidrawTheme.css"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 
-const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
+// A guest's cards stay shut and read nothing; other sites are framed as for members (boardEmbeds).
+const GuestEmbedView = lazyPiece(() => import("@/components/board/boardEmbeds"))
+
+// Excalidraw as every board draws it (boardExcalidraw).
+const Excalidraw = dynamic(async () => (await import("@/components/board/boardExcalidraw")).default, {
   ssr: false,
   loading: () => <CanvasPending />,
 })
@@ -67,12 +72,16 @@ interface GuestBoardViewerProps {
   theme?: "light" | "dark"
   /** Who the guest is to the board's people: a call's guest's identity, and their name as a guest's. A share link's guest has none. */
   user?: { id: string; name: string }
+  /** A frame the board opens at, which its caller puts the camera on (a call's slide): no first framing of the whole drawing over it. */
+  opensAt?: string
+  /** Excalidraw's API and the board's document, once both are there (a call's stage reads the frames' order). */
+  onApiReady?: (api: ExcalidrawImperativeAPI, doc: Y.Doc) => void
 }
 
 /** A share link's guest: no one to the board's people, so no cursor either way. */
 const NO_ONE = { id: "", name: "" }
 
-export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = false, user, theme: given }: GuestBoardViewerProps) {
+export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = false, user, theme: given, opensAt, onApiReady }: GuestBoardViewerProps) {
   const followed = useBoardTheme()
   const theme = given ?? followed
   const { provider, synced, readOnly } = useCollaborationProvider({
@@ -180,9 +189,13 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
     }, LOCAL_ORIGIN)
   }, [api, provider, user?.id, user?.name])
 
+  React.useEffect(() => {
+    if (api && provider) onApiReady?.(api, provider.document)
+  }, [api, provider, onApiReady])
+
   // Frame the content once synced so the guest doesn't land on empty canvas.
   React.useEffect(() => {
-    if (!api || !synced || !sceneReady) return
+    if (!api || !synced || !sceneReady || opensAt) return
     let attempts = 0
     let timer: ReturnType<typeof setTimeout> | null = null
     const tryFit = () => {
@@ -197,13 +210,15 @@ export function GuestBoardViewer({ documentName, token, tokenFetcher, canDraw = 
     return () => {
       if (timer) clearTimeout(timer)
     }
-  }, [api, synced, sceneReady])
+  }, [api, synced, sceneReady, opensAt])
 
   if (!provider) return <CanvasPending />
 
   return (
     <div ref={wrapRef} className="relative h-full w-full" data-guest-board="">
       <Excalidraw
+        guest
+        embedView={GuestEmbedView}
         excalidrawAPI={(a: ExcalidrawImperativeAPI) => setApi(a)}
         viewModeEnabled={!drawing}
         zenModeEnabled={!drawing}

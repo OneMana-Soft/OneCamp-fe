@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { AudioPresets, ConnectionState, DisconnectReason, Track } from "livekit-client"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ toast: (...a: unknown[]) => toast(...a), useToast: () => ({ toast }) }))
@@ -45,6 +46,7 @@ function makeRoom(name: string) {
     metadata: "",
     state: "connected",
     localParticipant: lp,
+    remoteParticipants: new Map(),
     on(event: string, fn: Handler) {
       if (!handlers.has(event)) handlers.set(event, new Set())
       handlers.get(event)!.add(fn)
@@ -95,6 +97,8 @@ vi.mock("@livekit/components-react", () => ({
   useTracks: () => [],
   useLocalParticipant: () => ({ localParticipant: lp, isMicrophoneEnabled: true, isCameraEnabled: false, isScreenShareEnabled: false }),
   useRoomContext: () => room,
+  // Each person's colour in the call (callHues) reads the same room.
+  useMaybeRoomContext: () => room,
   useConnectionState: () => ConnectionState.Connected,
   useMediaDeviceSelect: () => ({ devices: [], activeDeviceId: "", setActiveMediaDevice: vi.fn() }),
   useParticipants: () => participants,
@@ -131,6 +135,22 @@ vi.mock("./greenRoomLiveKit", () => ({
 }))
 
 import { VideoConference } from "./VideoConference"
+
+// V-138 rule 2: the call's whole lazy chain (what the tests' screens load, from LAZY_CODE_TRACE=1: the pieces next/dynamic
+// brings, and the peer connection and quality watch every mount asks for) is warmed once before the tests, so a test that
+// meets a knock, a panel or the stage after its first mount spends none of its 5 s waiting for code.
+warmBeforeTests(
+  () => import("@/lib/calls/onePeerConnection"),
+  () => import("./callQuality"),
+  () => import("./KnockBar"),
+  () => import("./unmuteToast"),
+  () => import("./CallChatPanel"),
+  () => import("./CallPeoplePanel"),
+  () => import("@/components/call/effects/CallEffects"),
+  () => import("@/components/board/boardPicker"),
+  () => import("./CallBoardStage"),
+  () => import("./CallGuestBoardStage"),
+)
 
 const metadata = (o: object) => JSON.stringify(o)
 const on = { on: true, by: "Maya Chen", byId: "maya", since: 1, where: "browser", kept: true }

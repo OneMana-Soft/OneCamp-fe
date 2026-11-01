@@ -6,6 +6,7 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { useSheetMode } from "@/components/ui/overlayMode"
+import { useSheetMark } from "@/components/ui/sheetMark"
 
 const AlertDialog = AlertDialogPrimitive.Root
 
@@ -37,11 +38,13 @@ const AlertDialogContent = React.forwardRef<
   // alert dialog: its role, the first focus on Cancel, no closing on a tap
   // outside. Its rise and fall are app/phone.css's (C5d).
   const sheet = useSheetMode()
+  // Drawn as a sheet, it marks the page as every sheet does (components/ui/sheetMark).
+  const marks = useSheetMark(ref)
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay data-v3-scrim={sheet ? "" : undefined} />
       <AlertDialogPrimitive.Content
-        ref={ref}
+        ref={marks}
         data-v3-sheet={sheet ? "" : undefined}
         className={
           sheet

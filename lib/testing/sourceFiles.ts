@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from "node:fs"
+import { readFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 const TEST = /\.(test|spec)\./
@@ -34,4 +34,15 @@ export function sourceFiles(roots: string[], ext: RegExp): string[] {
 /** The tests and specs under each root, by the same walk: for a guard on how tests are written. */
 export function testFiles(roots: string[], ext: RegExp): string[] {
   return walkFiles(roots, (path) => ext.test(path) && TEST.test(path))
+}
+
+/**
+ * Where `text` first stands in the file at `path` (from the repo's root), as a stack names a place:
+ * "path:line:column", both from 1. A text the file doesn't have throws, so a test can't look for no place.
+ */
+export function placeIn(path: string, text: string): string {
+  const lines = readFileSync(path, "utf8").split("\n")
+  const line = lines.findIndex((each) => each.includes(text))
+  if (line < 0) throw new Error(`${path} has no ${JSON.stringify(text)}`)
+  return `${path}:${line + 1}:${lines[line].indexOf(text) + 1}`
 }

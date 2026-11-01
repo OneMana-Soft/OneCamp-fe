@@ -119,6 +119,23 @@ function mergeSpacedHits(runs: HighlightRun[]): HighlightRun[] {
   return out
 }
 
+/**
+ * The first words a fragment marks, as text: its first run of hits, joined over
+ * the spaces between them ("<mark>launch</mark> <mark>budget</mark>" is "launch
+ * budget"), at most `max` characters. Empty when nothing is marked. A board's
+ * hit opens the board finding these words (lib/search/resultPath).
+ */
+export function firstHitWords(fragment: string | null | undefined, max = 200): string {
+  const runs = highlightRuns(fragment)
+  let words = ""
+  for (let i = runs.findIndex((r) => r.hit); i >= 0 && i < runs.length; i++) {
+    if (runs[i].hit) words += runs[i].text
+    else if (/^\s+$/.test(runs[i].text) && runs[i + 1]?.hit) words += runs[i].text
+    else break
+  }
+  return words.trim().slice(0, max).trim()
+}
+
 /** A fragment as plain text, entities decoded and tags gone. */
 export function highlightText(fragment: string | null | undefined): string {
   return highlightRuns(fragment)

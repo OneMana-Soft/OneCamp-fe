@@ -10,6 +10,10 @@
  *   following  the client it follows, so that one says where it is looking
  *   view       where it is looking, only while someone follows it
  *   pointer    on a board, where it points (components/board/boardPresence)
+ * The relay says, in each member's user (the collaboration service's
+ * presenceGuard.js), whatever the tab claimed:
+ *   edit       true when the member list lets them edit; only then does a tab
+ *              honour their presenting, hold or bring (presence/stamp)
  * Times are read on this tab's clock, when a field is seen to change: two
  * machines' clocks never meet.
  */
@@ -17,7 +21,7 @@
 import type { DocPresence, PresencePerson } from "./store"
 
 export type AwarenessState = Record<string, unknown> & {
-  user?: { id?: string; name?: string; hue?: string; kind?: string }
+  user?: { id?: string; name?: string; hue?: string; kind?: string; edit?: boolean }
   mode?: unknown
   idle?: unknown
   edited?: unknown

@@ -7,6 +7,10 @@ import desktopRightPanelSlice, { openRightPanel } from "@/store/slice/desktopRig
 import { BUILT_IN_STATUSES } from "@/lib/taskStatus"
 import { armGo, disarmGo } from "@/lib/goKeys"
 import type { TaskInfoInterface } from "@/types/task"
+import { offeredSurfaces, type PaletteEntry } from "@/lib/ui/paletteEntries"
+import { projectTagsKey } from "@/hooks/useProjectTags"
+import { ProjectsGet } from "@/services/endpoints/projects"
+import { milestonesPath } from "@/lib/work/milestones"
 // Status names are translated, as in the app (ClientProviders loads this once).
 import "@/lib/utils/i18n"
 
@@ -15,7 +19,19 @@ const toasts: Array<{ title?: string; action?: unknown }> = []
 vi.mock("@/hooks/use-toast", () => ({ toast: (t: { title?: string }) => (toasts.push(t), { id: "t", dismiss: () => {}, update: () => {} }), useToast: () => ({ toasts: [] }) }))
 vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => bulk }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: BUILT_IN_STATUSES }) }))
-vi.mock("@/components/tags/TagPicker", () => ({ useProjectTags: () => ({ tags: [], refresh: () => {} }) }))
+vi.mock("@/hooks/useProjectTags", async (original) => ({ ...(await original<object>()), useProjectTags: () => ({ tags: [], refresh: () => {} }) }))
+// What the palette's pages read as they open (the selection's people, tags and
+// milestones), by key: the answers the bar's own pickers would get.
+const answers: Record<string, unknown> = {}
+const readInto = vi.fn(async (_cache: unknown, key: string) => {
+  if (key in answers) return answers[key]
+  throw new Error(`nothing read at ${key}`)
+})
+vi.mock("@/lib/http/readInto", () => ({ readInto }))
+// The project's people, tags and milestones, as the server answers each key.
+answers[`${ProjectsGet.GetProjectMemberInfo}/p1`] = { data: { project_members: [{ user_uuid: "u-ada", user_name: "Ada" }] } }
+answers[projectTagsKey("p1")] = { data: [{ name: "launch", count: 3 }] }
+answers[milestonesPath("p1")] = { data: { milestones: [{ id: "m-beta", name: "Beta", target_date: null }] } }
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false }) }))
 // The list loads the task under the pointer or the keys ahead of its opening.
 const prefetched: string[] = []
@@ -46,12 +62,12 @@ function Card({ t }: { t: TaskInfoInterface }) {
 const task = (id: string, name: string) => ({ task_uuid: id, task_name: name, task_status: "todo", task_priority: "low", task_label: "" }) as TaskInfoInterface
 const TASKS = [task("t1", "Write the copy"), task("t2", "Pick the hero"), task("t3", "Book the retro")]
 
-function renderList() {
+function renderList(canEdit: (t: TaskInfoInterface) => boolean = () => true) {
   const store = configureStore({ reducer: { split: splitSlice.reducer, rightPanel: desktopRightPanelSlice.reducer } })
   render(
     <Provider store={store}>
       <div data-split-view="-1">
-        <KeyboardList tasks={TASKS} canEdit={() => true} listProjectId="p1" statusOptions={BUILT_IN_STATUSES}>
+        <KeyboardList tasks={TASKS} canEdit={canEdit} listProjectId="p1" statusOptions={BUILT_IN_STATUSES}>
           <table>
             <tbody>
               {TASKS.map((t) => (
@@ -74,6 +90,7 @@ const row = (name: string) => screen.getByText(name).closest("tr") as HTMLElemen
 
 beforeEach(() => {
   bulk.mockClear()
+  readInto.mockClear()
   toasts.length = 0
 })
 afterEach(() => {
@@ -273,5 +290,145 @@ describe("loading a task before it's opened", () => {
     act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
     expect(prefetched.some((u) => u.endsWith("/t2"))).toBe(true)
     vi.useRealTimers()
+  })
+})
+
+// linear-28 H1b: while tasks are selected, the palette (⌘K) acts on them. The
+// bar offers its own fields, with its keys, and a pick there is the bar's own
+// change: the same request, the same rule about who may change what, the same
+// toast. The reads a page needs (people, tags, milestones) are made as it
+// opens, under the keys the bar's own pickers read.
+describe("the selection in the palette (linear-28)", () => {
+  const selectionSurface = () => offeredSurfaces().find((s) => s.id === "tasks")
+  const lastChange = () => (bulk.mock.calls.at(-1) as unknown as [TaskInfoInterface[], unknown])[1]
+  async function selectionEntries() {
+    const s = selectionSurface()!
+    return s.entries(await s.load!())
+  }
+  const pick = async (entries: PaletteEntry[], id: string, value: string) => {
+    await act(async () => void entries.find((e) => e.id === id)!.apply!(value))
+  }
+  const selectTwo = async () => {
+    press("j")
+    press("x")
+    press("j")
+    press("x")
+    expect(await screen.findByRole("toolbar", { name: "2 tasks selected" })).toBeInTheDocument()
+  }
+
+  it("offers the bar's fields while tasks are selected, first, under how many; takes them back when the selection clears", async () => {
+    renderList()
+    expect(selectionSurface()).toBeUndefined()
+    await selectTwo()
+    const s = selectionSurface()!
+    expect([s.group, s.lead]).toEqual(["2 tasks selected", true])
+    // One project's list: its milestones (Shift+M), and no cycles off its backlog.
+    expect((await selectionEntries()).map((e) => [e.id, e.keys])).toEqual([
+      ["status", "S"],
+      ["assignee", "A"],
+      ["tags", "T"],
+      ["priority", "P"],
+      ["due", "D"],
+      ["milestone", "⇧ M"],
+    ])
+    press("Escape")
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(selectionSurface()).toBeUndefined()
+  })
+
+  // Assigning asks for the tasks of one project, as the bar's A does ("Pick
+  // tasks from one project to assign them"). A list with no project of its own,
+  // holding a selection from two, offers the bar's other fields and no Assign:
+  // the palette never changes what the bar refuses (CR-135, H1b FIX-1).
+  it("offers no Assign for a selection across two projects on a list with no project of its own", async () => {
+    const store = configureStore({ reducer: { split: splitSlice.reducer, rightPanel: desktopRightPanelSlice.reducer } })
+    const inProject = (t: TaskInfoInterface, p: string) => ({ ...t, task_project: { project_uuid: p } }) as TaskInfoInterface
+    const tasks = [inProject(TASKS[0], "p1"), inProject(TASKS[1], "p2")]
+    render(
+      <Provider store={store}>
+        <div data-split-view="-1">
+          <KeyboardList tasks={tasks} canEdit={() => true}>
+            <table>
+              <tbody>
+                {tasks.map((t) => (
+                  <TaskTableRow key={t.task_uuid} id={t.task_uuid}>
+                    <td>{t.task_name}</td>
+                  </TaskTableRow>
+                ))}
+              </tbody>
+            </table>
+          </KeyboardList>
+        </div>
+      </Provider>,
+    )
+    await selectTwo()
+    expect((await selectionEntries()).map((e) => [e.id, e.keys])).toEqual([
+      ["status", "S"],
+      ["tags", "T"],
+      ["priority", "P"],
+      ["due", "D"],
+    ])
+  })
+
+  it("changes the selection as the bar does: its request, its toast", async () => {
+    renderList()
+    await selectTwo()
+    await pick(await selectionEntries(), "status", "done")
+    expect(bulk).toHaveBeenCalledOnce()
+    const [tasks, change] = bulk.mock.calls[0] as unknown as [TaskInfoInterface[], { field: string; value: string }]
+    expect(tasks.map((t) => t.task_uuid).sort()).toEqual(["t1", "t2"])
+    expect(change).toMatchObject({ field: "status", value: "done" })
+    expect(toasts.map((t) => t.title)).toContain("Moved 2 tasks to Done")
+  })
+
+  it("changes only the tasks this person may change, and offers nothing when they may change none", async () => {
+    renderList((t) => t.task_uuid !== "t2")
+    await selectTwo()
+    const entries = await selectionEntries()
+    // The date picker's own quick days: Tomorrow is the next local midnight.
+    const due = entries.find((e) => e.id === "due")!
+    const days = await due.choices!()
+    expect(days.map((d) => d.label)).toEqual(["Today", "Tomorrow", "Next week", "No due date"])
+    await pick(entries, "due", days[1].value)
+    const [tasks, change] = bulk.mock.calls[0] as unknown as [TaskInfoInterface[], { field: string; value: string }]
+    expect(tasks.map((t) => t.task_uuid)).toEqual(["t1"])
+    const tomorrow = new Date()
+    tomorrow.setHours(0, 0, 0, 0)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    expect(change).toEqual({ field: "due", value: tomorrow.toISOString() })
+    cleanup()
+
+    renderList(() => false)
+    press("j")
+    press("x")
+    expect(await screen.findByRole("toolbar", { name: "1 task selected" })).toBeInTheDocument()
+    expect(await selectionEntries()).toEqual([])
+  })
+
+  it("reads the project's people, tags and milestones as their pages open, and assigns, tags and moves them", async () => {
+    renderList()
+    await selectTwo()
+    const entries = await selectionEntries()
+    expect(readInto).not.toHaveBeenCalled()
+
+    const people = await entries.find((e) => e.id === "assignee")!.choices!()
+    expect(people.map((c) => c.label)).toEqual(["No one", "Ada"])
+    await pick(entries, "assignee", "u-ada")
+    expect(lastChange()).toMatchObject({ field: "assignee", user: { user_uuid: "u-ada" } })
+    expect(toasts.at(-1)?.title).toBe("Assigned 2 tasks to Ada")
+
+    const tags = await entries.find((e) => e.id === "tags")!.choices!()
+    expect(tags.map((c) => [c.label, !!c.current])).toEqual([["launch", false]])
+    await pick(entries, "tags", "launch")
+    expect(lastChange()).toEqual({ field: "tags", tag: "launch", add: true })
+
+    const milestones = await entries.find((e) => e.id === "milestone")!.choices!()
+    expect(milestones.map((c) => c.label)).toEqual(["No milestone", "Beta"])
+    await pick(entries, "milestone", "m-beta")
+    expect(lastChange()).toEqual({ field: "milestone", value: "m-beta" })
+    expect(toasts.at(-1)?.title).toBe("Put 2 tasks in Beta")
+
+    // Each read under the key the bar's own picker reads, so the two agree.
+    expect(readInto.mock.calls.map((c) => c[1]).sort()).toEqual([`${ProjectsGet.GetProjectMemberInfo}/p1`, milestonesPath("p1"), projectTagsKey("p1")].sort())
   })
 })

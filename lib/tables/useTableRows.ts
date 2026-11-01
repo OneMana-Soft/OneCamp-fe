@@ -263,6 +263,11 @@ export function useTableRows(tableId: string, view?: RowView) {
   const refreshing = React.useRef(0)
   const onBundle = React.useRef<() => void>(() => {})
   const summed = React.useRef({ at: 0, later: null as ReturnType<typeof setTimeout> | null, ask: () => {} })
+  // The fills heard on the table's topic so far (V-124), and by the time the
+  // window read the server last answered went out: a fill heard after it
+  // isn't in that answer.
+  const heardNow = React.useRef(0)
+  const heardAtRead = React.useRef(0)
 
   const { data, isLoading, isError, mutate } = useFetch<{ data: TableBundle }>(
     tableId ? tableBundleKey(tableId) : "",
@@ -410,6 +415,7 @@ export function useTableRows(tableId: string, view?: RowView) {
             }),
         )
     }
+    heardAtRead.current = heardNow.current
     queryRows(tableId, { spec: windowSpec, cursor: next || undefined, n: WINDOW_ROWS }, ac.signal)
       .then((w) =>
         setWin((cur) => {
@@ -454,7 +460,8 @@ export function useTableRows(tableId: string, view?: RowView) {
   // from the first, every WORKING_AGAIN_MS, saying how far meanwhile, until a
   // window is answered (airtable-03b): it was refused, and stayed so once filled.
   // Each wait is twice the last, up to WORKING_MOST_MS; a hidden page doesn't
-  // ask, and asks at once when it's shown again (CR-95 M2).
+  // ask, and asks at once when it's shown again (CR-95 M2), or when the
+  // table's topic says a fill ended (V-124: fillsHeard).
   const working = windowed ? myWin.working : null
   const filling = working !== null
   const [pageHidden, setPageHidden] = React.useState(false)
@@ -467,12 +474,22 @@ export function useTableRows(tableId: string, view?: RowView) {
   }, [filling])
   const fillAsks = React.useRef(0)
   const fillMissed = React.useRef(false)
+  const [fillsHeard, setFillsHeard] = React.useState(0)
+  // The bar's: the fills it has taken, and the fields of those heard since
+  // ("any" when a fill's end named none).
+  const sumsSeen = React.useRef(0)
+  const sumsHeard = React.useRef<Set<string> | "any">(new Set())
   React.useEffect(() => {
     if (!working) {
       fillAsks.current = 0
       fillMissed.current = false
       return
     }
+    // A fill heard after the read the server refused went out: that answer is
+    // older than the fill's end. One heard before it is in its answer. Both
+    // counts are refs: fillsHeard only wakes this, and can trail a read that
+    // went out in the same flush.
+    if (heardAtRead.current !== heardNow.current) fillMissed.current = true
     if (pageHidden) {
       fillMissed.current = true
       return
@@ -484,10 +501,12 @@ export function useTableRows(tableId: string, view?: RowView) {
       setWin((cur) => (cur.tableId === tableId && cur.key === key && cur.working ? { ...noWindows(tableId, key), round: cur.round + 1, working: cur.working } : cur))
     }, wait)
     return () => clearTimeout(t)
-  }, [working, pageHidden, tableId, key])
+  }, [working, pageHidden, tableId, key, fillsHeard])
 
   // The bar's, asked again when the reader picks others (the windows stay),
-  // and a little later when a count left them out (V-48).
+  // a little later when a count left them out (V-48), and when a fill ends
+  // and they were left out or refused (V-124): in the topic's queue, behind
+  // any read already on its way.
   const counted = myWin.total !== null
   const { asked, round, leftOut } = myWin
   const countAgain = React.useCallback(
@@ -507,16 +526,35 @@ export function useTableRows(tableId: string, view?: RowView) {
     },
     [spec, asks, tableId, key, round, askKey, grouped, computedRefs],
   )
+  const sumsShort = leftOut > 0 || myWin.refusedSums !== null
   React.useEffect(() => {
+    if (!windowed || !counted) return
+    // A fill's end is taken only when something waits on it: sums left out,
+    // or refused ones of the fields it filled (any, when it named none). One
+    // heard while a count is on its way waits for that count's answer.
+    const fieldsHeard = sumsHeard.current
+    const refused = latest.current.myWin.refusedSums
+    const filled = sumsSeen.current !== fillsHeard && (leftOut > 0 || (!!refused && (fieldsHeard === "any" || refused.fields.some((f) => fieldsHeard.has(f)))))
+    if (sumsShort) {
+      sumsSeen.current = fillsHeard
+      sumsHeard.current = new Set()
+    }
+    // A count asked before the fill ended (a row added meanwhile, the topic
+    // going live) may still be on its way; landing after this one, it would
+    // put the fill's words back for good.
+    if (filled) {
+      summed.current.ask()
+      return
+    }
     const wait = asked === askKey ? LEFT_OUT_MS[leftOut - 1] : 0
-    if (!windowed || !counted || wait === undefined) return
+    if (wait === undefined) return
     const ac = new AbortController()
     const t = setTimeout(() => void countAgain(ac.signal), wait)
     return () => {
       clearTimeout(t)
       ac.abort()
     }
-  }, [windowed, counted, asked, leftOut, askKey, countAgain])
+  }, [windowed, counted, asked, leftOut, askKey, countAgain, fillsHeard, sumsShort])
   // The notice's Try again, once the last re-ask left the groups or the sums out: one count now, the rows ungrouped and the sums the loaded rows' till it has them.
   const [recounting, setRecounting] = React.useState(false)
   const recount = React.useCallback(() => {
@@ -698,6 +736,18 @@ export function useTableRows(tableId: string, view?: RowView) {
         data = (JSON.parse(message) as { data?: typeof data })?.data
       } catch {
         // not one of ours: everything is asked for again
+      }
+      // A formula's or a rollup's fill ended (V-124): the waits above ask at
+      // once; a read worked out the cells it read, so nothing else is read.
+      if (data?.action === "computed") {
+        // The fields it filled, as the bar names them ("any" when it names none).
+        const ids = (data as { fields?: unknown }).fields
+        const refs = Array.isArray(ids) && ids.every((id) => typeof id === "string") ? ids.map((id: string) => `field:${id}`) : null
+        const seen = sumsHeard.current
+        sumsHeard.current = refs && seen !== "any" ? new Set([...seen, ...refs]) : "any"
+        heardNow.current += 1
+        setFillsHeard(heardNow.current)
+        return
       }
       const j = heardJob.current
       // A row's threads changed: its page is read again for its comment

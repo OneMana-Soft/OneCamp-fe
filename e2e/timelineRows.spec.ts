@@ -24,22 +24,30 @@ const NAMES = [
 ]
 const STATUSES = ["todo", "inProgress", "inReview", "done"]
 
-/** A day relative to today, at 17:00, as the server sends a date. */
-const day = (offset: number) => {
-  const d = new Date()
+// The page's clock and the tasks' dates are pinned to one day (V-223). The timeline is drawn from today, so a
+// run on a month's first day or on a Sunday drew another chart and failed checks that pass on other days.
+// Saturday 17 Oct 2026 is mid-month, and its chart starts a full week before its room, so the first view at
+// 1280 sits clear of the chart's first day.
+const NOW = new Date(2026, 9, 17, 10)
+
+/** A day relative to `now`, at 17:00, as the server sends a date. */
+const day = (offset: number, now = NOW) => {
+  const d = new Date(now)
   d.setHours(17, 0, 0, 0)
   d.setDate(d.getDate() + offset)
   return d.toISOString()
 }
 
-// Forty tasks: more than a screen of rows, so the timeline has somewhere to scroll.
-const TASKS = Array.from({ length: 40 }, (_, i) => ({
-  id: `7a5c00f1-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
-  name: `${NAMES[i % NAMES.length]}${i >= NAMES.length ? ` (${Math.floor(i / NAMES.length) + 1})` : ""}`,
-  status: STATUSES[i % STATUSES.length],
-  start: day((i % 12) - 6),
-  due: day((i % 12) - 6 + 2 + (i % 5)),
-}))
+// Forty tasks around `now`: more than a screen of rows, so the timeline has somewhere to scroll.
+const tasksAt = (now: Date) =>
+  Array.from({ length: 40 }, (_, i) => ({
+    id: `7a5c00f1-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
+    name: `${NAMES[i % NAMES.length]}${i >= NAMES.length ? ` (${Math.floor(i / NAMES.length) + 1})` : ""}`,
+    status: STATUSES[i % STATUSES.length],
+    start: day((i % 12) - 6, now),
+    due: day((i % 12) - 6 + 2 + (i % 5), now),
+  }))
+const TASKS = tasksAt(NOW)
 const LAST = TASKS[TASKS.length - 1]
 
 /** The reads this test leaves unanswered (a 404 "Not in this test"), to name in a failure. */
@@ -113,6 +121,7 @@ async function openProjectTimeline(page: Page, testInfo: TestInfo, before?: () =
   const misses = unanswered(page)
   // The keys tip would sit over the shots (onboarding/KeyboardTip).
   await page.addInitScript(() => localStorage.setItem("oc_keys_tip_seen", "1"))
+  await page.clock.setFixedTime(NOW)
   await before?.()
   await page.goto(`/app/project/${P}?tab=timeline`, { waitUntil: "domcontentloaded", timeout: 120_000 })
   return misses
@@ -138,7 +147,8 @@ async function narrowed(page: Page, grid: Locator, from: number) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
 }
 
-async function openGuestProject(page: Page, testInfo: TestInfo) {
+async function openGuestProject(page: Page, testInfo: TestInfo, now = NOW) {
+  const tasks = tasksAt(now)
   const card = (t: (typeof TASKS)[number]) => ({ id: t.id, name: t.name, status: t.status, status_label: t.status, start_date: t.start, due_date: t.due, comment_count: 0 })
   await stubBackend(page, testInfo, {
     [`/guest/project/${TOKEN}`]: {
@@ -147,15 +157,24 @@ async function openGuestProject(page: Page, testInfo: TestInfo) {
         project: "Q4 launch",
         project_uuid: P,
         can_comment: false,
-        columns: STATUSES.map((status) => ({ status, label: status, tasks: TASKS.filter((t) => t.status === status).map(card) })),
-        total_tasks: TASKS.length,
-        done_tasks: TASKS.filter((t) => t.status === "done").length,
-        generated_at: new Date().toISOString(),
+        columns: STATUSES.map((status) => ({ status, label: status, tasks: tasks.filter((t) => t.status === status).map(card) })),
+        total_tasks: tasks.length,
+        done_tasks: tasks.filter((t) => t.status === "done").length,
+        generated_at: now.toISOString(),
       },
     },
   })
+  await page.clock.setFixedTime(now)
   await page.goto(`/guest/p/${TOKEN}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
 }
+
+// The guest's check runs on three days: mid-month, and the two where the Today pill meets a month's edge, its
+// first day and the day before (V-223: on 1 Nov, November's name sat under the pill).
+const GUEST_DAYS: Array<[string, string, Date]> = [
+  ["mid-month", "mid", NOW],
+  ["on a month's first day", "first", new Date(2026, 10, 1, 10)],
+  ["on a month's last day", "last", new Date(2026, 9, 31, 10)],
+]
 
 for (const theme of SHOT_THEMES) {
   for (const viewport of [{ width: 1280, height: 860 }, { width: 390, height: 844 }]) {
@@ -181,9 +200,10 @@ for (const theme of SHOT_THEMES) {
         await shot(page, "timeline-months", theme, misses)
       })
 
-      test("the guest's timeline tab arrives when opened", async ({ page }, testInfo) => {
+      for (const [when, slug, now] of GUEST_DAYS)
+      test(`the guest's timeline tab arrives when opened, ${when}`, async ({ page }, testInfo) => {
         test.setTimeout(180_000)
-        await openGuestProject(page, testInfo)
+        await openGuestProject(page, testInfo, now)
         await expect(page.getByText("Q4 launch").first()).toBeVisible({ timeout: 90_000 })
         // The board first, with no timeline on the page yet.
         await expect(page.locator("[data-timeline]")).toHaveCount(0)
@@ -203,8 +223,8 @@ for (const theme of SHOT_THEMES) {
             return cut || touches
           }).length
         })
-        expect(crowded).toBe(0)
-        await shot(page, "guest-timeline", theme)
+        expect(crowded, "a month's name is cut or within 8 px of the Today pill").toBe(0)
+        await shot(page, `guest-timeline-${slug}`, theme)
       })
     })
   }

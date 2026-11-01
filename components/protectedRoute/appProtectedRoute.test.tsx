@@ -13,11 +13,17 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("@/store/store", () => ({ default: { dispatch: vi.fn() }, persistor: { purge: vi.fn() }, RESET_STORE_ACTION: "reset" }))
 vi.mock("@/lib/afterSignIn", () => ({ takeAfterSignIn: () => null }))
+// The profile kept on this device for an unanswered start (lib/swrCache), set by each test.
+const kept = vi.fn()
+// Only what this page asks of it: the real module would also join the session's end (its own cache's
+// forget), which this file's session tests don't count on.
+vi.mock("@/lib/swrCache", () => ({ keptProfile: (e: unknown) => kept(e) }))
 
 import { AppProtectedRoute, sessionGone } from "@/components/protectedRoute/appProtectedRoute"
 import { SESSION_ENDED_KEY, onSessionEnd } from "@/lib/sessionEnd"
 import { APP_BOOT_LEAVE_MS, APP_BOOT_RETRY_ATTR, APP_BOOT_SCREEN_ATTR, appBootState, endAppBoot } from "@/lib/appBoot"
 import { MEMBER_KEY } from "@/lib/memberMark"
+import { heardRefusal } from "@/lib/http/answered"
 
 const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { response: { status } })
 const page = () => render(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
@@ -298,5 +304,112 @@ describe("the session's refresh clock", () => {
     page()
     await screen.findByText("the app")
     expect(Number(localStorage.getItem("onecamp:token-issued-at"))).toBeGreaterThan(Date.now() - 5000)
+  })
+})
+
+describe("a member deactivated or removed while offline (asana-12)", () => {
+  it("is signed out on reconnect: a queued write the server refuses asks for the profile again, and its 403 signs out", async () => {
+    const sam = { data: { user_uuid: "sam" } }
+    profile = { isLoading: false, isValidating: false, isError: undefined, data: sam }
+    const { rerender } = page()
+    await act(async () => {})
+    mutate.mockClear()
+    await act(async () => {
+      heardRefusal()
+    })
+    expect(mutate).toHaveBeenCalledWith()
+    // The server's word on the profile: this member may no longer come in. Signing out ends the session, and the
+    // Offline Store, its queue with it, goes with the session (lib/offline/wipe).
+    profile = { isLoading: false, isValidating: false, isError: httpError(403), data: sam }
+    rerender(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
+    await act(async () => {})
+    expect(logout).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("opening with no network (asana-12)", () => {
+  // A profile request that never reached the server, as axios reports it.
+  const unanswered = Object.assign(new Error("Network Error"), { isAxiosError: true, code: "ERR_NETWORK" })
+
+  beforeEach(() => kept.mockReset())
+
+  it("opens as the member this device last confirmed when the profile goes unanswered", async () => {
+    kept.mockReturnValue({ data: { user_uuid: "sam" } })
+    profile = { isLoading: false, isValidating: false, isError: unanswered, data: undefined }
+    page()
+    await act(async () => {})
+    expect(kept).toHaveBeenCalledWith(unanswered)
+    expect(mutate).toHaveBeenCalledWith({ data: { user_uuid: "sam" } }, { revalidate: false })
+    expect(logout).not.toHaveBeenCalled()
+  })
+
+  it("offers to try again, as before, when nothing is kept here", async () => {
+    kept.mockReturnValue(undefined)
+    profile = { isLoading: false, isValidating: false, isError: unanswered, data: undefined }
+    page()
+    await act(async () => {})
+    expect(mutate).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: /try again/i })).toBeTruthy()
+  })
+
+  it("never opens on it after a refusal: a 401 or a 403 signs out", async () => {
+    kept.mockReturnValue({ data: { user_uuid: "sam" } })
+    for (const status of [401, 403]) {
+      logout.mockClear()
+      mutate.mockClear()
+      profile = { isLoading: false, isValidating: false, isError: httpError(status), data: undefined }
+      page()
+      await act(async () => {})
+      expect(mutate, String(status)).not.toHaveBeenCalled()
+      expect(logout, String(status)).toHaveBeenCalledTimes(1)
+      cleanup()
+    }
+  })
+
+  it("asks again once back online, and a refusal then signs out (a member deactivated or removed meanwhile)", async () => {
+    const sam = { data: { user_uuid: "sam" } }
+    kept.mockReturnValue(sam)
+    profile = { isLoading: false, isValidating: false, isError: unanswered, data: undefined }
+    const { rerender } = page()
+    await act(async () => {})
+    expect(mutate).toHaveBeenCalledWith(sam, { revalidate: false })
+    // The app runs on what was kept; back online, the profile is asked again.
+    profile = { isLoading: false, isValidating: false, isError: undefined, data: sam }
+    rerender(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
+    expect(screen.getByText("the app")).toBeTruthy()
+    mutate.mockClear()
+    await act(async () => {
+      window.dispatchEvent(new Event("online"))
+    })
+    expect(mutate).toHaveBeenCalledWith()
+    // The server's word: this member may no longer come in.
+    profile = { isLoading: false, isValidating: false, isError: httpError(403), data: sam }
+    rerender(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
+    await act(async () => {})
+    expect(logout).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops asking once the server has answered", async () => {
+    const sam = { data: { user_uuid: "sam" } }
+    kept.mockReturnValue(sam)
+    profile = { isLoading: false, isValidating: false, isError: unanswered, data: undefined }
+    const { rerender } = page()
+    await act(async () => {})
+    profile = { isLoading: false, isValidating: false, isError: undefined, data: { data: { user_uuid: "sam", user_name: "Sam" } } }
+    rerender(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
+    mutate.mockClear()
+    await act(async () => {
+      window.dispatchEvent(new Event("online"))
+    })
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it("uses nothing kept once the profile has answered", async () => {
+    kept.mockReturnValue({ data: { user_uuid: "sam" } })
+    profile = { isLoading: false, isValidating: false, isError: undefined, data: { data: { user_uuid: "alex" } } }
+    page()
+    await act(async () => {})
+    expect(mutate).not.toHaveBeenCalled()
+    expect(screen.getByText("the app")).toBeTruthy()
   })
 })

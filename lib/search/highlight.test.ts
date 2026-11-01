@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fragmentEdges, highlightRuns, highlightText } from "@/lib/search/highlight"
+import { firstHitWords, fragmentEdges, highlightRuns, highlightText } from "@/lib/search/highlight"
 
 /**
  * Fragments are what the search server sends back (see the demo's answers on
@@ -70,5 +70,18 @@ describe("fragmentEdges", () => {
   it("judges by shape when the whole text isn't sent (a doc's body)", () => {
     expect(fragmentEdges("We launch on the last Tuesday of the month.")).toEqual({ before: false, after: false })
     expect(fragmentEdges("onboarding: Maya Walkthrough and checklist: Jonas Risks The pilot's SAML certificate expires the week before launch")).toEqual({ before: true, after: true })
+  })
+})
+
+describe("the first words a fragment marks", () => {
+  it("are the first run of hits, joined over the spaces between them, entities decoded", () => {
+    expect(firstHitWords("the <mark>launch</mark> <mark>budget</mark> is set. <mark>budget</mark> again")).toBe("launch budget")
+    expect(firstHitWords("a <em>Maya&#39;s</em>, then <em>notes</em>")).toBe("Maya's")
+  })
+
+  it("are nothing when nothing is marked, and at most `max` characters", () => {
+    expect(firstHitWords("plain words")).toBe("")
+    expect(firstHitWords(null)).toBe("")
+    expect(firstHitWords(`<mark>${"word ".repeat(60)}</mark>`, 200)).toHaveLength(199)
   })
 })

@@ -19,7 +19,8 @@ import {formatDateForAttachment} from "@/lib/utils/date/formatDateforAttachment"
 import {formatDuration} from "@/lib/utils/format/formatDuration";
 import {downloadFile} from "@/lib/utils/file/downloadFile";
 import {useRecordingPlayback, type RecordingMedia} from "@/components/dialog/useRecordingPlayback";
-import {nothingToPlay, transcriptLayout} from "@/components/recording/recordingState";
+import {nothingToPlay, transcriptLayout, type RecordingHome} from "@/components/recording/recordingState";
+import {stageFit} from "@/components/dialog/recordingStage";
 import {ErrorState} from "@/components/ui/error-state";
 import {SaysLoadFailure} from "@/lib/http/loadFailure";
 import {hasPageAfter} from "@/lib/http/pageCount";
@@ -32,11 +33,18 @@ export const RecordingPlayerDialog = () => {
     const [isFullscreen, setIsFullscreen] = useState(false);
     
     // The recording's link, fresh whenever it runs out (CALL-BUG-10), and
-    // its state when there is nothing to play (CALL-BUG-16).
-    const playback = useRecordingPlayback(data.mediaGetUrl && data.egressId ? `${data.mediaGetUrl}/${data.egressId}` : "", isOpen);
+    // its state when there is nothing to play (CALL-BUG-16). mediaPath is the
+    // play path itself, for a recording read by its owner's own route (an
+    // event's "Recordings & notes", meet-02); else media URL + egress id.
+    const playback = useRecordingPlayback(data.mediaPath || (data.mediaGetUrl && data.egressId ? `${data.mediaGetUrl}/${data.egressId}` : ""), isOpen);
     const media = playback.media;
     const mediaUrl = media?.status === "ready" ? media.url ?? "" : "";
     const [currentTime, setCurrentTime] = useState(0);
+    // The picture's shape, as its recording says it once its first bytes are
+    // read: 16:9, a call's room's, until then, and for each recording anew.
+    const recording = data.mediaPath || data.egressId || "";
+    const [shape, setShape] = useState<{ recording: string; ratio: string } | null>(null);
+    const ratio = shape !== null && shape.recording === recording ? shape.ratio : "16 / 9";
 
     /* ... useEffects ... */
 
@@ -63,18 +71,22 @@ export const RecordingPlayerDialog = () => {
     const [pageIndex, setPageIndex] = useState(0);
     const pageSize = 20;
 
+    // Where the words are read, a page at a time: an event's call by its own
+    // transcript path (head C2, meet-02), else its transcript route by egress id.
+    const transcriptSource: string = data.transcriptPath || (data.transcriptGetUrl ? `${data.transcriptGetUrl}/${data.egressId}` : "");
+
     // Fetch transcript for current page
     const transcriptInfo = useFetch<{data: {recording_transcript: any[]; transcript_count: number; recording_stared_at?: string}, pageCount: number}>(
-        data.transcriptGetUrl ? `${data.transcriptGetUrl}/${data.egressId}?pageIndex=${pageIndex}&pageSize=${pageSize}` : ""
+        transcriptSource ? `${transcriptSource}?pageIndex=${pageIndex}&pageSize=${pageSize}` : ""
     );
 
-    // Reset state when dialog opens/closes or egressId changes
+    // Reset state when dialog opens/closes or its words' source changes
     useEffect(() => {
         if (isOpen) {
             setTranscriptList([]);
             setPageIndex(0);
         }
-    }, [isOpen, data.egressId]);
+    }, [isOpen, transcriptSource]);
     
     // Let's implement a ref to track processed page index.
     const lastProcessedPage = useRef(-1);
@@ -188,14 +200,27 @@ export const RecordingPlayerDialog = () => {
     const shownLines: TranscriptInfoInterface[] = transcriptList.length ? transcriptList : (transcriptInfo.data?.data?.recording_transcript ?? []);
     const transcriptFailed = !!transcriptInfo.isError && shownLines.length === 0;
     const layout = transcriptLayout(media?.status ?? data.status, {
-        answered: !data.transcriptGetUrl || transcriptInfo.data !== undefined || transcriptFailed,
+        source: !!transcriptSource,
+        answered: !transcriptSource || transcriptInfo.data !== undefined || transcriptFailed,
         lines: shownLines.length,
         failed: transcriptFailed,
     });
+    // A phone's Download (the header's own shows from md up): in the Transcript
+    // panel's head, or in the header when there's no panel.
+    const phoneDownload = (className: string) => mediaUrl && isMobile ? (
+        <Button aria-label="Download recording" variant="ghost" size="sm" onClick={() => void download()} className={className}>
+            <Download className="h-4 w-4" />
+        </Button>
+    ) : null;
     // The header's facts, joined only where there are some: no size for one
     // with nothing in it ("0 bytes" before), as its row gives none, and none
     // for a doc's embed, which knows neither ("0 bytes · " before).
     const facts = [fileSize(data.fileSize), formatDateForAttachment(data.recordedAt || "")].filter(Boolean).join(" · ");
+    // The stage is its picture's box in the sheet and above a phone's words;
+    // a full screen's fills it (stageFit). Beside a picture-sized stage the
+    // words take its height and scroll (contain: size keeps their own height
+    // out of the row's), and under a phone's they fill what's left.
+    const fit = stageFit({ fullScreen: isFullscreen, phone: isMobile, words: layout === "panel" });
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -205,7 +230,9 @@ export const RecordingPlayerDialog = () => {
                 lightbox did. Its parts sit flush (gap-0): the surface's own
                 gap left a band of it between the header and the stage. */}
              <DialogContent className={cn(
-                "max-w-[70vw] h-[85vh] p-0 gap-0 flex flex-col overflow-hidden bg-background border [&>button]:hidden",
+                "max-w-[70vw] p-0 gap-0 flex flex-col overflow-hidden bg-background border [&>button]:hidden",
+                // With no stage, the words alone keep the sheet's height; a stage sizes it.
+                transcriptOnly && "h-[85vh]",
                 isFullscreen && "!max-w-none !w-screen !h-dvh !max-h-none !rounded-none border-none"
             )} data-full-screen={isFullscreen ? "" : undefined}>
                 {/* ... Header ... */}
@@ -224,6 +251,7 @@ export const RecordingPlayerDialog = () => {
                                 <span className="text-xs">Download</span>
                             </Button>
                         )}
+                        {layout !== "panel" && phoneDownload("h-8 w-8 p-0")}
 
                         {!isMobile && (
                             <Button aria-label={isFullscreen ? "Exit full screen" : "Full screen"} variant="ghost" size="icon" onClick={toggleFullscreen} className="h-8 w-8">
@@ -241,7 +269,16 @@ export const RecordingPlayerDialog = () => {
                     
                     {/* Video Area: none for a call that was transcribed, not recorded. */}
                     {!transcriptOnly && (
-                    <div className={cn("flex-1 bg-black flex justify-center items-center relative min-h-[30vh]", isFullscreen ? "h-full" : "")}>
+                    <div
+                        className={cn(
+                            "bg-black flex justify-center items-center relative",
+                            fit === "picture"
+                                ? "w-full shrink-0 self-start max-h-[60dvh] md:w-auto md:flex-1 md:max-h-[calc(85dvh-4rem)]"
+                                : "flex-1 min-h-[30vh] h-full"
+                        )}
+                        style={fit === "picture" ? { aspectRatio: ratio } : undefined}
+                        data-stage={fit}
+                    >
                         {mediaUrl && !playback.playbackFailed ? (
                             <div className="w-full h-full flex justify-center items-center">
                                 <video 
@@ -253,12 +290,17 @@ export const RecordingPlayerDialog = () => {
                                         playback.videoProps.onTimeUpdate(e);
                                         setCurrentTime(e.currentTarget.currentTime);
                                     }}
+                                    onLoadedMetadata={(e) => {
+                                        playback.videoProps.onLoadedMetadata(e);
+                                        const { videoWidth, videoHeight } = e.currentTarget;
+                                        if (videoWidth > 0 && videoHeight > 0) setShape({ recording, ratio: `${videoWidth} / ${videoHeight}` });
+                                    }}
                                 />
                             </div>
                         ) : (
                             // While the layout waits for the words, the stage keeps
                             // its loading state, as while the media answer comes.
-                            <RecordingStageMessage media={layout === "wait" ? null : media} loadError={playback.loadError} playbackFailed={playback.playbackFailed} onRetry={media ? playback.retry : () => void playback.reload()} />
+                            <RecordingStageMessage media={layout === "wait" ? null : media} loadError={playback.loadError} playbackFailed={playback.playbackFailed} onRetry={media ? playback.retry : () => void playback.reload()} home={data.home} />
                         )}
                     </div>
                     )}
@@ -271,19 +313,14 @@ export const RecordingPlayerDialog = () => {
                         "flex flex-col bg-background transition-colors",
                         transcriptOnly
                             ? "w-full flex-1"
-                            : cn("border-border", isFullscreen && !isMobile ? "w-[350px] border-l" : "w-full md:w-[350px] h-[40vh] md:h-full md:border-l")
+                            : cn("border-border", fit === "screen" ? "w-[350px] border-l" : "w-full flex-1 min-h-0 md:flex-none md:w-[350px] md:border-l md:[contain:size]")
                     )} data-transcript="">
                         <div className="p-3 border-b font-medium text-sm bg-muted/10 flex justify-between items-center">
                             <span className="flex items-center gap-2">
                                 {transcriptOnly ? <Captions className="size-4 text-ink-3" aria-hidden /> : null}
                                 {transcriptOnly ? "Transcript · this call wasn't recorded" : "Transcript"}
                             </span>
-                            {/* Mobile download button since header one is hidden */}
-                             {mediaUrl && isMobile && (
-                                <Button aria-label="Download recording" variant="ghost" size="sm" onClick={() => void download()} className="h-7 w-7 p-0">
-                                    <Download className="h-4 w-4" />
-                                </Button>
-                            )}
+                            {phoneDownload("h-7 w-7 p-0")}
                         </div>
                         {/* px-1 and the rows' own p-2 start their text under the heading's. */}
                         <div className="flex-1 overflow-hidden px-1 py-2 relative">
@@ -327,11 +364,14 @@ export function RecordingStageMessage({
     loadError,
     playbackFailed,
     onRetry,
+    home,
 }: {
     media: RecordingMedia | null
     loadError: boolean
     playbackFailed: boolean
     onRetry: () => void
+    /** Where it is kept, which its words say it can be deleted from: a channel's or a chat's unless given. */
+    home?: RecordingHome
 }) {
     const box = (icon: ReactNode, title: string, detail: string, retry = false) => (
         <div role="status" className="flex max-w-sm flex-col items-center gap-2 px-6 text-center text-white" data-recording-state={media?.status ?? (loadError ? "error" : "loading")}>
@@ -345,7 +385,7 @@ export function RecordingStageMessage({
             ) : null}
         </div>
     )
-    const nothing = nothingToPlay(media?.status)
+    const nothing = nothingToPlay(media?.status, home)
     if (nothing) {
         const icon = nothing.state === "empty"
             ? <VideoOff className="size-6 text-white/70" aria-hidden />

@@ -7,6 +7,8 @@ import { AlertTriangle, ChevronDown, Loader2, Plus } from "@/lib/icons"
 import { Spark } from "@/components/ui/graphics"
 import { alignsRight, fieldProblem, formulaOf, parseFieldConfig, type FieldType, type TableField } from "@/services/tableService"
 import type { FieldPatch } from "@/services/tableCalls"
+import type { CleanStep } from "@/lib/tables/transform"
+import { frozenMarks } from "@/lib/tables/display"
 import { fieldKind } from "@/lib/fieldTypes/registry"
 import { ix } from "@/lib/ui/interactive"
 import { returnFocusOnlyForKeys } from "@/lib/ui/inputModality"
@@ -71,7 +73,12 @@ export type ColumnHeaderProps = {
   fields: TableField[]
   tableId: string
   canManage: boolean
-  frozen?: boolean
+  /** How many leading columns stay put sideways (G2b): the header's marks, and the menu's Freeze. */
+  frozen?: number
+  /** From the menu: freeze up to this column, or back to the first alone; none where columns can't be frozen (a phone). */
+  onFreeze?: (count: number) => void
+  /** From the menu: a clean-up over this column (G2b). */
+  onClean?: (step: CleanStep) => void
   index: number
   /** The menu's page while it's open; null when it is closed. */
   openPage: ColumnPage | null
@@ -153,8 +160,7 @@ export function ColumnHeader(props: ColumnHeaderProps) {
   return (
     <th
       scope="col"
-      data-frozen={frozen || undefined}
-      data-sticky-lead={frozen || undefined}
+      {...frozenMarks(index, frozen ?? 1)}
       data-col-index={index}
       onPointerEnter={() => onHover?.(index)}
       onPointerLeave={() => onHover?.(null)}

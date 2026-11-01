@@ -762,3 +762,299 @@ describe("a grouped view read in windows", () => {
     expect(result.current.rows).toHaveLength(0)
   })
 })
+
+// V-124: a formula's or a rollup's fill says on the table's topic when it ends
+// ({"action": "computed", "fields": [ids]}, business/RowQuery announceFilled).
+// A view the server held for the fill reads again at once, not at its next
+// wait (2 s doubling to 30 s, still the fallback), and sums the server left
+// out or refused are asked again at once. Nothing else is read: a read works a
+// formula's cells out as it reads them.
+describe("a formula's fill that ends, heard on the table's topic, in a view read in windows", () => {
+  beforeEach(() => {
+    moreFields = [
+      { id: "cost", table_id: "t", name: "Cost", type: "number", config: "{}", position: 2 },
+      { id: "calc", table_id: "t", name: "Calc", type: "formula", config: JSON.stringify({ formula: "{Cost} * 2", result: "number" }), position: 3 },
+    ]
+    bundle = bundleNow()
+  })
+  const asked = () => queryRows.mock.calls.filter((c) => c[1].count).map((c) => c[1].spec.summaries)
+  const summed = (): RowView => ({ ...newestFirst, summary: {}, hidden: ["who"] })
+  const both = { "field:cost": { sum: 42 }, "field:calc": { sum: 42 } }
+  const filled = () => tell({ action: "computed", fields: ["calc"] })
+  const later = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)))
+  // Past the topic's settle (HEARD_SETTLE_MS, 300 ms), short of a fill's first wait (WORKING_AGAIN_MS, 2 s).
+  const settle = () => later(500)
+
+  it("reads a view the server held for the fill again at once, from its first window, and nothing else", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    working = [{ done: 30000, total: 100000 }]
+    const { result } = renderHook(() => useTableRows("t", summed()))
+    await waitFor(() => expect(result.current.workingOut?.done).toBe(30000))
+    expect(windowsFrom()).toEqual([""])
+    await filled()
+    await settle()
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    expect(result.current.workingOut).toBeNull()
+    expect(windowsFrom()).toEqual(["", ""])
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it("reads nothing in a view the server didn't hold: its rows were worked out as they were read", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result } = renderHook(() => useTableRows("t", summed()))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    await waitFor(() => expect(result.current.summaries).toEqual(both))
+    queryRows.mockClear()
+    await filled()
+    await settle()
+    expect(queryRows).not.toHaveBeenCalled()
+    expect(rowsByIds).not.toHaveBeenCalled()
+    expect(mutate).not.toHaveBeenCalled()
+    expect(result.current.rows).toHaveLength(500)
+  })
+
+  it("asks again at once for the sums the server left out, without reading the windows again", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    leaveOut = 1
+    const { result } = renderHook(() => useTableRows("t", summed()))
+    await waitFor(() => expect(result.current.leftOut).toBe(true))
+    await filled()
+    await settle()
+    await waitFor(() => expect(result.current.summaries).toEqual(both))
+    expect(result.current.leftOut).toBe(false)
+    expect(asked()).toHaveLength(2)
+    expect(windowsFrom()).toEqual([""])
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it("asks again at once for sums left out past the last re-ask, and drops the notice once they come", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    leaveOut = 4
+    const { result } = renderHook(() => useTableRows("t", summed()))
+    await waitFor(() => expect(result.current.leftOut).toBe(true))
+    for (const wait of [5000, 15_000, 45_000]) await later(wait + 1000)
+    await waitFor(() => expect(result.current.sumsOut ?? "").toMatch(/take too long to add up/))
+    expect(asked()).toHaveLength(4)
+    await filled()
+    await settle()
+    await waitFor(() => expect(result.current.summaries).toEqual(both))
+    expect(result.current.sumsOut).toBeNull()
+    expect(asked()).toHaveLength(5)
+    expect(windowsFrom()).toEqual([""])
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  // A count that sums a formula still being filled is refused in the fill's
+  // words (the server's 422 working_out), and the view itself isn't held: it
+  // doesn't sort, filter or group by the formula.
+  it("asks again at once for a formula's sums the server refused while it filled, without reading the windows again", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const words = "Calc is being worked out over 100,000 rows: 40% done"
+    refuseSums = words
+    const { result } = renderHook(() => useTableRows("t", summed()))
+    await waitFor(() => expect(result.current.refusedSums).toEqual({ why: words, fields: ["field:calc"] }))
+    expect(result.current.summaries).toEqual({ "field:cost": { sum: 42 } })
+    expect(result.current.workingOut).toBeNull()
+    refuseSums = null
+    await filled()
+    await settle()
+    await waitFor(() => expect(result.current.refusedSums).toBeNull())
+    expect(result.current.summaries).toEqual(both)
+    const sums = [
+      { field: "field:cost", fns: ["sum"] },
+      { field: "field:calc", fns: ["sum"] },
+    ]
+    expect(asked()).toEqual([sums, [sums[0]], sums])
+    expect(windowsFrom()).toEqual([""])
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  // A count asked while the formula filled can still be on its way when the
+  // end is heard: here a row someone added meanwhile reads the windows again
+  // and counts them, refused. The count asked once the end is heard waits for
+  // it, so the older answer never lands over the newer one and leaves the
+  // fill's words standing for good.
+  it("never lets a count asked while the formula filled land over the one asked once its end is heard", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const words = "Calc is being worked out over 100,000 rows: 40% done"
+    refuseSums = words
+    const answered = queryRows.getMockImplementation()!
+    // Each count is worked out when it's asked, and answered when let through.
+    const pending: (() => void)[] = []
+    queryRows.mockImplementation((t, body, signal) => {
+      const answer = answered(t, body, signal)
+      if (!body.count) return answer
+      answer.catch(() => {})
+      return new Promise<RowsWindow>((resolve, reject) => pending.push(() => void answer.then(resolve, reject)))
+    })
+    // Lets the counts asked through, in turn, until none is left to answer.
+    const letThrough = async (first: "newest" | "oldest") => {
+      for (let i = 0; i < 12; i++) {
+        await later(50)
+        const next = first === "newest" ? pending.pop() : pending.shift()
+        if (!next) return
+        await act(async () => next())
+      }
+    }
+    try {
+      const { result } = renderHook(() => useTableRows("t", summed()))
+      await letThrough("oldest")
+      await waitFor(() => expect(result.current.refusedSums).toEqual({ why: words, fields: ["field:calc"] }))
+      await tell({ action: "created", row_id: "r-new" })
+      await settle()
+      await waitFor(() => expect(pending).toHaveLength(1))
+      refuseSums = null
+      await filled()
+      await settle()
+      await letThrough("newest")
+      await waitFor(() => expect(result.current.refusedSums).toBeNull())
+      expect(result.current.summaries).toEqual(both)
+    } finally {
+      queryRows.mockImplementation(answered)
+    }
+  })
+
+  // CR-95 M2 holds: a hidden page asks nothing, and asks at once when it's shown.
+  it("reads nothing while the page is hidden when the fill ends, and reads at once when it's shown", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let hidden = false
+    const was = Object.getOwnPropertyDescriptor(Document.prototype, "hidden")
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden })
+    try {
+      working = [{ done: 30000, total: 100000 }]
+      const { result } = renderHook(() => useTableRows("t", summed()))
+      await waitFor(() => expect(result.current.workingOut?.done).toBe(30000))
+      hidden = true
+      act(() => void document.dispatchEvent(new Event("visibilitychange")))
+      await filled()
+      await later(120_000)
+      expect(windowsFrom()).toEqual([""])
+      expect(mutate).not.toHaveBeenCalled()
+      hidden = false
+      act(() => void document.dispatchEvent(new Event("visibilitychange")))
+      await later(0)
+      await waitFor(() => expect(result.current.rows).toHaveLength(500))
+      expect(windowsFrom()).toEqual(["", ""])
+    } finally {
+      delete (document as { hidden?: boolean }).hidden
+      if (was) Object.defineProperty(Document.prototype, "hidden", was)
+    }
+  })
+
+  // A hold misses a fill's end only when it was heard after the read the
+  // server refused went out: one heard before that read is in its answer.
+  it("waits as usual when a hold starts after a fill heard while the view wasn't held", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { result, rerender } = renderHook((p: { v: RowView }) => useTableRows("t", p.v), { initialProps: { v: summed() } })
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    await filled()
+    await settle()
+    queryRows.mockClear()
+    working = [{ done: 30000, total: 100000 }]
+    rerender({ v: { ...summed(), rules: { ...summed().rules, sort: [{ field: "item", dir: "asc" }] } } })
+    await waitFor(() => expect(windowsFrom()).toEqual([""]))
+    await settle()
+    expect(windowsFrom()).toEqual([""])
+    expect(result.current.workingOut?.done).toBe(30000)
+  })
+
+  it("reads at once when the fill's end is heard while the read the server refuses is on its way", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    working = [{ done: 30000, total: 100000 }]
+    const answered = queryRows.getMockImplementation()!
+    let release: (() => void) | null = null
+    // The first window is worked out when it's asked, and answered when let through.
+    queryRows.mockImplementation((t, body, signal) => {
+      const answer = answered(t, body, signal)
+      if (body.count || release) return answer
+      answer.catch(() => {})
+      return new Promise<RowsWindow>((resolve, reject) => {
+        release = () => void answer.then(resolve, reject)
+      })
+    })
+    try {
+      const { result } = renderHook(() => useTableRows("t", summed()))
+      await waitFor(() => expect(release).not.toBeNull())
+      await filled()
+      await settle()
+      await act(async () => release?.())
+      await settle()
+      expect(windowsFrom()).toEqual(["", ""])
+      await waitFor(() => expect(result.current.rows).toHaveLength(500))
+      expect(result.current.workingOut).toBeNull()
+    } finally {
+      queryRows.mockImplementation(answered)
+    }
+  })
+
+  // A fill of a formula the bar doesn't sum leaves the refused sums waiting
+  // for their own: asked again, they'd be refused again.
+  it("asks nothing again for refused sums when the fill heard is of a formula the bar doesn't sum", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    moreFields = [...moreFields, { id: "twice", table_id: "t", name: "Twice", type: "formula", config: JSON.stringify({ formula: "{Calc} * 2", result: "number" }), position: 4 }]
+    bundle = bundleNow()
+    const words = "Calc is being worked out over 100,000 rows: 40% done"
+    refuseSums = words
+    const { result } = renderHook(() => useTableRows("t", { ...summed(), hidden: ["who", "twice"] }))
+    await waitFor(() => expect(result.current.refusedSums).toEqual({ why: words, fields: ["field:calc"] }))
+    const counts = asked().length
+    await tell({ action: "computed", fields: ["twice"] })
+    await settle()
+    await later(2500)
+    expect(asked()).toHaveLength(counts)
+    expect(result.current.refusedSums).toEqual({ why: words, fields: ["field:calc"] })
+    expect(windowsFrom()).toEqual([""])
+  })
+
+  it("asks again for refused sums when the fill's end names no fields", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const words = "Calc is being worked out over 100,000 rows: 40% done"
+    refuseSums = words
+    const { result } = renderHook(() => useTableRows("t", summed()))
+    await waitFor(() => expect(result.current.refusedSums).toEqual({ why: words, fields: ["field:calc"] }))
+    refuseSums = null
+    await tell({ action: "computed" })
+    await settle()
+    await waitFor(() => expect(result.current.refusedSums).toBeNull())
+    expect(result.current.summaries).toEqual(both)
+    expect(windowsFrom()).toEqual([""])
+  })
+
+  // The sums were answered before the fill began (a fill the sweep runs says
+  // nothing as it starts). A row added meanwhile is counted, refused, and
+  // that count is still on its way when the fill's end is heard: nothing
+  // waited on the end then, so the refusal that lands after it asks again.
+  it("asks again for sums a count on its way refused when the fill's end was heard", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const answered = queryRows.getMockImplementation()!
+    const pending: (() => void)[] = []
+    try {
+      const { result } = renderHook(() => useTableRows("t", summed()))
+      await waitFor(() => expect(result.current.summaries).toEqual(both))
+      const words = "Calc is being worked out over 100,000 rows: 40% done"
+      refuseSums = words
+      queryRows.mockImplementation((t, body, signal) => {
+        const answer = answered(t, body, signal)
+        if (!body.count) return answer
+        answer.catch(() => {})
+        return new Promise<RowsWindow>((resolve, reject) => pending.push(() => void answer.then(resolve, reject)))
+      })
+      await tell({ action: "created", row_id: "r-new" })
+      await settle()
+      await waitFor(() => expect(pending).toHaveLength(1))
+      refuseSums = null
+      await filled()
+      await settle()
+      // Every count asked, let through oldest first, past the re-ask's spacing (RESUM_MS).
+      for (let i = 0; i < 40; i++) {
+        await later(100)
+        const next = pending.shift()
+        if (next) await act(async () => next())
+      }
+      await waitFor(() => expect(result.current.refusedSums).toBeNull())
+      expect(result.current.summaries).toEqual(both)
+    } finally {
+      queryRows.mockImplementation(answered)
+    }
+  })
+})

@@ -32,7 +32,7 @@ const HANDS = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c03"
 const SYNC = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c04"
 
 type Proposal = { start: string; end: string }
-type Guest = { user_uuid?: string; email?: string; name?: string; role: string; response: string; note?: string; invite?: string; proposal?: Proposal }
+type Guest = { user_uuid?: string; email?: string; name?: string; role: string; response: string; note?: string; invite?: string; proposal?: Proposal; out_of_office?: boolean }
 /** Maya's proposal for Sam's launch review: Wednesday 4 PM instead of 2. */
 const MAYAS = { start: at(21, 16), end: at(21, 17) }
 
@@ -67,7 +67,7 @@ function events(mine: string, chosen: number[] | null = null, proposed: { mine?:
       // Jonas's, with six guests: the faces fold.
       event_uuid: HANDS, event_title: "All hands", event_start_time: at(23, 9, 30), event_end_time: at(23, 10, 30),
       event_created_by: JONAS, event_participants: [ME, MAYA, LEE, ANA, RAJ],
-      event_guests: [guest(SAM, "accepted"), guest(MAYA, "accepted"), guest(LEE, "tentative"), guest(ANA, "declined"), guest(RAJ, "needs_action"),
+      event_guests: [guest(SAM, "accepted"), guest(MAYA, "accepted"), guest(LEE, "tentative"), { ...guest(ANA, "declined", "Away until Monday, ask Raj."), out_of_office: true }, guest(RAJ, "needs_action"),
         { email: "kim@client.example", name: "Kim Ortiz", role: "required", response: "needs_action" }],
       ...byDefault(true),
     },
@@ -86,6 +86,8 @@ async function openCalendar(page: Page, testInfo: TestInfo, place = "date=2026-1
   let mine = "needs_action"
   let chosen: number[] | null = null
   const proposed: { mine: Proposal | null; maya: Proposal | null } = { mine: null, maya: MAYAS }
+  // The list and one event's read say the same answers and out-of-office marks, as the server's
+  // do (its one awayDecliners rule; TestAnOutOfOfficeDeclineIsMarkedOverHTTP pins both).
   const list = () => ({ msg: "ok", data: events(mine, chosen, proposed) })
   const one = (id: string) => ({ msg: "ok", data: events(mine, chosen, proposed).find((e) => e.event_uuid === id) })
   await page.clock.setFixedTime(NOW)
@@ -174,12 +176,30 @@ for (const theme of ["light", "dark"] as const) {
       test.setTimeout(180_000)
       await openCalendar(page, testInfo)
       await page.locator(`[data-event-uuid="${HANDS}"]`).first().click()
-      const fold = card(page).getByRole("button", { name: "3 going · 1 maybe · 1 not going · 2 no answer" })
+      const fold = card(page).getByRole("button", { name: "3 going · 1 maybe · 1 out of office · 2 no answer" })
       await expect(fold).toBeVisible({ timeout: 20_000 })
       await shot(page, "card-many-guests", theme)
       await fold.click()
-      await expect(card(page).getByRole("list", { name: "Guests and their answers" })).toBeVisible()
+      const list = card(page).getByRole("list", { name: "Guests and their answers" })
+      await expect(list).toBeVisible()
+      // Ana's decline is her out of office's: a guest reading the card sees so (calendar head 5c).
+      await expect(list.locator("li", { hasText: "Ana Silva" })).toContainText("out of office")
+      await expect(list.getByText("out of office")).toHaveCount(1)
       await shot(page, "card-many-guests-open", theme)
+    })
+
+    test("the details say a decline was the guest's out of office, with its message", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openCalendar(page, testInfo, "date=2026-10-21&view=week", HANDS)
+      // A computer opens an event's own page as the right panel beside the calendar.
+      await page.goto(`/app/calendar/event/${HANDS}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      const ana = page.locator("[data-event-guests] li", { hasText: "Ana Silva" })
+      // Her row's answer word says it, and nothing beside her name says it again, in any case.
+      await expect(ana.getByText("out of office", { exact: true })).toBeVisible({ timeout: 30_000 })
+      await expect(ana.getByText("“Away until Monday, ask Raj.”")).toBeVisible()
+      await expect(page.locator("[data-event-guests]").getByText(/^out of office$/i)).toHaveCount(1)
+      await ana.scrollIntoViewIfNeeded()
+      await shot(page, "details-out-of-office", theme)
     })
 
     test("the reader's reminder opens to its choices, and a choice is kept at once, with no toast", async ({ page }, testInfo) => {
@@ -366,6 +386,17 @@ for (const theme of ["light", "dark"] as const) {
       await row.scrollIntoViewIfNeeded()
       await expect(row.getByRole("button", { name: "Use this time" })).toBeInViewport()
       await shot(page, "page-organiser-proposal", theme)
+    })
+
+    test("says on the event's own page that a decline was the guest's out of office, once", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openCalendar(page, testInfo, "date=2026-10-23&view=day", HANDS)
+      await page.goto(`/app/calendar/event/${HANDS}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      const ana = page.locator("[data-event-guests] li", { hasText: "Ana Silva" })
+      await expect(ana.getByText("out of office", { exact: true })).toBeVisible({ timeout: 30_000 })
+      await expect(page.locator("[data-event-guests]").getByText(/^out of office$/i)).toHaveCount(1)
+      await ana.scrollIntoViewIfNeeded()
+      await shot(page, "page-out-of-office", theme)
     })
   })
 

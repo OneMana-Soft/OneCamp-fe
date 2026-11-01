@@ -65,6 +65,15 @@ describe("a task's points", () => {
     expect(screen.queryByText(/Couldn't load/)).toBeNull()
   })
 
+  // While the app is offline the scale's read waits instead of failing (hooks/useFetch: no answer and nothing on
+  // screen keeps its quiet place and says no failure until the app is back), so the row can't wait for a failure to
+  // say it: a task made on this device has its row whatever the read is doing (asana-12, a12green8 :1048).
+  it("says it too while its project's scale read waits with no failure said, as it does while the app is offline", () => {
+    const { container } = render(<TaskPointsRow taskUUID="offline-7a5c0000-0000-4000-8000-000000000001" projectUUID="p-1" canEdit />)
+    expect(container.querySelector("[data-property='points']")?.textContent).toBe("PointsSet points when you're back online")
+    expect(screen.queryByRole("button")).toBeNull()
+  })
+
   it("works for a task made on this device from the scale the device holds, as for any task", async () => {
     answers.estimates = { data: { scale: SHIRT, kinds: [], can_edit: false } }
     render(<TaskPointsRow taskUUID="offline-7a5c0000-0000-4000-8000-000000000001" projectUUID="p-1" canEdit />)

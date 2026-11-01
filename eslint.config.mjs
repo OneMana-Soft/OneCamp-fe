@@ -25,6 +25,7 @@ const eslintConfig = [
       "playwright-report/**",
       "test-results/**",
       "public/firebase-messaging-sw.js",
+      "public/sw.js",
       // Generated config from tooling.
       "next-env.d.ts",
     ],

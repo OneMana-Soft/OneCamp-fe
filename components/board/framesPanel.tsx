@@ -19,7 +19,7 @@ import { frameLink, frameOrderOf, moveFrame, orderFrames } from "@/lib/board/fra
 import { isStickyNote, noteColourOf } from "@/lib/board/notes"
 import { changeElements, type SceneElement } from "@/components/board/boardOps"
 import { noteTint } from "@/components/board/shapesPreview"
-import { BoardSidePanel } from "@/components/board/boardSidePanel"
+import { BoardSidePanel, SIDE_PANELS } from "@/components/board/boardSidePanel"
 
 interface FrameRow {
   frame: SceneElement
@@ -270,7 +270,7 @@ export default function FramesPanel({
   )
 
   return (
-    <BoardSidePanel name="Frames" closeLabel="Close frames" count={rows.length} onClose={onClose} data-frames-panel="">
+    <BoardSidePanel {...SIDE_PANELS.frames()} count={rows.length} onClose={onClose}>
       {body}
     </BoardSidePanel>
   )

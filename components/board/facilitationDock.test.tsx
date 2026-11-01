@@ -36,6 +36,8 @@ function aBoard() {
 
 const OFF = { presenting: false, voting: false, timer: false }
 const VIEW = { scrollX: 0, scrollY: 0, zoom: 1, width: 800, height: 600 }
+/** A person the relay stamps an editor, from the board's member list: only they present or hold everyone. */
+const editor = (name: string) => ({ name, edit: true })
 
 describe("what a screen whose facilitation bar couldn't come is missing", () => {
   it("an editor misses the bar's own tools, whatever is on", () => {
@@ -79,9 +81,9 @@ describe("the facilitation bar's place when its code couldn't come", () => {
   it("tells a viewer who's presenting from another screen, and never from its own", () => {
     const board = aBoard()
     const { container } = render(<FacilitationFailed provider={board.provider} editable={false} retry={() => {}} />)
-    board.state(1, { presenting: { view: VIEW, name: "Vic" } })
+    board.state(1, { user: editor("Vic"), presenting: { view: VIEW, name: "Vic" } })
     expect(container).toBeEmptyDOMElement()
-    board.state(2, { presenting: { view: VIEW, name: "Ann" } })
+    board.state(2, { user: editor("Ann"), presenting: { view: VIEW, name: "Ann" } })
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load who's presenting.")
     board.state(2, { presenting: null })
     expect(container).toBeEmptyDOMElement()
@@ -107,15 +109,30 @@ describe("the one reader of what's on", () => {
     const b = aBoard()
     const { awareness, document } = b.provider as unknown as { awareness: Parameters<typeof presentersIn>[0]; document: Y.Doc }
     expect(presentersIn(awareness)).toEqual([])
-    b.state(1, { presenting: { userId: "me", name: "Me", view: VIEW } })
+    b.state(1, { user: editor("Me"), presenting: { userId: "me", name: "Me", view: VIEW } })
     expect(presentersIn(awareness), "this screen's own presenting").toEqual([])
     b.state(2, { presenting: null })
-    b.state(3, { presenting: { userId: "lee", name: "Lee" } })
+    b.state(3, { user: editor("Lee"), presenting: { userId: "lee", name: "Lee" } })
     expect(presentersIn(awareness), "no view, so not presenting").toEqual([])
-    b.state(4, { presenting: { userId: "ann", name: "Ann", view: VIEW } })
+    b.state(4, { user: editor("Ann"), presenting: { userId: "ann", name: "Ann", view: VIEW } })
     expect(presentersIn(awareness)).toEqual([{ clientId: 4, userId: "ann", name: "Ann", view: VIEW }])
     expect(presentersIn(null)).toEqual([])
     expect(roundIn(facilitationOf(document))).toBeNull()
+  })
+
+  // Only an editor presents or holds everyone (main's ruling, 1 Nov): the relay stamps each person's user with edit
+  // from the board's member list (the collaboration service's presenceGuard.js), never as their tab claims.
+  it("never counts a presenter the relay doesn't stamp an editor, holding everyone or not", () => {
+    const b = aBoard()
+    const { awareness } = b.provider as unknown as { awareness: Parameters<typeof presentersIn>[0] }
+    const presenting = { userId: "vic", name: "Vic", view: VIEW, hold: true }
+    b.state(2, { user: { name: "Vic", edit: false }, presenting })
+    b.state(3, { user: { name: "Vic" }, presenting })
+    b.state(5, { user: { name: "Vic", edit: "true" }, presenting })
+    b.state(6, { presenting })
+    expect(presentersIn(awareness)).toEqual([])
+    b.state(4, { user: editor("Ann"), presenting: { ...presenting, userId: "ann", name: "Ann" } })
+    expect(presentersIn(awareness)).toEqual([{ clientId: 4, userId: "ann", name: "Ann", view: VIEW, hold: true }])
   })
 
   it("reads a round, an ended round (on until cleared, as the bar shows its Results) and a timer from the shared map", () => {
@@ -136,9 +153,9 @@ describe("the one reader of what's on", () => {
     const b = aBoard()
     const { result } = renderHook(() => useFacilitationOn(b.provider))
     expect(result.current).toEqual(OFF)
-    b.state(1, { presenting: { userId: "me", name: "Me", view: VIEW } })
+    b.state(1, { user: editor("Me"), presenting: { userId: "me", name: "Me", view: VIEW } })
     expect(result.current, "this screen presenting is not something it misses").toEqual(OFF)
-    b.state(4, { presenting: { userId: "ann", name: "Ann", view: VIEW } })
+    b.state(4, { user: editor("Ann"), presenting: { userId: "ann", name: "Ann", view: VIEW } })
     b.set("voting", { id: "r1", perPerson: 3, byId: "lee", byName: "Lee", closedAt: 5 })
     b.set("timer", { endsAt: 1_000, durationMs: 60_000, byName: "Lee" })
     expect(result.current).toEqual({ presenting: true, voting: true, timer: true })

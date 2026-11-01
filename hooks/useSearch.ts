@@ -7,6 +7,8 @@ import { useDebounce } from "@/hooks/useDebounce"
 import { useSearchResultActions } from "@/hooks/useSearchResultActions"
 import { fetchSearchPage, GlobalSearchGet, SearchResult } from "@/services/searchService"
 import { searchWithinHref, withinParam, type SearchWithin } from "@/lib/search/within"
+import { scopedText, searchPageHref } from "@/lib/search/scopePrefix"
+import type { SearchScope } from "@/lib/search/scopes"
 
 const NO_RESULTS: SearchResult[] = []
 
@@ -15,12 +17,15 @@ interface UseSearchProps {
     debounceMs?: number;
     /** One conversation to search in (QA F-15); everything when unset. */
     within?: SearchWithin | null;
+    /** One kind to search for (the palette's prefix scope, linear-28); every kind when unset. */
+    scope?: SearchScope | null;
 }
 
-export const useSearch = ({ 
-    initialQuery = "", 
+export const useSearch = ({
+    initialQuery = "",
     debounceMs = 300,
     within = null,
+    scope = null,
 }: UseSearchProps = {}) => {
     const [inputValue, setInputValue] = useState(initialQuery)
     const debouncedValue = useDebounce(inputValue, debounceMs)
@@ -29,16 +34,19 @@ export const useSearch = ({
 
     const searching = debouncedValue.trim().length >= 2
     const q = debouncedValue.trim()
-    // A query in a conversation is its own search (QA F-15): its answer, and
-    // the pages Show more fetches for it, never join the same words searched
-    // everywhere.
-    const key = q + (within ? `\u0000${withinParam(within)}` : "")
+    // What the server reads: the words, with a scope's kinds as type: ahead
+    // of them (lib/search/scopePrefix).
+    const text = scopedText(q, scope)
+    // A query in a conversation, or in a scope, is its own search (QA F-15):
+    // its answer, and the pages Show more fetches for it, never join the same
+    // words searched everywhere.
+    const key = text + (within ? `\u0000${withinParam(within)}` : "")
     // This query's own answer, and only its own: no other query's answer
     // stands in for it in SWR's cache (keepPreviousData did, and a failed
     // search kept the last query's results under the new query's heading,
     // QA DSA-04).
     const { data: searchData, isLoading, isError, mutate: retrySearch } = useFetch<any>(
-        searching ? GlobalSearchGet(debouncedValue, within) : "",
+        searching ? GlobalSearchGet(text, within) : "",
         undefined,
         { revalidateOnFocus: false },
     )
@@ -81,7 +89,7 @@ export const useSearch = ({
         if (!hasMore || !nextCursor || isLoadingMore) return
         setIsLoadingMore(true)
         try {
-            const page = await fetchSearchPage(debouncedValue.trim(), nextCursor, within)
+            const page = await fetchSearchPage(text, nextCursor, within)
             setMore((m) => {
                 const before = m.key === key ? m.rows : []
                 return { key, rows: [...before, ...page.page], next: page.next, hasMore: page.has_more && !!page.next }
@@ -91,7 +99,7 @@ export const useSearch = ({
         } finally {
             setIsLoadingMore(false)
         }
-    }, [hasMore, nextCursor, isLoadingMore, key, debouncedValue, within])
+    }, [hasMore, nextCursor, isLoadingMore, key, text, within])
     // Typing ahead of the search: the pause it waits for (debounceMs) hasn't
     // come yet, so no answer is due. Until it is, nothing is "not found": the
     // palette said "Nothing called “Wh”" between two keystrokes.
@@ -118,14 +126,15 @@ export const useSearch = ({
     }, [])
 
     // A search narrowed to one conversation stays narrowed (QA F-15): Enter
-    // in its field opened the whole workspace's search for the same words.
+    // in its field opened the whole workspace's search for the same words. A
+    // scope's opens on the search page's chip for it.
     const handleSearchSubmit = useCallback((query?: string) => {
         const searchQuery = (query || inputValue).trim()
         if (searchQuery.length >= 2) {
             setOpen(false)
-            router.push(within ? searchWithinHref(within, searchQuery) : `/app/search?query=${encodeURIComponent(searchQuery)}`)
+            router.push(within ? searchWithinHref(within, searchQuery) : searchPageHref(searchQuery, scope))
         }
-    }, [inputValue, router, within])
+    }, [inputValue, router, within, scope])
 
     // One mapping for where a hit opens (resultPath), as the page's links and
     // the palette's rows use: this switch spelled it out a second time, and

@@ -78,6 +78,12 @@ export async function loadConvert(): Promise<Convert> {
   return m.convertToExcalidrawElements
 }
 
+/** The CSS font an element's words are drawn in: its size, and Excalidraw's face for its font id (known after loadConvert). */
+export function fontCss(el: { fontSize?: unknown; fontFamily?: unknown }): string {
+  const name = typeof el.fontFamily === "number" ? faceNames.get(el.fontFamily) : undefined
+  return `${Number(el.fontSize ?? 20)}px ${name ? `"${name}", ` : ""}sans-serif`
+}
+
 /**
  * Notes on this screen whose words were laid out before their face had come, by face. When a face lands, Excalidraw
  * only draws the words again (its Fonts.onLoaded keeps their line breaks and size), so they would spill past the note
@@ -349,6 +355,22 @@ function fitMayWrite(text: SceneElement): boolean {
 }
 
 /**
+ * A note's rectangle and words laid out for `words`, as a note of its size lays them out (fittedNote), in the words'
+ * own font and alignment (Excalidraw's align keys work on a note's words too). Null for a note not at one of the sizes
+ * (one resized by hand), whose words are a shape's.
+ */
+function noteFit(convert: Convert, note: SceneElement, text: SceneElement, words: string): [SceneElement, SceneElement] | null {
+  const size = noteSizeOf(note.width)
+  if (NOTE_SIZES[size] !== note.width) return null
+  const sk = noteSkeleton({ id: note.id, x: note.x, y: note.y, text: words, colour: noteColourOf(note) ?? "yellow", size })
+  if (text.fontFamily) sk.label.fontFamily = text.fontFamily
+  if (typeof text.textAlign === "string") sk.label.textAlign = text.textAlign
+  if (typeof text.verticalAlign === "string") sk.label.verticalAlign = text.verticalAlign
+  const [rect, laid] = fittedNote(convert, sk)
+  return laid ? [rect, laid] : null
+}
+
+/**
  * Keeps the note whose words are being typed its own size (miro-07): as the words grow they come down to the
  * largest size, to the floor, at which they fit it, and they go back up as the words shrink; past the floor the
  * note grows, as Excalidraw grows it. Only a note at one of its three sizes: one sized by hand keeps Excalidraw's
@@ -375,16 +397,11 @@ export function fitTypedNote(
     api.updateScene({ elements: all.map((e) => (e.id === text.id ? bumped(e, { strokeColor }) : e)) as never, captureUpdate: capture })
     return true
   }
-  const size = noteSizeOf(note.width)
-  if (NOTE_SIZES[size] !== note.width) return false
+  if (NOTE_SIZES[noteSizeOf(note.width)] !== note.width) return false
   fitWhenFaceLands(api, convert, text)
-  const sk = noteSkeleton({ id: note.id, x: note.x, y: note.y, text: text.originalText ?? text.text ?? "", colour: noteColourOf(note) ?? "yellow", size })
-  // The words' own font and alignment (Excalidraw's align keys work on a note's words too).
-  if (text.fontFamily) sk.label.fontFamily = text.fontFamily
-  if (typeof text.textAlign === "string") sk.label.textAlign = text.textAlign
-  if (typeof text.verticalAlign === "string") sk.label.verticalAlign = text.verticalAlign
-  const [rect, laid] = fittedNote(convert, sk)
-  if (!laid) return false
+  const fit = noteFit(convert, note, text, text.originalText ?? text.text ?? "")
+  if (!fit) return false
+  const [rect, laid] = fit
   const words: Partial<SceneElement> = { fontSize: laid.fontSize, text: laid.text, x: laid.x, y: laid.y, width: laid.width, height: laid.height }
   if (note.height === rect.height && Object.entries(words).every(([k, v]) => text[k] === v)) return false
   if (!fitMayWrite(text)) return false
@@ -415,6 +432,75 @@ export function fitTypedNote(
     captureUpdate: capture,
   })
   return true
+}
+
+/** Excalidraw 0.18.1's room around a shape's words, and an arrow label's width (getBoundTextMaxWidth). */
+const WORDS_PADDING = 5
+const ARROW_LABEL_SHARE = 0.7
+const ARROW_LABEL_MIN_EMS = 11
+
+/** A text element's font and alignment, as a skeleton's words take them (only those it has). */
+const fontOf = (text: SceneElement): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries({ fontSize: text.fontSize, fontFamily: text.fontFamily, lineHeight: text.lineHeight, textAlign: text.textAlign, verticalAlign: text.verticalAlign }).filter(([, v]) => v !== undefined),
+  )
+
+/** The layout of `words` in a text element's own font, from the converter: the words wrapped at `wrapAt` when given. */
+function layOut(convert: Convert, text: SceneElement, words: string, wrapAt: number | null): SceneElement {
+  const font = fontOf(text)
+  if (wrapAt === null) return (convert([{ type: "text", x: 0, y: 0, text: words, ...font }] as never, { regenerateIds: false }) as unknown as SceneElement[])[0]
+  // Wrapped as a shape's words wrap: in a rectangle as wide as the words may be, and the room around them.
+  const sk = { type: "rectangle", id: "reword-trial", x: 0, y: 0, width: wrapAt + WORDS_PADDING * 2, height: 1, label: { text: words, ...font } }
+  return (convert([sk] as never, { regenerateIds: false }) as unknown as SceneElement[])[1]
+}
+
+/**
+ * New words on the board as one undo step of the person's (Find's Replace, miro-05 3), by element: a frame's new name,
+ * or a text element's new words as typed. Each is laid out as Excalidraw lays out words typed in its place: a note's
+ * fitted to the note (as fitTypedNote fits them), a shape's wrapped in the shape, which grows to hold them, an arrow's
+ * label wrapped at the arrow's label width about the label's middle, and words on their own measured from where their
+ * alignment holds them (wrapped at their width when it is fixed). Returns how many elements changed.
+ */
+export function rewordElements(api: Api, convert: Convert, words: ReadonlyMap<string, string>): number {
+  const all = scene(api)
+  const byId = new Map(all.map((e) => [e.id, e]))
+  const patches = new Map<string, Partial<SceneElement>>()
+  for (const [id, next] of words) {
+    const el = byId.get(id)
+    if (!el || el.isDeleted) continue
+    if (el.type === "frame" || el.type === "magicframe") {
+      if (el.name !== next) patches.set(id, { name: next })
+      continue
+    }
+    if (el.type !== "text" || (el.originalText ?? el.text) === next) continue
+    const holder = el.containerId ? byId.get(el.containerId) : undefined
+    const fit = holder && isStickyNote(holder as never) ? noteFit(convert, holder, el, next) : null
+    if (holder && fit) {
+      const [rect, laid] = fit
+      patches.set(id, { originalText: next, fontSize: laid.fontSize, text: laid.text, x: laid.x, y: laid.y, width: laid.width, height: laid.height })
+      if (rect.height !== holder.height) patches.set(holder.id, { height: rect.height })
+    } else if (holder && holder.type !== "arrow") {
+      const [box, laid] = convert(
+        [{ type: holder.type, id: holder.id, x: holder.x, y: holder.y, width: holder.width, height: holder.height, label: { text: next, ...fontOf(el) } }] as never,
+        { regenerateIds: false },
+      ) as unknown as SceneElement[]
+      patches.set(id, { originalText: next, text: laid.text, x: laid.x, y: laid.y, width: laid.width, height: laid.height })
+      if (box.height !== holder.height) patches.set(holder.id, { height: box.height })
+    } else if (holder) {
+      const laid = layOut(convert, el, next, Math.max(ARROW_LABEL_SHARE * holder.width, Number(el.fontSize ?? 20) * ARROW_LABEL_MIN_EMS))
+      const [cx, cy] = [el.x + el.width / 2, el.y + el.height / 2]
+      patches.set(id, { originalText: next, text: laid.text, width: laid.width, height: laid.height, x: cx - laid.width / 2, y: cy - laid.height / 2 })
+    } else if (el.autoResize === false) {
+      const laid = layOut(convert, el, next, el.width)
+      patches.set(id, { originalText: next, text: laid.text, height: laid.height })
+    } else {
+      const laid = layOut(convert, el, next, null)
+      const room = el.width - laid.width
+      const x = el.x + (el.textAlign === "center" ? room / 2 : el.textAlign === "right" ? room : 0)
+      patches.set(id, { originalText: next, text: laid.text, width: laid.width, height: laid.height, x })
+    }
+  }
+  return patches.size === 0 ? 0 : changeElements(api, (el) => patches.get(el.id) ?? null)
 }
 
 /** The shape an element goes with: a shape's bound words go where it goes, into its frame too. */

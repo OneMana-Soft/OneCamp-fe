@@ -36,31 +36,47 @@ import { PersonTag } from "./personTag"
  * tile's short side (56 to 120px), centred on a radial of their hue's dark
  * tint, with the name under it. An agent gets its square. The tile is a size
  * container, so the face scales with it.
+ *
+ * A short tile draws one name, its plate's, as Meet's small tiles do: the
+ * plate is 24px tall and 8px off the bottom, and a face with its name under
+ * it (56 + 10 + 20px at the least) clears it only in a tile 150px tall or
+ * more. Below that the face centres in the room above the plate, at most that
+ * room less 6px each side, so it is never cut or covered (DESIGN-BUILD-54). It
+ * makes that room with padding, so its colour still fills the whole tile.
  */
 export function StageFace({
   identity,
   name,
   agent = false,
   showName = true,
+  plateNames = false,
   fixedSize,
   className,
+  hue: callHue,
 }: {
   identity: string
   name: string
+  /** Their colour in the call (callHues); without one, their own hue (the green room). */
+  hue?: CampHue
   agent?: boolean
   showName?: boolean
+  /**
+   * A name plate beside the face names them, as in a stage tile: the face's
+   * own name is then for the eye only, so a screen reader meets it once.
+   */
+  plateNames?: boolean
   /** A pixel size instead of the tile's 30% (the green room's 96). */
   fixedSize?: number
   className?: string
 }) {
-  const hue: CampHue = personHue(name || identity)
-  const size = fixedSize ? `${fixedSize}px` : "clamp(56px, 30cqmin, 120px)"
+  const hue: CampHue = callHue ?? personHue(name || identity)
+  const size = fixedSize ? `${fixedSize}px` : "min(clamp(56px, 30cqmin, 120px), max(0px, 100cqh - 44px))"
   const style = { width: size, height: size, fontSize: `calc(${size} * 0.375)` } as CSSProperties
   return (
     <div
       className={cn(
         HUE_CLASS[hue],
-        "pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2.5",
+        "pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2.5 [@container(height<150px)]:pb-8",
         agent
           ? "bg-[radial-gradient(60%_70%_at_50%_45%,var(--agent-muted),#16171A)]"
           : "bg-[radial-gradient(60%_70%_at_50%_45%,var(--hue-tint),#16171A)]",
@@ -78,7 +94,7 @@ export function StageFace({
           {getNameInitials(name)}
         </span>
       )}
-      {showName ? <span className="max-w-[80%] truncate text-ui font-medium text-[#EEEEF0]">{name}</span> : null}
+      {showName ? <span aria-hidden={plateNames || undefined} className="max-w-[80%] truncate text-ui font-medium text-[#EEEEF0] [@container(height<150px)]:hidden">{name}</span> : null}
     </div>
   )
 }
@@ -159,8 +175,8 @@ export function NamePlate({
  * follows their voice (ringOpacity), drawn on its own layer so only opacity
  * changes. No glow.
  */
-export function SpeakingRing({ identity, name, opacity, agent = false }: { identity: string; name?: string; opacity: number; agent?: boolean }) {
-  const hue = personHue(name || identity)
+export function SpeakingRing({ identity, name, hue: callHue, opacity, agent = false }: { identity: string; name?: string; hue?: CampHue; opacity: number; agent?: boolean }) {
+  const hue = callHue ?? personHue(name || identity)
   return (
     <span
       aria-hidden
@@ -436,7 +452,20 @@ export const captionsLift = (lift: number) => (lift > 0 ? `translateY(${-Math.ro
  * their own colour over 18/26 text, two speakers and three lines at most.
  * Read out as they change. Never under the dock or a bar over it (`lift`).
  */
-export function CaptionsOverlay({ entries, idleMessage, lift = 0, boxRef }: { entries: CaptionEntry[]; idleMessage: string; lift?: number; boxRef?: Ref<HTMLDivElement> }) {
+export function CaptionsOverlay({
+  entries,
+  idleMessage,
+  lift = 0,
+  boxRef,
+  hueOf = (identity, name) => personHue(name || identity),
+}: {
+  entries: CaptionEntry[]
+  idleMessage: string
+  lift?: number
+  boxRef?: Ref<HTMLDivElement>
+  /** Each speaker's colour in the call (useCallHues), so a caption's name matches their tile. */
+  hueOf?: (identity: string, name: string) => CampHue
+}) {
   const shown = entries.slice(-2)
   return (
     <div aria-live="polite" style={{ bottom: CAPTIONS_BOTTOM }} className="pointer-events-none absolute left-1/2 z-[var(--z-fixed)] w-full max-w-[720px] -translate-x-1/2 px-4">
@@ -450,7 +479,7 @@ export function CaptionsOverlay({ entries, idleMessage, lift = 0, boxRef }: { en
           <p className="text-ui text-ink-2">{idleMessage}</p>
         ) : (
           shown.map((e) => {
-            const hue = personHue(e.name || e.identity)
+            const hue = hueOf(e.identity, e.name)
             return (
               <div key={e.identity} className="py-0.5">
                 <span className={cn(HUE_CLASS[hue], "block text-meta font-semibold text-hue-ink")}>{e.name}</span>

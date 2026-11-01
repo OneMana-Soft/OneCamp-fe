@@ -110,7 +110,7 @@ export function TableViewState(props: ViewState) {
         <EmptyState
           {...common}
           title={props.words}
-          description="Your view shows here the moment it's done."
+          description="Your view shows here by itself soon after it's done."
           action={
             <div
               role="progressbar"

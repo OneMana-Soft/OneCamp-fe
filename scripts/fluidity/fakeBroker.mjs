@@ -7,7 +7,9 @@
 // that matches (MQTT 5's No Local respected), acknowledged at QoS 1 and 2.
 // publish() is the server's side: a message the app hears as if a teammate
 // had sent it. connackDelayMs holds the next CONNACKs that long (a broker slow
-// to accept, or a connection that takes a while). Every packet is kept in `events` with the time it was heard or
+// to accept, or a connection that takes a while). drop() closes every
+// connection from the server's side, as a broker restart or a network change
+// does, and the app comes back on its own. Every packet is kept in `events` with the time it was heard or
 // sent (Date.now()), which is how a run tells when the app was connected.
 // (FLUIDITY-LEAD-6, 21 Oct 2026, for PLATFORM-LEAD-2's realtime split.)
 
@@ -128,8 +130,19 @@ export function brokerFor({ log } = {}) {
     subscriptions() {
       return [...clients].flatMap((c) => (c.open ? [...c.subs.keys()] : []))
     },
+    /** Every connection closed by the server, as a broker restart drops them: what a client hears next comes after it connects again. How many it closed. */
+    drop() {
+      const dropped = [...clients]
+      clients.clear()
+      for (const c of dropped) {
+        c.open = false
+        c.close()
+      }
+      note({ type: "drop", dropped: dropped.length })
+      return dropped.length
+    },
     connect(send, close) {
-      const c = { open: true, version: 0, subs: new Map(), send }
+      const c = { open: true, version: 0, subs: new Map(), send, close }
       clients.add(c)
       let buf = new Uint8Array(0)
       const handle = (type, flags, body) => {

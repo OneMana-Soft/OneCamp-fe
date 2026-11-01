@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { TASK_WRITES, overlay, projectOfPage, projectsIn, tasksIn, withKeptProject } from "@/lib/offline/tasks"
+import { KEPT_PARTLY, TASK_WRITES, keptPart, overlay, projectOfPage, projectsIn, taskInfoUrl, tasksIn, withKeptProject } from "@/lib/offline/tasks"
 import { statusValueOf } from "@/lib/taskStatus"
 import { PostEndpointUrl } from "@/services/endPoints"
 
@@ -87,5 +87,79 @@ describe("a project's estimate scale as a task's page brought it (asana-12)", ()
     expect(points.read({ task_estimate_points: 3 })).toBe(3)
     const shown = overlay(listed, [{ id: "t1", field: "task_estimate_points", value: 5 }]) as { data: { project_tasks: { task_estimate_points?: number }[] } }
     expect(shown.data.project_tasks[0].task_estimate_points).toBe(5)
+  })
+})
+
+describe("a task a board or list kept, opened offline (asana-12, DESIGN-BUILD-62 MUST 1)", () => {
+  const board = {
+    msg: "ok",
+    data: {
+      project_uuid: "p1",
+      project_name: "Q4 launch",
+      project_members: [{ user_uuid: "u1" }],
+      project_tasks_todo: [{ task_uuid: "t1", task_name: "Write the launch announcement", task_status: "todo", task_key: "Q4-1" }],
+      project_tasks_done: [{ task_uuid: "t2", task_name: "Draft", task_project: { project_uuid: "p9", project_name: "Elsewhere" } }],
+    },
+  }
+  const byId = (answer: unknown) => Object.fromEntries(tasksIn(answer).map((t) => [t.id, t.value]))
+
+  it("keeps each task a board shows with the board's project, a sub-task with its parent's, and a task's own project as it came", () => {
+    const kept = byId(board)
+    expect(kept.t1.task_project).toEqual({ project_uuid: "p1", project_name: "Q4 launch" })
+    expect(kept.t2.task_project).toEqual({ project_uuid: "p9", project_name: "Elsewhere" })
+    const page = { data: { task_uuid: "t3", task_project: { project_uuid: "p1", project_name: "Q4 launch", project_is_admin: 1 }, task_sub_tasks: [{ task_uuid: "t4", task_name: "Sub" }] } }
+    const fromPage = byId(page)
+    expect(fromPage.t3.task_project).toEqual(page.data.task_project)
+    expect(fromPage.t4.task_project).toEqual({ project_uuid: "p1", project_name: "Q4 launch" })
+    // An answer that names no project above its tasks (My Tasks): none is made up.
+    expect(byId({ data: [{ task_uuid: "t5" }] }).t5.task_project).toBeUndefined()
+  })
+
+  it("builds the task's page from what was kept, marked partial, with what a list never shows empty, for that task's page only", () => {
+    const task = byId(board).t1
+    const page = keptPart(taskInfoUrl("t1"), task) as { msg: string; partial: boolean; data: Record<string, unknown> }
+    expect(page).toMatchObject({
+      msg: KEPT_PARTLY,
+      partial: true,
+      data: { task_uuid: "t1", task_name: "Write the launch announcement", task_status: "todo", task_key: "Q4-1", task_project: { project_uuid: "p1" } },
+    })
+    for (const list of ["task_sub_tasks", "task_comments", "task_attachments", "task_activities"]) expect(page.data[list]).toEqual([])
+    expect(keptPart(`${taskInfoUrl("t1")}?include=estimates`, task)).toMatchObject({ partial: true })
+    expect(keptPart(taskInfoUrl("t2"), task)).toBeUndefined()
+    expect(keptPart("/project/taskList/p1", task)).toBeUndefined()
+    expect(keptPart(taskInfoUrl("t1"), undefined)).toBeUndefined()
+  })
+})
+
+// CODE-REVIEWER-140 MUST 1 (row 2178): a task's page lists what it waits on and what waits on it (task_blocked_by,
+// task_blocks), which can be another project's tasks (DG10) or ones the reader may not see (task_hidden). Only its
+// sub-tasks are in its project: a linked task kept with the page's project overwrote what its own board kept
+// (store.saveRead merges), and offline it opened under the wrong project's access.
+describe("a task page's linked tasks keep no project of the page's (CODE-REVIEWER-140 MUST 1)", () => {
+  const page = {
+    msg: "ok",
+    data: {
+      task_uuid: "t3",
+      task_project: { project_uuid: "p1", project_name: "Q4 launch" },
+      task_sub_tasks: [{ task_uuid: "t4", task_name: "Draft the brief" }],
+      task_blocked_by: [{ task_uuid: "x1", task_name: "Sign the vendor contract", task_status: "todo" }],
+      task_blocks: [{ task_uuid: "x2", task_hidden: true }],
+    },
+  }
+  const kept = Object.fromEntries(tasksIn(page).map((t) => [t.id, t.value]))
+
+  it("keeps a sub-task with its parent's project, and a task the page only links to with none", () => {
+    expect(kept.t4.task_project).toEqual({ project_uuid: "p1", project_name: "Q4 launch" })
+    expect(kept.x1.task_project).toBeUndefined()
+    expect(kept.x2.task_project).toBeUndefined()
+  })
+
+  it("keeps a linked task's own project as it came", () => {
+    const own = tasksIn({ data: { ...page.data, task_blocked_by: [{ task_uuid: "x3", task_project: { project_uuid: "p2" } }] } })
+    expect(own.find((t) => t.id === "x3")?.value.task_project).toEqual({ project_uuid: "p2" })
+  })
+
+  it("builds no page offline from a task the reader may not see", () => {
+    expect(keptPart(taskInfoUrl("x2"), { task_uuid: "x2", task_hidden: true })).toBeUndefined()
   })
 })

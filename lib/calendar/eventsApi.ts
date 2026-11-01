@@ -48,6 +48,8 @@ export interface ApiAttendee {
   note?: string
   responded_at?: string
   invite?: "sent" | "not_sent" | "failed" | "imported"
+  /** Their decline is their out of office's (calendar head 5c). */
+  out_of_office?: boolean
 }
 
 /** What an out-of-office declines, and the message each decline carries. */
@@ -87,6 +89,8 @@ export interface ApiEvent {
   email_on_answers?: boolean
   /** An out-of-office's decline rule (head 5b): read back by its owner alone. */
   out_of_office?: ApiOutOfOffice
+  /** Own time (by kind) a save keeping the guests can't become, in the server's refusal; only to who may change it (CR-113 S1). */
+  own_time_refused?: Partial<Record<string, string>>
 }
 
 /** A guest's role: required, or optional (Google's "Mark optional"). */
@@ -158,6 +162,27 @@ export const readerZone = (): string => browserTZ()
 /** The URL useFetch reads one event, series or instance from. */
 export function apiEventUrl(id: string): string {
   return `${CALENDAR_EVENTS}/${encodeURIComponent(id)}`
+}
+
+/** Its calls' "Recordings & notes"; one plays at /<key>/recording (meet-02). */
+export const eventArtefactsUrl = (id: string): string => `${apiEventUrl(id)}/call/artefacts`
+
+const artefactPath = (id: string, key: string) => `/${encodeURIComponent(id)}/call/artefacts/${encodeURIComponent(key)}`
+
+/** Deletes what one of its calls made, its recording and transcript, for whoever may change the event; soft, so Undo restores it. */
+export function deleteCallArtefactRequest(id: string, key: string, what: "recording" | "transcript") {
+  return {
+    method: "DELETE",
+    apiEndpoint: CALENDAR_EVENTS,
+    appendToUrl: artefactPath(id, key),
+    showErrorToast: true,
+    failureTitle: `Couldn't delete the ${what}`,
+  } as const
+}
+
+/** Its Undo: quiet, as the Undo toast says how it went (Retry on a 503). */
+export function restoreCallArtefactRequest(id: string, key: string) {
+  return { method: "POST", apiEndpoint: CALENDAR_EVENTS, appendToUrl: `${artefactPath(id, key)}/restore`, quiet: true } as const
 }
 
 /** One event, series or instance, as it is now: quiet, its reader says what went wrong. */
@@ -300,6 +325,18 @@ export function removeCallRequest(id: string) {
     apiEndpoint: CALENDAR_EVENTS,
     appendToUrl: `/${encodeURIComponent(id)}/call`,
     quiet: true,
+  } as const
+}
+
+/** Makes an event's guests by email knock at its call like anyone from outside, or come straight in again (meet-02). */
+export function callLobbyRequest(id: string, inviteesWait: boolean) {
+  return {
+    method: "POST",
+    apiEndpoint: CALENDAR_EVENTS,
+    appendToUrl: `/${encodeURIComponent(id)}/call/lobby`,
+    payload: { invitees_wait: inviteesWait },
+    showErrorToast: true,
+    failureTitle: "Couldn't change who waits",
   } as const
 }
 

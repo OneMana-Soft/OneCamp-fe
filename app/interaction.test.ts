@@ -377,6 +377,9 @@ function rule6(file: string, src: string): Finding[] {
 const KEYBOARD_MOVES: Array<[file: string, where: string, path: RegExp]> = [
   // The doc tree moves a row with Alt+Shift+arrows (D12), from the row's key handler.
   ["components/tree/TreeRow.tsx", "components/tree/TreeView.tsx", /e\.altKey && e\.shiftKey && e\.key\.startsWith\("Arrow"\)/],
+  // Add from OneCamp (W6-A2): a pointer drags a row to a spot on the board; the keyboard presses the row, which lays
+  // its card mid-view and selects it (layCards), and the canvas's arrow keys move a selected card.
+  ["components/board/addWorkPanel.tsx", "lib/board/cards.ts", /selectedElementIds: Object\.fromEntries\(cards\.map\(\(c\) => \[c\.id, true\]\)\)/],
   ["components/tree/TreeView.tsx", "components/tree/TreeView.tsx", /e\.altKey && e\.shiftKey && e\.key\.startsWith\("Arrow"\)/],
   // A choice's option moves with Alt+↑/↓ on its name (TB-15), the box the
   // keyboard reaches; the grip beside it is the pointer's, hidden from it.

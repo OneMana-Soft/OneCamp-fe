@@ -566,5 +566,7 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid, refreshTopic
     return {
         handleMessage,
         cleanup,
+        // What the open task views missed, read again (WCL-2).
+        catchUpWork: taskHandler.catchUpWork,
     }
 }

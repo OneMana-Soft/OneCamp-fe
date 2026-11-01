@@ -3,7 +3,6 @@
 import "@livekit/components-styles";
 import {
   LiveKitRoom,
-  GridLayout,
   RoomAudioRenderer,
   useTracks,
   useLocalParticipant,
@@ -11,12 +10,11 @@ import {
   useConnectionState,
   LayoutContextProvider,
   TrackReferenceOrPlaceholder,
-  ParticipantClickEvent,
 } from "@livekit/components-react";
 import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, ConnectionState, DisconnectReason, type Participant, type Room } from "livekit-client";
 import { isLive, type GreenRoomTracks } from "./greenRoomHandOver";
 import { liveKitCamera, liveKitMic } from "./greenRoomLiveKit";
-import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo, type MutableRefObject, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo, type CSSProperties, type MutableRefObject, type ReactNode } from "react";
 import { VideoControls, showCallFailure } from "./VideoControls";
 import type { Knock } from "@/lib/calls/lobby";
 import type { InBreakout } from "@/lib/calls/breakouts";
@@ -24,6 +22,8 @@ import { panelPeople } from "@/lib/calls/breakoutRooms";
 import { CallConnecting, CallReconnecting, CallStatusRow, CAPTIONS_BOTTOM, CaptionsNotice, CaptionsOverlay, CaptionsPill, LockedPill, PlacePill, RecordingPill, TOP_ROW_END } from "./CallStage";
 import { StageTile } from "./StageTile";
 import { captureTiles, flipTiles, type TileRects } from "./stageMotion";
+import { StageGrid, StageMore, useContentBox } from "./StageGrid";
+import { boardKey, presentationOrder, stageKey, stageLayout, type StageKey } from "@/lib/calls/stageLayout";
 import { readDevicePrefs } from "./callDevices";
 import { callRoomOptions } from "./roomOptions";
 import { callMediaFailure, connectFailureOf, type ConnectFailure } from "./callErrors";
@@ -79,6 +79,8 @@ import { useTellHeight } from "@/hooks/useTellHeight"
 import { apiErrorCode, apiErrorMessage } from "@/lib/utils/apiError"
 import { setCallTranscription } from "@/services/callService"
 import { connectedRoomName, NOT_CONNECTED_YET } from "./connectedRoom"
+import { CallInkContext, ShareInk, useCallInk } from "./callInk"
+import { useCallHues } from "./callHues"
 import { StoreProvider } from "@/components/providers/StoreProvider"
 
 /**
@@ -182,6 +184,8 @@ interface VideoConferenceProps {
 export const STAGE_FRAME =
   "px-3 pt-12 pb-[max(6rem,var(--call-captions-room,0px))] @3xl:pb-[max(84px,var(--call-captions-room,0px))] @7xl:pb-[max(100px,var(--call-captions-room,0px))]"
 
+/** A track's place on the stage, as its tile's data-flip-key (stageLayout). */
+const trackKey = (t: TrackReferenceOrPlaceholder) => stageKey(t.participant.identity, t.source);
 /** How far the tiles end from the window's right edge: an open side column's width. */
 const stageRight = (box: DOMRect) => window.innerWidth - box.right
 /** How far the stage ends above the window's foot (the captions' floor). */
@@ -541,17 +545,19 @@ function MyVideoConference({
   ).filter(t => t.participant.identity !== 'transcriber-bot');
 
   const room = useRoomContext();
+  // Each person's colour in the call (V-190): a caption's name matches their tile and their ink.
+  const callHue = useCallHues();
   // The call's state, from the room's metadata (the server writes it):
   // whether it is recorded, captioned, locked, and who is in the spotlight
   // (callState).
   const meta = useCallMetadata(room);
 
   const [layout, setLayout] = useState<'grid' | 'speaker'>('grid');
-  const [focusedTrack, setFocusedTrack] = useState<TrackReferenceOrPlaceholder | null>(null);
-  const screenShareTrack = tracks.find(t => t.source === Track.Source.ScreenShare);
-
-  // Use a stable ID to prevent re-triggering effect on every render or manual focus change
-  const screenShareId = screenShareTrack ? `${screenShareTrack.participant.identity}-${screenShareTrack.source}` : undefined;
+  // What you pinned on the stage for yourself (Stage Layout): a share or a
+  // board that begins takes the stage from it.
+  const [pin, setPin] = useState<StageKey | null>(null);
+  // The grid's page, from 0: past the last, stageLayout shows the last.
+  const [page, setPage] = useState(0);
 
   const { localParticipant } = useLocalParticipant();
   // Force cleanup of tracks on unmount to ensure camera light turns off
@@ -572,16 +578,6 @@ function MyVideoConference({
   // LiveKit Cloud): enabling it causes 404 errors on /settings. LiveKit's own
   // noise suppression and voice isolation run instead (roomOptions).
 
-  useEffect(() => {
-    if (screenShareTrack) {
-        setFocusedTrack(screenShareTrack);
-        setLayout('speaker');
-    } else {
-        setFocusedTrack(prev => (prev?.source === Track.Source.ScreenShare ? null : prev));
-        // Don't auto-switch back to grid, let user decide or stay in speaker if they want
-    }
-  }, [screenShareId]);
-
   const [activeSpeakerTrack, setActiveSpeakerTrack] = useState<TrackReferenceOrPlaceholder | null>(null);
 
   // Smooth Active Speaker Switching: Debounce updates to prevent rapid switching
@@ -601,74 +597,13 @@ function MyVideoConference({
     }
   }, [tracks, activeSpeakerTrack]);
 
-  const onParticipantClick = (evt: ParticipantClickEvent) => {
-      let trackPublication = evt.track;
-      let trackSource = evt.track?.source;
-
-      if (!trackPublication) {
-          const participantTracks = tracks.filter(t => t.participant.identity === evt.participant.identity);
-          const screenShare = participantTracks.find(t => t.source === Track.Source.ScreenShare);
-          const camera = participantTracks.find(t => t.source === Track.Source.Camera);
-
-          if (screenShare) {
-              trackPublication = screenShare.publication;
-              trackSource = screenShare.source;
-          } else if (camera) {
-              trackPublication = camera.publication;
-              trackSource = camera.source;
-          }
-      }
-
-      if (!trackPublication || !trackSource) return;
-
-      const track: TrackReferenceOrPlaceholder = {
-          participant: evt.participant,
-          source: trackSource,
-          publication: trackPublication,
-      };
-
-      if (layout === 'grid') {
-          // In Grid View, always switch to Speaker View and focus the clicked track
-          setFocusedTrack(track);
-          setLayout('speaker');
-          return;
-      }
-
-      // In Speaker View:
-      if (focusedTrack?.participant.identity === track.participant.identity && focusedTrack.source === track.source) {
-          // Unpinning - just clear explicit focus, stay in current layout (fallback to active speaker)
-          setFocusedTrack(null);
-      } else {
-          // Pinning - switch focus to new track
-          setFocusedTrack(track);
-      }
-  };
-
-  // Determine what to show in Speaker View if nothing is explicitly pinned
-  let autoSelection = activeSpeakerTrack;
-
-  if (screenShareTrack) {
-      // If screen share is active, it takes priority UNLESS someone *else* is speaking.
-      // If the presenter (screen sharer) is speaking, we still want to see their content, not their face flapping in and out.
-      if (!activeSpeakerTrack || activeSpeakerTrack.participant.identity === screenShareTrack.participant.identity) {
-          autoSelection = screenShareTrack;
-      }
-  }
-
   // Whoever the people running the call put in the spotlight is everyone's
-  // stage, unless a screen is being shared or you pinned someone yourself.
+  // stage, unless something is presented or you pinned someone yourself
+  // (stageLayout).
   const spotlightIdentity = meta.spotlight?.identity;
-  const spotlightTrack = !screenShareTrack && spotlightIdentity
-    ? tracks.find((t) => t.participant.identity === spotlightIdentity && t.source === Track.Source.Camera) ?? null
-    : null;
   useEffect(() => {
     if (spotlightIdentity) setLayout('speaker');
   }, [spotlightIdentity]);
-
-  const effectiveFocusedTrack = focusedTrack ||
-                                spotlightTrack ||
-                                autoSelection ||
-                                (tracks.length > 0 ? tracks[0] : null);
 
   const connection = useConnectionState(room);
   const reconnecting = connection === ConnectionState.Reconnecting;
@@ -892,6 +827,8 @@ function MyVideoConference({
   // Who is in the call, and the reactions on the stage (step 3, part 2).
   const people = useCallPeople();
   const reactions = useCallReactions(room);
+  // Annotation on Call Signals (meet-14, zoom-03): ink over a screen someone shares, drawn on the stage.
+  const ink = useCallInk(room);
 
   // Unread indicator: count exchanges that arrived while the panel was closed
   // so we can badge the AI button (and clear it when the panel opens).
@@ -951,10 +888,6 @@ function MyVideoConference({
   const presenterName = meta.board ? (people.find((p) => p.identity === meta.board?.by)?.name ?? "Someone") : "";
   const guestsInCall = people.some((p) => p.guest);
   const [pickingBoard, setPickingBoard] = useState(false);
-  // A board going up takes the stage from whoever you pinned, as a share does.
-  useEffect(() => {
-    if (boardOn?.uuid) setFocusedTrack(null);
-  }, [boardOn?.uuid]);
   const onAction = useCallback(
     (a: PersonAction, p?: Participant) => {
       const t = p ? targetOf(p) : undefined;
@@ -1026,104 +959,171 @@ function MyVideoConference({
   // their first join, whichever room they are in now.
   const joinedAt = kept.joinedAt;
 
+  // The stage (Stage Layout, A4, #54): what is presented, in the order it
+  // began, and what the stage draws of everyone in the room its frame leaves
+  // (stageLayout). A share or a board that begins takes the stage from your
+  // pin, and from the grid.
+  const tilesRef = useRef<HTMLDivElement>(null);
+  const stageBox = useContentBox(tilesRef);
+  const board = boardOn ? boardKey(boardOn.uuid) : null;
+  const sharing = tracks.filter((t) => t.source === Track.Source.ScreenShare).map(trackKey);
+  const [presented, setPresented] = useState<StageKey[]>([]);
+  const presenting = presentationOrder(presented, board ? [...sharing, board] : sharing);
+  useLayoutEffect(() => {
+    if (presenting.order === presented) return;
+    setPresented(presenting.order);
+    if (presenting.began) {
+      setPin(null);
+      setLayout('speaker');
+    }
+  }, [presenting.order, presenting.began, presented]);
+  const byKey = new Map(tracks.map((t) => [trackKey(t), t]));
+  const stage = stageLayout({
+    tiles: tracks.filter((t) => t.source === Track.Source.Camera).map(trackKey),
+    presenting: presenting.order,
+    board,
+    pin,
+    spotlight: spotlightIdentity ? stageKey(spotlightIdentity, Track.Source.Camera) : null,
+    speaker: activeSpeakerTrack ? trackKey(activeSpeakerTrack) : null,
+    mode: layout,
+    viewport: stageBox,
+    page,
+  });
+  // A tile pressed in the grid goes on the stage, pinned; on the stage,
+  // pressing your pin again lets it go.
+  const show = (key: StageKey) => {
+    setPin(key);
+    setLayout('speaker');
+  };
+  const togglePin = (key: StageKey) => setPin((p) => (p === key ? null : key));
+
   // The stage's reflow: tiles slide to their new places when the set of
-  // tiles or the layout changes (stageMotion).
+  // tiles or the layout changes (stageMotion). Nothing slides into the
+  // stage's first drawing, before it is measured.
   const stageRef = useRef<HTMLDivElement>(null);
   const lastRects = useRef<TileRects>(new Map());
-  const tileKey = `${layout}|${tracks.map((t) => `${t.participant.identity}|${t.source}`).join(",")}|${effectiveFocusedTrack ? effectiveFocusedTrack.participant.identity + effectiveFocusedTrack.source : ""}`;
+  const measured = stageBox.w > 0 && stageBox.h > 0;
+  const tileKey = `${layout}|${stage.focus.keys.join(",")}|${stage.grid?.keys.join(",") ?? ""}|${stage.strip.keys.join(",")}|${stage.strip.more}`;
   useLayoutEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    flipTiles(stage, lastRects.current);
-    lastRects.current = captureTiles(stage);
-  }, [tileKey]);
+    const stageEl = stageRef.current;
+    if (!stageEl) return;
+    if (!measured) {
+      lastRects.current = new Map();
+      return;
+    }
+    flipTiles(stageEl, lastRects.current);
+    lastRects.current = captureTiles(stageEl);
+  }, [tileKey, measured]);
   // The app's toasts stay over the stage, clear of the side column: a notice
   // covered the chat's held line at 1280 (DESIGN-BUILD-18, 26 Oct).
-  const tilesRef = useRef<HTMLDivElement>(null);
-  const focusLayout = layout === 'speaker' && !!effectiveFocusedTrack;
-  useRootPlace("--call-stage-right", tilesRef, stageRight, focusLayout || !!boardOn);
+  useRootPlace("--call-stage-right", tilesRef, stageRight);
   useRootPlace("--call-stage-foot", stageRef, stageFoot);
   // On a phone, while a sheet covers the dock, they come in 12px under the top
   // row (app/phone.css C9): under the bar, one covered the place pill (DESIGN-BUILD-20).
   const callRef = useRef<HTMLDivElement>(null);
   useRootPlace("--call-top", callRef, topRowEnd);
 
-  const sameTrack = (a: TrackReferenceOrPlaceholder, b: TrackReferenceOrPlaceholder) => a.participant.identity === b.participant.identity && a.source === b.source;
-  // The strip beside the stage's one big thing: whatever else it offers first
-  // (the board, while you look at a person), then the others, each a button
-  // that shows them: the thumbnails were clickable divs the keyboard couldn't reach.
-  // Beside a board on a phone's width (under @lg) it would leave the board two
-  // thirds of the stage and cut every name: the board fills the stage there,
-  // and the people are in People (DESIGN-BUILD-23, 27 Oct).
-  const strip = (others: TrackReferenceOrPlaceholder[], first?: ReactNode, besideBoard = false) =>
-    others.length > 0 || first ? (
-      <div className={cn("h-full w-[104px] shrink-0 flex-col gap-2 overflow-y-auto @2xl:w-[200px]", besideBoard ? "hidden @lg:flex" : "flex")} data-stage-strip="">
-        {first}
-        {others.map((track) => (
-          <button
-            type="button"
-            key={track.participant.identity + track.source}
-            aria-label={`Show ${track.participant.name || track.participant.identity}`}
-            className="relative aspect-video w-full shrink-0 rounded-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-            onClick={() => onParticipantClick({ participant: track.participant, track: track.publication } as ParticipantClickEvent)}
-          >
-            <StageTile trackRef={track} size="sm" />
-          </button>
-        ))}
+  // What each place on the stage draws: a person's camera or screen, or the
+  // board. A guest opens the board through their own call token.
+  const boardStage = boardOn ? (
+    guest && callToken ? (
+      <CallGuestBoardStage
+        board={boardOn}
+        presenter={presenterName}
+        callToken={callToken}
+        me={{ identity: localParticipant.identity, name: localParticipant.name || localParticipant.identity }}
+      />
+    ) : (
+      <CallBoardStage
+        board={boardOn}
+        presenter={presenterName}
+        controls={boardRules ?? { present: null, stop: false, run: false, mine: false }}
+        guestsInCall={guestsInCall}
+        act={hosting.act}
+      />
+    )
+  ) : null;
+  // The board as a place in the strip or the grid: a button that puts it on the stage.
+  const boardPlace = (className: string, style?: CSSProperties) => (
+    <button
+      type="button"
+      key={board ?? "board"}
+      style={style}
+      aria-label="Show the board"
+      className={cn("grid place-items-center gap-1 rounded-[14px] bg-[#16171A] p-2 text-center text-ui-sm text-[#EEEEF0] ring-1 ring-inset ring-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand", className)}
+      onClick={() => {
+        if (board) show(board);
+      }}
+    >
+      <span className="line-clamp-2">{presenterName}&apos;s board</span>
+    </button>
+  );
+  const onStage = (key: StageKey) => {
+    if (key === board) return boardStage;
+    const track = byKey.get(key);
+    if (!track) return null;
+    // A shared screen on the stage carries its ink, on the share's own frame (callInk).
+    const dims = track.source === Track.Source.ScreenShare ? track.publication?.dimensions : undefined;
+    const layer =
+      track.source === Track.Source.ScreenShare ? (
+        <CallInkContext.Provider value={ink}>
+          <ShareInk share={key} name={track.participant.name || track.participant.identity} frame={dims ? { w: dims.width, h: dims.height } : undefined} />
+        </CallInkContext.Provider>
+      ) : undefined;
+    return <StageTile trackRef={track} size="lg" contain pinned={pin === key} onPin={() => togglePin(key)} layer={layer} {...tileActions} />;
+  };
+  const inGrid = (key: StageKey) => {
+    if (key === board) return boardPlace("h-full w-full");
+    const track = byKey.get(key);
+    return track ? <StageTile trackRef={track} onParticipantClick={() => show(key)} {...tileActions} /> : null;
+  };
+  // The strip beside the stage's focus: whoever fits, each a button that shows
+  // them (the thumbnails were clickable divs the keyboard couldn't reach),
+  // then "+N", which opens the grid of everyone. Beside a board on a phone's
+  // width it would leave the board two thirds of the stage and cut every
+  // name: the board fills the stage there, and the people are in People
+  // (DESIGN-BUILD-23, 27 Oct; stageLayout leaves that strip empty). Under a
+  // share on a phone's stage the strip is a row, so the share has the stage's
+  // width (stageLayout, V-233).
+  // Every place in the strip is the size the layout says: a phone's are square, so a face and its plate both fit.
+  const stripPlace: CSSProperties = { width: stage.strip.tile.w, height: stage.strip.tile.h };
+  const strip =
+    stage.strip.keys.length > 0 || stage.strip.more > 0 ? (
+      <div
+        className={cn("flex shrink-0 gap-2 overflow-hidden", stage.strip.below ? "justify-center" : "h-full flex-col")}
+        style={stage.strip.below ? { height: stage.strip.tile.h } : { width: stage.strip.w }}
+        data-stage-strip={stage.strip.below ? "below" : "beside"}
+      >
+        {stage.strip.keys.map((key) => {
+          if (key === board) return boardPlace("shrink-0", stripPlace);
+          const track = byKey.get(key);
+          if (!track) return null;
+          const name = track.participant.name || track.participant.identity;
+          return (
+            <button
+              type="button"
+              key={key}
+              aria-label={track.source === Track.Source.ScreenShare ? `Show ${name}'s screen` : `Show ${name}`}
+              className="relative shrink-0 rounded-[14px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              style={stripPlace}
+              onClick={() => togglePin(key)}
+            >
+              <StageTile trackRef={track} size="sm" />
+            </button>
+          );
+        })}
+        {stage.strip.more > 0 ? (
+          <StageMore
+            more={stage.strip.more}
+            style={stripPlace}
+            onShow={() => {
+              setLayout('grid');
+              setPage(0);
+            }}
+          />
+        ) : null}
       </div>
     ) : null;
-  // The stage's one big thing: the board on the stage, as a share takes the
-  // focus slot, else the focused tile; everyone else goes to the strip.
-  const focus = boardOn && !focusedTrack
-    ? {
-        key: `board:${boardOn.uuid}`,
-        node:
-          guest && callToken ? (
-            <CallGuestBoardStage
-              board={boardOn}
-              presenter={presenterName}
-              callToken={callToken}
-              me={{ identity: localParticipant.identity, name: localParticipant.name || localParticipant.identity }}
-            />
-          ) : (
-            <CallBoardStage
-              board={boardOn}
-              presenter={presenterName}
-              controls={boardRules ?? { present: null, stop: false, run: false, mine: false }}
-              guestsInCall={guestsInCall}
-              act={hosting.act}
-            />
-          ),
-        strip: strip(tracks, undefined, true),
-      }
-    : focusLayout && effectiveFocusedTrack
-      ? {
-          key: effectiveFocusedTrack.participant.identity + effectiveFocusedTrack.source,
-          node: (
-            <StageTile
-              trackRef={effectiveFocusedTrack}
-              size="lg"
-              contain
-              pinned={!!focusedTrack && sameTrack(focusedTrack, effectiveFocusedTrack)}
-              onPin={() => setFocusedTrack(focusedTrack ? null : effectiveFocusedTrack)}
-              {...tileActions}
-            />
-          ),
-          strip: strip(
-            tracks.filter((t) => !sameTrack(t, effectiveFocusedTrack)),
-            boardOn ? (
-              <button
-                type="button"
-                aria-label="Show the board"
-                className="grid aspect-video w-full shrink-0 place-items-center gap-1 rounded-[14px] bg-[#16171A] p-2 text-center text-ui-sm text-[#EEEEF0] ring-1 ring-inset ring-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                onClick={() => setFocusedTrack(null)}
-              >
-                <span className="line-clamp-2">{presenterName}&apos;s board</span>
-              </button>
-            ) : null,
-          ),
-        }
-      : null;
   // A member in browser mode chooses for their own voice; a guest has no recogniser to stop.
   const captioningMe = !guest && browserCaptions ? !notMe : undefined;
   const toggleMe = !guest && browserCaptions ? () => setNotMe((v) => !v) : undefined;
@@ -1162,24 +1162,33 @@ function MyVideoConference({
 
         {/* Said once each time who waits changes, while the bar shows it. */}
         <div ref={stageRef} className={cn("relative flex flex-1 overflow-hidden transition-opacity duration-200", reconnecting && "opacity-70")} style={{ paddingBottom: barRoom || undefined, ["--call-captions-room" as string]: captionsHeight ? `calc(${CAPTIONS_BOTTOM} + ${captionsHeight + 8}px)` : undefined }}>
-            {focus ? (
-                <div ref={tilesRef} className={cn("flex h-full w-full gap-2", STAGE_FRAME)}>
-                    <div className="hub-fade-in relative min-w-0 flex-1" key={focus.key}>
-                        {focus.node}
+            {/* One frame for the grid and the focus, measured for stageLayout. */}
+            <div ref={tilesRef} className={cn("h-full w-full", STAGE_FRAME)} data-stage-layout={stage.grid ? "grid" : "focus"}>
+                {stage.grid ? (
+                    <StageGrid grid={stage.grid} cell={inGrid} onPage={setPage} />
+                ) : stage.focus.keys.length > 0 ? (
+                    <div className={cn("flex h-full w-full gap-2", stage.strip.below && "flex-col")}>
+                        <div
+                            className="hub-fade-in relative grid min-h-0 min-w-0 flex-1 gap-2"
+                            key={stage.focus.keys.join(",")}
+                            data-stage-focus=""
+                            style={{ gridTemplateColumns: `repeat(${stage.focus.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${stage.focus.rows}, minmax(0, 1fr))` }}
+                        >
+                            {stage.focus.keys.map((key) => (
+                                <div key={key} className="relative min-h-0 min-w-0">
+                                    {onStage(key)}
+                                </div>
+                            ))}
+                        </div>
+                        {strip}
                     </div>
-                    {focus.strip}
-                </div>
-            ) : (
-                    <div ref={tilesRef} className={cn("h-full w-full [&_.lk-grid-layout]:gap-2 [&_.lk-grid-layout]:p-0", STAGE_FRAME)}>
-                        <GridLayout tracks={tracks}>
-                            <StageTile onParticipantClick={onParticipantClick} {...tileActions} />
-                        </GridLayout>
-                    </div>
-            )}
+                ) : null}
+            </div>
 
             {/* Captions, read out as they change. */}
             {showCaptions && (
                 <CaptionsOverlay
+                    hueOf={callHue}
                     lift={barRoom}
                     boxRef={captionsBox}
                     idleMessage={captionMessage(captionState, { notMe, browser: browserCaptions, guest })}

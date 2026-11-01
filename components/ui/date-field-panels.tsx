@@ -26,6 +26,20 @@ const QUICK_DAYS = [
   { label: "Next week", days: 7 },
 ]
 
+/**
+ * The quick days from now, each at its local midnight: the picker's own row,
+ * and the palette's due date for a selection (linear-28 H1b), so the two
+ * offer the same days.
+ */
+export function quickDays(now: Date = new Date()): { label: string; day: Date }[] {
+  return QUICK_DAYS.map((q) => {
+    const day = new Date(now)
+    day.setHours(0, 0, 0, 0)
+    day.setDate(day.getDate() + q.days)
+    return { label: q.label, day }
+  })
+}
+
 /** Formats a typed date may take, day first as every date the app writes; month first only where day first can't be. No year is this year. */
 const TYPED = ["d/M/yyyy", "yyyy-M-d", "d MMM yyyy", "d MMMM yyyy", "MMM d, yyyy", "M/d/yyyy", "d/M", "M/d"]
 
@@ -82,11 +96,7 @@ export function DatePanel({ day, from, to, clearable, sheet, onPick, onClear }: 
     // Once, as the picker opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const quick = QUICK_DAYS.map((q) => {
-    const d = new Date(today)
-    d.setDate(d.getDate() + q.days)
-    return { ...q, day: d }
-  }).filter((q) => inRange(q.day))
+  const quick = quickDays(today).filter((q) => inRange(q.day))
   return (
     <div ref={root} data-date-panel="" className={cn("flex flex-col", sheet && "w-full")}>
       <div className={sheet ? "px-4 pt-2" : "px-3 pt-3"}>

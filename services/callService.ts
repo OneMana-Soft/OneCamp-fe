@@ -59,7 +59,7 @@ export function callReadKeyOf(state: unknown): string {
  */
 export async function actInCall(
     sessionId: string,
-    act: { action: CallAction; identity?: string; source?: string; on?: boolean; what?: CallHold; feedback?: string; ticket?: string; board?: string; draw?: CallBoard["draw"]; rooms?: string[]; room?: number; minutes?: number; text?: string },
+    act: { action: CallAction; identity?: string; source?: string; on?: boolean; what?: CallHold; feedback?: string; ticket?: string; board?: string; draw?: CallBoard["draw"]; slide?: string; rooms?: string[]; room?: number; minutes?: number; text?: string },
 ): Promise<{ affected: number }> {
     const res = await axiosInstance.post(`/calls/${encodeURIComponent(sessionId)}/act`, act, OWN_ERRORS)
     return (res.data as { data?: { affected: number } })?.data ?? { affected: 0 }

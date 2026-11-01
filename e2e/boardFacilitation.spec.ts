@@ -1,10 +1,12 @@
 import { expect, test, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test"
 import { USERS, collabFor, fakeApp } from "../scripts/fluidity/fakeApp.mjs"
+import { authFrame, awarenessFrame } from "../scripts/fluidity/fakeCollab.mjs"
 import { displayNameOf } from "../lib/personName"
 import { boardDoc, boardDocName, boardFixtures, note, ordered } from "../scripts/fluidity/fakeBoard.mjs"
-import { boxOf, type Box } from "./boxes"
+import { boxOf, overlap, type Box } from "./boxes"
 import { CHUNKS, routeChunks, type ChunkAnswer } from "./holdChunk"
 import { settled } from "./sheetLayout"
+import { SHOT_THEMES, reviewShot } from "./stubbedApp"
 
 // The facilitation bar (components/board/boardFacilitation): a round of
 // voting, a timer and presenting, from one bar at the board's foot. On a
@@ -44,11 +46,11 @@ function shareBoard(levels: Record<string, string> = LEVELS, third = false) {
 async function open(
   browser: Browser,
   device: keyof typeof DEVICES,
-  o: { on?: ReturnType<typeof shareBoard>; user?: typeof USERS.sam; route?: (context: BrowserContext) => Promise<void> } = {},
+  o: { on?: ReturnType<typeof shareBoard>; user?: typeof USERS.sam; route?: (context: BrowserContext) => Promise<void>; theme?: (typeof SHOT_THEMES)[number] } = {},
 ) {
   const { board, collab } = o.on ?? shareBoard()
   const user = o.user ?? USERS.sam
-  const context = await browser.newContext(DEVICES[device])
+  const context = await browser.newContext({ ...DEVICES[device], ...(o.theme ? { colorScheme: o.theme } : {}) })
   await context.addInitScript(
     (key: string) => {
       try {
@@ -86,16 +88,18 @@ async function open(
  * 29 Oct). A name may give way (data-bar-name), but it keeps its first letter and its "…". Each call
  * prints the bar's segments, for the record.
  */
-async function whole(page: Page, width: number) {
+async function whole(page: Page, width: number, o: { wordsOnly?: boolean } = {}) {
   const bar = page.getByRole("toolbar", { name: "Facilitation" })
   const box = await boxOf(bar)
   expect(box.height, "one row").toBeLessThanOrEqual(44.5)
   expect(box.x).toBeGreaterThanOrEqual(0)
   expect(box.x + box.width).toBeLessThanOrEqual(width)
   expect(await bar.evaluate((el) => el.scrollWidth - el.clientWidth), "the bar scrolls").toBeLessThanOrEqual(0.5)
-  // A viewer's bar may hold no button, only its words and the timer: each of them is whole inside the bar.
+  // A viewer's bar may hold no button, only its words and the timer: each of them is whole inside the bar. A held
+  // viewer's holds its words alone, since only the presenter lets everyone move (miro-21 3).
   const controls = await bar.getByRole("button").or(bar.getByRole("timer")).all()
-  expect(controls.length).toBeGreaterThan(0)
+  if (o.wordsOnly) expect(controls.length, "a held bar offers no way out").toBe(0)
+  else expect(controls.length).toBeGreaterThan(0)
   for (const control of controls) {
     const c = await boxOf(control)
     const name = (await control.getAttribute("aria-label")) ?? (await control.innerText())
@@ -529,4 +533,191 @@ test("on a phone, a viewer whose bar can't come sees nothing until a round start
   oneDock(await boxOf(vic.bar), there)
   await ann.context.close()
   await vic.context.close()
+})
+
+// Attention (miro-21): bring everyone to your view once, without presenting, and hold the people following a
+// presenter on the presenter's view until the presenter lets them move. Ann works from a computer, Vic (a viewer)
+// from a phone with touch, so one run covers 1280 and 390.
+
+/** The board's camera as the board keeps it (saved ~400 ms after it moves). */
+const cameraOf = (page: Page) =>
+  page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null") as { scrollX: number; scrollY: number; zoom: number } | null, `onecamp:board:viewport:${BOARD}`)
+
+/** The board point in the middle of this screen's canvas: two screens showing the same place agree on it. */
+async function centreOf(page: Page) {
+  const cam = (await cameraOf(page))!
+  const box = (await page.locator(".excalidraw canvas.interactive").boundingBox())!
+  return { x: box.width / 2 / cam.zoom - cam.scrollX, y: box.height / 2 / cam.zoom - cam.scrollY }
+}
+
+/** Whether two screens look at the same middle, within a couple of board units. */
+async function sameMiddle(a: Page, b: Page) {
+  const [p, q] = [await centreOf(a), await centreOf(b)]
+  return Math.abs(p.x - q.x) < 2 && Math.abs(p.y - q.y) < 2
+}
+
+/** Scroll the board on this screen, as a wheel or a trackpad does. */
+async function scrollBoard(page: Page, dy: number) {
+  const box = (await page.locator(".excalidraw canvas.interactive").boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.wheel(0, dy)
+}
+
+for (const theme of SHOT_THEMES) {
+test(`Bring everyone here moves every screen to the bringer's view once, and Go back returns there (${theme})`, async ({ browser }) => {
+  test.setTimeout(150_000)
+  const on = shareBoard({ vic: "view", ann: "edit" })
+  const ANN = displayNameOf(USERS.ann)
+  const ann = await open(browser, "computer", { on, user: USERS.ann, theme })
+  const vic = await open(browser, "phone", { on, user: USERS.vic, theme })
+  await expect.poll(async () => (await cameraOf(vic.page))?.scrollY ?? null).toBe(0)
+
+  // Ann looks somewhere else, then brings everyone there from Here now.
+  await scrollBoard(ann.page, 900)
+  await expect.poll(async () => (await cameraOf(ann.page))?.scrollY ?? 0, { timeout: 10_000 }).toBeLessThan(-200)
+  await ann.page.locator("[data-presence-stack]").click()
+  await expect(ann.page.getByRole("button", { name: "Bring everyone here" })).toBeVisible()
+  await reviewShot(ann.page, "board-bring-list", theme)
+  await ann.page.getByRole("button", { name: "Bring everyone here" }).click()
+  await expect(ann.page.locator(".toast-root").filter({ hasText: "Everyone here now sees what you see" })).toBeVisible()
+
+  // Vic's phone shows the middle of what Ann sees, fitted to the phone, and says who brought him.
+  await expect.poll(() => sameMiddle(ann.page, vic.page), { timeout: 10_000, message: "the phone shows the middle of Ann's view" }).toBe(true)
+  // The toast itself (Radix's role=status is only a hidden copy for screen readers, gone after a second).
+  const toast = vic.page.locator(".toast-root").filter({ hasText: `${ANN} brought everyone here` })
+  await expect(toast).toBeVisible()
+  // The toast's card is whole on the phone (what a person sees: its root is a shell the stack moves); an idle
+  // viewer has no facilitation bar to measure.
+  const t = await boxOf(toast.locator(".toast-card"))
+  expect(t.x, "the toast starts inside the phone").toBeGreaterThanOrEqual(0)
+  expect(t.x + t.width, "the toast ends inside the phone").toBeLessThanOrEqual(390)
+  expect(t.y + t.height, "the toast ends above the phone's foot").toBeLessThanOrEqual(vic.page.viewportSize()!.height)
+  // One floating control at a time on the phone's foot (design review, 1 Nov: the toast covered half of it). Ann
+  // looks at empty board, so the phone offers Excalidraw's "Scroll back to content", and the toast stands clear above it.
+  const pill = await boxOf(vic.page.locator(".excalidraw .scroll-back-to-content"))
+  expect(overlap(t, pill), "the toast keeps off Scroll back to content").toBeNull()
+  expect(pill.y - (t.y + t.height), "the toast stands at least 8 px above Scroll back to content").toBeGreaterThanOrEqual(8)
+  await reviewShot(vic.page, "board-brought", theme)
+
+  // Once: Ann moving on doesn't take him along.
+  await scrollBoard(ann.page, 600)
+  await vic.page.waitForTimeout(1500)
+  expect(await sameMiddle(ann.page, vic.page), "a bring is once, not following").toBe(false)
+
+  // Go back returns him to where he was.
+  await toast.getByRole("button", { name: "Go back" }).tap()
+  await expect.poll(async () => (await cameraOf(vic.page))?.scrollY ?? null, { timeout: 10_000 }).toBe(0)
+  await vic.context.close()
+  await ann.context.close()
+})
+
+test(`a presenter holds everyone on their view: a held phone comes back when moved, until the presenter lets everyone move (${theme})`, async ({ browser }) => {
+  test.setTimeout(150_000)
+  const on = shareBoard({ vic: "view", ann: "edit" })
+  const ANN = displayNameOf(USERS.ann)
+  const ann = await open(browser, "computer", { on, user: USERS.ann, theme })
+  const vic = await open(browser, "phone", { on, user: USERS.vic, theme })
+  // The phone looks somewhere else first, so following has somewhere to take it.
+  await scrollBoard(vic.page, 700)
+  await expect.poll(() => sameMiddle(ann.page, vic.page), { message: "the phone looks elsewhere before anyone presents" }).toBe(false)
+
+  await ann.bar.getByRole("button", { name: "Present", exact: true }).click()
+  // Following starts on Ann's view though nothing else changes: her pointer stays on the bar's button, off the canvas.
+  // The follow used to wait for this screen's view, read a render after following started, then for Ann's next
+  // change, so the phone said "Following" from where it was (V-258).
+  await expect(vic.bar).toContainText(`Following ${ANN}`)
+  await expect.poll(() => sameMiddle(ann.page, vic.page), { timeout: 10_000, message: "the phone is taken to the presenter's view as presenting starts" }).toBe(true)
+  // Vic says no first: moving the board stops following, as in Miro.
+  await scrollBoard(vic.page, 700)
+  await expect(vic.bar).toContainText(`${ANN} is presenting`)
+  // Holding everyone takes back those who said no.
+  await ann.bar.getByRole("button", { name: "Hold everyone", exact: true }).click()
+  await expect(ann.bar.getByRole("button", { name: "Let everyone move", exact: true })).toBeVisible()
+  await expect(vic.bar).toContainText(`Following ${ANN}`)
+  await expect(vic.bar).toContainText("held")
+  await whole(vic.page, 390, { wordsOnly: true })
+  await whole(ann.page, 1280)
+  await reviewShot(ann.page, "board-holding", theme)
+  await reviewShot(vic.page, "board-held", theme)
+
+  // Held: no way to stop following on the phone (its bar holds words alone, above), and moving the board brings it
+  // back to Ann's view.
+  await expect.poll(() => sameMiddle(ann.page, vic.page), { timeout: 10_000 }).toBe(true)
+  await scrollBoard(vic.page, 700)
+  await expect.poll(() => sameMiddle(ann.page, vic.page), { timeout: 10_000, message: "a held screen comes back to the presenter's view" }).toBe(true)
+  await expect(vic.bar).toContainText(`Following ${ANN}`)
+
+  // Ann lets everyone move: now moving the board stops following, and the phone stays where Vic took it.
+  await ann.bar.getByRole("button", { name: "Let everyone move", exact: true }).click()
+  await expect(vic.bar).not.toContainText("held")
+  await scrollBoard(vic.page, 700)
+  await expect(vic.bar).toContainText(`${ANN} is presenting`)
+  await vic.page.waitForTimeout(1500)
+  expect(await sameMiddle(ann.page, vic.page), "a released screen stays where it was moved").toBe(false)
+  await vic.context.close()
+  await ann.context.close()
+})
+}
+
+// A tab that opens after a bring is never moved by it (CODE-REVIEWER-149's negative case, V-220), on the real sync
+// path: Ann's bring is still in her awareness state when the tab comes, and the tab only marks it seen.
+test("a tab that opens after a bring stays where it opened, with no toast", async ({ browser }) => {
+  test.setTimeout(150_000)
+  const on = shareBoard({ vic: "view", ann: "edit" })
+  const ANN = displayNameOf(USERS.ann)
+  const ann = await open(browser, "computer", { on, user: USERS.ann })
+  const vic = await open(browser, "phone", { on, user: USERS.vic })
+  await expect.poll(async () => (await cameraOf(vic.page))?.scrollY ?? null).toBe(0)
+  await scrollBoard(ann.page, 900)
+  await expect.poll(async () => (await cameraOf(ann.page))?.scrollY ?? 0, { timeout: 10_000 }).toBeLessThan(-200)
+  await ann.page.locator("[data-presence-stack]").click()
+  await ann.page.getByRole("button", { name: "Bring everyone here" }).click()
+  await expect.poll(() => sameMiddle(ann.page, vic.page), { timeout: 10_000, message: "the bring reached the phone" }).toBe(true)
+
+  // Vic opens the board again, on a computer. Its Here now names Ann once her awareness, the bring in it, has come.
+  const late = await open(browser, "computer", { on, user: USERS.vic })
+  await expect.poll(async () => (await cameraOf(late.page))?.scrollY ?? null, { message: "the new tab opens at the board's start" }).toBe(0)
+  await expect(late.page.locator("[data-presence-stack]")).toHaveAttribute("aria-label", new RegExp(ANN), { timeout: 15_000 })
+  // Long enough for a wrong move to land and be saved (the board keeps its camera ~400 ms after a move).
+  await late.page.waitForTimeout(1500)
+  expect((await cameraOf(late.page))?.scrollY ?? null, "a tab that opens after a bring stays where it opened").toBe(0)
+  await expect(late.page.locator(".toast-root").filter({ hasText: "brought everyone here" })).toHaveCount(0)
+  for (const c of [late, vic, ann]) await c.context.close()
+})
+
+// Only an editor presents, holds everyone or brings everyone (main's ruling, 1 Nov): the relay stamps each person's
+// user with edit from the board's member list (the collaboration service's presenceGuard.js), and a screen honours
+// presenting, a hold and a bring only from edit: true. This fake relay stamps as the service does but, unlike it,
+// passes a reader's presenting and bring on, so this proves the screens' own check. Vic may only view; his tab, run
+// from the test outside any browser, claims an editor's user, presents with a hold and brings everyone to a far view.
+test("a viewer's tab claiming to present, hold and bring everyone moves nobody, on a computer or a phone", async ({ browser }) => {
+  test.setTimeout(150_000)
+  const on = shareBoard({ ann: "edit", sam: "view", vic: "view" })
+  const VIC = displayNameOf(USERS.vic)
+  const ann = await open(browser, "computer", { on, user: USERS.ann })
+  const sam = await open(browser, "phone", { on, user: USERS.sam })
+  for (const s of [ann, sam]) await expect.poll(async () => (await cameraOf(s.page))?.scrollY ?? null).toBe(0)
+
+  const far = { scrollX: 0, scrollY: -2400, zoom: 1, width: 1280, height: 860 }
+  const forger = on.collab.connect(() => {}, () => {})
+  forger.receive(authFrame(NAME, USERS.vic.token))
+  const state = {
+    user: { id: USERS.vic.user_uuid, name: VIC, edit: true },
+    presenting: { userId: USERS.vic.user_uuid, name: VIC, view: far, hold: true },
+    bring: { id: "forged", view: far },
+  }
+  forger.receive(awarenessFrame(NAME, [{ clientId: 424242, clock: 1, state }]))
+
+  // Ann's Here now names Vic once his state has come (the relay sends it to both screens at once), and neither screen
+  // follows him, is held or is moved, nor says he brought everyone. Long enough for a wrong move to land and be saved
+  // (the board keeps its camera ~400 ms after a move).
+  await expect(ann.page.locator("[data-presence-stack]")).toHaveAttribute("aria-label", new RegExp(VIC), { timeout: 15_000 })
+  await ann.page.waitForTimeout(1500)
+  for (const s of [ann, sam]) {
+    expect((await cameraOf(s.page))?.scrollY ?? null, "nobody is moved to the forged view").toBe(0)
+    await expect(s.page.locator(".toast-root").filter({ hasText: "brought everyone here" })).toHaveCount(0)
+    await expect(s.page.getByRole("toolbar", { name: "Facilitation" }).filter({ hasText: VIC }), "nobody follows Vic").toHaveCount(0)
+  }
+  forger.closed()
+  for (const c of [sam, ann]) await c.context.close()
 })

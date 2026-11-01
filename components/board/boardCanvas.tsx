@@ -29,12 +29,13 @@ import { useClientConfig } from "@/hooks/useClientConfig"
 import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
 import { sceneSignature } from "@/lib/board/scene"
 import { useSceneReady } from "@/hooks/useSceneReady"
-import { linkedFromSearch } from "@/lib/board/frames"
+import { findFromSearch, linkedFromSearch } from "@/lib/board/frames"
 import { frameDrawing, loadBoardViewport, saveBoardViewport } from "@/lib/board/camera"
 import { LOCAL_ORIGIN, applyShared, followShared, liveCount, type BoardElement, type SharedElements } from "@/lib/board/binding"
 import { NOTE_AUTHORS, storeWithMakers } from "@/lib/board/authors"
 import { useBoardPresence } from "@/components/board/boardPresence"
 import { BoardCursors } from "@/components/board/boardCursors"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
 import "@excalidraw/excalidraw/index.css"
 // Before Excalidraw loads: its faces come from this server, never esm.sh (V-94).
 import "@/lib/board/excalidrawAssets"
@@ -43,8 +44,11 @@ import "@/components/board/excalidrawTheme.css"
 // Types are erased at runtime; importing them as types keeps SSR safe.
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 
+// Cards, live (boardCard).
+const MemberEmbedView = lazyPiece(() => import("@/components/board/boardCard").then((m) => ({ default: m.BoardEmbedView })))
+
 const Excalidraw = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+  async () => (await import("@/components/board/boardExcalidraw")).default,
   {
     ssr: false,
     loading: () => (
@@ -119,6 +123,12 @@ interface BoardCanvasProps {
   theme?: "light" | "dark"
   /** Called once the imperative API is ready (for AI streaming etc.). */
   onApiReady?: (api: ExcalidrawImperativeAPI) => void
+  /**
+   * A frame the board opens at, which its caller puts the camera on once it
+   * is on the scene (a call's slide, components/livekit/stageSlides): as with
+   * a link's ?frame=, a first visit doesn't frame the whole drawing over it.
+   */
+  opensAt?: string
 }
 
 function BoardCanvas({
@@ -129,6 +139,7 @@ function BoardCanvas({
   user,
   theme = "light",
   onApiReady,
+  opensAt,
 }: BoardCanvasProps) {
   const apiRef = React.useRef<ExcalidrawImperativeAPI | null>(null)
   // Marks for e2e and scripts/fluidity, written to the DOM (no render):
@@ -192,7 +203,7 @@ function BoardCanvas({
   // restore so the default 0,0 camera Excalidraw emits during mount can't
   // overwrite the user's remembered position before we apply it.
   const viewportRestoredRef = React.useRef(false)
-  // A link to a frame or an object (?frame=, ?element=) places the camera
+  // A link to a frame, an object or words (?frame=, ?element=, ?find=) places the camera
   // itself once its place has synced (the workbench), so a first visit
   // doesn't frame the whole drawing over it. Read when the board opens: the
   // workbench puts the address back once it has gone there.
@@ -213,7 +224,7 @@ function BoardCanvas({
   // own camera once.
   React.useEffect(() => {
     viewportRestoredRef.current = false
-    linkedRef.current = linkedFromSearch(window.location.search)
+    linkedRef.current = linkedFromSearch(window.location.search) ?? findFromSearch(window.location.search)
   }, [boardId])
 
   React.useEffect(() => {
@@ -454,7 +465,7 @@ function BoardCanvas({
     // then fit it into view. Poll briefly so a slightly-late first sync still
     // gets framed.
     if (!synced) return
-    if (linkedRef.current) {
+    if (linkedRef.current || opensAt) {
       viewportRestoredRef.current = true
       return
     }
@@ -476,7 +487,7 @@ function BoardCanvas({
     return () => {
       if (timer) clearTimeout(timer)
     }
-  }, [api, sceneReady, synced, boardId])
+  }, [api, sceneReady, synced, boardId, opensAt])
   // -------------------------------------------------------------------------
   // Local -> Yjs: on every Excalidraw change, push changed elements into the
   // shared map. New images are uploaded to MinIO and only their metadata is
@@ -599,6 +610,7 @@ function BoardCanvas({
   return (
     <div ref={wrapRef} className="relative h-full w-full" data-board-canvas="">
       <Excalidraw
+        embedView={MemberEmbedView}
         excalidrawAPI={handleApi}
         onChange={handleChange as never}
         onPointerUpdate={handlePointerUpdate as never}

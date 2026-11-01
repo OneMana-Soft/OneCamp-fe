@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Lock } from "@/lib/icons"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { cn } from "@/lib/utils/helpers/cn"
-import type { useProjectBoard } from "./useProjectBoard"
+import type { useProjectBoard } from "@/hooks/useProjectBoard"
 
 /** A frame for the embed: its head, then what it shows. */
 export function EmbedFrame({ selected, head, children }: { selected: boolean; head: React.ReactNode; children: React.ReactNode }) {

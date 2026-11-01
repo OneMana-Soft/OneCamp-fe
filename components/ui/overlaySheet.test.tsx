@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { OverlaySheet } from "./overlaySheet"
+import { OverlaySheetTitle } from "./sheetTitle"
 import { useEscapeClosesPanel } from "@/hooks/useEscapeClosesPanel"
 import { escapeBelongsToLayer } from "@/lib/keys/escape"
 
@@ -61,6 +62,47 @@ describe("a sheet over the page", () => {
     open()
     fireEvent.click(document.querySelector(".shell-scrim")!)
     expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  // V-111: on a phone the task's sheet (TaskInPlace) owns the screen's foot
+  // as every sheet does, so it carries the sheet primitives' one mark and
+  // marks the page while it is open, for the toasts' place (app/phone.css C9,
+  // components/ui/toastFootSlot).
+  it("is a sheet by the one mark, and marks the page while it is open", () => {
+    render(<Page />)
+    const { sheet } = open()
+    expect(sheet.getAttribute("data-v3-sheet")).toBe("")
+    expect(document.documentElement.getAttribute("data-sheet")).toBe("open")
+    fireEvent.click(document.querySelector(".shell-scrim")!)
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(document.documentElement.hasAttribute("data-sheet")).toBe(false)
+  })
+
+  // V-111 (DESIGN-BUILD-45): a screen reader heard every task's sheet as "Task", and the toasts' slot, which keeps
+  // off the title a sheet is named by, found only that hidden one-pixel title, so a toast covered the task's name.
+  it("takes its name from the title its content shows, the task's name as edited, and its label while there is none", () => {
+    function TaskSheet() {
+      const [loaded, setLoaded] = React.useState(true)
+      return (
+        <OverlaySheet open onClose={() => {}} label="Task">
+          {loaded && (
+            <OverlaySheetTitle>
+              <textarea aria-label="Editable text input" defaultValue="Book the venue" />
+            </OverlaySheetTitle>
+          )}
+          <button type="button" onClick={() => setLoaded(false)}>
+            Open another task
+          </button>
+        </OverlaySheet>
+      )
+    }
+    render(<TaskSheet />)
+    const sheet = screen.getByRole("dialog", { name: "Book the venue" })
+    expect(document.getElementById(sheet.getAttribute("aria-labelledby")!)?.contains(screen.getByRole("textbox"))).toBe(true)
+    expect(sheet.querySelector(".sr-only")).toBeNull()
+    // The next task loads: until its title shows, the label names the sheet.
+    fireEvent.click(screen.getByRole("button", { name: "Open another task" }))
+    expect(screen.getByRole("dialog", { name: "Task" })).toBe(sheet)
   })
 
   it("leaves Escape to its content when it says so, and isn't a layer over itself then", () => {

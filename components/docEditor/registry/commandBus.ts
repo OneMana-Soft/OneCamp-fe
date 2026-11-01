@@ -15,6 +15,12 @@ import * as React from 'react'
 import { blocksWithIds } from '@/components/minimal-tiptap/extensions/block-commands/blockIds'
 import type { Editor } from '@tiptap/core'
 import type { ActionContext, DocCommandBus, DocCommands } from './types'
+import { offerPaletteEntries, type PaletteEntry } from '@/lib/ui/paletteEntries'
+
+export type { PaletteEntry }
+// What a component reads of the bus lives apart (docBusContext), so what only
+// reads it doesn't bring the bus; the doc's own modules keep importing it here.
+export { DocBusContext, NO_BUS, useDocBus } from './docBusContext'
 
 type Handler = (payload: never) => void
 
@@ -46,9 +52,6 @@ export function createDocCommandBus(docId: string): DocCommandBus {
     },
   }
 }
-
-/** A bus nothing listens to: what an action gets outside a doc. */
-export const NO_BUS: DocCommandBus = { docId: '', key: '', emit() {}, on: () => () => {} }
 
 const byEditor = new WeakMap<Editor, DocCommandBus>()
 const editorOfBus = new WeakMap<DocCommandBus, Editor>()
@@ -103,47 +106,14 @@ function activeBus(): DocCommandBus | undefined {
 }
 
 /**
- * A doc action as the command palette lists it. The doc's page makes these
- * from its registered actions (readers.ts paletteEntriesFor), so the palette
- * reads this module alone, never the registry, and brings no editor code into
- * the app's first load (app/firstLoad.test.ts).
+ * A doc's page lists its actions for the palette ("This doc") through the
+ * palette's one list of surfaces (lib/ui/paletteEntries), made from its
+ * registered actions (readers.ts paletteEntriesFor). Only the doc used last
+ * on this page offers any, as its page shows them then (what is disabled is
+ * left out). The returned function stops.
  */
-export interface PaletteEntry {
-  id: string
-  label: string
-  /** More words it is found by: its aliases and description. */
-  keywords: string[]
-  icon?: React.ElementType
-  /** Its keys as the palette draws them, space between ("⌘ L"). */
-  keys?: string
-  run(): void
-}
-
-const palettes = new WeakMap<DocCommandBus, () => PaletteEntry[]>()
-
-/** A doc's page lists its actions for the palette on its bus; the returned function stops. */
 export function providePaletteEntries(bus: DocCommandBus, entries: () => PaletteEntry[]): () => void {
-  palettes.set(bus, entries)
-  return () => {
-    if (palettes.get(bus) === entries) palettes.delete(bus)
-  }
-}
-
-/**
- * The open doc's actions for the palette: the doc used last on this page, as
- * its page shows them then (what is disabled is left out). None when no doc
- * is open.
- */
-export function paletteEntries(): PaletteEntry[] {
-  const bus = activeBus()
-  const entries = bus && palettes.get(bus)
-  if (!entries) return []
-  try {
-    return entries()
-  } catch (e) {
-    console.error("The doc's palette actions failed", e)
-    return []
-  }
+  return offerPaletteEntries({ id: 'doc', group: 'This doc', entries: () => (activeBus() === bus ? entries() : []) })
 }
 
 const contexts = new WeakMap<DocCommandBus, () => ActionContext>()
@@ -242,11 +212,4 @@ export function bindEditorCommands(editor: Editor, bus: DocCommandBus): () => vo
     }),
   ]
   return () => offs.forEach((off) => off())
-}
-
-/** The bus of the doc shell around a component (the header, a panel), when it has one. */
-export const DocBusContext = React.createContext<DocCommandBus | null>(null)
-
-export function useDocBus(): DocCommandBus {
-  return React.useContext(DocBusContext) ?? NO_BUS
 }

@@ -10,8 +10,7 @@ import { TablesGet, TablesPost } from "@/services/endpoints/tables"
 import type { DataTable, TableField, TableRow } from "@/services/tableService"
 import type { ActorKind, ChangeKind } from "@/lib/tables/types"
 
-/** The most rows one batch writes. */
-export const BATCH_MAX = 1000
+// The most rows one batch writes is lib/tables/batchLimit's BATCH_MAX.
 
 /** Where rows go: after a row, or before one; with neither, after the last. */
 export interface RowPlace {
@@ -37,8 +36,9 @@ export interface BatchResult {
   deleted: string[]
 }
 
-export async function batchRows(tableId: string, input: BatchInput): Promise<BatchResult> {
-  const res = await axiosInstance.post(`${TablesPost.BatchTableRows}/${tableId}/rows/batch`, input)
+/** `own`: the caller says a refusal itself (a grid's paste lists the cells refused), so the global error toast stays quiet. */
+export async function batchRows(tableId: string, input: BatchInput, own = false): Promise<BatchResult> {
+  const res = await axiosInstance.post(`${TablesPost.BatchTableRows}/${tableId}/rows/batch`, input, own ? OWN_ERRORS : undefined)
   return res.data?.data as BatchResult
 }
 
@@ -140,6 +140,12 @@ export interface TrashTable {
   table: DataTable & { deleted_at?: string }
   deleted_by?: string
   deleted_by_name?: string
+  /**
+   * When it goes for good on its own, as docs' trash says it. Only the server
+   * sends it, once a retention policy is on: while the trash keeps tables
+   * (retention 0), there is none.
+   */
+  purge_at?: string
 }
 
 export async function readTablesTrash(): Promise<TrashTable[]> {
@@ -150,6 +156,14 @@ export async function readTablesTrash(): Promise<TrashTable[]> {
 export async function restoreTable(tableId: string): Promise<DataTable> {
   const res = await axiosInstance.post(`${TablesPost.RestoreTable}/${tableId}/restore`, {})
   return res.data?.data as DataTable
+}
+
+/**
+ * Deletes a table in the trash for good, with its rows and what they hold
+ * (V-121): it leaves the trash at once, and the rest goes after the answer.
+ */
+export async function purgeTable(tableId: string): Promise<void> {
+  await axiosInstance.post(`${TablesPost.PurgeTable}/${tableId}/purge`, {})
 }
 
 /** "1 row", "12 rows". Pure. */

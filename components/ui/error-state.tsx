@@ -37,6 +37,8 @@ export function ErrorState({
   useSaysLoadFailure()
   return (
     <EmptyState
+      // With the toast quiet, a screen reader hears the failure from here, once (V-131).
+      role="alert"
       // The app's one error mark, as on the crash screens.
       illustration={<SpotError />}
       title={`Couldn't load ${subject}`}

@@ -77,4 +77,13 @@ describe("the held bar's read, when the check fails", () => {
     expect(toasts).toEqual([])
     expect(screen.getByRole("status").textContent).toMatch(/^Maya paused notifications until /)
   })
+
+  it("toasts nothing when only their calendar's read fails, and still says what's held (calendar head 5c)", async () => {
+    const paused = answering({ data: { reason: "paused", until: "2026-10-15T16:00:00Z" } })
+    axiosInstance.defaults.adapter = async (config) => (config.url?.startsWith("/event/status/") ? unavailable(config) : paused(config))
+    bar()
+    expect((await screen.findByRole("status")).textContent).toMatch(/^Maya paused notifications until /)
+    await beat()
+    expect(toasts).toEqual([])
+  })
 })

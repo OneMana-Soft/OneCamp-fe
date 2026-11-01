@@ -217,11 +217,21 @@ function HitTitle({ result }: { result: SearchResult }) {
     )
 }
 
+/**
+ * Where a hit is from, and for a reply, who wrote it, as plain words: the row
+ * draws it (HitContext) and ⌘K's peek, which carries text, says the same.
+ * kinds is the workspace's bot kinds (useBotKindMap), which name the person
+ * a relayed reply or post speaks for.
+ */
+export function hitContextText(result: SearchResult, kinds: Record<string, string> | undefined): string {
+    const relayed = relayedHit(result, kinds)
+    if (relayed && result.type === "comment" && !result.comment?.comment_doc_id) return `Reply by ${relayed.name}`
+    if (relayed && result.type === "post" && result.post?.post_ch_name) return `#${result.post.post_ch_name} · ${relayed.name}`
+    return contextText(result)
+}
+
 function HitContext({ result }: { result: SearchResult }) {
-    const relayed = relayedHit(result, useBotKindMap())
-    if (relayed && result.type === "comment" && !result.comment?.comment_doc_id) return <>Reply by {relayed.name}</>
-    if (relayed && result.type === "post" && result.post?.post_ch_name) return <>#{result.post.post_ch_name} · {relayed.name}</>
-    return <>{contextText(result)}</>
+    return <>{hitContextText(result, useBotKindMap())}</>
 }
 
 /** Where a hit is from, and for a reply, who wrote it. */

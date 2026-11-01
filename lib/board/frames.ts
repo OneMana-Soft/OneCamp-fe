@@ -173,6 +173,15 @@ export function linkedFromSearch(search: string): string | null {
   return id && id.length <= 200 ? id : null
 }
 
+/**
+ * The words a board's address asks it to find, if any: ?find= (a search hit on
+ * what is written on the board, lib/search/resultPath), 200 characters at most.
+ */
+export function findFromSearch(search: string): string | null {
+  const words = new URLSearchParams(search).get("find")?.trim()
+  return words && words.length <= 200 ? words : null
+}
+
 /** The frames' order the Frames panel keeps in a board's boardMeta, or null when none is kept. */
 export function frameOrderOf(meta: { get(key: string): unknown }): string[] | null {
   const order = meta.get("frameOrder")

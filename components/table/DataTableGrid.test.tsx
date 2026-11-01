@@ -423,6 +423,33 @@ describe("the grid on the v3 sheet", () => {
     expect(document.activeElement).toBe(screen.getAllByRole("textbox", { name: "Cost" })[1])
   })
 
+  it("freezes up to three leading columns as the reader keeps them, each past the ones before it; a phone keeps one (G2b)", () => {
+    const widths = { item: 200, cost: 120, paid: 100 }
+    const { rerender } = render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} widths={widths} frozen={2} />)
+    const td = (el: HTMLElement) => el.closest("td")!
+    const item = () => td(screen.getAllByRole("textbox", { name: "Item" })[0])
+    const cost = () => td(screen.getAllByRole("textbox", { name: "Cost" })[0])
+    const paid = () => td(screen.getAllByRole("checkbox", { name: "Paid" })[0])
+    expect([item(), cost(), paid()].map((c) => c.getAttribute("data-frozen"))).toEqual(["0", "1", null])
+    // The shadow falls past the last frozen column alone, header and cells.
+    expect([item(), cost(), paid()].map((c) => c.hasAttribute("data-frozen-edge"))).toEqual([false, true, false])
+    const heads = [...document.querySelectorAll("thead th[data-frozen]")]
+    expect(heads.map((h) => h.getAttribute("data-frozen"))).toEqual(["0", "1"])
+    expect(document.querySelector("thead th[data-frozen-edge]")?.textContent).toContain("Cost")
+    // The second sticks past the first's width; a cell brought into view stops past both.
+    const grid = document.querySelector<HTMLElement>("[data-table-grid]")!
+    expect(grid.style.getPropertyValue("--frozen-1")).toBe("200px")
+    expect(grid.style.getPropertyValue("--scroll-lead")).toBe("calc(var(--grid-gutter) + 320px)")
+
+    rerender(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} widths={widths} frozen={3} />)
+    expect([item(), cost(), paid()].map((c) => c.getAttribute("data-frozen"))).toEqual(["0", "1", "2"])
+    expect(grid.style.getPropertyValue("--frozen-2")).toBe("320px")
+
+    rerender(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} widths={widths} frozen={3} compact />)
+    expect([item(), cost(), paid()].map((c) => c.getAttribute("data-frozen"))).toEqual(["0", null, null])
+    expect(item().hasAttribute("data-frozen-edge")).toBe(true)
+  })
+
   it("freezes the primary column and ticks boxes in moss, never the brand", () => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} />)
     const item = screen.getAllByRole("textbox", { name: "Item" })[0]

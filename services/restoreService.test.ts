@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 const showUndo = vi.hoisted(() => vi.fn())
 vi.mock("@/components/ui/undoToast", () => ({ showUndo }))
 
-const { restore, offerUndo } = await import("@/services/restoreService")
+const { restore, restoreBy, offerUndo } = await import("@/services/restoreService")
 
 const post = vi.fn()
 afterEach(() => {
@@ -60,6 +60,28 @@ describe("restore", () => {
   it("a restore that worked still resolves when the read again fails", async () => {
     post.mockResolvedValue({ data: { msg: "Status restored." } })
     await expect(restore({ post }, "status", "s1", () => Promise.reject(new Error("Network Error")))).resolves.toBeUndefined()
+  })
+})
+
+// A home with its own restore route (an event call's recording, by its event's:
+// calls follow-up 1) brings it back by the same rule: its own request, then the
+// read again however it went, with the restore's own outcome for the toast.
+describe("restoreBy", () => {
+  it("sends the home's own restore, then reads again", async () => {
+    const order: string[] = []
+    await restoreBy(async () => order.push("send"), async () => order.push("read"))
+    expect(order).toEqual(["send", "read"])
+  })
+
+  it("passes a refusal on as it came, and still reads again", async () => {
+    const refused = Object.assign(new Error("Request failed with status code 404"), { response: { status: 404, data: { msg: "There's nothing to bring back." } } })
+    const readAgain = vi.fn(async () => {})
+    await expect(restoreBy(() => Promise.reject(refused), readAgain)).rejects.toBe(refused)
+    expect(readAgain).toHaveBeenCalledTimes(1)
+  })
+
+  it("a restore that worked still resolves when the read again fails", async () => {
+    await expect(restoreBy(async () => ({ msg: "back" }), () => Promise.reject(new Error("Network Error")))).resolves.toBeUndefined()
   })
 })
 

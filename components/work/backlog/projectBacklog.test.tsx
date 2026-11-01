@@ -22,7 +22,7 @@ vi.mock("react-redux", () => ({ useDispatch: () => vi.fn(), useSelector: () => u
 // The selection's bar changes many tasks through one hook; its tag picker reads the project's tags.
 const bulk = vi.fn<(tasks: TaskInfoInterface[], change: BulkChange) => Promise<BulkResult>>(async (tasks) => ({ changed: tasks.length, failed: 0, unchanged: 0, done: tasks }))
 vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => bulk }))
-vi.mock("@/components/tags/TagPicker", () => ({ useProjectTags: () => ({ tags: [], refresh: () => {} }) }))
+vi.mock("@/hooks/useProjectTags", () => ({ useProjectTags: () => ({ tags: [], refresh: () => {} }) }))
 const api = {
   setTaskCycle: vi.fn(async () => {}),
   startCycle: vi.fn(async () => {}),

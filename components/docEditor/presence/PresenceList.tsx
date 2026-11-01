@@ -26,60 +26,78 @@ export default function PresenceList({ users, onDone }: { users: ActiveUser[]; o
   const control = usePresenceControl(bus.key)
   const self = presence?.self
   const rows = [...users.filter((u) => u.id !== self), ...users.filter((u) => u.id === self)]
+  const others = rows.some((u) => u.id !== self)
   return (
-    <ul data-presence-rows="">
-      {rows.map((u) => {
-        const person = presence?.people[u.id]
-        const client = person?.clients[0]
-        const state = stateOf(person, u.mode)
-        const you = u.id === self
-        const followed = client !== undefined && control?.following === client
-        return (
-          <li key={u.id} className="flex min-h-9 items-center gap-2 rounded-lg px-2 hover:bg-hover" data-presence-row={u.id}>
-            <span
-              aria-hidden="true"
-              data-presence-hue={u.agent ? "agent" : collaboratorHue(u)}
-              className={cn(u.agent ? "bg-[var(--agent-a1)]" : cn(HUE_CLASS[collaboratorHue(u)], "bg-[var(--hue-a1)]"), "h-3.5 w-0.5 shrink-0 rounded-[1px]")}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-ui font-[450] text-ink">
-                {u.name}
-                {you && <span className="ml-1.5 text-meta font-normal text-ink-3">You</span>}
+    <>
+      <ul data-presence-rows="">
+        {rows.map((u) => {
+          const person = presence?.people[u.id]
+          const client = person?.clients[0]
+          const state = stateOf(person, u.mode)
+          const you = u.id === self
+          const followed = client !== undefined && control?.following === client
+          return (
+            <li key={u.id} className="flex min-h-9 items-center gap-2 rounded-lg px-2 hover:bg-hover" data-presence-row={u.id}>
+              <span
+                aria-hidden="true"
+                data-presence-hue={u.agent ? "agent" : collaboratorHue(u)}
+                className={cn(u.agent ? "bg-[var(--agent-a1)]" : cn(HUE_CLASS[collaboratorHue(u)], "bg-[var(--hue-a1)]"), "h-3.5 w-0.5 shrink-0 rounded-[1px]")}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-ui font-[450] text-ink">
+                  {u.name}
+                  {you && <span className="ml-1.5 text-meta font-normal text-ink-3">You</span>}
+                </span>
+                {state && (
+                  <span className={cn("flex items-center gap-1 text-meta", state === "idle" ? "text-camp-sun-ink" : "text-ink-3")} data-presence-state={state}>
+                    <span aria-hidden="true" data-presence={state === "idle" ? "away" : "online"} className="presence-dot !static !size-2 !min-h-2 !min-w-2 shrink-0 [--presence-ring:var(--pop)]" />
+                    {WHAT[state]}
+                  </span>
+                )}
               </span>
-              {state && (
-                <span className={cn("flex items-center gap-1 text-meta", state === "idle" ? "text-camp-sun-ink" : "text-ink-3")} data-presence-state={state}>
-                  <span aria-hidden="true" data-presence={state === "idle" ? "away" : "online"} className="presence-dot !static !size-2 !min-h-2 !min-w-2 shrink-0 [--presence-ring:var(--pop)]" />
-                  {WHAT[state]}
+              {!you && control && client !== undefined && (
+                <span className="flex shrink-0 items-center gap-0.5">
+                  <RowButton
+                    label={`Jump to ${u.name}`}
+                    onClick={() => {
+                      onDone()
+                      control.jump(client)
+                    }}
+                  >
+                    Jump to
+                  </RowButton>
+                  <RowButton
+                    label={followed ? `Stop following ${u.name}` : `Follow ${u.name}`}
+                    pressed={followed}
+                    onClick={() => {
+                      onDone()
+                      control.follow(followed ? null : client)
+                    }}
+                  >
+                    {followed ? "Following" : "Follow"}
+                  </RowButton>
                 </span>
               )}
-            </span>
-            {!you && control && client !== undefined && (
-              <span className="flex shrink-0 items-center gap-0.5">
-                <RowButton
-                  label={`Jump to ${u.name}`}
-                  onClick={() => {
-                    onDone()
-                    control.jump(client)
-                  }}
-                >
-                  Jump to
-                </RowButton>
-                <RowButton
-                  label={followed ? `Stop following ${u.name}` : `Follow ${u.name}`}
-                  pressed={followed}
-                  onClick={() => {
-                    onDone()
-                    control.follow(followed ? null : client)
-                  }}
-                >
-                  {followed ? "Following" : "Follow"}
-                </RowButton>
-              </span>
-            )}
-          </li>
-        )
-      })}
-    </ul>
+            </li>
+          )
+        })}
+      </ul>
+      {control?.bringAll && others && (
+        <>
+          <div role="separator" className="shell-menu-sep" />
+          <button
+            type="button"
+            onClick={() => {
+              control.bringAll?.()
+              onDone()
+            }}
+            className="flex h-9 w-full items-center justify-center rounded-lg text-ui font-medium text-brand-text outline-none transition-colors duration-[140ms] hover:bg-brand-muted focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            Bring everyone here
+          </button>
+        </>
+      )}
+    </>
   )
 }
 

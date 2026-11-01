@@ -253,7 +253,12 @@ export function RealtimeEngine({ onValue, bindConversations }: RealtimeEnginePro
     // were answered, early or late: each reads what came after its newest
     // message, once (useMessageCatchUp). A message sent in that gap was lost
     // on every cold open (FLUIDITY-LEAD-8, 22 Oct 2026).
-    const onSubscribed = () => dispatch(triggerMessageCatchUp())
+    const onSubscribed = () => {
+        dispatch(triggerMessageCatchUp())
+        // And the open boards and lists read the task changes they missed
+        // (WCL-2, GET /work/changes), on every connection's subscriptions.
+        messageHandler.catchUpWork()
+    }
 
     // A topic went live: each page on it read before then, so it reads again
     // (TopicLive; F5, REGRESSION-HUNT 26 Oct).
@@ -351,13 +356,20 @@ export function RealtimeEngine({ onValue, bindConversations }: RealtimeEnginePro
                 syncManager.handleForeground()
             }
         }
+        // A tab shown again catches up on task changes once (a socket may
+        // have died unseen while it was hidden); focus alone doesn't.
+        const onShown = () => {
+            if (document.visibilityState === "visible") messageHandler.catchUpWork()
+        }
         document.addEventListener("visibilitychange", onForeground)
+        document.addEventListener("visibilitychange", onShown)
         window.addEventListener("focus", onForeground)
         return () => {
             document.removeEventListener("visibilitychange", onForeground)
+            document.removeEventListener("visibilitychange", onShown)
             window.removeEventListener("focus", onForeground)
         }
-    }, [syncManager.handleForeground])
+    }, [syncManager.handleForeground, messageHandler.catchUpWork])
 
     /**
      * Prune stale typing entries.

@@ -3,7 +3,8 @@
 // presenter lets everyone draw and "Guests can draw" is on (the collaboration
 // server has the last word); named for its presenter.
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, render, screen } from "@testing-library/react"
+import * as Y from "yjs"
 
 const viewer: Record<string, unknown>[] = []
 vi.mock("@/components/guest/GuestBoardViewer", () => ({
@@ -83,6 +84,21 @@ describe("the board on a call's stage, for a guest", () => {
 
   // DESIGN-BUILD-24 on a phone, CR-68's MF2: a drawing guest's tool row scrolls
   // inside the frame and fades as every strip does, as the member's does.
+  // Slides control (meet-14): a guest's camera follows the room's slide, and they see which it is.
+  it("opens the board at the room's slide and says which it is, with nothing to move it", () => {
+    render(<CallGuestBoardStage board={{ ...BOARD, slide: "f2" }} presenter="Maya Chen" callToken="lk-token" me={{ identity: "guest-p1", name: "Guest: Priya" }} />)
+    const asked = viewer.at(-1)!
+    expect(asked.opensAt).toBe("f2")
+    const frames = ["f1", "f2"].map((id, i) => ({ id, type: "frame", x: i * 500, y: 0, width: 400, height: 300, name: i ? "Q4 numbers" : null }))
+    const scrollToContent = vi.fn()
+    const api = { getSceneElements: () => frames, onChange: () => () => {}, scrollToContent, getAppState: () => ({ selectedElementIds: {}, width: 1000, height: 600 }) }
+    act(() => (asked.onApiReady as (a: unknown, d: Y.Doc) => void)(api, new Y.Doc()))
+    // Shown as a slide: fitted both ways, the zoom pinned (components/board/presentFrame).
+    expect(scrollToContent).toHaveBeenCalledWith(expect.objectContaining({ id: "f2" }), expect.objectContaining({ fitToViewport: true, animate: false, minZoom: 1.84, maxZoom: 1.84 }))
+    expect(screen.getByRole("button", { name: "Slide 2 of 2, Q4 numbers: show it again" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Next slide" })).toBeNull()
+  })
+
   it("marks the canvas's phone tool row as a strip that scrolls, as the member's stage does", () => {
     publicCall.mockResolvedValue({ ok: true, data: { collab_token: "collab-1", document_name: "board:b1", board: "b1" } })
     render(stage())

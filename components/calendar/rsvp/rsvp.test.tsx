@@ -19,6 +19,7 @@ import { GoingControl } from "./goingControl"
 import { type FaceGuest } from "./guestFaces"
 import { GuestFaces } from "./guestRow"
 import { eventGuests, guestsFold, guestsSummary } from "./eventGuests"
+import { countsLine } from "@/lib/calendar/answers"
 import { EventGuestList, INVITE_WORDS } from "./guestList"
 import { YourAnswer } from "./yourAnswer"
 import { proposalOf } from "./proposals"
@@ -72,6 +73,18 @@ describe("an event's guests, as the card and the panel read them", () => {
     expect(g.mine).toBe("accepted")
     expect(g.answered).toBe(true)
     expect(g.counts).toEqual({ going: 2, maybe: 1, no: 1, waiting: 1 })
+  })
+
+  it("marks a decline made by an out of office, and no other (calendar head 5c)", () => {
+    const g = eventGuests(meeting([
+      { user_uuid: "ana", role: "required", response: "declined", note: "Away until Monday", out_of_office: true },
+      { user_uuid: "lee", role: "required", response: "declined" },
+    ]), "maya")
+    expect(g.faces.find((f) => f.key === "ana")).toMatchObject({ away: true, note: "Away until Monday" })
+    expect(g.faces.find((f) => f.key === "lee")?.away).toBeUndefined()
+    // Counted under the row's own word (DB-25).
+    expect(g.counts).toEqual({ going: 1, maybe: 0, no: 1, waiting: 0, away: 1 })
+    expect(countsLine(g.counts)).toBe("1 going · 1 not going · 1 out of office")
   })
 
   it("shows an event from the old stores with its guests and no answers", () => {
@@ -195,6 +208,38 @@ describe("the guests' faces", () => {
     const list = screen.getByRole("list", { name: "Guests and their answers" })
     expect(within(list).getAllByRole("listitem")).toHaveLength(6)
     expect(within(list).getAllByRole("listitem")[0].textContent).toMatch(/organiser$/)
+  })
+})
+
+// A decline their out of office made reads "out of office" wherever a guest list says an answer, its message
+// quoted under the name (calendar head 5c, DB-25); a guest by email carries the shared Guest tag (PrincipalTag).
+describe("a decline made by an out of office, in the lists", () => {
+  const away = meeting([
+    { user_uuid: "maya", role: "required", response: "accepted" },
+    { user_uuid: "ana", role: "required", response: "declined", note: "Away until Monday, ask Raj.", out_of_office: true },
+    { user_uuid: "lee", role: "required", response: "declined" },
+    { email: "alex@example.com", name: "Alex Kim", role: "required", response: "accepted" },
+    { user_uuid: "jonas", role: "required", response: "needs_action" },
+  ])
+
+  it("says it in the panel's list, with the message and no second word beside the name", () => {
+    render(<EventGuestList guests={eventGuests(away, "sam")} organiser ended={false} />)
+    // The name and address, the message quoted, then the answer: no second "Out of office" beside the name.
+    const ana = screen.getByText("Ana Silva").closest("li") as HTMLElement
+    expect(ana.textContent).toMatch(/Ana Silvaana@onecamp\.test“Away until Monday, ask Raj\.”out of office$/)
+    expect((screen.getByText("Lee Park").closest("li") as HTMLElement).textContent).toMatch(/not going$/)
+    expect(screen.getByText("3 going · 1 not going · 1 out of office · 1 no answer")).toBeTruthy()
+    expect(within(screen.getByText("Alex Kim").closest("li") as HTMLElement).getByTitle("Guest: outside this workspace")).toBeTruthy()
+  })
+
+  it("says it in the card's opened list and on the face", () => {
+    const g = eventGuests(away, "sam")
+    render(<GuestFaces guests={g.faces} summary={countsLine(g.counts)} />)
+    expect(screen.getByRole("img", { name: "Ana Silva, out of office" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: countsLine(g.counts) }))
+    const list = screen.getByRole("list", { name: "Guests and their answers" })
+    expect(within(list).getByText("Ana Silva").closest("li")?.textContent).toMatch(/out of office$/)
+    expect(within(list).getByText("Alex Kim").closest("li")?.querySelector("[data-principal-tag=guest]")).toBeTruthy()
   })
 })
 

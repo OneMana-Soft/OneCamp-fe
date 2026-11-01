@@ -3,7 +3,8 @@
 // presenter's bar, for exactly who may use it (lib/calls/control's
 // boardControls): who draws, guests' drawing, and taking it down.
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act as during, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act as during, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { useEffect } from "react"
 import * as Y from "yjs"
 import type { BoardControls } from "@/lib/calls/control"
 
@@ -15,12 +16,19 @@ let collab: { provider: { document?: Y.Doc }; synced: boolean; readOnly: boolean
 }
 vi.mock("@/hooks/useCollaborationProvider", () => ({ useCollaborationProvider: () => collab }))
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "u-sam", user_name: "Sam Rivera" } } }) }))
+/** Excalidraw's API, once a test puts a scene on the canvas (the stage's slides read it). */
+let canvasApi: unknown = null
 vi.mock("@/components/board/boardCanvas", () => ({
-  default: ({ editable, boardId, theme }: { editable: boolean; boardId: string; theme?: string }) => (
-    <div data-canvas={boardId} data-editable={String(editable)} data-theme={theme}>
-      <div className="Island App-toolbar App-toolbar--mobile" data-testid="tool-row" />
-    </div>
-  ),
+  default: function Canvas({ editable, boardId, theme, onApiReady, opensAt }: { editable: boolean; boardId: string; theme?: string; onApiReady?: (api: never) => void; opensAt?: string }) {
+    useEffect(() => {
+      if (canvasApi) onApiReady?.(canvasApi as never)
+    }, [onApiReady])
+    return (
+      <div data-canvas={boardId} data-editable={String(editable)} data-theme={theme} data-opens-at={opensAt}>
+        <div className="Island App-toolbar App-toolbar--mobile" data-testid="tool-row" />
+      </div>
+    )
+  },
 }))
 
 const { default: CallBoardStage } = await import("./CallBoardStage")
@@ -37,6 +45,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   collab = { provider: {}, synced: true, readOnly: false, openError: null }
+  canvasApi = null
 })
 
 describe("the board on a call's stage", () => {
@@ -145,6 +154,26 @@ describe("the board on a call's stage", () => {
     await during(async () => authors.set("e4", { id: "guest-a1", name: "Guest: Ana", at: 4 }))
     openDrawing()
     expect(await screen.findByText("Ana (guest), Lee (guest) and Priya (guest) drew on it")).toBeTruthy()
+  })
+
+  // Slides control (meet-14): the board's frames are the slides, and whoever may take it down moves them.
+  it("opens the board at the room's slide, with the slides beside a mover's controls and the slide for everyone else", async () => {
+    const frames = ["f1", "f2"].map((id, i) => ({ id, type: "frame", x: i * 500, y: 0, width: 400, height: 300, name: null }))
+    const scrollToContent = vi.fn()
+    canvasApi = { getSceneElements: () => frames, onChange: () => () => {}, scrollToContent, getAppState: () => ({ selectedElementIds: {}, width: 1000, height: 600 }) }
+    render(stage({ board: { ...BOARD, slide: "f2" }, controls: { present: "yes", stop: true, run: true, mine: true } }))
+    expect(document.querySelector("[data-canvas]")).toHaveAttribute("data-opens-at", "f2")
+    // Shown as a slide: fitted both ways, the zoom pinned (components/board/presentFrame).
+    expect(scrollToContent).toHaveBeenCalledWith(expect.objectContaining({ id: "f2" }), expect.objectContaining({ fitToViewport: true, animate: false, minZoom: 1.84, maxZoom: 1.84 }))
+    expect(document.querySelector("[data-call-board]")).toHaveAttribute("data-slide-placed", "f2")
+    const controls = screen.getByRole("toolbar", { name: "Board controls" })
+    expect(within(controls).getByRole("group", { name: "Slides" })).toBeTruthy()
+    await during(async () => fireEvent.click(within(controls).getByRole("button", { name: "Previous slide" })))
+    expect(act).toHaveBeenCalledWith("board_slide", { slide: "f1" })
+    cleanup()
+    render(stage({ board: { ...BOARD, slide: "f2" } }))
+    expect(screen.queryByRole("toolbar")).toBeNull()
+    expect(screen.getByRole("button", { name: "Slide 2 of 2: show it again" })).toBeTruthy()
   })
 
   it("lets its presenter stop presenting, and whoever else may take it down", async () => {

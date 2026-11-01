@@ -50,6 +50,8 @@ import { useProjectHue } from "@/lib/projectHue";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
 import { accessOf } from "@/lib/work/access";
 import { LazyConnected } from "@/components/workGraph/LazyConnected"
+import { ProjectLinksStrip } from "@/components/project/ProjectLinksStrip"
+import { ProjectPlanStrip } from "@/components/project/ProjectPlanStrip"
 
 const VALID_TABS = ["list", "kanban", "backlog", "timeline", "updates", "attachments", "docs"] as const
 type TabValue = (typeof VALID_TABS)[number]
@@ -176,7 +178,11 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                 router.push(`${pathname}?${countAddress(new URLSearchParams(searchParams.toString()), kind)}`, { scroll: false })
                             }}
                         />
+                        {/* Its plan (linear-15), in a row that holds its height. */}
+                        {projectId && <ProjectPlanStrip projectId={projectId} members={members} />}
                     </div>
+                    {/* Its links (basecamp-16): nothing until it has one, inside the hero's own height. */}
+                    {projectId && <ProjectLinksStrip projectId={projectId} canOpen={isMember || isAdmin} className="mt-1 max-w-[50%] shrink-0" />}
                 </header>
             </div>
 

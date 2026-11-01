@@ -85,4 +85,18 @@ describe("ErrorState", () => {
     expect(screen.getByText("You don't have permission to do that.")).toBeTruthy()
     expect(screen.queryByText(/connection problem/i)).toBeNull()
   })
+
+  // V-131: while an error state is up, the request's toast stays quiet
+  // (useSaysLoadFailure), so the state itself must reach a screen reader: once,
+  // as an alert that says what failed and why, in both sizes.
+  it("is announced, once, as an alert that says what failed and why", () => {
+    for (const compact of [false, true]) {
+      render(<ErrorState compact={compact} subject="the trash" detail="You don't have permission to do that." onRetry={() => {}} />)
+      const alerts = screen.getAllByRole("alert")
+      expect(alerts).toHaveLength(1)
+      expect(alerts[0].textContent).toContain("Couldn't load the trash")
+      expect(alerts[0].textContent).toContain("You don't have permission to do that.")
+      cleanup()
+    }
+  })
 })

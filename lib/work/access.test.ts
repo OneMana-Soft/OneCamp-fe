@@ -112,4 +112,14 @@ describe("a task made on this device whose project's access it never kept", () =
     expect(accessHeldBack("7a6b5c4d-0000-4000-8000-000000000099", { task_project: {} })).toBe(false)
     expect(accessHeldBack(MADE, undefined)).toBe(false)
   })
+
+  it("holds back a task the server made whose page the device built from a board or list, the same way (asana-12)", () => {
+    const SERVER = "7a6b5c4d-0000-4000-8000-000000000099"
+    // Its project as a board names it (an id and a name, lib/offline/tasks tasksIn) says nothing about access.
+    expect(accessHeldBack(SERVER, { task_project: {} }, true)).toBe(true)
+    expect(accessHeldBack(SERVER, { task_project: { project_is_member: 1 } }, true)).toBe(false)
+    expect(accessHeldBack(SERVER, { task_project: { project_access: { ...NO_ACCESS, role: "viewer", view: true } } }, true)).toBe(false)
+    // Its own read: the server said.
+    expect(accessHeldBack(SERVER, { task_project: {} })).toBe(false)
+  })
 })

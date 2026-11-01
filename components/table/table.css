@@ -77,6 +77,29 @@
   background-color: color-mix(in oklab, var(--tinted), var(--ink) 5.5%);
 }
 
+/* A cell the find bar found (G2b; FindBar's marks): the camp's sun over the
+   sheet, as a highlighter marks it, over a colour rule's tint; the one it's at
+   stronger, with a ring inside its edge. The pointer and the selection deepen
+   both as they do any cell. Weaker on the dark sheet, so ink keeps its 5:1. */
+.v3-grid tbody td[data-found] {
+  --tinted: color-mix(in oklab, var(--camp-sun) 28%, var(--sheet));
+  background-color: var(--tinted);
+}
+.v3-grid tbody td[data-found="at"] {
+  --tinted: color-mix(in oklab, var(--camp-sun) 52%, var(--sheet));
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--camp-sun), var(--ink) 38%);
+}
+.dark .v3-grid tbody td[data-found] { --tinted: color-mix(in oklab, var(--camp-sun) 20%, var(--sheet)); }
+.dark .v3-grid tbody td[data-found="at"] { --tinted: color-mix(in oklab, var(--camp-sun) 38%, var(--sheet)); }
+@media (hover: hover) {
+  .v3-grid tbody tr:hover > td[data-found] {
+    background-color: color-mix(in oklab, var(--tinted), var(--ink) 4%);
+  }
+}
+.v3-grid tbody tr[data-selected="true"] > td[data-found] {
+  background-color: color-mix(in oklab, var(--tinted), var(--ink) 5.5%);
+}
+
 /* The row-number gutter and the primary column stay put sideways. */
 .v3-grid [data-gutter] {
   position: sticky;
@@ -90,14 +113,23 @@
   z-index: 2;
   background: var(--sheet);
 }
+/* Up to three leading columns freeze (G2b): each past the widths before it,
+   which the grid sets as --frozen-1 and --frozen-2 (display.ts frozenLefts). */
+.v3-grid [data-frozen="1"] {
+  left: calc(var(--grid-gutter) + var(--frozen-1, 0px));
+}
+.v3-grid [data-frozen="2"] {
+  left: calc(var(--grid-gutter) + var(--frozen-2, 0px));
+}
 .v3-grid thead [data-gutter],
 .v3-grid thead [data-frozen] {
   z-index: 4;
 }
-/* Its shadow appears once the grid scrolls sideways. The pseudo-element
-   exists only then: every frozen cell of every row carrying a blurred
-   shadow layer at opacity 0 cost paint while scrolling down. */
-.v3-grid[data-scrolled-x="true"] [data-frozen]::after {
+/* Its shadow appears once the grid scrolls sideways, past the last frozen
+   column alone. The pseudo-element exists only then: every frozen cell of
+   every row carrying a blurred shadow layer at opacity 0 cost paint while
+   scrolling down. */
+.v3-grid[data-scrolled-x="true"] [data-frozen-edge]::after {
   content: "";
   position: absolute;
   top: 0;
@@ -147,8 +179,15 @@
 @media (hover: none) {
   .v3-grid[data-row-height="medium"] { --cell-pad-y: 11.5px; }
 }
-.v3-grid tbody td[data-kind="text"]:focus-within {
+/* Only a grown text area raises its cell, and the ring with it. At rest, or
+   on one line, a focused text cell sits under the ring, the range and the
+   frozen column as every cell does: its --raised background covered the
+   fill handle, and would have covered the ring (DB-57). */
+.v3-grid tbody td[data-kind="text"]:has(textarea[data-grown]) {
   overflow: visible;
+  z-index: 3;
+}
+.v3-grid table:has(textarea[data-grown]) ~ .v3-cell-ring:not([data-in-frozen="true"]) {
   z-index: 3;
 }
 .v3-grid tbody textarea[data-grown] {
@@ -167,11 +206,14 @@
 
 /* ---- the active-cell ring: one element, gliding ------------------------- */
 
+/* Over the cells and the range's box (it comes after the range), and under
+   the frozen column, the header and the sums, as the range is: the ring of a
+   cell scrolled under the frozen column goes under it (DB-57). */
 .v3-cell-ring {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 3;
+  z-index: 1;
   pointer-events: none;
   border-radius: 2px;
   box-shadow: inset 0 0 0 2px var(--brand);
@@ -187,6 +229,102 @@
 /* A frozen cell's ring rides with the frozen column. */
 .v3-cell-ring[data-in-frozen="true"] {
   z-index: 5;
+}
+
+/* A cell at rest selects its text only so Ctrl+C copies it (focusCell), so it
+   paints no selection, alone or in a range (DB-57). Chromium paints nothing
+   for a see-through ::selection (globals.css). A live cell shows its own. */
+.v3-grid [data-rest]::selection {
+  background-color: transparent;
+}
+
+/* ---- a block of cells: one element over the rows (gridRange) ----------- */
+
+/* Over the cells and under the frozen column, the header and the sums, so a
+   range scrolled sideways goes under the frozen column; one that holds the
+   frozen column rides over it. */
+.v3-cell-range {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+}
+.v3-cell-range[data-on="true"] {
+  opacity: 1;
+}
+.v3-cell-range[data-in-frozen="true"] {
+  z-index: 3;
+}
+.v3-cell-range [data-range-box],
+.v3-cell-range [data-fill-box] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  border-radius: 2px;
+  will-change: transform;
+}
+.v3-cell-range [data-range-box] {
+  border: 1px solid color-mix(in oklab, var(--brand) 75%, transparent);
+  background: color-mix(in oklab, var(--brand) 9%, transparent);
+}
+/* One cell selected: the ring marks it; the handle stays. */
+.v3-cell-range[data-single="true"] [data-range-box] {
+  border-color: transparent;
+  background: none;
+}
+/* Its rows run on past those drawn: no edge there. */
+.v3-cell-range[data-clip-top="true"] [data-range-box] {
+  border-top-color: transparent;
+}
+.v3-cell-range[data-clip-bottom="true"] [data-range-box] {
+  border-bottom-color: transparent;
+}
+.v3-cell-range [data-fill-handle] {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  border: 1.5px solid var(--sheet);
+  background: var(--brand);
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+.v3-cell-range[data-clip-bottom="true"] [data-fill-handle] {
+  display: none;
+}
+/* The rows a fill drag reaches, before it lets go. */
+.v3-cell-range [data-fill-box] {
+  display: none;
+  border: 1.5px dashed var(--brand);
+}
+.v3-cell-range[data-filling="true"] [data-fill-box] {
+  display: block;
+}
+@media (hover: none) {
+  /* A finger's handle, big enough to hold; none on a cell only tapped. */
+  .v3-cell-range [data-fill-handle] {
+    right: -8px;
+    bottom: -8px;
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    border-width: 2px;
+  }
+  .v3-cell-range[data-single="true"] [data-fill-handle] {
+    display: none;
+  }
+}
+/* A drag or a long press growing a range selects no text and opens no callout. */
+.v3-grid table[data-ranging] {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* ---- the column rule on header hover ------------------------------------ */
@@ -310,6 +448,45 @@
 
 .v3-grid-list > li + li {
   box-shadow: inset 0 1px 0 var(--line);
+}
+
+/* A find over a phone's list (G2b-2), in the grid's tokens. Every row keeps a
+   gutter inside its band, found or not, so a tinted row's text never meets the
+   tint's edge and no row's text moves as a find marks and unmarks (it moved
+   8 px when only a marking list had the gutter, DESIGN-BUILD-67 MUST 2); at
+   24 px it lines up with the toolbar's icons. A row brought into sight (a
+   find's step) stops 12 px clear of the screen's edge, and of the find bar
+   pinned over the page (usePinnedPad), never flush on it. A row with matches
+   is tinted as the grid tints its cells; the one it's at stronger, rounded,
+   with the ring inside its edge. A tinted row's grey text darkens (ink-3 read
+   3.1:1 on the strong tint, 2.7:1 dark), and each matched value reads in full
+   ink, underlined in the ring's colour. */
+.v3-grid-list > li {
+  padding-inline: 0.5rem;
+  scroll-margin-block: 0.75rem;
+}
+.v3-grid-list > li[data-found] {
+  --tinted: color-mix(in oklab, var(--camp-sun) 28%, var(--sheet));
+  background-color: var(--tinted);
+}
+.v3-grid-list > li[data-found="at"] {
+  --tinted: color-mix(in oklab, var(--camp-sun) 52%, var(--sheet));
+  border-radius: 0.5rem;
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--camp-sun), var(--ink) 38%);
+}
+.dark .v3-grid-list > li[data-found] { --tinted: color-mix(in oklab, var(--camp-sun) 20%, var(--sheet)); }
+.dark .v3-grid-list > li[data-found="at"] { --tinted: color-mix(in oklab, var(--camp-sun) 38%, var(--sheet)); }
+.v3-grid-list > li[data-found] :is(.text-ink-3, .text-ink-4) {
+  color: var(--ink-2);
+}
+.v3-grid-list > li[data-found="at"] .text-ink-3 {
+  color: var(--ink);
+}
+.v3-grid-list [data-found-value] {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline 2px color-mix(in oklab, var(--camp-sun), var(--ink) 38%);
+  text-underline-offset: 3px;
 }
 
 /* ---- an edit on its way ------------------------------------------------- */

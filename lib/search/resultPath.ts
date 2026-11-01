@@ -2,9 +2,13 @@ import type { SearchResult } from "@/services/searchService"
 import { chatPath } from "@/lib/routes/conversationRoute"
 import { route } from "@/lib/conversation/route"
 import { calendarRoute } from "@/lib/calendar/route"
+import { firstHitWords } from "@/lib/search/highlight"
 
 /** A channel, at one of its messages when there is one (the Link Router). */
 const channelPath = (channel: string, message?: string) => route({ conversation: { kind: "channel", id: channel }, ...(message ? { message } : {}) })
+
+/** A thing's own page, or null for a hit that names no thing: never a page of "undefined". */
+const page = (kind: string, id: unknown): string | null => ((typeof id === "string" || typeof id === "number") && id !== "" ? `/app/${kind}/${id}` : null)
 
 /**
  * Where a search result opens, as an app path, or null for a result that
@@ -25,11 +29,16 @@ export function resultPath(result: SearchResult, selfUUID: string): string | nul
       return ch ? channelPath(ch, result.post.post_id) : "/app/posts"
     }
     case "doc":
-      return `/app/doc/${result.doc?.doc_uuid}`
-    case "board":
-      return `/app/board/${result.board?.board_uuid}`
+      return page("doc", result.doc?.doc_uuid)
+    case "board": {
+      // A hit on what is written on a board opens it at those words, its Find on them (miro-05): the first words its
+      // passage marks. A hit on its name alone opens the board.
+      const path = page("board", result.board?.board_uuid)
+      const words = result.highlight?.board_text?.map((f) => firstHitWords(f)).find(Boolean)
+      return path && words ? `${path}?find=${encodeURIComponent(words)}` : path
+    }
     case "task":
-      return `/app/task/${result.task?.task_id}`
+      return page("task", result.task?.task_id)
     case "comment": {
       const c = result.comment ?? {}
       if (c.comment_doc_id) return `/app/doc/${c.comment_doc_id}/comment`
@@ -47,11 +56,11 @@ export function resultPath(result: SearchResult, selfUUID: string): string | nul
       return null
     }
     case "project":
-      return `/app/project/${result.project?.project_id}`
+      return page("project", result.project?.project_id)
     case "team":
-      return `/app/team/${result.team?.team_id}`
+      return page("team", result.team?.team_id)
     case "channel":
-      return channelPath(result.channel?.ch_id)
+      return result.channel?.ch_id ? channelPath(result.channel.ch_id) : null
     case "event":
       return result.event?.event_uuid ? calendarRoute({ event: result.event.event_uuid }) : null
     default:

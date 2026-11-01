@@ -5,8 +5,20 @@
  */
 
 import { dateTimeFormat } from "@/lib/utils/date/clock"
-import { timeZones } from "@/lib/calendar/availability"
 import { browserTZ } from "@/lib/utils/timeZone"
+import { zoneHere } from "@/lib/utils/zoneHere"
+
+/** Every zone the browser knows, the viewer's own first, and once: the list names zones as this runtime reads them. */
+export function timeZones(first: string = browserTZ()): string[] {
+  let all: string[] = []
+  try {
+    all = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") ?? []
+  } catch {
+    all = []
+  }
+  const here = zoneHere(first)
+  return [first, ...all.filter((z) => z !== first && z !== here)]
+}
 
 /**
  * A zone's name as Intl says it ("long", "longGeneric", "shortOffset"), or ""

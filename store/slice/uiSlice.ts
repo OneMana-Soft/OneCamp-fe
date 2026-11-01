@@ -11,6 +11,10 @@ interface RecordingPlayerInterface {
   fileSize: number;
   fileName: string;
   recordedAt: string;
+  mediaPath?: string;
+  // Where an event's call's words are read, a page at a time (its own transcript route, head C2).
+  transcriptPath?: string;
+  home?: "event";
 }
 
 interface SingleUIState<T = any> {

@@ -16,7 +16,8 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { AlertTriangle, ArrowDown, ArrowUp, Copy, EyeOff, Filter, Loader2, Trash2, ArrowLeft, ArrowRight, Pin, Settings2, SlidersHorizontal } from "@/lib/icons"
+import { AlertTriangle, AlignLeft, ArrowDown, ArrowUp, Copy, Eraser, EyeOff, Filter, Loader2, Trash2, ArrowLeft, ArrowRight, PanelLeft, Pin, Scissors, Settings2, SlidersHorizontal } from "@/lib/icons"
+import { TEXT_KINDS } from "@/lib/tables/query"
 import { Spark } from "@/components/ui/graphics"
 import {
   aggregateTable,
@@ -41,6 +42,7 @@ import { tintedFields } from "@/components/table/optionChip"
 import { RelationSettings, RollupSettings, relationDraftOf, rollupConfigOf, rollupDraftOf, rollupReady, relationReady, type RelationDraft, type RollupDraft } from "@/components/table/LinkSettings"
 import { FIELD_KINDS, fieldKind } from "@/lib/fieldTypes/registry"
 import { ownConfig } from "@/lib/tables/ownConfig"
+import { MAX_FROZEN } from "@/lib/tables/display"
 import { KindSettingRows, StatusGroupSelect } from "@/components/table/fields/KindSettings"
 import { statusGroupOf, type StatusGroup } from "@/lib/fieldTypes/kindsMore"
 import { CommandList, CommandTile, type CommandListItem } from "@/components/ui/CommandList"
@@ -324,7 +326,7 @@ function ProblemRow({ problem, className }: { problem: string; className?: strin
   )
 }
 
-export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSave, onDelete, onInsert, onDuplicate, onSort, onFilter, onHide, onFilled }: ColumnMenuBodyProps) {
+export function ColumnMenuBody({ field, fields, tableId, index, frozen = 1, page, onOpenPage, onSave, onDelete, onInsert, onDuplicate, onSort, onFilter, onHide, onFreeze, onClean, onFilled }: ColumnMenuBodyProps) {
   const { toast } = useToast()
   const setPage = (p: ColumnPage) => onOpenPage(p)
   const Glyph = fieldKind(field.type).glyph
@@ -521,6 +523,15 @@ export function ColumnMenuBody({ field, fields, tableId, page, onOpenPage, onSav
           {onSort && <MenuRow icon={<ArrowDown />} label="Sort descending" onClick={() => (onSort("desc"), onOpenPage(null))} />}
           {onFilter && <MenuRow icon={<Filter />} label="Filter by this field" onClick={() => (onFilter(), onOpenPage(null))} />}
           {onHide && <MenuRow icon={<EyeOff />} label="Hide field" onClick={() => (onHide(), onOpenPage(null))} />}
+          {/* Up to three leading columns stay put sideways (G2b); the first always does. */}
+          {onFreeze && index > 0 && index < MAX_FROZEN && frozen !== index + 1 && (
+            <MenuRow icon={<PanelLeft />} label="Freeze up to here" onClick={() => (onFreeze(index + 1), onOpenPage(null))} />
+          )}
+          {onFreeze && frozen > 1 && index < frozen && <MenuRow icon={<PanelLeft />} label="Unfreeze columns" onClick={() => (onFreeze(1), onOpenPage(null))} />}
+          {/* Clean-ups over the view's every row (G2b), each a dialog that counts first: a text column's trim and split, and duplicates by this column. */}
+          {onClean && TEXT_KINDS.has(field.type) && <MenuRow icon={<AlignLeft />} label="Trim spaces…" onClick={() => (onOpenPage(null), onClean("trim"))} />}
+          {onClean && TEXT_KINDS.has(field.type) && <MenuRow icon={<Scissors />} label="Split text column…" onClick={() => (onOpenPage(null), onClean("split"))} />}
+          {onClean && <MenuRow icon={<Eraser />} label="Remove duplicate rows…" onClick={() => (onOpenPage(null), onClean("dedupe"))} />}
           <Divider />
           {onInsert && <MenuRow icon={<ArrowLeft />} label="Insert left" onClick={() => (onInsert("left"), onOpenPage(null))} />}
           {onInsert && <MenuRow icon={<ArrowRight />} label="Insert right" onClick={() => (onInsert("right"), onOpenPage(null))} />}

@@ -46,6 +46,23 @@ describe("a dialog on a phone", () => {
     expect(document.querySelector(".v3-overlay")?.getAttribute("data-v3-scrim")).toBe("")
   })
 
+  // V-111 (DESIGN-BUILD-43): the time dialog's sheet at 390 kept its toast at
+  // its foot, over By person: a dialog drawn as a sheet marks the page as
+  // every sheet does (html[data-sheet]), which the toasts' place reads
+  // (app/phone.css C9).
+  it("marks the page while it is open, and not once it closes", () => {
+    mode.sheet = true
+    const open = () => document.documentElement.getAttribute("data-sheet") === "open"
+    const { unmount } = render(<Share />)
+    expect(open()).toBe(true)
+    unmount()
+    expect(open()).toBe(false)
+    mode.sheet = false
+    render(<Share />)
+    expect(open(), "a computer's centred dialog is no sheet").toBe(false)
+    mode.sheet = true
+  })
+
   it("gives its close button a finger's reach", () => {
     mode.sheet = true
     render(<Share />)

@@ -11,6 +11,8 @@ export const PHONE_TOOL_ROW = ".App-toolbar--mobile"
 export const TOOL_SECTION = ".App-menu_top .shapes-section"
 /** The MobileMenu's footer at the board's foot (undo, redo, the style palette): its island, as .App-bottom-bar spans the board. */
 export const PHONE_FOOTER = ".App-bottom-bar > .Island"
+/** "Scroll back to content", which Excalidraw shows while none of the scene is in view: on a phone it floats above the footer, outside the island's box. */
+export const SCROLL_BACK = ".scroll-back-to-content"
 /** The zoom and undo cluster, which the MobileMenu doesn't draw: the map's button is portaled into it. */
 export const ZOOM_CLUSTER = ".layer-ui__wrapper__footer-left > .Stack > section"
 /** Excalidraw's container, and the class it carries while it draws its phone UI (the MobileMenu). */

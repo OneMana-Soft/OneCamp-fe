@@ -12,7 +12,7 @@ import { HueDot } from "@/components/ui/chip"
 import { Button } from "@/components/ui/button"
 import { boardTags, tagKey, tagKeys, withoutTag } from "@/lib/board/sticky"
 import { notesTagged } from "@/lib/board/tagFilter"
-import { BoardSidePanel } from "@/components/board/boardSidePanel"
+import { BoardSidePanel, SIDE_PANELS } from "@/components/board/boardSidePanel"
 import type { SceneElement } from "@/components/board/boardOps"
 import type { TagHues } from "@/components/board/tagHues"
 
@@ -69,7 +69,7 @@ export default function TagFilterPanel({
     )
 
   return (
-    <BoardSidePanel name="Filter by tag" closeLabel="Close Filter by tag" detent="medium" footer={footer} onClose={onClose} data-tag-filter="">
+    <BoardSidePanel {...SIDE_PANELS.tagFilter()} footer={footer} onClose={onClose}>
       {known.length === 0 ? (
         <p className="px-1.5 py-2 text-ui-sm text-ink-3">No tags on this board yet. Tag notes from the notes bar.</p>
       ) : (

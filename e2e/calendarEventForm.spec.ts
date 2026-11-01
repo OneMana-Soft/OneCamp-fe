@@ -1,6 +1,6 @@
-import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
+import { expect, test, type Locator, type Page, type Request, type TestInfo } from "@playwright/test"
 
-import { SAM, stubBackend, type Answers } from "./stubbedApp"
+import { reviewShot, SAM, stubBackend, type Answers } from "./stubbedApp"
 
 // The one Event Form (calendar FORM): the full dialog, the event's panel and
 // a phone's page edit with the same form. A new event takes a guest marked
@@ -78,6 +78,36 @@ const colourful = () => {
     day(23, 14, "Roadmap review", "sky"),
     day(22, 15, "Hiring debrief", ""),
   ]
+}
+
+// CR-113 S1: a meeting with guests whose read says which own time the server won't make while it keeps them, in the
+// words the save would be refused with (own_time_refused).
+const OWN_TIME_REFUSED = {
+  focus: "Focus time is yours alone: it has no guests.",
+  out_of_office: "An out of office is yours alone: it has no guests.",
+  working_location: "A working location is yours alone: it has no guests.",
+}
+
+async function refuseOwnTime(page: Page) {
+  await page.route(
+    (url) => url.pathname.endsWith(`/calendar/events/${LAUNCH}`),
+    (route) => (route.request().method() === "GET" ? route.fulfill({ json: { msg: "ok", data: { ...apiEvent(), own_time_refused: OWN_TIME_REFUSED } } }) : route.fallback()),
+  )
+}
+
+// The edit offers those switches off and disabled, each saying why, its name dimmed so the row reads off (DB-52).
+async function expectOwnTimeRefused(form: Locator) {
+  await expect(form.getByRole("textbox", { name: "Title" })).toHaveValue("Launch review", { timeout: 20_000 })
+  for (const [label, kind] of [["Focus time", "focus"], ["Away", "out_of_office"], ["Working location", "working_location"]] as const) {
+    const own = form.getByRole("switch", { name: new RegExp(`^${label}`) })
+    await own.scrollIntoViewIfNeeded()
+    await expect(own).toBeDisabled()
+    await expect(own).toHaveAttribute("aria-checked", "false")
+    await expect(own).toHaveAccessibleDescription(OWN_TIME_REFUSED[kind])
+    // filter's inner locator is matched inside each row, so it starts from the page, not from the form
+    const row = form.locator("[data-refused]").filter({ has: form.page().getByRole("switch", { name: new RegExp(`^${label}`) }) })
+    await expect(row.locator("label > span").first()).toHaveClass(/(^| )text-ink-3( |$)/)
+  }
 }
 
 async function openApp(page: Page, testInfo: TestInfo, path = "/app/calendar?date=2026-10-21&view=week", events: unknown[] = [listed()], more: Answers = {}) {
@@ -261,6 +291,19 @@ for (const theme of ["light", "dark"] as const) {
       })
     })
 
+    // CR-113 S1: a meeting with guests the server won't make own time while it keeps them. Its read says so, in the
+    // words the save would be refused with; the edit offers those switches off and disabled, each saying why.
+    test("an edit of a meeting with guests offers only the own time the server takes", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openApp(page, testInfo)
+      await refuseOwnTime(page)
+      await page.locator(`[data-event-uuid="${LAUNCH}"]`).first().click()
+      await page.locator("[data-event-card]").getByRole("button", { name: "Open details" }).click()
+      await page.getByRole("button", { name: "Edit event" }).click()
+      await expectOwnTimeRefused(page.locator("[data-event-edit]"))
+      await reviewShot(page, "own-time-refused", theme)
+    })
+
     // V-34: the card's pencil is named Edit event and does what it says, as
     // Google Calendar's does: one press and the event is open, editing. Open
     // details is for reading.
@@ -305,6 +348,19 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Edit event" }).tap()
       await expect(page.locator("[data-event-edit]").getByRole("textbox", { name: "Title" })).toHaveValue("Launch review", { timeout: 20_000 })
       await shot(page, "phone-edit", theme)
+    })
+
+    // DB-53: on a phone the event's page is its edit, the same form, so a meeting with guests offers only the own time
+    // the server takes there too.
+    test("the event's own page offers only the own time the server takes", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openApp(page, testInfo, "/app/calendar?date=2026-10-21&view=agenda")
+      await refuseOwnTime(page)
+      await page.goto(`/app/calendar/event/${LAUNCH}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+      await expect(page.getByRole("heading", { name: "Launch review" })).toBeVisible({ timeout: 60_000 })
+      await page.getByRole("button", { name: "Edit event" }).tap()
+      await expectOwnTimeRefused(page.locator("[data-event-edit]"))
+      await reviewShot(page, "own-time-refused", theme)
     })
 
     // V-34 on a phone: the sheet's pencil opens the event's own page editing,
@@ -365,6 +421,210 @@ for (const theme of ["light", "dark"] as const) {
       await shot(page, "find-time-private", theme)
     })
   })
+}
+
+// Head 5d (gcal-9b's last part), Google Calendar's working location: a weekly
+// "Home" made with the form's switch and its quick places, all day, never busy,
+// with no guests and never sent to Google; on its day as a chip; changed to
+// Office for all its days with its rule kept (V-2); deleted from its details.
+// A meeting's form says where each guest works that day. With SHOTS_DIR set,
+// each state is saved through reviewShot at its width and theme.
+const PLACE = "0b8a3c1e-1d2f-4a5b-8c7d-9e0f1a2b3c0d"
+const PLACE_DAY = `${PLACE}_20261021`
+const WEEKLY = "FREQ=WEEKLY;BYDAY=WE"
+const placeListed = (title: string) => ({
+  event_uuid: PLACE_DAY,
+  event_title: title,
+  event_start_time: "2026-10-21T00:00:00Z",
+  event_end_time: "2026-10-22T00:00:00Z",
+  event_all_day: true,
+  event_start_date: "2026-10-21",
+  event_end_date: "2026-10-22",
+  event_created_by: ME,
+  event_participants: [],
+  event_working_location: title,
+  event_location: title,
+})
+const placeApi = (id: string, title: string) => ({
+  id,
+  kind: "working_location",
+  title,
+  notes: "",
+  location: title,
+  start: { date: "2026-10-21" },
+  end: { date: "2026-10-22" },
+  all_day: true,
+  recurrence: { rule: WEEKLY },
+  sequence: 1,
+  organiser: { user_uuid: ME.user_uuid },
+  attendees: [],
+  transparency: "transparent",
+  visibility: "default",
+  guests_can_modify: false,
+  guests_can_invite: false,
+  guests_can_see_guests: true,
+})
+
+/** The calendar, with a working location the stub keeps: made by a POST, renamed by a PATCH, gone after a DELETE. */
+async function openPlaces(page: Page, testInfo: TestInfo, path: string) {
+  const writes: { method: string; url: string; body: unknown }[] = []
+  let place = ""
+  const titleIn = (request: Request) => (request.postDataJSON() as { title?: string } | null)?.title
+  await openApp(page, testInfo, path, [], {
+    "/event/getEvents": () => ({ msg: "ok", data: [listed(), ...(place ? [placeListed(place)] : [])] }),
+    "/event/getEvent/": (url: URL) => ({ msg: "ok", data: place && url.pathname.includes(PLACE) ? placeListed(place) : listed() }),
+    "/calendar/events": (url: URL, request: Request) => {
+      const method = request.method()
+      const mine = url.pathname.includes(PLACE)
+      if (method !== "GET") writes.push({ method, url: `${url.pathname}${url.search}`, body: request.postDataJSON() })
+      if (method === "POST" && url.pathname.endsWith("/calendar/events")) {
+        place = titleIn(request) ?? ""
+        return { msg: "ok", data: placeApi(PLACE, place) }
+      }
+      if (method === "PATCH" && mine) place = titleIn(request) ?? place
+      if (method === "DELETE" && mine) {
+        place = ""
+        return { msg: "ok", data: null }
+      }
+      if (url.pathname.endsWith("/reminders")) return { msg: "ok", data: mine ? { minutes: [], default: true } : { minutes: [10, 30], default: false } }
+      return { msg: "ok", data: mine ? placeApi(PLACE_DAY, place) : apiEvent() }
+    },
+  })
+  return writes
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const phone of [false, true]) {
+    test.describe(`a working location ${phone ? "on a phone" : "at 1280"}, ${theme}`, () => {
+      test.use(phone ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: theme } : { viewport: { width: 1280, height: 900 }, colorScheme: theme })
+      const press = (l: Locator) => (phone ? l.tap() : l.click())
+
+      test("Home every week, then Office for all its days with its rule kept, then deleted", async ({ page }, testInfo) => {
+        test.setTimeout(240_000)
+        // A phone opens an event from its agenda (a tap on the day grid is a finding of its own).
+        const writes = await openPlaces(page, testInfo, `/app/calendar?date=2026-10-21&view=${phone ? "agenda" : "week"}`)
+        await expect(page.locator(`[data-event-uuid="${LAUNCH}"]`).first()).toBeVisible({ timeout: 60_000 })
+        await press(page.getByRole("button", { name: "New event" }))
+        const form = page.locator("[data-event-dialog]")
+        const on = form.getByRole("switch", { name: /^Working location/ })
+        const blockTime = form.getByRole("button", { name: "Block time for a task" })
+        await expect(blockTime).toHaveCount(1)
+        // Own time of any kind isn't time for a task, by one rule: Focus time and Away hide the row too. Each names an
+        // empty title for itself, so the title is emptied again after.
+        for (const kind of ["Focus time", "Away"]) {
+          const own = form.getByRole("switch", { name: new RegExp(`^${kind}`) })
+          await own.scrollIntoViewIfNeeded()
+          await press(own)
+          await expect(blockTime).toHaveCount(0)
+          await press(own)
+          await expect(blockTime).toHaveCount(1)
+        }
+        await form.getByRole("textbox", { name: "Title" }).fill("")
+        await on.scrollIntoViewIfNeeded()
+        await press(on)
+        // Where you are all day isn't time for a task (DB-50): its row goes while the switch is on, and comes back off.
+        await expect(blockTime).toHaveCount(0)
+        await press(on)
+        await expect(blockTime).toHaveCount(1)
+        await press(on)
+        await expect(blockTime).toHaveCount(0)
+        // Its quick places sit right under its switch, as its children; the title asks where.
+        const places = form.locator("[data-place-rows]")
+        expect(await places.evaluate((el) => el.previousElementSibling?.textContent ?? "")).toMatch(/^Working location/)
+        const title = form.getByRole("textbox", { name: "Title" })
+        await expect(title).toHaveAttribute("placeholder", "Where you're working")
+        // Where you are, not a meeting: no place of its own and no reminders.
+        await expect(form.getByRole("textbox", { name: "Place" })).toHaveCount(0)
+        await expect(form.getByRole("combobox", { name: "Reminder 1" })).toHaveCount(0)
+        // Empty, it says what's missing in the server's words, and makes nothing.
+        await press(form.getByRole("button", { name: "Create event" }))
+        await expect(form.getByRole("alert")).toHaveText("Say where you're working")
+        expect(writes.filter((w) => w.method === "POST")).toHaveLength(0)
+        await title.scrollIntoViewIfNeeded()
+        await reviewShot(page, "wloc-empty", theme)
+        const home = places.getByRole("button", { name: "Home" })
+        await press(home)
+        await expect(home).toHaveAttribute("aria-pressed", "true")
+        await expect(title).toHaveValue("Home")
+        // Put right, the alert goes (DB-51): once a save was stopped, the form says the problem as it stands.
+        await expect(form.getByRole("alert")).toHaveCount(0)
+        const repeat = form.getByRole("combobox", { name: "Repeat" })
+        await repeat.scrollIntoViewIfNeeded()
+        await press(repeat)
+        await press((phone ? page.locator("[data-sheet-panel]") : page).getByRole("option", { name: "Weekly on Wednesday" }))
+        await expect(repeat).toHaveText(/Weekly on Wednesday/)
+        await places.scrollIntoViewIfNeeded()
+        await reviewShot(page, "wloc-home", theme)
+        await press(form.getByRole("button", { name: "Create event" }))
+        await expect(form).toHaveCount(0, { timeout: 20_000 })
+        const made = writes.find((w) => w.method === "POST")?.body
+        expect(made).toMatchObject({ kind: "working_location", title: "Home", location: "Home", attendees: [], transparency: "transparent", recurrence: { rule: WEEKLY }, start: { date: "2026-10-21" } })
+        expect(made).not.toHaveProperty("sync_to_google")
+
+        // On its day, as a chip with its place.
+        const chip = page.locator(`[data-event-uuid="${PLACE_DAY}"]`).first()
+        await expect(chip).toContainText("Home", { timeout: 20_000 })
+
+        // Office for all its days: the place moves with the title, and the rule stays (V-2).
+        await press(chip)
+        if (phone) {
+          await press(page.locator("[data-event-sheet]").getByRole("button", { name: "Edit event" }))
+        } else {
+          await page.locator("[data-event-card]").getByRole("button", { name: "Open details" }).click()
+          await page.getByRole("button", { name: "Edit event" }).click()
+        }
+        const edit = page.locator("[data-event-edit]")
+        await expect(edit.getByRole("textbox", { name: "Title" })).toHaveValue("Home", { timeout: 20_000 })
+        const office = edit.locator("[data-place-rows]").getByRole("button", { name: "Office" })
+        await office.scrollIntoViewIfNeeded()
+        await press(office)
+        await expect(edit.getByRole("textbox", { name: "Title" })).toHaveValue("Office")
+        await press(page.getByRole("button", { name: "Save", exact: true }))
+        const change = page.getByRole("dialog", { name: "Change a repeating event" })
+        await press(change.getByRole("radio", { name: "All events" }))
+        await press(change.getByRole("button", { name: "Save" }))
+        await expect.poll(() => writes.find((w) => w.method === "PATCH")?.body, { timeout: 20_000 }).toMatchObject({ scope: "all", title: "Office", location: "Office" })
+        expect(writes.find((w) => w.method === "PATCH")?.body).not.toHaveProperty("recurrence")
+
+        // A change to all its days closes its details, back on the day with the new place.
+        await expect(chip).toContainText("Office", { timeout: 20_000 })
+        // Deleted from its details, all its days, and gone from the day.
+        await press(chip)
+        await press(page.locator("[data-event-card]").getByRole("button", { name: "Open details" }))
+        if (phone) {
+          await expect(page.getByRole("heading", { name: "Office" })).toBeVisible({ timeout: 20_000 })
+          await press(page.getByRole("button", { name: "More actions" }))
+          await press(page.getByRole("menuitem", { name: "Delete event" }))
+        } else {
+          await page.locator("[data-panel-actions]").getByRole("button", { name: "Delete event" }).click()
+        }
+        const gone = page.getByRole("dialog", { name: "Delete a repeating event" })
+        await press(gone.getByRole("radio", { name: "All events" }))
+        await press(gone.getByRole("button", { name: "Delete" }))
+        await expect.poll(() => writes.find((w) => w.method === "DELETE")?.url, { timeout: 20_000 }).toContain("scope=all")
+        await expect(page.locator(`[data-event-uuid="${PLACE_DAY}"]`)).toHaveCount(0, { timeout: 20_000 })
+      })
+
+      test("a meeting's form says where each guest works that day", async ({ page }, testInfo) => {
+        test.setTimeout(180_000)
+        await openApp(page, testInfo, phone ? `/app/calendar/event/${LAUNCH}` : undefined, undefined, {
+          "/event/hours": { msg: "ok", data: {}, where: { [MAYA.user_uuid]: "Lisbon office" } },
+        })
+        if (phone) {
+          await expect(page.getByRole("heading", { name: "Launch review" })).toBeVisible({ timeout: 60_000 })
+          await press(page.getByRole("button", { name: "Edit event" }))
+        } else {
+          await page.locator(`[data-event-uuid="${LAUNCH}"]`).first().click({ timeout: 60_000 })
+          await page.locator("[data-event-card]").getByRole("button", { name: "Open details" }).click()
+          await page.getByRole("button", { name: "Edit event" }).click()
+        }
+        const where = page.locator("[data-event-edit] [data-guest-where]")
+        await expect(where).toHaveText("Maya: Lisbon office", { timeout: 20_000 })
+        await where.scrollIntoViewIfNeeded()
+        await reviewShot(page, "wloc-where", theme)
+      })
+    })
+  }
 }
 
 // A select in a sheet is a panel of that sheet, with Back and its name: a

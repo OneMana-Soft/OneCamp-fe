@@ -15,7 +15,8 @@ import {
   type TableField,
   type TableRow,
 } from "@/services/tableService"
-import { nextCell, swallowsAtEdge, type CellKind } from "@/lib/tables/gridKeys"
+import { waitsForLiveCells, type KeyInput } from "@/lib/tables/gridKeyKinds"
+import type { ColumnDrag, GridKeyHost } from "@/components/table/gridMoves"
 import { TABLE_VIEW_BODY } from "@/components/table/TableViewFrame"
 import { useKeptRows, useViewWindow } from "@/components/table/viewWindow"
 import { placeOfRow } from "@/lib/tables/viewPlaces"
@@ -24,10 +25,11 @@ import { fieldKind } from "@/lib/fieldTypes/registry"
 import { tintedFields } from "@/components/table/optionChip"
 import { AddColumn, ColumnHeader, settingsPageOf, type ColumnPage } from "@/components/table/ColumnMenu"
 import { shownValues, useCellCommit, type CellCommit, type RowEdits } from "@/lib/tables/useCellCommit"
-import { rowPx, type RowHeight, type SummaryFn } from "@/lib/tables/display"
+import { frozenCount, frozenLefts, frozenMarks, rowPx, type RowHeight, type SummaryFn } from "@/lib/tables/display"
 import type { QuerySummaries } from "@/lib/querySpec/types"
 import type { RefusedSums } from "@/lib/tables/types"
 import type { Grouping } from "@/lib/tables/groups"
+import type { CleanStep, TransformMatch } from "@/lib/tables/transform"
 import type { CampHue } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import type { GroupBody } from "@/components/table/groups/GroupHeaders"
@@ -40,6 +42,8 @@ import { isComposingKey } from "@/lib/keys/ime"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import type { Columns } from "@/components/table/columnOps"
 import { useUndoToast } from "@/components/table/ledger/useUndoToast"
+import { useGridRange } from "@/components/table/gridRange"
+import type { GridWrites } from "@/components/table/rangeActions"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export { groupedNumber } from "@/components/table/cellFaces"
@@ -114,6 +118,14 @@ interface DataTableGridProps {
   commit?: CellCommit
   /** A phone: the gutter and the frozen column share PHONE_LEAD px (the column caps at 140, or 128 beside a touch gutter of two controls). */
   compact?: boolean
+  /** How many leading columns stay put sideways (G2b): 1 to 3, as the reader keeps it; a phone keeps one. */
+  frozen?: number
+  /** From a column's menu: freeze up to it, or back to the first column alone. */
+  onFreeze?: (count: number) => void
+  /** The find bar's match (G2b): brought into sight, the focus left in the bar. */
+  reveal?: TransformMatch | null
+  /** A column menu's clean-up over that column (G2b). */
+  onClean?: (step: CleanStep, fieldId: string) => void
   /** A grouped view (tables V2b): its headers, and the rows of its open groups. */
   grouping?: Grouping | null
   /** Each row's colour, as the view colours rows (V3). */
@@ -144,12 +156,13 @@ const RelationFaces = lazyView(() => import("@/components/table/relationFace"))
 /**
  * The live cells (gridCells): the one cell in use draws through them, every
  * other at rest (cellFaces). A chunk of its own, off the table's first
- * screen, asked for as the grid mounts; liveCellsIn says once it is in.
+ * screen, asked for as the grid mounts, with the grid's moves (gridMoves: the
+ * keys between cells, a column's drag); live holds it once it is in.
  */
-let liveCellsIn = false
+let live: typeof import("@/components/table/gridCells") | null = null
 export const LiveCells = lazyView(() =>
   import("@/components/table/gridCells").then((m) => {
-    liveCellsIn = true
+    live = m
     return m
   }),
 )
@@ -157,6 +170,8 @@ const warmLiveCells = () => LiveCells.warm().then(
   () => true,
   () => false,
 )
+/** A move that waited for the live cells when they failed to load (the next asks again): dropped, and said. */
+const couldNot = (verb: string) => void toast({ tone: "error", title: `Couldn't ${verb}: try again` })
 
 /**
  * A column's width, by what it holds. The grid lays out at fixed widths
@@ -185,6 +200,12 @@ export function columnWidth(f: TableField): number {
 }
 
 const HEADER_HEIGHT = 36
+/**
+ * The summary row's height, stuck to the grid's foot under the rows while it
+ * shows: its sums' --grid-sum-row (table.css) and the hairline over them. A
+ * cell brought into sight stops clear of it, as of the header row (V-226).
+ */
+const SUMMARY_HEIGHT = 33
 /**
  * On a phone the gutter and the frozen first column share this many pixels:
  * 44 + 140, or 56 + 128 where a touch gutter holds two controls. So a 390 px
@@ -253,6 +274,10 @@ export function DataTableGrid({
   onOpenRow,
   commit: shared,
   compact,
+  frozen = 1,
+  onFreeze,
+  reveal,
+  onClean,
   grouping,
   hues,
   tints,
@@ -329,6 +354,51 @@ export function DataTableGrid({
   // nothing else: the header's column menus and the summary bar stay put.
   // focusCell reaches the virtualizer through this ref.
   const virtualizerRef = React.useRef<Virtualizer<HTMLElement, Element> | null>(null)
+
+  // ---- a block of cells: ranges, copy, paste and fill (gridRange) --------
+  // The view as a paste reads it first (rangeActions' readThrough).
+  const viewRef = React.useRef({ count, tail, grouped: !!grouping, onNearEnd })
+  viewRef.current = { count, tail, grouped: !!grouping, onNearEnd }
+  // A range's far corner brought into view, the focus left on its anchor.
+  const revealCell = React.useCallback((row: number, col: number) => {
+    const td = scrollRef.current?.querySelector<HTMLElement>(`[data-cell="${row}:${col}"]`)?.closest("td")
+    if (td) td.scrollIntoView({ block: "nearest", inline: "nearest" })
+    else virtualizerRef.current?.scrollToIndex(placeOf.current(row), { align: "auto" })
+  }, [])
+  const moveFocus = React.useRef<(row: number, col: number, shut?: boolean) => void>(() => undefined)
+  const rangeWrites = useStableCallback(
+    (): GridWrites => ({
+      tableId,
+      rows: () => latest.current.rows,
+      fields: () => sortedFields,
+      valuesOf: (r) => shownValues(r, edits.get(r.id)),
+      view: () => ({ ...viewRef.current, given: latest.current.rows.length }),
+      placeOf: (id) => {
+        const i = latest.current.rows.findIndex((r) => r.id === id)
+        return i < 0 ? null : placeOf.current(i)
+      },
+      offerUndo,
+      onChange,
+      onCreated,
+      select: (box) => selectRange(box),
+    }),
+  )
+  const {
+    overlay: rangeOverlay,
+    place: placeRange,
+    inFrozen: rangeInFrozen,
+    select: selectRange,
+    onFocusIn: rangeFocusIn,
+    clear: clearRange,
+    onKey: rangeKey,
+    onCopy: rangeCopy,
+    onPaste: rangePaste,
+    onPointerDown: rangePointerDown,
+    onMouseDown: rangeMouseDown,
+    onClick: rangeClick,
+    onContextMenu: rangeMenu,
+    warm: warmRange,
+  } = useGridRange({ tableRef, scrollRef, writes: rangeWrites, focusCell: (row, col, shut) => moveFocus.current(row, col, shut), revealCell })
   const widthOf = (f: TableField) => widths?.[f.id] ?? columnWidth(f)
   // The gutter's width is table.css's --grid-gutter: 44px, or 56px on a touch
   // screen where it holds both a checkbox and an open button (gutterPair). On
@@ -342,9 +412,13 @@ export function DataTableGrid({
   // way across, behind a stretched row-number gutter.
   const colCount = sortedFields.length + 2
   const tableWidth = `calc(var(--grid-gutter) + ${frozenWidth} + ${sortedFields.slice(1).reduce((w, f) => w + widthOf(f), 0) + ADD_COL}px)`
-  // How far the gutter and the frozen column reach in from the grid's start:
+  // Up to three leading columns stay put sideways (G2b), each past the
+  // widths before it (table.css); a phone keeps one.
+  const nFrozen = frozenCount(frozen, sortedFields.length, !!compact)
+  const frozenPx = sortedFields.slice(0, nFrozen).map(widthOf)
+  // How far the gutter and the frozen columns reach in from the grid's start:
   // a cell brought into view stops beside them (globals.css's data-scroll-lead).
-  const gridLead = `calc(var(--grid-gutter) + ${frozenWidth})`
+  const gridLead = `calc(var(--grid-gutter) + ${nFrozen > 1 ? `${frozenPx.reduce((a, w) => a + w, 0)}px` : frozenWidth})`
   const gutterPair = canManage && !!onOpenRow
 
   // ---- the gliding ring and the frozen shadow ----------------------------
@@ -372,11 +446,11 @@ export function DataTableGrid({
     (e: React.FocusEvent) => {
       const td = (e.target as HTMLElement).closest<HTMLElement>("tbody td[data-kind]")
       ringCell.current = td
-      // The gutter and the frozen column stay over the cells scrolled under
+      // The gutter and the frozen columns stay over the cells scrolled under
       // them, and a browser brings a cell into view without counting them: a
       // cell taking the focus there (a tap on the part that shows, or the
       // keys) comes out beside them rather than half under.
-      const frozen = scrollRef.current?.querySelector<HTMLElement>("thead th[data-frozen]")
+      const frozen = scrollRef.current?.querySelector<HTMLElement>("thead th[data-frozen-edge]")
       if (td && frozen && scrollRef.current && !td.hasAttribute("data-frozen")) {
         const under = frozen.getBoundingClientRect().right - td.getBoundingClientRect().left
         if (under > 0) scrollRef.current.scrollLeft -= under
@@ -385,15 +459,17 @@ export function DataTableGrid({
       const at = (e.target as HTMLElement).closest<HTMLElement>("tbody tr[data-index]")?.dataset.index
       const id = at === undefined ? undefined : latest.current.rows[Number(at)]?.id
       if (id) onRowFocus?.(id)
+      rangeFocusIn(e.target)
     },
-    [placeRing, onRowFocus],
+    [placeRing, onRowFocus, rangeFocusIn],
   )
   const onFocusOut = React.useCallback((e: React.FocusEvent) => {
     const to = e.relatedTarget as HTMLElement | null
     if (to && tableRef.current?.contains(to) && to.closest("tbody td[data-kind]")) return
     ringCell.current = null
     if (ringRef.current) ringRef.current.dataset.on = "false"
-  }, [])
+    clearRange()
+  }, [clearRange])
   React.useEffect(() => {
     const el = scrollRef.current
     const frame = frameRef.current
@@ -406,11 +482,12 @@ export function DataTableGrid({
         wasX = x
         frame.dataset.scrolledX = x ? "true" : "false"
       }
-      // Only a ring in the frozen column moves against the content.
-      if (ringRef.current?.dataset.inFrozen === "true" && !raf) {
+      // Only a ring, or a range, in the frozen column moves against the content.
+      if ((ringRef.current?.dataset.inFrozen === "true" || rangeInFrozen()) && !raf) {
         raf = requestAnimationFrame(() => {
           raf = 0
           placeRing()
+          placeRange()
         })
       }
     }
@@ -419,12 +496,14 @@ export function DataTableGrid({
       el.removeEventListener("scroll", onScroll)
       if (raf) cancelAnimationFrame(raf)
     }
-  }, [placeRing])
+  }, [placeRing, placeRange, rangeInFrozen])
   // Rows re-rendered (scrolled, new heights or columns): the ring follows
-  // its cell, or hides when the cell has scrolled out of the window.
+  // its cell, or hides when the cell has scrolled out of the window, and the
+  // range its cells.
   const afterRows = React.useCallback(() => {
     if (ringCell.current) placeRing()
-  }, [placeRing])
+    placeRange()
+  }, [placeRing, placeRange])
   React.useLayoutEffect(() => {
     afterRows()
   })
@@ -444,36 +523,31 @@ export function DataTableGrid({
     rule.style.transform = `translateX(${th.offsetLeft + th.offsetWidth - 1}px)`
     rule.dataset.on = "true"
   }, [])
+  // The drag itself is the live cells' (gridMoves' columnDrag). Before they
+  // land, the pointer is followed, and the drag goes on from where it got to,
+  // or ends there if the button came up meanwhile.
   const startResize = React.useCallback(
     (e: React.PointerEvent, index: number) => {
-      const table = tableRef.current
-      const col = table?.querySelectorAll("col")[index + 1] as HTMLTableColElement | undefined
-      const th = table?.querySelector<HTMLElement>(`thead th[data-col-index="${index}"]`)
       const field = sortedFields[index]
+      const table = tableRef.current
       const rule = ruleRef.current
-      if (!col || !th || !field || !table || !rule) return
+      if (!field || !table || !rule) return
       e.preventDefault()
       e.stopPropagation()
-      const startX = e.clientX
-      const startW = th.offsetWidth
-      const left = th.offsetLeft
-      rule.dataset.resizing = "true"
-      rule.style.height = `${table.offsetHeight}px`
-      let w = startW
-      const move = (ev: PointerEvent) => {
-        w = Math.max(80, Math.min(640, startW + ev.clientX - startX))
-        col.style.width = `${w}px`
-        rule.style.transform = `translateX(${left + w - 1}px)`
-      }
-      const up = () => {
-        window.removeEventListener("pointermove", move)
-        window.removeEventListener("pointerup", up)
-        rule.dataset.resizing = "false"
-        rule.dataset.on = "false"
-        onWidth?.(field.id, Math.round(w))
-      }
+      const drag: ColumnDrag = { table, rule, index, startX: e.clientX, done: (w) => onWidth?.(field.id, w) }
+      if (live) return live.columnDrag(drag, e.clientX, false)
+      let x = e.clientX
+      let ended = false
+      const move = (ev: PointerEvent) => void (x = ev.clientX)
+      const end = () => void (ended = true)
       window.addEventListener("pointermove", move)
-      window.addEventListener("pointerup", up)
+      window.addEventListener("pointerup", end)
+      void warmLiveCells().then((ok) => {
+        window.removeEventListener("pointermove", move)
+        window.removeEventListener("pointerup", end)
+        if (ok && live) live.columnDrag(drag, x, ended)
+        else couldNot("resize that column")
+      })
     },
     [sortedFields, onWidth],
   )
@@ -505,7 +579,7 @@ export function DataTableGrid({
   const bringToLife = React.useCallback((td: Element | null | undefined): boolean => {
     const row = td?.closest<HTMLElement>("tr[data-row]")?.dataset.row
     const field = (td as HTMLElement | null | undefined)?.dataset.field
-    if (!liveCellsIn || !td || !row || !field || !td.querySelector("[data-rest]")) return false
+    if (!live || !td || !row || !field || !td.querySelector("[data-rest]")) return false
     flushSync(() => liveRef.current?.({ row, field }))
     return true
   }, [])
@@ -535,21 +609,27 @@ export function DataTableGrid({
   // cell to life, as it goes down.
   const onPointerOver = React.useCallback(
     (e: React.PointerEvent) => {
-      if (e.pointerType === "touch") return
+      // The pointer reached the grid: the range's piece starts coming.
+      warmRange()
+      // A finger's cell comes to life as it presses; a drag growing a range brings none to life.
+      if (e.pointerType === "touch" || tableRef.current?.hasAttribute("data-ranging")) return
       hovered.current = (e.target as HTMLElement).closest("tbody td[data-field]")
       bringToLifeUnderMouse(hovered.current)
     },
-    [bringToLifeUnderMouse],
+    [bringToLifeUnderMouse, warmRange],
   )
   const onPointerDown = React.useCallback(
     (e: React.PointerEvent) => {
+      rangePointerDown(e)
       if (e.pointerType !== "touch") return
       bringToLife((e.target as HTMLElement).closest("tbody td[data-field]"))
     },
-    [bringToLife],
+    [bringToLife, rangePointerDown],
   )
   const onRestClick = React.useCallback(
     (e: React.MouseEvent) => {
+      // A range's drag, Shift+click or long press ends with a click that opens nothing.
+      if (rangeClick(e)) return
       const target = e.target as HTMLElement
       const td = target.closest<HTMLElement>("tbody td[data-field]")
       const root = td?.firstElementChild
@@ -572,10 +652,10 @@ export function DataTableGrid({
         }
         same.click()
       }
-      if (liveCellsIn) again()
+      if (live) again()
       else void warmLiveCells().then(again)
     },
-    [bringToLife],
+    [bringToLife, rangeClick],
   )
 
   // A row given's place in the view: the rows read are its first, the rows
@@ -609,6 +689,7 @@ export function DataTableGrid({
     },
     [],
   )
+  moveFocus.current = focusCell
 
   // The row the page asked to focus (one just added, or someone's), once it's here.
   React.useEffect(() => {
@@ -619,13 +700,49 @@ export function DataTableGrid({
     onFocused?.()
   }, [focusRow, selectField, shown, sortedFields, focusCell, onFocused])
 
+  // Once per match, so rows arriving never pull the view back; a row not drawn
+  // yet by its place in the view, then its cell a frame later, sideways too.
+  const revealed = React.useRef<TransformMatch | null>(null)
+  React.useEffect(() => {
+    if (!reveal || revealed.current === reveal) return
+    revealed.current = reveal
+    const index = shown.findIndex((r) => r.id === reveal.row)
+    const at = index < 0 ? reveal.at : index
+    const col = Math.max(0, sortedFields.findIndex((f) => f.id === reveal.field))
+    revealCell(at, col)
+    requestAnimationFrame(() => revealCell(at, col))
+  }, [reveal, shown, sortedFields, revealCell])
+
+  // The keys between cells are the live cells' (gridMoves' gridKeyDown), with
+  // the grid's size, rows, focus and selection as they are when one comes.
+  const keyHost = useStableCallback(
+    (): GridKeyHost => ({ rows: latest.current.rows.length, cols: sortedFields.length, rowId: (row) => latest.current.rows[row]?.id, focusCell, toggleRow, bringToLife }),
+  )
+  // Before they land, a key that moves is held, and the keys held go once
+  // they do, in order, from the cell the focus is on then: none once the focus
+  // has left the grid. A load that fails drops them, and says so.
+  const heldKeys = React.useRef<KeyInput[]>([])
+  const playHeld = useStableCallback((ok: boolean) => {
+    const keys = heldKeys.current.splice(0)
+    const m = live
+    if (!ok || !m) return couldNot("move between cells")
+    for (const k of keys) {
+      const target = document.activeElement
+      if (!target || !tableRef.current?.contains(target)) return
+      m.gridKeyDown({ ...k, target, composing: false, preventDefault() {}, stopPropagation() {} }, keyHost())
+    }
+  })
+
   const onGridKey = React.useCallback(
     (e: React.KeyboardEvent<HTMLTableElement>) => {
+      // Shift+arrows, Escape, Delete on a range and Ctrl/Cmd+D are the range's (gridRange).
+      if (rangeKey(e)) return
       const target = e.target as HTMLElement
+      const composing = isComposingKey(e.nativeEvent)
       // A key that would type in a text box at rest: the cell comes to life,
       // and the key goes on to its live box, everything selected for it to
       // replace (as a move between cells leaves a box). F2 opens it as is.
-      if (target.hasAttribute("data-rest") && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && typesIn(e) && (e.key === "Process" || !isComposingKey(e.nativeEvent))) {
+      if (target.hasAttribute("data-rest") && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && typesIn(e) && (e.key === "Process" || !composing)) {
         const id = target.dataset.cell
         const td = target.closest("tbody td[data-field]")
         // Before the live cells' chunk is in, the key is held back (the box can't take it yet).
@@ -642,52 +759,14 @@ export function DataTableGrid({
         } else box?.select()
         return
       }
-      // A cell selected but shut holds the focus itself, its text box inside (TextCell).
-      const shut = target.hasAttribute("data-cell-box")
-      const at = (shut ? target.querySelector<HTMLElement>("[data-cell]") : target.closest<HTMLElement>("[data-cell]"))?.dataset.cell
-      if (!at || isComposingKey(e.nativeEvent)) return
-      const [row, col] = at.split(":").map(Number)
-      // Shift+Space selects the focused cell's row.
-      if (e.key === " " && e.shiftKey) {
-        const id = latest.current.rows[row]?.id
-        if (id) {
-          e.preventDefault()
-          toggleRow(id)
-        }
-        return
-      }
-      // Enter or F2 opens a shut cell's box, and a typed key opens it to
-      // replace what's there (the key goes on to the box, and to nothing else).
-      if (shut && (e.key === "Enter" || e.key === "F2" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey))) {
-        e.stopPropagation()
-        if (e.key.length > 1) e.preventDefault()
-        bringToLife(target.closest("tbody td[data-field]"))
-        return focusCell(row, col)
-      }
-      const kind = (target.closest<HTMLElement>("[data-kind]")?.dataset.kind ?? "text") as CellKind
-      let atStart = true
-      let atEnd = true
-      let lines: { first: boolean; last: boolean } | undefined
-      // A box at rest is read-only with all of it selected: there is no caret
-      // to move through, so the arrows go to the next cell from it.
-      if ((target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && (kind === "text" || kind === "number") && !target.hasAttribute("data-rest")) {
-        const s = target.selectionStart ?? 0
-        const end = target.selectionEnd ?? 0
-        atStart = s === 0 && end === 0
-        atEnd = s === target.value.length && end === target.value.length
-        if (target instanceof HTMLTextAreaElement) lines = { first: !target.value.slice(0, s).includes("\n"), last: !target.value.slice(end).includes("\n") }
-      }
-      const to = nextCell(e, { row, col }, { rows: latest.current.rows.length, cols: sortedFields.length }, { kind, atStart, atEnd, lines })
-      if (to) {
-        e.preventDefault()
-        e.stopPropagation()
-        focusCell(to.row, to.col)
-      } else if (swallowsAtEdge(e, kind)) {
-        e.preventDefault()
-        e.stopPropagation()
-      }
+      const k: KeyInput = { key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey }
+      if (live) return live.gridKeyDown({ ...k, target, composing, preventDefault: () => e.preventDefault(), stopPropagation: () => e.stopPropagation() }, keyHost())
+      if (composing || !waitsForLiveCells(k, target)) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (heldKeys.current.push(k) === 1) void warmLiveCells().then(playHeld)
     },
-    [focusCell, sortedFields.length, toggleRow, bringToLife],
+    [bringToLife, rangeKey, keyHost, playHeld],
   )
 
   const ctx = React.useMemo<CellContext>(
@@ -705,6 +784,8 @@ export function DataTableGrid({
   const anySelected = selected.size > 0
   const allSelected = rows.length > 0 && selected.size === rows.length
   const showSummary = !!summary && rows.length > 0
+  // The room a cell brought into sight keeps from the frame's foot: the summary row's, while it shows.
+  const footRoom = showSummary ? SUMMARY_HEIGHT : 0
   // One function for every footer's menu, whatever the page passes: a new one each render re-rendered every footer.
   const pickSummary = useStableCallback((fieldId: string, fn: SummaryFn) => onSummary?.(fieldId, fn))
   const toggleGroup = useStableCallback((path: string[]) => grouping && heads && counts && grouping.onShut(heads.toggleShut(grouping.shut, path, counts)))
@@ -719,10 +800,11 @@ export function DataTableGrid({
   return (
     <div ref={frameRef} className="v3-grid relative" data-scrolled-x="false" data-row-height={rowHeight} data-gutter-pair={gutterPair ? "" : undefined}>
       {/* The grid scrolls inside its own frame so the header row can stay in
-          view; scroll-pt keeps a cell focused from the keyboard out from
-          under it, and data-scroll-lead the cells out from under the gutter
+          view; its scroll padding keeps a cell brought into sight (a find's
+          step, a move by the keys) out from under the header row and the
+          summary row, and data-scroll-lead the cells out from under the gutter
           and the frozen column, which are data-sticky-lead (globals.css). */}
-      <div ref={scrollRef} className={cn(TABLE_VIEW_BODY, "scroll-pt-9")} style={{ "--scroll-lead": gridLead } as React.CSSProperties} data-scroll-lead="" data-table-grid="">
+      <div ref={scrollRef} className={TABLE_VIEW_BODY} style={{ "--scroll-lead": gridLead, scrollPaddingTop: HEADER_HEIGHT, scrollPaddingBottom: footRoom, ...frozenLefts(frozenPx, nFrozen) } as React.CSSProperties} data-scroll-lead="" data-table-grid="">
         <div className="relative" style={{ minWidth: tableWidth }}>
           <table
             ref={tableRef}
@@ -734,6 +816,10 @@ export function DataTableGrid({
             onPointerOver={onPointerOver}
             onPointerDownCapture={onPointerDown}
             onClickCapture={onRestClick}
+            onMouseDownCapture={rangeMouseDown}
+            onContextMenuCapture={rangeMenu}
+            onCopyCapture={rangeCopy}
+            onPasteCapture={rangePaste}
             onFocus={onFocusIn}
             onBlur={onFocusOut}
           >
@@ -768,7 +854,9 @@ export function DataTableGrid({
                     fields={sortedFields}
                     tableId={tableId}
                     canManage={canManage}
-                    frozen={i === 0}
+                    frozen={nFrozen}
+                    onFreeze={compact ? undefined : onFreeze}
+                    onClean={canManage && onClean ? (step) => onClean(step, f.id) : undefined}
                     openPage={menu?.field === f.id ? menu.page : null}
                     onOpenPage={(page) => setMenu(page ? { field: f.id, page } : null)}
                     onSave={(input) => withColumns((m) => m.saveColumn(cols, f, input))}
@@ -795,6 +883,7 @@ export function DataTableGrid({
               virtualizerRef={virtualizerRef}
               colCount={colCount}
               fields={sortedFields}
+              frozen={nFrozen}
               canManage={canManage}
               selected={selected}
               ctx={ctx}
@@ -805,6 +894,7 @@ export function DataTableGrid({
               onOpen={onOpenRow}
               afterRows={afterRows}
               floatRoom={anySelected && canManage && showSummary}
+              footRoom={footRoom}
               onNearEnd={onNearEnd}
               marked={marked}
               liveRef={liveRef}
@@ -822,12 +912,15 @@ export function DataTableGrid({
                     </tr>
                   </tfoot>
                 }
-                render={(m) => <m.SummaryBar rows={rows} fields={sortedFields} summary={summary} loaded={loaded} served={served} windowed={windowed} refusedSums={refusedSums} sumsOut={sumsOut} onPick={onSummary ? pickSummary : undefined} />}
+                render={(m) => <m.SummaryBar rows={rows} fields={sortedFields} summary={summary} loaded={loaded} served={served} windowed={windowed} refusedSums={refusedSums} sumsOut={sumsOut} onPick={onSummary ? pickSummary : undefined} frozen={nFrozen} />}
               />
             ) : null}
           </table>
-          <div ref={ringRef} className="v3-cell-ring pointer-events-none absolute left-0 top-0 z-[3] data-[in-frozen=true]:z-[5]" data-cell-ring="" data-on="false" aria-hidden="true" />
+          {/* The range, then the ring over it: both go under the frozen column (table.css). */}
+          {rangeOverlay}
+          <div ref={ringRef} className="v3-cell-ring pointer-events-none absolute left-0 top-0 z-[1] data-[in-frozen=true]:z-[5]" data-cell-ring="" data-on="false" aria-hidden="true" />
           <div ref={ruleRef} className="v3-col-rule pointer-events-none absolute left-0 top-0 z-[3]" data-on="false" aria-hidden="true" />
+
         </div>
       </div>
 
@@ -873,10 +966,14 @@ interface LiveCell {
   field: string
 }
 
-/** Whether a key would type in a text box: a character, a deletion, a paste or a cut, F2, or an input method's first key. */
+/**
+ * Whether a key would type in a text box: a character, a deletion, a cut, F2,
+ * or an input method's first key. A paste isn't: it reaches the range's paste
+ * (gridRange), which writes the cell, or every cell a block covers, at once.
+ */
 function typesIn(e: React.KeyboardEvent): boolean {
   if (e.key === "F2" || e.key === "Backspace" || e.key === "Delete" || e.key === "Process") return true
-  if ((e.metaKey || e.ctrlKey) && !e.altKey) return e.key === "v" || e.key === "x"
+  if ((e.metaKey || e.ctrlKey) && !e.altKey) return e.key === "x"
   return e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.key === " " && e.shiftKey)
 }
 
@@ -919,6 +1016,7 @@ const GridBody = React.memo(function GridBody({
   virtualizerRef,
   colCount,
   fields,
+  frozen,
   canManage,
   selected,
   ctx,
@@ -928,6 +1026,7 @@ const GridBody = React.memo(function GridBody({
   onOpen,
   afterRows,
   floatRoom,
+  footRoom,
   onNearEnd,
   marked,
   edits,
@@ -945,6 +1044,7 @@ const GridBody = React.memo(function GridBody({
   virtualizerRef: React.MutableRefObject<Virtualizer<HTMLElement, Element> | null>
   colCount: number
   fields: TableField[]
+  frozen: number
   canManage: boolean
   selected: Set<string>
   ctx: CellContext
@@ -955,6 +1055,8 @@ const GridBody = React.memo(function GridBody({
   afterRows: () => void
   /** Room after the last row for the selection bar, which on a phone floats over the rows' foot (A4): the last row scrolls clear of it. */
   floatRoom: boolean
+  /** The summary row's height while it shows, stuck under the rows (0 without it): the room a row brought into sight keeps from the frame's foot. */
+  footRoom: number
   onNearEnd?: (last: number) => void
   marked?: { rowId: string; note: string } | null
   /** What each row's cells show over its copy until it's read again (useCellCommit). */
@@ -980,6 +1082,10 @@ const GridBody = React.memo(function GridBody({
     scrollRef,
     overscan: 12,
     scrollPaddingStart: HEADER_HEIGHT,
+    // Its places start under the header row, HEADER_HEIGHT into the frame, so
+    // a row it brings into sight at the foot stops that much higher, clear of
+    // the summary row where the frame's scroll padding leaves a cell (V-226).
+    scrollPaddingEnd: HEADER_HEIGHT + footRoom,
     initialRect: { width: 1024, height: 640 },
     firstScreen: FIRST_SCREEN_ROWS,
     nearEnd: NEAR_END_ROWS,
@@ -1004,7 +1110,7 @@ const GridBody = React.memo(function GridBody({
         const spot = layout?.at(item.index)
         if (spot && "group" in spot) {
           const H = groups?.heads.GroupHeaderRow
-          return H && groups && <H key={`g${JSON.stringify(spot.group.key)}`} {...spot} place={item.index} height={groups.px} fields={fields} levels={groups.levels} all={groups.all} summary={groups.summary} held={groups.held} onToggle={groups.onToggle} partial={groups.partial} />
+          return H && groups && <H key={`g${JSON.stringify(spot.group.key)}`} {...spot} place={item.index} height={groups.px} fields={fields} frozen={frozen} levels={groups.levels} all={groups.all} summary={groups.summary} held={groups.held} onToggle={groups.onToggle} partial={groups.partial} />
         }
         const at = spot ? spot.row : rowAt(item.index)
         const row = rows[at]
@@ -1018,6 +1124,7 @@ const GridBody = React.memo(function GridBody({
           tints: tints?.get(row.id),
           height,
           fields,
+          frozen,
           canManage,
           selected: selected.has(row.id),
           selecting: anySelected,
@@ -1083,6 +1190,8 @@ hue?: CampHue
 tints?: Record<string, string>
 height: number
 fields: TableField[]
+/** How many leading columns stay put sideways. */
+frozen: number
 canManage: boolean
 selected: boolean
 selecting: boolean
@@ -1108,6 +1217,7 @@ function GridRow({
   tints,
   height,
   fields,
+  frozen,
   canManage,
   selected,
   selecting,
@@ -1196,7 +1306,7 @@ function GridRow({
         const rest = f.id === liveField ? null : restCell({ field: f, value: values[f.id], cellId, primary: col === 0, ctx })
         const saving = !!edits && f.id in edits.saving
         return (
-          <td key={f.id} data-field={f.id} data-kind={fieldKind(f.type).cell} data-frozen={col === 0 || undefined} data-sticky-lead={col === 0 || undefined} data-tint={tints?.[f.id]} aria-busy={saving || undefined} data-saving={saving || undefined} className={cn("overflow-hidden p-0 align-middle", alignsRight(f) && "text-right")}>
+          <td key={f.id} data-field={f.id} data-kind={fieldKind(f.type).cell} {...frozenMarks(col, frozen)} data-tint={tints?.[f.id]} aria-busy={saving || undefined} data-saving={saving || undefined} className={cn("overflow-hidden p-0 align-middle", alignsRight(f) && "text-right")}>
             {rest ?? (
               <LiveCells.View
                 // Until the live cells' chunk is in: the cell as it rests, or its text.
@@ -1236,6 +1346,7 @@ function sameRow(a: GridRowProps, b: GridRowProps): boolean {
     a.tints === b.tints &&
     a.height === b.height &&
     a.fields === b.fields &&
+    a.frozen === b.frozen &&
     a.canManage === b.canManage &&
     a.selected === b.selected &&
     a.selecting === b.selecting &&

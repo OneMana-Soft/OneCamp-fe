@@ -102,6 +102,19 @@ export function tagState(tasks: TaskInfoInterface[], tag: string): "all" | "some
   return n === 0 ? "none" : n === tasks.length ? "all" : "some"
 }
 
+/**
+ * The tags a selection can be given or lose: the tasks' own, then the
+ * project's they don't have yet, once each whatever the case; current when
+ * every task has it (picking it then takes it off them all). The selection
+ * bar's tag picker and the palette's Add or remove tag… (linear-28 H1b).
+ */
+export function selectionTags(tasks: TaskInfoInterface[], known: { name: string }[]): { name: string; current: boolean }[] {
+  const seen = new Map<string, string>()
+  for (const t of tasks) for (const tag of splitTags(t.task_label)) seen.set(tag.toLowerCase(), tag)
+  for (const k of known) if (!seen.has(k.name.toLowerCase())) seen.set(k.name.toLowerCase(), k.name)
+  return [...seen.values()].map((name) => ({ name, current: tagState(tasks, name) === "all" }))
+}
+
 /** "3 tasks", "1 task". */
 export const tasksCount = (n: number) => `${n} task${n === 1 ? "" : "s"}`
 

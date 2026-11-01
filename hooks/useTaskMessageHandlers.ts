@@ -12,6 +12,7 @@ import { useSWRConfig } from "swr";
 import { projectFieldsKey } from "@/hooks/useProjectFields";
 import { optionOf, withField, type FieldValues, type TaskField } from "@/lib/tasks/fields";
 import { useTaskUpdate } from "@/hooks/useTaskUpdate";
+import { useWorkChanges } from "@/hooks/useWorkChanges";
 import { appMutate } from "@/lib/swrMutate";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { updateTaskDueDateInTaskList, updateTaskStartDateInTaskList } from "@/store/slice/taskInfoSlice";
@@ -29,6 +30,7 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
     const dispatch = useDispatch()
     const { optimisticUpdateTasks, optimisticSetTaskField } = useTaskUpdate()
     const { cache } = useSWRConfig()
+    const workChanges = useWorkChanges()
 
     // A chain of tasks moved along arrives as a message each; the board, the
     // list and the timeline change once for the lot, not once per task.
@@ -106,15 +108,19 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
         [optimisticSetTaskField, cache]
     )
 
-    // Tasks moved in a project's one order: their new ranks re-sort its lists
-    // and board in place (lib/tasks/rankCache, a chunk: the layout's reach).
+    // A Work Change Log entry (WCL-2): a teammate's change shows on every open
+    // list, board, timeline and panel (hooks/useWorkChanges). Tasks moved in a
+    // project's one order: their new ranks re-sort its lists and board in
+    // place (lib/tasks/rankCache, a chunk: the layout's reach).
+    const { onTaskChanged } = workChanges
     const handleTaskChangedMessage = useCallback(
         (messageStr: string) => {
             const m: { project_uuid?: string; ranks?: Record<string, number> } | undefined = JSON.parse(messageStr)?.data
+            if (m && !m.ranks) onTaskChanged(m)
             if (!m?.project_uuid || !m.ranks || typeof m.ranks !== "object") return
             void import("@/lib/tasks/rankCache").then((r) => r.rerankProjectCaches(cache.keys() as Iterable<string>, appMutate as never, m.project_uuid!, m.ranks!, undefined, store), () => undefined)
         },
-        [cache]
+        [cache, onTaskChanged]
     )
 
     const handleTaskCommentMessage = useCallback(
@@ -255,5 +261,6 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
         handleTaskDatesMessage,
         handleTaskFieldMessage,
         handleTaskChangedMessage,
-    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage, handleTaskDatesMessage, handleTaskFieldMessage, handleTaskChangedMessage])
+        catchUpWork: workChanges.catchUp,
+    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage, handleTaskDatesMessage, handleTaskFieldMessage, handleTaskChangedMessage, workChanges.catchUp])
 }

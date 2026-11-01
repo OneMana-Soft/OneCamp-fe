@@ -16,6 +16,8 @@ import type { ProjectInfoRawInterface } from "@/types/project"
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip"
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip"
 import { LazyForecastChip } from "@/components/project/LazyForecastChip"
+import { ProjectLinksChip } from "@/components/project/ProjectLinksStrip"
+import { ProjectPlanStrip } from "@/components/project/ProjectPlanStrip"
 import dynamic from "next/dynamic"
 import { TabLoading } from "@/components/task/TabLoading"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
@@ -101,8 +103,11 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                 <div data-project-chips="" className="flex h-8 min-w-0 items-center gap-2 has-[>[data-part-failed]]:h-auto has-[>[data-part-failed]]:flex-wrap">
                     <ProjectHealthChip projectId={projectId} onOpen={() => setSelectedTab("updates")} className="shrink-0" />
                     <LazyForecastChip projectId={projectId} className="shrink-0" />
+                    <ProjectLinksChip projectId={projectId} canOpen={!!info?.project_is_admin || !!info?.project_is_member} className="shrink-0" />
                     <ProjectGoalChip projectId={projectId} className="min-w-0 shrink overflow-hidden" />
                 </div>
+                {/* Its plan (linear-15), a row of its own that scrolls sideways to the screen's edges. */}
+                <ProjectPlanStrip projectId={projectId} members={info?.project_members ?? []} className="-mx-4 px-4" />
             </div>
         <SectionTabs
             tabs={[

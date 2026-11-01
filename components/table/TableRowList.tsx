@@ -21,6 +21,8 @@ import { GroupHeaderItem, headerPx } from "@/components/table/groups/GroupHeader
 import type { CampHue } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { cn } from "@/lib/utils/helpers/cn"
+import { matchesByRow, type FindMarks } from "@/lib/tables/findMarks"
+import type { TransformMatch } from "@/lib/tables/transform"
 
 /** A value as one short line of plain markup, for a list row's meta. */
 export function brief(f: TableField, v: unknown, tinted: boolean): React.ReactNode {
@@ -81,6 +83,12 @@ const FIRST_SCREEN_ROWS = 14
 const NEAR_END_ROWS = 40
 /** The values named under a row's title. */
 const META_FIELDS = 3
+/**
+ * How far a row brought into sight (a find's step, a row added) stops from the list box's edges: its scroll
+ * margin's 12 px (table.css), which the page keeps too. The virtualizer checks its scroll a frame later at the
+ * edge it aligned to, so the box keeps the room itself, or it takes the margin back (DESIGN-BUILD-67 MUST 1).
+ */
+const ROW_CLEAR_PX = 12
 
 /**
  * A table on a phone with more than four fields (content.md T22): each row a
@@ -106,6 +114,7 @@ export function TableRowList({
   edits,
   grouping,
   hues,
+  found,
 }: {
   fields: TableField[]
   /** The view's rows read, from its first, then its last `tail` rows, added here. */
@@ -126,6 +135,12 @@ export function TableRowList({
   grouping?: Grouping | null
   /** Each row's colour, as the view colours rows (V3). */
   hues?: ReadonlyMap<string, CampHue> | null
+  /**
+   * A find over the view (G2b-2): the rows with matches tinted and their
+   * matched values shown, the row it's at marked as the grid marks its cell
+   * and brought into sight at every step.
+   */
+  found?: FindMarks | null
 }) {
   const counts = grouping?.counts
   const body = React.useMemo(() => (grouping ? (counts ? groupedBody(rows, grouping, counts, tail) : { rows: [], layout: null }) : null), [grouping, counts, rows, tail])
@@ -138,7 +153,7 @@ export function TableRowList({
   return (
     <div data-table-list="" aria-busy={(!!body && !layout) || undefined}>
       {length === 0 ? empty : null}
-      <ListBody fields={fields} rows={body?.rows ?? rows} count={length} tail={tail} onOpen={onOpen} onNearEnd={onNearEnd} scrollTo={scrollTo} edits={edits} groups={groups || null} hues={hues} />
+      <ListBody fields={fields} rows={body?.rows ?? rows} count={length} tail={tail} onOpen={onOpen} onNearEnd={onNearEnd} scrollTo={scrollTo} edits={edits} groups={groups || null} hues={hues} found={found} />
       {onAdd ? (
         <button type="button" onClick={onAdd} className="flex h-11 w-full items-center gap-2 text-ui text-ink-3 active:bg-press">
           <Plus className="size-4" aria-hidden="true" /> New row
@@ -172,6 +187,7 @@ const ListBody = React.memo(function ListBody({
   edits,
   groups,
   hues,
+  found,
 }: {
   fields: TableField[]
   rows: TableRow[]
@@ -183,6 +199,7 @@ const ListBody = React.memo(function ListBody({
   edits: ReadonlyMap<string, RowEdits>
   groups: { layout: GroupLayout; levels: Grouping["levels"]; all: TableField[]; onToggle: (path: string[]) => void; partial?: boolean } | null
   hues?: ReadonlyMap<string, CampHue> | null
+  found?: FindMarks | null
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const layout = groups?.layout
@@ -197,6 +214,8 @@ const ListBody = React.memo(function ListBody({
     scrollRef,
     overscan: 8,
     initialRect: { width: 390, height: 720 },
+    scrollPaddingStart: ROW_CLEAR_PX,
+    scrollPaddingEnd: ROW_CLEAR_PX,
     firstScreen: FIRST_SCREEN_ROWS,
     nearEnd: NEAR_END_ROWS,
     onNearEnd,
@@ -218,6 +237,32 @@ const ListBody = React.memo(function ListBody({
     scrolledTo.current = scrollTo
     virtualizer.scrollToIndex(layout ? layout.placeOf(index) : placeOfRow(index, rows.length, count, tail), { align: "auto" })
   }, [scrollTo, rows, count, tail, virtualizer, layout])
+  // A find's marks (G2b-2): each row's matched fields, and the match it's at. At every step that row comes into
+  // sight, as the grid brings its cell, by its place in the view while it isn't read yet; once per match, so rows
+  // arriving never pull the list back to it.
+  const byRow = React.useMemo(() => matchesByRow(found?.matches), [found?.matches])
+  const current = found?.current
+  const shownMatch = React.useRef<TransformMatch | null>(null)
+  const pageTo = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!current || shownMatch.current === current) return
+    shownMatch.current = current
+    const index = rows.findIndex((r) => r.id === current.row)
+    const place = index >= 0 ? (layout ? layout.placeOf(index) : placeOfRow(index, rows.length, count, tail)) : layout ? -1 : current.at
+    if (place < 0) return
+    virtualizer.scrollToIndex(place, { align: "auto" })
+    pageTo.current = current.row
+  }, [current, rows, count, tail, virtualizer, layout])
+  // The list's box can reach past the screen's edge (the bar and its Replace row sit above it on a phone): once the
+  // row is drawn, the page brings it in too, as little as it must, once per match: 12 px clear of the edge (its
+  // scroll margin, table.css) and under the bar pinned over the page, never behind it (usePinnedPad).
+  React.useEffect(() => {
+    const id = pageTo.current
+    const li = id ? [...(scrollRef.current?.querySelectorAll<HTMLElement>("li[data-row]") ?? [])].find((x) => x.dataset.row === id) : null
+    if (!li) return
+    pageTo.current = null
+    li.scrollIntoView?.({ block: "nearest" })
+  })
   return (
     <div ref={scrollRef} className={TABLE_VIEW_BODY} data-list-scroll="">
       <ul className="v3-grid-list" style={{ paddingTop: padTop, paddingBottom: padBottom }}>
@@ -228,7 +273,7 @@ const ListBody = React.memo(function ListBody({
           const row = rows[spot ? spot.row : rowAt(index)]
           if (!row) return listPlaceholder(index)
           // The same element as last time while sameListRow holds: React skips it.
-          return keep(row.id, { row, place: index, count, look, onOpen, edits: edits.get(row.id), hue: hues?.get(row.id) }, (p) => <ListRow key={row.id} {...p} />)
+          return keep(row.id, { row, place: index, count, look, onOpen, edits: edits.get(row.id), hue: hues?.get(row.id), found: byRow.get(row.id), foundAt: current?.row === row.id ? (current.field ?? "") : undefined }, (p) => <ListRow key={row.id} {...p} />)
         })}
       </ul>
     </div>
@@ -247,36 +292,58 @@ interface ListRowProps {
   edits?: RowEdits
   /** Its colour, as the view colours rows (V3): a stripe at its edge. */
   hue?: CampHue
+  /** A find's matched fields in this row (G2b-2): the row is tinted, and they lead its values, by name and value. */
+  found?: string[]
+  /** The field of the find's match when it's in this row ("" for a match without a field): marked as the grid marks its cell. */
+  foundAt?: string
 }
 
 /** Whether a row drawn with a draws as it would with b (ListBody keeps its element). */
 const sameListRow = (a: ListRowProps, b: ListRowProps) =>
-  a.row.id === b.row.id && a.row.values === b.row.values && a.place === b.place && a.count === b.count && a.look === b.look && a.onOpen === b.onOpen && a.edits === b.edits && a.hue === b.hue
+  a.row.id === b.row.id && a.row.values === b.row.values && a.place === b.place && a.count === b.count && a.look === b.look && a.onOpen === b.onOpen && a.edits === b.edits && a.hue === b.hue && a.found === b.found && a.foundAt === b.foundAt
 
 /** One row of the list: one render as it enters the window, its chips and icon drawn as plain markup. */
-function ListRow({ row, place, count, look, onOpen, edits, hue }: ListRowProps) {
+/** A matched value's mark: "at" for the find's match, "" for another. */
+const foundMark = (field: string, at: string | undefined): "at" | "" => (field === at ? "at" : "")
+
+/**
+ * The values under a row's title: the first META_FIELDS its summary names; with
+ * a find's matches in the row (G2b-2), those fields first, the one it's at
+ * leading, so a match in a field the summary leaves out shows by name and
+ * value; then the summary's own, to the same count.
+ */
+function rowMeta(look: ListLook, values: ReturnType<typeof shownValues>, found: string[] | undefined, foundAt: string | undefined) {
+  const marked = found?.length ? look.rest.filter((f) => found.includes(f.id)) : []
+  const lead = marked.findIndex((f) => f.id === foundAt)
+  if (lead > 0) marked.unshift(...marked.splice(lead, 1))
+  const meta: { f: TableField; node: React.ReactNode; found?: "at" | "" }[] = []
+  for (const f of marked.length ? [...marked, ...look.rest.filter((f) => !marked.includes(f))] : look.rest) {
+    if (meta.length === META_FIELDS) break
+    const node = brief(f, values[f.id], look.tinted.has(f.id))
+    if (node !== null) meta.push({ f, node, found: marked.includes(f) ? foundMark(f.id, foundAt) : undefined })
+  }
+  return meta
+}
+
+function ListRow({ row, place, count, look, onOpen, edits, hue, found, foundAt }: ListRowProps) {
   const values = shownValues(row, edits)
   const saving = !!edits && Object.keys(edits.saving).length > 0
-  const { primary, rest, tinted, striped } = look
-  const meta: { f: TableField; node: React.ReactNode }[] = []
-  for (const f of rest) {
-    if (meta.length === META_FIELDS) break
-    const node = brief(f, values[f.id], tinted.has(f.id))
-    if (node !== null) meta.push({ f, node })
-  }
+  const { primary, striped } = look
+  const meta = rowMeta(look, values, found, foundAt)
+  const titleFound = primary && found?.includes(primary.id) ? foundMark(primary.id, foundAt) : undefined
   return (
-    <li aria-setsize={count} aria-posinset={place + 1} aria-busy={saving || undefined} data-saving={saving || undefined} className={cn(hue && "relative")}>
+    <li data-row={row.id} data-found={foundAt !== undefined ? "at" : found ? "" : undefined} aria-setsize={count} aria-posinset={place + 1} aria-busy={saving || undefined} data-saving={saving || undefined} className={cn(hue && "relative")}>
       {hue ? <span aria-hidden="true" data-row-hue={hue} className={cn("absolute inset-y-2 left-0 w-[3px] rounded-sm bg-hue", HUE_CLASS[hue])} /> : null}
       <button type="button" onClick={() => onOpen(row.id)} className={cn("flex h-[60px] w-full items-center gap-3 py-2 text-left active:bg-press", striped && "pl-3")}>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-ui font-medium text-ink">{primary ? String(values[primary.id] ?? "") || "Untitled" : "Untitled"}</span>
+          <span data-found-value={titleFound} className="block truncate text-ui font-medium text-ink">{primary ? String(values[primary.id] ?? "") || "Untitled" : "Untitled"}</span>
           {meta.length ? (
             <span className="mt-0.5 flex min-w-0 items-center gap-2 overflow-hidden text-meta text-ink-3">
               {meta.map((m, i) => (
                 <React.Fragment key={m.f.id}>
                   {i > 0 ? <span aria-hidden="true">·</span> : null}
                   {/* Each value named, as a board card names its details: "1,200 · 1 · 11 Oct" said nothing of what they were (QA PTC-46). */}
-                  <span className="shrink-0 truncate">
+                  <span className="shrink-0 truncate" data-found-value={m.found}>
                     <span className="text-ink-3">{m.f.name} </span>
                     {m.node}
                   </span>

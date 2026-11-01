@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { warmBeforeTests } from "@/lib/testing/lazyCode"
 import type { GuestGrant } from "@/services/guestService"
 
 const setGuestAccess = vi.fn()
@@ -40,6 +41,11 @@ async function open() {
     render(<GuestAccessCard />)
   })
 }
+
+// A saved change offers Undo through a toast whose parts load on first use (components/ui/saveStatus.tsx:
+// import("@/components/ui/undoToast")), with nothing awaiting them: on a busy machine one test's offer came after its
+// clearAllMocks, in the next test's toasts (V-138). Warmed before the tests, each offer comes inside its own test.
+warmBeforeTests(() => import("@/components/ui/undoToast"))
 
 describe("guest access, turned off with links made", () => {
   afterEach(() => {

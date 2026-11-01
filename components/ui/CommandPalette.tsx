@@ -31,7 +31,9 @@ import { useSearch } from "@/hooks/useSearch"
 import { SaysLoadFailure } from "@/lib/http/loadFailure"
 import { matchScore, NAMED_MATCH, paletteTargets, rankTargets, type PaletteTarget } from "@/lib/search/paletteMatch"
 import { resultPath } from "@/lib/search/resultPath"
-import { getContext, getHighlightedTitle, getIcon, getTitle, hitHueId, searchResultKeys } from "@/lib/utils/helpers/search"
+import { inScope, scopeWords, searchPageHref, typedScope, type PaletteScope } from "@/lib/search/scopePrefix"
+import { getContext, getHighlightedTitle, getIcon, getTitle, hitContextText, hitHueId, searchResultKeys } from "@/lib/utils/helpers/search"
+import { useBotKindMap } from "@/hooks/useBotKinds"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { RecentMark, recentHue } from "@/components/ui/graphics/recentMark"
 import { PlaceMark, placeMarkHue, type MarkedPlace } from "@/components/ui/graphics/placeMark"
@@ -63,12 +65,16 @@ import { SearchResult } from "@/services/searchService"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
 import { pauseEndsLine, pausePresets } from "@/lib/notifications/pause"
-import { ArrowLeft, ArrowRight, BellOff, ChevronRight, Columns2, Columns3, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun, Video } from "@/lib/icons"
+import { ArrowLeft, ArrowRight, BellOff, ChevronRight, Columns2, Columns3, Keyboard, Maximize2, MessageSquarePlus, Moon, Sun, Video, X } from "@/lib/icons"
 import { FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
 import { projectAt } from "@/lib/task/startingProject"
 import { clockTime } from "@/lib/utils/date/clock"
-import { paletteEntries } from "@/components/docEditor/registry/commandBus"
+import type { PaletteChoice } from "@/lib/ui/paletteEntries"
+import { loadPaletteSurfaces, paletteSurfaces } from "@/lib/ui/paletteSurfaces"
 import { isComposingKey } from "@/lib/keys/ime"
+import { PaletteMarkIcon, paletteMarkTag } from "@/components/ui/paletteMark"
+import { PalettePeek, peekAttrs, readPeek, type PeekInfo } from "@/components/ui/palettePeek"
+import { hitPeek } from "@/lib/search/peekFacts"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -172,8 +178,10 @@ export function CommandPalette() {
   const [open, setOpen] = React.useState(false)
   // A pushed page: an action that asks for its argument (P1, "Nested pages").
   const [page, setPage] = React.useState<PalettePage | null>(null)
-  // Space's preview of the selected row (P3).
+  // Space's preview of the selected row (P3). Its words for where a hit is
+  // from are the row's own (hitContextText), relayed authors included.
   const [peek, setPeek] = React.useState<PeekInfo | null>(null)
+  const botKinds = useBotKindMap()
   const contentRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const listRef = React.useRef<HTMLDivElement>(null)
@@ -198,6 +206,10 @@ export function CommandPalette() {
   // are not offered when it is absent.
   const { features } = useClientConfig()
 
+  // A prefix scope (linear-28, lib/search/scopePrefix): "t " in the empty
+  // field searches tasks only, shown as a chip, until Backspace clears it.
+  const [scope, setScope] = React.useState<PaletteScope | null>(null)
+
   // Global search. The palette's query is the search hook's own: a second
   // copy kept in step by an effect rendered the whole palette twice a key.
   const {
@@ -210,7 +222,7 @@ export function CommandPalette() {
     isRetrying: searchRetrying,
     retry: retrySearch,
     handleResultClick,
-  } = useSearch({ debounceMs: 150 })
+  } = useSearch({ debounceMs: 150, scope })
 
   // What the sidebar already holds answers on the keystroke, before the
   // search request leaves: channels, people, projects, teams, docs, boards.
@@ -263,6 +275,7 @@ export function CommandPalette() {
   React.useEffect(() => {
     if (open) return
     setInputValue("")
+    setScope(null)
     setPage(null)
     setPeek(null)
     navigatedByArrows.current = false
@@ -292,6 +305,7 @@ export function CommandPalette() {
     (next: PalettePage) => {
       setPage(next)
       setInputValue("")
+      setScope(null)
       setPeek(null)
       bounce()
     },
@@ -786,39 +800,79 @@ export function CommandPalette() {
     })
   }, [router, dispatch, isAdmin, can, features, pathname, splitRun, splitOn, sideBySide, isPhone])
 
-  // The open doc's own actions (its page lists them: Version history, Full
-  // width, Export…), asked for as the palette opens, found by typing.
-  const docCommands: PaletteCommand[] = React.useMemo(() => {
-    if (!open) return []
-    return paletteEntries().map((entry) => {
-      const Icon = entry.icon ?? FileText
-      return { id: `doc:${entry.id}`, label: entry.label, keywords: entry.keywords, icon: <Icon className="h-4 w-4" />, group: "This doc", action: entry.run, keys: entry.keys }
+  // What the open surfaces offer (lib/ui/paletteEntries): the open doc's
+  // actions (Version history, Full width, Export…), the open task's (its
+  // status, priority, assignee, links: linear-28). Asked for as the palette
+  // opens and found by typing; the thing the person is on (a task) is listed
+  // first with nothing typed. One with choices asks which on a page. A
+  // surface whose actions are a chunk of their own (the task's) is listed
+  // once its code has come: a moment after the rest on the first open.
+  const [surfaceCode, setSurfaceCode] = React.useState(0)
+  React.useEffect(() => {
+    if (!open) return
+    let live = true
+    void loadPaletteSurfaces().then((came) => {
+      if (live && came) setSurfaceCode((n) => n + 1)
     })
+    return () => {
+      live = false
+    }
   }, [open])
+  // surfaceCode counts the surfaces' code that came since the palette opened:
+  // each lists the surfaces again.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const surfaces = React.useMemo(() => (open ? paletteSurfaces() : []), [open, surfaceCode])
+  const surfaceCommands: PaletteCommand[] = React.useMemo(
+    () =>
+      surfaces.flatMap((surface) =>
+        surface.entries.map((entry) => {
+          const Icon = entry.icon ?? FileText
+          const page: ChoicePage | undefined =
+            entry.choices && entry.apply ? { label: entry.label, choices: entry.choices, apply: entry.apply } : undefined
+          return {
+            id: `${surface.id}:${entry.id}`,
+            label: entry.label,
+            keywords: entry.keywords,
+            // Its own icon, else the app's mark it names (a lazy surface's: DESIGN-BUILD-57), else the page's.
+            icon: entry.mark && !entry.icon ? <PaletteMarkIcon mark={entry.mark} /> : <Icon className="h-4 w-4" />,
+            group: surface.group,
+            action: entry.run ?? (() => {}),
+            keys: entry.keys,
+            page,
+          }
+        }),
+      ),
+    [surfaces],
+  )
+  const leadSurface = surfaces.find((s) => s.lead)
 
   const query = inputValue.trim()
   const hasSearchQuery = query.length > 0
   // This edition has no AI: the palette is Search only, with no Ask mode.
-  const jumpTo = React.useMemo(() => rankTargets(query, targets, 6), [query, targets])
+  // A scope keeps the places, hits and recent things of its kind, by the
+  // search page's grouping (inScope), and nothing else.
+  const scopedTargets = React.useMemo(() => (scope ? targets.filter((t) => inScope(t.kind, scope)) : targets), [targets, scope])
+  const jumpTo = React.useMemo(() => rankTargets(query, scopedTargets, 6), [query, scopedTargets])
   // A place already under "Jump to" isn't listed again among the hits: "Q4
-  // launch" showed twice, once as a place and once as a project hit.
+  // launch" showed twice, once as a place and once as a project hit. An
+  // answer kept from before the scope (useSearch's last) shows only its kind.
   const hits = React.useMemo(() => {
     const placed = new Set(jumpTo.map((t) => t.id))
-    return searchResults.filter((r) => !(PLACE_TYPES.has(r.type) && placed.has(hitHueId(r) ?? "")))
-  }, [searchResults, jumpTo])
+    return searchResults.filter((r) => inScope(r.type, scope) && !(PLACE_TYPES.has(r.type) && placed.has(hitHueId(r) ?? "")))
+  }, [searchResults, jumpTo, scope])
   const hasSearchResults = hits.length > 0
   // A hit keeps its key (and the keyboard's place on it) as answers arrive.
   const hitKeys = React.useMemo(() => searchResultKeys(hits), [hits])
   // While typing, the commands that match, best first.
   const { matchedCommands, commandScore } = React.useMemo(() => {
-    if (!hasSearchQuery) return { matchedCommands: [] as PaletteCommand[], commandScore: 0 }
-    const ranked = [...docCommands, ...commands]
+    if (!hasSearchQuery || scope) return { matchedCommands: [] as PaletteCommand[], commandScore: 0 }
+    const ranked = [...surfaceCommands, ...commands]
       .map((cmd, i) => ({ cmd, i, score: matchScore(query, cmd.label, cmd.keywords) }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.i - b.i)
       .slice(0, 6)
     return { matchedCommands: ranked.map((x) => x.cmd), commandScore: ranked[0]?.score ?? 0 }
-  }, [commands, docCommands, query, hasSearchQuery])
+  }, [commands, surfaceCommands, query, hasSearchQuery, scope])
   // What the query names goes above what the search found in the text. Typed
   // whole, "Docs" sat under two tasks that only mention docs, and the row the
   // keyboard was on was halfway down the list. Places always lead (they match
@@ -828,11 +882,13 @@ export function CommandPalette() {
   const commandsNamed = commandScore >= NAMED_MATCH
   const commandsLead = commandsNamed && commandScore > placeScore
   const nothingYet = hasSearchQuery && jumpTo.length === 0 && !hasSearchResults && matchedCommands.length === 0
-  const searchEverything = () => runCommand(() => router.push(`/app/search?query=${encodeURIComponent(query)}`))
+  // The full search, on the scope's chip when there is one.
+  const searchEverything = () => runCommand(() => router.push(searchPageHref(query, scope)))
 
   // The curated empty palette (Superhuman's rule): what you were just in,
   // then the few things people start from. Navigation waits until typed.
-  const recent = recentItems.slice(0, 5)
+  // Under a scope, only what was just in of its kind.
+  const recent = (scope ? recentItems.filter((item) => inScope(item.type, scope)) : recentItems).slice(0, 5)
   const suggested = React.useMemo(() => {
     const byId = (id: string) => commands.find((c) => c.id === id)
     const rows: { id: string; label: string; icon: React.ReactNode; run: () => void; keys?: string }[] = []
@@ -848,7 +904,7 @@ export function CommandPalette() {
   }, [commands, runCommand, pushPage])
 
   // A closest name, for "Did you mean …?" when nothing matched.
-  const didYouMean = React.useMemo(() => (nothingYet ? closestName(query, [...targets.map((t) => t.label), ...docCommands.map((c) => c.label), ...commands.map((c) => c.label)]) : null), [nothingYet, query, targets, docCommands, commands])
+  const didYouMean = React.useMemo(() => (nothingYet && !scope ? closestName(query, [...targets.map((t) => t.label), ...surfaceCommands.map((c) => c.label), ...commands.map((c) => c.label)]) : null), [nothingYet, scope, query, targets, surfaceCommands, commands])
 
   const commandsGroup = hasSearchQuery && matchedCommands.length > 0 && (
     <CommandGroup heading="Commands">
@@ -867,8 +923,29 @@ export function CommandPalette() {
     </CommandGroup>
   )
 
+  // The thing the person is on, with nothing typed: the open task's actions.
+  // Its first row takes the keyboard (PaletteRoot's lead). A scope lists only
+  // its kind.
+  const leadCommands = !hasSearchQuery && !scope && leadSurface ? surfaceCommands.filter((cmd) => cmd.id.startsWith(`${leadSurface.id}:`)) : []
+  const leadRow = !page && leadCommands.length ? `cmd-${leadCommands[0].id}` : undefined
+  const leadGroup = leadSurface && leadCommands.length > 0 && (
+    <CommandGroup heading={leadSurface.group}>
+      {leadCommands.map((cmd) => (
+        <PaletteRow
+          key={cmd.id}
+          value={`cmd-${cmd.id}`}
+          onSelect={() => (cmd.page ? pushPage(cmd.page) : runCommand(cmd.action))}
+          icon={cmd.icon}
+          label={cmd.label}
+          keys={cmd.keys}
+        />
+      ))}
+    </CommandGroup>
+  )
+
   const searchBody = (
     <>
+      {leadGroup}
       {commandsLead && commandsGroup}
 
       {/* Places from the sidebar: these answer on the keystroke. */}
@@ -895,14 +972,15 @@ export function CommandPalette() {
       {/* The workspace's search, a moment later. An older answer stays,
           dimmed, while the next one loads, so the rows don't blank. */}
       {hasSearchQuery && (hasSearchResults || isSearching) && (
-        <CommandGroup heading="Messages, docs and tasks" className={isRefreshing ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}>
+        <CommandGroup heading={scope ? scopeWords(scope).label : "Messages, docs and tasks"} className={isRefreshing ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}>
           {isSearching && !hasSearchResults && (
             <div role="status" className="px-3 py-2 text-sm text-ink-3">
               Searching…
             </div>
           )}
           {hits.slice(0, 8).map((result, idx) => {
-            // Where the row opens, the address it links to (resultPath).
+            // Where the row opens, the address it links to (resultPath). Its
+            // preview adds what the row can't show (hitPeek).
             const href = resultPath(result, selfId ?? "") ?? undefined
             return (
               <PaletteRow
@@ -914,7 +992,7 @@ export function CommandPalette() {
                 label={getHighlightedTitle(result)}
                 meta={getContext(result)}
                 href={href}
-                peek={{ title: getTitle(result), kind: hitKindLabel(result.type), meta: String(getContext(result) ?? "") }}
+                peek={{ title: getTitle(result), kind: hitKindLabel(result.type), meta: hitContextText(result, botKinds) || undefined, ...hitPeek(result) }}
               />
             )
           })}
@@ -931,7 +1009,7 @@ export function CommandPalette() {
             value="search-everything"
             onSelect={searchEverything}
             icon={<Search className="h-4 w-4" />}
-            label={<>Search everything for “{query}”</>}
+            label={scope ? <>Search all {scopeWords(scope).plural} for “{query}”</> : <>Search everything for “{query}”</>}
           />
         </CommandGroup>
       )}
@@ -942,6 +1020,7 @@ export function CommandPalette() {
       {nothingYet && !isSearching && (
         <PaletteEmpty
           query={query}
+          scope={scope ? scopeWords(scope).plural : undefined}
           didYouMean={didYouMean}
           onDidYouMean={(name) => setInputValue(name)}
           onSearch={searchEverything}
@@ -967,7 +1046,13 @@ export function CommandPalette() {
         </CommandGroup>
       )}
 
-      {!hasSearchQuery && (
+      {!hasSearchQuery && scope && recent.length === 0 && (
+        <div role="status" className="px-3 py-2 text-sm text-ink-3">
+          Type to search {scopeWords(scope).plural}
+        </div>
+      )}
+
+      {!hasSearchQuery && !scope && (
         <CommandGroup heading="Suggested">
           {suggested.map((s) => (
             <PaletteRow key={s.id} value={`suggest-${s.id}`} onSelect={s.run} icon={s.icon} label={s.label} keys={s.keys} />
@@ -996,6 +1081,12 @@ export function CommandPalette() {
       const href = selectedRow()?.getAttribute("data-href")
       const pane = href && splitOn ? paneFromHref(href) : null
       if (pane) runCommand(() => dispatch(openInSplit(pane)))
+      return
+    }
+    // Backspace on the empty field takes a scope off, as Linear's does.
+    if (e.key === "Backspace" && scope && inputValue === "") {
+      e.preventDefault()
+      setScope(null)
       return
     }
     if (e.key === "Backspace" && page && inputValue === "") {
@@ -1039,6 +1130,7 @@ export function CommandPalette() {
         <span><kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd> move</span>
         <span><kbd className="kbd">⏎</kbd> open</span>
         {splitOn && <span><kbd className="kbd">{modKey}</kbd><kbd className="kbd">⏎</kbd> open beside</span>}
+        {scope && <span><kbd className="kbd">⌫</kbd> search everything</span>}
         <span className="ml-auto"><kbd className="kbd">Esc</kbd> close</span>
       </>
     )
@@ -1070,13 +1162,31 @@ export function CommandPalette() {
               cmdk, the server's hits were filtered a second time against the
               60 characters of their title, and a message that matched further
               in was dropped: 5 of 7 hits showed for "pricing". */}
-          <CommandPrimitive shouldFilter={false} loop onKeyDown={onKeyDown} className="flex min-h-0 flex-1 flex-col" label="Search or jump to">
+          <PaletteRoot lead={leadRow} shouldFilter={false} loop onKeyDown={onKeyDown} className="flex min-h-0 flex-1 flex-col" label="Search or jump to">
             <div className="palette-input-row" data-mode="search">
               {page ? (
                 <>
-                  <span className="palette-crumb">{PAGE_CRUMB[page]}</span>
+                  <span className="palette-crumb">{pageCrumb(page)}</span>
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden="true" />
                 </>
+              ) : scope ? (
+                // The scope where a page's crumb sits; a tap takes it off (a
+                // phone's Backspace on an empty field may send no key).
+                <button
+                  type="button"
+                  className="flex h-11 flex-none items-center"
+                  data-palette-scope={scope}
+                  aria-label={`${scopeWords(scope).label}: search everything instead`}
+                  onClick={() => {
+                    setScope(null)
+                    inputRef.current?.focus()
+                  }}
+                >
+                  <span className="palette-crumb gap-1">
+                    {scopeWords(scope).label}
+                    <X className="h-3 w-3 text-ink-3" aria-hidden="true" />
+                  </span>
+                </button>
               ) : (
                 <Search className="h-[18px] w-[18px] shrink-0 text-ink-3" aria-hidden="true" />
               )}
@@ -1085,10 +1195,20 @@ export function CommandPalette() {
                 value={inputValue}
                 onValueChange={(v) => {
                   navigatedByArrows.current = false
+                  // A letter and a space in the empty field, in Search at the
+                  // top level, set a scope and leave the field empty.
+                  const typed = !scope && !page ? typedScope(v) : null
+                  if (typed) {
+                    setScope(typed)
+                    setInputValue("")
+                    return
+                  }
                   setInputValue(v)
                 }}
-                placeholder={page ? PAGE_PLACEHOLDER[page] : "Search or jump to…"}
-                className="palette-input"
+                placeholder={page ? pagePlaceholder(page) : scope ? `Search ${scopeWords(scope).plural}…` : "Search or jump to…"}
+                // A placeholder wider than the field (a page's beside its chip and Cancel at 390) ends in an
+                // ellipsis rather than stopping mid-word: one rule for every page and mode.
+                className="palette-input text-ellipsis"
                 autoFocus
               />
               {isPhone ? (
@@ -1105,20 +1225,14 @@ export function CommandPalette() {
                 searchBody
               )}
             </CommandPrimitive.List>
+            {/* Space's peek is the palette's own, drawn under the list: the CSS
+                sets it beside the palette where the window has room for it, and
+                leaves it here where it hasn't. Never over the palette
+                (DESIGN-BUILD-62). */}
+            {peek && !isPhone && open && <PalettePeek peek={peek} />}
             {!isPhone && <div data-kbd-hint="" className="palette-footer">{footer}</div>}
-          </CommandPrimitive>
+          </PaletteRoot>
         </DialogPrimitive.Content>
-        {peek && !isPhone && open && (
-          <div className="palette-peek" role="note" aria-label={`Preview of ${peek.title}`}>
-            <div className="text-2xs font-medium text-ink-3">{peek.kind}</div>
-            <div className="mt-1 text-heading font-semibold text-ink">{peek.title}</div>
-            {peek.meta && <div className="mt-2 text-xs text-ink-2">{peek.meta}</div>}
-            <div className="mt-4 flex items-center gap-3 text-2xs text-ink-3">
-              <span><kbd className="kbd">⏎</kbd> open</span>
-              <span><kbd className="kbd">Space</kbd> close preview</span>
-            </div>
-          </div>
-        )}
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   )
@@ -1280,21 +1394,44 @@ function editDistance(a: string, b: string): number {
   return row[b.length]
 }
 
-interface PeekInfo {
-  title: string
-  kind: string
-  meta?: string
-}
-
 /** The row cmdk has selected. */
 function selectedRow(): HTMLElement | null {
   return document.querySelector<HTMLElement>(".palette [cmdk-item][data-selected=true]")
 }
 
-function readPeek(row: HTMLElement | null): PeekInfo | null {
-  const title = row?.getAttribute("data-peek-title")
-  if (!row || !title) return null
-  return { title, kind: row.getAttribute("data-peek-kind") ?? "", meta: row.getAttribute("data-peek-meta") || undefined }
+/**
+ * cmdk's root, which holds the row the keyboard is on (its value) here, so the
+ * palette can put the keyboard on `lead`: the first row of the group the
+ * person is on (a task's actions, linear-28). That group's code is a chunk of
+ * its own; when it lands after the list is drawn, cmdk keeps the row it chose
+ * first, and Enter would start a message rather than act on the task
+ * (DESIGN-BUILD-57). So the keyboard moves to it, as it would have been had
+ * it come in time, unless the person has pressed a key or a pointer, or moved
+ * one, since the palette opened. A move re-renders only this: the rows are
+ * the palette's children, so it never re-renders the palette (PaletteRow).
+ * Until a lead lands, cmdk holds its own value: a palette with no lead types
+ * and moves as cmdk alone does, with no commit of this root a move
+ * (commandPalette.test, "renders no more than it must while typing").
+ */
+function PaletteRoot({ lead, ...props }: React.ComponentProps<typeof CommandPrimitive> & { lead?: string }) {
+  const [value, setValue] = React.useState<string>()
+  const touched = React.useRef(false)
+  const touch = () => {
+    touched.current = true
+  }
+  React.useEffect(() => {
+    if (lead && !touched.current) setValue(lead)
+  }, [lead])
+  return (
+    <CommandPrimitive
+      {...props}
+      value={value}
+      onValueChange={value === undefined ? undefined : setValue}
+      onKeyDownCapture={touch}
+      onPointerDownCapture={touch}
+      onPointerMoveCapture={touch}
+    />
+  )
 }
 
 /**
@@ -1337,9 +1474,7 @@ function PaletteRow({
       className={cn("palette-row", className)}
       data-hue={hue}
       data-href={href}
-      data-peek-title={peek?.title}
-      data-peek-kind={peek?.kind}
-      data-peek-meta={peek?.meta}
+      {...peekAttrs(peek)}
     >
       {icon && <span className="palette-mark">{icon}</span>}
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -1376,32 +1511,21 @@ function Keys({ keys }: { keys: string }) {
  */
 function PaletteEmpty({
   query,
+  scope,
   didYouMean,
   onDidYouMean,
   onSearch,
   failed,
 }: {
   query: string
+  /** The scope's kind in words, such as "tasks", when the search was scoped. */
+  scope?: string
   didYouMean: string | null
   onDidYouMean: (name: string) => void
   onSearch: () => void
   failed?: { onRetry: () => void; retrying?: boolean }
 }) {
-  if (failed) {
-    return (
-      <div className="palette-empty" role="status" data-palette-search-failed="">
-        {/* Said here, so the read's toast stays quiet. */}
-        <SaysLoadFailure />
-        <div className="text-heading text-ink">Couldn&apos;t search just now</div>
-        <div className="mt-1 text-sm text-ink-2">Nothing has been lost. Try again in a moment.</div>
-        <div className="mt-3 flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={failed.onRetry} disabled={failed.retrying}>
-            {failed.retrying ? "Trying again…" : "Try again"}
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  if (failed) return <PaletteFailed title="Couldn't search just now" failed={failed} data-palette-search-failed="" />
   return (
     <div className="palette-empty" role="status">
       <svg width="72" height="72" viewBox="0 0 96 96" aria-hidden="true" data-spot="">
@@ -1411,9 +1535,11 @@ function PaletteEmpty({
         <path d="m54 54 12 12" stroke="var(--camp-lake)" strokeWidth="5" strokeLinecap="round" />
         <path d="M74 18c.4 3.4 2.1 5.1 7 7-4.9 1.9-6.6 3.6-7 7-.4-3.4-2.1-5.1-7-7 4.9-1.9 6.6-3.6 7-7z" fill="var(--brand)" />
       </svg>
-      <div className="mt-2.5 text-heading text-ink">Nothing called “{query}”</div>
+      <div className="mt-2.5 text-heading text-ink">{scope ? `No ${scope} called “${query}”` : `Nothing called “${query}”`}</div>
       <div className="mt-1 text-sm text-ink-2">
-        {didYouMean ? (
+        {scope ? (
+          "Try other words, or search everything."
+        ) : didYouMean ? (
           <>
             Did you mean{" "}
             <button type="button" className="text-brand-text underline underline-offset-[3px]" onClick={() => onDidYouMean(didYouMean)}>
@@ -1427,17 +1553,57 @@ function PaletteEmpty({
       </div>
       <div className="mt-3 flex items-center gap-2">
         <Button variant="secondary" size="sm" onClick={onSearch}>
-          Search messages
+          {scope ? `Search all ${scope}` : "Search messages"}
         </Button>
       </div>
     </div>
   )
 }
 
-type PalettePage = "theme" | "pause"
+/** A read the palette needs that failed (the search, a page's choices): it says so, with Try again. */
+function PaletteFailed({
+  title,
+  failed,
+  ...data
+}: {
+  title: string
+  failed: { onRetry: () => void; retrying?: boolean }
+  "data-palette-search-failed"?: ""
+}) {
+  return (
+    <div className="palette-empty" role="status" {...data}>
+      {/* Said here, so the read's toast stays quiet. */}
+      <SaysLoadFailure />
+      <div className="text-heading text-ink">{title}</div>
+      <div className="mt-1 text-sm text-ink-2">Nothing has been lost. Try again in a moment.</div>
+      <div className="mt-3 flex items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={failed.onRetry} disabled={failed.retrying}>
+          {failed.retrying ? "Trying again…" : "Try again"}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
-const PAGE_CRUMB: Record<PalettePage, string> = { theme: "Theme", pause: "Pause notifications" }
-const PAGE_PLACEHOLDER: Record<PalettePage, string> = { theme: "Choose a theme…", pause: "Pause for…" }
+/** A surface's action that asks which (a task's priority): its choices, or a read of them, and what takes the pick. */
+interface ChoicePage {
+  label: string
+  choices: () => PaletteChoice[] | Promise<PaletteChoice[]>
+  apply: (value: string) => void
+}
+
+type PalettePage = "theme" | "pause" | ChoicePage
+
+const PAGE_CRUMB: Record<"theme" | "pause", string> = { theme: "Theme", pause: "Pause notifications" }
+const PAGE_PLACEHOLDER: Record<"theme" | "pause", string> = { theme: "Choose a theme…", pause: "Pause for…" }
+
+function pageCrumb(page: PalettePage): string {
+  return typeof page === "string" ? PAGE_CRUMB[page] : page.label.replace(/…$/, "")
+}
+
+function pagePlaceholder(page: PalettePage): string {
+  return typeof page === "string" ? PAGE_PLACEHOLDER[page] : page.label
+}
 
 /**
  * A pushed page's choices (design v3, P1 "Nested pages"): an action that
@@ -1445,8 +1611,75 @@ const PAGE_PLACEHOLDER: Record<PalettePage, string> = { theme: "Choose a theme�
  * the notification settings only once it is open.
  */
 function PalettePageRows({ page, query, onDone }: { page: PalettePage; query: string; onDone: () => void }) {
+  if (typeof page !== "string") return <ChoiceRows page={page} query={query} onDone={onDone} />
   if (page === "theme") return <ThemeRows query={query} onDone={onDone} />
   return <PauseRows query={query} onDone={onDone} />
+}
+
+/**
+ * A page's choices as its surface gives them: a list at once, or a read that
+ * settles into one (a task's cycles, read as their page opens: linear-28 H1b).
+ * Asked once as the page opens and once per Try again, never per keystroke:
+ * typing filters what came back. Null while the first read is out.
+ */
+function useAskedChoices(page: ChoicePage): { choices: PaletteChoice[] } | { failed: { onRetry: () => void; retrying?: boolean } } | null {
+  const [ask, setAsk] = React.useState(0)
+  const asked = React.useMemo(() => ({ page, ask, got: page.choices() }), [page, ask])
+  const [settled, setSettled] = React.useState<{ asked: typeof asked; choices: PaletteChoice[] | null } | null>(null)
+  React.useEffect(() => {
+    const { got } = asked
+    if (Array.isArray(got)) return
+    let live = true
+    got.then(
+      (choices) => live && setSettled({ asked, choices }),
+      () => live && setSettled({ asked, choices: null }),
+    )
+    return () => {
+      live = false
+    }
+  }, [asked])
+  if (Array.isArray(asked.got)) return { choices: asked.got }
+  const onRetry = () => setAsk((n) => n + 1)
+  if (settled?.asked === asked) return settled.choices ? { choices: settled.choices } : { failed: { onRetry } }
+  // Asked again after a failure: the failure stays, saying it's trying again (as the search's does).
+  return settled?.asked.page === page && !settled.choices ? { failed: { onRetry, retrying: true } } : null
+}
+
+/** A surface's choices (a task's statuses, priorities, people): the pick goes to the surface's own handler. */
+function ChoiceRows({ page, query, onDone }: { page: ChoicePage; query: string; onDone: () => void }) {
+  const asked = useAskedChoices(page)
+  if (!asked) {
+    return (
+      <div role="status" className="px-3 py-2 text-sm text-ink-3">
+        Loading…
+      </div>
+    )
+  }
+  if ("failed" in asked) return <PaletteFailed title="Couldn't load these just now" failed={asked.failed} />
+  const choices = filterChoices(asked.choices, query)
+  return (
+    <>
+      {choices.map((c, i) => {
+        // A bot among the people wears its tag at the row's end, before "Current".
+        const tag = c.mark ? paletteMarkTag(c.mark) : null
+        const current = c.current ? "Current" : undefined
+        return (
+          <PaletteRow
+            key={c.value}
+            value={`choice-${c.value}`}
+            onSelect={() => {
+              page.apply(c.value)
+              onDone()
+            }}
+            icon={c.mark ? <PaletteMarkIcon mark={c.mark} /> : undefined}
+            label={c.label}
+            meta={tag ? <span className="inline-flex items-center gap-1.5">{tag}{current}</span> : current}
+            keys={i < 9 ? String(i + 1) : undefined}
+          />
+        )
+      })}
+    </>
+  )
 }
 
 function filterChoices<T extends { label: string }>(choices: T[], query: string): T[] {

@@ -21,6 +21,9 @@ vi.mock("@/components/project/ProjectFormsDialog", () => ({ ProjectFormsDialog: 
 vi.mock("@/components/project/ProjectShareDialog", () => ({ ProjectShareDialog: shown("share") }))
 vi.mock("@/components/projectTemplates/SaveAsTemplateDialog", () => ({ SaveAsTemplateDialog: shown("template") }))
 vi.mock("@/components/project/ProjectAccessDialog", () => ({ ProjectAccessDialog: shown("access") }))
+// The project's links (basecamp-16): the Links tool opens with the list its home reads, none here.
+vi.mock("@/hooks/useProjectLinks", () => ({ useProjectLinks: () => ({ links: [] }) }))
+vi.mock("@/components/project/ProjectLinksDialog", () => ({ ProjectLinksDialog: () => <div data-testid="links" /> }))
 
 const { ProjectActionsMenu } = await import("@/components/project/ProjectToolButtons")
 const { GetEndpointUrl } = await import("@/services/endPoints")
@@ -42,6 +45,9 @@ describe("the project header's actions", () => {
     openMenu()
     expect(screen.getByRole("menuitem", { name: "Rules that run work" })).toBeTruthy()
     expect(screen.queryByRole("menuitem", { name: "Intake forms" })).toBeNull()
+    // And its links, which every member opens; the server lets only its admins change them (basecamp-16).
+    fireEvent.click(screen.getByRole("menuitem", { name: "Links" }))
+    expect(await screen.findByTestId("links")).toBeTruthy()
   })
 
   it("lists every admin action by name, and each one does what it says", async () => {

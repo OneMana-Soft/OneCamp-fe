@@ -1,10 +1,13 @@
 import useSWR, { SWRConfiguration, useSWRConfig } from 'swr';
 import axiosInstance from "@/lib/axiosInstance";
 import type { AxiosRequestConfig } from "axios";
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { tellReadFailure } from "@/lib/http/loadFailure";
 import { freshlySeeded } from "@/lib/swrSeed";
-import { noteAnswered } from "@/lib/http/answered";
+import { noteAnswered, unanswered } from "@/lib/http/answered";
+import { isAppOffline, subscribeConnectivity } from "@/lib/connectivity";
+
+const notOffline = () => false;
 
 /**
  * Who says that a read failed (lib/http/loadFailure). The hook decides, not
@@ -111,15 +114,27 @@ export const useFetch = <T>(url: string, schema?: ResponseShape<T>, fetchConfig?
     // reader that draws its failure only when there's no data then shows the
     // last key's answer as this one's: isPrevious says the data is another key's.
     const isPrevious = !!config?.keepPreviousData && data !== undefined && cache.get(url)?.data === undefined;
+    // A read the network left unanswered, with nothing on screen for it, waits while the app says it's offline
+    // (lib/connectivity, the state OfflineNotice says) and while it asks again: its part keeps its quiet place (what
+    // it draws while loading), and it asks again the moment the app is back. A miss or a timeout on a server the app
+    // still reaches, and any answer, fail as ever. asana-12: a cold start drew "Couldn't load" for every read nobody kept.
+    const offline = useSyncExternalStore(subscribeConnectivity, isAppOffline, notOffline);
+    const waiting = data === undefined && unanswered(error) && (offline || isLoading);
+    useEffect(() => {
+        if (!waiting) return;
+        return subscribeConnectivity(() => {
+            if (!isAppOffline()) void mutate();
+        });
+    }, [waiting, mutate]);
 
     return useMemo(() => ({
         data,
-        isLoading: isLoading,
-        isError: error,
+        isLoading: isLoading || waiting,
+        isError: waiting ? undefined : error,
         isPrevious,
         mutate,
         lastRequestStartedAt,
-    }), [data, isLoading, error, isPrevious, mutate, lastRequestStartedAt]);
+    }), [data, isLoading, error, waiting, isPrevious, mutate, lastRequestStartedAt]);
 };
 
 

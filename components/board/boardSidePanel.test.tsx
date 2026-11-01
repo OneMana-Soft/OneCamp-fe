@@ -56,6 +56,8 @@ describe("the board's side panel", () => {
       </BoardSidePanel>,
     )
     const sheet = document.querySelector("[data-tag-filter]")!
+    // A dialog named by its title, so a screen reader says what opened.
+    expect(screen.getByRole("dialog", { name: "Filter by tag" })).toBe(sheet)
     expect(sheet.hasAttribute("data-v3-sheet")).toBe(true)
     expect(sheet.getAttribute("data-detent")).toBe("medium")
     const foot = sheet.querySelector("[data-sheet-footer]")!

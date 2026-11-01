@@ -101,7 +101,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 
     const s = useMemo(() => sentenceOf(activity), [activity])
     const kind = kindOf(activity)
-    const name = displayNameOf(s.actor) || "Someone"
+    // A sentence that is its own subject ("A rule asks you to look at") has no
+    // name before it and no face beside it; anyone else unnamed is "Someone".
+    const name = s.ownSubject ? "" : displayNameOf(s.actor) || "Someone"
     const { src } = useUserAvatar(s.actor?.user_profile_object_key)
     const emoji =
         activity.activity_type === "REACTION"
@@ -129,6 +131,10 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     const lead =
         collapsed === "reactions" && people > 0 && entry && !compact ? (
             <ReactionStack entry={entry} />
+        ) : s.ownSubject ? (
+            // No one to show (a rule's notice): its kind leads, at the face's size
+            // and in the face's place, so the row's words keep their column.
+            <KindBadge kind={kind} lead={compact ? 24 : 32} />
         ) : activity.actor_kind === "agent" ? (
             <span className={box}>
                 <AgentAvatar />
@@ -145,8 +151,13 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
 
     const sentence = (
         <>
-            <b className="font-medium text-foreground">{name}</b>
-            {people > 0 ? ` and ${people} ${people === 1 ? "other" : "others"}` : null} {verb}
+            {name ? (
+                <>
+                    <b className="font-medium text-foreground">{name}</b>
+                    {people > 0 ? ` and ${people} ${people === 1 ? "other" : "others"}` : null}{" "}
+                </>
+            ) : null}
+            {verb}
             {place ? (
                 <>
                     {" "}
@@ -171,7 +182,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
         </>
     ) : null
 
-    const label = `${name} ${verb}${place ? ` ${place}` : ""}${tail}`
+    const label = `${name ? `${name} ` : ""}${verb}${place ? ` ${place}` : ""}${tail}`
     // What Save for later keeps: the message itself, where there is one.
     const saveTarget = useMemo<LaterTarget | null>(() => {
         if (!href) return null
@@ -202,7 +213,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
             lead={
                 <>
                     {lead}
-                    {compact ? null : <KindBadge kind={kind} emoji={emoji} />}
+                    {compact || s.ownSubject ? null : <KindBadge kind={kind} emoji={emoji} />}
                 </>
             }
             title={

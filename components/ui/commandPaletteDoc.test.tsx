@@ -76,9 +76,9 @@ describe("the palette on a doc", () => {
     expect(screen.queryByText("This doc")).toBeNull()
   })
 
-  it("reads the bus, not the registry", () => {
+  it("reads the surfaces' one list, not the registry", () => {
     const src = readFileSync("components/ui/CommandPalette.tsx", "utf8")
-    expect(src).toMatch(/paletteEntries\(\)/)
+    expect(src).toMatch(/paletteSurfaces\(\)/)
     expect(src).not.toMatch(/from "@\/components\/docEditor\/registry"/)
     expect(src).not.toMatch(/docEditor\/registry\/(readers|registry|shortcuts)/)
   })

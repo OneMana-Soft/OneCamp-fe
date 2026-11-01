@@ -34,6 +34,7 @@ export enum ChatGet {
     GetTaskActivityList = "/task/getTaskActivityList",
     GetUserPosts = "/user/posts",
     GetTeammateNotificationStatus = "/user/notificationStatus",
+    GetCalendarStatus = "/event/status",
     // Slash command framework (user-facing)
     GetCommandCatalog = "/command/catalog",
 }

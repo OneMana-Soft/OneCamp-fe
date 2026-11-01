@@ -20,25 +20,15 @@
  *  - Anything with Alt, Ctrl or Meta is left alone (Alt+Down opens a select).
  *
  * Pure: the grid hands it the key, where the caret is and the grid's size.
+ * It comes with the live cells' chunk (gridMoves); the kinds and the keys'
+ * shape are gridKeyKinds', on the table's first load.
  */
 
-export type CellKind = "text" | "number" | "date" | "select" | "checkbox" | "button" | "computed"
+import { COMMITS_ON_ENTER, type CellKind, type CellPos, type KeyInput } from "@/lib/tables/gridKeyKinds"
 
-export interface CellPos {
-  row: number
-  col: number
-}
-
-export interface KeyInput {
-  key: string
-  shiftKey?: boolean
-  altKey?: boolean
-  ctrlKey?: boolean
-  metaKey?: boolean
-}
+export type { CellKind, CellPos, KeyInput }
 
 const TYPED: CellKind[] = ["text", "number"]
-const COMMITS_ON_ENTER: CellKind[] = ["text", "number", "date"]
 
 /**
  * Where a key moves the focus, or null to leave the key to the cell.

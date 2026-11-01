@@ -47,6 +47,7 @@ vi.mock("@livekit/components-react", () => ({
 
 import { VideoControls } from "./VideoControls"
 import { publishedSwitch } from "@/lib/calls/deviceSwitch"
+import { SHARE_PUBLISH, shareCapture } from "@/lib/calls/shareCapture"
 import { CALL_KEYS } from "./callKeys"
 import type { CallHold } from "@/lib/calls/holds"
 
@@ -92,7 +93,11 @@ describe("CALL-BUG-13: every key a tooltip teaches works", () => {
     }
     expect(lp.setMicrophoneEnabled).toHaveBeenCalledWith(true)
     expect(lp.setCameraEnabled).toHaveBeenCalledWith(true)
-    expect(lp.setScreenShareEnabled).toHaveBeenCalledWith(true)
+    // A share asks for the tab's sound too, and sends it as music (meet-14).
+    expect(lp.setScreenShareEnabled).toHaveBeenCalledWith(true, shareCapture(), SHARE_PUBLISH)
+    expect(shareCapture().audio).toBeTruthy()
+    expect(shareCapture()).toMatchObject({ selfBrowserSurface: "exclude" })
+    expect(SHARE_PUBLISH).toMatchObject({ dtx: false, red: false, forceStereo: true })
     expect(actions.captions).toHaveBeenCalledTimes(1)
     expect(actions.ai).toHaveBeenCalledTimes(1)
     expect(actions.layout).toHaveBeenCalledWith("speaker")
@@ -591,7 +596,7 @@ describe("Share: a screen or a board", () => {
     expect(b.onPresent).toHaveBeenCalledTimes(1)
     openShare()
     await act(async () => fireEvent.click(await screen.findByRole("menuitem", { name: /Share screen/ })))
-    expect(lp.setScreenShareEnabled).toHaveBeenCalledWith(true)
+    expect(lp.setScreenShareEnabled).toHaveBeenCalledWith(true, shareCapture(), SHARE_PUBLISH)
   })
 
   it("says why a board can't go up: sharing is held, or someone else's board is up", async () => {

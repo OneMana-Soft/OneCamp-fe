@@ -69,9 +69,42 @@ export interface TableDisplay {
   colors: RowColors | null
   /** As kept: read by the timeline and the Gantt (lib/tables/tableTimeline readTimelineLook). */
   timeline?: unknown
+  /** How many leading columns stay put sideways, 1 to MAX_FROZEN (a phone keeps one: frozenCount). */
+  frozen: number
 }
 
-export const DEFAULT_DISPLAY: TableDisplay = { rowHeight: "medium", hidden: [], list: null, summary: {}, widths: {}, boardGroup: null, shut: {}, colors: null }
+export const DEFAULT_DISPLAY: TableDisplay = { rowHeight: "medium", hidden: [], list: null, summary: {}, widths: {}, boardGroup: null, shut: {}, colors: null, frozen: 1 }
+
+/** The most leading columns a reader freezes (airtable-04, gsheets-grid-01). */
+export const MAX_FROZEN = 3
+
+/** How many of a grid's columns stay put sideways: the display's, within the columns there are; a phone keeps one. */
+export function frozenCount(frozen: number, columns: number, phone: boolean): number {
+  if (columns <= 0) return 0
+  return phone ? 1 : Math.min(Math.max(1, Math.floor(frozen) || 1), MAX_FROZEN, columns)
+}
+
+/**
+ * A column's frozen marks (table.css): its place among the frozen columns,
+ * which sets how far in it sticks, the last one's edge, where the shadow
+ * falls, and the sticky lead a cell brought into view stops beside
+ * (globals.css). None past the frozen columns.
+ */
+export function frozenMarks(col: number, count: number): { "data-frozen"?: number; "data-frozen-edge"?: ""; "data-sticky-lead"?: "" } {
+  if (col >= count) return {}
+  return col === count - 1 ? { "data-frozen": col, "data-frozen-edge": "", "data-sticky-lead": "" } : { "data-frozen": col, "data-sticky-lead": "" }
+}
+
+/** How far in from the gutter each frozen column after the first sticks, as table.css reads them: the widths before it, added up. */
+export function frozenLefts(widths: number[], count: number): Record<string, string> {
+  const out: Record<string, string> = {}
+  let left = 0
+  for (let i = 1; i < count; i++) {
+    left += widths[i - 1] ?? 0
+    out[`--frozen-${i}`] = `${left}px`
+  }
+  return out
+}
 const isPath = (p: unknown) => Array.isArray(p) && p.length > 0 && p.length <= 3 && p.every((k) => typeof k === "string")
 
 const key = (tableId: string) => `onecamp:tableDisplay:${tableId}`
@@ -97,6 +130,7 @@ export function readDisplay(saved: unknown): TableDisplay {
     ),
     colors: raw.colors ?? null,
     timeline: raw.timeline ?? null,
+    frozen: typeof raw.frozen === "number" && Number.isInteger(raw.frozen) && raw.frozen >= 1 && raw.frozen <= MAX_FROZEN ? raw.frozen : 1,
   }
 }
 

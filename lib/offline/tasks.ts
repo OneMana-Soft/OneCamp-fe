@@ -59,23 +59,47 @@ export const TASK_CREATES: Record<string, CreateSpec> = {
   },
 }
 
-/** The fields an answer shows for a task: any object with a task_uuid, at any depth. */
-export function tasksIn(answer: unknown, depth = 0, out: { id: string; value: Record<string, unknown> }[] = []) {
+/** A project an answer names (its id, and its name when given), as a task in it is kept with it. */
+type ProjectLink = { project_uuid: string; project_name?: string }
+
+const linkOf = (p: unknown): ProjectLink | undefined => {
+  const o = p as { project_uuid?: unknown; project_name?: unknown } | null | undefined
+  if (!o || typeof o !== "object" || typeof o.project_uuid !== "string" || !o.project_uuid) return undefined
+  return typeof o.project_name === "string" ? { project_uuid: o.project_uuid, project_name: o.project_name } : { project_uuid: o.project_uuid }
+}
+
+/**
+ * The fields an answer shows for a task: any object with a task_uuid, at any depth. A board or list names its project
+ * once, above its tasks, and its tasks carry no task_project of their own: each is kept with that project (its id and
+ * name), as a sub-task is with its parent's, so a page built from what was kept (keptPart) knows where the task is,
+ * and so what the member may do there (withKeptProject). A task's own task_project stays as it came.
+ */
+export function tasksIn(answer: unknown, depth = 0, out: { id: string; value: Record<string, unknown> }[] = [], project?: ProjectLink) {
   if (depth > 6 || answer === null || typeof answer !== "object") return out
   if (Array.isArray(answer)) {
-    for (const item of answer) tasksIn(item, depth + 1, out)
+    for (const item of answer) tasksIn(item, depth + 1, out, project)
     return out
   }
   const obj = answer as Record<string, unknown>
+  let within = project
+  let task = false
   if (typeof obj.task_uuid === "string" && obj.task_uuid) {
+    task = true
     const value: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(obj)) {
       // The task's own fields, not the lists inside it (sub-tasks are found as tasks of their own).
       if (!Array.isArray(v)) value[k] = v
     }
+    within = linkOf(obj.task_project) ?? project
+    if (!linkOf(obj.task_project) && within) value.task_project = { ...within }
+    // As of this read: the server says task_hidden only on a stub, and the store merges (CR-141).
+    value.task_hidden = obj.task_hidden === true
     out.push({ id: obj.task_uuid, value })
+  } else {
+    within = linkOf(obj) ?? project
   }
-  for (const v of Object.values(obj)) if (v && typeof v === "object") tasksIn(v, depth + 1, out)
+  // A task passes its project to its sub-tasks only: what it waits on or blocks may be another project's (CR-140).
+  for (const [k, v] of Object.entries(obj)) if (v && typeof v === "object") tasksIn(v, depth + 1, out, task && k !== "task_sub_tasks" ? undefined : within)
   return out
 }
 
@@ -230,7 +254,8 @@ export interface WaitingCreate {
   at: number
 }
 
-const taskInfoOf = (url: string): string | undefined => {
+/** The task a task page's read (/task/info/<id>) is for; undefined for any other read. */
+export const taskInfoOf = (url: string): string | undefined => {
   const path = url.split("?")[0]
   const prefix = `${GetEndpointUrl.GetTaskInfo}/`
   return path.startsWith(prefix) ? path.slice(prefix.length) || undefined : undefined
@@ -285,6 +310,27 @@ export function withCreates(
 
 /** What the device answers about a task it made: nothing is on the server for it yet. */
 export const KEPT_HERE = "Kept on this device"
+
+/** What the device answers about a task it kept only as a board or list showed it: part of its page. */
+export const KEPT_PARTLY = "Partly kept on this device"
+
+/**
+ * The page of a task whose own read this device never kept, built from what a board or list it read showed of the
+ * task (asana-12, DESIGN-BUILD-62 MUST 1: offline, every card of a kept board opens): its name, status, assignee,
+ * dates and key, as kept (tasksIn), marked partial. What a list never shows (its comments, sub-tasks, files and
+ * history) comes empty: the page says so in place, and its own read fills it in once the app is back. undefined for
+ * any other read, a task the device holds nothing of, or one the reader may not see. It grants nothing: what the
+ * member may do comes from the project as its board was read (withKeptProject), as for a task made here.
+ */
+export function keptPart(url: string, task: Record<string, unknown> | undefined): unknown {
+  const id = taskInfoOf(url)
+  if (!id || !task || task.task_uuid !== id || task.task_hidden) return undefined
+  return {
+    msg: KEPT_PARTLY,
+    partial: true,
+    data: { ...task, task_sub_tasks: [], task_comments: [], task_attachments: [], task_activities: [] },
+  }
+}
 
 /**
  * The task page's answer for a task made on this device whose create still

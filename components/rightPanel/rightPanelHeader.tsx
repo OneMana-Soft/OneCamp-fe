@@ -1,19 +1,15 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
     CalendarIcon,
     CircleCheck,
     FileText,
     MessageSquare,
     Sparkles,
-    X,
 } from "@/lib/icons"
 import Link from "next/link"
-import { useDispatch } from "react-redux"
-import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { PanelClose } from "@/components/rightPanel/panelFrame"
 import type { LucideIcon } from "lucide-react"
 
 interface RightPanelHeaderProps {
@@ -47,16 +43,12 @@ const titleConfig: Record<string, { label: string; icon: LucideIcon }> = {
  * "collapse the sidebar". OneCamp AI's glyph sits on the agent square.
  */
 export const RightPanelHeader = ({ titleKey, title, actions, subtitle, subtitleHref }: RightPanelHeaderProps) => {
-    const dispatch = useDispatch()
     const config = titleConfig[titleKey] || titleConfig.thread
     const Icon = config.icon
 
-    const handleClose = () => {
-        dispatch(closeRightPanel())
-    }
-
     return (
-        <header className="flex h-[52px] shrink-0 items-center justify-between gap-2 border-b border-line bg-transparent pl-5 pr-3">
+        // The header row a sheet keeps the toasts under (components/ui/toastFootSlot).
+        <header data-sheet-header="" className="flex h-[52px] shrink-0 items-center justify-between gap-2 border-b border-line bg-transparent pl-5 pr-3">
             <div className="flex min-w-0 items-center gap-2">
                 {titleKey === "ai" ? (
                     <span className="grid size-5 shrink-0 place-items-center rounded-[32%] avatar-agent text-white" aria-hidden="true">
@@ -76,20 +68,7 @@ export const RightPanelHeader = ({ titleKey, title, actions, subtitle, subtitleH
             </div>
             <div data-panel-actions="" className="flex shrink-0 items-center gap-0.5">
                 {actions}
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={handleClose}
-                            className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink"
-                            aria-label="Close panel"
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Close panel<span className="shell-tip-kbd">Esc</span></TooltipContent>
-                </Tooltip>
+                <PanelClose />
             </div>
         </header>
     )

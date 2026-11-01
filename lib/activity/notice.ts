@@ -20,6 +20,8 @@ export const UNOPENED_PLACE = "a page you can't open"
 /** How a notice reads: who, what they did, where, and a line under it. */
 interface NoticeWords {
   actor: UserProfileDataInterface | undefined
+  /** The verb is the whole sentence's subject (a rule's): its row draws no name and no face. */
+  ownSubject?: true
   verb: string
   place: string
   preview: string
@@ -110,7 +112,7 @@ export function noticeWords(n: NoticeItem): NoticeWords {
     // A project's rule told its reader about a task (package 9). A rule has
     // no face: the sentence is the rule's, the task its place.
     case "work.rule":
-      return { actor: undefined, verb: "A rule asks you to look at", place, preview: "" }
+      return { actor: undefined, ownSubject: true, verb: "A rule asks you to look at", place, preview: "" }
     // Approvals (package 9 R2): asked to approve a move, and how one ended.
     case "work.approval.requested":
       return { actor, verb: "asks you to approve", place, preview: "" }
@@ -119,7 +121,7 @@ export function noticeWords(n: NoticeItem): NoticeWords {
       return { actor, verb: said[n.data?.state ?? ""] ?? "answered", place, preview: "" }
     }
     case "work.rule.paused":
-      return { actor: undefined, verb: "Your rule stopped itself:", place, preview: "It ran too often. Check it, then turn it back on." }
+      return { actor: undefined, ownSubject: true, verb: "Your rule stopped itself:", place, preview: "It ran too often. Check it, then turn it back on." }
     // Taken off an event's guest list (CAL-BUG-1). The event is never named:
     // its reader can't open it any more.
     case "event.uninvited":
@@ -199,6 +201,10 @@ export function noticeBadge(n: NoticeItem | undefined): KindBadgeKind {
     case "thread.reopened":
     case "calendar.rsvp":
       return "reply"
+    // A rule's own notices: no one wrote them, so they lead with the rule's mark.
+    case "work.rule":
+    case "work.rule.paused":
+      return "rule"
   }
   return "comment"
 }

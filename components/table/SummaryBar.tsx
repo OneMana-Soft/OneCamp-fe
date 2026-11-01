@@ -17,7 +17,7 @@ import { SUMMARY_LABEL, defaultSummary, summarizeServed, summarizeValues, summar
 import { FooterColumns, type FooterColumn } from "@/lib/tables/footerColumns"
 import { askedOfServer } from "@/lib/tables/query"
 import { formatLocale } from "@/lib/tables/numberFormat"
-import type { SummaryFn } from "@/lib/tables/display"
+import { frozenMarks, type SummaryFn } from "@/lib/tables/display"
 import type { QuerySummaries } from "@/lib/querySpec/types"
 import { alignsRight, computedOf, isComputed, type TableField, type TableRow } from "@/services/tableService"
 import type { RefusedSums } from "@/lib/tables/types"
@@ -37,6 +37,7 @@ export const SummaryBar = React.memo(function SummaryBar({
   refusedSums,
   sumsOut,
   onPick,
+  frozen = 1,
 }: {
   rows: TableRow[]
   fields: TableField[]
@@ -49,6 +50,8 @@ export const SummaryBar = React.memo(function SummaryBar({
   /** Why the server's sums aren't here, once its last re-ask left them out too (V-118): what a formula's says, never on its way for good. */
   sumsOut?: string | null
   onPick?: (fieldId: string, fn: SummaryFn) => void
+  /** How many leading columns stay put sideways, as the grid's. */
+  frozen?: number
 }) {
   const shown = React.useDeferredValue(rows)
   const [footers] = React.useState(() => new FooterColumns())
@@ -59,7 +62,7 @@ export const SummaryBar = React.memo(function SummaryBar({
       <tr data-summary-bar="">
         <td data-gutter="" data-sticky-lead="" className="h-[var(--grid-sum-row)] border-t border-line bg-sheet p-0" />
         {fields.map((f, i) => (
-          <SummaryCell key={f.id} field={f} column={columns.get(f.id)!} frozen={i === 0} fn={summary?.[f.id] ?? defaultSummary(f)} loaded={loaded} whole={served?.[`field:${f.id}`]} waiting={served === null} serverOnly={!!windowed && isComputed(f)} refused={refusedSums?.fields.includes(`field:${f.id}`) ? refusedSums.why : (sumsOut ?? undefined)} onPick={onPick} />
+          <SummaryCell key={f.id} field={f} column={columns.get(f.id)!} marks={frozenMarks(i, frozen)} fn={summary?.[f.id] ?? defaultSummary(f)} loaded={loaded} whole={served?.[`field:${f.id}`]} waiting={served === null} serverOnly={!!windowed && isComputed(f)} refused={refusedSums?.fields.includes(`field:${f.id}`) ? refusedSums.why : (sumsOut ?? undefined)} onPick={onPick} />
         ))}
         <td className="border-t border-line bg-sheet" />
       </tr>
@@ -78,7 +81,7 @@ export const SummaryBar = React.memo(function SummaryBar({
 const SummaryCell = React.memo(function SummaryCell({
   field,
   column,
-  frozen,
+  marks,
   fn,
   loaded,
   whole,
@@ -89,7 +92,8 @@ const SummaryCell = React.memo(function SummaryCell({
 }: {
   field: TableField
   column: FooterColumn
-  frozen: boolean
+  /** Its frozen marks, as the grid's columns' (display.ts frozenMarks). */
+  marks: ReturnType<typeof frozenMarks>
   fn: SummaryFn
   loaded?: number
   whole?: Record<string, unknown>
@@ -152,7 +156,7 @@ const SummaryCell = React.memo(function SummaryCell({
     <span className="text-ink-3 opacity-0 transition-opacity group-hover/sum:opacity-100 group-focus-within/sum:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">Summarise</span>
   )
   return (
-    <td ref={cell} data-frozen={frozen || undefined} data-sticky-lead={frozen || undefined} className="group/sum h-[var(--grid-sum-row)] border-t border-line bg-sheet p-0">
+    <td ref={cell} {...marks} className="group/sum h-[var(--grid-sum-row)] border-t border-line bg-sheet p-0">
       {onPick ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

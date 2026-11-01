@@ -2,6 +2,7 @@ import { FirebaseApp, initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, type Messaging, type MessagePayload } from "firebase/messaging";
 
 import { firebaseConfig, isFirebaseConfigured } from "@/lib/push/firebaseConfig";
+import { registerAppWorker } from "@/lib/pwa/serviceWorker";
 
 // The Firebase SDK, for web push. Nothing on a first screen imports this file:
 // components/fcm/FCMHandler fetches it once the page is idle, and asks
@@ -17,42 +18,6 @@ if (typeof window !== "undefined" && isFirebaseConfigured) {
     messaging = getMessaging(app);
   } catch (error) {
     console.warn("[FCM] Firebase initialization failed:", error);
-  }
-}
-
-/**
- * Build the service worker URL with Firebase config as query params.
- * The SW reads these to initialize Firebase in its own scope.
- */
-function buildSwUrl(): string {
-  const params = new URLSearchParams({
-    apiKey: firebaseConfig.apiKey || '',
-    authDomain: firebaseConfig.authDomain || '',
-    projectId: firebaseConfig.projectId || '',
-    storageBucket: firebaseConfig.storageBucket || '',
-    messagingSenderId: firebaseConfig.messagingSenderId || '',
-    appId: firebaseConfig.appId || '',
-  });
-  return `/firebase-messaging-sw.js?${params.toString()}`;
-}
-
-/**
- * Clean up stale service worker registrations that don't have Firebase config.
- * This handles the transition from old ServiceWorkerRegister (no params) to
- * the new FCMHandler-based registration (with params).
- */
-async function cleanupStaleSWs(): Promise<void> {
-  try {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    for (const reg of registrations) {
-      const scriptUrl = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
-      if (scriptUrl.includes('firebase-messaging-sw.js') && !scriptUrl.includes('apiKey=')) {
-        console.log('[FCM] Unregistering stale service worker:', scriptUrl);
-        await reg.unregister();
-      }
-    }
-  } catch (e) {
-    console.warn('[FCM] Failed to clean up stale SWs:', e);
   }
 }
 
@@ -99,19 +64,16 @@ export const getFCMToken = async (): Promise<string | null> => {
       return null;
     }
 
-    // 2. Clean up stale SWs from old ServiceWorkerRegister (no config params)
-    await cleanupStaleSWs();
+    // 2. The app's one worker (lib/pwa/serviceWorker): push and the pages kept
+    // offline share its scope and its address, so registering it at the root
+    // also replaces any older push worker there.
+    const registration = await registerAppWorker();
+    if (!registration) return null;
 
-    // 3. Register the SW with Firebase config in URL params
-    const swUrl = buildSwUrl();
-    const registration = await navigator.serviceWorker.register(swUrl, {
-      updateViaCache: 'none', // Always check server for SW updates
-    });
-
-    // 4. Wait for the SW to fully activate before requesting token
+    // 3. Wait for the SW to fully activate before requesting token
     await waitForSWActivation(registration);
 
-    // 5. Get FCM token using the activated SW registration
+    // 4. Get FCM token using the activated SW registration
     const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: registration,

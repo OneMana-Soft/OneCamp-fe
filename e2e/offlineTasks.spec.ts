@@ -1,8 +1,9 @@
-import { expect, test, type Page, type TestInfo, type WebSocketRoute } from "@playwright/test"
+import { expect, test, type Locator, type Page, type TestInfo, type WebSocketRoute } from "@playwright/test"
 
 import { brokerFor } from "../scripts/fluidity/fakeBroker.mjs"
 import { SAM, SHOT_THEMES, appOrigin, reviewShot, stubBackend, withStatus } from "./stubbedApp"
 import { openKeyboard, paintKeyboard } from "./keyboard"
+import { expectToastClearsSheet } from "./toastClearsSheet"
 
 // The Offline Store (projects P7-1, lib/offline). A task changed while the
 // network is gone keeps the change on screen and on the device, and is sent
@@ -226,6 +227,9 @@ const SCALE = { data: { scale: FIB, kinds: [], can_edit: true } }
 const POINTS = "/task/updateTaskPoints"
 /** What says a failure: none of it shows for what was made offline (DESIGN-BUILD-30 M1, M2). */
 const FAILURE_WORDS = /Not found|still waiting to be sent|Couldn't load|Couldn't (save|do) that/
+// The plan check's banner (components/banner/FeaturesNotice): offline, the pill says why nothing answers, so this stays
+// quiet (DESIGN-BUILD-58 M1 on asana-12's cold start: two messages for one cause).
+const FEATURES_UNKNOWN = "Couldn't check what this workspace has."
 
 /** The server for what's made: up or not, what it made (route, body, Idempotency-Key), and any request naming a device's id. */
 interface Maker {
@@ -234,6 +238,12 @@ interface Maker {
   leaked: string[]
   /** The key the board's task carries where a leg gives it one (projects A8K): its page's links read /app/task/<key>. */
   taskKey?: string
+  /** A write the server refuses, in its own words: a member whose role changed while they were away. */
+  refuse?: { path: string; status: number; msg: string }
+  /** The board's cards carry no task_project, as the server's board answer gives them (its project is named once, above). */
+  bareCards?: boolean
+  /** A comment the task's own page brings, which no board or list shows. */
+  pageComment?: string
 }
 
 const card = (page: Page, name: string) => page.locator("[data-board] [data-task-id]").filter({ hasText: name })
@@ -352,7 +362,12 @@ async function stubBoard(page: Page, testInfo: TestInfo, server: Maker) {
   })
   const board = { ...project, project_is_admin: 1, project_is_member: 1, project_members: [SAM], project_access: ADMIN }
   const draft = { ...taskInfo("todo").data, ...(server.taskKey ? { task_key: server.taskKey } : {}) }
+  const onBoard = server.bareCards ? { ...draft, task_project: undefined } : draft
+  const taskPage = server.pageComment
+    ? { ...draft, task_comment_count: 1, task_comments: [{ comment_uuid: "c0ffee00-0000-4000-8000-00000000c0c1", comment_text: server.pageComment, comment_by: SAM, comment_created_at: "2026-10-30T09:00:00Z" }] }
+    : draft
   const made = (answer: () => unknown) => (url: URL, request: { postDataJSON(): Record<string, unknown>; headers(): Record<string, string> }) => {
+    if (server.refuse?.path === url.pathname) return withStatus(server.refuse.status, { msg: server.refuse.msg })
     server.made.push({ path: url.pathname, body: request.postDataJSON(), key: request.headers()["idempotency-key"] })
     return answer()
   }
@@ -373,7 +388,7 @@ async function stubBoard(page: Page, testInfo: TestInfo, server: Maker) {
       data: {
         ...board,
         project_tasks_backlog: [],
-        project_tasks_todo: server.made.some((m) => m.path === "/task/createTask") ? [madeTask, draft] : [draft],
+        project_tasks_todo: server.made.some((m) => m.path === "/task/createTask") ? [madeTask, onBoard] : [onBoard],
         project_tasks_in_progress: [],
         project_tasks_in_review: [],
         project_tasks_done: [],
@@ -387,7 +402,7 @@ async function stubBoard(page: Page, testInfo: TestInfo, server: Maker) {
     "/task/info/": (url: URL) =>
       url.pathname.endsWith(MADE.task)
         ? { msg: "ok", data: { ...madeTask, task_estimate_points: pointsMade() }, included: { estimates: SCALE } }
-        : { msg: "ok", data: draft, included: { estimates: SCALE } },
+        : { msg: "ok", data: taskPage, included: { estimates: SCALE } },
     [`/project/${P}/estimates`]: { msg: "ok", ...SCALE },
     [POINTS]: made(() => ({ msg: "ok", data: {} })),
     "/task/createTask": made(() => ({ msg: "Created task!", data: { task_uuid: MADE.task } })),
@@ -584,15 +599,17 @@ for (const theme of SHOT_THEMES) {
         await expect(todo.locator("[data-task-id]").filter({ hasText: "Book the venue" })).toBeVisible({ timeout: 15_000 })
         await reviewShot(page, "offline-made-card", theme)
 
-        // Its page is the device's: the server has nothing under its id yet.
+        // Its panel is the device's: the server has nothing under its id yet. Offline is the app's ONE state (here the
+        // server goes unanswered while the browser keeps its network), so the task opens over the board, in the sheet
+        // on a phone, and nothing navigates (asana-12: a task opened offline never navigates).
         await press(card(page, "Book the venue"))
-        if (phone) await page.waitForURL(/\/app\/task\/offline-/, { timeout: 30_000 })
-        const panel = page.locator("[data-task-panel]")
+        const panel = page.locator(phone ? "[data-right-panel-sheet] [data-task-panel]" : "[data-task-panel]")
         await expect(panel.getByText("Book the venue").first()).toBeVisible({ timeout: 30_000 })
-        const editor = page.locator("[data-task-comment-box] [contenteditable=true]")
+        if (phone) expect(page.url()).not.toMatch(/\/app\/task\//)
+        const editor = panel.locator("[data-task-comment-box] [contenteditable=true]")
         await press(editor)
         await editor.pressSequentially("Bring the badges")
-        await press(page.locator("[data-task-comment-box]").getByRole("button", { name: "Send" }))
+        await press(panel.locator("[data-task-comment-box]").getByRole("button", { name: "Send" }))
         await expect(panel.getByText("Bring the badges").first()).toBeVisible({ timeout: 15_000 })
         // Seconds after its page opened: no read the device answered said a failure (DESIGN-BUILD-30 M1, M2).
         await expect(page.getByText(FAILURE_WORDS)).toHaveCount(0)
@@ -669,7 +686,7 @@ for (const theme of SHOT_THEMES) {
           await name.press("Enter")
           await expect(todo.locator("[data-task-id]").filter({ hasText: "Book the venue" })).toBeVisible({ timeout: 15_000 })
           await card(page, "Book the venue").tap()
-          const sheet = page.getByRole("dialog", { name: "Task" })
+          const sheet = page.getByRole("dialog", { name: "Book the venue", exact: true })
           await expect(sheet).toBeVisible({ timeout: 15_000 })
           await expect(page.getByText("Couldn't load the task")).toHaveCount(0)
           await expect(sheet.locator("[data-task-panel]").getByText("Book the venue").first()).toBeVisible({ timeout: 30_000 })
@@ -698,7 +715,7 @@ for (const theme of SHOT_THEMES) {
           const board = page.url()
           await card(page, "Book the venue").tap()
           // The sheet, over the board, which didn't move.
-          const sheet = page.getByRole("dialog", { name: "Task" })
+          const sheet = page.getByRole("dialog", { name: "Book the venue", exact: true })
           await expect(sheet).toBeVisible({ timeout: 15_000 })
           expect(page.url()).toBe(board)
           const panel = sheet.locator("[data-task-panel]")
@@ -760,12 +777,64 @@ for (const theme of SHOT_THEMES) {
           server.up = false
           const list = page.url()
           await row(page, "Draft launch email").tap()
-          const sheet = page.getByRole("dialog", { name: "Task" })
+          const sheet = page.getByRole("dialog", { name: "Draft launch email", exact: true })
           await expect(sheet).toBeVisible({ timeout: 15_000 })
           expect(page.url()).toBe(list)
           await expect(sheet.locator("[data-task-panel]").getByText("Draft launch email").first()).toBeVisible({ timeout: 30_000 })
           await expect(page.getByText(FAILURE_WORDS)).toHaveCount(0)
           await reviewShot(page, "offline-sheet-list", theme)
+        })
+
+        // V-111: a toast while the task's sheet is open keeps off it: in the dimmed gap over its top edge, or under its
+        // header and the task's name, never over its comment box or its buttons. A comment sent from the sheet with no
+        // network is refused once the network is back (the member's role changed while they were away), and a toast
+        // says so. The sheet is named by the task's name it shows (DESIGN-BUILD-45): a screen reader hears it, and the
+        // toast keeps off it.
+        test("with the whole network gone, a change the server then refuses is said in a toast that keeps off the task's sheet", async ({ page }, testInfo) => {
+          test.setTimeout(180_000)
+          const server: Maker = { up: true, made: [], leaked: [] }
+          const code = panelCode(page)
+          await openBoard(page, testInfo, server, theme, "list")
+          // Read once online, as a member does, so the device holds it.
+          await row(page, "Draft launch email").tap()
+          await page.waitForURL(new RegExp(`/app/task/${T}`), { timeout: 30_000 })
+          await expect(page.locator("[data-task-page] [data-task-panel]").getByText("Draft launch email").first()).toBeVisible({ timeout: 30_000 })
+          await expect.poll(async () => (await kept(page)).read, { timeout: 30_000 }).toBe(true)
+          await page.goBack()
+          await expect(row(page, "Draft launch email")).toBeVisible({ timeout: 30_000 })
+          await code
+          await page.context().setOffline(true)
+          server.up = false
+          await row(page, "Draft launch email").tap()
+          const sheet = page.getByRole("dialog", { name: "Draft launch email", exact: true })
+          await expect(sheet).toBeVisible({ timeout: 15_000 })
+          const editor = sheet.locator("[data-task-comment-box] [contenteditable=true]")
+          await editor.tap()
+          await editor.pressSequentially("Bring the badges")
+          await sheet.locator("[data-task-comment-box]").getByRole("button", { name: "Send" }).tap()
+          await expect(sheet.locator("[data-task-panel]").getByText("Bring the badges").first()).toBeVisible({ timeout: 15_000 })
+          await expect.poll(async () => (await kept(page)).waiting.length).toBe(1)
+
+          server.refuse = { path: "/task/createCommentTask", status: 403, msg: "You can't comment on this task" }
+          await page.context().setOffline(false)
+          server.up = true
+          await online(page)
+          const told = page.getByText("A change made offline wasn't sent", { exact: true })
+          await expect(told).toBeVisible({ timeout: 30_000 })
+          await expect(sheet).toBeVisible()
+          // Never over the comment box, the sheet's foot.
+          await expect
+            .poll(() =>
+              told.evaluate((el) => {
+                const t = (el.closest("li") ?? el).getBoundingClientRect()
+                const b = document.querySelector("[data-right-panel-sheet] [data-task-comment-box]")!.getBoundingClientRect()
+                return t.bottom <= b.top || t.top >= b.bottom
+              }),
+            )
+            .toBe(true)
+          // The task's name is among what it was kept off (DESIGN-BUILD-45): its title editor.
+          expect(await expectToastClearsSheet(told)).toContain("Editable text input")
+          await reviewShot(page, "offline-sheet-refused", theme)
         })
 
         test("with the whole network gone, a part whose code never came says so in its own room, and the task opens whole around it", async ({ page }, testInfo) => {
@@ -804,7 +873,7 @@ for (const theme of SHOT_THEMES) {
           await name.fill("Book the venue")
           await name.press("Enter")
           await card(page, "Book the venue").tap()
-          const sheet = page.getByRole("dialog", { name: "Task" })
+          const sheet = page.getByRole("dialog", { name: "Book the venue", exact: true })
           const panel = sheet.locator("[data-task-panel]")
           await expect(panel.getByText("Book the venue").first()).toBeVisible({ timeout: 30_000 })
           await expect(panel.getByRole("button", { name: /Couldn't load the tag picker/ })).toBeVisible({ timeout: 15_000 })
@@ -851,7 +920,7 @@ for (const theme of SHOT_THEMES) {
             }).observe(document.body, { childList: true, subtree: true })
           })
           await row(page, "Draft launch email").tap()
-          const sheet = page.getByRole("dialog", { name: "Task" })
+          const sheet = page.getByRole("dialog", { name: "Draft launch email", exact: true })
           await expect(sheet).toBeVisible({ timeout: 15_000 })
           const first = (await (await page.waitForFunction(() => (window as unknown as { firstFrame?: object }).firstFrame, null, { timeout: 15_000 })).jsonValue()) as { title: boolean; panel: number; sheet: number }
           expect(first.sheet, "the sheet's first frame stands at its height").toBeGreaterThan(400)
@@ -879,6 +948,13 @@ for (const theme of SHOT_THEMES) {
             return { scrolls: true, reach: Math.round(last - pill.top) }
           })
           console.log(`SHEET END ${theme} ${JSON.stringify(end)}`)
+          // The header's hairline comes with the scroll event after the scroll, and fades in (DESIGN-BUILD-43): the
+          // shot waits for it to stand.
+          if (end.scrolls) {
+            await expect
+              .poll(() => sheet.locator("[data-task-header]").evaluate((h) => h.classList.contains("border-line") && h.getAnimations().length === 0), { timeout: 5_000 })
+              .toBe(true)
+          }
           await reviewShot(page, "offline-sheet-end", theme)
           await sheet.locator("[data-task-comment-box] [contenteditable=true]").tap()
           const close = await openKeyboard(page, "visual")
@@ -1010,7 +1086,8 @@ for (const theme of SHOT_THEMES) {
           const server: Maker = { up: true, made: [], leaked: [] }
           await openBoard(page, testInfo, server, theme)
           const press = (l: ReturnType<Page["locator"]>) => (phone ? l.tap() : l.click())
-          const panel = page.locator("[data-task-panel]")
+          // Offline (the app's ONE state), the made task opens over the board: in the sheet on a phone.
+          const panel = page.locator(phone ? "[data-right-panel-sheet] [data-task-panel]" : "[data-task-panel]")
           if (held) {
             // A task's page in the project, read on this device before the network goes: its project's scale comes
             // with it, and the device keeps it. Read in another tab, so nothing of it is in this page's own memory:
@@ -1034,8 +1111,8 @@ for (const theme of SHOT_THEMES) {
           await name.fill("Book the venue")
           await name.press("Enter")
           await press(card(page, "Book the venue"))
-          if (phone) await page.waitForURL(/\/app\/task\/offline-/, { timeout: 30_000 })
           await expect(panel.getByText("Book the venue").first()).toBeVisible({ timeout: 30_000 })
+          if (phone) expect(page.url()).not.toMatch(/\/app\/task\//)
           const points = panel.locator("[data-property='points']")
           if (held) {
             const pick = points.getByRole("button", { name: "Points: none. Change them" })
@@ -1064,6 +1141,159 @@ for (const theme of SHOT_THEMES) {
         })
       }
 
+      // asana-12 to WIN (main 30 Oct): a COLD START with no network, on a phone and a laptop. The app's pages and
+      // files come from the one service worker (public/sw.js), the member from what the device kept (lib/swrCache
+      // keptProfile), the board from the Offline Store; "/" goes to the page the member left. A task, a comment and a
+      // sub-task made then are sent in order once back. Red on beta: no worker keeps a page, so nothing opens.
+      test.describe("with the app's worker in control", () => {
+        // The one spec that runs with the worker (playwright.config blocks it everywhere else).
+        test.use({ serviceWorkers: "allow" })
+        const press = (l: Locator) => ("hasTouch" in use && use.hasTouch ? l.tap() : l.click())
+
+        /**
+         * The board, opened online and kept by the one worker for this member, then a COLD START on it: a new page, no
+         * network at all, and the worker stopped. The page comes from what the device kept and the board from the
+         * Offline Store, with one cause said once. Gives the cold page, the page the member left, and their context.
+         */
+        async function coldBoard(page: Page, testInfo: TestInfo, server: Maker) {
+          await openBoard(page, testInfo, server, theme)
+          await expect.poll(async () => (await keptProject(page))?.project_access, { timeout: 30_000 }).toBeTruthy()
+          // The one worker controls the page and has kept it, for this member.
+          await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker?.controller), { timeout: 60_000 }).toBe(true)
+          const pages = `onecamp-sw-pages-v1:${encodeURIComponent(SAM.user_uuid)}`
+          await expect.poll(() => page.evaluate((name) => caches.has(name), pages), { timeout: 60_000 }).toBe(true)
+          const left = page.url()
+          const context = page.context()
+          // The member leaves the page, as when they switch apps or close the tab: the browser's pagehide is when the
+          // app writes its kept answers down (lib/swrCache). Closing the page alone wrote nothing of this page down
+          // (a12diag2: the cold page knew no client config).
+          await page.goto("about:blank")
+          await page.close()
+
+          // Cold: a new page, no network at all, and the worker stopped. The network goes first, while the worker
+          // still runs: Playwright's setOffline waits on every worker it knows, and one stopped through CDP never
+          // answers, so setOffline never returned (a12green2). The worker that starts again for the page starts offline.
+          const cold = await context.newPage()
+          await stubBoard(cold, testInfo, server)
+          await context.setOffline(true)
+          server.up = false
+          const cdp = await context.newCDPSession(cold)
+          await cdp.send("ServiceWorker.enable")
+          await cdp.send("ServiceWorker.stopAllWorkers")
+          const doc = await cold.goto(left, { waitUntil: "domcontentloaded", timeout: 120_000 })
+          expect(doc?.fromServiceWorker(), "the page came from the device").toBe(true)
+          // From what the device kept (sw.js marks a kept page with its generation), not from a network.
+          expect(doc?.headers()["x-onecamp-generation"], "the page is the one the device kept").toBeDefined()
+          await expect(card(cold, "Draft launch email")).toBeVisible({ timeout: 60_000 })
+          await expect(cold.getByText(FAILURE_WORDS)).toHaveCount(0)
+          // One cause, said once: the pill says the app is offline, and the plan check, which couldn't read what this
+          // workspace has for that same reason, says nothing.
+          await expect(cold.locator("[data-connection-pill]")).toBeVisible({ timeout: 15_000 })
+          await expect(cold.getByText(FEATURES_UNKNOWN)).toHaveCount(0)
+          return { cold, left, context }
+        }
+
+        test("from a cold start with no network, the app opens where the member left it, and what's made there is sent once back", async ({ page }, testInfo) => {
+          test.setTimeout(300_000)
+          const server: Maker = { up: true, made: [], leaked: [] }
+          const { cold, left, context } = await coldBoard(page, testInfo, server)
+          await reviewShot(cold, "offline-cold-start-board", theme)
+
+          const todo = cold.locator('[data-board] [data-column="todo"]')
+          await press(todo.getByRole("button", { name: "New task" }).first())
+          const name = todo.getByRole("textbox", { name: "New task name" })
+          await name.fill("Book the venue")
+          await name.press("Enter")
+          await expect(todo.locator("[data-task-id]").filter({ hasText: "Book the venue" })).toBeVisible({ timeout: 15_000 })
+          await press(card(cold, "Book the venue"))
+          const panel = cold.locator("[data-task-panel]").last()
+          await expect(panel.getByText("Book the venue").first()).toBeVisible({ timeout: 30_000 })
+          const editor = cold.locator("[data-task-comment-box] [contenteditable=true]").last()
+          await press(editor)
+          await editor.pressSequentially("Bring the badges")
+          await press(cold.locator("[data-task-comment-box]").last().getByRole("button", { name: "Send" }))
+          await expect(panel.getByText("Bring the badges").first()).toBeVisible({ timeout: 15_000 })
+          await press(panel.getByRole("button", { name: "Add subtask" }))
+          const sub = panel.getByRole("textbox", { name: "New subtask" })
+          await sub.fill("Print the badges")
+          await sub.press("Enter")
+          await expect(panel.getByText("Print the badges").first()).toBeVisible({ timeout: 15_000 })
+          await expect(cold.locator("[data-connection-pill]")).toBeVisible({ timeout: 15_000 })
+          await expect(cold.getByText(FAILURE_WORDS)).toHaveCount(0)
+          await expect.poll(async () => (await kept(cold)).waiting.map((w) => (w as { url?: string }).url)).toEqual([
+            "/task/createTask",
+            "/task/createCommentTask",
+            "/task/createSubTask",
+          ])
+          expect(server.made).toEqual([])
+          await expect(cold.getByText(FEATURES_UNKNOWN)).toHaveCount(0)
+          await reviewShot(cold, "offline-cold-start-task", theme)
+          // The pill has a place of its own (DESIGN-BUILD-58 M2): on a phone it floats 8px above the comment box for as
+          // long as the device is offline, so the task's body keeps its room clear. Scrolled to the end, the body's
+          // last row ends above the pill wherever the two share a column (on a laptop the pill is in the sidebar).
+          const scroller = await panel.locator("[data-task-body]").evaluateHandle((el) => el.parentElement as HTMLElement)
+          await scroller.evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
+          await expect(panel.getByRole("button", { name: "Link a doc or board" })).toBeInViewport()
+          const ends = await panel.locator("[data-task-body]").evaluate((el) => {
+            const box = el.getBoundingClientRect()
+            return { left: box.left, right: box.right, bottom: box.bottom - parseFloat(getComputedStyle(el).paddingBottom) }
+          })
+          const pill = await cold.locator("[data-connection-pill]").boundingBox()
+          expect(pill, "the pill is drawn").not.toBeNull()
+          if (pill && pill.x < ends.right && ends.left < pill.x + pill.width) {
+            expect(ends.bottom, "the body's last row ends above the pill").toBeLessThanOrEqual(pill.y)
+          }
+          await reviewShot(cold, "offline-cold-start-task-end", theme)
+
+          // Where the app starts ("/", the home screen's start) opens the page the member left.
+          await cold.goto("/", { waitUntil: "domcontentloaded", timeout: 120_000 })
+          await expect(cold).toHaveURL(left, { timeout: 30_000 })
+          await expect(card(cold, "Book the venue")).toBeVisible({ timeout: 60_000 })
+
+          // Back: the three are made in order under the server's id, once each.
+          await context.setOffline(false)
+          server.up = true
+          await online(cold)
+          await expect.poll(() => server.made.map((m) => m.path), { timeout: 60_000 }).toEqual(["/task/createTask", "/task/createCommentTask", "/task/createSubTask"])
+          expect(new Set(server.made.map((m) => m.key)).size).toBe(3)
+          await expect.poll(async () => (await kept(cold)).waiting, { timeout: 30_000 }).toEqual([])
+          expect(server.leaked).toEqual([])
+        })
+
+        // DESIGN-BUILD-62 MUST 1 (31 Oct, the LIVE look): offline, a card of the kept board that was never opened online
+        // opened to nothing, as the task's own read had no kept answer. Every card opens: from what the board kept (its
+        // name, status, assignee, dates and key) with what the member may do there as the board said it, a line in
+        // place says what this device doesn't have, and the task's own read fills it in once the network is back.
+        test("from a cold start with no network, a task never opened online opens from what the board kept, and fills in once back", async ({ page }, testInfo) => {
+          test.setTimeout(300_000)
+          const server: Maker = { up: true, made: [], leaked: [], bareCards: true, pageComment: "Use the October numbers" }
+          const { cold, context } = await coldBoard(page, testInfo, server)
+          expect((await kept(cold)).read, "the task's own page was never read here").toBe(false)
+          await press(card(cold, "Draft launch email"))
+          const panel = cold.locator("[data-task-panel]").last()
+          await expect(panel.getByText("Draft launch email").first()).toBeVisible({ timeout: 30_000 })
+          const partly = panel.locator("[data-task-partial]")
+          await expect(partly).toBeVisible()
+          await expect(partly).toContainText("back online")
+          // What the member may do comes from the board's answer, as the server said it: an admin there can complete it.
+          await expect(panel.getByRole("button", { name: "Mark task as complete" })).toBeVisible()
+          await expect(cold.getByText(FAILURE_WORDS)).toHaveCount(0)
+          expect((await kept(cold)).read, "what the device answered is never kept as the server's").toBe(false)
+          await reviewShot(cold, "offline-cold-start-partial", theme)
+
+          // Back: the task's own read fills the page in, in place, and the line goes.
+          await context.setOffline(false)
+          server.up = true
+          await online(cold)
+          await expect(panel.getByText("Use the October numbers").first()).toBeVisible({ timeout: 60_000 })
+          await expect(partly).toHaveCount(0)
+          await expect.poll(async () => (await kept(cold)).read, { timeout: 30_000 }).toBe(true)
+          await expect(cold.getByText(FAILURE_WORDS)).toHaveCount(0)
+          expect(server.leaked).toEqual([])
+          await reviewShot(cold, "offline-cold-start-filled", theme)
+        })
+      })
+
       // A task that really isn't there, opened online, still says so: the device's own answers stay quiet, and a
       // real 404 isn't one of them.
       // CR-81 MF3: when the device holds no access for the project, nothing makes one up (withKeptProject), and the
@@ -1091,9 +1321,10 @@ for (const theme of SHOT_THEMES) {
         await name.press("Enter")
         await expect(todo.locator("[data-task-id]").filter({ hasText: "Book the venue" })).toBeVisible({ timeout: 15_000 })
         await press(card(page, "Book the venue"))
-        if (phone) await page.waitForURL(/\/app\/task\/offline-/, { timeout: 30_000 })
-        const panel = page.locator("[data-task-panel]")
+        // Offline (the app's ONE state), the made task opens over the board, in the sheet on a phone: nothing navigates.
+        const panel = page.locator(phone ? "[data-right-panel-sheet] [data-task-panel]" : "[data-task-panel]")
         await expect(panel.getByText("Book the venue").first()).toBeVisible({ timeout: 30_000 })
+        if (phone) expect(page.url()).not.toMatch(/\/app\/task\//)
         await expect(page.locator("[data-task-comment-later]")).toHaveText("You can change and comment on it when you're back online.")
         await expect(page.getByText("You can see this project but not comment in it.")).toHaveCount(0)
         await expect(page.locator("[data-task-comment-box]")).toHaveCount(0)

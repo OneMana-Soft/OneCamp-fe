@@ -12,11 +12,12 @@ import { ProjectsGet } from "@/services/endpoints/projects"
 import { holdsProjectTasks } from "@/lib/taskStatus"
 import type { Cycle } from "@/lib/tasks/cycles"
 
-const url = (projectId: string) => `${ProjectsGet.ProjectCycles}/${projectId}/cycles`
+/** The project's cycles' address: the key their reads keep them under. */
+export const projectCyclesKey = (projectId: string) => `${ProjectsGet.ProjectCycles}/${projectId}/cycles`
 
 
 export function useProjectCycles(projectId: string | undefined) {
-  const key = projectId ? url(projectId) : ""
+  const key = projectId ? projectCyclesKey(projectId) : ""
   const { data, isLoading, mutate } = useFetch<{ data: { cycles: Cycle[]; can_edit: boolean } }>(key)
   const { mutate: mutateAll } = useSWRConfig()
   // Completing or deleting a cycle moves tasks between cycles, so filtered
@@ -25,7 +26,7 @@ export function useProjectCycles(projectId: string | undefined) {
 
   const create = useCallback(
     async (input: { name: string; starts_at: string; weeks: number }) => {
-      const res = await axiosInstance.post(url(projectId!), input)
+      const res = await axiosInstance.post(projectCyclesKey(projectId!), input)
       await mutate()
       return (res.data as { data: Cycle }).data
     },
@@ -33,7 +34,7 @@ export function useProjectCycles(projectId: string | undefined) {
   )
   const complete = useCallback(
     async (id: string, carry: boolean) => {
-      const res = await axiosInstance.post(`${url(projectId!)}/${id}/complete`, { carry })
+      const res = await axiosInstance.post(`${projectCyclesKey(projectId!)}/${id}/complete`, { carry })
       await Promise.all([mutate(), refreshTasks()])
       return (res.data as { data: { done: number; carried: number; next?: Cycle } }).data
     },
@@ -41,14 +42,14 @@ export function useProjectCycles(projectId: string | undefined) {
   )
   const rename = useCallback(
     async (id: string, name: string) => {
-      await axiosInstance.post(`${url(projectId!)}/${id}/rename`, { name })
+      await axiosInstance.post(`${projectCyclesKey(projectId!)}/${id}/rename`, { name })
       await mutate()
     },
     [projectId, mutate],
   )
   const remove = useCallback(
     async (id: string) => {
-      await axiosInstance.post(`${url(projectId!)}/${id}/delete`, {})
+      await axiosInstance.post(`${projectCyclesKey(projectId!)}/${id}/delete`, {})
       await Promise.all([mutate(), refreshTasks()])
     },
     [projectId, mutate, refreshTasks],

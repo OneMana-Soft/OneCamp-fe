@@ -48,6 +48,8 @@ export type CallAction =
   | "board_draw"
   | "board_guests"
   | "undo_guests"
+  // Slides control (meet-14): show everyone one frame of the board, or the whole board.
+  | "board_slide"
   // Breakout rooms (calls package C).
   | "breakouts_set"
   | "breakouts_assign"
@@ -200,7 +202,10 @@ export function personActions(me: CallPart & { identity: string }, target: CallT
 export interface BoardControls {
   /** Put a board on the stage: they may, sharing is held for them, or someone else's board is up. None for a guest. */
   present: "yes" | "held" | "busy" | null
-  /** Take the board on the stage down. */
+  /**
+   * Take the board on the stage down, or move it through its frames as
+   * slides: the server's one rule for both (CallControl movesStage).
+   */
   stop: boolean
   /** Choose who draws on it, let guests draw, and take back what guests drew. */
   run: boolean

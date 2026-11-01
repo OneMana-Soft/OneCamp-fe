@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { nextCell, swallowsAtEdge } from "./gridKeys"
+import { movesBetweenCells, type CellKind, type KeyInput } from "./gridKeyKinds"
 
 const size = { rows: 5, cols: 4 }
 const mid = { row: 2, col: 1 }
@@ -63,5 +64,26 @@ describe("moving around from a text area's lines", () => {
   it("leaves Shift+Enter to the text area, for a line break, and still goes down on Enter", () => {
     expect(nextCell({ key: "Enter", shiftKey: true }, mid, size, lines(true, true))).toBeNull()
     expect(nextCell({ key: "Enter" }, mid, size, lines(true, true))).toEqual({ row: 3, col: 1 })
+  })
+})
+
+// V-148: the keys come with the live cells' chunk, and the grid holds what
+// movesBetweenCells names until it lands. It holds exactly the keys the grid
+// takes from a cell at rest (no caret, no lines) away from the edges: each
+// that nextCell moves by, or swallowsAtEdge takes, and Shift+Space (a row's
+// selection). A key it missed would do the browser's thing before the chunk,
+// and one it took for nothing would be lost.
+describe("the keys the grid holds until its keys land", () => {
+  const KINDS: CellKind[] = ["text", "number", "date", "select", "checkbox", "button", "computed"]
+  const KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", " ", "a", "F2", "Tab", "Escape", "Home", "Delete"]
+  const MODS: Omit<KeyInput, "key">[] = [{}, { shiftKey: true }, { altKey: true }, { ctrlKey: true }, { metaKey: true }, { shiftKey: true, ctrlKey: true }]
+
+  it.each(KINDS)("holds from a %s cell at rest just the keys the grid takes there", (kind) => {
+    for (const key of KEYS)
+      for (const mods of MODS) {
+        const e = { key, ...mods }
+        const takes = nextCell(e, mid, size, { kind, atStart: true, atEnd: true }) !== null || swallowsAtEdge(e, kind) || (key === " " && !!mods.shiftKey)
+        expect([kind, key, mods, movesBetweenCells(e, kind)]).toEqual([kind, key, mods, takes])
+      }
   })
 })

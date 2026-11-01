@@ -48,3 +48,18 @@ describe("a table page's undo and redo keys", () => {
     editor.remove()
   })
 })
+
+describe("a selected cell at rest (G1)", () => {
+  it("is no typing: ⌘Z on its read-only box undoes the table's latest change, a paste included", () => {
+    const rest = document.createElement("textarea")
+    rest.readOnly = true
+    expect(undoKey(key("z", { ctrlKey: true }, rest), false)).toBe("undo")
+    const restInput = document.createElement("input")
+    restInput.readOnly = true
+    expect(undoKey(key("z", { metaKey: true, shiftKey: true }, restInput), true)).toBe("redo")
+  })
+  it("but a box open for typing keeps the browser's own undo of its text", () => {
+    expect(undoKey(key("z", { ctrlKey: true }, document.createElement("textarea")), false)).toBeNull()
+    expect(undoKey(key("z", { ctrlKey: true }, document.createElement("input")), false)).toBeNull()
+  })
+})

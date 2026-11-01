@@ -139,10 +139,12 @@
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
     "baseline-browser-mapping": "^2.11.28",
+    "es-module-lexer": "^1.7.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "15.1.6",
     "fake-indexeddb": "6.0.0",
     "jsdom": "^25.0.1",
+    "magic-string": "^0.30.21",
     "postcss": "^8.5.29",
     "tailwindcss": "^4.1.16",
     "tw-animate-css": "1.3.3",
@@ -156,7 +158,8 @@
       "@radix-ui/react-menu@2.1.16": "patches/@radix-ui__react-menu@2.1.16.patch",
       "next@16.3.8": "patches/next@16.3.8.patch",
       "y-prosemirror@1.3.7": "patches/y-prosemirror@1.3.7.patch",
-      "virtua@0.41.5": "patches/virtua@0.41.5.patch"
+      "virtua@0.41.5": "patches/virtua@0.41.5.patch",
+      "@excalidraw/excalidraw@0.18.1": "patches/@excalidraw__excalidraw@0.18.1.patch"
     }
   }
 }

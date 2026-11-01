@@ -5,7 +5,7 @@ import { boardScene, convertForTest, convertInFace, type TestElement } from "@/l
 
 vi.mock("@excalidraw/excalidraw", () => ({ convertToExcalidrawElements: (sk: Record<string, unknown>[]) => convertForTest(sk), FONT_FAMILY: { Excalifont: 5 } }))
 
-import { addNotes, clusterIntoFrames, fitTypedNote, frameElement, loadConvert, moveElements, recolourNotes, resizeNotes, selectAndEdit, setFrame, tagNotes, viewMiddle } from "./boardOps"
+import { addNotes, clusterIntoFrames, fitTypedNote, frameElement, loadConvert, moveElements, recolourNotes, resizeNotes, rewordElements, selectAndEdit, setFrame, tagNotes, viewMiddle } from "./boardOps"
 import { NOTE_COLOURS, NOTE_SIZES, noteSkeleton } from "@/lib/board/notes"
 
 // What the board's tools do to the scene (whiteboard W-1): each change is one
@@ -303,5 +303,62 @@ describe("a note's words fit it", () => {
     const shape = boardScene([{ ...rect, customData: undefined, backgroundColor: "transparent" }, label])
     expect(fitTypedNote(shape.api, convertForTest as never, "a-text")).toBe(false)
     expect(byHand.writes.length + shape.writes.length).toBe(0)
+  })
+})
+
+describe("new words on the board, as one undo step (Find's Replace, miro-05 3)", () => {
+  // The stand-in converter, also measuring words on their own as it measures a label: 0.6 em a letter, 1.25 em a line.
+  const convert = ((sks: Record<string, unknown>[]) =>
+    convertForTest(sks).map((e) => (e.type === "text" && !e.containerId ? { ...e, width: String(e.text).length * Number(e.fontSize) * 0.6, height: Number(e.fontSize) * 1.25 } : e))) as never
+  const long = "Write the launch plan, test the checkout, book the review. ".repeat(6).slice(0, 150)
+
+  it("names a frame, fits a note's words, wraps a shape's (the shape growing to hold them) and measures words on their own about their alignment", () => {
+    const [noteRect, noteText] = convertForTest([noteSkeleton({ id: "n", x: 0, y: 0, text: "Set the budget" }) as never])
+    const [box, boxText] = convertForTest([{ type: "rectangle", id: "s", x: 300, y: 0, width: 120, height: 40, label: { text: "budget", fontSize: 20, strokeColor: "#1e1e1e" } }])
+    const free = { id: "t", type: "text", x: 0, y: 400, width: 72, height: 25, version: 1, text: "budget", originalText: "budget", fontSize: 20, textAlign: "center" } as unknown as TestElement
+    const s = boardScene([frameElement({ id: "f", x: 0, y: 0, width: 800, height: 600, name: "Launch budget" }) as never, noteRect, noteText, box, boxText, free])
+    const n = rewordElements(s.api, convert, new Map([["f", "Launch cost"], ["n-text", long], ["s-text", "a much longer budget line"], ["t", "cost"]]))
+    expect(n).toBe(5)
+    expect(s.writes).toHaveLength(1)
+    expect(s.writes[0].captureUpdate).toBe("IMMEDIATELY")
+    expect(s.byId("f")?.name).toBe("Launch cost")
+    // The note keeps its side; its words come down to fit it, as typing them would.
+    expect([s.byId("n")?.height, s.byId("n-text")?.fontSize, s.byId("n-text")?.originalText]).toEqual([180, 15, long])
+    expect(s.byId("s")?.height).toBe(85)
+    expect(s.byId("s-text")).toMatchObject({ text: "a much longer budget line", originalText: "a much longer budget line" })
+    expect(s.byId("t")).toMatchObject({ text: "cost", originalText: "cost", width: 48, x: 12, y: 400 })
+  })
+
+  it("wraps an arrow's label at 0.7 of the arrow, never under 11 em, about the label's middle, and fixed-width words at their width", () => {
+    // An arrow and its label, centred on it (the converter lays no arrow labels).
+    const arrow = (id: string, width: number, y: number) =>
+      [
+        { id, type: "arrow", x: 0, y, width, height: 0, version: 1, boundElements: [{ id: `${id}-text`, type: "text" }] },
+        { id: `${id}-text`, type: "text", x: width / 2 - 12, y: y - 12.5, width: 24, height: 25, version: 1, text: "go", originalText: "go", fontSize: 20, textAlign: "center", containerId: id },
+      ] as unknown as TestElement[]
+    const fixed = { id: "w", type: "text", x: 0, y: 1000, width: 200, height: 25, version: 1, text: "go", originalText: "go", fontSize: 20, textAlign: "left", autoResize: false } as unknown as TestElement
+    const s = boardScene([...arrow("a", 600, 500), ...arrow("b", 100, 800), fixed])
+    const get = (id: string) => s.byId(id) as TestElement
+    const middle = (e: TestElement) => [e.x + e.width / 2, e.y + e.height / 2]
+    const was = [middle(get("a-text")), middle(get("b-text"))]
+    expect(rewordElements(s.api, convert, new Map([["a-text", long], ["b-text", long], ["w", long]]))).toBe(3)
+    // Wrapped words take more than one 25-high line (the stand-in converter measures lines; it adds no breaks).
+    // 0.7 of a 600-wide arrow is 420; a 100-wide arrow's 70 is under 11 em, 220 at 20 px.
+    const [a, b, w] = [get("a-text"), get("b-text"), get("w")]
+    expect([a.width <= 420, a.width > 220, a.height > 25]).toEqual([true, true, true])
+    expect([b.width <= 220, b.width > 70, b.height > 25]).toEqual([true, true, true])
+    for (const [m, m0] of [[middle(a), was[0]], [middle(b), was[1]]]) {
+      expect(m[0]).toBeCloseTo(m0[0])
+      expect(m[1]).toBeCloseTo(m0[1])
+    }
+    // Words on their own at a fixed width wrap at it, and keep it.
+    expect(w).toMatchObject({ width: 200, originalText: long })
+    expect(w.height).toBeGreaterThan(25)
+  })
+
+  it("writes nothing for words that are gone or unchanged elements", () => {
+    const s = boardScene([frameElement({ id: "f", x: 0, y: 0, width: 800, height: 600, name: "Plan" }) as never])
+    expect(rewordElements(s.api, convert, new Map([["gone", "x"]]))).toBe(0)
+    expect(s.writes).toHaveLength(0)
   })
 })

@@ -365,7 +365,7 @@ test.describe("a view the server answers in windows", () => {
       const page = sam.page
       const bar = page.getByRole("progressbar", { name: "Worked out so far" })
       await expect(page.getByText(working(30_000))).toBeVisible({ timeout: 30_000 })
-      await expect(page.getByText("Your view shows here the moment it's done.")).toBeVisible()
+      await expect(page.getByText("Your view shows here by itself soon after it's done.")).toBeVisible()
       await expect(bar).toHaveAttribute("aria-valuenow", "30")
       await expect(bar).toBeInViewport({ ratio: 1 })
       // The size is why it waits (DB-42): the view's rows, never "Showing 0 of".
@@ -392,6 +392,87 @@ test.describe("a view the server answers in windows", () => {
       await expect(bar).toHaveCount(0)
       expect(await page.evaluate(() => (window as unknown as { __samePage?: number }).__samePage)).toBe(1)
       await shootThemes(page, `formula-working-done-${at}`)
+      await sam.close()
+    })
+
+    // V-124: the server says on the table's topic when a fill ends, so a view
+    // it held leaves its wait as soon as that's heard: it reads its first
+    // window again, and nothing else. (Beta's page read the table's bundle
+    // and its windows again on any message, so the rows showed, but it kept
+    // waiting: the bar still gave the view's size as why, and at its next ask
+    // it dropped the rows and read them all again.) Held through three asks
+    // again (2, 4 and 8 s), the next would be 16 s on.
+    test(`at ${at}, a view whose formula the server is still filling shows its rows as soon as the fill's end is heard`, async ({ browser }, testInfo) => {
+      const server = withDouble()
+      server.live = true
+      let filling = true
+      let asks = 0
+      const working = (d: number) => `Double is being worked out over 100,000 rows: ${d / 1000}% done`
+      server.refuses = (q) => {
+        if (!filling || q.count || !JSON.stringify(q.spec ?? {}).includes("field:double")) return null
+        asks++
+        return { msg: working(asks * 10_000), progress: { done: asks * 10_000, total: 100_000 } }
+      }
+      const baseURL = String(testInfo.project.use.baseURL || "http://localhost:3001")
+      const sam = await server.open(browser, testInfo, SAM, { ...device, ...savedRules(server, baseURL, byDouble) })
+      const page = sam.page
+      await expect(page.getByRole("progressbar", { name: "Worked out so far" })).toBeVisible({ timeout: 30_000 })
+      await expect.poll(() => server.listening(), { message: "the page listens on the table's topic", timeout: 30_000 }).toBe(true)
+      await page.evaluate(() => ((window as unknown as { __samePage: number }).__samePage = 1))
+      await expect.poll(() => asks, { message: "the page asks again by itself", timeout: 60_000 }).toBeGreaterThanOrEqual(4)
+      await expect(page.getByText(working(asks * 10_000))).toBeVisible({ timeout: 15_000 })
+      // While it waits, the bar gives the view's size as why.
+      const size = page.locator("[data-rows-shown]")
+      await expect(size).toHaveText("100,000 rows")
+      const held = windowsRead(server).length
+      const bundles = server.bundleReads
+      filling = false
+      expect(server.say({ action: "computed", fields: ["double"] }), "the page heard the fill's end").toBe(1)
+      await expect(firstRow(page)).toContainText("Line 857", { timeout: 8_000 })
+      await expect(page.getByText(/is being worked out over/)).toHaveCount(0)
+      await expect(page.getByRole("progressbar", { name: "Worked out so far" })).toHaveCount(0)
+      // Out of its wait at once, long before its next ask (16 s on).
+      await expect(size.filter({ hasText: "100,000 rows" }), "the view no longer waits").toHaveCount(0, { timeout: 2_000 })
+      // Read once more, from its first window, at once, and nothing else.
+      expect(windowsRead(server).slice(held)).toEqual([""])
+      expect(server.bundleReads, "the table's bundle isn't read again").toBe(bundles)
+      expect(await page.evaluate(() => (window as unknown as { __samePage?: number }).__samePage)).toBe(1)
+      await shootThemes(page, `formula-filled-heard-${at}`)
+      await sam.close()
+    })
+
+    // V-124: a formula's sum the server refused while it filled (the view
+    // reads its windows as ever) totals as soon as the fill's end is heard,
+    // with the view's windows not read again.
+    test(`at ${at}, a formula's sum the server refused while filling it totals as soon as the fill's end is heard`, async ({ browser }, testInfo) => {
+      const server = withDouble()
+      server.live = true
+      let filling = true
+      const words = "Double is being worked out over 100,000 rows: 40% done"
+      server.refuses = (q) =>
+        filling && q.count && JSON.stringify(q.spec?.summaries ?? []).includes("field:double") ? { msg: words, progress: { done: 40_000, total: 100_000 } } : null
+      const sam = await server.open(browser, testInfo, SAM, device)
+      const page = sam.page
+      await expect(firstRow(page)).toContainText("Line 0", { timeout: 30_000 })
+      const bar = page.locator("[data-summary-bar]")
+      await expect(bar.getByRole("button", { name: "Amount summary: Sum 49,950,000" })).toBeVisible({ timeout: 15_000 })
+      await expect(bar.getByRole("button", { name: `Double summary: Sum –. ${words}` })).toContainText("–")
+      await expect.poll(() => server.listening(), { message: "the page listens on the table's topic", timeout: 30_000 }).toBe(true)
+      // Once its topic is live (the broker's answer reaches it a moment after
+      // the broker holds it), the page reads what it shows again from the first
+      // window (TopicLive). That read is the page's own, not the fill's, so the
+      // fill's end is said only once it's been asked.
+      const fromFirst = () => windowsRead(server).filter((cursor) => cursor === "").length
+      await expect.poll(fromFirst, { message: "the page reads its first window again once its topic is live", timeout: 30_000 }).toBe(2)
+      filling = false
+      expect(server.say({ action: "computed", fields: ["double"] }), "the page heard the fill's end").toBe(1)
+      const total = bar.getByRole("button", { name: "Double summary: Sum 99,900,000" })
+      await expect(total).toHaveCount(1, { timeout: 5_000 })
+      await total.scrollIntoViewIfNeeded()
+      await expect(total).toBeInViewport({ ratio: 1 })
+      await expect(bar.getByRole("button", { name: /^Double summary: Sum –/ })).toHaveCount(0)
+      expect(fromFirst(), "the view's windows aren't read again").toBe(2)
+      await shootThemes(page, `formula-sum-filled-heard-${at}`)
       await sam.close()
     })
 

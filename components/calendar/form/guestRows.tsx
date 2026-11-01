@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker"
 import { Mail, X } from "@/lib/icons"
-import { ANSWER_WORD, responseOf } from "@/lib/calendar/answers"
+import { answerWordOf } from "@/lib/calendar/answers"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { FormGuest } from "@/lib/calendar/eventForm"
@@ -71,7 +71,7 @@ export function GuestRows({
                     Optional
                   </span>
                 ) : null}
-                {g.response && g.response !== "needs_action" ? <span className="shrink-0 text-ink-3">· {ANSWER_WORD[responseOf(g.response)]}</span> : null}
+                {g.response && g.response !== "needs_action" ? <span className="shrink-0 text-ink-3">· {answerWordOf(g)}</span> : null}
               </span>
               <button
                 type="button"

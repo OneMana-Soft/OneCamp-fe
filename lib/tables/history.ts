@@ -7,6 +7,7 @@
 
 import type { HistoryChange, HistoryItem } from "@/lib/tables/ledger"
 import type { TableField } from "@/services/tableService"
+import type { ChangeKind } from "@/lib/tables/types"
 import { kindText } from "@/lib/fieldTypes/kindsMore"
 
 /** The longest a value is quoted in a line. */
@@ -82,10 +83,21 @@ export function changeText(c: HistoryChange, fields: TableField[]): string {
   return `changed ${name} from ${was} to ${now}`
 }
 
+/** How a change set's changes were made, said after each of its lines. */
+const BY: Partial<Record<ChangeKind, string>> = {
+  undo: " (undoing a change)",
+  redo: " (redoing a change)",
+  field: " (by changing the column)",
+  replace: " (find and replace)",
+  trim: " (trimming spaces)",
+  dedupe: " (removing duplicate rows)",
+  split: " (splitting a column)",
+}
+
 /** A change set's lines: who, and what, each change of it. */
 export function historyLines(item: HistoryItem, fields: TableField[]): string[] {
   const who = whoDid(item)
-  const by = item.kind === "undo" ? " (undoing a change)" : item.kind === "redo" ? " (redoing a change)" : item.kind === "field" ? " (by changing the column)" : ""
+  const by = BY[item.kind] ?? ""
   const lines = item.changes.map((c) => `${who} ${changeText(c, fields)}${by}`)
   return lines.length ? lines : [`${who} made a change`]
 }

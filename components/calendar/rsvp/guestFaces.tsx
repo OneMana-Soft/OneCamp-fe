@@ -28,6 +28,8 @@ export interface FaceGuest {
   invite?: string
   /** Another time they proposed, where the reader may see it (calendar head 4). */
   proposal?: EventProposal
+  /** Declined by their out of office (calendar head 5c). */
+  away?: boolean
 }
 
 /** How many faces show before the row folds to faces and counts (STEP4_PLAN §4 #5). */
@@ -73,7 +75,7 @@ function QuestionGlyph() {
 /** One face with its answer's mark, named for a screen reader: "Maya Chen, going". */
 export function GuestFace({ g, size = 20 }: { g: FaceGuest; size?: number }) {
   return (
-    <span className="relative inline-flex shrink-0" role="img" aria-label={faceLabel(g.name, g.response, g.organiser)} data-face={g.key}>
+    <span className="relative inline-flex shrink-0" role="img" aria-label={faceLabel(g)} data-face={g.key}>
       <IdentityMark variant="avatar" size={size} id={avatarSeed(g.seed)} label={g.name} src={g.src} className="ring-2 ring-pop" />
       <AnswerMark response={g.response} organiser={g.organiser} />
     </span>

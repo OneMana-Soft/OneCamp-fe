@@ -72,6 +72,7 @@ const FORMS: Array<{ file: string; host: Host; field: Field; via?: string }> = [
   { file: "components/forms/FormPages.tsx", host: "page", field: "DateField" },
   { file: "components/forms/FormPages.tsx", host: "dialog", field: "DateField" },
   { file: "components/notifications/NotificationPreferencesCard.tsx", host: "page", field: "TimeField" },
+  { file: "components/project/ProjectPlanPickers.tsx", host: "popover", field: "DateField" },
   { file: "components/table/fields/FieldSettings.tsx", host: "popover", field: "DateField" },
   { file: "components/table/rules/RuleMenus.tsx", via: "components/table/ViewRulesBar.tsx", host: "popover", field: "DateField" },
   { file: "components/task/cyclesSwitcher.tsx", host: "page", field: "DateField" },

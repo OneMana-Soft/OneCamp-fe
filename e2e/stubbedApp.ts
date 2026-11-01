@@ -68,6 +68,11 @@ const SHELL_READS: Array<[RegExp, unknown]> = [
   // Every page's composer drafts (components/conversation/DraftSyncLoader), none kept.
   [/\/drafts$/, { msg: "ok", data: { drafts: [], max: 500 } }],
   // What a task or a project links to (services/entityLinkService), read by every task page: nothing.
+  // A project's links to its tools elsewhere (basecamp-16), read by every project page: none.
+  [/\/project\/[^/]+\/links$/, { msg: "ok", data: { links: [], can_manage: false } }],
+  // A project's plan (linear-15), read by every project page: in progress, nothing else set, for someone who may not change it.
+  [/\/project\/[^/]+\/plan$/, { msg: "ok", data: { plan: { lead: null, start: null, target: null, priority: "", status: { category: "in_progress", name: "In progress", color: "amber" }, labels: null }, can_edit: false, can_lead: false } }],
+  [/\/project\/plan\/registry$/, { msg: "ok", data: { categories: [], statuses: null, labels: null, colors: [] } }],
   [/\/link\/source\/[^/]+\/[^/]+$/, { msg: "ok", data: { docs: [], boards: [] } }],
   // A doc page's own reads, as a doc nobody has followed, starred, linked to,
   // commented on or suggested a change to, with no folder above it.
@@ -104,6 +109,10 @@ const SHELL_READS: Array<[RegExp, unknown]> = [
   // ("paused", "focus" or "quiet_hours") and `until` when that ends (RFC 3339).
   // Both are left out when nothing is held, as here, and the bar draws nothing.
   [/\/user\/notificationStatus\/[^/]+$/, { data: {} }],
+  // The same bar says what the other person's calendar says now (calendar head 5c),
+  // read every five minutes: { data: { kind, until, words, private } } (controllers/
+  // Calendar PersonStatus). An empty kind, as here, says nothing.
+  [/\/event\/status\/[^/]+$/, { msg: "ok", data: { kind: "", words: "", private: false } }],
   [/\/(user\/preferences|user\/notificationPreferences|user\/sidebarNav|user\/botKinds|config\/mqttConfig|config\/client|auth\/providers|me\/capabilities|later|doc\/children)$/, { msg: "ok", data: {} }],
 ]
 
@@ -169,6 +178,22 @@ export async function reviewShot(page: Page, name: string, theme: string) {
   await untilStill(page)
   expect(await page.getByText("Not in this test").count(), `a shot with the stub's toast, from ${(unanswered.get(page) ?? []).join(", ")}`).toBe(0)
   await page.screenshot({ path: `${dir}/${name}-${page.viewportSize()?.width}-${theme}.png` })
+}
+
+/**
+ * Lets a window the page opened itself (Document Picture-in-Picture) finish
+ * loading, for a test's last steps. The window's about:blank document fetches
+ * through its opener, and while the opener has stubs (page.route) Playwright
+ * pauses those fetches and never lets them go: the window's fonts stay
+ * "loading", and page.screenshot waits on them forever. A browser with no
+ * stubs has no such hold. CALLS-LEAD-95's probes (31 Oct) saw it in the
+ * headless shell, headed and in new headless alike, and the held font arrived
+ * the moment the routes went. It drops the opener's stubs, so call it only
+ * when nothing stubbed is left to answer; the fake call's sockets
+ * (routeWebSocket) stay.
+ */
+export async function releaseWindowLoads(opener: Page) {
+  await opener.unrouteAll({ behavior: "ignoreErrors" })
 }
 
 /**

@@ -1,8 +1,7 @@
-import { inZone, readEveryRow, type TableField, type TableRow } from "@/services/tableService"
+import { inZone, type TableField } from "@/services/tableService"
 import { TablesPost } from "@/services/endpoints/tables"
-import { searchRows, type ViewRules } from "@/lib/tables/viewRules"
-import { applyViewRules } from "@/lib/tables/applyRules"
-import { rulesToSpec, type RowQueryAnswers, type RowSpec } from "@/lib/tables/query"
+import type { RowSpec } from "@/lib/tables/query"
+import { shownRowsOf, specOf, type ViewRows } from "@/lib/tables/viewRows"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { toCsv } from "@/lib/tables/csv"
 import { downloadBlob, downloadFrom } from "@/lib/utils/download"
@@ -10,28 +9,16 @@ import { apiErrorStatus } from "@/lib/utils/apiError"
 import { unprocessableReason } from "@/lib/tables/unprocessable"
 import type { useToast } from "@/hooks/use-toast"
 
-/** The view an export writes, as the page shows it. */
-export interface ExportInput {
+/** The view an export writes, as the page shows it (its rows named as lib/tables/viewRows names them). */
+export interface ExportInput extends ViewRows {
   /** A CSV file made here, or an Excel workbook the server writes (POST /tables/{id}/export). */
   format: "csv" | "xlsx"
-  tableId: string
   name: string
   /** The fields shown, in their order: the export's columns. */
   shown: TableField[]
   /** The widths the grid draws its columns at, by field id: the workbook's too. */
   widths: Record<string, number>
-  /** Every field, as the view's rules read them (a hidden field can still filter). */
-  fields: TableField[]
-  rows: TableRow[]
-  /** The page holds every row already. */
-  complete: boolean
   total: number | null
-  rules: ViewRules
-  /** Whoever exports: "me" in a people filter. */
-  me: string | null
-  /** What the table's cell index answers: rules it takes go to the server as the view's spec. */
-  answers: RowQueryAnswers | null | undefined
-  query: string
   toast: ReturnType<typeof useToast>["toast"]
 }
 
@@ -53,16 +40,13 @@ export async function exportRows(x: ExportInput): Promise<void> {
   const excel = x.format === "xlsx"
   const title = excel ? "Exporting to Excel" : "Exporting the table"
   const writing = "Writing the workbook"
-  const spec = excel && !x.query.trim() ? rulesToSpec(x.rules, x.fields, x.answers) : null
+  const spec = excel ? specOf(x) : null
   const note = excel || !x.complete ? x.toast({ tone: "loading", title, description: spec || x.complete ? writing : `Reading rows: 0${of}` }) : null
   try {
     if (spec) {
       await saveWorkbook(x, { spec })
     } else {
-      const every = x.complete
-        ? x.rows
-        : await readEveryRow(x.tableId, { onProgress: (got) => note?.update({ id: note.id, tone: "loading", title, description: `Reading rows: ${n(got)}${of}` }) })
-      const shown = searchRows(applyViewRules(every, x.fields, x.rules, x.me), x.query)
+      const shown = await shownRowsOf(x, (got) => note?.update({ id: note.id, tone: "loading", title, description: `Reading rows: ${n(got)}${of}` }))
       if (!excel) {
         downloadBlob(toCsv(x.shown, shown), "text/csv;charset=utf-8", `${x.name || "table"}.csv`)
         note?.update({ id: note.id, tone: "success", title: `Exported ${n(shown.length)} ${shown.length === 1 ? "row" : "rows"}`, description: undefined })

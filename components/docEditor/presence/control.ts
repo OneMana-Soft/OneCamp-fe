@@ -9,6 +9,8 @@ export interface PresenceControl {
   jump(clientId: number): boolean
   follow(clientId: number | null): void
   following: number | null
+  /** Bring everyone on it to this screen's view once, when this person may (a board's editors, miro-21 1). */
+  bringAll?: () => void
 }
 
 const controls = new Map<string, PresenceControl>()

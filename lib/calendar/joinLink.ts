@@ -52,6 +52,20 @@ export function eventCallChoice(
   return ended || joinLinkOf(event) ? null : "add"
 }
 
+/**
+ * Whether an event's guests by email come straight into its own call with
+ * their own link (meet-02, Meet's quick access), for someone who may change it
+ * to choose while it has its call and hasn't ended. Null with no guest from
+ * outside: members never wait in its lobby, so there is nothing to choose. Pure.
+ */
+export function inviteesSkipLobby(
+  event: Pick<CalendarEventInterface, "event_description" | "event_call">,
+  { outsideGuests, ...may }: { mayChange: boolean; google: boolean; ended: boolean; outsideGuests: boolean },
+): boolean | null {
+  if (!outsideGuests || may.ended || eventCallChoice(event, may) !== "remove") return null
+  return !event.event_call?.invitees_wait
+}
+
 /** Join's weight: primary from ten minutes before until the end, quiet before, none once ended. Pure. */
 export function joinOffer(link: string | null | undefined, start: Date, end: Date, now: Date): "primary" | "secondary" | null {
   if (!link || now >= end) return null

@@ -64,6 +64,16 @@ describe("a confirm on a phone", () => {
     // Cancel comes first, so the reversed column draws it last.
     expect([...footer.children].map((b) => b.textContent)).toEqual(["Cancel", "Delete"])
   })
+
+  // V-111: drawn as a sheet, the confirm owns the phone's foot as every sheet
+  // does, so it marks the page for the toasts' place (app/phone.css C9).
+  it("marks the page while it is open, and not once it closes", () => {
+    mode.sheet = true
+    const { unmount } = render(<Confirm />)
+    expect(document.documentElement.getAttribute("data-sheet")).toBe("open")
+    unmount()
+    expect(document.documentElement.hasAttribute("data-sheet")).toBe(false)
+  })
 })
 
 describe("a confirm on a computer", () => {
@@ -75,6 +85,8 @@ describe("a confirm on a computer", () => {
     expect(classes(dialog)).toEqual(expect.arrayContaining(["inset-0", "m-auto", "h-fit", "sm:max-w-md"]))
     expect(classes(dialog)).not.toContain("v3-confirm-sheet")
     expect(screen.getByRole("button", { name: "Delete" }).parentElement!.hasAttribute("data-sheet-footer")).toBe(false)
+    // A centred confirm leaves the foot to the page: no sheet's mark.
+    expect(document.documentElement.hasAttribute("data-sheet")).toBe(false)
   })
 })
 

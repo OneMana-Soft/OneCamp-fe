@@ -188,7 +188,7 @@ function SearchMeta({ result }: { result: SearchResult }) {
 }
 
 /** The fields whose passage says why a result matched when its title didn't. */
-const BODY_FIELDS: Partial<Record<SearchResult["type"], string>> = { doc: "doc_body", task: "task_desc", event: "event_notes" }
+const BODY_FIELDS: Partial<Record<SearchResult["type"], string>> = { doc: "doc_body", task: "task_desc", event: "event_notes", board: "board_text" }
 
 function BodyMatch({ result }: { result: SearchResult }) {
   const field = BODY_FIELDS[result.type]

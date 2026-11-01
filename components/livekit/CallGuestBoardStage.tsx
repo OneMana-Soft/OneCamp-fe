@@ -7,17 +7,21 @@
  * once the board leaves the stage, the guest leaves or the call ends. The
  * guest draws while its presenter lets everyone draw and "Guests can draw" is
  * on; the collaboration server has the last word, and names their strokes
- * "Name (guest)". Its pictures come through the board's token. Loaded when a
+ * "Name (guest)". Its pictures come through the board's token. The camera
+ * follows the room's slide, as everyone's does (stageSlides). Loaded when a
  * board first goes up, so no call route's first load carries the canvas.
  */
 
 import * as React from "react"
+import type * as Y from "yjs"
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { GuestBoardViewer } from "@/components/guest/GuestBoardViewer"
 import { publicCall } from "@/services/publicApi"
 import { asGuest } from "./callLevels"
 import type { CallBoard } from "./callState"
 import { STAGE_BOARD_FRAME, boardBarClass, useBoardCompact, useToolRowEdgeFade } from "./boardFrame"
 import { STAGE_OVERLAY } from "./callSurface"
+import { StageSlides, useStageSlide } from "./stageSlides"
 
 /** What the server answers a guest's ask for the board on their call's stage. */
 interface BoardToken {
@@ -55,6 +59,11 @@ export default function CallGuestBoardStage({
   const compact = useBoardCompact(frameRef)
   // A drawing guest's phone tool row scrolls and fades as the member's does (CallBoardStage).
   useToolRowEdgeFade(frameRef)
+  // The room's slide: the guest's camera follows it too.
+  const [scene, setScene] = React.useState<{ api: ExcalidrawImperativeAPI; doc: Y.Doc } | null>(null)
+  const onApiReady = React.useCallback((api: ExcalidrawImperativeAPI, doc: Y.Doc) => setScene({ api, doc }), [])
+  const slide = board.slide ?? ""
+  const refit = useStageSlide(scene?.api ?? null, board.uuid, slide, frameRef)
 
   return (
     <div ref={frameRef} className={STAGE_BOARD_FRAME} data-call-board={board.uuid} data-board-view-only={canDraw ? undefined : ""}>
@@ -63,6 +72,7 @@ export default function CallGuestBoardStage({
           {presenter}&apos;s board
         </span>
         {canDraw ? <span className={`${STAGE_OVERLAY} shrink-0 px-2 py-1 text-ui-sm`}>You can draw</span> : null}
+        {scene ? <StageSlides api={scene.api} doc={scene.doc} slide={slide} moves={false} refit={refit} stage={frameRef} /> : null}
       </div>
       <div className="relative min-h-0 flex-1">
         <GuestBoardViewer
@@ -74,6 +84,8 @@ export default function CallGuestBoardStage({
           user={{ id: me.identity, name: asGuest(me.identity, me.name) }}
           // The call's stage is dark: one theme for the board's chrome too.
           theme="dark"
+          opensAt={board.slide}
+          onApiReady={onApiReady}
         />
       </div>
     </div>

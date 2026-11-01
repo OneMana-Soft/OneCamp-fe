@@ -15,6 +15,8 @@ export interface CalendarEventInterface {
     event_is_focus?: boolean;
     /** Time off: the creator is away; the workload counts those working days out of their capacity. */
     event_is_away?: boolean;
+    /** A working location (head 5d): where its creator works that day, the place its title names. */
+    event_working_location?: string;
     /**
      * A Google all-day event: placed by event_start_date and event_end_date
      * ("YYYY-MM-DD", the end exclusive), never by its midnight-UTC instants
@@ -54,8 +56,12 @@ export interface CalendarEventInterface {
     event_read_only?: boolean;
     /** A task block's task (B1, gcal-new-task-blocks): its uuid, and its name, state and project when the reader may read it. */
     event_task?: CalendarEventTask | null;
-    /** Its own call (calendar B11): the address its guests come in at; a member comes in as themselves. */
-    event_call?: { slug: string; address: string } | null;
+    /**
+     * Its own call (calendar B11): the address its guests come in at; a member
+     * comes in as themselves. invitees_wait: its guests by email knock at it
+     * like anyone from outside, its host having turned their way in off (meet-02).
+     */
+    event_call?: { slug: string; address: string; invitees_wait?: boolean } | null;
     isTask?: boolean;
 }
 
@@ -80,6 +86,8 @@ export interface EventGuest {
     invite?: "sent" | "not_sent" | "failed";
     /** Another time they proposed: for them and whoever may change the event alone, while it stands. */
     proposal?: EventProposal;
+    /** Their decline is their out of office's (calendar head 5c). */
+    out_of_office?: boolean;
 }
 
 /** A time a guest proposed for an event, instead of its own (RFC 3339 instants). */
