@@ -24,6 +24,8 @@ import { fieldKind } from "@/lib/fieldTypes/registry"
 import { kindText, statusGroupOf, type StatusGroup } from "@/lib/fieldTypes/kindsMore"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { keepInSight } from "@/lib/tables/viewRules"
+import { useTableEdit } from "@/lib/tables/tableEdit"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
 import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET, TOUCH_ROW } from "@/components/table/TableViewFrame"
 
 interface DataTableBoardProps {
@@ -35,6 +37,8 @@ interface DataTableBoardProps {
   groupFieldId?: string
   /** Asks for the table again; given a row, only as far as that row needs. */
   onChange: (rowId?: string) => void
+  /** The table's undo order (useCellCommit's write): a card added or moved is the reader's to undo. */
+  write: UndoOrder["write"]
   /** A card added here, for the page to open its record (TAB-BUG-14); without it, the board asks for the table again. */
   onCreated?: (rows: TableRow[], focus?: boolean) => void
   /** Opens a card's record: a click, a tap or Enter on it. */
@@ -149,6 +153,7 @@ export function DataTableBoard({
   fields,
   rows,
   groupFieldId,
+  write,
   onChange,
   onCreated,
   onOpenRow,
@@ -166,6 +171,8 @@ export function DataTableBoard({
   const [held, setHeld] = React.useState<{ rowId: string; lane: number } | null>(null)
   const [said, say] = React.useState("")
   const instructions = React.useId()
+  // A reader who may only view the table (V-170) opens cards, and moves or adds none.
+  const canEdit = useTableEdit()
   const boardRef = React.useRef<HTMLDivElement>(null)
   const refocus = React.useRef<string | null>(null)
   const sensors = useSensors(useSensor(MouseSensor, MOUSE), useSensor(TouchSensor, TOUCH))
@@ -251,22 +258,31 @@ export function DataTableBoard({
   }
 
   const moveCard = async (row: TableRow, to: BoardColumn) => {
-    if (laneOf(row) === to.key) return
+    if (!canEdit || laneOf(row) === to.key) return
     setKept((k) => ({ ...k, [to.key]: row.id }))
     setMoved((m) => ({ ...m, [row.id]: { lane: to.key, was: row.values } }))
+    // The card follows the table's copy again: its own lane until the row is read.
+    const unmove = () => setMoved((m) => Object.fromEntries(Object.entries(m).filter(([id]) => id !== row.id)))
+    // A Ctrl+Z pressed on its way takes the move (V-360): the card goes back at once, and the read after that Undo
+    // draws it, so no read of the moved row comes between.
+    let taken = false
     try {
-      await patchRow(tableId, row.id, { [groupField.id]: to.key === NO_VALUE ? "" : to.label })
-      onChange(row.id)
+      await write("move", () => patchRow(tableId, row.id, { [groupField.id]: to.key === NO_VALUE ? "" : to.label }), undefined, () => {
+        taken = true
+        unmove()
+      })
+      if (!taken) onChange(row.id)
     } catch {
       // Said by the request; the card goes back.
-      setMoved((m) => Object.fromEntries(Object.entries(m).filter(([id]) => id !== row.id)))
+      unmove()
       onChange()
     }
   }
 
   const addCard = async (column: BoardColumn) => {
+    if (!canEdit) return
     try {
-      const r = await createRow(tableId, column.key === NO_VALUE ? {} : { [groupField.id]: column.label })
+      const r = await write("card", () => createRow(tableId, column.key === NO_VALUE ? {} : { [groupField.id]: column.label }))
       if (onCreated && r?.id) onCreated([r], true)
       else onChange()
     } catch {
@@ -298,7 +314,7 @@ export function DataTableBoard({
         onOpenRow?.(row.id)
         return
       }
-      if (e.key === " ") {
+      if (e.key === " " && canEdit) {
         e.preventDefault()
         e.stopPropagation()
         const lane = columns.findIndex((c) => c.key === laneOf(row))
@@ -396,9 +412,9 @@ export function DataTableBoard({
                       skip={[titleField?.id, groupField.id]}
                       columns={columns}
                       held={held?.rowId === row.id}
-                      describedBy={instructions}
+                      describedBy={canEdit ? instructions : undefined}
                       onOpen={onOpenRow}
-                      onMove={(to) => void moveCard(row, to)}
+                      onMove={canEdit ? (to) => void moveCard(row, to) : undefined}
                     />
                   ))}
                   {more > 0 ? (
@@ -411,13 +427,15 @@ export function DataTableBoard({
                       Show {formatLocale(more, {})} more
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={() => void addCard(col)}
-                    className={cn("flex h-8 items-center gap-1.5 rounded-lg px-2 text-ui-sm text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", TOUCH_ROW)}
-                  >
-                    <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add card
-                  </button>
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      onClick={() => void addCard(col)}
+                      className={cn("flex h-8 items-center gap-1.5 rounded-lg px-2 text-ui-sm text-ink-3 transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", TOUCH_ROW)}
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add card
+                    </button>
+                  ) : null}
                 </div>
               </BoardLane>
             )
@@ -492,11 +510,12 @@ function BoardCard({
   skip: (string | undefined)[]
   columns: BoardColumn[]
   held: boolean
-  describedBy: string
+  describedBy?: string
   onOpen?: (rowId: string) => void
-  onMove: (to: BoardColumn) => void
+  /** Moves the card to another lane; none for a reader who may only view the table (no drag, no Move to). */
+  onMove?: (to: BoardColumn) => void
 }) {
-  const { setNodeRef, listeners, isDragging } = useDraggable({ id: row.id })
+  const { setNodeRef, listeners, isDragging } = useDraggable({ id: row.id, disabled: !onMove })
   const values = parseRowValues(row)
   const details = rowDetails(fields, values, skip, 3)
   return (
@@ -521,27 +540,29 @@ function BoardCard({
           </div>
         ) : null}
       </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={`Move ${title}`}
-            data-touch-target=""
-            className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-hover hover:text-ink focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand group-hover/card:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
-          >
-            <MoreHorizontal className="size-4" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="content-float w-52 rounded-xl p-1 shadow-e3">
-          <DropdownMenuLabel className="text-meta font-medium text-ink-3">Move to</DropdownMenuLabel>
-          {columns.map((c) => (
-            <DropdownMenuItem key={c.key} disabled={c.key === lane} aria-current={c.key === lane ? "true" : undefined} onSelect={() => onMove(c)}>
-              <span className="flex-1 truncate">{c.label}</span>
-              <MenuCheck checked={c.key === lane} />
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {onMove ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Move ${title}`}
+              data-touch-target=""
+              className="absolute right-1.5 top-1.5 inline-flex size-7 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-hover hover:text-ink focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand group-hover/card:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="content-float w-52 rounded-xl p-1 shadow-e3">
+            <DropdownMenuLabel className="text-meta font-medium text-ink-3">Move to</DropdownMenuLabel>
+            {columns.map((c) => (
+              <DropdownMenuItem key={c.key} disabled={c.key === lane} aria-current={c.key === lane ? "true" : undefined} onSelect={() => onMove(c)}>
+                <span className="flex-1 truncate">{c.label}</span>
+                <MenuCheck checked={c.key === lane} />
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </div>
   )
 }

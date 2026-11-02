@@ -257,6 +257,35 @@ describe("the sidebar's Docs section", () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith("/doc/createDoc", { doc_title: "", space: "private", doc_private: true }))
   })
 
+  // V-266: while its first level is asked (a round trip on every load), the sidebar's tree holds the room it took
+  // last time, as one stand-in row at least that tall, never the groups' rows: they drew, then collapsed into the
+  // one-row invitation, and everything below the section jumped.
+  it("in the sidebar, holds the tree's room while its first level comes, and then shows what came", async () => {
+    nav.pathname = "/app/home"
+    levels["/doc/children?space=workspace&limit=50"] = { nodes: [] }
+    levels["/doc/children?space=private&limit=50"] = { nodes: [] }
+    const answers = get.getMockImplementation()!
+    let answer = () => {}
+    const held = new Promise<void>((resolve) => (answer = resolve))
+    get.mockImplementation(async (url: string) => {
+      if (url.startsWith("/doc/children")) await held
+      return answers(url)
+    })
+    try {
+      renderWith(<DocsTreeGroups sidebar />)
+      await waitFor(() => expect(get).toHaveBeenCalledWith("/doc/children?space=workspace&limit=50"))
+      const standIns = document.querySelectorAll("[data-doc-tree-skeleton]")
+      expect(standIns).toHaveLength(1)
+      expect(standIns[0].className).toContain("min-h-(--docs-tree-h)")
+      expect(document.querySelector("[data-docs-tree-groups]"), "the groups' rows while the level comes").toBeNull()
+      answer()
+      expect(await screen.findByRole("button", { name: "Write the first doc" })).toBeTruthy()
+      expect(document.querySelector("[data-doc-tree-skeleton]")).toBeNull()
+    } finally {
+      get.mockImplementation(answers)
+    }
+  })
+
   // Design review PG1-02 (14 Oct 2026): three uncapped trees sat above
   // Channels and Direct messages and pushed them off the first screen.
   it("in the sidebar, shows five pages a level, and folds a group by its name as left", async () => {

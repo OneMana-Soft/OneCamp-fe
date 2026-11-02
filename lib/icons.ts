@@ -34,7 +34,7 @@ export { StarOff, UserRoundCheck, UserRoundX } from "lucide-react";
 export { ImagePlus, AudioLines, WandSparkles } from "lucide-react";
 // Docs (B2): colour, the fourth heading, the table of contents, and callout icons.
 export { Baseline, Heading4, TableOfContents, CircleAlert, Flame, BookOpen, GraduationCap } from "lucide-react";
-export { Focus } from "lucide-react";
+export { Focus, SunDim } from "lucide-react";
 // Calls: the captions toggle (hub, 10 Oct 2026), the ink laser (S3).
 export { Captions, CaptionsOff, Flashlight } from "lucide-react";
 // The calendar: time off (away) and an event's place (content v3).

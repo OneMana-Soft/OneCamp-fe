@@ -68,6 +68,20 @@ function posOf(id: string | undefined): CellPos | null {
 /** The cell an element is in, by its box's data-cell. */
 const cellOf = (el: Element | null | undefined) => posOf(el?.closest?.("tbody td[data-field]")?.querySelector<HTMLElement>("[data-cell]")?.dataset.cell)
 const cellAt = (x: number, y: number) => cellOf(document.elementFromPoint(x, y))
+/**
+ * The cell a press went down on. A finger's press brings its cell to life (a
+ * live face takes the place of the one at rest), so a press the shell kept
+ * until the piece landed may hold a face that has left its td since: the face
+ * still names its cell (V-358).
+ */
+function pressedOn(t: Element): CellPos | null {
+  if (t.isConnected) return cellOf(t)
+  for (let el: Element | null = t; el; el = el.parentElement) {
+    const box = el.matches("[data-cell]") ? el : el.querySelector("[data-cell]")
+    if (box || el.tagName === "TD") return posOf(box?.getAttribute("data-cell") ?? undefined)
+  }
+  return null
+}
 
 /** The row (its index among the rows shown) at a point, or null off the rows. */
 function rowAt(x: number, y: number): number | null {
@@ -446,7 +460,7 @@ export function rangeHandlers(s: RangeShell) {
   const onPointerDown = (e: PressStart, heldFor = 0) => {
     swallow = { click: false, menu: false }
     if (e.button !== 0) return
-    const at = cellOf(e.target as Element)
+    const at = pressedOn(e.target as Element)
     if (!at) return
     endPress()
     if (e.pointerType !== "touch" && e.shiftKey && s.range) return // Shift+click (onMouseDown)

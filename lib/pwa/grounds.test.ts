@@ -1,9 +1,10 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { inflateSync } from "node:zlib"
 import { describe, expect, it } from "vitest"
 
 import { GROUND, THEME_COLOR_METAS, groundFor } from "./grounds"
+import { MANIFEST } from "./manifests"
 import { splashLinks } from "./splash"
 
 // The ground the app starts on (17 Oct 2026, the splash): every start
@@ -93,13 +94,27 @@ describe("the ground the app starts on", () => {
     }
   })
 
-  // Android launches an installed app on the manifest's colours. They are a
-  // phone's, light; a browser that honours the manifest's dark colours (the
-  // user_preferences member, Chromium's web app dark mode) gets the dark ones.
-  it("is the manifest's launch colours, light and dark", () => {
-    const manifest = JSON.parse(readFileSync(join(ROOT, "public/manifest.json"), "utf8"))
-    expect(manifest.background_color).toBe(GROUND.light.phone)
-    expect(manifest.theme_color).toBe(GROUND.light.phone)
-    expect(manifest.user_preferences?.color_scheme?.dark).toEqual({ background_color: GROUND.dark.phone, theme_color: GROUND.dark.phone })
+  // Android launches an installed app on its manifest's colours, and Chrome
+  // (since August 2026) paints the app's navigation bar with its theme_color.
+  // Chrome reads no dark pair from a manifest (user_preferences stays for a
+  // browser that does), so a dark app sat over a white bar (V-322, the
+  // owner's phone, 2 Nov 2026). Each mode has its own manifest: the same app
+  // on that mode's ground, and the boot script links the one for the mode
+  // shown (lib/appBoot). The light one keeps the address installed apps were
+  // made from.
+  it("is each mode's manifest's colours: the same app, on that mode's ground", () => {
+    expect(MANIFEST.light, "the address installed apps were made from").toBe("/manifest.json")
+    for (const scheme of ["light", "dark"] as const) {
+      expect(existsSync(join(ROOT, "public", MANIFEST[scheme])), `the ${scheme} manifest ships`).toBe(true)
+    }
+    const shipped = (scheme: "light" | "dark") => JSON.parse(readFileSync(join(ROOT, "public", MANIFEST[scheme]), "utf8"))
+    for (const scheme of ["light", "dark"] as const) {
+      const { background_color, theme_color } = shipped(scheme)
+      expect({ background_color, theme_color }, scheme).toEqual({ background_color: GROUND[scheme].phone, theme_color: GROUND[scheme].phone })
+    }
+    const app = (scheme: "light" | "dark") => ({ ...shipped(scheme), background_color: "", theme_color: "" })
+    expect(app("dark"), "the same app in every other member").toEqual(app("light"))
+    expect(app("light").id, "one id: the same installed app").toBe("/")
+    expect(app("light").user_preferences?.color_scheme?.dark).toEqual({ background_color: GROUND.dark.phone, theme_color: GROUND.dark.phone })
   })
 })

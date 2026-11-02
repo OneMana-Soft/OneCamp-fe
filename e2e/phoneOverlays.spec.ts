@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { openBoard } from "./projectBoard"
+import { animationsSettled } from "./settled"
+import { expectTouchSize } from "./touchTarget"
 
 // On a phone every floating overlay is a bottom sheet (components/ui/overlayMode,
 // app/overlay.css; the owner, 18 Oct: "in case of mobile can we make all
@@ -16,7 +18,7 @@ const PHONES = [
 /** Where a sheet stands: its foot at the screen's, its sides, and whether it is pinned there. */
 async function asSheet(root: Locator) {
   // Measured once it has risen: its entrance and any transition settled.
-  await root.evaluate((el) => Promise.all(el.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))))
+  await animationsSettled(root)
   await root.page().waitForTimeout(150)
   return root.evaluate((el) => {
     const r = el.getBoundingClientRect()
@@ -53,7 +55,7 @@ for (const phone of PHONES) {
         await expect(menu).toBeVisible()
         standsAsSheet(await asSheet(menu), "the Filter menu")
         await dimmed(page)
-        for (const row of await menu.getByRole("menuitem").all()) expect((await row.boundingBox())!.height, "a menu row under a finger").toBeGreaterThanOrEqual(44)
+        for (const row of await menu.getByRole("menuitem").all()) expectTouchSize((await row.boundingBox())!.height, "a menu row under a finger")
         await page.keyboard.press("Escape")
         await expect(menu).toBeHidden()
       }

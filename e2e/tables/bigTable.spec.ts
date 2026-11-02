@@ -134,7 +134,10 @@ test.describe("a view the server answers in windows", () => {
   const savedRules = (server: TableServer, baseURL: string, rules: object) => ({
     storageState: { cookies: [], origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: `onecamp:tableView:${server.id}`, value: JSON.stringify(rules) }] }] },
   })
-  const windowsRead = (server: TableServer) => server.queries.filter((q) => !q.count).map((q) => q.cursor ?? "")
+  /** Each window read: its cursor ("" for the first), or "@" and the place a jump read it at (airtable-04). */
+  const windowsRead = (server: TableServer) => server.queries.filter((q) => !q.count).map((q) => (q.at ? `@${q.at}` : (q.cursor ?? "")))
+  /** The place a far jump read its window at: the second read, "@" and a place. */
+  const jumpedTo = (server: TableServer) => Number(/^@(\d+)$/.exec(windowsRead(server)[1] ?? "")?.[1] ?? NaN)
   /**
    * The page reading the view's windows again by itself, past its `since`th
    * read. While the server fills a formula the page waits longer before each
@@ -145,7 +148,7 @@ test.describe("a view the server answers in windows", () => {
   const readAgain = (server: TableServer, since: number) =>
     expect.poll(() => windowsRead(server).length, { message: "the page reads the view again by itself", timeout: 0 }).toBeGreaterThan(since)
 
-  test("at 1280, the grid reads the view's windows in its order as it scrolls, and never offers Load all", async ({ browser }, testInfo) => {
+  test("at 1280, the grid reads the windows around what's in sight, straight at a far place, and never offers Load all", async ({ browser }, testInfo) => {
     const server = served([
       { id: "item", name: "Item", type: "text" },
       { id: "amount", name: "Amount", type: "number" },
@@ -160,16 +163,70 @@ test.describe("a view the server answers in windows", () => {
     await expect(page.getByRole("button", { name: "Load all" })).toHaveCount(0)
     await expect(page.locator("[data-rows-shown]")).toHaveCount(0)
     // Far down, as a scrollbar dragged: the places not read yet hold
-    // placeholders, then the windows in order bring the rows there.
+    // placeholders, then the window read at a place 250 rows above those in
+    // sight brings them, and none of the five windows between is read.
     const h = (await rows.first().boundingBox())!.height
     await page.locator("[data-table-grid]").evaluate((el, top) => el.scrollTo({ top }), Math.round(h * 3000))
     // By the row's name: its text runs its cells together ("Line 3000" then its amount, 0).
     await expect(page.getByRole("row", { name: / Line 300\d / }).first()).toBeVisible({ timeout: 30_000 })
     await expect(page.locator("tbody tr[data-placeholder]")).toHaveCount(0)
-    const read = windowsRead(server)
-    expect(read.slice(0, 7)).toEqual(["", "500", "1000", "1500", "2000", "2500", "3000"])
+    const at = jumpedTo(server)
+    expect(at).toBeGreaterThan(2500)
+    expect(at).toBeLessThan(3000)
+    // Then on by its cursor, once, for the places just past that window.
+    await expect.poll(() => windowsRead(server)).toEqual(["", `@${at}`, String(at + 500)])
     // Each row in its place: the 3,001st of the view.
     await expect(page.getByRole("row", { name: / Line 3000 / })).toHaveAttribute("aria-rowindex", "3002")
+    await sam.close()
+  })
+
+  test("at 1280, a scrollbar dragged to the end of 100,000 rows reads the window there and none between, and a range there keeps its rows as the view reads above them", async ({ browser }, testInfo) => {
+    const server = served([
+      { id: "item", name: "Item", type: "text" },
+      { id: "amount", name: "Amount", type: "number" },
+    ])
+    const sam = await server.open(browser, testInfo, SAM)
+    const page = sam.page
+    const grid = page.locator("[data-table-grid]")
+    const rows = page.locator("tbody tr[data-row]")
+    await expect(rows.first()).toContainText("Line 0")
+    await expect(page.locator("table[aria-rowcount]")).toHaveAttribute("aria-rowcount", String(ROWS + 1))
+    await expect.poll(() => windowsRead(server)).toEqual([""])
+    const h = (await rows.first().boundingBox())!.height
+    // Dragged to the end: one read, at a place 250 rows above the first in sight.
+    const dragged = Date.now()
+    await grid.evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
+    const lineRow = (line: number) => page.getByRole("row", { name: new RegExp(` Line ${line} `) })
+    await expect(lineRow(99_999)).toBeVisible({ timeout: 30_000 })
+    testInfo.annotations.push({ type: "far jump", description: `Line 99999 in sight ${Date.now() - dragged} ms after the drag` })
+    await expect(page.locator("tbody tr[data-placeholder]")).toHaveCount(0)
+    const at = jumpedTo(server)
+    expect(at).toBeGreaterThan(99_000)
+    expect(windowsRead(server)).toEqual(["", `@${at}`])
+    await expect(lineRow(99_999)).toHaveAttribute("aria-rowindex", "100001")
+
+    // Amount of Lines 99,990 to 99,992, as a range: reached from two rows
+    // above by the keys, as a reader does (and the range's keys are loaded by then).
+    const amountOf = (line: number) => lineRow(line).locator('[data-cell$=":1"]')
+    await lineRow(99_988).locator('td[data-field]:has([data-cell$=":1"])').click()
+    await expect(amountOf(99_988)).toBeFocused()
+    await page.keyboard.press("ArrowDown")
+    await page.keyboard.press("ArrowDown")
+    await expect(amountOf(99_990)).toBeFocused()
+    await page.keyboard.press("Shift+ArrowDown")
+    await page.keyboard.press("Shift+ArrowDown")
+    await expect(page.locator("[role=status]", { hasText: "3 cells selected" })).toHaveCount(1)
+    await expect(amountOf(99_990)).toHaveAttribute("data-cell", `${99_990 - at}:1`)
+    // Five rows up: the view reads the window above its run, by place, and
+    // every row given is then 500 further down the rows given.
+    await grid.evaluate((el, by) => el.scrollBy({ top: -by }), Math.round(h * 5))
+    await expect.poll(() => windowsRead(server)).toEqual(["", `@${at}`, `@${at - 500}`])
+    await expect(amountOf(99_990)).toHaveAttribute("data-cell", `${99_990 - at + 500}:1`)
+    await expect(page.locator("[role=status]", { hasText: "3 cells selected" })).toHaveCount(1)
+    // Delete clears the range's own three cells, never the rows given where they were.
+    await page.keyboard.press("Delete")
+    await expect.poll(() => server.batches.length, { timeout: 15_000 }).toBe(1)
+    expect((server.batches[0] as { patch: { row: string }[] }).patch.map((p) => p.row)).toEqual([99_990, 99_991, 99_992].map((i) => server.rows[i].id))
     await sam.close()
   })
 
@@ -332,6 +389,35 @@ test.describe("a view the server answers in windows", () => {
     const record = page.locator("[data-record-panel]")
     await expect(record).toBeVisible()
     await expect(record).toContainText("2,006 of 100,000")
+    await sam.close()
+  })
+
+  test("at 390 with touch, the phone's list dragged to its end reads the window there and none between, and its last row's record says it's the last", async ({ browser }, testInfo) => {
+    const server = served([
+      { id: "item", name: "Item", type: "text" },
+      { id: "amount", name: "Amount", type: "number" },
+      { id: "stage", name: "Stage", type: "select", config: { options: STAGES.map((label, i) => ({ id: `o_stage${i}00000`, label })) } },
+      { id: "due", name: "Due", type: "date" },
+      { id: "notes", name: "Notes", type: "text" },
+    ])
+    const sam = await server.open(browser, testInfo, SAM, { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+    const page = sam.page
+    const box = page.locator("[data-list-scroll]")
+    const items = page.locator("ul.v3-grid-list > li[aria-posinset]")
+    await expect(items.first()).toContainText("Line 0")
+    await expect(items.first()).toHaveAttribute("aria-setsize", String(ROWS))
+    await expect.poll(() => windowsRead(server)).toEqual([""])
+    await box.evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
+    const last = page.getByRole("button", { name: /^Line 99999\b/ })
+    await expect(last).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator("ul.v3-grid-list > li[data-placeholder]")).toHaveCount(0)
+    const at = jumpedTo(server)
+    expect(at).toBeGreaterThan(99_000)
+    expect(windowsRead(server)).toEqual(["", `@${at}`])
+    await last.tap()
+    const record = page.locator("[data-record-panel]")
+    await expect(record).toBeVisible()
+    await expect(record).toContainText("100,000 of 100,000")
     await sam.close()
   })
 

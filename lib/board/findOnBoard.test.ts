@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { findOnBoard, matchedLinesOf, replaceOnBoard, searchMatchesOf, unreplaceOnBoard, wordsOf, type FindElement } from "@/lib/board/findOnBoard"
+import { findOnBoard, keptOf, matchedLinesOf, replaceOnBoard, searchMatchesOf, unreplaceOnBoard, wordsOf, type BoardMatch, type FindElement } from "@/lib/board/findOnBoard"
 
 const ANY = { caseSensitive: false, wholeWord: false }
 const at = (o: Partial<FindElement> & Pick<FindElement, "id" | "type">): FindElement => ({ x: 0, y: 0, width: 100, height: 40, ...o })
@@ -119,5 +119,23 @@ describe("replacing words on a board", () => {
     const later = now.map((e) => (e.id === "n1t" ? laid(e, "Set the cost") : e.id === "free" ? { ...e, isDeleted: true } : e))
     expect(Object.fromEntries(unreplaceOnBoard(later, wrote, before))).toEqual({ f1: "Launch budget", s1t: "BUDGET owner", a1t: "budgets" })
     expect(unreplaceOnBoard(board, wrote, before).size).toBe(0)
+  })
+})
+
+describe("what Find keeps clear while it dims the rest (V-271)", () => {
+  it("keeps each match's words and what they are in, once each, in the order found", () => {
+    const m = (id: string, target: string): BoardMatch => ({ id, target, kind: "note", index: 0, length: 1, frameId: null, preview: { before: "", hit: "", after: "" } })
+    expect(keptOf([m("a-label", "a"), m("a-label", "a"), m("week", "week"), m("b-label", "b")])).toEqual(["a-label", "a", "week", "b-label", "b"])
+    expect(keptOf([])).toEqual([])
+  })
+
+  it("keeps a frame Find matches by its name, and the words of a note in a frame without the frame", () => {
+    const board: FindElement[] = [
+      { id: "week", type: "frame", x: 0, y: 0, width: 600, height: 300, name: "Launch week" },
+      { id: "budget", type: "rectangle", x: 20, y: 40, width: 180, height: 180, frameId: "week", boundElements: [{ id: "budget-label", type: "text" }], customData: { kind: "note" } },
+      { id: "budget-label", type: "text", x: 30, y: 100, width: 160, height: 25, frameId: "week", containerId: "budget", text: "Launch budget", originalText: "Launch budget" },
+    ]
+    expect(keptOf(findOnBoard(board, "week", { caseSensitive: false, wholeWord: false }))).toEqual(["week"])
+    expect(keptOf(findOnBoard(board, "budget", { caseSensitive: false, wholeWord: false }))).toEqual(["budget-label", "budget"])
   })
 })

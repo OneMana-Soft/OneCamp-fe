@@ -5,11 +5,16 @@ import * as React from "react"
 import "@/lib/board/excalidrawAssets"
 import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types"
+import { useBoardExportTrail } from "./exportRecord"
+import { useKeptDialogFocus } from "./dialogFocus"
 import { CARD_KINDS, boardEmbedOf, cardLinksIn, layCards, linkPopupOverCard, onlyCardsSelected, type EmbedPlace } from "@/lib/board/cards"
 import { clientToScene, viewCentre } from "@/lib/board/viewport"
 import type { CardPointer, EmbedView } from "./boardEmbeds"
 import { adminHostsNow } from "@/components/minimal-tiptap/extensions/links-media/hosts"
 import { ensureAdminHosts } from "@/components/minimal-tiptap/extensions/links-media/adminHosts"
+import { useForeignSheets } from "@/components/ui/foreignSheets"
+import { EXCALIDRAW_SHEETS } from "./excalidrawSheets"
+import { useToolRowEdgeFade } from "./toolRow"
 
 /**
  * One card or frame, drawn again only when its link, the place or its pointer
@@ -40,7 +45,24 @@ const EmbedSlot = React.memo(function EmbedSlot({ link, view: View, place, point
  * it; anything else stays a link. Links to OneCamp things pasted or dropped on
  * a board someone may edit become cards where they land, as one undo step.
  */
-export default function BoardExcalidraw({ guest = false, embedView, ...props }: ExcalidrawProps & { guest?: boolean; embedView: EmbedView }) {
+export default function BoardExcalidraw({
+  guest = false,
+  sheetMode = false,
+  embedView,
+  ...props
+}: ExcalidrawProps & {
+  guest?: boolean
+  /**
+   * Overlays are sheets here (the page's useSheetMode, which alone decides: a
+   * phone): Excalidraw's own menus, pickers, dialogs and library dock on the
+   * bottom edge as the app's sheets (miro-40 H1, ./excalidrawSheets).
+   */
+  sheetMode?: boolean
+  embedView: EmbedView
+}) {
+  // A slow picture's button drops its focus; it stays in Excalidraw's dialog instead (V-362).
+  useKeptDialogFocus()
+  useForeignSheets(sheetMode, ".excalidraw", EXCALIDRAW_SHEETS)
   const [hosts, setHosts] = React.useState<readonly string[]>(() => adminHostsNow())
   React.useEffect(() => {
     if (guest) return
@@ -63,6 +85,8 @@ export default function BoardExcalidraw({ guest = false, embedView, ...props }: 
   const pointerRef = React.useRef<{ x: number; y: number } | null>(null)
   const { excalidrawAPI, onPointerUpdate, onPaste, onChange } = props
   const wrapRef = React.useRef<HTMLDivElement>(null)
+  // A phone's tool row scrolls sideways and fades as every strip does, on every board.
+  useToolRowEdgeFade(wrapRef)
   const editable = !guest && !props.viewModeEnabled
 
   const handleApi = React.useCallback(
@@ -148,4 +172,25 @@ export default function BoardExcalidraw({ guest = false, embedView, ...props }: 
       />
     </div>
   )
+}
+
+/**
+ * A member's board (BoardCanvas: the board's page and a call's stage): the
+ * board as every board draws it, with what Excalidraw exports itself told to
+ * the admin log (./exportRecord). The trail comes in this chunk, so the board's
+ * first load carries none of it. A guest's viewer draws the default, with no
+ * account to tell the log with.
+ */
+export function MemberExcalidraw({ boardId, ...props }: React.ComponentProps<typeof BoardExcalidraw> & { boardId: string }) {
+  const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
+  const { excalidrawAPI } = props
+  const handleApi = React.useCallback(
+    (instance: ExcalidrawImperativeAPI) => {
+      setApi(instance)
+      excalidrawAPI?.(instance)
+    },
+    [excalidrawAPI],
+  )
+  useBoardExportTrail(api, boardId)
+  return <BoardExcalidraw {...props} excalidrawAPI={handleApi} />
 }

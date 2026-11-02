@@ -85,47 +85,44 @@ export function fontCss(el: { fontSize?: unknown; fontFamily?: unknown }): strin
 }
 
 /**
- * Notes on this screen whose words were laid out before their face had come, by face. When a face lands, Excalidraw
- * only draws the words again (its Fonts.onLoaded keeps their line breaks and size), so they would spill past the note
- * in the real face: each is fitted again then, in the face itself. A face that can't come leaves the fit made in the
- * fallback face, which is the face the note is drawn in.
+ * The face a note's words were laid out in, stamped on them as they're laid out (V-229; main, 1 Nov 18:4x): the face's
+ * name and their size when it was here, so the layout was measured in it, or FALLBACK when it wasn't, so the browser
+ * measured them in another face. Screens measure one face otherwise (Chromium and WebKit by up to 22 px), so words
+ * stamped as laid out in their face are never laid out again for measuring otherwise; words stamped FALLBACK, with no
+ * stamp (laid out before stamps), or with one for a face or size they've since left, are fitted again once it has come.
  */
-const awaitingFace = new Map<string, Map<string, { api: Api; convert: Convert }>>()
+const LAID_IN = "laidIn"
+const FALLBACK = "fallback"
 
-/** Fits the note holding `text` again once the words' face has come, if it hasn't yet (miro-07). */
-function fitWhenFaceLands(api: Api, convert: Convert, text: SceneElement): void {
+type Words = Pick<SceneElement, "fontFamily" | "text" | "originalText" | "customData"> & { fontSize?: unknown }
+
+/** The stamp of words laid out in their own face as they are now: its name and their size (null before loadConvert names faces). */
+function inFaceStamp(t: Words): string | null {
+  const name = typeof t.fontFamily === "number" ? faceNames.get(t.fontFamily) : undefined
+  return name ? `${name} ${Number(t.fontSize ?? 16)}px` : null
+}
+
+/** Whether the words' own face is here (the font set has it for them); undefined with no font set or no name for the face. */
+function faceHere(t: Words): boolean | undefined {
   const fonts = typeof document === "undefined" ? undefined : document.fonts
-  const name = typeof text.fontFamily === "number" ? faceNames.get(text.fontFamily) : undefined
-  const words = text.originalText ?? text.text ?? ""
-  if (!fonts || !name || !words) return
-  const face = `${text.fontSize ?? 16}px "${name}"`
-  if (fonts.check(face, words)) return
-  let due = awaitingFace.get(face)
-  if (!due) {
-    due = new Map()
-    awaitingFace.set(face, due)
-    fonts.load(face, words).then(
-      // A frame later, once Excalidraw has let go of the widths it measured without the face.
-      () =>
-        requestAnimationFrame(() => {
-          const notes = awaitingFace.get(face)
-          awaitingFace.delete(face)
-          for (const [id, at] of notes ?? []) {
-            try {
-              // A correction of the layout, not a step of the person's: written NEVER, as Excalidraw writes a remote
-              // change, so no undo step carries it, and undoing the person's next step can't bring the fallback face's
-              // layout back. Words still being typed lose nothing: while an element has a change of the person's in
-              // hand, Excalidraw's updateScene keeps its last committed copy, and the refit joins the typing's own step.
-              fitTypedNote(at.api, at.convert, id, CAPTURE.NEVER)
-            } catch {
-              // The board has closed since: nothing left to fit.
-            }
-          }
-        }),
-      () => awaitingFace.delete(face),
-    )
-  }
-  due.set(text.id, { api, convert })
+  const name = typeof t.fontFamily === "number" ? faceNames.get(t.fontFamily) : undefined
+  if (!fonts || !name) return undefined
+  return fonts.check(`${Number(t.fontSize ?? 16)}px "${name}"`, t.originalText ?? t.text ?? "")
+}
+
+/**
+ * What `words` take to carry the stamp of a layout made now as `laid` (their face, at the size it laid them out at):
+ * their customData with it, keeping what else it says; nothing when they carry it already, or no font set can say.
+ */
+function stampOf(words: Words, laid: Words = words): Partial<SceneElement> {
+  const here = faceHere(laid)
+  const stamp = here === undefined ? null : here ? inFaceStamp(laid) : FALLBACK
+  return stamp === null || words.customData?.[LAID_IN] === stamp ? {} : { customData: { ...(words.customData ?? {}), [LAID_IN]: stamp } }
+}
+
+/** Elements Excalidraw's converter has just laid out, the words bound in them stamped with the face they were laid out in (V-229). */
+export function stampLaidOut<T extends SceneElement>(elements: T[]): T[] {
+  return elements.map((e) => (e.type === "text" && e.containerId ? { ...e, ...stampOf(e as Words) } : e))
 }
 
 /** A trial layout's id. Excalidraw keeps each note's height from before its words grew, by id, so a trial never writes over a note's own. */
@@ -140,7 +137,7 @@ function fittedNote(convert: Convert, sk: NoteSkeleton): SceneElement[] {
   const lay = (id: string, fontSize: number) =>
     convert([{ ...sk, id, label: { ...sk.label, fontSize } }] as never, { regenerateIds: false }) as unknown as SceneElement[]
   const fontSize = fitFontSize({ max: sk.label.fontSize, floor: NOTE_FONT_FLOOR, fits: (size) => lay(TRIAL_ID, size)[0].height <= sk.height })
-  return lay(sk.id, fontSize)
+  return stampLaidOut(lay(sk.id, fontSize))
 }
 
 /**
@@ -159,7 +156,6 @@ export async function addNotes(api: Api, notes: NoteSkeleton[], opts: { select?:
     ...(opts.select === false ? {} : { appState: { selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])) } as never }),
     captureUpdate: CAPTURE.IMMEDIATELY,
   })
-  for (const el of made) if (el.type === "text") fitWhenFaceLands(api, convert, el)
   return ids
 }
 
@@ -327,7 +323,6 @@ export async function resizeNotes(api: Api, ids: ReadonlySet<string>, size: Note
   }
   if (n === 0) return 0
   api.updateScene({ elements: [...all.map((e) => replaced.get(e.id) ?? e), ...added] as never, captureUpdate: CAPTURE.IMMEDIATELY })
-  for (const el of added) if (el.type === "text") fitWhenFaceLands(api, convert, el)
   return n
 }
 
@@ -355,19 +350,37 @@ function fitMayWrite(text: SceneElement): boolean {
 }
 
 /**
- * A note's rectangle and words laid out for `words`, as a note of its size lays them out (fittedNote), in the words'
- * own font and alignment (Excalidraw's align keys work on a note's words too). Null for a note not at one of the sizes
- * (one resized by hand), whose words are a shape's.
+ * The skeleton a note of its size lays `words` out from, in the words' own font and alignment (Excalidraw's align keys
+ * work on a note's words too). Null for a note not at one of the sizes (one resized by hand), whose words are a shape's.
  */
-function noteFit(convert: Convert, note: SceneElement, text: SceneElement, words: string): [SceneElement, SceneElement] | null {
+function skeletonOf(note: SceneElement, text: SceneElement, words: string): NoteSkeleton | null {
   const size = noteSizeOf(note.width)
   if (NOTE_SIZES[size] !== note.width) return null
   const sk = noteSkeleton({ id: note.id, x: note.x, y: note.y, text: words, colour: noteColourOf(note) ?? "yellow", size })
   if (text.fontFamily) sk.label.fontFamily = text.fontFamily
   if (typeof text.textAlign === "string") sk.label.textAlign = text.textAlign
   if (typeof text.verticalAlign === "string") sk.label.verticalAlign = text.verticalAlign
+  return sk
+}
+
+/** A note's rectangle and words laid out for `words`, as a note of its size lays them out (fittedNote); null as skeletonOf. */
+function noteFit(convert: Convert, note: SceneElement, text: SceneElement, words: string): [SceneElement, SceneElement] | null {
+  const sk = skeletonOf(note, text, words)
+  if (!sk) return null
   const [rect, laid] = fittedNote(convert, sk)
   return laid ? [rect, laid] : null
+}
+
+/** What fitting the note holding `text` writes: the note's height and its words' size and layout; null when it has them, or isn't at one of its sizes. */
+function refitOf(convert: Convert, note: SceneElement, text: SceneElement): { height: number; words: Partial<SceneElement> } | null {
+  const fit = noteFit(convert, note, text, text.originalText ?? text.text ?? "")
+  if (!fit) return null
+  const [rect, laid] = fit
+  const words: Partial<SceneElement> = { fontSize: laid.fontSize, text: laid.text, x: laid.x, y: laid.y, width: laid.width, height: laid.height }
+  // The face the words are laid out in now goes with them (V-229): once, as a stamp they lack is written.
+  const stamp = stampOf(text, laid)
+  if (note.height === rect.height && !stamp.customData && Object.entries(words).every(([k, v]) => text[k] === v)) return null
+  return { height: rect.height, words: { ...words, ...stamp } }
 }
 
 /**
@@ -376,7 +389,7 @@ function noteFit(convert: Convert, note: SceneElement, text: SceneElement, words
  * note grows, as Excalidraw grows it. Only a note at one of its three sizes: one sized by hand keeps Excalidraw's
  * own ways. The words keep their element and its id, since the editor is bound to it; only their size and layout
  * change, laid out as fittedNote lays them. It joins the typing's own undo step (EVENTUALLY), and writes only on a
- * change; the refit made when the words' face lands writes NEVER (fitWhenFaceLands). Returns whether it changed anything.
+ * change; the refit made when the words' face lands writes NEVER (fitNotesToFaces). Returns whether it changed anything.
  */
 export function fitTypedNote(
   api: Api,
@@ -397,14 +410,9 @@ export function fitTypedNote(
     api.updateScene({ elements: all.map((e) => (e.id === text.id ? bumped(e, { strokeColor }) : e)) as never, captureUpdate: capture })
     return true
   }
-  if (NOTE_SIZES[noteSizeOf(note.width)] !== note.width) return false
-  fitWhenFaceLands(api, convert, text)
-  const fit = noteFit(convert, note, text, text.originalText ?? text.text ?? "")
-  if (!fit) return false
-  const [rect, laid] = fit
-  const words: Partial<SceneElement> = { fontSize: laid.fontSize, text: laid.text, x: laid.x, y: laid.y, width: laid.width, height: laid.height }
-  if (note.height === rect.height && Object.entries(words).every(([k, v]) => text[k] === v)) return false
-  if (!fitMayWrite(text)) return false
+  const fit = refitOf(convert, note, text)
+  if (!fit || !fitMayWrite(text)) return false
+  const { height, words } = fit
   // This works around an internal of Excalidraw 0.18.1: textWysiwyg's updateWysiwygStyle keeps
   // originalContainerCache[containerId] (element/containerCache, not exported) and re-reads it only when
   // textPropertiesUpdated (the words' fontSize or fontFamily differs from the editor's). If an upgrade changes it,
@@ -415,23 +423,96 @@ export function fitTypedNote(
   // shrink it again, and the two would write each other without end (V-104, React #185). So a note raised while its
   // words are open is first written with its words a hair off their size, which has the editor take the note's height
   // as its floor (the editor reads each write at once), then as fitted below: both in one task, before a frame is drawn.
-  if (rect.height > (note.height ?? 0) && api.getAppState().editingTextElement?.id === text.id) {
+  if (height > (note.height ?? 0) && api.getAppState().editingTextElement?.id === text.id) {
     api.updateScene({
-      elements: all.map((e) => (e.id === note.id ? bumped(e, { height: rect.height }) : e.id === text.id ? bumped(e, { ...words, fontSize: Number(laid.fontSize) + FLOOR_NUDGE }) : e)) as never,
+      elements: all.map((e) => (e.id === note.id ? bumped(e, { height }) : e.id === text.id ? bumped(e, { ...words, fontSize: Number(words.fontSize) + FLOOR_NUDGE }) : e)) as never,
       captureUpdate: capture,
     })
     const now = scene(api)
     api.updateScene({
-      elements: now.map((e) => (e.id === note.id ? bumped(e, { height: rect.height }) : e.id === text.id ? bumped(e, words) : e)) as never,
+      elements: now.map((e) => (e.id === note.id ? bumped(e, { height }) : e.id === text.id ? bumped(e, words) : e)) as never,
       captureUpdate: capture,
     })
     return true
   }
   api.updateScene({
-    elements: all.map((e) => (e.id === note.id ? bumped(e, { height: rect.height }) : e.id === text.id ? bumped(e, words) : e)) as never,
+    elements: all.map((e) => (e.id === note.id ? bumped(e, { height }) : e.id === text.id ? bumped(e, words) : e)) as never,
     captureUpdate: capture,
   })
   return true
+}
+
+/** How far a note's words may be from as wide as their face lays them, in px, and still be laid out in it: a screen's own measuring. */
+const FACE_SLACK = 1
+
+/**
+ * Whether a note's words with no stamp to say (laid out before stamps, or since put in another face or size by something
+ * that didn't stamp them) were laid out in a face that isn't the one they're drawn in (V-229): laid out again at their
+ * own size, now that their face is here, their lines or their width come out otherwise. Words laid out in their face,
+ * at whatever size (a note from before miro-07 too), are not. On another screen, measuring the face otherwise, they may
+ * be: such words are laid out again there once, and stamped, so no screen lays them out again.
+ */
+function laidInAnotherFace(convert: Convert, note: SceneElement, text: SceneElement): boolean {
+  const sk = skeletonOf(note, text, text.originalText ?? text.text ?? "")
+  if (!sk) return false
+  const trial = { ...sk, id: TRIAL_ID, label: { ...sk.label, fontSize: Number(text.fontSize) } }
+  const laid = (convert([trial] as never, { regenerateIds: false }) as unknown as SceneElement[])[1]
+  return !!laid && (laid.text !== text.text || Math.abs(Number(laid.width) - Number(text.width)) > FACE_SLACK)
+}
+
+/**
+ * Fits again, in their face, the notes on the board whose words were laid out in another (miro-07, V-229): before their
+ * face had come, on this screen (a new note, a size, typing, a template on a phone's first board) or on any screen
+ * before (a board saved with the fallback face's widths). When a face lands Excalidraw only draws the words again in it
+ * (its Fonts.onLoaded keeps their line breaks and size), inside the widths the fallback face gave them, and cuts the
+ * lines that no longer fit. Only notes whose face has come are looked at; the rest wait for theirs, and
+ * useNotesFitTheirFaces runs this again as each face lands. A face that can't come leaves the fallback face's fit,
+ * which is the face the words are drawn in.
+ *
+ * Which words were laid out in another face is their stamp's to say (stampOf; main, 1 Nov 18:4x), as screens measure one
+ * face otherwise: words stamped as laid out in their face are never written, whatever this screen measures; those
+ * stamped FALLBACK are fitted and stamped; those with no stamp are measured (laidInAnotherFace). Words already right in
+ * their face are never written, but for the stamp a FALLBACK layout gives way to. Every fit is written at once, as a correction of the layout
+ * and not a step of the person's: NEVER, as Excalidraw writes a remote change, so no undo step carries it, and every
+ * screen gets it as any edit. Words being typed go through fitTypedNote, which keeps the editor and the note agreed
+ * (V-104), and lose nothing: while an element has a change of the person's in hand, Excalidraw's updateScene keeps its
+ * last committed copy. `seen` keeps the words found right, by version, so a later pass skips them. Returns how many
+ * notes it fitted.
+ */
+export function fitNotesToFaces(api: Api, convert: Convert, seen: Set<string> = new Set()): number {
+  const fonts = typeof document === "undefined" ? undefined : document.fonts
+  if (!fonts) return 0
+  const all = scene(api)
+  const byId = new Map(all.map((e) => [e.id, e]))
+  const editing = api.getAppState().editingTextElement?.id
+  const fits = new Map<string, Partial<SceneElement>>()
+  let typed: string | undefined
+  let fitted = 0
+  for (const note of all) {
+    if (note.isDeleted || !isStickyNote(note as never)) continue
+    const text = boundText(byId, note)
+    const words = text?.originalText ?? text?.text ?? ""
+    const name = text && typeof text.fontFamily === "number" ? faceNames.get(text.fontFamily) : undefined
+    if (!text || text.isDeleted || !name || !words.trim() || seen.has(`${text.id}:${text.version}`)) continue
+    if (!fonts.check(`${text.fontSize ?? 16}px "${name}"`, words)) continue
+    // Stamped as laid out in this face at this size, on any screen: never laid out again for measuring otherwise here.
+    // Stamped FALLBACK: laid out before it came, so fitted now. With no stamp, or one for a face or size they've since
+    // left: fitted only when, laid out again here at their own size, their lines or width come out otherwise.
+    const stamp = text.customData?.[LAID_IN]
+    const fit = stamp === inFaceStamp(text) ? null : stamp === FALLBACK || laidInAnotherFace(convert, note, text) ? refitOf(convert, note, text) : null
+    if (!fit) seen.add(`${text.id}:${text.version}`)
+    else if (text.id === editing) typed = text.id
+    else if (fitMayWrite(text)) {
+      fits.set(note.id, { height: fit.height })
+      fits.set(text.id, fit.words)
+      fitted++
+    }
+  }
+  if (fits.size > 0) {
+    api.updateScene({ elements: all.map((e) => (fits.has(e.id) ? bumped(e, fits.get(e.id) as Partial<SceneElement>) : e)) as never, captureUpdate: CAPTURE.NEVER })
+  }
+  if (typed !== undefined && fitTypedNote(api, convert, typed, CAPTURE.NEVER)) fitted++
+  return fitted
 }
 
 /** Excalidraw 0.18.1's room around a shape's words, and an arrow label's width (getBoundTextMaxWidth). */
@@ -477,7 +558,7 @@ export function rewordElements(api: Api, convert: Convert, words: ReadonlyMap<st
     const fit = holder && isStickyNote(holder as never) ? noteFit(convert, holder, el, next) : null
     if (holder && fit) {
       const [rect, laid] = fit
-      patches.set(id, { originalText: next, fontSize: laid.fontSize, text: laid.text, x: laid.x, y: laid.y, width: laid.width, height: laid.height })
+      patches.set(id, { originalText: next, fontSize: laid.fontSize, text: laid.text, x: laid.x, y: laid.y, width: laid.width, height: laid.height, ...stampOf(el, laid) })
       if (rect.height !== holder.height) patches.set(holder.id, { height: rect.height })
     } else if (holder && holder.type !== "arrow") {
       const [box, laid] = convert(

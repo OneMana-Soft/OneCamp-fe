@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import type { ReactNode } from "react"
 
 import type { ProjectOverview } from "@/lib/projectsOverview"
+import type { ProjectPlan } from "@/lib/work/projectPlan"
 import type { Milestone } from "@/lib/work/milestones"
 import { hueFor } from "@/lib/campHue"
 import { resetGrowForTests } from "@/hooks/useGrow"
@@ -43,6 +44,19 @@ const project = (id: string, over: Partial<ProjectOverview> = {}): ProjectOvervi
   project_team: { team_uuid: "t1", team_name: "Launch" },
   ...over,
 })
+
+/** A plan with no lead, dates, priority or labels (linear-15), and what a test gives it. */
+const plan = (o: Partial<ProjectPlan> = {}): ProjectPlan => ({
+  lead: null,
+  start: null,
+  target: null,
+  priority: "",
+  status: { category: "planned", name: "Planned", color: "" },
+  labels: null,
+  ...o,
+})
+/** A row's end: its plan's target, or its tasks' last day where it has none. */
+const endIn = (name: string) => [...document.querySelectorAll("[data-project-row]")].find((r) => r.textContent?.includes(name))!.querySelector("[data-plan-target], [data-tasks-end]")
 
 pinTestClock()
 beforeEach(() => {
@@ -131,6 +145,26 @@ describe("the projects table", () => {
     const flat = render(<ProjectsOverview />)
     expect(flat.container.querySelector("[data-group-header]")).toBeNull()
   })
+
+  // V-255: a tasks' end stood in the Target column in a plan target's ink, with no title, so it read as a commitment.
+  it("draws a project's tasks' end in quiet ink, titled as such, where it has no target, and a late end in danger ink", () => {
+    projects = [
+      project("audit", { last_day: "2026-11-10T12:00:00Z", plan: plan() }),
+      project("mobile", { plan: plan({ target: { date: "2026-09-30", resolution: "day" } }) }),
+      project("billing", { plan: plan({ target: { date: "2026-12-01", resolution: "month" } }) }),
+      project("stale", { last_day: "2026-10-01T12:00:00Z" }),
+    ]
+    render(<ProjectsOverview />)
+    expect(endIn("audit")!.hasAttribute("data-tasks-end")).toBe(true)
+    expect(endIn("audit")!.getAttribute("title")).toBe("No target set; its tasks end 10 Nov")
+    expect(endIn("audit")!.className).toContain("text-ink-3")
+    expect(endIn("billing")!.getAttribute("title")).toBe("Target: Dec 2026")
+    expect(endIn("billing")!.className).toContain("text-foreground")
+    // Late once its day is over with work open, whichever it is.
+    expect(endIn("mobile")!.className).toContain("text-danger-ink")
+    expect(endIn("stale")!.className).toContain("text-danger-ink")
+    expect(endIn("stale")!.getAttribute("title")).toBe("No target set; its tasks end 1 Oct")
+  })
 })
 
 describe("the projects overview on a phone (PTC-42)", () => {
@@ -143,5 +177,26 @@ describe("the projects overview on a phone (PTC-42)", () => {
     const row = screen.getByRole("tablist", { name: "Projects views" }).parentElement!
     expect(row.hasAttribute("data-overview-tabs-row")).toBe(true)
     expect(within(row).getByRole("button", { name: "New project" })).toBeInTheDocument()
+  })
+
+  // V-255: the card's second line said "25% · 3 open" and no more, so a late target never showed on a phone.
+  it("names each project's end on its card's second line, after the counts, in danger ink when late", () => {
+    media.desktop = false
+    projects = [
+      project("mobile", { plan: plan({ target: { date: "2026-09-30", resolution: "day" } }) }),
+      project("audit", { last_day: "2026-11-10T12:00:00Z" }),
+      project("bare"),
+    ]
+    render(<ProjectsOverview />)
+    const late = endIn("mobile")!
+    expect(late.textContent).toBe("30 Sep")
+    expect(late.className).toContain("text-danger-ink")
+    const counts = late.closest("[data-project-row]")!.querySelector("[data-row-counts]")!
+    expect(counts.compareDocumentPosition(late) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(endIn("audit")!.textContent).toBe("10 Nov")
+    expect(endIn("audit")!.className).toContain("text-ink-3")
+    // No end says nothing there, not a dash.
+    expect(endIn("bare")).toBeNull()
+    expect([...document.querySelectorAll("[data-project-row]")].find((r) => r.textContent?.includes("bare"))!.textContent).not.toContain("–")
   })
 })

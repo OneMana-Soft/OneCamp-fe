@@ -21,6 +21,7 @@ import { UserProfileInterface } from "@/types/user"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
+import { isAgentPeer, mayCallPeer } from "@/lib/botCopy"
 import { WorkspaceName } from "@/hooks/useWorkspaceName"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
@@ -86,6 +87,7 @@ export function ChatOptionsDrawer({
 
                     {/* Calls need a LiveKit server, which the shipped stack does not include.
                         Hidden rather than shown-and-failing when the operator has not run one. */}
+                    {mayCallPeer(otherUserInfo.data?.data) && (
                     <FeatureGate feature={FEATURE_CALLS}>
                     <DrawerItem
                         icon={Video}
@@ -96,6 +98,7 @@ export function ChatOptionsDrawer({
                         }}
                     />
                     </FeatureGate>
+                    )}
 
                     <DrawerItem
                         icon={Clapperboard}
@@ -107,7 +110,7 @@ export function ChatOptionsDrawer({
                     />
 
                     {/* A group of the two of you and whoever you add (chat A9). */}
-                    {selfUUID && !otherUserInfo.data?.data?.is_bot && (
+                    {selfUUID && !isAgentPeer(otherUserInfo.data?.data) && (
                         <DrawerItem
                             icon={UserPlus}
                             label="Add people"

@@ -45,6 +45,15 @@ describe("the board canvas's chrome", () => {
     expect(css).toMatch(/\[data-call-board\]\[data-board-view-only\] \.excalidraw \.App-bottom-bar \{\s*display: none;/)
   })
 
+  it("scrolls a phone's tool row sideways on every board, so a finger reaches More tools and the board never slides under it (miro-40 H1)", () => {
+    const boards = css.slice(0, css.indexOf("/* ---- on a call's stage"))
+    expect(boards).toMatch(/\n\.excalidraw\.excalidraw \.App-toolbar--mobile \{[^}]*overflow-x: auto;[^}]*overscroll-behavior-x: contain;[^}]*scrollbar-width: none;/)
+    expect(boards).toMatch(/\n\.excalidraw\.excalidraw \.App-toolbar--mobile \.ToolIcon \{\s*scroll-snap-align: start;/)
+    // Never a size container on a board of its own: containment would hold a
+    // docked sheet (position: fixed) inside the board, under the board's buttons.
+    expect(boards).not.toMatch(/container-type/)
+  })
+
   it("draws a viewer's bottom bar on a phone only while it holds Scroll back to content", () => {
     // In view mode the bar holds the main menu's trigger too, which the board
     // hides; a rule that asks for any button would always find that one.

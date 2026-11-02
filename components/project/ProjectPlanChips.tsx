@@ -1,28 +1,32 @@
 "use client"
 
 // The plan's chips (linear-15), a chunk of its own that ProjectPlanStrip loads
-// once the plan is read. It is handed everything, so it imports none of the
-// shared core (main's chunking rule, 30 Oct). Status, lead and labels pick
-// from the shared combobox, a sheet on a phone; priority and dates open the
-// pickers' chunk (ProjectPlanPickers), fetched as the pointer or the focus
-// reaches their chip. A part that isn't set shows as a quiet chip only to
+// once the plan is read. It is handed everything but the lead picker's members,
+// so it imports none of the shared core (main's chunking rule, 30 Oct) save the
+// one members read (hooks/useProjectMembers), which the lead's picker makes as
+// it opens: a member list is needed only when someone picks a lead, so the
+// project page's first load carries none of it (main, 2 Nov 21:2x). Its error
+// state is the shell's, handed in (ErrorState is shared core). Status, lead and
+// labels pick from the shared combobox, a sheet on a phone; priority and dates
+// open the pickers' chunk (ProjectPlanPickers), fetched as the pointer or the
+// focus reaches their chip. A part that isn't set shows as a quiet chip only to
 // whoever may set it; everyone else sees what is set. The lead's chip opens
 // for the project's admins only.
 
 import dynamic from "next/dynamic"
 import { useMemo, useState, type ReactNode } from "react"
 import { TaskPriorityCell } from "@/components/task/taskPriorityCell"
-import { HueDot } from "@/components/ui/chip"
+import { PlanLabelDot } from "@/components/project/PlanLabelDot"
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxList, ComboboxTrigger } from "@/components/ui/combobox"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { ProjectStatusGlyph } from "@/components/ui/graphics/projectStatusGlyph"
 import { Popover, PopoverTrigger } from "@/components/ui/popover"
-import { StatusDot } from "@/components/ui/statusWord"
 import { CalendarRange, CircleUser, Plus, Tag } from "@/lib/icons"
 import { statusHueOf } from "@/lib/taskStatus"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import { displayNameOf, personKeywords } from "@/lib/personName"
+import { useProjectMembers } from "@/hooks/useProjectMembers"
 import { MOST_PLAN_LABELS, PLAN_CATEGORIES, categoryKind, nextLabelColor, spanWords, type PlanField, type PlanMember, type PlanPick, type PlanRegistry, type ProjectPlan } from "@/lib/work/projectPlan"
 
 const PlanPopover = dynamic(() => import("@/components/project/ProjectPlanPickers").then((m) => m.PlanPopover), { ssr: false })
@@ -38,11 +42,6 @@ const nameOf = (m: PlanMember) => displayNameOf(m)
 
 type Opened = { open: boolean; onOpenChange: (open: boolean) => void }
 
-/** A label's colour as a chip carries it: its camp hue's dot, or the quiet dot for slate. */
-function LabelDot({ color }: { color: string }) {
-  const hue = statusHueOf(color)
-  return hue === "neutral" ? <StatusDot tone="neutral" /> : <HueDot hue={hue} />
-}
 
 /** The chip that opens a part's picker, named by what it shows; approach fetches the pickers' chunk. */
 function opener(field: PlanField, label: string, face: ReactNode, approach = false) {
@@ -64,7 +63,10 @@ export interface PlanChipsProps {
   plan: ProjectPlan
   canEdit: boolean
   canLead: boolean
-  members: PlanMember[]
+  /** The project, whose members the lead's picker reads once it opens. */
+  projectId: string
+  /** The shell's error state with Try again (retry reads them again), while the members read has failed. */
+  membersError: (retry: () => void) => ReactNode
   /** The workspace's statuses and labels, read once their picker opens. */
   registry: PlanRegistry | undefined
   /** The shell's error state with Try again, while that read has failed. */
@@ -74,7 +76,7 @@ export interface PlanChipsProps {
   onPick: PlanPick
 }
 
-export function PlanChips({ plan, canEdit, canLead, members, registry, registryError, open, onOpen, onPick }: PlanChipsProps) {
+export function PlanChips({ plan, canEdit, canLead, projectId, membersError, registry, registryError, open, onOpen, onPick }: PlanChipsProps) {
   const opened = (field: PlanField): Opened => ({ open: open === field, onOpenChange: (o) => onOpen(o ? field : null) })
   /** What a part shows: its picker's chip for whoever may change it, else the part as it reads. */
   const part = (field: PlanField, label: string, face: ReactNode, editable: boolean, picker: (chipEl: ReactNode) => ReactNode, approach = false) =>
@@ -126,7 +128,7 @@ export function PlanChips({ plan, canEdit, canLead, members, registry, registryE
             </>
           ),
           canLead,
-          (chipEl) => <LeadPicker plan={plan} members={members} onPick={onPick} opened={opened("lead")} chipEl={chipEl} />,
+          (chipEl) => <LeadPicker plan={plan} projectId={projectId} membersError={membersError} onPick={onPick} opened={opened("lead")} chipEl={chipEl} />,
         )}
       {(dates || canEdit) &&
         part(
@@ -148,7 +150,7 @@ export function PlanChips({ plan, canEdit, canLead, members, registry, registryE
             <>
               {labels.slice(0, LABELS_SHOWN).map((l) => (
                 <span key={l.id} className="flex min-w-0 items-center gap-1">
-                  <LabelDot color={l.color} />
+                  <PlanLabelDot color={l.color} />
                   <span className="max-w-[96px] truncate text-foreground">{l.name}</span>
                 </span>
               ))}
@@ -232,11 +234,19 @@ function StatusPicker({ plan, registry, registryError, onPick, opened, chipEl }:
   )
 }
 
-/** The project's admins and members, by name; never a guest, a bot, a viewer or a commenter (the server refuses them). */
-function LeadPicker({ plan, members, onPick, opened, chipEl }: PickerProps & { members: PlanMember[] }) {
+/**
+ * The project's admins and members, by name; never a guest, a bot, a viewer or a commenter (the server refuses them).
+ * It reads them once it opens, and says so while the read is on its way; a failed read shows the shell's error state.
+ * Once opened it keeps the read, so the list stays whole while it closes (its fade, or the sheet's slide at 390).
+ */
+function LeadPicker({ plan, projectId, membersError, onPick, opened, chipEl }: PickerProps & Pick<PlanChipsProps, "projectId" | "membersError">) {
+  const [asked, setAsked] = useState(false)
+  if (opened.open && !asked) setAsked(true)
+  const read = useProjectMembers(asked ? projectId : undefined)
+  const members: PlanMember[] | undefined = read.members
   const people = useMemo(
     () =>
-      members
+      (members ?? [])
         .filter((m) => !m.is_external && !m.is_bot && m.user_project_role !== "viewer" && m.user_project_role !== "commenter")
         .sort((a, b) => nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: "base" })),
     [members],
@@ -265,6 +275,13 @@ function LeadPicker({ plan, members, onPick, opened, chipEl }: PickerProps & { m
             </ComboboxItem>
           ))}
         </ComboboxList>
+        {read.failed
+          ? membersError(read.retry)
+          : !members && (
+              <p role="status" className="px-3 py-2 text-xs text-ink-3">
+                Reading the members…
+              </p>
+            )}
       </ComboboxContent>
     </Combobox>
   )
@@ -307,7 +324,7 @@ function LabelsPicker({ plan, registry, registryError, onPick, opened, chipEl }:
                 const has = on.has(l.id)
                 return (
                   <ComboboxItem key={l.id} value={l.id} keywords={[l.name]} checked={has} disabled={!has && full} onSelect={() => toggle(l.id)}>
-                    <LabelDot color={l.color} />
+                    <PlanLabelDot color={l.color} />
                     <span className="truncate">{l.name}</span>
                   </ComboboxItem>
                 )

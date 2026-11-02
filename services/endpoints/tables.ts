@@ -39,6 +39,7 @@ export enum TablesPost {
     QueryTableRows = "/tables", // append /{id}/query (read-only: a window of a view's rows, in its order)
     ExportTable = "/tables", // append /{id}/export (read-only: a view as an Excel workbook)
     SetTablePresence = "/tables", // append /{id}/presence (who is on it, and where)
+    SetTableEditing = "/tables", // append /{id}/editing (who edits its rows, V-170; managers only)
     CreateTableField = "/tables", // append /{id}/fields
     UpdateTableField = "/tables", // append /{id}/fields/{fieldId}/update
     DeleteTableField = "/tables", // append /{id}/fields/{fieldId}/delete

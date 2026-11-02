@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { finger, flingEnded } from "../finger"
 import { SAM } from "../stubbedApp"
 import { TableServer } from "./tableServer"
 
@@ -63,6 +64,53 @@ async function shoot(page: Page, name: string) {
   await page.mouse.move(0, 0)
   await page.screenshot({ path: `${SHOTS}/${name}.png` })
 }
+
+/** A notice over a phone's page, as tall as the demo's note there: in the shell, above the page's scroller. */
+const addPhoneNotice = (page: Page) =>
+  page.evaluate(() => {
+    const scroller = document.querySelector("[data-app-scroller]")
+    if (!scroller?.parentElement) throw new Error("no scroller to put a notice over")
+    const note = document.createElement("div")
+    note.setAttribute("data-test-notice", "")
+    note.style.cssText = "flex: none; height: 99px; padding: 12px 16px"
+    note.textContent = "A notice over the page, as tall as the demo's on a phone"
+    scroller.parentElement.insertBefore(note, scroller)
+  })
+
+/**
+ * How a box sits on a phone's screen: where it ends against the screen's foot,
+ * and whether the point in the middle of what shows of it is it (a summary bar
+ * runs as wide as the grid's columns, past the screen's edge).
+ */
+async function onScreen(page: Page, target: Locator) {
+  const box = await target.boundingBox()
+  if (!box) throw new Error("no box")
+  const { width, height } = page.viewportSize()!
+  const x = (Math.max(box.x, 0) + Math.min(box.x + box.width, width)) / 2
+  const y = (Math.max(box.y, 0) + Math.min(box.y + box.height, height)) / 2
+  const hit = await target.evaluate((el, [x, y]) => {
+    const at = document.elementFromPoint(x, y)
+    return !!at && (el === at || el.contains(at))
+  }, [x, y] as const)
+  return { over: Math.round(box.y + box.height - height), hit, bottom: Math.round(box.y + box.height) }
+}
+
+/** What the page itself can still scroll, beyond what it has. */
+const pageRoom = (page: Page) => page.locator("[data-app-scroller]").evaluate((s) => s.scrollHeight - s.clientHeight - s.scrollTop)
+
+/** A finger's swipe up from (x, from) to (x, to), one move a frame, then the fling run out on `scroller`. */
+async function swipeUp(page: Page, scroller: Locator, x: number, from: number, to: number) {
+  const touch = await finger(page)
+  await touch.down(x, from)
+  for (let i = 1; i <= 12; i++) {
+    await touch.move(x, Math.round(from + ((to - from) * i) / 12))
+    await page.waitForTimeout(16)
+  }
+  await touch.up()
+  await flingEnded(scroller)
+}
+
+const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }
 
 for (const [width, height] of [
   [1280, 900],
@@ -136,9 +184,13 @@ test("at 1280x900, a short table's \"+ New row\" sits right under its last row",
   await close()
 })
 
+// The list and the gallery kept the cap on a computer too, till V-304 (1 Nov) fitted every view's body.
 for (const [view, box] of [
   ["Board", "[data-table-board]"],
   ["Calendar", "[data-table-calendar]"],
+  ["List", "[data-list-scroll]"],
+  ["Gallery", "[data-gallery-scroll]"],
+  ["Timeline", "[data-timeline-scroll]"],
 ] as const) {
   test(`at 1280x720 under a notice, a tall ${view.toLowerCase()} scrolls inside the card`, async ({ browser }, testInfo) => {
     const server = new TableServer(fields, rowsOf(300))
@@ -150,7 +202,7 @@ for (const [view, box] of [
     const at = await inCard(page, body)
     console.log(`TABLE-FOOT ${view} 1280x720, under a notice: ends ${at.bottom} against the foot ${at.foot} (${at.over} over)`)
     expect(at.over, `the ${view.toLowerCase()}'s scroll box ends inside the card`).toBeLessThanOrEqual(0)
-    if (view === "Board") expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight), "the board scrolls inside its box").toBe(true)
+    if (view !== "Calendar") expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight), `the ${view.toLowerCase()} scrolls inside its box`).toBe(true)
     await shoot(page, `tableFoot-${view.toLowerCase()}-1280x720-notice`)
     await close()
   })
@@ -231,3 +283,143 @@ for (const theme of ["light", "dark"] as const) {
     await close()
   })
 }
+
+// V-304 (1 Nov, the v2.77.0 triage's E7-E11): on a phone the view's box took
+// the screen less 16rem, a guess at what stands above it, and more stood above
+// it, so the summary bar and "+ New row" started under the screen's foot, and
+// a finger on the rows moved only the rows, which hold their own scroll. The
+// page is the screen's height now and the view takes what is left under the
+// toolbar, as on a computer: the foot is whole at first sight, under a notice
+// too and on every view, and a body keeps its floor, past which the page
+// scrolls as a whole.
+for (const notice of [false, true]) {
+  const name = `390 with touch${notice ? ", under a notice" : ""}`
+  test(`at ${name}, a tall table's summary bar and "+ New row" are whole on the screen at first sight, and stay so under a finger on the rows`, async ({ browser }, testInfo) => {
+    const server = new TableServer(fields, rowsOf(300))
+    const { page, close } = await server.open(browser, testInfo, SAM, PHONE)
+    // Six fields: a phone would show the list; this reader keeps the grid.
+    await page.evaluate((id) => localStorage.setItem(`onecamp:tableDisplay:${id}`, JSON.stringify({ list: false })), server.id)
+    await page.reload({ waitUntil: "domcontentloaded" })
+    await expect(page.locator("tbody tr[data-row]").first()).toBeVisible({ timeout: 60_000 })
+    const sums = page.locator("tr[data-summary-bar]")
+    await expect(sums).toBeVisible({ timeout: 30_000 })
+    if (notice) await addPhoneNotice(page)
+    const newRow = page.locator("[data-new-row]")
+    const grid = page.locator("[data-table-grid]")
+    // No swipe: what is under the rows is whole on the screen, and the page has nothing to scroll.
+    await expect.poll(async () => (await onScreen(page, newRow)).over, { message: "New row ends on the screen at first sight" }).toBeLessThanOrEqual(0)
+    const row = await onScreen(page, newRow)
+    const bar = await onScreen(page, sums)
+    const room = await pageRoom(page)
+    const banners = await page.evaluate(() => document.querySelector("[data-app-banners]")?.getBoundingClientRect().height ?? 0)
+    console.log(`TABLE-FOOT ${name}: New row ends ${row.bottom} (${row.over} over the screen's foot, hit ${row.hit}); summary bar ${bar.over} over, hit ${bar.hit}; the page's room ${room} px; the shell's banners ${Math.round(banners)} px`)
+    expect(row.hit, "the point at New row's middle is New row").toBe(true)
+    expect(bar.over, "the summary bar ends on the screen").toBeLessThanOrEqual(0)
+    expect(bar.hit, "the point at the summary bar's middle is the bar").toBe(true)
+    expect(room, "the page has nothing to scroll").toBeLessThanOrEqual(1)
+    // The grid's rows scroll above the line, never under it.
+    const body = (await grid.boundingBox())!
+    expect(Math.round(body.y + body.height)).toBeLessThanOrEqual(Math.round((await newRow.boundingBox())!.y))
+    await shoot(page, `tableFoot-390${notice ? "-notice" : ""}`)
+    // A finger on the rows: they scroll in their box, and the foot stays whole.
+    for (let swipe = 0; swipe < 3; swipe++) await swipeUp(page, grid, 195, Math.round(body.y + body.height * 0.75), Math.round(body.y + body.height * 0.2))
+    expect(await grid.evaluate((el) => el.scrollTop), "the rows scrolled under the finger").toBeGreaterThan(0)
+    expect((await onScreen(page, newRow)).over, "New row still ends on the screen").toBeLessThanOrEqual(0)
+    const after = await onScreen(page, sums)
+    expect(after.over, "the summary bar still ends on the screen").toBeLessThanOrEqual(0)
+    expect(after.hit, "the point at the summary bar's middle is still the bar").toBe(true)
+    await close()
+  })
+}
+
+// MAIN 2 Nov (V-304 re-cut on V-236): on a phone a view fills the room between its top and the top of what owns the
+// screen's foot: the floating tab bar's top where the page shows one, or else the home indicator's pad (--phone-floor;
+// a table's page owns its bottom edge, lib/utils/mobileBottomNav, so MobileNavigationBar sets it then). Its foot (the
+// sums and "+ New row", or the list's end) sits just above that, 8 px clear, never under it.
+for (const view of ["grid", "list"] as const) {
+  test(`at 390 with touch, a tall table's ${view} ends just above the tab bar's top, or the home indicator's pad where the page has no bar`, async ({ browser }, testInfo) => {
+    const server = new TableServer(fields, rowsOf(300))
+    const { page, close } = await server.open(browser, testInfo, SAM, PHONE)
+    await page.evaluate(([id, list]) => localStorage.setItem(`onecamp:tableDisplay:${id}`, JSON.stringify({ list })), [server.id, view === "list"] as const)
+    await page.reload({ waitUntil: "domcontentloaded" })
+    const foot = page.locator(view === "grid" ? "[data-new-row]" : "[data-table-list] [data-list-scroll]")
+    await expect(foot).toBeVisible({ timeout: 60_000 })
+    if (view === "grid") await expect(page.locator("tr[data-summary-bar]")).toBeVisible({ timeout: 30_000 })
+    const tabs = page.getByRole("navigation", { name: "Primary" })
+    const bar = (await tabs.isVisible()) ? (await tabs.boundingBox())!.y : null
+    const floor = Math.round(
+      bar ??
+        (await page.evaluate(() => {
+          const probe = document.createElement("div")
+          probe.style.cssText = "position:fixed;bottom:0;height:var(--phone-floor);visibility:hidden"
+          document.body.append(probe)
+          const top = probe.getBoundingClientRect().top
+          probe.remove()
+          return top
+        })),
+    )
+    const end = async () => {
+      const b = (await foot.boundingBox())!
+      return Math.round(b.y + b.height)
+    }
+    await expect.poll(end, { message: `the ${view}'s foot ends at or above ${floor}` }).toBeLessThanOrEqual(floor)
+    const at = await end()
+    console.log(`TABLE-FOOT ${view} 390 floor: ${bar === null ? "no tab bar, the home indicator's pad" : "the tab bar"} at ${floor}; the ${view}'s foot ends ${at}`)
+    expect(at, "the view fills the room down to it, 8 px clear").toBeGreaterThanOrEqual(floor - 12)
+    if (view === "grid") expect((await onScreen(page, page.locator("tr[data-summary-bar]"))).hit, "the sums are seen").toBe(true)
+    await close()
+  })
+}
+
+for (const [view, box, tall] of [
+  ["List", "[data-list-scroll]", true],
+  ["Board", "[data-table-board]", true],
+  ["Gallery", "[data-gallery-scroll]", true],
+  ["Timeline", "[data-timeline-scroll]", true],
+  ["Calendar", "[data-table-calendar]", false],
+  ["Chart", "[data-table-chart]", false],
+] as const) {
+  test(`at 390 with touch under a notice, a tall table's ${view.toLowerCase()} ends on the screen at first sight`, async ({ browser }, testInfo) => {
+    const server = new TableServer(fields, rowsOf(300))
+    const { page, close } = await server.open(browser, testInfo, SAM, PHONE)
+    // Six fields: the phone shows the list first.
+    await expect(page.locator("[data-table-list] li[aria-setsize]").first()).toBeVisible({ timeout: 60_000 })
+    if (view !== "List") await page.getByRole("button", { name: view, exact: true }).tap()
+    const body = page.locator(box)
+    await expect(body).toBeVisible({ timeout: 60_000 })
+    await addPhoneNotice(page)
+    await expect.poll(async () => (await onScreen(page, body)).over, { message: `the ${view.toLowerCase()}'s box ends on the screen` }).toBeLessThanOrEqual(0)
+    const at = await onScreen(page, body)
+    console.log(`TABLE-FOOT ${view} 390, under a notice: ends ${at.bottom} (${at.over} over the screen's foot); the page's room ${await pageRoom(page)} px`)
+    expect(await pageRoom(page), "the page has nothing to scroll").toBeLessThanOrEqual(1)
+    if (tall) expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight), `the ${view.toLowerCase()} scrolls inside its box`).toBe(true)
+    await shoot(page, `tableFoot-390-${view.toLowerCase()}-notice`)
+    await close()
+  })
+}
+
+test("at 390x480 with touch under a notice, the rows' box keeps its floor and the page scrolls to the foot", async ({ browser }, testInfo) => {
+  const server = new TableServer(fields, rowsOf(300))
+  const { page, close } = await server.open(browser, testInfo, SAM, { ...PHONE, viewport: { width: 390, height: 480 } })
+  await page.evaluate((id) => localStorage.setItem(`onecamp:tableDisplay:${id}`, JSON.stringify({ list: false })), server.id)
+  await page.reload({ waitUntil: "domcontentloaded" })
+  await expect(page.locator("tbody tr[data-row]").first()).toBeVisible({ timeout: 60_000 })
+  const sums = page.locator("tr[data-summary-bar]")
+  await expect(sums).toBeVisible({ timeout: 30_000 })
+  await addPhoneNotice(page)
+  const grid = page.locator("[data-table-grid]")
+  const scroller = page.locator("[data-app-scroller]")
+  // 329 px under the bars, the toolbar's foot near 213 of them, and New row's 36: the box would get 80 px, and keeps 8rem.
+  expect((await grid.boundingBox())!.height, "the rows' box keeps its floor").toBeGreaterThanOrEqual(127)
+  expect(await pageRoom(page), "past the floor, the page scrolls").toBeGreaterThan(1)
+  // A swipe above the grid brings the page to its end, and the foot whole into sight.
+  for (let swipe = 0; swipe < 4 && (await pageRoom(page)) > 1; swipe++) {
+    const top = (await scroller.boundingBox())!.y
+    const gridTop = (await grid.boundingBox())!.y
+    await swipeUp(page, scroller, 195, Math.round((top + gridTop) / 2), Math.round(top + 4))
+  }
+  expect(await pageRoom(page), "the page swiped to its end").toBeLessThanOrEqual(1)
+  expect((await onScreen(page, page.locator("[data-new-row]"))).over, "New row ends on the screen").toBeLessThanOrEqual(0)
+  expect((await onScreen(page, sums)).over, "the summary bar ends on the screen").toBeLessThanOrEqual(0)
+  await close()
+})

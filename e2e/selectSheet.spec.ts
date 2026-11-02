@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type BrowserContextOptions, type Page, type TestInfo } from "@playwright/test"
 
 import { importPage } from "./adminImport"
+import { expectTouchSize } from "./touchTarget"
 
 // A select (components/ui/select) on a phone is a sheet, "a sheet list with the
 // chosen row checked" (design/drawers-v3), never a list in the page under the
@@ -34,7 +35,7 @@ test("by touch at 390, a select is a titled sheet: 44px rows, nothing lit until 
   await expect(sheet).toHaveAttribute("data-overlay", "sheet")
   const rows = sheet.getByRole("option")
   await expect(rows).toHaveCount(2)
-  for (const h of await rows.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h, "a row under a finger").toBeGreaterThanOrEqual(44)
+  for (const h of await rows.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expectTouchSize(h, "a row under a finger")
   await expect(page.locator('[role="option"]:is([data-highlighted], [data-selected="true"])'), "nothing chosen: no row lit").toHaveCount(0)
 
   await sheet.getByRole("option", { name: "Acme Studio" }).tap()

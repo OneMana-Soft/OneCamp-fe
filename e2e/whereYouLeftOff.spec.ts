@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 import { SAM, stubBackend, tidy } from "./stubbedApp"
 import { overlapping, reachesIn } from "./touchReach"
+import { expectTouchSize } from "./touchTarget"
 
 // Where you left off (chat B27), in a real browser with no backend, each
 // channel opened by its address (a reload, a notification, a link), before the
@@ -181,7 +182,7 @@ for (const view of views) {
         // Both take a finger across 44px, and neither takes the other's taps.
         const reaches = await reachesIn(tab, "[data-unread-banner]")
         expect(reaches).toHaveLength(2)
-        for (const r of reaches) expect(Math.min(r.right - r.left, r.bottom - r.top), r.name).toBeGreaterThanOrEqual(44)
+        for (const r of reaches) expectTouchSize(Math.min(r.right - r.left, r.bottom - r.top), r.name)
         expect(overlapping(reaches)).toEqual([])
       }
       if (process.env.SHOTS) await tab.screenshot({ path: `${process.env.SHOTS}/left-off-banner-${view.name}-${scheme}.png` })

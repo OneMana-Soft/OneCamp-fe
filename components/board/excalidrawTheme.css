@@ -394,6 +394,27 @@
     height: 44px;
   }
 }
+/* At 44px a tool the phone's row is wider than the screen: Insert image,
+   Eraser and More tools sat past its right edge with no way to reach them,
+   and focusing one slid the whole board sideways under a strip no touch
+   reached (miro-40 H1). On every board the row scrolls sideways inside
+   itself as every strip does: the canvas marks it data-edge-fade
+   (components/board/toolRow), whose one rule (app/interaction.css) fades an
+   edge with more past it and rests a scrolled row on a whole tool
+   (DESIGN-BUILD-24). A board of its own is never a size container:
+   containment would hold a docked sheet inside the board, under its
+   buttons. */
+.excalidraw.excalidraw .App-toolbar--mobile {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.excalidraw.excalidraw .App-toolbar--mobile::-webkit-scrollbar {
+  display: none;
+}
+.excalidraw.excalidraw .App-toolbar--mobile .ToolIcon {
+  scroll-snap-align: start;
+}
 
 /* ---- the board's own floating chrome (board page) ------------------------ */
 
@@ -467,14 +488,12 @@
   display: none;
 }
 
-/* On a phone the stage is narrower than the screen Excalidraw lays its tool
-   row out for, so Insert image, Eraser and More tools sat past the frame's
-   right edge with no way to reach them. The row scrolls sideways inside the
-   frame as every strip does: CallBoardStage marks it data-edge-fade, whose
-   one rule (app/interaction.css) fades an edge with more past it and rests a
-   scrolled row on a whole tool (DESIGN-BUILD-24). Its shade is the call's
-   lighter one: the board's own deep drop shadow read as a heavy grey band on
-   the call's dark (DESIGN-BUILD-23). */
+/* On a phone the stage is narrower than the screen, so the row that scrolls
+   sideways on every board (the phone section above) is held to the frame's
+   width, not the screen's: a container's width, 8px in from each side
+   (DESIGN-BUILD-24). Its shade is the call's lighter one: the board's own
+   deep drop shadow read as a heavy grey band on the call's dark
+   (DESIGN-BUILD-23). */
 [data-call-board] .excalidraw--mobile .App-top-bar {
   left: 8px;
   right: 8px;
@@ -484,16 +503,7 @@
 }
 [data-call-board] .excalidraw .App-toolbar--mobile {
   max-width: calc(100cqw - 16px);
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 12px -6px rgb(0 0 0 / 0.5);
-}
-[data-call-board] .excalidraw .App-toolbar--mobile::-webkit-scrollbar {
-  display: none;
-}
-[data-call-board] .excalidraw .App-toolbar--mobile .ToolIcon {
-  scroll-snap-align: start;
 }
 /* The phone's bottom bar holds only Undo and Redo on a call's stage (no main
    menu there), so it hugs them at the right, as the wide board's zoom and

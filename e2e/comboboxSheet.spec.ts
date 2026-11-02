@@ -3,6 +3,7 @@ import { expect, test, type Browser, type BrowserContextOptions, type Locator, t
 import { settled } from "./sheetLayout"
 import { SAM } from "./stubbedApp"
 import { PRIYA, TableServer } from "./tables/tableServer"
+import { expectTouchSize } from "./touchTarget"
 
 // The combobox's menu (components/ui/combobox) on a phone is a sheet, never a
 // popover floating over the page (the owner, 18 Oct: on phones every overlay is
@@ -67,7 +68,7 @@ test("by touch at 390, a cell's picker is a titled sheet: 44px rows, nothing lit
   await expect(page.locator('[data-overlay="float"]')).toHaveCount(0)
   await expect(stage.locator("[data-status-picker]")).toBeVisible()
   // 44px is drawn; layout can measure it a hair under (43.99994 in wK's gate), so the floor is 43.5 as in calendarAnswers.
-  for (const h of await rowHeights(page, "data-status-picker")) expect(h, "a status row under a finger").toBeGreaterThanOrEqual(43.5)
+  for (const h of await rowHeights(page, "data-status-picker")) expectTouchSize(h, "a status row under a finger")
   await expect(stage.locator('[cmdk-item][data-selected="true"]')).toHaveText("Building")
   // One scroller, the sheet's: the list doesn't scroll beside it.
   expect(await stage.locator("[cmdk-list]").evaluate((el) => getComputedStyle(el).overflowY)).toBe("visible")
@@ -81,7 +82,7 @@ test("by touch at 390, a cell's picker is a titled sheet: 44px rows, nothing lit
   await expect(owners.locator('[cmdk-item][data-selected="true"]'), "nothing chosen: no row lit").toHaveCount(0)
   // The filter waits for a tap: no keyboard rises over the list as it opens.
   await expect(owners.getByRole("combobox")).not.toBeFocused()
-  for (const h of await rowHeights(page, "data-people-picker")) expect(h, "a person's row under a finger").toBeGreaterThanOrEqual(43.5)
+  for (const h of await rowHeights(page, "data-people-picker")) expectTouchSize(h, "a person's row under a finger")
   await owners.getByRole("option", { name: /priya@example\.com/ }).tap()
   await expect.poll(() => server.valuesOf(1).owners).toEqual([person(PRIYA)])
   await page.context().close()

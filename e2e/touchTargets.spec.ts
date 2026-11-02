@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test"
 
 import { SAM, stubBackend } from "./stubbedApp"
 import { overlapping, reachesIn } from "./touchReach"
+import { expectTouchSize, PX_TOLERANCE, reachesTouch, TOUCH_PX } from "./touchTarget"
 
 // A guard over the dense rows on a phone (coordinator, 14 Oct 2026, after QA
 // SH-04): every base control takes a tap across at least 44px (app/phone.css
@@ -22,6 +23,18 @@ test("two reaches that overlap are found, and two that don't are not", () => {
   const box = (name: string, left: number) => ({ name, left, top: 0, right: left + 44, bottom: 44 })
   expect(overlapping([box("Bold", 0), box("Italic", 30)])).toEqual(['"Bold" and "Italic" share 14×44 px'])
   expect(overlapping([box("Bold", 0), box("Italic", 44)])).toEqual([])
+})
+
+test("a touch target reads at its bar to a hundredth of a pixel, and a box drawn short fails (V-319)", () => {
+  expect(reachesTouch(43.99994), "an h-11 box read as a float").toBe(true)
+  expect(reachesTouch(TOUCH_PX), "the bar itself").toBe(true)
+  expect(reachesTouch(TOUCH_PX - 2 * PX_TOLERANCE), "two hundredths short").toBe(false)
+  expect(reachesTouch(43.5), "half a pixel short").toBe(false)
+  expect(reachesTouch(null), "no box").toBe(false)
+  expect(reachesTouch(27.996, 28), "a computer row's own bar").toBe(true)
+  expect(() => expectTouchSize(43.99994, "Clear")).not.toThrow()
+  expect(() => expectTouchSize(43.9, "Clear")).toThrow("Clear: 43.9 px against 44")
+  expect(() => expectTouchSize(undefined, "Clear")).toThrow("Clear: undefined px against 44")
 })
 
 test("the message box: no two controls reach over each other", async ({ page }, testInfo) => {

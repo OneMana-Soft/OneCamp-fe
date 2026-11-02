@@ -315,6 +315,7 @@ const ImageView: React.FC<NodeViewProps> = ({ editor, node, selected, updateAttr
     !displaySrc || imageState.error ? null : (
       <img
         key={imageState.attempt}
+        data-node-media
         src={displaySrc}
         className={cn('rounded object-contain transition-opacity duration-[140ms]', {
           'opacity-0': !imageState.imageLoaded,

@@ -13,7 +13,14 @@ vi.mock("@/services/tableService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/tableService")>()),
   fillTableAIColumn: (...a: unknown[]) => fill(...a),
 }))
-vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
+// One confirm for every render: a test may answer what it asked (the record's delete).
+const confirm = vi.hoisted(() => vi.fn())
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
+const ledger = vi.hoisted(() => ({ batchRows: vi.fn(), undoChange: vi.fn() }))
+vi.mock("@/lib/tables/ledger", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/tables/ledger")>()), ...ledger }))
+// The toasts the record offers, each with its Undo.
+const offers = vi.hoisted(() => [] as { title: string; undo: () => unknown }[])
+vi.mock("@/components/table/ledger/useUndoToast", () => ({ useUndoToast: () => (title: string, undo: () => unknown) => void offers.push({ title, undo }) }))
 const { toast } = vi.hoisted(() => ({ toast: vi.fn() }))
 vi.mock("@/hooks/use-toast", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/hooks/use-toast")>()), useToast: () => ({ toast }) }))
 
@@ -41,7 +48,12 @@ const { copy } = vi.hoisted(() => ({ copy: vi.fn() }))
 vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copy, copied: false }) }))
 
 import { RecordPanel } from "@/components/table/RecordPanel"
+import { TableEditProvider } from "@/lib/tables/tableEdit"
 import type { TableField, TableRow } from "@/services/tableService"
+import { UndoOrder, type Aim } from "@/lib/tables/undoOrder"
+
+/** The table's undo order as a write that only sends: the tests of the order hold their own. */
+const pass: UndoOrder["write"] = (_what, send) => send()
 
 const fields: TableField[] = [
   { id: "item", table_id: "t", name: "Item", type: "text", config: "{}", position: 0 },
@@ -51,13 +63,17 @@ const fields: TableField[] = [
 const row = (kept?: string[]): TableRow => ({ id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "Booth", summary: "A booth", notes: "" }), ai_kept: kept })
 const panel = (r: TableRow, onChange = vi.fn()) =>
   render(
-    <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={onChange} />,
+    <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={onChange} />,
   )
 
 afterEach(() => {
   cleanup()
   fill.mockReset()
   toast.mockReset()
+  confirm.mockReset()
+  ledger.batchRows.mockReset()
+  ledger.undoChange.mockReset()
+  offers.length = 0
   ai.on = true
 })
 
@@ -108,7 +124,7 @@ describe("a row's record with lines of text", () => {
   const lined: TableRow = { id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "Booth\nHall 2", summary: "", notes: "Para one\n\nPara two" }) }
   const open = () => {
     const commitCell = vi.fn().mockResolvedValue(true)
-    render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[lined]} rowId="r1" canManage commit={{ commitCell, linkCell: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+    render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[lined]} rowId="r1" canManage commit={{ commitCell, linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
     return commitCell
   }
 
@@ -161,7 +177,7 @@ describe("a row's record", () => {
   it("shows every option a multi-select holds", () => {
     const tags: TableField = { id: "tags", table_id: "t", name: "Tags", type: "multi_select", config: JSON.stringify({ options: ["A", "B", "C", "D"].map((l) => ({ id: `o_${l}`, label: l })) }), position: 3 }
     const r: TableRow = { id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify({ item: "Booth", tags: ["A", "B", "C", "D"] }) }
-    render(<RecordPanel tableId="t" tableName="Launch budget" fields={[...fields, tags]} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+    render(<RecordPanel tableId="t" tableName="Launch budget" fields={[...fields, tags]} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
     for (const label of ["A", "B", "C", "D"]) expect(screen.getAllByText(label).length).toBeGreaterThan(0)
     expect(screen.queryByText("+2")).toBeNull()
   })
@@ -179,7 +195,7 @@ describe("a row's record and its fields", () => {
         rows={[{ id: "r1", table_id: "t", position: 0, created_at: "", updated_at: "", values: JSON.stringify(values) }]}
         rowId="r1"
         canManage
-        commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }}
+        commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }}
         onStep={vi.fn()}
         onClose={vi.fn()}
         onChange={vi.fn()}
@@ -305,7 +321,7 @@ describe("a row's record in a view read in windows", () => {
   const open = (rowId: string, more: Partial<ComponentProps<typeof RecordPanel>> = {}) => {
     const onStep = vi.fn()
     render(
-      <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={given} count={10} tail={1} rowId={rowId} canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }} onStep={onStep} onClose={vi.fn()} onChange={vi.fn()} {...more} />,
+      <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={given} count={10} tail={1} rowId={rowId} canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }} onStep={onStep} onClose={vi.fn()} onChange={vi.fn()} {...more} />,
     )
     return onStep
   }
@@ -346,7 +362,108 @@ describe("a row's record in a view read in windows", () => {
 describe("a row's record opened while an edit to it saves", () => {
   it("shows the edit, not the row's copy", () => {
     const edits = new Map([["r1", { saving: { notes: "Bring a banner" }, saved: {}, copy: null }]])
-    render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[row()]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+    render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[row()]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
     expect((screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement).value).toBe("Bring a banner")
+  })
+})
+
+describe("a record for one who may only view the table (V-170)", () => {
+  it("shows each field read-only with its value, and typing in one writes nothing", () => {
+    const commitCell = vi.fn()
+    render(
+      <TableEditProvider value={false}>
+        <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[row()]} rowId="r1" canManage commit={{ commitCell, linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />
+      </TableEditProvider>,
+    )
+    const box = (name: string) => screen.getByRole("textbox", { name }) as HTMLTextAreaElement | HTMLInputElement
+    expect(box("Summary").value).toBe("A booth")
+    for (const name of ["Summary", "Notes"]) expect(box(name).readOnly).toBe(true)
+    fireEvent.change(box("Notes"), { target: { value: "Bring a banner" } })
+    fireEvent.blur(box("Notes"))
+    expect(commitCell).not.toHaveBeenCalled()
+  })
+
+  // CR-164 F1: Fill again writes the row's cell, which the server refuses a
+  // viewer (403). The record reads whether its reader edits from the page, as
+  // every writing surface does, and offers a viewer nothing to write with.
+  const recordAs = (canEdit: boolean, r: TableRow) =>
+    render(
+      <TableEditProvider value={canEdit}>
+        <RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[r]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />
+      </TableEditProvider>,
+    )
+
+  it("offers a viewer no Fill again on an AI column, and still says a person wrote the cell", () => {
+    recordAs(false, row(["summary"]))
+    expect(screen.getByText("Written by a person, so AI leaves it be")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Fill again" })).toBeNull()
+  })
+
+  it("draws no AI note under a viewer's cell the AI wrote", () => {
+    recordAs(false, row())
+    expect(screen.getByRole("textbox", { name: "Summary" })).toBeTruthy()
+    expect(document.querySelector("[data-ai-cell-note]")).toBeNull()
+  })
+
+  it("offers an editor Fill again, which fills the row's cell", async () => {
+    fill.mockResolvedValue({ filled: 1, skipped: 0 })
+    recordAs(true, row(["summary"]))
+    expect(screen.getByText("Written by a person, so AI leaves it be")).toBeTruthy()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Fill again" })))
+    expect(fill).toHaveBeenCalledWith("t", "summary", ["r1"])
+  })
+})
+
+// CR-190's S5 and S5b (then caught by the e2e alone) and MUST 3: the record's delete enters the table's undo order,
+// taken by its change set, and its toast's Undo goes the table's one Undo path (commit.undo), never straight to the ledger.
+describe("a record's delete, in the table's undo order (V-360)", () => {
+  function deleteHeld(undo = vi.fn(async () => undefined), press = true) {
+    const order = new UndoOrder()
+    let land!: (r: unknown) => void
+    ledger.batchRows.mockReturnValueOnce(new Promise((r) => (land = r)))
+    render(<RecordPanel tableId="t" tableName="Launch budget" fields={fields} rows={[row()]} rowId="r1" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: (w, s, o, t) => order.write(w, s, o, t), undo, edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Delete this row" }))
+    const confirmed = (confirm.mock.calls[0][0] as { onConfirm: () => Promise<void> }).onConfirm()
+    const aims: Aim[] = []
+    const pressed = press ? order.press(async (aim) => void aims.push(aim)) : Promise.resolve()
+    return { land, confirmed, pressed, aims, undo }
+  }
+
+  // V-381: the Ctrl+Z took it back already, so no toast offers it again (its Undo would answer 409 "undone already").
+  it("is what a Ctrl+Z pressed on its way takes, by its change set, and then offers no toast", async () => {
+    const d = deleteHeld()
+    expect(ledger.batchRows).toHaveBeenCalledWith("t", { delete: ["r1"] })
+    await act(async () => {
+      d.land({ change_set: "c4", created: [], updated: [], deleted: ["r1"] })
+      await d.confirmed
+      await d.pressed
+    })
+    expect(d.aims).toEqual([{ kind: "set", set: "c4" }])
+    expect(offers, "no toast for a delete the Ctrl+Z took back").toEqual([])
+    expect(d.undo).not.toHaveBeenCalled()
+    expect(ledger.undoChange, "never straight to the ledger").not.toHaveBeenCalled()
+  })
+
+  it("offers its toast when nothing took it on its way; the toast's Undo goes the one Undo path, by its change set", async () => {
+    const d = deleteHeld(undefined, false)
+    await act(async () => {
+      d.land({ change_set: "c4", created: [], updated: [], deleted: ["r1"] })
+      await d.confirmed
+    })
+    expect(offers.map((o) => o.title)).toEqual(["Row deleted"])
+    await offers[0].undo()
+    expect(d.undo).toHaveBeenCalledWith("c4")
+    expect(ledger.undoChange, "never straight to the ledger").not.toHaveBeenCalled()
+  })
+
+  it("offers no Undo when the server stored nothing for it (someone else's delete got there first)", async () => {
+    const d = deleteHeld()
+    await act(async () => {
+      d.land({ change_set: null, created: [], updated: [], deleted: [] })
+      await d.confirmed
+      await d.pressed
+    })
+    expect(d.aims).toEqual([{ kind: "none", what: "delete" }])
+    expect(offers).toEqual([])
   })
 })

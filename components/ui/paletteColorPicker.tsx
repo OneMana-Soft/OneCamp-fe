@@ -33,6 +33,7 @@ export function ColorPicker({ value, onChange, disabled, hues = ALL, label }: { 
         <button
           type="button"
           disabled={disabled}
+          data-touch-target=""
           aria-label={label ? `Colour of ${label}: ${HUE_NAME[current]}` : `Colour: ${HUE_NAME[current]}`}
           className="flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >

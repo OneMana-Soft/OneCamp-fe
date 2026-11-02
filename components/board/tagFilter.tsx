@@ -7,41 +7,23 @@
 // these" selects the notes kept, so the notes bar works on all of them at
 // once (colour, tidy, cluster, vote). The rules are lib/board/tagFilter's.
 //
-// The veil is an overlay over the canvas at z-2, as the tag chips are, drawn
-// before them, so a faded note's chips fade with it (NoteTagChips' `kept`):
-// under the live cursors (z-3), the vote dots and every panel, menu and bar.
-// It takes no pointer: the board under it works as ever.
+// The veil is the board's own (components/board/boardVeil), which Find's
+// dimming shares (V-271).
 
 import * as React from "react"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { useBoardView } from "@/hooks/useBoardView"
 import { useSceneElements } from "@/hooks/useSceneElements"
 import { Button } from "@/components/ui/button"
 import { Filter, X } from "@/lib/icons"
-import { notesTagged, veilHoles } from "@/lib/board/tagFilter"
+import { notesTagged } from "@/lib/board/tagFilter"
+import { BoardVeil } from "@/components/board/boardVeil"
 import type { SceneElement } from "@/components/board/boardOps"
 
 /** The veil over the notes the filter leaves out, while there's a filter. */
 export function TagVeil({ api, tags }: { api: ExcalidrawImperativeAPI; tags: readonly string[] }) {
   const all = useSceneElements<SceneElement>(api)
   const kept = React.useMemo(() => notesTagged(all, tags), [all, tags])
-  // The view is followed only while there's a filter: a pan moves the holes with their notes.
-  const view = useBoardView(api, tags.length > 0)
-  // The mask's id, from React (unique on the page), kept to the characters a url() fragment takes as they are.
-  const mask = `tag-veil-${React.useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
-  if (!view || tags.length === 0) return null
-  return (
-    <svg aria-hidden="true" data-tag-veil={kept.length} className="pointer-events-none absolute inset-0 z-[2]" width={view.width} height={view.height}>
-      {/* White shows the veil and black keeps a hole clear: each kept note's own shape, so overlapping holes join. */}
-      <mask id={mask} maskUnits="userSpaceOnUse" x="0" y="0" width={view.width} height={view.height}>
-        <rect width={view.width} height={view.height} fill="white" />
-        {veilHoles(view, kept).map((d, i) => (
-          <path key={i} d={d} fill="black" />
-        ))}
-      </mask>
-      <rect width={view.width} height={view.height} mask={`url(#${mask})`} className="fill-sheet/75" />
-    </svg>
-  )
+  return <BoardVeil api={api} kept={tags.length > 0 ? kept : null} data-tag-veil={kept.length} />
 }
 
 /**

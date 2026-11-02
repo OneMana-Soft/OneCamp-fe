@@ -48,5 +48,51 @@ for (const [label, use] of [
       await strip.evaluate((el) => void (el.scrollLeft = el.scrollWidth))
       await expect.poll(() => fades(strip)).toEqual(["24px", "0px"])
     })
+
+    // A browser keeps a snapped strip on the tab it rested on when the row's
+    // layout changes, so a tab drawn ahead of that one after the first paint
+    // scrolled the strip by the new tab's width and cut it (DESIGN-BUILD-87,
+    // 2 Nov: New task's Type chip, drawn once the project is known, showed
+    // its last letters at a phone's edge). Every strip, every width.
+    test("stays at its start when a tab arrives ahead, and keeps a tab the person scrolled to", async ({ page }, testInfo) => {
+      test.setTimeout(180_000)
+      await openLater(page, testInfo)
+      const strip = page.getByRole("tablist", { name: "Later" })
+      await expect(strip).toBeVisible({ timeout: 60_000 })
+      // Long and narrow enough to scroll whatever its tabs are called (three
+      // more copies of its first tab at its end), its own snap kept.
+      await strip.evaluate((el) => {
+        const first = el.querySelector(':scope > :not([aria-hidden="true"])')!
+        for (let i = 0; i < 3; i++) el.append(Object.assign(first.cloneNode(true) as HTMLElement, { id: "" }))
+        el.style.maxWidth = "120px"
+      })
+      await expect.poll(() => strip.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(48)
+      /** Draws a copy of the first tab ahead of the others, as a late tab arrives, and reads the strip once it has laid out. */
+      const arrive = () => strip.evaluate(async (el) => {
+        const first = el.querySelector(':scope > :not([aria-hidden="true"])')!
+        el.prepend(Object.assign(first.cloneNode(true) as HTMLElement, { id: "" }))
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+        return el.scrollLeft
+      })
+      expect(await strip.evaluate((el) => el.scrollLeft)).toBe(0)
+      expect(await arrive()).toBe(0)
+
+      // Scrolled by the person to a later tab, the strip keeps that tab where it was.
+      const at = () => strip.evaluate((el) => {
+        const tabs = [...el.querySelectorAll(':scope > :not([aria-hidden="true"])')]
+        const seen = tabs.find((t) => t.getBoundingClientRect().left >= el.getBoundingClientRect().left + 8)!
+        return [seen.textContent, Math.round(seen.getBoundingClientRect().left - el.getBoundingClientRect().left)] as const
+      })
+      // To its third tab, resting clear of the fade (not to its end, where the
+      // last tabs can't come to rest and a longer row lets them).
+      await strip.evaluate(async (el) => {
+        const third = el.querySelectorAll(':scope > :not([aria-hidden="true"])')[2]
+        el.scrollTo({ left: el.scrollLeft + third.getBoundingClientRect().left - el.getBoundingClientRect().left - 24 })
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+      })
+      const before = await at()
+      await arrive()
+      expect(await at()).toEqual(before)
+    })
   })
 }

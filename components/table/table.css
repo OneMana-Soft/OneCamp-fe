@@ -541,39 +541,56 @@
   max-width: none;
 }
 
-/* The table page on a computer (DB-23's must, 27 Oct): the page is the
-   sheet's height, and its view takes the height left under the toolbar, so
-   what is under the rows, the grid's "+ New row", ends inside the card. The
-   view's own cap (TABLE_VIEW_BODY, the screen less 16rem) was a guess at what
-   stands above it, and a notice over the page or a toolbar on two lines made
-   it too tall: New row and the summary bar were cut at the card's foot. A
-   view still grows with its rows, so a short table's New row sits under its
-   last row. A phone's page scrolls as a whole, and a doc's embed scrolls its
-   own box, so both keep the cap. Rules here, not classes: the table route's
-   first load counts every byte of its scripts. */
-@media (width >= 40rem) {
-  [data-table-page] {
-    height: 100%;
-  }
+/* The table page fits what scrolls it, at every width (DB-23's must, 27 Oct,
+   on a computer; V-304 and V-236, 1 Nov, on a phone): the page is the sheet's
+   height on a computer and the screen's under the top bar on a phone, and its
+   view takes the height left under the toolbar, so what is under the rows,
+   the summary bar and the grid's "+ New row", ends in sight. The view's own
+   cap (TABLE_VIEW_BODY, the screen less 16rem) was a guess at what stands
+   above it: a notice over the page or a toolbar on two lines made it too
+   tall, so New row and the summary bar were cut at a computer's card, and on
+   a phone they started under the screen, where a finger on the rows, which
+   hold their own scroll, never brought them up. A view still grows with its
+   rows, so a short table's New row sits under its last row, and a body keeps
+   its floor (8rem), past which the page scrolls as a whole. A doc's embed
+   scrolls its own box and keeps the cap. Rules here, not classes: the table
+   route's first load counts every byte of its scripts. */
+[data-table-page] {
+  height: 100%;
+}
+[data-table-frame] {
+  padding-bottom: 0.5rem;
+}
+[data-table-frame] > .v3-grid,
+[data-table-frame] > [data-table-list] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* Only the scrolling bodies give way: a toolbar on two lines, shrunk to its
+   one line's height, hid its second behind the grid. */
+[data-table-frame] > *,
+[data-table-frame] > .v3-grid > *,
+[data-table-frame] > [data-table-list] > * {
+  flex-shrink: 0;
+}
+[data-table-frame] > .v3-grid,
+[data-table-frame] > [data-table-list],
+[data-table-frame] :is([data-table-grid], [data-table-board], [data-table-calendar], [data-table-chart], [data-list-scroll], [data-gallery-scroll]) {
+  flex-shrink: 1;
+  max-height: none;
+}
+/* A phone's view ends 8px clear of what owns the screen's foot (V-236,
+   app/phone.css F6): the top of the tab bar, which floats over the page's
+   foot, or the home indicator where a page has no tab bar (MobileNavigationBar
+   sets --phone-floor then). So the sums and New row sit just above the bar,
+   never under it. A computer's card leaves 0.5rem, above. */
+@media (width < 40rem) {
   [data-table-frame] {
-    padding-bottom: 0.5rem;
+    padding-bottom: var(--phone-scroll-end);
   }
-  [data-table-frame] > .v3-grid {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  /* Only the scrolling bodies give way: a toolbar on two lines, shrunk to
-     its one line's height, hid its second behind the grid. */
-  [data-table-frame] > *,
-  [data-table-frame] > .v3-grid > * {
-    flex-shrink: 0;
-  }
-  [data-table-frame] > .v3-grid,
-  [data-table-frame] :is([data-table-grid], [data-table-board], [data-table-calendar], [data-table-chart]) {
-    flex-shrink: 1;
-    max-height: none;
-  }
+}
+@media (width >= 40rem) {
   /* The selection bar floats on the New row line (34 px on its 36), under
      the summary bar: it hides no row and no sum, and "+ New row" stays in
      reach at the line's start (DB-23's SF; at 5rem it covered the last

@@ -16,6 +16,8 @@ import { TableViewState, TABLE_VIEW_BODY } from "@/components/table/TableViewFra
 import { cardTitle } from "@/lib/tables/formula"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { monthOf } from "@/lib/tables/month"
+import { useTableEdit } from "@/lib/tables/tableEdit"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
 import {
   TableField,
   TableRow,
@@ -32,6 +34,8 @@ interface DataTableCalendarProps {
   // date field.
   dateFieldId?: string
   onChange: () => void
+  /** The table's undo order (useCellCommit's write): a row added here is the reader's to undo. */
+  write: UndoOrder["write"]
   /**
    * The month on screen, when the page keeps it: its controls then sit in the
    * view's toolbar row (CalendarMonthNav) instead of a second row of their own.
@@ -95,6 +99,7 @@ export function DataTableCalendar({
   fields,
   rows,
   dateFieldId,
+  write,
   onChange,
   onCreated,
   month,
@@ -103,6 +108,8 @@ export function DataTableCalendar({
   compact = false,
 }: DataTableCalendarProps) {
   const [ownCursor, setCursor] = React.useState(() => monthOf(new Date()))
+  // A reader who may only view the table (V-170) opens rows, and adds none.
+  const canEdit = useTableEdit()
   const cursor = month ?? ownCursor
 
   const sortedFields = React.useMemo(() => fieldOrder(fields), [fields])
@@ -181,8 +188,9 @@ export function DataTableCalendar({
   }
 
   const addOnDay = async (d: Date) => {
+    if (!canEdit) return
     try {
-      const r = await createRow(tableId, { [dateField.id]: localDay(d) })
+      const r = await write("row", () => createRow(tableId, { [dateField.id]: localDay(d) }))
       if (onCreated && r?.id) onCreated([r], true)
       else onChange()
     } catch {
@@ -213,7 +221,7 @@ export function DataTableCalendar({
               .join(" · ")
           }
           onOpenRow={onOpenRow}
-          onAdd={(d) => void addOnDay(d)}
+          onAdd={canEdit ? (d) => void addOnDay(d) : undefined}
         />
       </div>
     )
@@ -266,21 +274,23 @@ export function DataTableCalendar({
                 >
                   {d.getDate() === 1 && !today ? format(d, "d MMM") : d.getDate()}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => addOnDay(d)}
-                  className="extend-touch-target grid size-5 place-items-center rounded-md text-ink-3 opacity-0 pointer-events-none transition-opacity hover:bg-hover hover:text-ink focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand group-hover:opacity-100 group-hover:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
-                  aria-label={`Add a row on ${format(d, "d MMMM")}`}
-                  title="Add a row on this day"
-                >
-                  <Plus className="size-3.5" aria-hidden="true" />
-                </button>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => addOnDay(d)}
+                    className="extend-touch-target grid size-5 place-items-center rounded-md text-ink-3 opacity-0 pointer-events-none transition-opacity hover:bg-hover hover:text-ink focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand group-hover:opacity-100 group-hover:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+                    aria-label={`Add a row on ${format(d, "d MMMM")}`}
+                    title="Add a row on this day"
+                  >
+                    <Plus className="size-3.5" aria-hidden="true" />
+                  </button>
+                ) : null}
               </div>
               <div className={cn("mt-1 space-y-0.5", !inMonth && "opacity-55")}>
                 {dayRows.slice(0, DAY_FIRST).map((row) => rowChip(row))}
                 {dayRows.length > DAY_FIRST ? (
                   // The Calendar's own "+N more" (components/calendar): every row of a busy day, drawn when asked.
-                  <DayOverflowPopover day={d} hidden={dayRows.length - DAY_FIRST} today={today} add={{ label: "Add a row", onAdd: () => void addOnDay(d) }}>
+                  <DayOverflowPopover day={d} hidden={dayRows.length - DAY_FIRST} today={today} add={canEdit ? { label: "Add a row", onAdd: () => void addOnDay(d) } : undefined}>
                     {(done) => dayRows.map((row) => rowChip(row, done))}
                   </DayOverflowPopover>
                 ) : null}
@@ -320,7 +330,8 @@ function PhoneMonth({
   title: (row: TableRow) => string
   details: (row: TableRow) => string
   onOpenRow?: (rowId: string) => void
-  onAdd: (day: Date) => void
+  /** Adds a row on a day; none for a reader who may only view the table. */
+  onAdd?: (day: Date) => void
 }) {
   const inMonth = (d: Date) => d.getMonth() === cursor.getMonth()
   const [picked, setPicked] = React.useState(() => {
@@ -380,9 +391,11 @@ function PhoneMonth({
       <section aria-label={`${format(picked, "EEEE d MMMM")}, ${rowsWord(dayRows.length)}`} data-table-calendar-day={pickedKey}>
         <div className="flex h-11 items-center gap-2 pl-4 pr-2">
           <h2 className={cn("min-w-0 flex-1 truncate text-ui-sm font-semibold", isToday(picked) ? "text-ink" : "text-ink-2")}>{dayName}</h2>
-          <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => onAdd(picked)} aria-label={`Add a row on ${format(picked, "d MMMM")}`}>
-            <Plus className="size-3.5" aria-hidden="true" /> Add a row
-          </Button>
+          {onAdd ? (
+            <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => onAdd(picked)} aria-label={`Add a row on ${format(picked, "d MMMM")}`}>
+              <Plus className="size-3.5" aria-hidden="true" /> Add a row
+            </Button>
+          ) : null}
         </div>
         {dayRows.length ? (
           <ul className="grid gap-0.5 px-2 pb-4">

@@ -24,7 +24,9 @@ import { onEscape } from "@/lib/keys/onEscape"
 import { setPresenceControl } from "./control"
 import { FollowFrame } from "./FollowFrame"
 import { usePublishIdle } from "./idle"
-import { followersOf, type AwarenessState } from "./people"
+import { FOLLOWING_FIELD } from "./fields"
+import type { AwarenessState } from "./people"
+import { useSayWhereIAm, type LookSource } from "./sayWhereIAm"
 import { awarenessOf, flagCaret, posOf, scrollerOf, showPos, showView, viewOf, type AwarenessLike, type View } from "./live"
 
 const PAGE_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "])
@@ -46,11 +48,23 @@ function Presence({ editor, awareness }: { editor: Editor; awareness: AwarenessL
   followingRef.current = following
 
   usePublishIdle(awareness)
-  useSayWhereIAm(editor, awareness)
+  // Its top block, said while someone follows this tab (presence/sayWhereIAm).
+  const look = React.useCallback((): LookSource | null => {
+    const scroller = scrollerOf(editor)
+    if (!scroller) return null
+    return {
+      read: () => viewOf(editor, scroller),
+      listen: (onMove) => {
+        scroller.addEventListener("scroll", onMove, { passive: true })
+        return () => scroller.removeEventListener("scroll", onMove)
+      },
+    }
+  }, [editor])
+  useSayWhereIAm(awareness, look)
 
   // The one followed says where they are looking while this is set.
   React.useEffect(() => {
-    awareness.setLocalStateField("following", following)
+    awareness.setLocalStateField(FOLLOWING_FIELD, following)
   }, [awareness, following])
 
   const leader = following !== null ? awareness.getStates().get(following) : undefined
@@ -75,11 +89,11 @@ function Presence({ editor, awareness }: { editor: Editor; awareness: AwarenessL
       if (s.view && showView(editor, scroller, s.view as View)) return true
       // No caret (a reader, or a tab not in the text) and no view: ask where
       // they are looking (they say it while someone follows), once.
-      awareness.setLocalStateField("following", client)
+      awareness.setLocalStateField(FOLLOWING_FIELD, client)
       const done = () => {
         window.clearTimeout(timer)
         awareness.off("change", heard)
-        if (awareness.getLocalState()?.following === client) awareness.setLocalStateField("following", followingRef.current)
+        if (awareness.getLocalState()?.[FOLLOWING_FIELD] === client) awareness.setLocalStateField(FOLLOWING_FIELD, followingRef.current)
       }
       const heard = () => {
         const view = awareness.getStates().get(client)?.view
@@ -110,39 +124,6 @@ function Presence({ editor, awareness }: { editor: Editor; awareness: AwarenessL
   React.useEffect(() => () => setPresenceControl(bus.key, null), [bus.key])
 
   return <FollowFrame leader={following !== null && leader ? { ...leader.user, name: leaderName } : null} said={said} onStop={() => stop(`Stopped following ${leaderName}`)} />
-}
-
-/** While someone follows this tab, it says where it is looking (its top block), as it scrolls. */
-function useSayWhereIAm(editor: Editor, awareness: AwarenessLike) {
-  React.useEffect(() => {
-    const scroller = scrollerOf(editor)
-    if (!scroller) return
-    let watched = false
-    let timer = 0
-    const say = () => {
-      timer = 0
-      if (watched) awareness.setLocalStateField("view", viewOf(editor, scroller))
-    }
-    const onScroll = () => {
-      if (watched && !timer) timer = window.setTimeout(say, 120)
-    }
-    const onChange = () => {
-      const now = followersOf(awareness.getStates(), awareness.clientID).length > 0
-      if (now === watched) return
-      watched = now
-      if (now) say()
-      else awareness.setLocalStateField("view", null)
-    }
-    awareness.on("change", onChange)
-    scroller.addEventListener("scroll", onScroll, { passive: true })
-    onChange()
-    return () => {
-      awareness.off("change", onChange)
-      scroller.removeEventListener("scroll", onScroll)
-      window.clearTimeout(timer)
-      if (watched) awareness.setLocalStateField("view", null)
-    }
-  }, [editor, awareness])
 }
 
 /** Keeps the followed person's screen, or their caret, in view until Esc, the reader's own scroll, or their leaving. */

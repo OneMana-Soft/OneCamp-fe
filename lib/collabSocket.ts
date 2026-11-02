@@ -27,16 +27,34 @@
 import { HocuspocusProviderWebsocket, type HocuspocusProvider } from '@hocuspocus/provider'
 import { SCHEMA_MANIFEST_HASH } from '@/components/minimal-tiptap/schemaManifest'
 
+let tabKey = ''
+
+/**
+ * This tab's key: random, made once per tab, the same on every connection the
+ * tab opens. A share link's visitors all sign in as the link, so the server
+ * tells one visitor's tab from another's by it: when a tab reconnects (its
+ * client id kept), only the same tab takes its presence over (V-337; oneCamp
+ * collaboration-service presenceGuard.js). A reload makes a new one, as it
+ * makes new client ids.
+ */
+function collabTabKey(): string {
+  if (!tabKey) {
+    const bytes = crypto.getRandomValues(new Uint8Array(16))
+    tabKey = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  }
+  return tabKey
+}
+
 /**
  * The collaboration URL, carrying the hash of the schema manifest this build's
- * editor was made with. The server opens a doc read-only for a tab built
- * against an older manifest, which would delete the blocks it does not know
- * (oneCamp collaboration-service schemaGate.js).
+ * editor was made with and this tab's key. The server opens a doc read-only
+ * for a tab built against an older manifest, which would delete the blocks it
+ * does not know (oneCamp collaboration-service schemaGate.js).
  */
 export function collabUrl(base: string): string {
   const url = base.trim()
   if (!url) return url
-  return `${url}${url.includes('?') ? '&' : '?'}schema=${SCHEMA_MANIFEST_HASH}`
+  return `${url}${url.includes('?') ? '&' : '?'}schema=${SCHEMA_MANIFEST_HASH}&tab=${collabTabKey()}`
 }
 
 /** The socket's timings, in ms (a table so a test can shorten them). */

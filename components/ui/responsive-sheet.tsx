@@ -5,7 +5,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer"
 import { noWords } from "@/components/ui/overlayWords"
-import { SHEET_FOOTER_ROW, SHEET_LINE } from "@/components/ui/sheetFrame"
+import { SHEET_FOOTER_ROW, SHEET_LINE } from "@/components/ui/sheetRows"
 
 /**
  * ResponsiveDialog on a phone (components/ui/responsive-dialog): the sheet's

@@ -3,6 +3,8 @@ import { expect, test, type Page, type Request, type TestInfo } from "@playwrigh
 import { LAYERED_SCRIM, footIsGutter, scrimOverLayerBelow, scrollsInItsBody, topScrimFill } from "./sheetLayout"
 import { reviewShot, stubBackend, withStatus } from "./stubbedApp"
 import { BUSY_LOOK, FIELD_LOOK, busyPrimaryLook, disabledPrimaryLook } from "./controlLook"
+import { animationsSettled } from "./settled"
+import { expectTouchSize } from "./touchTarget"
 
 // Calendar B8: a calendar in another app. Personal's menu offers Show in
 // another app; the dialog makes a link showing everything, gives it once
@@ -220,7 +222,7 @@ for (const theme of ["light", "dark"] as const) {
       // width on its bottom edge once it has risen, and its close in a finger's
       // reach. It sat centred with a gutter (DESIGN-BUILD-8).
       await expect(dialog).toHaveAttribute("data-v3-sheet", "")
-      await expect.poll(() => dialog.evaluate((el) => el.getAnimations().filter((a) => a.playState === "running").length)).toBe(0)
+      await animationsSettled(dialog)
       const box = (await dialog.boundingBox())!
       expect(box.width, "the screen's width").toBeGreaterThanOrEqual(389)
       expect(Math.abs(box.y + box.height - 844), "on the bottom edge").toBeLessThanOrEqual(1)
@@ -233,7 +235,7 @@ for (const theme of ["light", "dark"] as const) {
         const r = getComputedStyle(b, "::before")
         return Math.min(parseFloat(r.width) || 0, parseFloat(r.height) || 0)
       })
-      expect(reach, "Close under a finger").toBeGreaterThanOrEqual(44)
+      expectTouchSize(reach, "Close under a finger")
       await shot(page, "b8-feed-phone", theme)
     })
   })

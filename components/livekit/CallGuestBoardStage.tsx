@@ -19,7 +19,7 @@ import { GuestBoardViewer } from "@/components/guest/GuestBoardViewer"
 import { publicCall } from "@/services/publicApi"
 import { asGuest } from "./callLevels"
 import type { CallBoard } from "./callState"
-import { STAGE_BOARD_FRAME, boardBarClass, useBoardCompact, useToolRowEdgeFade } from "./boardFrame"
+import { STAGE_BOARD_FRAME, boardBarClass, useBoardCompact } from "./boardFrame"
 import { STAGE_OVERLAY } from "./callSurface"
 import { StageSlides, useStageSlide } from "./stageSlides"
 
@@ -57,8 +57,6 @@ export default function CallGuestBoardStage({
   // row, so the pills get a row of their own above it.
   const frameRef = React.useRef<HTMLDivElement>(null)
   const compact = useBoardCompact(frameRef)
-  // A drawing guest's phone tool row scrolls and fades as the member's does (CallBoardStage).
-  useToolRowEdgeFade(frameRef)
   // The room's slide: the guest's camera follows it too.
   const [scene, setScene] = React.useState<{ api: ExcalidrawImperativeAPI; doc: Y.Doc } | null>(null)
   const onApiReady = React.useCallback((api: ExcalidrawImperativeAPI, doc: Y.Doc) => setScene({ api, doc }), [])

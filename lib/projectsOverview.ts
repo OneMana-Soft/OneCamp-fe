@@ -5,6 +5,7 @@
  * project's name counts them (projectGlance). Pure, for its test.
  */
 
+import type { ProjectPlan } from "@/lib/work/projectPlan"
 import { healthOf, type Health } from "@/lib/projectUpdates"
 import type { ProjectGlance } from "@/lib/utils/projectGlance"
 
@@ -24,6 +25,8 @@ export interface ProjectOverview {
   /** The days its tasks run across, for the projects' timeline; none without dated tasks. */
   first_day?: string
   last_day?: string
+  /** Its plan (linear-15): lead, dates, priority, status and labels. */
+  plan?: ProjectPlan | null
 }
 
 export type OverviewSort = "name" | "attention" | "progress" | "updated"

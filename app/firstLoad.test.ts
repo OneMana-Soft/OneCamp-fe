@@ -183,11 +183,21 @@ describe("a project's first screen", () => {
     expect(bytes, `the project route reaches ${bytes} bytes of source (ceiling ${PROJECT_ROUTE_SOURCE_CEILING})`).toBeLessThanOrEqual(PROJECT_ROUTE_SOURCE_CEILING)
   })
 
-  // A new chunk that reaches the shared core re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13).
+  // A new chunk that reaches the shared core re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13). ONE allowance,
+  // no wildcard (main, 2 Nov 21:3x, linear-15): the lead's picker reads the project's members as it opens, through
+  // hooks/useProjectMembers, which imports hooks/useFetch. useFetch, axiosInstance, use-toast and swr are already on
+  // the project page's first load, so the chips reaching them by that one path add no module to the page's first-load
+  // group (the head's shipped gzip table: untouched routes flat). Every other path in is refused.
+  const PLAN_CHIPS_CORE_PATH = { file: "hooks/useFetch.ts", importer: "hooks/useProjectMembers.ts" }
   it("keeps the plan's chips and pickers off the shared core: the row hands them the plan, the save and the words", () => {
-    const { files, packages } = walk(["components/project/ProjectPlanChips.tsx", "components/project/ProjectPlanPickers.tsx"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    const entries = ["components/project/ProjectPlanChips.tsx", "components/project/ProjectPlanPickers.tsx"]
+    const allowed = (file: string, importer: string) => file === PLAN_CHIPS_CORE_PATH.file && importer === PLAN_CHIPS_CORE_PATH.importer
+    const { files, packages } = walk(entries, { follow: (file: string, importer: string) => !allowed(file, importer) }) as { files: Map<string, string | null>; packages: Array<[string, string]> }
     expect(["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts"].filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
     expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/)/.test(spec))).toEqual([])
+    // The allowance is that one path, from the lead's picker, and lapses with it.
+    const whole = walk(entries).files as Map<string, string | null>
+    expect(chainOf(whole, PLAN_CHIPS_CORE_PATH.file)).toBe("hooks/useFetch.ts <- hooks/useProjectMembers.ts <- components/project/ProjectPlanChips.tsx")
   })
 })
 
@@ -338,6 +348,8 @@ const TABLE_LAZY = [
   "components/combobox/userComboboxItem.tsx",
   "components/table/rules/RuleMenus.tsx",
   "components/table/ShareTableDialog.tsx",
+  // V-170: changing who edits is Share's Who can edit's one call, so it comes with that dialog.
+  "services/tableEditingService.ts",
   "components/ui/dialog.tsx",
   "lib/tables/csv.ts",
   "lib/tables/formulaCatalogue.ts",
@@ -377,6 +389,11 @@ const TABLE_LAZY = [
   "components/table/cleanup/CleanupDialog.tsx",
   "lib/tables/transform.ts",
   "lib/tables/viewRows.ts",
+  // airtable-04: the table's keys, bound as their chunk comes (before the
+  // rows), and the palette's switchers, offered once theirs has.
+  "lib/tables/tableKeys.ts",
+  "components/table/tablePalette.ts",
+  "lib/tables/cellsWrite.ts",
 ]
 /**
  * G1's range piece (31 Oct 2026). A NEW lazy chunk that imports what other
@@ -734,6 +751,24 @@ describe("a green room's first load", () => {
         return packages.filter(([spec]) => livekit.test(spec)).map(([spec, file]) => `${room}: ${spec}: ${chainOf(files, file)}`)
       }),
     ).toEqual([])
+  })
+})
+
+// The projects overview's first screen (head 2c, 1 Nov 2026): it opens on the table, and its Timeline view was on
+// its first load too, 20 KB of source with what it brings. Timeline and Cycles are chunks of their own.
+describe("the projects overview's first screen", () => {
+  it("loads the table only: the Timeline and Cycles views are chunks of their own", () => {
+    const reached = reach("app/app/project/page.tsx")
+    const views = ["components/project/ProjectsTimeline.tsx", "components/work/RunningCycles.tsx"]
+    expect(views.filter((f) => reached.has(f)).map((f) => chainOf(reached, f))).toEqual([])
+  })
+
+  // A new chunk that reaches the shared core re-cuts every route's chunks (LEAD-RULES, 30 Oct 00:13 and 20:5x).
+  it("keeps the Timeline view off the shared core: the overview hands it the projects and their milestones", () => {
+    const { files, packages } = walk(["components/project/ProjectsTimeline.tsx"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    const core = ["lib/axiosInstance.ts", "hooks/useFetch.ts", "hooks/use-toast.ts", "components/ui/error-state.tsx", "components/ui/empty-state.tsx", "components/ui/graphics/index.ts"]
+    expect(core.filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/|sonner)/.test(spec))).toEqual([])
   })
 })
 

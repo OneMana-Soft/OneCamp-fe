@@ -161,6 +161,7 @@ export function WebEmbedView({ node, editor, selected, updateAttributes, getPos 
       >
         {online ? (
           <iframe
+            data-node-media
             src={embed.src}
             title={`${embed.name} embed`}
             sandbox={embed.sandbox}

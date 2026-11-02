@@ -13,6 +13,8 @@ import { usePost } from "@/hooks/usePost";
 import TaskCreateForm from "@/components/task/taskCreateForm";
 import { taskMadeReply, type TaskDraft, type TaskSource } from "@/lib/task/messageToTask";
 import { useTaskAddress } from "@/hooks/useTaskAddress";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/store/store";
 
 interface createTaskDialogProps {
   dialogOpenState: boolean;
@@ -44,6 +46,9 @@ const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
   const post = usePost();
   // A link's fields are placed before the dialog opens, so the form starts from them.
   const { ready, address: named } = useTaskAddress(address ?? "");
+  // Alt+C (or Alt+click on New task) opens on the template picker. Read here,
+  // not passed down, so the manager that sits on every page stays as it is.
+  const pickTemplate = useSelector((s: RootState) => !!s.ui.createTask.data?.pickTemplate);
   const { toast } = useToast();
   const fromLine = !fromMessage
     ? undefined
@@ -97,6 +102,7 @@ const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
           address={named}
           assignToMe={assignToMe}
           defaultProjectId={projectId}
+          pickTemplate={pickTemplate}
           renderNameHint={renderNameHint}
           onCreated={fromMessage ? replyUnderMessage : undefined}
           onSuccess={() => setOpenState(false)}

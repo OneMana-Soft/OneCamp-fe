@@ -33,10 +33,10 @@ interface RootUIState {
   // A template to start from, when one was chosen before it opened.
   createProject: SingleUIState<{ templateId?: string } | null>;
   createTeam: SingleUIState;
-  // Set when the task is being made from a message; null for a blank task.
-  // From a message (draft + source), from My Tasks (assignToMe), from a
-  // project (projectId, preselected), or from a link (address, its query).
-  createTask: SingleUIState<{ draft?: TaskDraft; source?: TaskSource; assignToMe?: boolean; projectId?: string; address?: string } | null>;
+  // From a message (draft + source), My Tasks (assignToMe), a project
+  // (projectId), a link (address, its query) or Alt+C (pickTemplate);
+  // null for a blank task.
+  createTask: SingleUIState<{ draft?: TaskDraft; source?: TaskSource; assignToMe?: boolean; projectId?: string; address?: string; pickTemplate?: boolean } | null>;
   createDoc: SingleUIState;
   // One right sheet for a channel (design v3 chat, C49): About, members, agents,
   // guests, notifications, settings and the danger zone.

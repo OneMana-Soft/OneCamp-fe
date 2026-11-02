@@ -1,4 +1,5 @@
 import { expect, type Locator } from "@playwright/test"
+import { expectTouchSize } from "./touchTarget"
 
 /**
  * A board's tool row (Excalidraw's .App-toolbar): every tool and the More-tools
@@ -19,5 +20,5 @@ export async function expectToolsInLine(board: Locator, touch: boolean) {
   const tools = boxes.filter((b) => !b.more)
   expect(tools.length, "the row's tools").toBeGreaterThan(3)
   expect(tools.map((t) => Math.round(Math.abs(t.mid - more.mid))), "each tool's centre against the trigger's").toEqual(tools.map(() => 0))
-  if (touch) expect(more.height, "the trigger's height on a touch phone").toBeGreaterThanOrEqual(44)
+  if (touch) expectTouchSize(more.height, "the trigger's height on a touch phone")
 }

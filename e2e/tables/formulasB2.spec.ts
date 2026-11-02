@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 import { footIsGutter } from "../sheetLayout"
 import { SAM } from "../stubbedApp"
 import { TableServer } from "./tableServer"
+import { expectTouchSize } from "../touchTarget"
 
 // Tables B2 (T4b): a formula's or a rollup's result in its format (currency,
 // a duration, how long ago), the format chosen from the column's menu, a
@@ -292,7 +293,7 @@ for (const phone of [false, true]) {
       await expect(button).toBeVisible()
       if (phone) {
         const box = (await button.boundingBox())!
-        expect(box.height).toBeGreaterThanOrEqual(44)
+        expectTouchSize(box.height)
         expect(box.width).toBeGreaterThanOrEqual(390 - 2 * 16 - 1)
         // Its foot is its gutter, never under 16px: the one rule for every phone sheet (V-73).
         await footIsGutter(card, "a broken cell's card")

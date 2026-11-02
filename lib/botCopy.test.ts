@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { BOT_PROFILE_COPY, type BotKind, botProfileCopy, botSubtitle, isAIBot } from "./botCopy"
+import { AGENT_PEER_LINE, AGENT_ROLE, BOT_PROFILE_COPY, type BotKind, botProfileCopy, botSubtitle, isAgentPeer, isAIBot, mayCallPeer } from "./botCopy"
 
 const KINDS = Object.keys(BOT_PROFILE_COPY) as BotKind[]
 
@@ -56,5 +56,24 @@ describe("botProfileCopy", () => {
         expect(botSubtitle("checkin")).toBe(BOT_PROFILE_COPY.checkin.subtitle)
         expect(botSubtitle(undefined)).toBe(BOT_PROFILE_COPY.bot.subtitle)
         expect(botSubtitle("bridge")).not.toMatch(/AI/)
+    })
+})
+
+// V-126: one rule for a DM's other on a computer and a phone.
+describe("a DM's other, by one rule", () => {
+    it("is an agent when it is a bot, by class", () => {
+        expect(isAgentPeer({ is_bot: true })).toBe(true)
+        for (const p of [{ is_bot: false }, {}, null, undefined]) expect(isAgentPeer(p)).toBe(false)
+    })
+
+    it("offers a huddle or a call with a known person only", () => {
+        expect(mayCallPeer({ is_bot: false })).toBe(true)
+        expect(mayCallPeer({})).toBe(true)
+        for (const p of [{ is_bot: true }, null, undefined]) expect(mayCallPeer(p)).toBe(false)
+    })
+
+    it("says an agent's role in the same words on both: the phone's is the line's start", () => {
+        expect(AGENT_PEER_LINE).toBe("Acts for you · can do only what you can")
+        expect(AGENT_PEER_LINE.startsWith(`${AGENT_ROLE} · `)).toBe(true)
     })
 })

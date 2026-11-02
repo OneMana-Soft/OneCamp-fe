@@ -40,7 +40,7 @@ import type { UserProfileInterface } from "@/types/user"
 import type { CallAct } from "./callHosting"
 import { asGuest } from "./callLevels"
 import type { CallBoard } from "./callState"
-import { STAGE_BOARD_FRAME, boardBarClass, useBoardCompact, useToolRowEdgeFade } from "./boardFrame"
+import { STAGE_BOARD_FRAME, boardBarClass, useBoardCompact } from "./boardFrame"
 import { CALL_SURFACE, STAGE_OVERLAY } from "./callSurface"
 import { StageSlides, useStageSlide } from "./stageSlides"
 
@@ -107,8 +107,6 @@ export default function CallBoardStage({
   // row, so the pills get a row of their own above it.
   const frameRef = React.useRef<HTMLDivElement>(null)
   const compact = useBoardCompact(frameRef)
-  // A phone's tool row scrolls inside the frame, and fades as every strip does.
-  useToolRowEdgeFade(frameRef)
   // The room's slide: everyone's camera follows it.
   const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null)
   const slide = board.slide ?? ""

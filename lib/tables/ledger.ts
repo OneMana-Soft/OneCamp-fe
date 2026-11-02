@@ -9,6 +9,7 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { TablesGet, TablesPost } from "@/services/endpoints/tables"
 import type { DataTable, TableField, TableRow } from "@/services/tableService"
 import type { ActorKind, ChangeKind } from "@/lib/tables/types"
+import type { SetOf, UndoOrder } from "@/lib/tables/undoOrder"
 
 // The most rows one batch writes is lib/tables/batchLimit's BATCH_MAX.
 
@@ -30,7 +31,8 @@ export interface BatchInput {
 
 /** What a batch wrote. */
 export interface BatchResult {
-  change_set: string
+  /** The change set it stored: null when it changed nothing (V-360). */
+  change_set: string | null
   created: TableRow[]
   updated: TableRow[]
   deleted: string[]
@@ -40,6 +42,21 @@ export interface BatchResult {
 export async function batchRows(tableId: string, input: BatchInput, own = false): Promise<BatchResult> {
   const res = await axiosInstance.post(`${TablesPost.BatchTableRows}/${tableId}/rows/batch`, input, own ? OWN_ERRORS : undefined)
   return res.data?.data as BatchResult
+}
+
+/** The change set a row write's answer names, as the undo order reads it by default. */
+const changeSetOf = (a: unknown) => (a as { change_set?: string | null } | undefined)?.change_set
+
+/**
+ * A write in the table's undo order whose toast offers its Undo (a delete, a duplicate, a clean-up, a replace): its
+ * answer, and the change set that toast takes back. None when it stored nothing, or when an Undo pressed while it was
+ * on its way took it already: a second Undo of it answers 409 (V-381; a range's write offers none then either).
+ * setOf reads the set for the order and the toast alike.
+ */
+export async function undoableWrite<T>(write: UndoOrder["write"], what: string, send: () => Promise<T>, setOf: SetOf<T> = changeSetOf): Promise<{ answer: T; set: string | null }> {
+  let taken = false
+  const answer = await write(what, send, setOf, () => void (taken = true))
+  return { answer, set: taken ? null : (setOf(answer) ?? null) }
 }
 
 /** Moves rows next to another, in the order given: one change set. */

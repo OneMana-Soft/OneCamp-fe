@@ -139,6 +139,7 @@ export function TableGallery({
   rows,
   count,
   tail = 0,
+  from = 0,
   hues,
   edits,
   onOpen,
@@ -149,16 +150,17 @@ export function TableGallery({
   fields: TableField[]
   /** The fields the view hides: no card names them. */
   hidden?: readonly string[]
-  /** The view's rows read, from its first, then its last `tail` rows, added here. */
+  /** The view's rows read, from place `from`, then its last `tail` rows, added here. */
   rows: TableRow[]
   /** How many rows the view has, read or not: rows' own length unless it reads in windows. */
   count?: number
   tail?: number
+  from?: number
   hues?: ReadonlyMap<string, CampHue> | null
   edits: ReadonlyMap<string, RowEdits>
   onOpen: (rowId: string) => void
-  /** The gallery nears the last row read, or passes it: the place of the last row in sight. */
-  onNearEnd?: (last: number) => void
+  /** Near or past a row not read: the places of the last and first rows in sight. */
+  onNearEnd?: (last: number, first?: number) => void
   empty?: React.ReactNode
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -177,11 +179,17 @@ export function TableGallery({
   const total = count ?? rows.length
   const lines = Math.ceil(total / cols)
   const read = rows.length - tail
-  const nearEnd = React.useCallback((lastLine: number) => onNearEnd?.(Math.min(total - 1, lastLine * cols + cols - 1)), [onNearEnd, total, cols])
+  // The lines read: those of the places from `from`, as far as the rows read go.
+  const fromLine = Math.floor(from / cols)
+  const nearEnd = React.useCallback(
+    (lastLine: number, firstLine: number) => onNearEnd?.(Math.min(total - 1, lastLine * cols + cols - 1), Math.min(total - 1, firstLine * cols)),
+    [onNearEnd, total, cols],
+  )
   const { items, padTop, padBottom } = useViewWindow({
-    given: Math.ceil(read / cols),
+    given: Math.ceil((from + read) / cols) - fromLine,
     count: lines,
     tail: 0,
+    from: fromLine,
     rowPx: CARD_PX + GAP_PX,
     scrollRef,
     overscan: 2,
@@ -204,7 +212,7 @@ export function TableGallery({
           <ul key={line} aria-label={line === 0 ? "Gallery" : undefined} className="grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: GAP_PX, marginBottom: GAP_PX }}>
             {Array.from({ length: Math.min(cols, total - line * cols) }, (_, k) => {
               const place = line * cols + k
-              const row = rows[rowAtPlace(place, rows.length, total, tail)]
+              const row = rows[rowAtPlace(place, rows.length, total, tail, from)]
               if (!row) return cardPlaceholder(place)
               return <Card key={row.id} tableId={tableId} row={row} place={place} count={total} look={look} onOpen={onOpen} edits={edits.get(row.id)} hue={hues?.get(row.id)} />
             })}

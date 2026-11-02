@@ -5,7 +5,9 @@
  * how they are here (B8): moss while active, a hollow amber ring after 2
  * minutes idle, and the face's name says Editing, Viewing or Idle. The stack
  * opens "Here now" (presence/PresenceList, loaded on first open): Jump to and
- * Follow, by awareness client, never by name (N50).
+ * Follow, by awareness client, never by name (N50). A board's raised hand
+ * (miro-24) is a chip on the face, said in its name, first raised first; faces
+ * carry their tabs, and the "+3" those it hides, for reactions to rise from.
  */
 "use client"
 
@@ -19,7 +21,7 @@ import { AgentAvatar } from "@/components/ui/graphics"
 import { identityPerson } from "@/lib/identityHue"
 import { avatarSeed } from "@/lib/utils/getAvatarColor"
 import { useDocBus } from "@/components/docEditor/registry/docBusContext"
-import { stateOf, usePresence } from "@/components/docEditor/presence/store"
+import { stateOf, usePresence, type PresencePerson } from "@/components/docEditor/presence/store"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 export interface ActiveUser {
@@ -45,12 +47,22 @@ const FACE = 24
 const loadList = () => import("@/components/docEditor/presence/PresenceList")
 const PresenceList = lazyPiece(loadList)
 
-function Face({ user, state }: { user: ActiveUser; state?: string }) {
+/** A raised hand's badge, on a face or on the "+3" that hides one. */
+const HandBadge = () => (
+    <span aria-hidden="true" data-presence-hand="" className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-sm bg-pop text-3xs leading-none shadow-e1">
+        ✋
+    </span>
+)
+
+function Face({ user, person }: { user: ActiveUser; person?: PresencePerson }) {
     const { src } = useUserAvatar(user.profileKey)
+    const state = stateOf(person, user.mode)
+    const label = [user.name, state, person?.hand && "hand raised"].filter(Boolean).join(", ")
     return (
         <span
             role="img"
-            aria-label={state ? `${user.name}, ${state}` : user.name}
+            aria-label={label}
+            data-presence-client={person?.clients.join(" ")}
             data-agent={user.agent || undefined}
             className={cn(
                 "content-pop-in relative inline-flex size-6 ring-2 ring-sheet transition-transform duration-[140ms] ease-out group-hover/stack:-translate-y-0.5 motion-reduce:transform-none",
@@ -67,6 +79,7 @@ function Face({ user, state }: { user: ActiveUser; state?: string }) {
             )}
             {/* The app's presence dot (design v3 §3.9): a disc, or a hollow sun ring when away. */}
             <span aria-hidden="true" data-presence-status={state === "idle" ? "idle" : "here"} data-presence={state === "idle" ? "away" : "online"} className="presence-dot" />
+            {person?.hand && <HandBadge />}
         </span>
     )
 }
@@ -87,15 +100,15 @@ export function ActiveUsersBar({ users, maxShown = 4, className }: ActiveUsersBa
     // and keeps its room (split view's design verdict, 20 Oct: three of your
     // own faces at 1440). The list still names you, last.
     const self = presence?.self
-    const others = uniqueUsers.filter((u) => u.id !== self)
+    // Raised hands first, first raised first, so the "+3" never hides one.
+    const raised = (u: ActiveUser) => presence?.people[u.id]?.hand?.raisedAt ?? Infinity
+    const others = uniqueUsers.filter((u) => u.id !== self).sort((a, b) => raised(a) - raised(b) || 0)
     if (others.length === 0) return null
 
     const shown = others.slice(0, maxShown)
-    const remaining = others.length - maxShown
-    const remainingNames = others
-        .slice(maxShown)
-        .map((u) => u.name)
-        .join(", ")
+    const hidden = others.slice(maxShown)
+    const remaining = hidden.length
+    const remainingNames = hidden.map((u) => u.name).join(", ")
     const names = others.map((u) => u.name).join(", ")
 
     return (
@@ -116,15 +129,17 @@ export function ActiveUsersBar({ users, maxShown = 4, className }: ActiveUsersBa
                             )}
                         >
                             {shown.map((user) => (
-                                <Face key={user.id} user={user} state={stateOf(presence?.people[user.id], user.mode)} />
+                                <Face key={user.id} user={user} person={presence?.people[user.id]} />
                             ))}
                             {remaining > 0 && (
                                 <span
                                     role="img"
                                     aria-label={`${remaining} more: ${remainingNames}`}
+                                    data-presence-client={hidden.flatMap((u) => presence?.people[u.id]?.clients ?? []).join(" ") || undefined}
                                     className="relative flex size-6 items-center justify-center rounded-full bg-sunken text-micro font-semibold tabular-nums text-ink-2 ring-2 ring-sheet"
                                 >
                                     +{remaining}
+                                    {hidden.some((u) => presence?.people[u.id]?.hand) && <HandBadge />}
                                 </span>
                             )}
                         </button>

@@ -23,11 +23,7 @@ vi.mock("@/components/board/boardCanvas", () => ({
     useEffect(() => {
       if (canvasApi) onApiReady?.(canvasApi as never)
     }, [onApiReady])
-    return (
-      <div data-canvas={boardId} data-editable={String(editable)} data-theme={theme} data-opens-at={opensAt}>
-        <div className="Island App-toolbar App-toolbar--mobile" data-testid="tool-row" />
-      </div>
-    )
+    return <div data-canvas={boardId} data-editable={String(editable)} data-theme={theme} data-opens-at={opensAt} />
   },
 }))
 
@@ -70,11 +66,9 @@ describe("the board on a call's stage", () => {
   })
 
   // DESIGN-BUILD-24 on a phone: the canvas's tool row is wider than the frame,
-  // so it scrolls, and it fades as every strip does (data-edge-fade).
-  it("marks the canvas's phone tool row as a strip that scrolls", () => {
-    render(stage())
-    expect(screen.getByTestId("tool-row")).toHaveAttribute("data-edge-fade", "")
-  })
+  // so it scrolls and fades as every strip does. Every board's row does now,
+  // a call's stage among them: the canvas every board draws through marks it
+  // (components/board/toolRow.test.tsx).
 
   it("puts its pills over the board's top corners, or in a row of their own while its tools take that row", () => {
     const size = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")

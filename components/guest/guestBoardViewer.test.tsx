@@ -2,6 +2,7 @@ import * as React from "react"
 import * as Y from "yjs"
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
+import { followView } from "@/lib/board/viewport"
 
 // The shared board's canvas loads in two steps (the live connection, then the
 // drawing library), and each showed a spinner in the middle of an empty page.
@@ -51,6 +52,9 @@ let collab: { provider: { document: Y.Doc; awareness?: FakeAwareness } | null; s
 const asked: unknown[] = []
 vi.mock("@/hooks/useCollaborationProvider", () => ({ useCollaborationProvider: (c: unknown) => (asked.push(c), collab) }))
 vi.mock("@excalidraw/excalidraw/index.css", () => ({}))
+// The toasts the board says (the page's one Toaster draws them; here they are kept).
+const toasts = vi.hoisted(() => [] as Record<string, unknown>[])
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: (t: Record<string, unknown>) => void toasts.push(t) }) }))
 // The app's theme as it resolves (next-themes): a share link's canvas follows it.
 let appTheme: string | undefined = "light"
 vi.mock("next-themes", () => ({ useTheme: () => ({ resolvedTheme: appTheme }) }))
@@ -64,8 +68,9 @@ const api = {
   addFiles: vi.fn(),
   scrollToContent: vi.fn(),
   // Scrolled 100 right and 50 down, at 2x: a pointer at board (5, 6) is on screen at (210, 112).
-  getAppState: () => ({ scrollX: 100, scrollY: 50, zoom: { value: 2 }, isLoading: loading }),
+  getAppState: () => ({ scrollX: 100, scrollY: 50, zoom: { value: 2 }, width: 800, height: 600, isLoading: loading }),
   onScrollChange: () => () => {},
+  onChange: () => () => {},
 }
 let canvas: Record<string, unknown> = {}
 vi.mock("next/dynamic", () => ({
@@ -295,5 +300,83 @@ describe("a call's guest and the room's slide", () => {
     const ready = vi.fn()
     render(viewer({ onApiReady: ready }))
     await waitFor(() => expect(ready).toHaveBeenCalledWith(api, doc))
+  })
+})
+
+// A share link's guest is brought and held (miro-21; main 17:3x): they never present, hold or bring, but a presenter's
+// view takes them along, fitted to their screen; a hold keeps them there with no way to stop; a bring moves them once,
+// with a way back. Only an editor's presenting or bring counts, as for members. A call's guest follows the call's slides.
+describe("a share link's guest, brought and held", () => {
+  const VIEW = { scrollX: -400, scrollY: -200, zoom: 2, width: 390, height: 700 }
+  /** The camera that shows `view` on this 800 x 600 canvas, as followScene writes it. */
+  const fitted = (view: typeof VIEW) => {
+    const f = followView(view, { width: 800, height: 600 })
+    return { scrollX: f.scrollX, scrollY: f.scrollY, zoom: { value: f.zoom } }
+  }
+  /** Ann as the relay stamps her (an editor unless said), with whatever her tab says. */
+  const ann = (more: Record<string, unknown> = {}, edit = true) => ({ user: { id: "u-ann", name: "Ann Lee", edit }, ...more })
+  const presenting = (hold = false, edit = true) => ann({ presenting: { userId: "u-ann", name: "Ann Lee", view: VIEW, hold } }, edit)
+  const open = async (more: Partial<React.ComponentProps<typeof GuestBoardViewer>> = {}, before?: (a: FakeAwareness) => void) => {
+    const awareness = new FakeAwareness()
+    before?.(awareness)
+    collab = { provider: { document: new Y.Doc(), awareness }, synced: true, readOnly: true }
+    render(viewer(more))
+    await waitFor(() => expect(canvas.excalidrawAPI).toBeTruthy())
+    return awareness
+  }
+  const moved = (view: typeof VIEW) => api.updateScene.mock.calls.some(([scene]) => JSON.stringify(scene) === JSON.stringify({ appState: fitted(view) }))
+  const settle = () => act(() => new Promise<void>((done) => setTimeout(done, 50)))
+  afterEach(() => {
+    toasts.length = 0
+  })
+
+  it("is taken to a presenter's view, fitted to this screen, and says so with a way to stop", async () => {
+    const awareness = await open()
+    act(() => awareness.remote(4, presenting()))
+    await waitFor(() => expect(moved(VIEW)).toBe(true))
+    expect(screen.getByText("Following Ann Lee")).toBeTruthy()
+    act(() => screen.getByRole("button", { name: "Stop" }).click())
+    expect(screen.queryByText("Following Ann Lee")).toBeNull()
+  })
+
+  it("held, has no way to stop, and says it is held", async () => {
+    const awareness = await open()
+    act(() => awareness.remote(4, presenting(true)))
+    await waitFor(() => expect(screen.getByText("Following Ann Lee")).toBeTruthy())
+    expect(moved(VIEW)).toBe(true)
+    expect(screen.getByText("· held")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull()
+  })
+
+  it("never follows a presenting from someone the relay doesn't stamp an editor", async () => {
+    const awareness = await open()
+    act(() => awareness.remote(4, presenting(false, false)))
+    await settle()
+    expect(moved(VIEW)).toBe(false)
+    expect(screen.queryByText("Following Ann Lee")).toBeNull()
+  })
+
+  it("is brought once to an editor's bring, with a way back, and never to one made before it opened", async () => {
+    const before = { ...VIEW, scrollX: -9 }
+    const awareness = await open({}, (a) => a.remote(5, ann({ bring: { id: "old", view: before } })))
+    await settle()
+    expect(moved(before), "a bring made before this tab opened").toBe(false)
+    act(() => awareness.remote(4, ann({ bring: { id: "b1", view: VIEW } })))
+    await waitFor(() => expect(moved(VIEW)).toBe(true))
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]).toMatchObject({ title: "Ann Lee brought everyone here" })
+    const calls = api.updateScene.mock.calls.length
+    act(() => awareness.remote(4, ann({ bring: { id: "b1", view: VIEW } })))
+    expect(api.updateScene.mock.calls.length, "once").toBe(calls)
+  })
+
+  it("on a call's stage follows the call's slides, never a presenter or a bring", async () => {
+    const awareness = await open({ user: { id: "guest-p1", name: "Priya (guest)" } })
+    act(() => awareness.remote(4, presenting(true)))
+    act(() => awareness.remote(5, ann({ bring: { id: "b2", view: VIEW } })))
+    await settle()
+    expect(moved(VIEW)).toBe(false)
+    expect(screen.queryByText("Following Ann Lee")).toBeNull()
+    expect(toasts).toHaveLength(0)
   })
 })

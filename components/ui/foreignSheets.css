@@ -1,0 +1,183 @@
+/* A third-party overlay as the app's sheet (components/ui/foreignSheets).
+   Its root carries data-foreign-sheet=<detent> only while useSheetMode holds,
+   and is laid as the shared Drawer lays a sheet: on the bottom edge at the
+   screen's width (640 at most, a phone held sideways), the pop surface at e4,
+   r20 top corners, a grabber, and a scrim, which is the sheet's own shadow:
+   a tap on it is a tap outside the overlay, which closes it as the library
+   closes it anywhere. The library places its overlays with inline styles and
+   its own rules, so the box's geometry is !important, and the rise runs on
+   `translate`, which nothing else sets.
+   The sheet makes its own entrance, and the library's goes: a box whose
+   entrance holds a transform at its end (Excalidraw's dialogs fade in from a
+   scale, filling forwards) stays, in Chromium, the containing block of what
+   is fixed inside it, even under transform: none, so its pinned row of
+   actions would scroll away with what it holds; and a box the library draws
+   at nothing until its entrance ends (opacity 0) is drawn whole. */
+[data-foreign-sheet] {
+  position: fixed !important;
+  inset: auto 0 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 640px !important;
+  max-height: 92dvh !important;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  border: 0 !important;
+  border-radius: var(--r-sheet, 20px) var(--r-sheet, 20px) 0 0 !important;
+  background: var(--pop) !important;
+  box-shadow: var(--e4), 0 0 0 100vmax rgb(10 11 14 / 0.32) !important;
+  z-index: var(--z-modal) !important;
+  padding-bottom: var(--foreign-sheet-actions, env(safe-area-inset-bottom)) !important;
+  animation: none !important;
+  opacity: 1 !important;
+}
+.dark [data-foreign-sheet] {
+  box-shadow: var(--e4), 0 0 0 100vmax rgb(0 0 0 / 0.55) !important;
+}
+/* The library's own layer that holds a docked sheet (data-foreign-sheet-lift:
+   a box with a z-index of its own, as Excalidraw's top bar at 4) rises to the
+   sheet's layer while it holds one, so the page's chrome (a board's buttons at
+   20) is under the sheet and its scrim, as under the app's own sheets. */
+[data-foreign-sheet-lift]:has([data-foreign-sheet]) {
+  z-index: var(--z-modal) !important;
+}
+/* A strip that fades its edges (app/interaction.css: data-edge-fade and
+   data-edge-fade-block) fades them with a mask, and a mask clips all its box
+   holds, a docked sheet too: More tools' sheet, docked inside a phone's tool
+   row, stood on the screen's foot drawn only within the row, and a finger met
+   the board under it (miro-40 H1). While it holds a docked sheet, the strip
+   doesn't fade: the sheet's scrim lies over it anyway. */
+[data-edge-fade]:has([data-foreign-sheet]),
+[data-edge-fade-block]:has([data-foreign-sheet]) {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+/* What the root held as its own box (a menu's island), and a popover's
+   surface, lie flat in the sheet, in its flow and at its width. A library
+   sizes and places them to float: Excalidraw stands a long press's menu off
+   the pointer by a margin (2px, and -4px on top), sizes its colour picker's
+   island at 208px and its font list's at 15rem, and lays its arrowheads'
+   picker out of flow (position: absolute), so that sheet held nothing and
+   showed only its grabber (DB-93's F1 and F2, miro-40 H1). A popper's
+   content (data-side: the side of what opened it that it floats on, as
+   Radix marks it) holds its surface first, and the surface keeps the
+   sheet's 16px gutter. */
+[data-foreign-sheet] > :only-child,
+[data-foreign-sheet] > [data-side] > :first-child {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+[data-foreign-sheet] > [data-side] > :first-child {
+  position: relative !important;
+  inset: auto !important;
+  padding-inline: 16px !important;
+}
+/* A row or a grid of buttons a docked popover holds (a colour picker's
+   swatches, the arrowheads) spreads across the sheet's width, its first and
+   last on the gutters. */
+[data-foreign-sheet] > [data-side] :has(> button):not(:has(> :not(button))) {
+  justify-content: space-between !important;
+}
+[data-foreign-sheet="half"] {
+  height: max(50dvh, 20rem) !important;
+}
+[data-foreign-sheet="large"] {
+  height: 92dvh !important;
+}
+[data-foreign-sheet="menu"] {
+  padding-top: 8px !important;
+}
+/* Its grabber, a 36x5 pill, is drawn in a band of its own on the sheet's top
+   edge (a transparent top border the sheet's colour fills), above what it
+   holds: it stays there while the sheet scrolls, and a library's flex row
+   never lays it beside what it holds (a link's editor had it at its left,
+   its field pushed 60px in; miro-40 H1). The pill is a bar from one round
+   end's centre to the other's (36 - 5 = 31px), and beyond each end a half
+   disc, centred on the edge of a 3px tile that meets the bar: a bar that
+   stops where the ends begin draws a dumbbell, and as the ink has alpha, a
+   layer drawn over another paints that strip twice (darker in light,
+   brighter in dark). Each end's tile sits a whole number of pixels from the
+   bar's, so a browser that snaps tiles to whole pixels moves all three
+   alike (Chromium put the bar at 180 for 179.5). */
+[data-foreign-sheet]:not([data-foreign-sheet="menu"]) {
+  border-top: 15px solid transparent !important;
+  background:
+    radial-gradient(circle 2.5px at right center, var(--line-3) calc(100% - 0.5px), transparent) calc(50% - 17px) 6px / 3px 5px no-repeat border-box,
+    radial-gradient(circle 2.5px at left center, var(--line-3) calc(100% - 0.5px), transparent) calc(50% + 17px) 6px / 3px 5px no-repeat border-box,
+    linear-gradient(var(--line-3), var(--line-3)) 50% 6px / 31px 5px no-repeat border-box,
+    var(--pop) !important;
+}
+/* Its row of actions is its footer, pinned at its foot over what scrolls, as
+   every phone sheet's footer (app/overlay.css 8b): fixed on the sheet's foot
+   at the sheet's width, its controls stood off that foot by 16px, or by the
+   home-indicator strip where the strip is more. A sticky row rises only
+   within the box that holds it, and a library nests its row where it likes:
+   Save as image's, last in Excalidraw's settings box, ran 6.4px past the
+   screen's foot at 390x664 (miro-40 H1). The sheet keeps the row's height
+   free under what it holds (--foreign-sheet-actions, measured by
+   dockForeignSheets), so what it holds scrolls clear of the row. */
+[data-foreign-sheet] [data-foreign-sheet-actions] {
+  position: fixed !important;
+  inset: auto 0 0 !important;
+  width: 100% !important;
+  max-width: 640px !important;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
+  padding: 12px 16px max(16px, var(--sheet-strip, env(safe-area-inset-bottom))) !important;
+  z-index: 1;
+  background: var(--pop);
+}
+/* The keyboard (app/phone.css C5c): the sheet stands on it and fits what is
+   left, its row of actions with it, and a half sheet whose field has it takes
+   all of that. */
+html[data-keyboard="open"] [data-foreign-sheet] {
+  bottom: calc(100% - var(--app-vv-top, 0px) - var(--app-vvh, 100%)) !important;
+  max-height: calc(var(--app-vvh, 100dvh) * 0.92) !important;
+  padding-bottom: var(--foreign-sheet-actions, 0px) !important;
+}
+html[data-keyboard="open"] [data-foreign-sheet] [data-foreign-sheet-actions] {
+  bottom: calc(100% - var(--app-vv-top, 0px) - var(--app-vvh, 100%)) !important;
+}
+html[data-keyboard="open"] [data-foreign-sheet="half"]:has(input:focus) {
+  height: calc(var(--app-vvh, 100dvh) * 0.92) !important;
+}
+/* Its fields draw their text at 16px or more under a finger (V-373): iOS
+   Safari zooms the page into a field whose text is smaller as it takes focus,
+   and zoomed in, the app stops fitting the sheet to the keyboard
+   (lib/ui/visualViewport reads a zoom as the person's), so the sheet stays
+   behind it. The app's own fields are 16px on a phone for the same reason
+   (app/layout.tsx); a library draws its own smaller (Excalidraw's link field
+   at .9rem, its colour code, font search and file name at .875rem). A field
+   is what brings up a keyboard (bringsUpKeyboard), and a select. A larger
+   size the field inherits stands (max). */
+@media (pointer: coarse) {
+  [data-foreign-sheet]
+    :is(
+      input:not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]),
+      textarea,
+      select,
+      [contenteditable]:not([contenteditable="false"])
+    ) {
+    font-size: max(16px, 1em) !important;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-foreign-sheet] {
+    animation: foreign-sheet-rise var(--t-sheet, 420ms) var(--ease-push, cubic-bezier(0.32, 0.72, 0, 1)) backwards !important;
+  }
+}
+@keyframes foreign-sheet-rise {
+  from {
+    translate: 0 100%;
+  }
+}

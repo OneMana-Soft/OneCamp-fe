@@ -39,7 +39,7 @@ import { PriorityGlyph, StatusGlyph } from "@/components/ui/graphics/glyphs";
 import { Switch } from "@/components/ui/switch";
 import { PriorityMenuContent, StatusMenuContent, menuSurface } from "@/components/task/StatusMenu";
 import { statusKindOf } from "@/components/task/taskStatusCell";
-import { priorityLevel } from "@/components/task/taskPriorityCell";
+import { priorityLevel } from "@/lib/tasks/priority";
 import { useProjectStatuses } from "@/hooks/useProjectStatuses";
 import { splitTags } from "@/lib/tags";
 import { formatDuration, parseWorkDuration } from "@/lib/tasks/time";
@@ -51,6 +51,12 @@ import type { TaskDraft } from "@/lib/task/messageToTask";
 import { lastTaskProject, rememberTaskProject, startingProject } from "@/lib/task/startingProject";
 import { myTaskAssignee } from "@/lib/task/myTaskAssignee";
 import type { PlacedAddress } from "@/lib/task/newTaskAddress";
+import { LeftOff, TemplateAsks, TemplateChip, TemplateNote, TypeChip, templateKit, type FieldAnswer } from "@/components/task/taskTemplateChips";
+import { toast } from "@/hooks/use-toast";
+import { OWN_ERRORS } from "@/lib/axiosInstance";
+import type { ProjectType } from "@/lib/work/keysApi";
+import type { Filled, Prefill, TaskTemplate, TemplateList } from "@/lib/work/taskTemplates";
+import { taskTemplatesPath } from "@/lib/work/taskTemplatesApi";
 
 type TaskCreateFormProps = {
   submitLabel?: string;
@@ -67,9 +73,23 @@ type TaskCreateFormProps = {
   assignToMe?: boolean;
   /** The project to start with, e.g. the one the person is looking at. */
   defaultProjectId?: string;
+  /** Open on the template picker (Alt+C on a project's list; linear-09). */
+  pickTemplate?: boolean;
 };
 
-const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create task", onSuccess, prefill, address, onCreated, renderNameHint, assignToMe: fromMyTasks, defaultProjectId }) => {
+// The form's own names for what a template fills (lib/work/taskTemplates Prefill), but the status, which is state.
+const FORM_KEYS = {
+  name: "task_name",
+  description: "task_description",
+  priority: "task_priority",
+  tags: "task_label",
+  assignee: "task_assignee_uuid",
+  start: "task_start_date",
+  due: "task_due_date",
+} as const satisfies Record<Exclude<keyof Prefill, "status">, keyof CreateTaskFormData>;
+const FILLS: (keyof Prefill)[] = ["name", "description", "priority", "tags", "status", "assignee", "start", "due"];
+
+const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create task", onSuccess, prefill, address, onCreated, renderNameHint, assignToMe: fromMyTasks, defaultProjectId, pickTemplate }) => {
   // A link's assignee=me is My Tasks' rule.
   const assignToMe = fromMyTasks || !!address?.toMe;
   const [popOpenProjectName, setPopOpenProjectName] = useState(false);
@@ -88,7 +108,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const [estimate, setEstimate] = useState(address?.estimate ?? "");
   // "Create more" keeps the dialog and its chips for the next task (W36).
   const [createMore, setCreateMore] = useState(false);
-  const [created, setCreated] = useState<{ taskUUID: string; name: string } | null>(null);
+  const [created, setCreated] = useState<{ taskUUID: string; name: string; leftOff?: string[] } | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
   
   const uploadFile = useUploadFile();
@@ -231,6 +251,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const { optimisticCreateTask, optimisticDeleteTask, revalidateTaskKeys } = useTaskUpdate();
 
   const handleCreateTask = async (data: CreateTaskFormData) => {
+    if (template && data.task_project_uuid) return makeFromChosen(data, data.task_project_uuid, template);
     const payload: CreateTaskInterface = {
       task_name: data.task_name,
       task_assignee_uuid: data.task_assignee_uuid,
@@ -255,34 +276,48 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
         payload,
       })
       .then((res) => {
-        dispatch(clearCreateTaskInputState());
         // Kept on this device with no network (lib/offline): the lists show
         // it under the id it waits under, so this row goes.
         const kept = madeOffline(res?.task_uuid);
         if (kept) optimisticDeleteTask(tempTask.task_uuid, data.task_project_uuid);
-        revalidateTaskKeys(data.task_project_uuid);
-        rememberTaskProject(data.task_project_uuid);
-        // A reply under the message would link a task only this device has yet.
-        if (res?.task_uuid && onCreated && !kept) onCreated({ taskUUID: res.task_uuid, name: data.task_name });
-        // An estimate has its own endpoint: set once the task exists.
-        const minutes = estimateMinutes(estimate);
-        if (res?.task_uuid && minutes) {
-          void post
-            .makeRequest({ apiEndpoint: PostEndpointUrl.UpdateTaskEstimate, payload: { task_uuid: res.task_uuid, task_estimate_minutes: minutes } })
-            .catch(() => undefined);
+        // A type other than Task is set once the task exists (a template's make sets its own).
+        const made = !kept && type?.builtin !== "task" && type ? res?.task_uuid : undefined;
+        if (made && type) {
+          const failed = () => toast({ variant: "destructive", title: `${type.name} wasn't set as its type`, description: "The task was made as a Task. Set its type on the task." });
+          void kit().then((k) => k?.setTaskType(made, type.id).catch(failed));
         }
-        if (createMore) {
-          // The title and description clear, the chips keep their values, and
-          // focus goes back to the title for the next one.
-          setValue("task_name", "", { shouldValidate: false });
-          setValue("task_description", "");
-          setDescriptionKey((k) => k + 1);
-          setCreated(res?.task_uuid ? { taskUUID: res.task_uuid, name: data.task_name } : null);
-          titleRef.current?.focus();
-          return;
-        }
-        if (onSuccess) onSuccess();
+        afterMade(res?.task_uuid, kept, data);
       });
+  };
+
+  // What follows a task made, plain or through a template (with what the
+  // project couldn't take of it); says whether the form stays open.
+  const afterMade = (taskUUID: string | undefined, kept: boolean, data: CreateTaskFormData, leftOff?: string[]): boolean => {
+    dispatch(clearCreateTaskInputState());
+    revalidateTaskKeys(data.task_project_uuid);
+    rememberTaskProject(data.task_project_uuid);
+    // A reply under the message would link a task only this device has yet.
+    if (taskUUID && onCreated && !kept) onCreated({ taskUUID, name: data.task_name });
+    // An estimate has its own endpoint: set once the task exists.
+    const minutes = estimateMinutes(estimate);
+    if (taskUUID && minutes) {
+      void post
+        .makeRequest({ apiEndpoint: PostEndpointUrl.UpdateTaskEstimate, payload: { task_uuid: taskUUID, task_estimate_minutes: minutes } })
+        .catch(() => undefined);
+    }
+    // With Create more on, or what the project couldn't take to be read, the
+    // form stays: the title and description clear, the chips keep their
+    // values, and focus goes back to the title for the next one.
+    if (createMore || leftOff?.length) {
+      setValue("task_name", "", { shouldValidate: false });
+      setValue("task_description", "");
+      setDescriptionKey((k) => k + 1);
+      setCreated(taskUUID ? { taskUUID, name: data.task_name, leftOff } : null);
+      titleRef.current?.focus();
+      return true;
+    }
+    if (onSuccess) onSuccess();
+    return false;
   };
 
   // Create, pressed with the project all that's missing, opens the picker,
@@ -331,6 +366,163 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const statusOption = statusOpts.find((o) => o.value === status) ?? statusOpts.find((o) => o.value === "todo");
   const [descriptionKey, setDescriptionKey] = useState(0);
 
+  // A task from a template (linear-09): the one chosen and whether by hand
+  // (a default never replaces that), the type shown (the template's, until
+  // one is picked by hand), what it filled, what make asks for and what the
+  // project couldn't take. The pieces and calls are a chunk (taskTemplateChips).
+  const [template, setTemplate] = useState<TaskTemplate | null>(null);
+  const byHand = useRef(false);
+  const [type, setType] = useState<ProjectType | undefined>(undefined);
+  const typeByHand = useRef(false);
+  const typeFromTemplate = useRef<string | undefined>(undefined);
+  const filled = useRef<Filled>({});
+  const prefilled = useRef<Prefill | undefined>(undefined);
+  const picks = useRef(0);
+  const [leftOff, setLeftOff] = useState<string[]>([]);
+  const [popOpenTemplate, setPopOpenTemplate] = useState(false);
+  const [popOpenType, setPopOpenType] = useState(false);
+  const [asks, setAsks] = useState<string[]>([]);
+  const [answers, setAnswers] = useState<Record<string, FieldAnswer>>({});
+  const [askError, setAskError] = useState<string | undefined>(undefined);
+  const templates = useFetch<{ data: TemplateList }>(taskProjectUUID ? taskTemplatesPath(taskProjectUUID) : "", undefined, { revalidateOnFocus: false }, OWN_ERRORS).data?.data;
+  const hasDefaults = Object.keys(templates?.defaults ?? {}).length > 0;
+  const kit = () => templateKit.use(() => setAskError("Templates couldn't load. Check your connection and try again."));
+
+  // Another project has its own templates and types: what was chosen goes.
+  const templatesOf = useRef(taskProjectUUID);
+  useEffect(() => {
+    if (templatesOf.current === taskProjectUUID) return;
+    templatesOf.current = taskProjectUUID;
+    byHand.current = false;
+    typeByHand.current = false;
+    typeFromTemplate.current = undefined;
+    filled.current = {};
+    picks.current++;
+    setTemplate(null);
+    setType(undefined);
+    setAsks([]);
+    setAnswers({});
+    setAskError(undefined);
+    setLeftOff([]);
+  }, [taskProjectUUID]);
+
+  // The form's values by a template's names for them (Prefill): read, and set.
+  const valueOf = (key: keyof Prefill): unknown => (key === "status" ? status : getValues(FORM_KEYS[key]));
+  const put = (key: keyof Prefill, value: unknown) => {
+    if (key === "status") return setStatus((value as string) || "todo");
+    setValue(FORM_KEYS[key], value as never, { shouldValidate: key === "assignee" });
+    if (key === "description") setDescriptionKey((k) => k + 1);
+  };
+  // What the opener set (My Tasks' "yours", a link's words): a default template never replaces it.
+  const opened = (key: keyof Prefill): unknown => {
+    const set: Partial<Record<keyof Prefill, unknown>> = {
+      assignee: assignToMe || address?.memberAmong(selectedProject?.project_members),
+      priority: address?.priority,
+      tags: address?.tags,
+      due: address?.due,
+      status: address?.statusAmong(statusOpts),
+    };
+    return set[key];
+  };
+  // Fills the form from a template, the latest pick winning: first what the
+  // last one filled and the maker hasn't changed goes back (its type too),
+  // then the title and description only if empty, the rest as the template
+  // sets it, and its type unless one was picked by hand.
+  const applyTemplate = async (id: string | null, hand: boolean) => {
+    const pick = ++picks.current;
+    byHand.current = hand;
+    setAsks([]);
+    setAnswers({});
+    setLeftOff([]);
+    setAskError(undefined);
+    const k = await kit();
+    const read = id && taskProjectUUID ? await k?.readTemplate(taskProjectUUID, id) : null;
+    if (!k || pick !== picks.current) return;
+    if (read && "error" in read) return setAskError(read.error);
+    const now = Object.fromEntries(FILLS.map((key) => [key, valueOf(key)])) as Record<keyof Prefill, unknown>;
+    const set = (key: keyof Prefill, value: unknown) => {
+      now[key] = value;
+      put(key, value);
+    };
+    const back = k.unfilled(filled.current, now);
+    for (const key of Object.keys(back) as (keyof Prefill)[]) set(key, back[key]);
+    filled.current = {};
+    prefilled.current = read?.prefill;
+    if (!typeByHand.current && typeFromTemplate.current) {
+      typeFromTemplate.current = undefined;
+      setType(undefined);
+    }
+    if (!read) return setTemplate(null);
+    setTemplate(read.template);
+    for (const key of Object.keys(read.prefill) as (keyof Prefill)[]) {
+      if (((key === "name" || key === "description") && now[key]) || (!hand && opened(key))) continue;
+      filled.current[key] = { was: now[key], set: read.prefill[key] };
+      set(key, read.prefill[key]);
+    }
+    if (read.type && !typeByHand.current) {
+      typeFromTemplate.current = read.type.id;
+      setType(read.type);
+    }
+  };
+  // Create more cleared the title and description: they come from the template again.
+  const refill = () => {
+    for (const key of ["name", "description"] as const) {
+      const value = prefilled.current?.[key];
+      if (!value) continue;
+      filled.current[key] = { was: "", set: value };
+      put(key, value);
+    }
+  };
+  const pickType = (t: ProjectType) => {
+    typeByHand.current = true;
+    setType(t);
+  };
+  // A new task starts from its type's default unless one was chosen by hand;
+  // a type with none drops the last type's. The type a template set picks none.
+  const typeId = type?.id;
+  const chosenId = template?.id;
+  useEffect(() => {
+    if (byHand.current || !hasDefaults || !taskProjectUUID || (typeId && typeId === typeFromTemplate.current)) return;
+    void kit().then(async (k) => {
+      const wanted = await k?.defaultTemplate(taskProjectUUID, templates?.defaults, typeId);
+      if (k && !byHand.current && wanted !== chosenId) void applyTemplate(wanted ?? null, false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applyTemplate and kit read the form as it is at the time
+  }, [templates, typeId, chosenId, taskProjectUUID]);
+  // Opened to pick a template (Alt+C): the picker opens once the list is in.
+  const pickerAsked = useRef(!!pickTemplate);
+  useEffect(() => {
+    if (!pickerAsked.current || !templates?.templates.length) return;
+    pickerAsked.current = false;
+    setPopOpenTemplate(true);
+  }, [templates]);
+  // An ask for one of the form's own properties opens its chip.
+  const openAsk = (prop: string) => {
+    const open: Record<string, () => void> = {
+      priority: () => setPopOpenPriority(true),
+      due: () => setPopOpenDue(true),
+      start: () => setPopOpenMore(true),
+      tags: () => setPopOpenLabels(true),
+      assignee: () => setPopOpenUserName(true),
+      type: () => setPopOpenType(true),
+      description: () => document.querySelector<HTMLElement>("[data-create-task] [contenteditable='true']")?.focus(),
+    };
+    open[prop]?.();
+  };
+  // Makes it through the template, the form typed over it; an ask keeps the form.
+  const makeFromChosen = async (data: CreateTaskFormData, projectId: string, chosen: TaskTemplate) => {
+    const values = { name: data.task_name, description: data.task_description, priority: data.task_priority, tags: data.task_label, status, assignee: data.task_assignee_uuid, type: type?.id, start: data.task_start_date, due: data.task_due_date };
+    const res = await (await kit())?.makeThrough(projectId, chosen, values, answers);
+    if (!res) return;
+    if ("error" in res) return setAskError(res.error);
+    setAskError(undefined);
+    setLeftOff("asks" in res ? res.leftOff : []);
+    if ("asks" in res) return setAsks(res.asks);
+    setAsks([]);
+    setAnswers({});
+    if (afterMade(res.made.task_id, false, data, res.made.left_off)) refill();
+  };
+
   // A link's status and assignee, found in its project once that and its
   // statuses load; set once, so a later pick keeps the person's own.
   const addressPlaced = useRef(false);
@@ -342,9 +534,10 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     const member = address.memberAmong(selectedProject.project_members);
     if (member) setValue("task_assignee_uuid", member, { shouldValidate: true });
   }, [address, selectedProject, statusesLoading, statusOpts, setValue]);
-  // The "Created · Open" line under the chips goes after three seconds.
+  // The "Created · Open" line under the chips goes after three seconds, but
+  // not while it says what the project couldn't take.
   useEffect(() => {
-    if (!created) return;
+    if (!created || created.leftOff?.length) return;
     const t = setTimeout(() => setCreated(null), 3000);
     return () => clearTimeout(t);
   }, [created]);
@@ -362,6 +555,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     if (e.metaKey || e.ctrlKey || e.altKey || t.closest("input, textarea, [contenteditable='true'], [role='dialog'] [cmdk-root]")) return;
     const open: Record<string, () => void> = {
       s: () => setPopOpenStatus(true),
+      t: () => { if (templates?.templates.length) setPopOpenTemplate(true); },
       p: () => setPopOpenPriority(true),
       a: () => !needsProject && setPopOpenUserName(true),
       d: () => setPopOpenDue(true),
@@ -440,6 +634,9 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
           ) : (
             <span className="text-ui-sm text-ink-3">Loading your projects…</span>
           )}
+          {templates && templates.templates.length > 0 && (
+            <TemplateChip chip={chip} list={templates.templates} chosen={template} open={popOpenTemplate} onOpenChange={setPopOpenTemplate} onPick={(id) => void applyTemplate(id, true)} />
+          )}
           <span className="truncate text-ui-sm text-ink-3">› {submitLabel === "Create task" ? "New task" : submitLabel}</span>
         </div>
 
@@ -482,6 +679,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
         {/* The property chips (W36): each opens its picker; keys S P A D L E.
             They scroll sideways on a phone; a cut-off one fades (PTC-28: "Due d"). */}
         <div className="flex gap-1.5 overflow-x-auto px-4 py-2 no-scrollbar sm:flex-wrap" data-create-chips="" data-edge-fade="">
+          {taskProjectUUID && <TypeChip chip={chip} projectId={taskProjectUUID} type={type} open={popOpenType} onOpenChange={setPopOpenType} onPick={pickType} />}
           <Popover open={popOpenStatus} onOpenChange={setPopOpenStatus}>
             <PopoverTrigger asChild>
               <button type="button" className={cn(chip, status !== "todo" && "text-foreground")} aria-label={`Status: ${statusOption?.label ?? "To do"}`} aria-keyshortcuts="S">
@@ -719,6 +917,13 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
             )}
           </div>
         )}
+        {template && <TemplateNote template={template} />}
+        {asks.length > 0 && <TemplateAsks projectId={taskProjectUUID} asks={asks} answers={answers} members={selectedProject?.project_members} leftOff={leftOff} onAnswer={(a) => setAnswers((s) => ({ ...s, [a.field.id]: a }))} onAsk={openAsk} />}
+        {askError && (
+          <p className="px-4 pb-2 text-ui-sm text-danger-ink" role="alert">
+            {askError}
+          </p>
+        )}
         {created && (
           <p className="px-4 pb-2 text-ui-sm text-success-ink [animation:work-rise-in_180ms_var(--ease-out)_both]" role="status">
             Created &ldquo;{created.name}&rdquo; ·{" "}
@@ -727,6 +932,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
             </a>
           </p>
         )}
+        {created && <LeftOff lines={created.leftOff} />}
 
         {/* The foot: attach and GitHub on the left; Create more and Create on the right. */}
         <div className="flex h-[52px] items-center gap-1 border-t border-line pl-3 pr-3">

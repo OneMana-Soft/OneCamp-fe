@@ -20,6 +20,10 @@ import { Cell } from "@/components/table/gridCells"
 import type { CellContext } from "@/components/table/cellFaces"
 import { cellPickers, kindCells } from "@/components/table/cellPickerPart"
 import type { FieldType, TableField, TableRow } from "@/services/tableService"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
+
+/** The table's undo order as a write that only sends: the tests of the order hold their own. */
+const pass: UndoOrder["write"] = (_what, send) => send()
 
 // The column menus, the pickers and the B1 cells are chunks of their own: loaded first.
 beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), kindCells.warm()]))
@@ -90,7 +94,7 @@ describe("a board of a table with a status", () => {
       field("kind", "select", { options: [{ id: "k1", label: "Bug" }] }, "Kind", 1),
       field("stage", "status", { options: [{ id: "o1", label: "Not started", group: "todo" }, { id: "o2", label: "Building", group: "doing" }, { id: "o3", label: "Shipped", group: "done" }] }, "Stage", 2),
     ]
-    render(<DataTableBoard tableId="t" fields={fields} rows={rowsOf([{ item: "Card", stage: "Building" }])} canManage onChange={() => {}} />)
+    render(<DataTableBoard write={pass} tableId="t" fields={fields} rows={rowsOf([{ item: "Card", stage: "Building" }])} canManage onChange={() => {}} />)
     const lanes = Array.from(document.querySelectorAll<HTMLElement>("[data-lane]")).map((l) => l.querySelector("[data-option-chip]")?.getAttribute("data-status-group") ?? "none")
     expect(lanes).toEqual(["todo", "doing", "done", "none"])
   })

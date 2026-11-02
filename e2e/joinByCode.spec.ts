@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import { SHOT_THEMES, reviewShot, stubBackend } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // meet-01: a room's name or a link typed under Start meeting, as Meet's
 // "Enter a code or link" and Zoom's "Join a meeting" take one, on a production
@@ -60,7 +61,7 @@ for (const theme of SHOT_THEMES) {
         expect(box.x).toBeGreaterThanOrEqual(0)
         expect(box.x + box.width).toBeLessThanOrEqual(390)
       }
-      expect(Math.round(f.height)).toBeGreaterThanOrEqual(44)
+      expectTouchSize(f.height)
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
       await reviewShot(page, "join-typed", theme)
       await join.tap()

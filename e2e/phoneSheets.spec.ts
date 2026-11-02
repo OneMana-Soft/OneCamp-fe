@@ -3,6 +3,8 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import { expectHomeSettled, stubBackend } from "./stubbedApp"
 import { LAYERED_SCRIM, footIsGutter, layersOverSheet, scrimOverLayerBelow, sheetLayout, topScrimFill, topSheet, type SheetLayout } from "./sheetLayout"
 import { openKeyboard } from "./keyboard"
+import { animationsSettled } from "./settled"
+import { expectTouchSize } from "./touchTarget"
 
 // The phone's sheets (components/ui/drawer, design v3 mobile C5) keep one
 // scroller, run nothing sideways, take no modal over them, and are as tall
@@ -51,9 +53,7 @@ async function nothingOver(page: Page, name: string) {
 async function risen(page: Page) {
   const sheet = topSheet(page)
   await expect(sheet).toBeVisible()
-  await expect
-    .poll(() => sheet.evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations !== Infinity).length))
-    .toBe(0)
+  await animationsSettled(sheet, { subtree: true })
   await expect
     .poll(() => sheet.evaluate((el) => Math.abs(new DOMMatrixReadOnly(getComputedStyle(el).transform).m42)), { timeout: 30_000 })
     .toBeLessThan(0.5)
@@ -95,7 +95,7 @@ async function inReach(page: Page, name: RegExp, when: string) {
     const vv = window.visualViewport
     return { top: r.top, bottom: r.bottom, height: r.height, seen: (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight) }
   })
-  expect(at.height, `${when}: the action is under a finger's 44px`).toBeGreaterThanOrEqual(44)
+  expectTouchSize(at.height, `${when}: the action is under a finger's 44px`)
   expect(at.top, `${when}: the action is off the top`).toBeGreaterThanOrEqual(0)
   expect(at.bottom, `${when}: the action is under the screen's edge or the keyboard`).toBeLessThanOrEqual(at.seen + 0.5)
   expect((at.top + at.bottom) / 2, `${when}: the action is out of a thumb's reach`).toBeGreaterThanOrEqual(at.seen * 0.55)

@@ -28,7 +28,8 @@ import { restoreTable } from "@/lib/tables/ledger"
 import { tablePath, tablesPath } from "@/lib/tables/route"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { CleanupPart, FindPart, PublishPart } from "@/components/table/lazyParts"
-import { onMac } from "@/lib/tables/undoKeys"
+import { isMacLike } from "@/lib/keys/chord"
+import { paletteKeys } from "@/components/table/tablePalette"
 import type { CleanStep } from "@/lib/tables/transform"
 import { lazyView } from "@/lib/lazy/lazyView"
 
@@ -202,11 +203,11 @@ export function TableMoreMenu({
               onSelect={() => {
                 findChosen.current = true
               }}
-              aria-keyshortcuts={onMac() ? "Meta+Shift+H" : "Control+H"}
+              aria-keyshortcuts={isMacLike() ? "Meta+Shift+H" : "Control+H"}
             >
               <Replace /> <span className="flex-1">Find and replace</span>
               <kbd aria-hidden="true" className="kbd max-sm:hidden">
-                {onMac() ? "⌘⇧H" : "Ctrl+H"}
+                {paletteKeys("replace")}
               </kbd>
             </DropdownMenuItem>
           ) : null}
@@ -290,7 +291,10 @@ export function RowHeightMenu({
             {ROW_HEIGHTS.map((h) => (
               <DropdownMenuRadioItem key={h.value} value={h.value} onSelect={() => onHeight(h.value)} className="gap-2">
                 <span className="flex-1">{h.label}</span>
-                <span className="text-meta text-ink-3">{h.px}</span>
+                {/* A hint for the eye: the item's name is the word alone, as a screen reader says it. */}
+                <span aria-hidden="true" className="text-meta text-ink-3">
+                  {h.px}
+                </span>
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>

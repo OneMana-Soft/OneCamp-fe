@@ -21,7 +21,19 @@ import { BlockedBadge } from "@/components/task/BlockedBadge"
 import { FieldValueView } from "@/components/task/fieldValue"
 import type { TaskField } from "@/lib/tasks/fields"
 
-
+// A field's column is keyed by its filter id, which the server always sends.
+// A field without one is left out, and said once, rather than a column with
+// no id taking the whole list or board down (TanStack throws on one).
+const unkeyed = new Set<string>()
+const keyedFields = (fields: TaskField[]) =>
+    fields.filter((f) => {
+        if (f.filter_id) return true
+        if (!unkeyed.has(f.id)) {
+            unkeyed.add(f.id)
+            console.warn(`[list] "${f.name}" came without a filter id, so its column is left out.`)
+        }
+        return false
+    })
 
 /** statusOptions: the project's statuses, so its own ones show in their
  * colours; fields: its custom fields, a column each; nameOf names a person
@@ -257,7 +269,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
         // A column for each of the project's own fields. Its id is the field's
         // filter id, so a filter set on it goes to the server, which applies it
         // (business/TaskField); values aren't sorted on.
-        ...fields.map((f): ColumnDef<TaskInfoInterface> => ({
+        ...keyedFields(fields).map((f): ColumnDef<TaskInfoInterface> => ({
             id: f.filter_id,
             meta: { label: f.name, ...(f.type === "money" || f.type === "number" ? { align: "right" } : {}) },
             accessorFn: (row) => row.task_fields?.[f.id],

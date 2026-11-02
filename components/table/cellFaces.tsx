@@ -471,7 +471,8 @@ export interface TextLive {
  * (TextCell) with its handlers; without them, the grid's cell at rest, a
  * read-only box the grid brings to life before a click or a key reaches it
  * (DataTableGrid's rest cells). The same markup either way, so nothing moves
- * as a cell comes to life. Pure.
+ * as a cell comes to life. One its reader can't edit (V-170) is that box at
+ * rest, never brought to life: no handlers and no data-rest. Pure.
  */
 export function textMarkup({
   field,
@@ -481,7 +482,7 @@ export function textMarkup({
   ctx,
   local,
   look,
-  live,
+  live: given,
 }: {
   field: TableField
   cellId: string
@@ -494,18 +495,7 @@ export function textMarkup({
 }) {
   const { type, isNumber, duration, lines, tall, invalid, title, atRest } = look
   const cover = atRest !== null
-  if (readOnly) {
-    return (
-      <div
-        data-cell={cellId}
-        tabIndex={-1}
-        className={cn("flex h-full items-center text-ui", CELL_PAD, FOCUS, primary && "font-medium", (isNumber || duration) && "justify-end")}
-        title={local}
-      >
-        {atRest ?? <span className="truncate">{local}</span>}
-      </div>
-    )
-  }
+  const live = readOnly ? undefined : given
   const control = cn(
     "peer h-full w-full bg-transparent text-ui text-ink outline-none",
     CELL_PAD,
@@ -513,7 +503,7 @@ export function textMarkup({
     (isNumber || duration) && (ctx.panel ? "tabular-nums" : "text-right tabular-nums"),
     cover && "text-transparent focus:text-foreground",
   )
-  const rest = live ? undefined : ""
+  const rest = live || readOnly ? undefined : ""
   return (
     <div
       // A tap anywhere in the cell, on a touch screen, where the text box

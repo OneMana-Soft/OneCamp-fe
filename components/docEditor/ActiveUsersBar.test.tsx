@@ -146,6 +146,30 @@ describe("who is here, live", () => {
     expect(Array.from(document.querySelectorAll("[data-presence-state]")).map((el) => el.textContent)).toEqual(["Editing", "Idle", "Editing"])
   })
 
+  // miro-24: a reaction rises from under its sender's face, found by any of their tabs, or from the "+N" chip that
+  // hides them; a raised hand is on the face, in its name, and puts the face first so it's never the one hidden.
+  it("marks each face with its tabs, and a raised hand with a badge, a word and the first place", async () => {
+    const kim = { id: "u-kim", name: "Kim Ito", color: "" }
+    setPresence("d1", {
+      people: {
+        "u-sam-1": { clients: [11], name: "Sam Rivera", mode: "editing", idle: false },
+        "u-sam-2": { clients: [22, 23], name: "Sam Rivera", mode: "viewing", idle: false, hand: { client: 23, raisedAt: 500 } },
+        "u-kim": { clients: [44], name: "Kim Ito", mode: "viewing", idle: false, hand: { client: 44, raisedAt: 100 } },
+        "u-me": { clients: [33], name: "Priya Shah", mode: "editing", idle: false },
+      },
+      edit: null,
+      self: "u-me",
+    })
+    shell(<ActiveUsersBar users={[sam1, sam2, kim, me]} maxShown={2} />)
+    const faces = Array.from(document.querySelectorAll("[data-presence-stack] > [data-presence-client]"))
+    expect(faces.map((f) => [f.getAttribute("aria-label"), f.getAttribute("data-presence-client")])).toEqual([
+      ["Kim Ito, viewing, hand raised", "44"],
+      ["Sam Rivera, viewing, hand raised", "22 23"],
+      ["1 more: Sam Rivera", "11"],
+    ])
+    expect(faces.map((f) => f.querySelector("[data-presence-hand]") !== null)).toEqual([true, true, false])
+  })
+
   it("offers no jump where nothing can jump (a board, or before the doc's editor is live)", async () => {
     shell(<ActiveUsersBar users={[sam1, me]} />)
     fireEvent.click(screen.getByRole("button", { name: /^Here now/ }))

@@ -15,6 +15,7 @@ import { readLimit, useTreeLevel } from "@/components/tree/useTree"
 import { useCreateDoc } from "@/components/doc/useCreateDoc"
 import { DocTree, TREE_CAP, adapterFor, docIdOfPath } from "@/components/docTree/DocTree"
 import { DocTreeSkeleton } from "@/components/docTree/DocsSection"
+import { TREE_ROOM_KEY } from "@/components/docTree/treeRoom"
 import { useFetch } from "@/hooks/useFetch"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
@@ -112,10 +113,25 @@ export default function DocsTreeGroups({ onOpened, sidebar = false, groups = GRO
   }, [reveal, openDoc.docId])
   const { create, busy } = useCreateDoc()
   const known = states.every((s) => !s.loading)
+  // V-266: the sidebar keeps the room this tree takes once known, for its stand-in on this device's next load
+  // (components/docTree/treeRoom; the boot script reads it), and holds the stand-in until then, so neither
+  // landing moves what lies below.
+  const root = React.useRef<HTMLElement | null>(null)
+  const keep = (el: HTMLElement | null) => {
+    root.current = el
+  }
+  React.useLayoutEffect(() => {
+    const h = known && sidebar ? root.current?.offsetHeight : 0
+    if (!h) return
+    try {
+      if (localStorage.getItem(TREE_ROOM_KEY) !== String(h)) localStorage.setItem(TREE_ROOM_KEY, String(h))
+    } catch {}
+  })
 
+  if (sidebar && !known) return <DocTreeSkeleton rows={1} room />
   if (known && states.every((s) => s.empty)) {
     return (
-      <button type="button" onClick={() => void create({ busyKey: "tree:first" })} disabled={!!busy} {...ix("nav")} className="shell-row nav-idle w-full text-left !text-ink-3">
+      <button ref={keep} type="button" onClick={() => void create({ busyKey: "tree:first" })} disabled={!!busy} {...ix("nav")} className="shell-row nav-idle w-full text-left !text-ink-3">
         <span className="shell-invite-tile" aria-hidden="true">
           {busy === "tree:first" ? <Loader2 className="animate-spin" /> : <Plus />}
         </span>
@@ -125,7 +141,7 @@ export default function DocsTreeGroups({ onOpened, sidebar = false, groups = GRO
   }
 
   return (
-    <div className="flex flex-col gap-1" data-docs-tree-groups="">
+    <div ref={keep} className="flex flex-col gap-1" data-docs-tree-groups="">
       {GROUPS.map((g, i) => {
         const s = states[i]
         const [open, toggle] = opens[i]

@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { JONAS, LAUNCH, POST, VIEWS, openChannel } from "./channelPage"
+import { expectTouchSize, TOUCH_PX } from "./touchTarget"
 
 // A message's poll draws the shared PollChoices that the call's polls draw
 // (calls package A; CODE-REVIEWER-53's MF2, 26 Oct): an option is a 36 px row,
@@ -57,7 +58,7 @@ for (const view of VIEWS) {
     const words = friday.getByText("Friday", { exact: true })
     const before = (await words.boundingBox())!
     const row = (await friday.boundingBox())!
-    expect(row.height, "an option's row").toBeGreaterThanOrEqual(view.phone ? 44 : 36)
+    expectTouchSize(row.height, "an option's row", view.phone ? TOUCH_PX : 36)
 
     await press(friday, view.phone)
     await expect(friday).toHaveAttribute("aria-pressed", "true")

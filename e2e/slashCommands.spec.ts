@@ -242,6 +242,8 @@ for (const view of views) {
         // a phone's box showed half the GIF, the words scrolled out above it.
         await expect(box.getByText("Look at this")).toBeInViewport({ ratio: 1 })
         await expect(box.locator(`img[src^="${GIF}"]`)).toBeInViewport({ ratio: 1 })
+        // The GIF is its node's own media, the one the box's scroll rule reads (V-317).
+        await expect(box.locator(`img[src^="${GIF}"]`)).toHaveAttribute("data-node-media", "true")
         expect(created.length).toBe(createdBefore)
         await tidy(tab)
         await reviewShot(tab, shot, scheme)

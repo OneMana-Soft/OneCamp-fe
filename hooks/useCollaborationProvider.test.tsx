@@ -48,14 +48,31 @@ const text = (doc: Y.Doc) => doc.getXmlFragment("default").toString()
 const config = (extra: Record<string, unknown> = {}) => ({ enabled: true, documentId: "doc-1", username: "Sam", userId: "u-1", ...extra })
 
 describe("the collaboration connection", () => {
-  it("sends the schema manifest hash this build was made with", async () => {
+  it("sends the schema manifest hash this build was made with, and this tab's key", async () => {
     const { result } = renderHook(() => useCollaborationProvider(config()))
     await waitFor(() => expect(result.current.synced).toBe(true))
-    expect(sockets[0].url).toBe(`wss://collab.example.test?schema=${SCHEMA_MANIFEST_HASH}`)
+    const tab = new URL(sockets[0].url).searchParams.get("tab")
+    expect(tab).toMatch(/^[0-9a-f]{32}$/)
+    expect(sockets[0].url).toBe(`wss://collab.example.test?schema=${SCHEMA_MANIFEST_HASH}&tab=${tab}`)
     expect(collabUrl("")).toBe("")
-    expect(collabUrl("wss://x/?a=1")).toBe(`wss://x/?a=1&schema=${SCHEMA_MANIFEST_HASH}`)
+    expect(collabUrl("wss://x/?a=1")).toBe(`wss://x/?a=1&schema=${SCHEMA_MANIFEST_HASH}&tab=${tab}`)
     expect(text(result.current.provider!.document)).toContain("last Tuesday")
     expect(result.current.status).toBe("synced")
+  })
+
+  // A share link's visitors all sign in as the link: the relay tells one
+  // visitor's tab from another's by this key, so only the same tab takes its
+  // presence over when it reconnects (V-337).
+  it("names the tab with a key of its own: the same on every socket the tab opens, another tab's differs", async () => {
+    const tabOf = (url: string) => new URL(url).searchParams.get("tab")
+    const first = tabOf(collabUrl("wss://x"))
+    expect(first).toMatch(/^[0-9a-f]{32}$/)
+    expect(tabOf(collabUrl("wss://y/?a=1"))).toBe(first)
+    vi.resetModules()
+    const another = await import("@/lib/collabSocket")
+    const second = tabOf(another.collabUrl("wss://x"))
+    expect(second).toMatch(/^[0-9a-f]{32}$/)
+    expect(second).not.toBe(first)
   })
 
   it("is disconnected, with no provider, when there is nothing to connect", () => {

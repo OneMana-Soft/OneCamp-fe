@@ -18,6 +18,8 @@ import { SETTINGS_GROUP_LABEL, SETTINGS_PLACES, adminPlace, normaliseAdminTab, t
 import { useMedia } from "@/context/MediaQueryContext"
 import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
 import { useImportReviewPlace } from "@/lib/importReviews"
+import { usePlanRegistryEdits } from "@/hooks/usePlanRegistryEdits"
+import axiosInstance from "@/lib/axiosInstance"
 
 // The people tabs wait in their own frame's shape (header, toolbar, six rows),
 // so nothing moves when the card's code arrives and again when its data does;
@@ -56,6 +58,7 @@ const DefaultChannelsCard = dynamic(() => import("@/components/admin/DefaultChan
 const ScimProvisioningCard = dynamic(() => import("@/components/admin/ScimProvisioningCard"), { loading: AdminCardSkeleton })
 const PermissionsCard = dynamic(() => import("@/components/admin/PermissionsCard"), { loading: AdminCardSkeleton })
 const ProjectsPermissionsCard = dynamic(() => import("@/components/admin/ProjectsPermissionsCard"), { loading: AdminCardSkeleton })
+const ProjectPlanCard = dynamic(() => import("@/components/admin/ProjectPlanCard"), { loading: AdminCardSkeleton })
 const CalendarPermissionsCard = dynamic(() => import("@/components/admin/CalendarPermissionsCard"), { loading: AdminCardSkeleton })
 const DocPoliciesCard = dynamic(() => import("@/components/admin/DocPoliciesCard"), { loading: AdminCardSkeleton })
 const TranscriptionSettingsCard = dynamic(() => import("@/components/admin/TranscriptionSettingsCard"), { loading: AdminCardSkeleton })
@@ -160,6 +163,8 @@ const AdminPage = () => {
   const jumps = waitingOnRequestedTab ? null : jumpsFor(shownTab)
   // A search hit or a deep link with a #card scrolls to it and flashes it.
   useJumpFlash(shownTab)
+  // The workspace's project statuses and labels, read while Permissions shows: the lazy card only draws them.
+  const projectPlan = usePlanRegistryEdits(shownTab === "permissions")
   // The section's own scroll starts at its top.
   useEffect(() => {
     const el = scrollRef.current
@@ -290,6 +295,7 @@ const AdminPage = () => {
                 <div className={ADMIN_SECTION_STACK}>
                   <PermissionsCard />
                   <ProjectsPermissionsCard />
+                  <ProjectPlanCard plan={projectPlan} http={axiosInstance} />
                   <CalendarPermissionsCard />
                 </div>
               </TabsContent>

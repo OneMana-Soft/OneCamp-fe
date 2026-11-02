@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Request } from "@playwright/test"
 import { footIsGutter } from "./sheetLayout"
 import { SAM, reviewShot, stubBackend, withStatus } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // An app's access in Admin › Apps (App Identity, chat row slack-19), in a real
 // browser with no backend: the sheet from the app's row, a table added to
@@ -130,7 +131,7 @@ for (const view of views) {
       // A finger's reach on a phone: the row's icon buttons are 44px there.
       if (view.phone) {
         for (const name of ["Access and tokens for Deploys", "Edit Deploys", "Remove Deploys"]) {
-          expect((await tab.getByRole("button", { name }).boundingBox())?.height).toBeGreaterThanOrEqual(44)
+          expectTouchSize((await tab.getByRole("button", { name }).boundingBox())?.height)
         }
       }
       await access.click()

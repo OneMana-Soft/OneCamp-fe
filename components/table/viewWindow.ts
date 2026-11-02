@@ -11,11 +11,13 @@ import { rowAtPlace } from "@/lib/tables/viewPlaces"
  */
 
 export interface ViewWindowOptions {
-  /** How many rows are given: the view's first rows read, then its last `tail`. */
+  /** How many rows are given: the view's rows read, then its last `tail`. */
   given: number
   /** How many rows the view has, read or not. */
   count: number
   tail: number
+  /** The first row read's place: 0, or where the view jumped. */
+  from?: number
   /** Every row's height: rows are never measured. */
   rowPx: number
   /** A grouped view's: a place's height (a header's is its own), and how many of the rows given it needs read. */
@@ -31,8 +33,8 @@ export interface ViewWindowOptions {
   scrollPaddingEnd?: number
   /** How near the last row read the window gets before the view reads on: a few screens. */
   nearEnd: number
-  /** The window neared the last row read, or passed it: the place of the last row in sight. */
-  onNearEnd?: (last: number) => void
+  /** Near or past a row not read: the places of the last and first rows in sight. */
+  onNearEnd?: (last: number, first: number) => void
 }
 
 /**
@@ -47,7 +49,7 @@ export interface ViewWindowOptions {
  * 100,000 rows, b15e80557); one made with the rows, each time a window of
  * rows landed.
  */
-export function useViewWindow({ given, count, tail, rowPx, sizeOf, readTo, scrollRef, overscan, firstScreen, initialRect, scrollPaddingStart, scrollPaddingEnd, nearEnd, onNearEnd }: ViewWindowOptions) {
+export function useViewWindow({ given, count, tail, from = 0, rowPx, sizeOf, readTo, scrollRef, overscan, firstScreen, initialRect, scrollPaddingStart, scrollPaddingEnd, nearEnd, onNearEnd }: ViewWindowOptions) {
   const size = (i: number) => sizeOf?.(i) ?? rowPx
   const virtualizer = useVirtualizer({
     count,
@@ -71,17 +73,19 @@ export function useViewWindow({ given, count, tail, rowPx, sizeOf, readTo, scrol
     measured.length || !count ? measured : Array.from({ length: Math.min(count, firstScreen) }, (_, index) => ({ index, start: end, end: (end += size(index)) }))
   const padTop = items.length ? items[0].start : 0
   const padBottom = items.length ? virtualizer.getTotalSize() - items[items.length - 1].end : 0
-  // Within a few screens of the last row read, or past it (a scrollbar
-  // dragged): the view reads on, as far as the last place in sight.
+  // Within a few screens of a row not read, either side of those read, or
+  // past them (a scrollbar dragged): the view reads the places in sight.
   const read = given - tail
   const tailFrom = count - tail
   const last = items.length ? items[items.length - 1].index : -1
-  // The last row in sight among those read, or on their way.
+  // The last row in sight among those read, or on their way, and the first.
   const reached = readTo ? readTo(last) - 1 : Math.min(last, tailFrom - 1)
+  const top = readTo ? reached : Math.max(0, Math.min(items.length ? items[0].index : 0, reached))
+  const near = reached >= from + read - nearEnd || (from > 0 && top < from + nearEnd)
   React.useEffect(() => {
-    if (onNearEnd && count && reached >= read - nearEnd) onNearEnd(reached)
-  }, [onNearEnd, count, reached, read, nearEnd])
-  const rowAt = React.useCallback((place: number) => rowAtPlace(place, given, count, tail), [given, count, tail])
+    if (onNearEnd && count && near) onNearEnd(reached, top)
+  }, [onNearEnd, count, near, reached, top])
+  const rowAt = React.useCallback((place: number) => rowAtPlace(place, given, count, tail, from), [given, count, tail, from])
   return { virtualizer, items, padTop, padBottom, rowAt }
 }
 

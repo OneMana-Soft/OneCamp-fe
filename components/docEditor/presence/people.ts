@@ -10,6 +10,7 @@
  *   following  the client it follows, so that one says where it is looking
  *   view       where it is looking, only while someone follows it
  *   pointer    on a board, where it points (components/board/boardPresence)
+ *   hand       on a board, { id, raisedAt } while its hand is up (components/board/boardSignals)
  * The relay says, in each member's user (the collaboration service's
  * presenceGuard.js), whatever the tab claimed:
  *   edit       true when the member list lets them edit; only then does a tab
@@ -19,6 +20,7 @@
  */
 
 import type { DocPresence, PresencePerson } from "./store"
+import { HAND_FIELD, raisedAtOf } from "./fields"
 
 export type AwarenessState = Record<string, unknown> & {
   user?: { id?: string; name?: string; hue?: string; kind?: string; edit?: boolean }
@@ -29,6 +31,7 @@ export type AwarenessState = Record<string, unknown> & {
   view?: unknown
   pointer?: unknown
   following?: unknown
+  hand?: unknown
 }
 
 /** What this tab remembers about each client between changes. */
@@ -78,7 +81,10 @@ export function look(states: Map<number, AwarenessState>, self: number, seen: Se
   return edit
 }
 
-/** People, by id: each with their clients (the one active last first), their mode, and whether every tab of theirs is idle. */
+/**
+ * People, by id: each with their clients (the one active last first), their mode, whether every tab of theirs is
+ * idle, and the hand a tab of theirs raised first while one is up.
+ */
 function peopleOf(states: Map<number, AwarenessState>, seen: Seen): Record<string, PresencePerson> {
   const out: Record<string, PresencePerson> = {}
   for (const [client, s] of states) {
@@ -89,6 +95,8 @@ function peopleOf(states: Map<number, AwarenessState>, seen: Seen): Record<strin
     if (s.idle !== true) p.idle = false
     if (s.mode === "editing") p.mode = "editing"
     else if (s.mode === "viewing" && p.mode !== "editing") p.mode = "viewing"
+    const at = raisedAtOf(s[HAND_FIELD])
+    if (at !== null && (!p.hand || at < p.hand.raisedAt)) p.hand = { client, raisedAt: at }
   }
   for (const p of Object.values(out)) p.clients.sort((a, b) => (seen.active.get(b) ?? 0) - (seen.active.get(a) ?? 0))
   return out

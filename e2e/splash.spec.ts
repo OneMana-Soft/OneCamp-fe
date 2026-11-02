@@ -2,6 +2,10 @@ import { expect, test, type Browser, type BrowserContextOptions, type Page } fro
 
 import { stubBackend } from "./stubbedApp"
 import { GROUND } from "../lib/pwa/grounds"
+import { MANIFEST } from "../lib/pwa/manifests"
+
+/** The installed app's manifest the page links (V-322: Chrome paints an installed app's navigation bar with its theme colour). */
+const manifestOf = (page: Page) => page.$eval('link[rel="manifest"]', (l) => l.getAttribute("href"))
 
 // The splash (17 Oct 2026; the owner: "make the initial splash screen for
 // mobile and desktop look better", with a motion graphic). Checked where only
@@ -77,6 +81,7 @@ for (const [name, device, ground] of [
     expect(near(corner, rgb(GROUND.dark[ground]), 8), `corner ${corner} on ${GROUND.dark[ground]}`).toBe(true)
     const bars = await page.$$eval('meta[name="theme-color"]', (ms) => [...new Set(ms.map((m) => m.getAttribute("content")))])
     expect(bars).toEqual([GROUND.dark[ground]])
+    expect(await manifestOf(page), "the installed app's manifest, before any code runs").toBe(MANIFEST.dark)
     await context.close()
   })
 
@@ -84,6 +89,7 @@ for (const [name, device, ground] of [
     const { context, page } = await firstPaint(browser, device, "light", "/app/home")
     const { corner } = await pixels(page)
     expect(near(corner, rgb(GROUND.light[ground]), 8), `corner ${corner} on ${GROUND.light[ground]}`).toBe(true)
+    expect(await manifestOf(page), "the installed app's manifest").toBe(MANIFEST.light)
     await context.close()
   })
 }
@@ -98,6 +104,14 @@ test("dark chosen in the app starts dark on a light system", async ({ browser })
   expect(near(corner, rgb(GROUND.dark.phone), 3), `corner ${corner}`).toBe(true)
   const bars = await page.$$eval('meta[name="theme-color"]', (ms) => [...new Set(ms.map((m) => m.getAttribute("content")))])
   expect(bars).toEqual([GROUND.dark.phone])
+  // V-322: the installed app's manifest follows the mode chosen too, and the
+  // dark one is served as the same app (one id) on the dark ground: Chrome
+  // reads it on install and on its update check, and paints the app's
+  // navigation bar with its theme colour.
+  expect(await manifestOf(page), "the mode chosen in the app, not the system's").toBe(MANIFEST.dark)
+  const served = async (href: string) => (await context.request.get(href)).json()
+  const [light, dark] = await Promise.all([served(MANIFEST.light), served(MANIFEST.dark)])
+  expect([dark.theme_color, dark.background_color, dark.id]).toEqual([GROUND.dark.phone, GROUND.dark.phone, light.id])
   await context.close()
 })
 

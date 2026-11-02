@@ -1,7 +1,7 @@
 import { StatusGlyph, PriorityGlyph } from "@/components/ui/graphics/glyphs"
 import { NobodyMark } from "@/components/ui/graphics/NobodyMark"
 import { statusKindOf, type StatusLike } from "@/components/task/taskStatusCell"
-import { priorityLevel } from "@/components/task/taskPriorityCell"
+import { priorityLevel } from "@/lib/tasks/priority"
 import { DesktopNavigationChatAvatar } from "@/components/navigationBar/desktop/desktopNavigationChatAvatar"
 import { BotTag } from "@/components/ui/botTag"
 import { CalendarDays, GitBranch, Hash, Link2, Milestone, Repeat, Tag, Users } from "@/lib/icons"

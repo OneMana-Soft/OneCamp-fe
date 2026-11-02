@@ -24,7 +24,7 @@ import { LoadFailureState } from "@/components/ui/load-failure-state";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ActiveUsersBar } from "@/components/docEditor/ActiveUsersBar";
 import { DocBusContext } from "@/components/docEditor/registry/docBusContext";
-import { boardBusOf } from "@/lib/board/hereNow";
+import { boardBusOf } from "@/lib/board/hereBus";
 import { saveDotCopy } from "@/components/docEditor/SaveDot";
 import {
   DropdownMenu,
@@ -45,6 +45,7 @@ import { useBoardGrid, useBoardSnap, useBoardStyle } from "@/components/board/bo
 import type { BoardCommand } from "@/components/board/boardWorkbench";
 import type BoardFacilitationPart from "@/components/board/boardFacilitation";
 import { lazyPart } from "@/lib/lazy/lazyPart";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 import { FacilitationFailed } from "@/components/board/facilitationDock";
 import BoardComments from "@/components/board/boardComments";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
@@ -75,6 +76,9 @@ const DocSaveNotice = dynamic(() => import("@/components/docEditor/DocSaveNotice
 const facilitation = lazyPart<React.ComponentProps<typeof BoardFacilitationPart>>(() => import("@/components/board/boardFacilitation").then((m) => m.default), {
   failed: FacilitationFailed,
 });
+// React and raise a hand (miro-24), for everyone on the board: the button and its tray in a chunk of their own, in a
+// room of the button's size while it comes; what they do comes with the board's tools (components/board/boardSignals).
+const BoardReact = lazyPiece(() => import("@/components/board/boardReact"));
 
 export default function BoardPage() {
   const params = useParams();
@@ -414,7 +418,7 @@ export default function BoardPage() {
 
         {/* Timer, dot voting and follow-the-presenter */}
         {provider && excalApi && me && (
-          <facilitation.Part provider={provider} api={excalApi} editable={hasEditAccess} user={me} />
+          <facilitation.Part provider={provider} api={excalApi} editable={hasEditAccess} user={me} hereKey={hereBus.key} />
         )}
 
         {/* Pinned comments (everyone with access sees them; editors can add) */}
@@ -483,6 +487,9 @@ export default function BoardPage() {
                   <ClusterDivider />
                 </>
               )}
+              <React.Suspense fallback={<span aria-hidden="true" className="size-8 shrink-0" />}>
+                <BoardReact hereKey={hereBus.key} />
+              </React.Suspense>
               {hasEditAccess && (
                 <>
                   {TOOLS.map(([kind, label, Icon]) => (
@@ -532,6 +539,9 @@ export default function BoardPage() {
                 </ClusterButton>
               </>
             )}
+            <React.Suspense fallback={<span aria-hidden="true" className="size-9 shrink-0" />}>
+              <BoardReact hereKey={hereBus.key} />
+            </React.Suspense>
             {menu(
               <ClusterButton label="Board options">
                 <Ellipsis />

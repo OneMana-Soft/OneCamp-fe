@@ -16,6 +16,7 @@ import { registerBlock } from "@/components/docEditor/registry/registry"
 import { collaboratorCaret, collaboratorSelection } from "@/components/docEditor/registry/presence"
 import { Selection } from "../extensions/selection/selection"
 import { CaretFromScreen } from "../extensions/selection/caretFromScreen"
+import { MediaScroll } from "../extensions/selection/mediaScroll"
 import { UnsetAllMarks } from "../extensions/unset-all-marks/unset-all-marks"
 import { ResetMarksOnEnter } from "../extensions/reset-marks-on-enter/reset-marks-on-enter"
 import { SlashCommand } from "../extensions/slash-command/slashCommandExtension"
@@ -25,7 +26,8 @@ import { slashItemsFor } from "@/components/docEditor/registry/readers"
 import { shortcutTableExtensions } from "@/components/docEditor/registry/shortcuts"
 import { EVERY_EDITOR, ORDER, SLASH_ORDER, TYPING_EDITORS } from "./kinds"
 
-registerBlock({ id: "selection", editors: EVERY_EDITOR, edition: "both", order: ORDER.selection, extensions: [Selection, CaretFromScreen], schema: [] })
+// A selected picture that shows whole in its box isn't scrolled to (MediaScroll, V-317).
+registerBlock({ id: "selection", editors: EVERY_EDITOR, edition: "both", order: ORDER.selection, extensions: [Selection, CaretFromScreen, MediaScroll], schema: [] })
 
 /**
  * The automatic symbols kept as you type: curly quotes, dashes, arrows, the

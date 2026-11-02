@@ -4,6 +4,7 @@ import { expect, test, type Browser, type BrowserContextOptions, type Locator, t
 // board. Nothing leaves the machine.
 import { USERS, collabFor, fakeApp } from "../scripts/fluidity/fakeApp.mjs"
 import { boardDoc, boardDocName, boardFixtures, frame, note, ordered } from "../scripts/fluidity/fakeBoard.mjs"
+import { pixelsAt, spreadOf } from "./contrast"
 import { holdChunk } from "./holdChunk"
 import { settled } from "./sheetLayout"
 import { SHOT_THEMES, reviewShot } from "./stubbedApp"
@@ -54,11 +55,13 @@ async function open(
   theme: (typeof SHOT_THEMES)[number],
   // The camera at the board's origin at 100%, so a jump to a match is a move.
   camera: Camera = { scrollX: 0, scrollY: 0, zoom: 1 },
+  // More of the browser's settings (reduced motion).
+  extra: BrowserContextOptions = {},
 ) {
   const levels = { sam: "edit", vic: "view" }
   const board = theBoard(levels)
   const collab = collabFor([{ id: NAME, update: board.update, levels }])
-  const context = await browser.newContext({ ...DEVICES[device], colorScheme: theme })
+  const context = await browser.newContext({ ...DEVICES[device], colorScheme: theme, ...extra })
   await context.addInitScript(
     ({ key, at }: { key: string; at: Camera }) => {
       try {
@@ -171,6 +174,17 @@ async function noteBetween(page: Page, collab: ReturnType<typeof collabFor>, she
   const row = (await page.locator(".App-toolbar--mobile").boundingBox())!
   const top = canvas.y + (note.y! + camera.scrollY) * camera.zoom
   return top >= row.y + row.height && top + note.height! * camera.zoom <= (await sheet.boundingBox())!.y
+}
+
+/**
+ * Whether a frame's name sits whole on a phone between the tool row over the board's top and the Find sheet: the words
+ * Find matched, not only the frame they name. Excalidraw 0.18.1 writes a frame's name on the page over its canvas, just
+ * above the frame's top edge (#<app>-frame-name-<frame id>), at 14 px whatever the zoom (V-270).
+ */
+async function nameBetween(page: Page, sheet: Locator, frameId: string) {
+  const name = await page.locator(`[id$="-frame-name-${frameId}"]`).boundingBox()
+  const row = (await page.locator(".App-toolbar--mobile").boundingBox())!
+  return !!name && name.y >= row.y + row.height && name.y + name.height <= (await sheet.boundingBox())!.y
 }
 
 /** Whether the current match is lit on a computer's screen, clear of the Find panel at its side. */
@@ -392,6 +406,29 @@ test(`on a phone, a typed word's match under the sheet comes up above it before 
   await context.close()
 })
 
+// V-270: a frame's name is written above the frame, outside the box Find fits into what the sheet leaves in view, so a
+// match on a frame's name came up with its words under the tool row over the board's top (seen on the demo's Launch
+// retro). The name itself sits whole between that row and the sheet, typed and stepped to.
+test(`on a phone, a frame's name it finds shows whole between the tool row and the sheet, typed and stepped to (phone, ${theme})`, async ({ browser }) => {
+  test.setTimeout(120_000)
+  const { context, page } = await open(browser, "phone", "sam", `/app/board/${BOARD}`, theme)
+  await expect(page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
+  await page.getByRole("button", { name: "Board options" }).tap()
+  await page.getByRole("menuitem", { name: "Find and replace" }).tap()
+  const sheet = page.locator("[data-board-find]")
+  await expect(sheet).toBeVisible({ timeout: 30_000 })
+  await settled(sheet)
+  const field = sheet.getByRole("textbox", { name: "Find on board" })
+  await field.pressSequentially("Went well", { delay: 30 })
+  await expect(sheet.locator("[data-board-find-count]")).toHaveText("1 of 1")
+  const between = () => nameBetween(page, sheet, "well")
+  await expect.poll(between, { timeout: 10_000, message: "the typed frame's name sits whole between the tool row and the sheet" }).toBe(true)
+  await reviewShot(page, "board-find-frame-name-sheet", theme)
+  await field.press("Enter")
+  await expect.poll(between, { timeout: 10_000, message: "the stepped-to frame's name sits whole between the tool row and the sheet" }).toBe(true)
+  await context.close()
+})
+
 // V-201: what a phone's Find sheet leaves in view is the canvas above the sheet's top. The canvas's upper half runs
 // under the sheet by half of what sits above the canvas: the board's header, and on the demo its shared-account note
 // too (a band of about 75 px there, about 26 px on a customer's build). Words in that band counted as in view, so
@@ -515,6 +552,71 @@ test(`a viewer finds on a board but never replaces: no Replace, and the board's 
   await reviewShot(page, "board-find-empty", theme)
   await context.close()
 })
+
+// Dim the rest (V-271): while Find has matches, all but them and what they are in fade behind the board's veil, on by
+// default, as Miro's search dims what doesn't match; the matches stay as they were. Read in pixels across a note's left
+// edge, halfway down (the board, the note's line, its fill): on a note the veil covers, the colours spread a quarter as
+// far (the veil is the sheet's colour at 75%); on a match, as far as ever. Nothing in it moves: reduced motion too.
+// While Find is open, "as they were" is what its panel leaves of the board: on a phone, its sheet's scrim lies over all.
+for (const [device, motion] of [["computer", "no-preference"], ["phone", "no-preference"], ["phone", "reduce"]] as const) {
+  test(`Find dims the rest of the board while it has matches, on until it's turned off, and it ends with Find (${device}, ${theme}${motion === "reduce" ? ", reduced motion" : ""})`, async ({ browser }) => {
+    test.setTimeout(120_000)
+    // At half size on a phone, both notes in "Launch week" sit between the tool row and the sheet.
+    const cam = device === "phone" ? { scrollX: 0, scrollY: 150, zoom: 0.5 } : { scrollX: 0, scrollY: 0, zoom: 1 }
+    const { context, page } = await open(browser, device, "sam", `/app/board/${BOARD}`, theme, cam, { reducedMotion: motion })
+    const canvas = (await page.locator(".excalidraw canvas.interactive").boundingBox())!
+    // 8 px across the edge, clear of the 6 px a hole runs past a kept note.
+    const edge = (x: number, y: number) => ({ x: canvas.x + (x + cam.scrollX) * cam.zoom - 4, y: canvas.y + (y + 90 + cam.scrollY) * cam.zoom - 4, width: 8, height: 8 })
+    const spread = async (x: number, y: number) => spreadOf(await pixelsAt(page, edge(x, y)))
+    const budget = () => spread(100, 150)
+    const venue = () => spread(360, 150)
+    const caterer = () => spread(100, 520)
+    await expect.poll(budget, { timeout: 15_000, message: "the budget note is drawn" }).toBeGreaterThan(60)
+    const drawn = { venue: await venue() }
+    expect(drawn.venue, "the venue note is drawn").toBeGreaterThan(60)
+
+    const panel = device === "phone" ? await findOnPhone(page) : await findFromMenu(page)
+    // What the open panel leaves of the board before a search: a computer's sits beside it; a phone's sheet lays its
+    // scrim (components/ui/drawer) over all of it, read once it has faded in.
+    if (device === "phone") await expect(page.locator("[data-vaul-overlay][data-v3-scrim]")).toHaveCSS("opacity", "1")
+    const atOpen = { budget: await budget(), venue: await venue(), caterer: device === "computer" ? await caterer() : 0 }
+    expect(atOpen.venue, "the venue note shows past the open panel").toBeGreaterThan(40)
+    const press = (button: Locator) => (device === "phone" ? button.tap() : button.click())
+    const field = panel.getByRole("textbox", { name: "Find on board" })
+    await field.pressSequentially("budget", { delay: 30 })
+    await expect(panel.locator("[data-board-find-count]")).toHaveText("1 of 1")
+    await expect.poll(venue, { timeout: 10_000, message: "the note that doesn't match fades behind the veil" }).toBeLessThan(atOpen.venue * 0.4)
+    expect(Math.abs((await budget()) - atOpen.budget), "the match stays as it was").toBeLessThanOrEqual(atOpen.budget * 0.1)
+    // Its note and its words are kept, and Dim the rest says it's on.
+    await expect(page.locator("svg[data-find-veil]")).toHaveAttribute("data-find-veil", "2")
+    const dim = panel.getByRole("button", { name: "Dim the rest" })
+    await expect(dim).toHaveAttribute("aria-pressed", "true")
+    await reviewShot(page, `board-find-dims-${device}`, theme)
+
+    // Off, the board is as it was; on again, it dims again.
+    await press(dim)
+    await expect(dim).toHaveAttribute("aria-pressed", "false")
+    await expect(page.locator("svg[data-find-veil]")).toHaveCount(0)
+    await expect.poll(venue, { timeout: 10_000, message: "turned off, the note is as it was" }).toBeGreaterThan(atOpen.venue * 0.9)
+    await press(dim)
+    await expect.poll(venue, { timeout: 10_000, message: "on again, it fades again" }).toBeLessThan(atOpen.venue * 0.4)
+
+    if (device === "computer") {
+      // A frame found by its name keeps what is in it: both its notes stay as they were, and the note outside it fades.
+      await field.fill("launch week")
+      await expect(panel.locator("[data-board-find-count]")).toHaveText("1 of 1")
+      await expect.poll(caterer, { timeout: 10_000, message: "the note outside the frame fades" }).toBeLessThan(atOpen.caterer * 0.4)
+      expect(Math.abs((await venue()) - atOpen.venue), "a note in the frame found stays as it was").toBeLessThanOrEqual(atOpen.venue * 0.1)
+    }
+
+    // It ends with Find: a computer's panel by its close button; a phone's sheet, which has none, by a tap on its scrim.
+    if (device === "phone") await page.locator("[data-v3-scrim]").tap({ position: { x: 195, y: 120 } })
+    else await panel.getByRole("button", { name: "Close find" }).click()
+    await expect(page.locator("svg[data-find-veil]")).toHaveCount(0)
+    await expect.poll(venue, { timeout: 10_000, message: "Find closed, the board is as drawn" }).toBeGreaterThan(drawn.venue * 0.9)
+    await context.close()
+  })
+}
 
 // V-195 (DB-71's MUST): on a phone that lost Find's code, the menu closed and the board said nothing for 30 s: no
 // sheet, no "slow", no Try again. Now Board options asks for that code as it opens; a tap that still waits raises Find's

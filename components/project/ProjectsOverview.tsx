@@ -7,7 +7,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useDispatch } from "react-redux"
 import { GoalsView } from "@/components/goals/GoalsView"
 import { HealthWord } from "@/components/projectUpdates/HealthPill"
-import { ProjectsTimeline } from "@/components/project/ProjectsTimeline"
 import { ProjectsWorkload } from "@/components/project/ProjectsWorkload"
 import { ReportsView } from "@/components/reports/ReportsView"
 import { Button } from "@/components/ui/button"
@@ -31,6 +30,14 @@ import { measureFlip, playFlip, type FlipRects } from "@/lib/flip"
 import { BarChart3, ChartGantt, ChevronDown, Filter, List, Plus, Repeat, SlidersHorizontal, Target, Users } from "@/lib/icons"
 import { HEALTHS } from "@/lib/projectUpdates"
 import { OVERVIEW_SORTS, filterOverview, progressOf, sortOverview, type OverviewFilter, type OverviewSort, type ProjectOverview } from "@/lib/projectsOverview"
+import { PLAN_SORTS, endOf, isPlanSort, sortByPlan, type PlanSort } from "@/lib/work/planOverview"
+import { categoryKind, whenWords } from "@/lib/work/projectPlan"
+import { runWhenSettled } from "@/lib/ui/whenQuiet"
+import { dayDate } from "@/lib/utils/timeZone"
+import { ProjectStatusGlyph } from "@/components/ui/graphics/projectStatusGlyph"
+import { PriorityGlyph } from "@/components/ui/graphics/glyphs"
+import { PRIORITY_NAMES, priorityLevel } from "@/lib/tasks/priority"
+import { statusHueOf } from "@/lib/taskStatus"
 import { shortDate } from "@/lib/utils/date/shortDate"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useMyMilestones } from "@/hooks/useMyMilestones"
@@ -51,10 +58,16 @@ import { areaHue } from "@/lib/areas"
 // skeleton (a bare next/dynamic did, V-16), and once in, the view draws at
 // once. Its loading rows hold its place while the chunk is on its way.
 const Cycles = lazyView(() => import("@/components/work/RunningCycles"))
+// The Timeline view too (head 2c): off the table's first load, and fetched once the page has settled, so its
+// tab opens at once. While it comes, the list's loading rows hold its place, as they do while the list is read.
+const Timeline = lazyView(() => import("@/components/project/ProjectsTimeline"))
 // A row's next milestone (linear-16) comes in a chunk of its own, as its milestones come after the list.
 const NextMilestone = dynamic(() => import("@/components/work/milestones/NextMilestone").then((m) => m.NextMilestone), { ssr: false })
 
-const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
+// The overview's own orderings, and those a project's plan adds (linear-15).
+type Sort = OverviewSort | PlanSort
+const SORTS: readonly { value: Sort; label: string }[] = [...OVERVIEW_SORTS, ...PLAN_SORTS]
+const isSort = (v: unknown): v is Sort => SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
 type OverviewView = "table" | "timeline" | "workload" | "cycles" | "goals" | "reports"
 const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload" || v === "cycles" || v === "goals" || v === "reports"
@@ -119,12 +132,67 @@ function Counts({ p }: { p: ProjectOverview }) {
   )
 }
 
-/** The day a project's tasks run to, in danger ink once it has passed with work open. */
-function Ends({ p, now }: { p: ProjectOverview; now: Date }) {
-  const d = p.last_day ? new Date(p.last_day) : null
-  if (!d || Number.isNaN(d.getTime())) return <span className="text-ink-4">–</span>
-  const late = p.open > 0 && d.getTime() < now.getTime() - DAY
-  return <span className={cn("tabular-nums", late ? "text-danger-ink" : "text-foreground")}>{shortDate(d, now)}</span>
+/** Where a project stands by its plan: its category's glyph, in its own status's hue (linear-15). */
+function PlanStatusMark({ p }: { p: ProjectOverview }) {
+  const status = p.plan?.status
+  if (!status) return null
+  return (
+    <span role="img" aria-label={`Status: ${status.name}`} title={status.name} data-plan-status="" className="inline-flex shrink-0">
+      <ProjectStatusGlyph status={categoryKind(status.category)} hue={status.id ? statusHueOf(status.color) : undefined} size={14} />
+    </span>
+  )
+}
+
+/**
+ * A project's priority by its plan: the glyph alone, its word on hover, as a
+ * task row shows its own. The glyph and the scale come without i18n, which
+ * this page never loads (TaskPriorityCell's translated word would bring it).
+ */
+function PlanPriorityMark({ p }: { p: ProjectOverview }) {
+  const level = priorityLevel(p.plan?.priority)
+  if (!level) return null
+  return (
+    <span data-tip={PRIORITY_NAMES[level]} data-plan-priority={level} className="work-tip inline-flex shrink-0 items-center">
+      <PriorityGlyph level={level} size={14} label={`Priority: ${PRIORITY_NAMES[level]}`} />
+    </span>
+  )
+}
+
+/** A project's second line: its team, its lead and its first two labels; a phone's card shows it too (linear-15). */
+function SubLine({ p, className }: { p: ProjectOverview; className?: string }) {
+  const words = [p.project_team?.team_name, p.plan?.lead?.name, ...(p.plan?.labels ?? []).slice(0, 2).map((l) => l.name)].filter(Boolean).join(" · ")
+  return words ? (
+    <span data-plan-line="" className={cn("block truncate text-xs text-ink-3", className)} title={words}>
+      {words}
+    </span>
+  ) : null
+}
+
+/**
+ * Where a project ends (V-255): its plan's target at its resolution, or, in
+ * quiet ink and titled so, its tasks' last day where it has none; in danger
+ * ink once that day is over with work open (lib/work/planOverview endOf). A
+ * phone's card line passes `before`, its separator, and shows nothing when
+ * there is no end; the table's column shows a dash.
+ */
+function Ends({ p, now, before }: { p: ProjectOverview; now: Date; before?: ReactNode }) {
+  const end = endOf(p, now)
+  if (!end) return before ? null : <span className="text-ink-4">–</span>
+  const target = p.plan?.target
+  const words = target && target.resolution !== "day" ? whenWords(target) : shortDate(dayDate(end.day)!, now)
+  return (
+    <>
+      {before}
+      <span
+        title={target ? `Target: ${whenWords(target)}` : `No target set; its tasks end ${words}`}
+        data-plan-target={target ? "" : undefined}
+        data-tasks-end={target ? undefined : ""}
+        className={cn("shrink-0 whitespace-nowrap tabular-nums", end.late ? "text-danger-ink" : target ? "text-foreground" : "text-ink-3")}
+      >
+        {words}
+      </span>
+    </>
+  )
 }
 
 function AttentionDot({ p }: { p: ProjectOverview }) {
@@ -169,13 +237,15 @@ function Row({ p, grow, now, next, forecasts }: { p: ProjectOverview; grow: Grow
       <ProjectTile id={p.project_uuid} size={20} />
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-1.5">
+          <PlanStatusMark p={p} />
           <span className="truncate text-sm font-[510] text-foreground" title={p.project_name}>
             {p.project_name}
           </span>
           <AttentionDot p={p} />
+          <PlanPriorityMark p={p} />
           {next && <NextMilestone m={next} now={now} className="ml-1.5" />}
         </span>
-        {p.project_team?.team_name && <span className="block truncate text-xs text-ink-3">{p.project_team.team_name}</span>}
+        <SubLine p={p} />
       </span>
       <HealthWord health={p.health} />
       <span className="flex items-center gap-2.5">
@@ -202,8 +272,11 @@ function Row({ p, grow, now, next, forecasts }: { p: ProjectOverview; grow: Grow
   )
 }
 
-/** A project as a phone lists it (W39): 72 px, two lines. A long press offers its admins the project's options, as before. */
-function MobileRow({ p, next, forecasts }: { p: ProjectOverview; next?: Milestone; forecasts: ForecastPages | undefined }) {
+/**
+ * A project as a phone lists it (W39): 72 px, two lines, and a third between them, as the laptop's row has it, for
+ * its team, lead and labels (linear-15) when it has any. A long press offers its admins the project's options.
+ */
+function MobileRow({ p, now, next, forecasts }: { p: ProjectOverview; now: Date; next?: Milestone; forecasts: ForecastPages | undefined }) {
   const dispatch = useDispatch()
   const longPress = useLongPress(
     () =>
@@ -227,26 +300,31 @@ function MobileRow({ p, next, forecasts }: { p: ProjectOverview; next?: Mileston
   return (
     <li>
       <Link href={href(p)} data-project-row="" {...ix("row", { hue })} className="block border-b border-line">
-        <div className="flex h-[72px] items-center gap-3" {...longPress}>
+        <div className="flex min-h-[72px] items-center gap-3 py-3" {...longPress}>
           <ProjectTile id={p.project_uuid} size={28} />
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center justify-between gap-3">
               <span className="flex min-w-0 items-center gap-1.5">
+                <PlanStatusMark p={p} />
                 <span className="truncate text-body font-[590] leading-5 text-foreground">{p.project_name}</span>
                 <AttentionDot p={p} />
+                <PlanPriorityMark p={p} />
               </span>
               <HealthWord health={p.health} />
             </span>
-            {/* One line, never more: the counts never give; the forecast's date gives its words; the next
-                milestone gives its name, and when even 64 px aren't left it wraps onto a second line that is
-                never shown, so nothing runs past the row. */}
+            <SubLine p={p} className="mt-0.5" />
+            {/* One line, never more: the counts and the end (V-255) never give; the bar gives first, as the
+                counts say its % in words, then the forecast's date gives its words (never its held-up dot and
+                words); the next milestone gives its name, and when even 64 px aren't left it wraps onto a second
+                line that is never shown, so nothing runs past the row. */}
             <span className="mt-1.5 flex h-4 flex-wrap items-center gap-x-2 overflow-hidden text-xs text-ink-2">
               <span className="flex min-w-0 max-w-full items-center gap-2">
-                {any && <Bar value={pct} label={`${pct}% done`} className="!w-14 shrink-0" />}
+                {any && <Bar value={pct} label={`${pct}% done`} className="!w-14 shrink-[999]" />}
                 <span data-row-counts="" className="shrink-0 whitespace-nowrap">
                   {any ? `${pct}% · ` : ""}
                   <Counts p={p} />
                 </span>
+                <Ends p={p} now={now} before={<span aria-hidden className="text-ink-4">·</span>} />
                 <LazyForecastWhenOf forecasts={forecasts} projectId={p.project_uuid} before={<span aria-hidden className="text-ink-4">·</span>} />
               </span>
               {next && <NextMilestone m={next} className="ml-auto min-w-0 grow basis-16 justify-end" />}
@@ -259,8 +337,8 @@ function MobileRow({ p, next, forecasts }: { p: ProjectOverview; next?: Mileston
 }
 
 /** The quiet column header (W39): 32 px, 12/510 ink-3, sticky, a hairline under it; a sortable one shows its chevron on hover. */
-function Header({ sort, onSort }: { sort: OverviewSort; onSort: (s: OverviewSort) => void }) {
-  const head = (label: string, s?: OverviewSort) =>
+function Header({ sort, onSort }: { sort: Sort; onSort: (s: Sort) => void }) {
+  const head = (label: string, s?: Sort) =>
     s ? (
       <button
         type="button"
@@ -280,7 +358,7 @@ function Header({ sort, onSort }: { sort: OverviewSort; onSort: (s: OverviewSort
       {head("Project", "name")}
       {head("Health", "attention")}
       {head("Progress", "progress")}
-      {head("Ends")}
+      {head("Target", "target")}
       {head("Forecast")}
       {head("Tasks", "updated")}
     </div>
@@ -399,8 +477,8 @@ function DisplayMenu({
   setGrouping,
   compact,
 }: {
-  sort: OverviewSort
-  setSort: (s: OverviewSort) => void
+  sort: Sort
+  setSort: (s: Sort) => void
   grouping: Grouping
   setGrouping: (g: Grouping) => void
   compact?: boolean
@@ -434,7 +512,7 @@ function DisplayMenu({
         </div>
         <div role="menu" aria-label="Ordering" className="space-y-0.5">
           <p className="pb-1 text-xs font-[510] text-ink-3">Ordering</p>
-          {OVERVIEW_SORTS.map((s) => (
+          {SORTS.map((s) => (
             <button
               key={s.value}
               type="button"
@@ -472,7 +550,7 @@ export function ProjectsOverview() {
   const milestones = useMyMilestones(!!projects)
   const nextOf = (p: ProjectOverview) => nextMilestone(milestones.get(p.project_uuid.toLowerCase()))
   const [query, setQuery] = useState("")
-  const [sort, setSortRaw] = useStoredState<OverviewSort>("oc_projects_sort", "name", isSort)
+  const [sort, setSortRaw] = useStoredState<Sort>("oc_projects_sort", "name", isSort)
   const [filter, setFilter] = useStoredState<OverviewFilter>("oc_projects_filter", "all", isFilter)
   const [grouping, setGroupingRaw] = useStoredState<Grouping>("oc_projects_group", "auto", isGrouping)
   const [facets, setFacets] = useState<Facets>({ health: [], teams: [] })
@@ -485,6 +563,7 @@ export function ProjectsOverview() {
   useEffect(() => {
     if (isView(asked)) setView(asked)
   }, [asked, setView])
+  useEffect(() => runWhenSettled([Timeline.prefetch]), [])
   const choose = (v: OverviewView) => {
     setView(v)
     const next = new URLSearchParams(params.toString())
@@ -496,7 +575,7 @@ export function ProjectsOverview() {
   const listRef = useRef<HTMLDivElement>(null)
   const pendingFlip = useRef<FlipRects | null>(null)
   const setSort = useCallback(
-    (s: OverviewSort) => {
+    (s: Sort) => {
       pendingFlip.current = measureFlip(listRef.current)
       setSortRaw(s)
     },
@@ -522,7 +601,7 @@ export function ProjectsOverview() {
     const picked = base.filter(
       (p) => (facets.health.length === 0 || facets.health.includes(p.health ?? "")) && (facets.teams.length === 0 || facets.teams.includes(p.project_team?.team_name ?? "")),
     )
-    return sortOverview(picked, sort)
+    return isPlanSort(sort) ? sortByPlan(picked, sort) : sortOverview(picked, sort)
   }, [all, query, filter, facets, sort])
   const overdue = useMemo(() => all.reduce((n, p) => n + p.overdue, 0), [all])
   const grow = useGrow("overview:projects", !!projects, 24)
@@ -658,14 +737,19 @@ export function ProjectsOverview() {
       </div>
     )
   } else if (view === "timeline") {
-    body = <ProjectsTimeline projects={shown} compact={!isDesktop} tools={viewTools} milestones={milestones} />
+    body = (
+      <Timeline.View
+        fallback={<WorkRowsLoading kind="projects" compact={!isDesktop} />}
+        render={(m) => <m.ProjectsTimeline projects={shown} compact={!isDesktop} tools={viewTools} milestones={milestones} />}
+      />
+    )
   } else if (view === "workload") {
     body = <ProjectsWorkload projects={shown} compact={!isDesktop} tools={viewTools} />
   } else if (!isDesktop) {
     body = (
       <ul data-projects-list="">
         {shown.map((p) => (
-          <MobileRow key={p.project_uuid} p={p} next={nextOf(p)} forecasts={forecasts} />
+          <MobileRow key={p.project_uuid} p={p} now={now} next={nextOf(p)} forecasts={forecasts} />
         ))}
       </ul>
     )

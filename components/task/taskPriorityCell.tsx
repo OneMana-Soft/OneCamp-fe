@@ -1,16 +1,8 @@
 import { useWord } from "@/lib/utils/i18n"
 
 import { PriorityGlyph } from "@/components/ui/graphics/glyphs"
+import { PRIORITY_NAMES, priorityLevel } from "@/lib/tasks/priority"
 import { cn } from "@/lib/utils/helpers/cn"
-
-/** A priority's level, as its glyph shows it: none 0 to urgent 4. */
-const LEVELS: Record<string, 1 | 2 | 3 | 4> = { low: 1, medium: 2, high: 3, urgent: 4 }
-
-export function priorityLevel(value: string | undefined | null): 0 | 1 | 2 | 3 | 4 {
-  return (value && LEVELS[value]) || 0
-}
-
-const NAMES = ["No priority", "Low", "Medium", "High", "Urgent"] as const
 
 /**
  * A priority (design v3, work.md W02): three ink bars filled to the level,
@@ -32,7 +24,7 @@ export function TaskPriorityCell({
 }) {
   const value = typeof priority === "string" ? priority : priority?.value ?? ""
   const level = priorityLevel(value)
-  const name = useWord(level ? value : "", NAMES[level])
+  const name = useWord(level ? value : "", PRIORITY_NAMES[level])
   if (label === "tip") {
     return (
       <span

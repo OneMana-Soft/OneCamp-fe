@@ -142,6 +142,8 @@ export interface TableRow {
   comments?: number
   /** The row's page, the doc it hosts, once someone has written in it (a member's read alone). */
   page?: string
+  /** A write's answer alone (a create, a patch, a link change): the change set it stored, null when it changed nothing (V-360); none from a server before it. */
+  change_set?: string | null
 }
 
 /**
@@ -185,12 +187,33 @@ export interface DataTable {
   updated_at: string
 }
 
+/** A person chosen to edit a table's rows (V-170). */
+export interface TableEditor {
+  user_id: string
+  name: string
+  email: string
+  granted_at: string
+}
+
+/**
+ * Who edits a table's rows (V-170): everyone who can open it ("edit"), or
+ * only its managers and the people chosen ("comment", with people).
+ */
+export interface TableEditing {
+  general: "edit" | "comment"
+  people: TableEditor[]
+}
+
 export interface TableBundle {
   table: DataTable
   fields: TableField[]
   views: TableView[]
   rows: TableRow[]
   can_manage: boolean
+  /** Whether the reader edits the table's rows (V-170); a bundle without it means they do. */
+  can_edit?: boolean
+  /** Who edits the table's rows, for its managers only (V-170). */
+  editing?: TableEditing
   mqtt_topic: string
   /** Who is on the table, and where (tables A7). */
   presence_topic?: string
@@ -462,6 +485,8 @@ export interface RowsWindow {
   rows: TableRow[]
   /** Where the next window starts; none past the last. */
   next?: string
+  /** A jump's first place, echoed; none from a server that reads no place. */
+  at?: number
   /** How many rows the view shows, when the window was asked to count. */
   total?: number
   /** The count stopped at the server's cap: there are more. */
@@ -474,10 +499,11 @@ export interface RowsWindow {
 
 /**
  * A window of a view's rows (POST /tables/{id}/query, tables T5c): up to n
- * of the rows the spec shows, in its order, from a cursor ("" for the first),
- * in the reader's zone; with count, how many it shows too. Quiet.
+ * of the rows the spec shows, in its order, from a cursor ("" for the first)
+ * or at a place (a jump), in the reader's zone; with count, how
+ * many it shows too. Quiet.
  */
-export async function queryRows(tableId: string, body: { spec: RowSpec; cursor?: string; n: number; count?: boolean }, signal?: AbortSignal): Promise<RowsWindow> {
+export async function queryRows(tableId: string, body: { spec: RowSpec; cursor?: string; at?: number; n: number; count?: boolean }, signal?: AbortSignal): Promise<RowsWindow> {
   const res = await axiosInstance.post(inZone(`${TablesPost.QueryTableRows}/${tableId}/query`), body, { ...OWN_ERRORS, signal })
   const w = (res.data?.data ?? {}) as Partial<RowsWindow>
   return { ...w, rows: w.rows ?? [] }

@@ -1,5 +1,6 @@
 /** A value typed into a task's custom field, read: the task panel's editing
- * (taskFieldsSection). Apart from lib/tasks/fields, which every list that
+ * (taskFieldsSection), and an answer to a field a task template asks for
+ * (readAnswer). Apart from lib/tasks/fields, which every list that
  * shows a field reads, so the number reader (lib/format/number) loads where a
  * number is typed, never with a project's list (app/firstLoad.test.ts). Pure,
  * but for the reader's locale. */
@@ -31,4 +32,23 @@ export function parseFieldInput(field: Pick<TaskField, "name" | "type">, text: s
     }
   }
   return { error: `${field.name} isn't typed in.` }
+}
+
+/** An answer of any type, as the shared answer box holds it (components/forms/AnswerInput: a string, the ids
+ * ticked, or a tick), read as the field's value: null for no answer, or what to say. A checkbox is answered only
+ * ticked, and a choice (an option, a person, a day) is taken as it is; anything typed is read as above. */
+export function readAnswer(field: Pick<TaskField, "name" | "type">, answer: unknown): { value: FieldValue | null } | { error: string } {
+  switch (field.type) {
+    case "checkbox":
+      return { value: answer === true ? true : null }
+    case "multi_select": {
+      const ids = Array.isArray(answer) ? answer.filter((x): x is string => typeof x === "string" && x !== "") : []
+      return { value: ids.length ? ids : null }
+    }
+    case "select":
+    case "person":
+    case "date":
+      return { value: typeof answer === "string" && answer.trim() ? answer.trim() : null }
+  }
+  return parseFieldInput(field, typeof answer === "string" ? answer : "")
 }

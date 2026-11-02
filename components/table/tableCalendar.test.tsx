@@ -10,6 +10,10 @@ vi.mock("@/services/tableService", async (importOriginal) => {
 import { DataTableCalendar } from "./DataTableCalendar"
 import { localDay } from "@/lib/utils/timeZone"
 import type { TableField, TableRow } from "@/services/tableService"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
+
+/** The table's undo order as a write that only sends: the tests of the order hold their own. */
+const pass: UndoOrder["write"] = (_what, send) => send()
 
 const TABLE = "7ab1e000-0000-4000-8000-000000000001"
 const field = (id: string, name: string, type: TableField["type"], position: number): TableField => ({ id, table_id: TABLE, name, type, config: "{}", position })
@@ -24,14 +28,14 @@ afterEach(cleanup)
 // chips couldn't be opened.
 describe("a table's calendar view", () => {
   it("starts the week where the Calendar does, with weekends set apart", () => {
-    render(<DataTableCalendar tableId={TABLE} fields={FIELDS} rows={[]} canManage onChange={() => {}} month={new Date(2026, 9, 1)} />)
+    render(<DataTableCalendar write={pass} tableId={TABLE} fields={FIELDS} rows={[]} canManage onChange={() => {}} month={new Date(2026, 9, 1)} />)
     const heads = Array.from(document.querySelectorAll("[data-month-grid] > div")).slice(0, 7).map((d) => d.textContent)
     expect(heads).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
     expect(document.querySelectorAll("[data-weekend]").length).toBeGreaterThan(0)
   })
 
   it("rings today in the brand instead of filling it", () => {
-    render(<DataTableCalendar tableId={TABLE} fields={FIELDS} rows={[]} canManage onChange={() => {}} month={new Date(today.getFullYear(), today.getMonth(), 1)} />)
+    render(<DataTableCalendar write={pass} tableId={TABLE} fields={FIELDS} rows={[]} canManage onChange={() => {}} month={new Date(today.getFullYear(), today.getMonth(), 1)} />)
     const cell = document.querySelector("[data-today]")!
     expect(cell).toBeTruthy()
     expect(cell.innerHTML).toMatch(/ring-brand/)
@@ -40,7 +44,7 @@ describe("a table's calendar view", () => {
 
   it("opens a row's record from its chip", () => {
     const open = vi.fn()
-    render(<DataTableCalendar tableId={TABLE} fields={FIELDS} rows={[row("r1", "Launch film edit", today)]} canManage onChange={() => {}} month={new Date(today.getFullYear(), today.getMonth(), 1)} onOpenRow={open} />)
+    render(<DataTableCalendar write={pass} tableId={TABLE} fields={FIELDS} rows={[row("r1", "Launch film edit", today)]} canManage onChange={() => {}} month={new Date(today.getFullYear(), today.getMonth(), 1)} onOpenRow={open} />)
     fireEvent.click(screen.getByRole("button", { name: "Launch film edit" }))
     expect(open).toHaveBeenCalledWith("r1")
   })
@@ -51,7 +55,7 @@ describe("a busy day", () => {
   it("draws three rows and \"+N more\", which lists them all", () => {
     const open = vi.fn()
     const rows = Array.from({ length: 12 }, (_, i) => row(`r${i}`, `Post ${i}`, today))
-    render(<DataTableCalendar tableId={TABLE} fields={FIELDS} rows={rows} canManage onChange={() => {}} month={new Date(today.getFullYear(), today.getMonth(), 1)} onOpenRow={open} />)
+    render(<DataTableCalendar write={pass} tableId={TABLE} fields={FIELDS} rows={rows} canManage onChange={() => {}} month={new Date(today.getFullYear(), today.getMonth(), 1)} onOpenRow={open} />)
     expect(document.querySelectorAll("[data-table-calendar-row]")).toHaveLength(3)
     fireEvent.click(screen.getByRole("button", { name: "+9 more" }))
     expect(document.querySelectorAll("[data-table-calendar-row]")).toHaveLength(15)
@@ -68,7 +72,7 @@ describe("a table's calendar on a phone", () => {
   const month = new Date(today.getFullYear(), today.getMonth(), 1)
   const other = new Date(today.getFullYear(), today.getMonth(), today.getDate() === 10 ? 11 : 10)
   const rows = [on("r1", "Catering deposit", today, 1200), on("r2", "Printed programmes", today, 300), on("r3", "Venue walk-through", other, 0)]
-  const phone = (onOpenRow = vi.fn()) => render(<DataTableCalendar tableId={TABLE} fields={PHONE_FIELDS} rows={rows} canManage onChange={() => {}} month={month} compact onOpenRow={onOpenRow} />)
+  const phone = (onOpenRow = vi.fn()) => render(<DataTableCalendar write={pass} tableId={TABLE} fields={PHONE_FIELDS} rows={rows} canManage onChange={() => {}} month={month} compact onOpenRow={onOpenRow} />)
 
   it("draws a dot per row on a day, no + in any day, and today's rows by title and field", () => {
     const open = vi.fn()

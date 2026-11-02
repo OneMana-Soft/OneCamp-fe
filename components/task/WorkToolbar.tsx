@@ -159,7 +159,7 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
   const searchRef = React.useRef<HTMLInputElement>(null)
   const [filterOpen, setFilterOpen] = React.useState(false)
   const newTask = React.useCallback(
-    () => dispatch(openUI({ key: "createTask", data: projectId ? { projectId } : { assignToMe: true } })),
+    (e?: { altKey: boolean }) => dispatch(openUI({ key: "createTask", data: { projectId, assignToMe: !projectId, pickTemplate: e?.altKey } })),
     [dispatch, projectId],
   )
   const bar = React.useRef<HTMLDivElement>(null)
@@ -167,7 +167,8 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
     // "G then C" goes to Channels (lib/goKeys): a key just after G is not ours.
     let lastG = 0
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return
+      // Alt+C by key code: a Mac's Option+C types "ç".
+      if (e.metaKey || e.ctrlKey || (e.altKey && e.code !== "KeyC")) return
       if (e.key === "g" || e.key === "G") {
         lastG = Date.now()
         return
@@ -184,9 +185,9 @@ export function WorkToolbar<TData>(toolbar: WorkToolbarProps<TData>) {
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault()
         setFilterOpen(true)
-      } else if ((e.key === "c" || e.key === "C") && canCreate) {
+      } else if ((e.key === "c" || e.key === "C" || e.altKey) && canCreate) {
         e.preventDefault()
-        newTask()
+        newTask(e)
       }
     }
     window.addEventListener("keydown", onKey)

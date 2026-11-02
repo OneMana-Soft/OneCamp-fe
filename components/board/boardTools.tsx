@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoListRawInterface } from "@/types/project"
 import { BOARD_TEMPLATES, centreAt, type BoardTemplate } from "@/lib/board/templates"
+import { loadConvert, stampLaidOut, type SceneElement } from "@/components/board/boardOps"
 import { STYLE_FONT, makeTasksLabel, type BoardElementLike, type BoardStyle, type SelectedNote } from "@/lib/board/notes"
 import { CAPTURE, bumped } from "@/lib/board/binding"
 import { TemplatePreview } from "@/components/board/templatePreview"
@@ -60,7 +61,8 @@ interface BoardToolsProps {
  * synced like any drawing.
  */
 export async function insertBoardTemplate(api: ExcalidrawImperativeAPI, t: BoardTemplate, style?: BoardStyle) {
-  const { convertToExcalidrawElements } = await import("@excalidraw/excalidraw")
+  // The notes' converter (boardOps), which also names the faces, so each note's words carry the face they're laid out in.
+  const convertToExcalidrawElements = await loadConvert()
   const s = api.getAppState()
   // The middle of what the person is looking at, in scene coordinates.
   const cx = -s.scrollX + s.width / 2 / s.zoom.value
@@ -71,7 +73,8 @@ export async function insertBoardTemplate(api: ExcalidrawImperativeAPI, t: Board
   const built = centreAt(t.build(prefix), cx, cy).map((sk) =>
     font === undefined ? sk : sk.type === "rectangle" ? { ...sk, label: { ...sk.label, fontFamily: font } } : sk.type === "text" ? { ...sk, fontFamily: font } : sk,
   )
-  const generated = convertToExcalidrawElements(built as never, { regenerateIds: false })
+  // Laid out before their face has come (a phone's first board), the notes say so, and are fitted again when it lands (V-229).
+  const generated = stampLaidOut(convertToExcalidrawElements(built as never, { regenerateIds: false }) as unknown as SceneElement[])
   // One undo step (lib/board/binding).
   api.updateScene({ elements: [...api.getSceneElements(), ...generated] as never, captureUpdate: CAPTURE.IMMEDIATELY })
   api.scrollToContent(generated as never, { fitToContent: true, animate: !prefersReducedMotion() })

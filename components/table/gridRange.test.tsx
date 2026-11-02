@@ -1,9 +1,14 @@
 import * as React from "react"
+import { flushSync } from "react-dom"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { installPointerEvent } from "@/lib/testing/pointerEvent"
 import { FEEDBACK } from "@/lib/ui/feedback"
 import type { TableField, TableRow } from "@/services/tableService"
+import type { CellsRecord, CellsWrite } from "@/lib/tables/cellsWrite"
+
+// The grid's one edit path, as a stand-in: the batch sent, nothing taken by an Undo.
+vi.mock("@/lib/tables/cellsWrite", () => ({ writeCells: async (_record: unknown, c: CellsWrite) => ({ answer: await c.send(), undone: false }) }))
 
 // G1's range is a piece of its own (rangePiece), off the table's first load:
 // its eager shell (gridRange) keeps what the piece would take until it lands.
@@ -30,11 +35,13 @@ const ROWS = ["r0", "r1", "r2"].map((id, i) => ({ id, values: JSON.stringify({ a
 function Grid() {
   const tableRef = React.useRef<HTMLTableElement>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
+  const [live, setLive] = React.useState<string | null>(null)
   const range = useGridRange({
     tableRef,
     scrollRef,
     writes: () => ({
       tableId: "t",
+      canEdit: true,
       rows: () => ROWS,
       fields: () => FIELDS,
       valuesOf: (r) => JSON.parse(r.values as unknown as string),
@@ -43,13 +50,24 @@ function Grid() {
       offerUndo: () => undefined,
       onChange: () => undefined,
       select: (b) => range.select(b),
+      // The grid's one edit path (useCellCommit), as a stand-in: the batch sent, nothing taken by an Undo.
+      cells: {} as CellsRecord,
+      // The toasts' one Undo path (useCellCommit's undo), as a stand-in.
+      undo: (set) => ledger.undoChange(set),
     }),
     focusCell: () => undefined,
     revealCell: () => undefined,
   })
+  // A finger's press brings its cell to life as it goes down, as the grid's does (DataTableGrid's bringToLife): a live
+  // face takes the place of the one at rest, so the press's target leaves the page.
+  const onPointerDown = (e: React.PointerEvent) => {
+    range.onPointerDown(e)
+    const at = (e.target as HTMLElement).closest("td")?.querySelector<HTMLElement>("[data-cell]")?.dataset.cell
+    if (e.pointerType === "touch" && at) flushSync(() => setLive(at))
+  }
   return (
     <div ref={scrollRef}>
-      <table ref={tableRef} onKeyDown={(e) => range.onKey(e)} onFocus={(e) => range.onFocusIn(e.target)} onPasteCapture={range.onPaste} onPointerDownCapture={range.onPointerDown}>
+      <table ref={tableRef} onKeyDown={(e) => range.onKey(e)} onFocus={(e) => range.onFocusIn(e.target)} onPasteCapture={range.onPaste} onPointerDownCapture={onPointerDown}>
         <thead>
           <tr>
             {FIELDS.map((f, c) => (
@@ -62,7 +80,16 @@ function Grid() {
             <tr key={r.id} data-index={i}>
               {FIELDS.map((f, c) => (
                 <td key={f.id} data-field={f.id}>
-                  <input data-cell={`${i}:${c}`} data-rest="" readOnly aria-label={`${f.name} ${i + 1}`} />
+                  {/* A text cell's face (cellFaces): a box holding its text box, which a finger's press lands on. */}
+                  {live === `${i}:${c}` ? (
+                    <div key="live" data-cell-box="">
+                      <input data-cell={`${i}:${c}`} aria-label={`${f.name} ${i + 1}`} />
+                    </div>
+                  ) : (
+                    <div key="rest" data-cell-box="">
+                      <input data-cell={`${i}:${c}`} data-rest="" readOnly aria-label={`${f.name} ${i + 1}`} />
+                    </div>
+                  )}
                 </td>
               ))}
             </tr>
@@ -110,9 +137,12 @@ describe("a grid's range before its piece lands, then after", () => {
     // A paste on a cell at rest: taken now, written once the piece is in.
     const clipboardData = { getData: (type: string) => (type === "text/plain" ? "x\ny" : "") }
     expect(fireEvent.paste(cell("1:1"), { clipboardData })).toBe(false)
-    // A finger held on a cell, then a tap already over: the hold is taken up, the tap isn't.
-    fireEvent.pointerDown(cell("2:0"), { pointerType: "touch", pointerId: 7, button: 0, clientX: 5, clientY: 45 })
-    fireEvent.pointerDown(cell("0:1"), { pointerType: "touch", pointerId: 8, button: 0, clientX: 105, clientY: 5 })
+    // A finger held on a cell, then a tap already over: the hold is taken up, the tap isn't. Each press lands on its
+    // cell's box and brings the cell to life, so the held one's box has left the page when the piece lands (V-358).
+    const held = cell("2:0").parentElement!
+    fireEvent.pointerDown(held, { pointerType: "touch", pointerId: 7, button: 0, clientX: 5, clientY: 45 })
+    expect(held.isConnected).toBe(false)
+    fireEvent.pointerDown(cell("0:1").parentElement!, { pointerType: "touch", pointerId: 8, button: 0, clientX: 105, clientY: 5 })
     fireEvent.pointerUp(cell("0:1"), { pointerType: "touch", pointerId: 8, button: 0 })
     expect(screen.getByRole("status").textContent).toBe("")
     expect(ledger.batchRows).not.toHaveBeenCalled()

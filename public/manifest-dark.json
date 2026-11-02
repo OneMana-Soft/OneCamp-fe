@@ -1,0 +1,71 @@
+{
+  "id": "/",
+  "name": "OneCamp",
+  "short_name": "OneCamp",
+  "description": "Your workspace, unified.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#131416",
+  "theme_color": "#131416",
+  "icons": [
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-circle-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/badge-monochrome.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "monochrome"
+    }
+  ],
+  "scope": "/",
+  "shortcuts": [
+    {
+      "name": "Chat",
+      "short_name": "Chat",
+      "description": "Jump to your conversations",
+      "url": "/app/chat"
+    },
+    {
+      "name": "My tasks",
+      "short_name": "Tasks",
+      "description": "What is assigned to you",
+      "url": "/app/myTask"
+    },
+    {
+      "name": "Calendar",
+      "short_name": "Calendar",
+      "description": "Your week",
+      "url": "/app/calendar"
+    }
+  ],
+  "user_preferences": {
+    "color_scheme": {
+      "dark": {
+        "background_color": "#131416",
+        "theme_color": "#131416"
+      }
+    }
+  }
+}

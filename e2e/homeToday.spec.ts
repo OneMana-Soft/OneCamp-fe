@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
 
 import { SAM, stubBackend } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // Home's Today (calendar B3a): each event in its own colour, as the calendar
 // draws it, and an invitation not yet answered asks "Going?" in its row with
@@ -87,7 +88,7 @@ for (const theme of ["light", "dark"] as const) {
       const strip = page.locator("[data-today-strip]")
       await expect(strip.getByText("Design critique")).toBeVisible({ timeout: 60_000 })
       const yes = await strip.getByRole("radio", { name: "Yes" }).boundingBox()
-      expect(yes && yes.height >= 43.5, `Yes is ${yes?.height} px tall`).toBe(true)
+      expectTouchSize(yes?.height, "Yes")
       // DESIGN-BUILD-22's must-fix (27 Oct): the answer stays in its card, clear of the next one.
       const card = strip.locator("[data-agenda-row]").filter({ hasText: "Design critique" })
       const box = (await card.boundingBox())!

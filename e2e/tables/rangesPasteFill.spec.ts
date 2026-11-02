@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { finger } from "../finger"
+import { holdChunk } from "../holdChunk"
 import { SAM } from "../stubbedApp"
 import { TableServer } from "./tableServer"
 
@@ -9,6 +10,8 @@ import { TableServer } from "./tableServer"
 // copies it as Sheets and Excel read it; Ctrl+V pastes a block over it as ONE
 // batch that one Ctrl+Z takes back, and says which cells the server refused
 // and why, with "Paste the rest"; the square at its corner fills a series.
+// A write shows at once, before its batch answers, and a Ctrl+Z pressed
+// meanwhile takes back that write, never the one before it (V-360).
 
 const SHOTS = process.env.SHOTS_DIR
 const FIELDS = [
@@ -279,3 +282,301 @@ test("at 390 with touch, a long press on a cell starts a range, and the finger's
   await shoot(page, "range-long-press-390")
   await sam.close()
 })
+
+/** The range's own code (rangePiece), a chunk of its own: it alone counts a range's cells for a screen reader. */
+const RANGE_MARK = " cells selected, "
+
+// V-358: the range's code comes once the page is idle. A finger pressed on a cell before it lands brings the cell to
+// life as it goes down (its face at rest leaves the page) and is kept until the code lands, which takes it up: the
+// hold starts its range on the cell pressed, and the drag grows it, as on a page that had the code already.
+test("at 390 with touch, a long press made before the range's code lands starts the range once it does, and the finger's drag grows it", async ({ browser }, testInfo) => {
+  const server = new TableServer(FIELDS, sixRows())
+  const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), ...PHONE })
+  // The first-run keys tip sits over the grid's rows; it's been seen.
+  await context.addInitScript(() => localStorage.setItem("oc_keys_tip_seen", "1"))
+  const page = await context.newPage()
+  const range = await holdChunk(page, RANGE_MARK)
+  await server.attach(page, testInfo, SAM)
+  await page.goto(`/app/tables/${server.id}`, { waitUntil: "domcontentloaded", timeout: 120_000 })
+  await expect(cell(page, "5:0")).toBeVisible({ timeout: 30_000 })
+  // The page is idle: it has asked for the range's code, which waits here.
+  await expect.poll(() => range.asked(), { timeout: 15_000 }).toBe(true)
+  const hand = await finger(page)
+  const a = await center(td(page, "1:1"))
+  const b = await center(td(page, "3:1"))
+  await hand.down(a.x, a.y)
+  range.release()
+  await covers(page, "1:1", "1:1")
+  for (let i = 1; i <= 6; i++) await hand.move(a.x, a.y + ((b.y - a.y) * i) / 6)
+  await hand.up()
+  await covers(page, "1:1", "3:1")
+  await range.done()
+  await context.close()
+})
+
+/**
+ * Holds every batch (POST .../rows/batch) until released, as a slow network does (DB-92's r3 stall held a fill for
+ * over 20 s): the write is on its way meanwhile. Registered after the table's server, so it sees each batch first and
+ * hands it on once released. By its path, as cellSaving's holdSaves does.
+ */
+async function holdBatches(page: Page) {
+  let release: () => void = () => {}
+  const released = new Promise<void>((resolve) => (release = resolve))
+  let seen = 0
+  await page.route((url) => url.pathname.endsWith("/rows/batch"), async (route) => {
+    if (route.request().method() !== "POST") return route.fallback()
+    seen++
+    await released
+    return route.fallback()
+  })
+  return { release: () => release(), seen: () => seen }
+}
+
+/** A cell's text, whole: a number at rest. */
+const reads = (text: string) => new RegExp(`^\\s*${text}\\s*$`)
+
+// V-360: DB-93's airtable-04 probes saw a fill show nothing until its batch answered (0.8-1.9 s on LIVE, over 20 s
+// in a stall), and a Ctrl+Z pressed meanwhile take back the edit BEFORE it ("Zeta" went back to "Gamma venue"), the
+// fill landing afterwards. A range's write now shows at once from the grid's one edit path, and the table's writes
+// enter one undo order when they are made. Each batch here is held until the test releases it.
+for (const phone of [false, true]) {
+  const at = phone ? "390 with touch" : "1280"
+  const press = (l: Locator) => (phone ? l.tap() : l.click())
+
+  test(`at ${at}, a fill shows at once while its batch is held, and a Ctrl+Z pressed then takes back THAT fill, never the edit before it`, async ({ browser }, testInfo) => {
+    const server = new TableServer(FIELDS, sixRows())
+    const sam = await server.open(browser, testInfo, SAM, phone ? PHONE : {})
+    const page = sam.page
+    await expect(cell(page, "5:0")).toBeVisible({ timeout: 30_000 })
+
+    // The edit before it: row 1's Item typed as Zeta; Enter saves it.
+    await press(td(page, "0:0"))
+    await expect(cell(page, "0:0")).toBeFocused()
+    await page.keyboard.type("Zeta")
+    await page.keyboard.press("Enter")
+    await expect.poll(() => server.rows[0].values.item, { timeout: 15_000 }).toBe("Zeta")
+
+    // Amount of rows 2 to 4, then Ctrl+D: row 2's 2 copied over 3 and 4, its batch held.
+    const held = await holdBatches(page)
+    await reach(page, 1, 1, phone)
+    await page.keyboard.press("Shift+ArrowDown")
+    await page.keyboard.press("Shift+ArrowDown")
+    await covers(page, "1:1", "3:1")
+    await page.keyboard.press("ControlOrMeta+D")
+    await expect.poll(held.seen, { timeout: 15_000 }).toBe(1)
+    // Shown before any answer, as saving.
+    await expect(td(page, "2:1")).toHaveText(reads("2"), { timeout: 5_000 })
+    await expect(td(page, "3:1")).toHaveText(reads("2"))
+    await expect(td(page, "3:1")).toHaveAttribute("data-saving", "true")
+    await shoot(page, `fill-held-${at}`)
+
+    // Ctrl+Z while it's held: its cells go back at once, and nothing is undone on the server until the fill is saved.
+    await page.keyboard.press("ControlOrMeta+Z")
+    await expect(td(page, "2:1")).toHaveText(reads("3"), { timeout: 5_000 })
+    await expect(td(page, "3:1")).toHaveText(reads("4"))
+    expect(server.undos, "no undo goes while the fill is on its way").toEqual([])
+
+    // Released: the fill is saved, then taken back by its own change set; the edit before it stays.
+    held.release()
+    await expect.poll(() => server.undos, { timeout: 15_000 }).toEqual(["c0000002"])
+    expect(server.changeSets.map((c) => `${c.kind}${c.undone ? " undone" : ""}`)).toEqual(["edit", "fill undone"])
+    expect(server.rows.map((r) => r.values.amount)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(server.rows[0].values.item).toBe("Zeta")
+    await expect(toast(page, "Undone")).toBeVisible()
+    await expect(toast(page, "Filled")).toHaveCount(0)
+    await expect(td(page, "0:0")).toContainText("Zeta")
+    await expect(td(page, "2:1")).toHaveText(reads("3"))
+    await sam.close()
+  })
+
+  test(`at ${at}, a paste at the last row shows its cells and the rows it adds at once while its batch is held`, async ({ browser }, testInfo) => {
+    const server = new TableServer(FIELDS, sixRows())
+    const sam = await server.open(browser, testInfo, SAM, { ...(phone ? PHONE : {}), ...CLIPBOARD })
+    const page = sam.page
+    await expect(cell(page, "5:0")).toBeVisible({ timeout: 30_000 })
+    const held = await holdBatches(page)
+    await reach(page, 5, 1, phone)
+    await page.evaluate((text) => navigator.clipboard.writeText(text), `7\t${day(7)}\n8\t${day(8)}\n9\t${day(9)}`)
+    await page.keyboard.press("ControlOrMeta+V")
+    await expect.poll(held.seen, { timeout: 15_000 }).toBe(1)
+
+    // The last row's cells and the two rows it adds, before any answer, as saving.
+    const adding = page.locator("tbody tr[data-adding]")
+    await expect(td(page, "5:1")).toHaveText(reads("7"), { timeout: 5_000 })
+    await expect(td(page, "5:1")).toHaveAttribute("data-saving", "true")
+    await expect(adding).toHaveCount(2)
+    await expect(adding.nth(0).locator('td[data-field="amount"]')).toHaveText(reads("8"))
+    await expect(adding.nth(1).locator('td[data-field="amount"]')).toHaveText(reads("9"))
+    await expect(adding.nth(1).locator("td[data-saving]")).toHaveCount(FIELDS.length)
+    // A range never reaches them: their cells name no place.
+    await expect(adding.locator("[data-cell]:not([data-cell=''])")).toHaveCount(0)
+    expect(server.rows).toHaveLength(6)
+    await shoot(page, `paste-held-${at}`)
+
+    // Released: the rows are made and read, and take the places the rows on their way held.
+    held.release()
+    await expect(toast(page, "Pasted 6 cells")).toBeVisible({ timeout: 15_000 })
+    await expect(cell(page, "7:1")).toBeVisible({ timeout: 15_000 })
+    await expect(adding).toHaveCount(0)
+    await expect(td(page, "7:1")).toHaveText(reads("9"))
+    expect(server.rows.map((r) => r.values.amount)).toEqual([1, 2, 3, 4, 5, 7, 8, 9])
+    await sam.close()
+  })
+
+  test(`at ${at}, a paste the server refuses shows at once, then puts every cell back and says which and why`, async ({ browser }, testInfo) => {
+    const server = new TableServer(FIELDS, sixRows())
+    const sam = await server.open(browser, testInfo, SAM, { ...(phone ? PHONE : {}), ...CLIPBOARD })
+    const page = sam.page
+    await expect(cell(page, "5:0")).toBeVisible({ timeout: 30_000 })
+    const held = await holdBatches(page)
+    await reach(page, 0, 1, phone)
+    await page.evaluate(() => navigator.clipboard.writeText("7\nabc\n9"))
+    await page.keyboard.press("ControlOrMeta+V")
+    await expect.poll(held.seen, { timeout: 15_000 }).toBe(1)
+    await expect(td(page, "0:1")).toHaveText(reads("7"), { timeout: 5_000 })
+    await expect(td(page, "2:1")).toHaveText(reads("9"))
+
+    held.release()
+    const refused = toast(page, "1 cell can't be pasted")
+    await expect(refused).toBeVisible({ timeout: 15_000 })
+    await expect(refused).toContainText(`Row 2, Amount: "abc" isn't a number`)
+    await expect(td(page, "0:1")).toHaveText(reads("1"))
+    await expect(td(page, "2:1")).toHaveText(reads("3"))
+    await expect(td(page, "2:1")).not.toHaveAttribute("data-saving", "true")
+    expect(server.rows.map((r) => r.values.amount)).toEqual([1, 2, 3, 4, 5, 6])
+    await sam.close()
+  })
+}
+
+/** Holds every POST to a path ending so (a row's create, a batch, a step) until released, as holdBatches does. */
+async function holdPosts(page: Page, end: string) {
+  let release: () => void = () => {}
+  const released = new Promise<void>((resolve) => (release = resolve))
+  let seen = 0
+  await page.route((url) => url.pathname.endsWith(end), async (route) => {
+    if (route.request().method() !== "POST") return route.fallback()
+    seen++
+    await released
+    return route.fallback()
+  })
+  return { release: () => release(), seen: () => seen }
+}
+
+// Main's 3b (V-360): every write the reader makes on the table enters its one undo order when made. A card added on
+// the board, a card moved there, a row added on the calendar, a record's delete and a replace are each held on their
+// way while Ctrl+Z is pressed: the Undo waits, then takes THAT write by the change set its answer names (MUST 1 (a)),
+// never the edit before.
+const STAGE = { id: "stage", name: "Stage", type: "select", config: { options: [{ id: "o_todo000000", label: "To do" }, { id: "o_done000000", label: "Done" }] } }
+for (const phone of [false, true]) {
+  const at = phone ? "390 with touch" : "1280"
+  const press = (l: Locator) => (phone ? l.tap() : l.click())
+
+  test(`at ${at}, a card, a calendar row, a record's delete and a replace, each on its way, are what a Ctrl+Z pressed then takes`, async ({ browser }, testInfo) => {
+    test.setTimeout(180_000)
+    // Four fields, Stage in Note's place: a phone draws a table of more as a list (lib/tables/display.ts listByDefault).
+    const server = new TableServer([...FIELDS.slice(0, 3), STAGE], sixRows().map(({ item, amount, due }) => ({ item, amount, due })))
+    const sam = await server.open(browser, testInfo, SAM, phone ? PHONE : {})
+    const page = sam.page
+    await expect(cell(page, "5:0")).toBeVisible({ timeout: 30_000 })
+    const items = () => server.rows.map((r) => r.values.item)
+    const sets = () => server.changeSets.map((c) => `${c.kind ?? "step"}${c.undone ? " undone" : ""}`)
+    /** Ctrl+Z pressed while `held` is on its way: nothing goes until it's released, then the Undo names `set`. */
+    const undoHeld = async (held: { release: () => void }, set: string) => {
+      const before = server.undos.length
+      await page.keyboard.press("ControlOrMeta+Z")
+      await page.waitForTimeout(500)
+      expect(server.undos.length, "no undo goes while the write is on its way").toBe(before)
+      held.release()
+      await expect.poll(() => server.undos.slice(before), { timeout: 15_000 }).toEqual([set])
+    }
+
+    // The edit before them all: row 1's Item typed as Zeta; Enter saves it.
+    await press(td(page, "0:0"))
+    await expect(cell(page, "0:0")).toBeFocused()
+    await page.keyboard.type("Zeta")
+    await page.keyboard.press("Enter")
+    await expect.poll(() => server.rows[0].values.item, { timeout: 15_000 }).toBe("Zeta")
+
+    // The board: Add card, its create held. The Undo names the create's change set (every row write's answer names
+    // its own: V-360 MUST 1 (a)), and takes the card.
+    await press(page.getByRole("button", { name: "Board" }))
+    let held = await holdPosts(page, "/rows")
+    await press(page.getByRole("button", { name: "Add card" }).first())
+    await expect.poll(held.seen, { timeout: 15_000 }).toBe(1)
+    await undoHeld(held, "c0000002")
+    await expect.poll(sets, { timeout: 15_000 }).toEqual(["edit", "create undone"])
+    expect(server.rows).toHaveLength(6)
+    await page.keyboard.press("Escape")
+
+    // The board: Zeta's card moved to Done, its patch held. At the press the card leaves Done before any answer,
+    // and the Undo takes the move by its change set (CR-190's MUST 2).
+    held = await holdPosts(page, "/patch")
+    const doneLane = page.locator('[data-lane="o_done000000"]')
+    await press(page.getByRole("button", { name: "Move Zeta" }))
+    await press(page.getByRole("menuitem", { name: "Done" }))
+    await expect.poll(held.seen, { timeout: 15_000 }).toBe(1)
+    await expect(doneLane.getByText("Zeta"), "on its way, the card is drawn in Done").toHaveCount(1)
+    const undosBefore = server.undos.length
+    await page.keyboard.press("ControlOrMeta+Z")
+    await expect(doneLane.getByText("Zeta"), "the card goes back at the press, before any answer").toHaveCount(0)
+    expect(server.undos.length, "no undo goes while the move is on its way").toBe(undosBefore)
+    held.release()
+    await expect.poll(() => server.undos.slice(undosBefore), { timeout: 15_000 }).toEqual(["c0000003"])
+    await expect.poll(sets, { timeout: 15_000 }).toEqual(["edit", "create undone", "edit undone"])
+    await expect(doneLane.getByText("Zeta"), "and stays out of Done once the board reads again").toHaveCount(0)
+
+    // The calendar: a row added on 3 November (on a phone, its day picked first), its create held.
+    await press(page.getByRole("button", { name: "Calendar" }))
+    if (phone) await press(page.getByRole("button", { name: /^Tuesday 3 November, / }))
+    held = await holdPosts(page, "/rows")
+    // At 1280 a day's + shows on hover or focus: reached here by focus, then Enter.
+    const add = page.getByRole("button", { name: "Add a row on 3 November" }).first()
+    if (phone) await add.tap()
+    else {
+      await add.focus()
+      await page.keyboard.press("Enter")
+    }
+    await expect.poll(held.seen, { timeout: 15_000 }).toBe(1)
+    await undoHeld(held, "c0000004")
+    await expect.poll(sets, { timeout: 15_000 }).toEqual(["edit", "create undone", "edit undone", "create undone"])
+    expect(server.rows).toHaveLength(6)
+    await page.keyboard.press("Escape")
+
+    // The grid: row 3's record, deleted, its batch held. The Undo names the delete's change set.
+    await press(page.getByRole("button", { name: "Grid" }))
+    await expect(cell(page, "5:0")).toBeVisible({ timeout: 15_000 })
+    // At 1280 a row's open button takes the pointer once the row is hovered (pointer-events-none until then), as a mouse does.
+    const openRow = page.getByRole("button", { name: "Open row 3" })
+    if (!phone) await page.locator("tbody tr").filter({ has: openRow }).hover()
+    await press(openRow)
+    held = await holdPosts(page, "/rows/batch")
+    await press(page.getByRole("button", { name: "Delete this row" }))
+    await press(page.getByRole("button", { name: "Delete row" }))
+    await expect.poll(held.seen, { timeout: 15_000 }).toBe(1)
+    await undoHeld(held, "c0000005")
+    await expect.poll(items, { timeout: 15_000 }).toEqual(["Zeta", "Line 2", "Line 3", "Line 4", "Line 5", "Line 6"])
+    // V-381: the Ctrl+Z took the delete back already, so no toast offers it again (its Undo would answer 409). A toast
+    // shows for 8 s, so one offered when the answer landed is still up here.
+    await page.waitForTimeout(500)
+    expect(await toast(page, "Row deleted").count(), "no toast offers the delete the Ctrl+Z took back").toBe(0)
+    await page.keyboard.press("Escape")
+
+    // Find and replace: Line 2 as Row 2, its step held. The Undo names the step's change set.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    await page.keyboard.press("Control+h")
+    const bar = page.getByRole("search", { name: "Find in this view" })
+    await bar.getByRole("textbox", { name: "Find" }).fill("Line 2")
+    await expect(bar.getByRole("status")).toHaveText("1 of 1", { timeout: 15_000 })
+    await bar.getByRole("textbox", { name: "Replace with" }).fill("Row 2")
+    held = await holdPosts(page, "/rows/transform")
+    await press(bar.getByRole("button", { name: "Replace all" }))
+    await expect.poll(held.seen, { timeout: 15_000 }).toBeGreaterThan(0)
+    await undoHeld(held, "c0000006")
+    await expect.poll(items, { timeout: 15_000 }).toEqual(["Zeta", "Line 2", "Line 3", "Line 4", "Line 5", "Line 6"])
+    await page.waitForTimeout(500)
+    expect(await toast(page, "Replaced").count(), "no toast offers the replace the Ctrl+Z took back (V-381)").toBe(0)
+    expect(sets()).toEqual(["edit", "create undone", "edit undone", "create undone", "delete undone", "step undone"])
+    expect(server.rows[0].values.item, "the edit before them all stays").toBe("Zeta")
+    await sam.close()
+  })
+}

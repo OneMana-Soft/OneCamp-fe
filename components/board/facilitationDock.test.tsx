@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react"
 import * as Y from "yjs"
 import { PHONE_DOCK } from "./phoneDock"
-import { FacilitationFailed, facilitationOf, missingFromBar, presentersIn, roundIn, timerIn, useFacilitationOn } from "./facilitationDock"
+import { FacilitationFailed, facilitationOf, missingFromBar, roundIn, timerIn, useFacilitationOn } from "./facilitationDock"
+import { presentersIn } from "@/lib/board/presenting"
 
 let mobile = false
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: mobile, isDesktop: !mobile }) }))

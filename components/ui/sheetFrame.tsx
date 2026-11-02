@@ -3,6 +3,8 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SHEET_FOOTER_ROW, SHEET_LINE } from "@/components/ui/sheetRows"
+import { sheetEdge } from "@/components/ui/sheetMark"
 
 /**
  * A phone sheet while its chunk is on its way: the scrim, the sheet on the pop
@@ -13,10 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton"
  * focus (and gives it back), and Escape or the scrim closes it, as the sheet would. Exported for
  * any lazily loaded sheet (TABLES' long-text sheet).
  */
-/** The sheet's footer row and its line under the title: one spelling for the sheet (responsive-sheet) and its frame, so they can't drift. */
-export const SHEET_FOOTER_ROW = "flex flex-col-reverse gap-2 sm:flex-row [&>*]:h-11 sm:[&>*]:flex-1"
-export const SHEET_LINE = "mt-0.5 text-meta text-ink-3"
-
 export function SheetFrame({
   title,
   description,
@@ -48,7 +46,7 @@ export function SheetFrame({
       <div
         aria-hidden="true"
         data-sheet-frame-scrim=""
-        onClick={onClose}
+        onClick={sheetEdge(onClose)}
         className="fixed inset-0 z-[var(--z-modal)] bg-[rgb(10_11_14/0.32)] dark:bg-[rgb(0_0_0/0.55)]"
       />
       <section
@@ -60,6 +58,7 @@ export function SheetFrame({
         tabIndex={-1}
         data-overlay="sheet"
         data-sheet-frame=""
+        onClick={sheetEdge()}
         // As a drawer given a footer says (components/ui/drawer): on a phone its footer is its foot (app/overlay.css 8b).
         data-overlay-holds-footer={footer ? "" : undefined}
         // Its own Escape closes it; the one Escape (lib/keys/escape) leaves it the press.

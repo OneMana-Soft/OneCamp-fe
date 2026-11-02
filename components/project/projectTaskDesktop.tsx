@@ -179,7 +179,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             }}
                         />
                         {/* Its plan (linear-15), in a row that holds its height. */}
-                        {projectId && <ProjectPlanStrip projectId={projectId} members={members} />}
+                        {projectId && <ProjectPlanStrip projectId={projectId} />}
                     </div>
                     {/* Its links (basecamp-16): nothing until it has one, inside the hero's own height. */}
                     {projectId && <ProjectLinksStrip projectId={projectId} canOpen={isMember || isAdmin} className="mt-1 max-w-[50%] shrink-0" />}

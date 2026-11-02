@@ -60,22 +60,43 @@ for (const way of [
   })
 }
 
-// A cell the mouse finds at rest, while another holds the focus, opens by its
-// click, with the caret where the click landed, as in a cell the mouse came
-// onto. Its whole text was selected, so the word typed next replaced it.
-test("at 1280, a click into a cell at rest while another holds the focus types where it landed", async ({ browser }, testInfo) => {
+// V-295 (main's 21:0x 1 Nov ruling): a click selects a cell, as a sheet's
+// does, so a word typed replaces its text: the first click, in a cell the
+// mouse brought to life, and a cell at rest clicked while another holds the
+// focus. A double-click puts the caret where it was pressed. Enter opens a
+// selected cell with the caret at its end, and Enter in it saves it, going down.
+test("at 1280, a click selects a cell and a word typed replaces it; a double-click types where it was pressed, and Enter types at the end", async ({ browser }, testInfo) => {
   const server = new TableServer(fields, rows())
   const sam = await server.open(browser, testInfo, SAM)
   const cell = (at: string) => sam.page.locator(`[data-cell="${at}"]`)
   await cell("0:0").click()
   await expect(cell("0:0")).toBeFocused()
-  // Past the end of "Hall B", in its box: the caret goes after the text.
-  const box = await cell("1:1").boundingBox()
-  if (!box) throw new Error("row 1's Where cell isn't drawn")
-  await sam.page.mouse.click(box.x + box.width - 8, box.y + box.height / 2)
+  await sam.page.keyboard.type("Stand")
+  await expect(cell("0:0")).toHaveValue("Stand")
+  await cell("1:1").click()
   await expect(cell("1:1")).toBeFocused()
-  await sam.page.keyboard.type(" east")
-  await expect(cell("1:1")).toHaveValue("Hall B east")
+  await sam.page.keyboard.type("Hall C")
+  await expect(cell("1:1")).toHaveValue("Hall C")
+  // Pressed at the start of "Desk", in its box: the caret goes before the text.
+  const box = await cell("2:1").boundingBox()
+  if (!box) throw new Error("row 2's Where cell isn't drawn")
+  await sam.page.mouse.dblclick(box.x + 3, box.y + box.height / 2)
+  await expect(cell("2:1")).toBeFocused()
+  await sam.page.keyboard.type("Front ")
+  await expect(cell("2:1")).toHaveValue("Front Desk")
+  await cell("1:2").click()
+  await sam.page.keyboard.press("Enter")
+  await sam.page.keyboard.type("ed")
+  await sam.page.keyboard.press("Enter")
+  await expect(cell("2:2")).toBeFocused()
+  const saved = () => [0, 1, 2].map((i) => server.valuesOf(i))
+  await expect
+    .poll(saved, { timeout: 15_000 })
+    .toEqual([
+      { name: "Stand", where: "Hall A", notes: "Power" },
+      { name: "Banner", where: "Hall C", notes: "Printed" },
+      { name: "Badges", where: "Front Desk", notes: "Lanyards" },
+    ])
   await sam.close()
 })
 
@@ -118,16 +139,17 @@ for (const device of [
     const first = device.touch ? page.locator('[data-cell-box]:has([data-cell="0:0"])') : cell("0:0")
     await (device.touch ? first.tap() : first.click())
     await expect(first).toBeFocused()
-    // Down, Enter (down from a text cell), then right: held while the code comes.
+    // Down, Enter (it opens the cell selected there, the caret at its text's end: V-295), then right, on from that
+    // end: held while the code comes.
     await page.keyboard.press("ArrowDown")
     await page.keyboard.press("Enter")
     await page.keyboard.press("ArrowRight")
     await expect(first).toBeFocused()
     chunk!.release()
-    await expect(cell("2:1")).toBeFocused({ timeout: 30_000 })
+    await expect(cell("1:1")).toBeFocused({ timeout: 30_000 })
     // And from there at once.
     await page.keyboard.press("ArrowUp")
-    await expect(cell("1:1")).toBeFocused()
+    await expect(cell("0:1")).toBeFocused()
     await chunk!.done()
     await context.close()
   })

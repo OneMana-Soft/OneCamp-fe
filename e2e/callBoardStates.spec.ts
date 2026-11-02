@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import { fakeCallServer, type FakePerson } from "./fakeCallServer"
+import { closeForeign, expectSheet, foreign, reachMoreTools } from "./foreignSheets"
 import { reviewShot, SAM, SHOT_THEMES, stubBackend, withStatus } from "./stubbedApp"
 import { toast } from "./toasts"
 
@@ -165,5 +166,21 @@ test.describe("at 390 with touch", () => {
     await server.sendData("oc.call", { t: "board_stopped", by: PRIYA.name, reason: "share_held" })
     await expect(toast(page, "Hosts turned off sharing, so Priya Shah's board left the stage")).toBeVisible()
     await shots(page, "board-left-held-theirs")
+  })
+
+  // The board on the stage is a board on a phone (miro-40 H1): its tool row
+  // scrolls sideways and fades its edges as every strip does, and More tools,
+  // reached along it, is the app's sheet over the call. The row's fade once
+  // masked the sheet docked inside it: the sheet stood on the screen's foot
+  // drawn only within the row, and a finger met the board under it.
+  test("the board's More tools, reached along its row, is the app's sheet over the call", async ({ page }, testInfo) => {
+    test.setTimeout(150_000)
+    const server = await joinConnected(page, testInfo, { you: YOU, others: [PRIYA] })
+    server.setMetadata({ board: { uuid: BOARD, by: YOU.identity, draw: "everyone" } })
+    await expect(page.locator(`[data-call-board="${BOARD}"] .App-toolbar--mobile`)).toBeVisible({ timeout: 30_000 })
+    await reachMoreTools(page)
+    await expectSheet(foreign(page, ".App-toolbar__extra-tools-dropdown"), "More tools on a call's stage")
+    await shots(page, "board-more-tools-sheet")
+    await closeForeign(page)
   })
 })

@@ -176,7 +176,6 @@ const BASELINE: Record<string, number> = {
   "lib/tables/viewRules.test.ts": 5,
   "lib/task/emailToTask.test.ts": 3,
   "lib/tasks/dependency.test.ts": 1,
-  "lib/tasks/fields.test.ts": 1,
   "lib/tasks/time.test.ts": 7,
   "lib/timeOff.test.ts": 1,
   "lib/utils/calendarAgenda.test.ts": 19,

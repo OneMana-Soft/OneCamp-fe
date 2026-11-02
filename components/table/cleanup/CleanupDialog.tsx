@@ -19,8 +19,9 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { useUndoToast } from "@/components/table/ledger/useUndoToast"
-import { undoChange } from "@/lib/tables/ledger"
 import { cellsText, count, leftText, stepFields, stepRefusal, transformRows, viewNamed, type CleanStep, type TransformInput, type TransformResult } from "@/lib/tables/transform"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
+import { undoableWrite } from "@/lib/tables/ledger"
 import type { ViewRows } from "@/lib/tables/viewRows"
 import type { TableField } from "@/services/tableService"
 
@@ -33,6 +34,10 @@ export interface CleanupDialogProps {
   shown: TableField[]
   /** The view as it is now, its rows to be named (lib/tables/viewRows). */
   view: () => Promise<ViewRows>
+  /** The table's undo order (useCellCommit's write): a step is the reader's to undo. */
+  write: UndoOrder["write"]
+  /** The toasts' one Undo path (useCellCommit's undo): a step's change set back, in the table's order of writes. */
+  undo: (set: string) => Promise<unknown>
   /** Rows were changed: the page reads them again. */
   onChanged: () => void
   onClose: () => void
@@ -61,7 +66,7 @@ function done(step: CleanStep, r: TransformResult): string {
 
 type Named = Awaited<ReturnType<typeof viewNamed>>
 
-export function CleanupDialog({ step, field, tableId, shown, view, onChanged, onClose }: CleanupDialogProps) {
+export function CleanupDialog({ step, field, tableId, shown, view, write, undo, onChanged, onClose }: CleanupDialogProps) {
   const texts = stepFields(shown)
   const [source, setSource] = React.useState(() => field ?? texts[0]?.id ?? "")
   const [separator, setSeparator] = React.useState(",")
@@ -118,14 +123,15 @@ export function CleanupDialog({ step, field, tableId, shown, view, onChanged, on
     if (!found) return
     setBusy(true)
     try {
-      const r = await transformRows(tableId, { ...asked, ...found.named }, undefined)
+      // set: none when an Undo pressed on its way took it back already, so no toast offers it again (V-381).
+      const { answer: r, set } = await undoableWrite(write, "clean-up", () => transformRows(tableId, { ...asked, ...found.named }, undefined), (t) => t.change_sets[0] ?? null)
       onChanged()
       if (!r.change_sets.length) {
         setNote(leftText(r) ?? "Nothing was changed: those rows changed since.")
         setRound((n) => n + 1)
         return
       }
-      offerUndo(done(step, r), () => undoChange(tableId, r.change_sets[0]), leftText(r))
+      if (set) offerUndo(done(step, r), () => undo(set), leftText(r))
       onClose()
     } catch (e) {
       setNote(stepRefusal(e))

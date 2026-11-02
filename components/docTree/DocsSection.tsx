@@ -4,7 +4,7 @@
 // docs home, the toggle beside it and "+" for a new doc, as every section has
 // (S7). Its page tree is a chunk of its own (DocsTreeGroups), loaded once the
 // section is open: the sidebar's first load carries only this heading. While
-// it arrives, three rows at the tree's height stand in (never a spinner).
+// it arrives, a stand-in holds the tree's room (never a spinner).
 
 import * as React from "react"
 
@@ -23,12 +23,12 @@ import { lazyPiece } from "@/lib/lazy/lazyPiece"
 const loadGroups = () => lazyPiece(() => import("@/components/docTree/DocsTreeGroups"))
 let DocsTreeGroups = loadGroups()
 
-/** Rows at the tree's height while its code or its first level arrives. */
-export function DocTreeSkeleton({ rows = 3 }: { rows?: number }) {
+/** Rows at the tree's height while its code or its first level arrives (`room`: see treeRoom). */
+export function DocTreeSkeleton({ rows = 3, room }: { rows?: number; room?: boolean }) {
   return (
-    <div aria-busy="true" aria-label="Loading your docs" data-doc-tree-skeleton="" className="flex flex-col gap-px">
+    <div aria-busy="true" aria-label="Loading your docs" data-doc-tree-skeleton="" className={cn("flex flex-col gap-px", room && "min-h-(--docs-tree-h)")}>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="flex h-7 items-center gap-2 px-2">
+        <div key={i} className={room ? "shell-row" : "flex h-7 items-center gap-2 px-2"}>
           <span className="size-4 shrink-0 rounded-[4px] bg-press" />
           <span className="h-2.5 rounded-sm bg-press" style={{ width: `${[58, 44, 66][i % 3]}%` }} />
         </div>
@@ -93,7 +93,7 @@ export function DocsSection({ open, setOpen, active, onAdd }: { open: boolean; s
       {open && (
         <div className="shell-sect-rows" data-instant={lastInputWasPointer() ? undefined : "true"}>
           <TreeLoadBoundary>
-            <React.Suspense fallback={<DocTreeSkeleton />}>
+            <React.Suspense fallback={<DocTreeSkeleton rows={1} room />}>
               <DocsTreeGroups sidebar />
             </React.Suspense>
           </TreeLoadBoundary>

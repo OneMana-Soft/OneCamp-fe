@@ -3,6 +3,7 @@ import { stageLayout, type Size, type StageInput } from "../lib/calls/stageLayou
 import { fakeCallServer, type FakePerson } from "./fakeCallServer"
 import { facesClear } from "./stageFaces"
 import { reviewShot, SAM, SHOT_THEMES, stubBackend } from "./stubbedApp"
+import { animationsSettled } from "./settled"
 
 // Stage Layout (A4, #54; ROWS head S1 for meet-17, meet-14 and zoom-03): the
 // call's stage draws what lib/calls/stageLayout says for the room its frame
@@ -243,7 +244,6 @@ for (const [label, viewport, touch] of [
           presenting: [`${PRIYA.identity}|screen_share`],
           mode: "speaker" as const,
         }
-        let drawn = 0
         await expect
           .poll(
             async () => {
@@ -251,7 +251,7 @@ for (const [label, viewport, touch] of [
               const [s, f] = [await strip.boundingBox(), await screen.boundingBox()]
               if (!s || !f) return "the share or the strip isn't drawn"
               // The share is 1920x1080, fitted into its tile as the tile's object-contain fits it.
-              drawn = Math.min(f.width, (f.height * 16) / 9)
+              const drawn = Math.min(f.width, (f.height * 16) / 9)
               const under = s.y >= f.y + f.height
               if (under !== want.strip.below) return `the strip is ${under ? "under" : "beside"} the share; stageLayout says ${want.strip.below ? "under" : "beside"}`
               if (Math.abs(drawn - want.focus.tile.w) > 2) return `the share draws ${Math.round(drawn)} px wide; stageLayout says ${want.focus.tile.w}`
@@ -264,8 +264,14 @@ for (const [label, viewport, touch] of [
             { message: "the share and the strip draw where stageLayout says" },
           )
           .toBe("as stageLayout says")
-        // The bar for V-233's re-look: on a phone the shared slide is at least 366 px wide.
-        if (touch) expect(drawn, "the shared slide's width at 390").toBeGreaterThanOrEqual(366)
+        // The bar for V-233's re-look: on a phone the shared slide is at least 366 px wide, read at rest. While the share
+        // enters the stage (stageMotion's scale from 0.96) its box is up to 4% short, and the check above already takes it
+        // within 2 px: V-318 read 364.27 px in the scale's tail.
+        if (touch) {
+          await animationsSettled(screen)
+          const rest = (await screen.boundingBox())!
+          expect(Math.min(rest.width, (rest.height * 16) / 9), "the shared slide's width at 390").toBeGreaterThanOrEqual(366)
+        }
         await expect.poll(() => insideFrame(page), { message: "the share and the strip lie inside the stage" }).toBe("inside")
         await expect.poll(() => facesClear(page), { message: "every face is clear of its name plate" }).toBe("clear")
         expect(await pinchable(screen), "two fingers on the share stay the browser's").toBe("pinchable")

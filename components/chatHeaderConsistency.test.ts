@@ -91,6 +91,12 @@ describe("chat headers stay consistent", () => {
     const phone = readFileSync("components/navigationBar/mobile/phoneConversationTitle.tsx", "utf8")
     expect(phone).toContain("PRESENCE_WORDS[presenceOf(state, person)]")
     expect(phone).not.toContain('"Active now"')
+    // An agent, by the same one rule (lib/botCopy, V-126): its role, never presence, no huddle or call.
+    expect(phone).toContain("isAgentPeer(person)")
+    expect(phone).toContain("!mayCallPeer(peer)")
+    const drawer = readFileSync("components/drawers/chatOptionsDrawer.tsx", "utf8")
+    expect(drawer).toContain("{mayCallPeer(otherUserInfo.data?.data) && (")
+    for (const src of [dm, phone, drawer]) expect(src).not.toMatch(/is_bot\s*===|\.is_bot\b/)
   })
 
   it("never cycles notifications on a click: a radio menu", () => {
@@ -118,8 +124,11 @@ describe("chat headers stay consistent", () => {
   it("gives a DM its status line, and an agent its provenance instead of Huddle", () => {
     const h = headerOf(dm)
     expect(h).toContain("data-header-meta")
-    expect(h).toContain("Acts for you · can do only what you can")
-    expect(h).toMatch(/\{!isBotPeer && \(\s*<FeatureGate feature=\{FEATURE_CALLS\}>\s*<HuddleButton/)
+    expect(h).toContain("{AGENT_PEER_LINE}")
+    expect(h).toMatch(/\{mayCall && \(\s*<FeatureGate feature=\{FEATURE_CALLS\}>\s*<HuddleButton/)
+    expect(dm).toContain("const isBotPeer = isAgentPeer(otherUserInfo.data?.data);")
+    expect(dm).toContain("const mayCall = mayCallPeer(otherUserInfo.data?.data);")
+    expect(dm).not.toContain("is_bot === true")
   })
 
   it("draws the live huddle in moss with one halo, never a ping", () => {

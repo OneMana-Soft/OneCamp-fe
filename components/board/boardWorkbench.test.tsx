@@ -11,12 +11,17 @@ vi.mock("@excalidraw/excalidraw", () => ({
   serializeAsJSON: (...a: unknown[]) => xl.serializeAsJSON(...a),
   loadFromBlob: (...a: unknown[]) => xl.loadFromBlob(...a),
 }))
-const saved = vi.hoisted(() => ({ downloadFile: vi.fn(), printTitled: vi.fn() }))
+const saved = vi.hoisted(() => ({ downloadFile: vi.fn(), printTitled: vi.fn(), recordBoardExport: vi.fn() }))
 vi.mock("@/lib/export/download", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/export/download")>()),
   downloadFile: (...a: unknown[]) => saved.downloadFile(...a),
 }))
 vi.mock("@/lib/export/print", () => ({ printTitled: (...a: unknown[]) => saved.printTitled(...a) }))
+// What the Export dialog tells the admin log (miro-44), heard here instead of the network.
+vi.mock("@/components/board/exportRecord", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/board/exportRecord")>()),
+  recordBoardExport: (...a: unknown[]) => saved.recordBoardExport(...a),
+}))
 // The workspace's own board templates, as the list answers them (none unless a test says).
 let teamList: unknown[] = []
 vi.mock("@/hooks/useFetch", () => ({ useFetch: (key: string) => ({ data: key.endsWith("?kind=board") ? { data: teamList } : undefined, isLoading: false }) }))
@@ -47,9 +52,15 @@ vi.mock("@/lib/board/notes", async (importOriginal) => {
 })
 // Every ask for a note on the board (StickyTool's place goes through addNotes): Board options opening makes none (V-250).
 const noteAsks = vi.hoisted(() => vi.fn())
+// Every pass that fits notes laid out in another face again (V-229).
+const facePasses = vi.hoisted(() => vi.fn())
 vi.mock("@/components/board/boardOps", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/components/board/boardOps")>()
-  return { ...real, addNotes: (...a: Parameters<typeof real.addNotes>) => (noteAsks(), real.addNotes(...a)) }
+  return {
+    ...real,
+    addNotes: (...a: Parameters<typeof real.addNotes>) => (noteAsks(), real.addNotes(...a)),
+    fitNotesToFaces: (...a: Parameters<typeof real.fitNotesToFaces>) => (facePasses(...a), real.fitNotesToFaces(...a)),
+  }
 })
 // Find's code on a line the tests hold (V-195): asked says whether the workbench has asked for it, open() lets it in.
 const findCode = vi.hoisted(() => {
@@ -70,7 +81,7 @@ vi.mock("./findPanel", async () => {
   }
 })
 
-import BoardWorkbench, { useBoardSelection, useTypedNoteFit } from "./boardWorkbench"
+import BoardWorkbench, { useBoardSelection, useNotesFitTheirFaces, useTypedNoteFit } from "./boardWorkbench"
 import { useBoardStyle } from "./boardStyle"
 import { noteSkeleton } from "@/lib/board/notes"
 
@@ -269,6 +280,46 @@ describe("the workbench", () => {
     expect(viewer.writes).toHaveLength(0)
   })
 
+  it("fits notes laid out in another face again on an editor's screen once the board has synced, and as each face lands; never on a viewer's (V-229)", async () => {
+    const fonts = Object.assign(new EventTarget(), { check: () => true })
+    Object.defineProperty(document, "fonts", { value: fonts, configurable: true })
+    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => (frame(0), 0))
+    vi.stubGlobal("cancelAnimationFrame", () => {})
+    const lands = () => act(() => void fonts.dispatchEvent(new Event("loadingdone")))
+    try {
+      facePasses.mockClear()
+      const s = boardScene(convertForTest([noteSkeleton({ id: "n", x: 0, y: 0, text: "Ship it" }) as never]))
+      const editor = renderHook(({ synced }) => useNotesFitTheirFaces(s.api, true, synced), { initialProps: { synced: false } })
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      lands()
+      expect(facePasses, "not before the board's drawing is on").not.toHaveBeenCalled()
+      editor.rerender({ synced: true })
+      await waitFor(() => expect(facePasses).toHaveBeenCalledTimes(1))
+      lands()
+      expect(facePasses).toHaveBeenCalledTimes(2)
+      // One screen's passes share what they found right, so a face landing later costs nothing for it.
+      expect(facePasses.mock.calls[1][0]).toBe(s.api)
+      expect(facePasses.mock.calls[1][2]).toBe(facePasses.mock.calls[0][2])
+      editor.unmount()
+      lands()
+      expect(facePasses, "the board has closed").toHaveBeenCalledTimes(2)
+      // A screen that can't edit the board never fits a note, nor writes: an editor's fit comes to it as any edit.
+      const viewer = boardScene(convertForTest([noteSkeleton({ id: "n", x: 0, y: 0, text: "Ship it" }) as never]))
+      renderHook(() => useNotesFitTheirFaces(viewer.api, false, true))
+      await act(async () => {
+        await vi.dynamicImportSettled()
+      })
+      lands()
+      expect(facePasses).toHaveBeenCalledTimes(2)
+      expect(viewer.writes).toHaveLength(0)
+    } finally {
+      Reflect.deleteProperty(document, "fonts")
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("opens at the element or group a link names (Excalidraw's own Copy link to object), and puts the address back", async () => {
     window.history.replaceState(null, "", "/app/board/b1?element=group-7")
     const [box] = convertForTest([{ type: "rectangle", id: "r1", x: 0, y: 0, width: 80, height: 40 }])
@@ -439,7 +490,10 @@ describe("the board's exports and its file in (miro-36)", () => {
     expect(name).toBe("Launch retro.csv")
     expect(csv).toBe("Note,Author,Colour,Tags,Frame,Task\r\nShip it,Sam Rivera,Teal,q4,To improve,\r\n")
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "1 note saved as Launch retro.csv" }))
+    // Told to the admin log once the file is made.
+    expect(saved.recordBoardExport.mock.calls).toEqual([["b1", "csv"]])
     saved.downloadFile.mockReset()
+    saved.recordBoardExport.mockReset()
   })
 
   it("prints each frame on a page, in the Frames panel's order, and takes the pages away after", async () => {
@@ -458,8 +512,10 @@ describe("the board's exports and its file in (miro-36)", () => {
     expect(saved.printTitled).toHaveBeenCalledWith("Launch retro", expect.any(Function))
     expect(pagesWhilePrinting).toBe(2)
     expect(document.querySelector("[data-board-print]")).toBeNull()
+    expect(saved.recordBoardExport.mock.calls).toEqual([["b1", "pdf"]])
     xl.exportToSvg.mockReset()
     saved.printTitled.mockReset()
+    saved.recordBoardExport.mockReset()
   })
 
   it("keeps the printed pages until the dialog says it closed, and the next export takes away any left", async () => {

@@ -8,23 +8,25 @@
 // or a search hit on the board's words (?find=). Loaded with its first opening, never with the board.
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { useSceneElements } from "@/hooks/useSceneElements"
 import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
-import { CaseSensitive, ChevronDown, ChevronUp, Replace, ReplaceAll, WholeWord } from "@/lib/icons"
+import { CaseSensitive, ChevronDown, ChevronUp, Replace, ReplaceAll, SunDim, WholeWord } from "@/lib/icons"
 import { isComposingKey } from "@/lib/keys/ime"
 import { cn } from "@/lib/utils/helpers/cn"
 import { CAPTURE } from "@/lib/board/binding"
 import { MAX_MATCHES } from "@/lib/text/findPattern"
-import { findOnBoard, replaceOnBoard, searchMatchesOf, unreplaceOnBoard, wordsOf, type BoardMatch, type FindElement, type FindKind } from "@/lib/board/findOnBoard"
+import { findOnBoard, keptOf, replaceOnBoard, searchMatchesOf, unreplaceOnBoard, wordsOf, type BoardMatch, type FindElement, type FindKind } from "@/lib/board/findOnBoard"
 import { fontCss, loadConvert, rewordElements, type Convert } from "@/components/board/boardOps"
 import { BoardSidePanel, SIDE_PANELS } from "@/components/board/boardSidePanel"
+import { BoardVeil } from "@/components/board/boardVeil"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { sceneToLocal } from "@/lib/board/viewport"
-import { boxAllInView, offsetsOf, viewBesidePanel } from "@/lib/board/panelView"
+import { boxAllInView, offsetsOf, roomAbove, viewBesidePanel } from "@/lib/board/panelView"
 import { PHONE_TOOL_ROW } from "@/components/board/excalidrawPart"
 import { FindIconButton } from "@/components/ui/findIconButton"
 import { useUndoToast } from "@/components/ui/undoToast"
@@ -52,6 +54,8 @@ export default function FindPanel({
   fromLink = false,
   onMissed,
   onClose,
+  veilHost = null,
+  onKept,
 }: {
   api: ExcalidrawImperativeAPI
   /** Replace and Replace all are for those who can edit the board. */
@@ -65,6 +69,10 @@ export default function FindPanel({
   /** A link's words aren't on the board (any more), once its words are in. */
   onMissed?: () => void
   onClose: () => void
+  /** Where the board's veil goes (over the canvas, under the tag chips): Find dims the rest of the board there. */
+  veilHost?: HTMLElement | null
+  /** What Find keeps clear while it dims the rest, by id, each time that changes; null once it doesn't dim (V-271). */
+  onKept?: (ids: ReadonlySet<string> | null) => void
 }) {
   const { toast } = useToast()
   const offerUndo = useUndoToast(undefined, undoneNote)
@@ -72,6 +80,7 @@ export default function FindPanel({
   const [query, setQuery] = React.useState(asked)
   const [caseSensitive, setCaseSensitive] = React.useState(false)
   const [wholeWord, setWholeWord] = React.useState(false)
+  const [dim, setDim] = React.useState(true)
   const [current, setCurrent] = React.useState(0)
   const [replacement, setReplacement] = React.useState("")
   const field = React.useRef<HTMLInputElement>(null)
@@ -100,6 +109,21 @@ export default function FindPanel({
   const matches = React.useMemo(() => findOnBoard(elements, query, { caseSensitive, wholeWord }), [elements, query, caseSensitive, wholeWord])
   const byId = React.useMemo(() => new Map(elements.map((e) => [e.id, e])), [elements])
   const at0 = matches.length ? Math.min(current, matches.length - 1) : -1
+
+  // Dim the rest (V-271), on until it's turned off: while there are matches, all but them and what they are in fade
+  // behind the board's veil, as Miro's search dims what doesn't match. The same matches, no second search, and it
+  // ends with Find. The workbench hears the ids only when they change (a move is no change), for the tag chips.
+  const keptIds = React.useMemo(() => (dim && matches.length ? keptOf(matches) : null), [dim, matches])
+  const keptKey = keptIds ? keptIds.join("\n") : null
+  React.useEffect(() => {
+    onKept?.(keptKey == null ? null : new Set(keptKey.split("\n")))
+  }, [keptKey, onKept])
+  React.useEffect(() => () => onKept?.(null), [onKept])
+  const kept = React.useMemo(() => {
+    if (!keptIds) return null
+    const ids = new Set(keptIds)
+    return elements.filter((e) => ids.has(e.id))
+  }, [elements, keptIds])
 
   // The lights on the canvas: each match's words, the current one stronger. Gone when Find closes.
   const measure = React.useMemo(() => {
@@ -133,16 +157,16 @@ export default function FindPanel({
   const show = React.useCallback(
     (target: Element) => {
       const s = api.getAppState()
-      api.scrollToContent([target] as never, { fitToContent: true, animate: !prefersReducedMotion(), canvasOffsets: offsetsOf({ ...s, zoom: s.zoom.value }, openView()) })
+      api.scrollToContent([target] as never, { fitToContent: true, animate: !prefersReducedMotion(), canvasOffsets: offsetsOf({ ...s, zoom: s.zoom.value }, openView(), roomAbove(target)) })
     },
     [api, openView],
   )
-  // Whether all of an element is in that view.
+  // Whether all of an element is in that view, a frame's name over it too (V-270).
   const shown = (el: Element) => {
     const open = openView()
     const from = sceneToLocal(open, el.x, el.y)
     const to = sceneToLocal(open, el.x + el.width, el.y + el.height)
-    return boxAllInView(open, from.left, from.top, to.left, to.top)
+    return boxAllInView(open, from.left, from.top - roomAbove(el), to.left, to.top)
   }
 
   // The words and options the current match was last brought into view for, by a step or by their settling. The ones
@@ -254,6 +278,7 @@ export default function FindPanel({
 
   return (
     <BoardSidePanel {...SIDE_PANELS.find(editable)} footer={footer} onClose={onClose}>
+      {veilHost && createPortal(<BoardVeil api={api} kept={kept} above={roomAbove} data-find-veil={kept?.length ?? 0} />, veilHost)}
       <div role="search" aria-label="Find on board" className="sticky top-0 z-10 flex flex-col gap-1 bg-pop pb-1.5">
         <div className="flex items-center gap-1">
           <input
@@ -274,6 +299,9 @@ export default function FindPanel({
           </FindIconButton>
           <FindIconButton aria-label="Whole word" pressed={wholeWord} onClick={() => setWholeWord((v) => !v)}>
             <WholeWord aria-hidden="true" />
+          </FindIconButton>
+          <FindIconButton aria-label="Dim the rest" pressed={dim} onClick={() => setDim((v) => !v)}>
+            <SunDim aria-hidden="true" />
           </FindIconButton>
         </div>
         <div className="flex h-7 items-center gap-1 pl-1">

@@ -8,15 +8,7 @@ import * as Y from "yjs"
 
 const viewer: Record<string, unknown>[] = []
 vi.mock("@/components/guest/GuestBoardViewer", () => ({
-  // The canvas draws its own phone tool row, as Excalidraw does.
-  GuestBoardViewer: (p: Record<string, unknown>) => (
-    viewer.push(p),
-    (
-      <div data-guest-canvas={String(p.boardId)}>
-        <div className="Island App-toolbar App-toolbar--mobile" data-testid="tool-row" />
-      </div>
-    )
-  ),
+  GuestBoardViewer: (p: Record<string, unknown>) => (viewer.push(p), <div data-guest-canvas={String(p.boardId)} />),
 }))
 const publicCall = vi.fn()
 vi.mock("@/services/publicApi", () => ({ publicCall: (...a: unknown[]) => publicCall(...a) }))
@@ -99,9 +91,7 @@ describe("the board on a call's stage, for a guest", () => {
     expect(screen.queryByRole("button", { name: "Next slide" })).toBeNull()
   })
 
-  it("marks the canvas's phone tool row as a strip that scrolls, as the member's stage does", () => {
-    publicCall.mockResolvedValue({ ok: true, data: { collab_token: "collab-1", document_name: "board:b1", board: "b1" } })
-    render(stage())
-    expect(screen.getByTestId("tool-row").hasAttribute("data-edge-fade")).toBe(true)
-  })
+  // The canvas's phone tool row scrolls and fades on a guest's stage as on
+  // every board: the canvas every board draws through marks it
+  // (components/board/toolRow.test.tsx).
 })

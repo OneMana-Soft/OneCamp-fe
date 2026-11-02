@@ -33,7 +33,7 @@ export function filterChoices(field: TaskField, people: { id: string; name: stri
 }
 
 export function TaskTableFieldFilter<TData>({ table, fields, people, variant }: { table: Table<TData>; fields: TaskField[]; people: { id: string; name: string }[]; variant?: "ghost" }) {
-  const filterable = fields.filter((f) => FILTERABLE.includes(f.type) && table.getColumn(f.filter_id))
+  const filterable = fields.filter((f) => FILTERABLE.includes(f.type) && f.filter_id && table.getColumn(f.filter_id))
   if (filterable.length === 0) return null
   const valuesOf = (f: TaskField) => (table.getColumn(f.filter_id)?.getFilterValue() as string[] | undefined) ?? []
   const active = filterable.reduce((n, f) => n + valuesOf(f).length, 0)

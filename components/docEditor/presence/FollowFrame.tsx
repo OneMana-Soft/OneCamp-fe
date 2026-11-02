@@ -3,7 +3,8 @@
 /**
  * Following someone, said on screen (B8, miro-04 4): a ring in their hue
  * round what this person sees, and over it "Following Ann", the Esc key and
- * Stop; and, always there for a screen reader, a polite status that says when
+ * Stop (on a touch screen, no key, and a Stop a finger takes: V-293); and,
+ * always there for a screen reader, a polite status that says when
  * following starts and why it stopped. A doc's presence overlay and a board's
  * canvas (components/board/boardHereNow) draw this one piece, each inside its
  * own positioned box.
@@ -29,9 +30,10 @@ const hueOf = (leader: FollowLeader) =>
 /**
  * `leader` is who is followed, or null when no one is. `said` is the status's
  * words. `className` places the label (top centre unless the view has its own
- * bar there).
+ * bar there). `held`: the one followed holds everyone on their view (a board
+ * presenter, miro-21 3), so there is no way to stop.
  */
-export function FollowFrame({ leader, said, onStop, className }: { leader: FollowLeader | null; said: string; onStop: () => void; className?: string }) {
+export function FollowFrame({ leader, said, onStop, held = false, className }: { leader: FollowLeader | null; said: string; onStop: () => void; held?: boolean; className?: string }) {
   return (
     <>
       {leader && (
@@ -43,14 +45,25 @@ export function FollowFrame({ leader, said, onStop, className }: { leader: Follo
             )}
           >
             <span>Following {leader.name || "them"}</span>
-            <kbd className="rounded-xs bg-white/[0.18] px-1 font-sans text-micro">Esc</kbd>
-            <button
-              type="button"
-              onClick={onStop}
-              className="rounded-md px-1.5 py-0.5 outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
-            >
-              Stop
-            </button>
+            {held ? (
+              <span className="pr-1.5 text-white/80">· held</span>
+            ) : (
+              <>
+                {/* A phone has no Esc key: a key hint, which a touch screen with no hover hides (globals.css, mobile T5). */}
+                <kbd data-kbd-hint="" className="rounded-xs bg-white/[0.18] px-1 font-sans text-micro">
+                  Esc
+                </kbd>
+                {/* Touched across 44px while the pill keeps its size (phone.css F3, V-293). */}
+                <button
+                  type="button"
+                  data-touch-target=""
+                  onClick={onStop}
+                  className="rounded-md px-1.5 py-0.5 outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  Stop
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

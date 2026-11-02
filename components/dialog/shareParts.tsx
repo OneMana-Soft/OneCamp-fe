@@ -56,6 +56,7 @@ export function ShareUserRow({
   roles,
   onRoleChange,
   onRemove,
+  removeLabel = "Remove access",
   canEdit,
 }: {
   user: UserProfileDataInterface
@@ -63,6 +64,8 @@ export function ShareUserRow({
   roles: ShareRole[]
   onRoleChange?: (role: string) => void
   onRemove?: () => void
+  /** What the menu's remove says: one who keeps their access otherwise says what they lose. */
+  removeLabel?: string
   canEdit: boolean
 }) {
   const { src } = useUserAvatar(user.user_profile_object_key)
@@ -113,7 +116,7 @@ export function ShareUserRow({
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onRemove} className="text-danger-ink focus:text-danger-ink">
-                  Remove access
+                  {removeLabel}
                 </DropdownMenuItem>
               </>
             ) : null}

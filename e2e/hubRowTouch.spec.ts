@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 import { DOC, inboxWithANotice } from "./inboxNotice"
+import { expectTouchSize } from "./touchTarget"
 
 // Interaction audit SH-31, SH-32 (15 Oct 2026): app/hub.css hid a row's
 // toolbar wherever nothing can hover, so on a phone the inbox, Later and
@@ -20,8 +21,8 @@ test("a tap on a row's Actions shows its tools, each a finger wide, and a tool w
   const open = tools.getByRole("link", { name: "Open" })
   await expect(open).toBeVisible()
   const box = (await open.boundingBox())!
-  expect(box.width).toBeGreaterThanOrEqual(44)
-  expect(box.height).toBeGreaterThanOrEqual(44)
+  expectTouchSize(box.width, "its width")
+  expectTouchSize(box.height, "its height")
   await open.tap()
   await expect(page).toHaveURL(new RegExp(`/app/doc/${DOC}`), { timeout: 30_000 })
 })

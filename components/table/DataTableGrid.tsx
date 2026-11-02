@@ -19,12 +19,14 @@ import { waitsForLiveCells, type KeyInput } from "@/lib/tables/gridKeyKinds"
 import type { ColumnDrag, GridKeyHost } from "@/components/table/gridMoves"
 import { TABLE_VIEW_BODY } from "@/components/table/TableViewFrame"
 import { useKeptRows, useViewWindow } from "@/components/table/viewWindow"
-import { placeOfRow } from "@/lib/tables/viewPlaces"
+import { placeOfRow, rowMoved, type Places } from "@/lib/tables/viewPlaces"
 import { optionIndexOf, restCell, waitFace, type CellContext } from "@/components/table/cellFaces"
 import { fieldKind } from "@/lib/fieldTypes/registry"
 import { tintedFields } from "@/components/table/optionChip"
 import { AddColumn, ColumnHeader, settingsPageOf, type ColumnPage } from "@/components/table/ColumnMenu"
 import { shownValues, useCellCommit, type CellCommit, type RowEdits } from "@/lib/tables/useCellCommit"
+import type { AddingRow } from "@/lib/tables/cellsWrite"
+import { useTableEdit } from "@/lib/tables/tableEdit"
 import { frozenCount, frozenLefts, frozenMarks, rowPx, type RowHeight, type SummaryFn } from "@/lib/tables/display"
 import type { QuerySummaries } from "@/lib/querySpec/types"
 import type { RefusedSums } from "@/lib/tables/types"
@@ -67,18 +69,20 @@ interface DataTableGridProps {
   selectField?: string | null
   onFocused?: () => void
   /**
-   * The rows in sight came near the last row read, or past it: the page reads
-   * on, to the last in sight (its place in the view, read or not).
+   * The rows in sight came near a row not read, or past one: the page reads
+   * the places in sight, last and first (their places in the view, read or not).
    */
-  onNearEnd?: (last: number) => void
+  onNearEnd?: (last: number, first?: number) => void
   /**
    * How many rows the view has, read or not (a view the server answers in
    * windows, tables T5c): the places past the rows read are drawn as rows
    * on their way. The last `tail` rows given were added here, and are kept at
-   * the view's end. Without it, the rows given are the view's every row.
+   * the view's end; the rows read before them start at place `from` (0, or
+   * where the view jumped). Without it, the rows given are the view's every row.
    */
   count?: number
   tail?: number
+  from?: number
   /** A row kept in sight that the view's rules would hide or move, and why (a new one). */
   marked?: { rowId: string; note: string } | null
   /** A cell of a row took the focus. */
@@ -112,8 +116,8 @@ interface DataTableGridProps {
   onSort?: (fieldId: string, dir: "asc" | "desc") => void
   onFilter?: (fieldId: string) => void
   onHide?: (fieldId: string) => void
-  /** The expand icon in the gutter: opens the row's record panel. */
-  onOpenRow?: (rowId: string) => void
+  /** The expand icon in the gutter, or Space on a selected cell (named in from): opens the row's record panel. */
+  onOpenRow?: (rowId: string, from?: { field: string }) => void
   /** Saving cells, when the page shares it with a record panel. */
   commit?: CellCommit
   /** A phone: the gutter and the frozen column share PHONE_LEAD px (the column caps at 140, or 128 beside a touch gutter of two controls). */
@@ -152,12 +156,15 @@ const withColumns = <T,>(run: (m: typeof import("@/components/table/columnOps"))
 export const GroupPart = lazyView(() => import("@/components/table/groups/GroupHeaders"))
 /** A link cell's chips at rest (cellFaces' restCell): a chunk of its own, asked for by a table that shows a link field. */
 const RelationFaces = lazyView(() => import("@/components/table/relationFace"))
+/** The table's keys (lib/tables/tableKeys): a chunk of their own, which the page binds (the live cells read a cell's). */
+export const TableKeysPart = lazyView(() => import("@/lib/tables/tableKeys"))
 
 /**
  * The live cells (gridCells): the one cell in use draws through them, every
  * other at rest (cellFaces). A chunk of its own, off the table's first
  * screen, asked for as the grid mounts, with the grid's moves (gridMoves: the
- * keys between cells, a column's drag); live holds it once it is in.
+ * keys between cells, a click's text, a column's drag); live holds it once it
+ * is in.
  */
 let live: typeof import("@/components/table/gridCells") | null = null
 export const LiveCells = lazyView(() =>
@@ -254,6 +261,7 @@ export function DataTableGrid({
   onNearEnd,
   count,
   tail = 0,
+  from = 0,
   marked,
   onRowFocus,
   empty,
@@ -293,8 +301,10 @@ export function DataTableGrid({
     return fieldOrder(fields).filter((f) => !hide.has(f.id))
   }, [fields, hidden])
 
-  const own = useCellCommit({ tableId, rows, onChange })
-  const { commitCell, linkCell, edits } = shared ?? own
+  // A reader who may only view the table (V-170) writes no cell, adds no row and pastes, fills or clears nothing.
+  const canEdit = useTableEdit()
+  const own = useCellCommit({ tableId, rows, onChange, canEdit })
+  const { commitCell, cells, linkCell, write, undo, edits, adding: onTheirWay } = shared ?? own
 
   // A grouped view's open rows under their headers: until those and the counts are in, rows on their way, never ungrouped first.
   const heads = GroupPart.useLoaded(!!grouping)
@@ -331,7 +341,7 @@ export function DataTableGrid({
   const handleAddRow = async () => {
     setAdding(true)
     try {
-      const r = await createRow(tableId, {})
+      const r = await write("row", () => createRow(tableId, {}))
       if (onCreated && r?.id) onCreated([r], true)
       else onChange()
     } catch {
@@ -357,8 +367,8 @@ export function DataTableGrid({
 
   // ---- a block of cells: ranges, copy, paste and fill (gridRange) --------
   // The view as a paste reads it first (rangeActions' readThrough).
-  const viewRef = React.useRef({ count, tail, grouped: !!grouping, onNearEnd })
-  viewRef.current = { count, tail, grouped: !!grouping, onNearEnd }
+  const viewRef = React.useRef({ count, tail, from, grouped: !!grouping, onNearEnd })
+  viewRef.current = { count, tail, from, grouped: !!grouping, onNearEnd }
   // A range's far corner brought into view, the focus left on its anchor.
   const revealCell = React.useCallback((row: number, col: number) => {
     const td = scrollRef.current?.querySelector<HTMLElement>(`[data-cell="${row}:${col}"]`)?.closest("td")
@@ -369,6 +379,7 @@ export function DataTableGrid({
   const rangeWrites = useStableCallback(
     (): GridWrites => ({
       tableId,
+      canEdit,
       rows: () => latest.current.rows,
       fields: () => sortedFields,
       valuesOf: (r) => shownValues(r, edits.get(r.id)),
@@ -381,6 +392,8 @@ export function DataTableGrid({
       onChange,
       onCreated,
       select: (box) => selectRange(box),
+      cells,
+      undo,
     }),
   )
   const {
@@ -390,6 +403,7 @@ export function DataTableGrid({
     select: selectRange,
     onFocusIn: rangeFocusIn,
     clear: clearRange,
+    moved: rangeMoved,
     onKey: rangeKey,
     onCopy: rangeCopy,
     onPaste: rangePaste,
@@ -621,41 +635,34 @@ export function DataTableGrid({
   const onPointerDown = React.useCallback(
     (e: React.PointerEvent) => {
       rangePointerDown(e)
+      // Before the press moves the focus: what its click does with a cell's text (gridMoves' cellPress).
+      live?.cellPress(e)
       if (e.pointerType !== "touch") return
       bringToLife((e.target as HTMLElement).closest("tbody td[data-field]"))
     },
     [bringToLife, rangePointerDown],
   )
+  // A click is the live cells' (gridMoves' cellClick): one on a cell at rest
+  // before they land is made again once they do.
   const onRestClick = React.useCallback(
     (e: React.MouseEvent) => {
       // A range's drag, Shift+click or long press ends with a click that opens nothing.
       if (rangeClick(e)) return
-      const target = e.target as HTMLElement
-      const td = target.closest<HTMLElement>("tbody td[data-field]")
-      const root = td?.firstElementChild
-      if (!td || !root || !target.closest("[data-rest]")) return
-      const path = placeIn(root, target)
-      // A click that came with a press keeps the caret, or a drag's selection,
-      // that the press put in the box at rest, as a box the mouse came onto
-      // keeps the press's own; a click without one selects the whole text.
-      const pressed = e.detail > 0 ? selectionOf(target) : null
+      if (live) return live.cellClick(e, bringToLife)
+      if (!(e.target as HTMLElement).closest("[data-rest]")) return
       e.preventDefault()
       e.stopPropagation()
-      const again = () => {
-        if (!bringToLife(td)) return
-        const same = path && follow(td.firstElementChild, path)
-        if (!(same instanceof HTMLElement)) return
-        same.focus()
-        if (same instanceof HTMLInputElement || same instanceof HTMLTextAreaElement) {
-          if (pressed) same.setSelectionRange(...pressed)
-          else same.select()
-        }
-        same.click()
-      }
-      if (live) again()
-      else void warmLiveCells().then(again)
+      void warmLiveCells().then(() => live?.cellClick(e, bringToLife))
     },
     [bringToLife, rangeClick],
+  )
+  // A double-click's second press puts the caret back where its first put it (gridMoves' cellMouseDown).
+  const onMouseDown = React.useCallback(
+    (e: React.MouseEvent) => {
+      rangeMouseDown(e)
+      live?.cellMouseDown(e)
+    },
+    [rangeMouseDown],
   )
 
   // A row given's place in the view: the rows read are its first, the rows
@@ -663,7 +670,15 @@ export function DataTableGrid({
   const layout = body?.layout
   const length = layout ? layout.length : body ? Math.min(count ?? rows.length, FIRST_SCREEN_ROWS) : (count ?? rows.length)
   const placeOf = React.useRef((i: number) => i)
-  placeOf.current = (i: number) => (layout ? layout.placeOf(i) : placeOfRow(i, rows.length, length, tail))
+  placeOf.current = (i: number) => (layout ? layout.placeOf(i) : placeOfRow(i, rows.length, length, tail, from))
+  // Rows read before those given, or a jump: a range keeps its places (gridRange's moved).
+  const placesWere = React.useRef<Places>({ given: rows.length, count: length, tail, from })
+  React.useLayoutEffect(() => {
+    const was = placesWere.current
+    const now = { given: rows.length, count: length, tail, from }
+    placesWere.current = now
+    if (was.from !== now.from) rangeMoved((row) => rowMoved(row, was, now))
+  }, [rows.length, length, tail, from, rangeMoved])
 
   // ---- keyboard -----------------------------------------------------------
   const focusCell = React.useCallback(
@@ -716,7 +731,30 @@ export function DataTableGrid({
   // The keys between cells are the live cells' (gridMoves' gridKeyDown), with
   // the grid's size, rows, focus and selection as they are when one comes.
   const keyHost = useStableCallback(
-    (): GridKeyHost => ({ rows: latest.current.rows.length, cols: sortedFields.length, rowId: (row) => latest.current.rows[row]?.id, focusCell, toggleRow, bringToLife }),
+    (): GridKeyHost => ({
+      rows: latest.current.rows.length,
+      cols: sortedFields.length,
+      rowId: (row) => latest.current.rows[row]?.id,
+      focusCell,
+      toggleRow,
+      bringToLife,
+      openRecord: (row, col) => {
+        const id = latest.current.rows[row]?.id
+        const field = sortedFields[col]?.id
+        if (!id || !field || !onOpenRow) return false
+        onOpenRow(id, { field })
+        return true
+      },
+      // A date column's day, as its calendar's pick writes it (DateCell). A
+      // reader who may only view the table (V-170) has no key to save it with.
+      setDay: (row, col, day) => {
+        const r = latest.current.rows[row]
+        const field = sortedFields[col]
+        if (!canEdit || !r || field?.type !== "date") return false
+        void commitCell(r, field.id, day)
+        return true
+      },
+    }),
   )
   // Before they land, a key that moves is held, and the keys held go once
   // they do, in order, from the cell the focus is on then: none once the focus
@@ -733,15 +771,21 @@ export function DataTableGrid({
     }
   })
 
+  const onGridKeyUp = React.useCallback((e: React.KeyboardEvent<HTMLTableElement>) => live?.gridKeyUp(e), [])
+
   const onGridKey = React.useCallback(
     (e: React.KeyboardEvent<HTMLTableElement>) => {
       // Shift+arrows, Escape, Delete on a range and Ctrl/Cmd+D are the range's (gridRange).
       if (rangeKey(e)) return
       const target = e.target as HTMLElement
       const composing = isComposingKey(e.nativeEvent)
+      const k: KeyInput = { key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey }
+      const key = { ...k, code: e.code, target, composing, preventDefault: () => e.preventDefault(), stopPropagation: () => e.stopPropagation() }
+      // A selected cell's keys (Space, ⌘;: gridMoves' cellKeyDown) come first, so a Space at rest never types.
+      if (live?.cellKeyDown(key, keyHost())) return
       // A key that would type in a text box at rest: the cell comes to life,
       // and the key goes on to its live box, everything selected for it to
-      // replace (as a move between cells leaves a box). F2 opens it as is.
+      // replace (as a move between cells leaves a box).
       if (target.hasAttribute("data-rest") && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && typesIn(e) && (e.key === "Process" || !composing)) {
         const id = target.dataset.cell
         const td = target.closest("tbody td[data-field]")
@@ -753,14 +797,10 @@ export function DataTableGrid({
         }
         const box = td?.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-cell="${id}"]`)
         box?.focus()
-        if (e.key === "F2") {
-          e.preventDefault()
-          box?.setSelectionRange(box.value.length, box.value.length)
-        } else box?.select()
+        box?.select()
         return
       }
-      const k: KeyInput = { key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey }
-      if (live) return live.gridKeyDown({ ...k, target, composing, preventDefault: () => e.preventDefault(), stopPropagation: () => e.stopPropagation() }, keyHost())
+      if (live) return live.gridKeyDown(key, keyHost())
       if (composing || !waitsForLiveCells(k, target)) return
       e.preventDefault()
       e.stopPropagation()
@@ -813,10 +853,11 @@ export function DataTableGrid({
             aria-rowcount={length + 1}
             aria-busy={(!!body && !layout) || undefined}
             onKeyDownCapture={onGridKey}
+            onKeyUpCapture={onGridKeyUp}
             onPointerOver={onPointerOver}
             onPointerDownCapture={onPointerDown}
             onClickCapture={onRestClick}
-            onMouseDownCapture={rangeMouseDown}
+            onMouseDownCapture={onMouseDown}
             onContextMenuCapture={rangeMenu}
             onCopyCapture={rangeCopy}
             onPasteCapture={rangePaste}
@@ -878,6 +919,7 @@ export function DataTableGrid({
               rows={shown}
               count={length}
               tail={tail}
+              from={from}
               height={height}
               scrollRef={scrollRef}
               virtualizerRef={virtualizerRef}
@@ -890,6 +932,7 @@ export function DataTableGrid({
               onCommit={commitCell}
               onLink={linkCell}
               edits={edits}
+              adding={onTheirWay}
               onToggle={toggleRow}
               onOpen={onOpenRow}
               afterRows={afterRows}
@@ -928,16 +971,18 @@ export function DataTableGrid({
           however wide the columns run. */}
       {length === 0 && empty && <div>{empty}</div>}
 
-      <button
-        type="button"
-        onClick={handleAddRow}
-        disabled={adding}
-        data-new-row=""
-        {...ix("row")}
-        className="flex h-[var(--grid-new-row)] w-full items-center gap-2 pl-3.5 text-ui text-ink-3 hover:text-ink"
-      >
-        <Plus className="size-4" aria-hidden="true" /> New row
-      </button>
+      {canEdit ? (
+        <button
+          type="button"
+          onClick={handleAddRow}
+          disabled={adding}
+          data-new-row=""
+          {...ix("row")}
+          className="flex h-[var(--grid-new-row)] w-full items-center gap-2 pl-3.5 text-ui text-ink-3 hover:text-ink"
+        >
+          <Plus className="size-4" aria-hidden="true" /> New row
+        </button>
+      ) : null}
 
       {anySelected && canManage ? (
         // The bar floats on the New row line, stuck to the screen's foot while that line is under it (DB-23). On a phone
@@ -949,7 +994,7 @@ export function DataTableGrid({
               fallback={null}
               render={(m) => {
                 // Its actions are the chunk's too, off the table's first load.
-                const s = { tableId, fields, rows, ids: selected, clear: () => setSelected(new Set()), confirm, offerUndo, onChange, onCreated }
+                const s = { tableId, fields, rows, ids: selected, clear: () => setSelected(new Set()), confirm, offerUndo, onChange, onCreated, write, undo }
                 return <m.RowSelectionBar count={selected.size} onDuplicate={() => void m.duplicateRows(s)} onDelete={() => m.deleteRows(s)} onClear={s.clear} />
               }}
             />
@@ -967,38 +1012,15 @@ interface LiveCell {
 }
 
 /**
- * Whether a key would type in a text box: a character, a deletion, a cut, F2,
- * or an input method's first key. A paste isn't: it reaches the range's paste
+ * Whether a key would type in a text box: a character, a deletion, a cut, or
+ * an input method's first key. A paste isn't: it reaches the range's paste
  * (gridRange), which writes the cell, or every cell a block covers, at once.
+ * F2 isn't: it opens a selected cell (gridMoves' gridKeyDown).
  */
 function typesIn(e: React.KeyboardEvent): boolean {
-  if (e.key === "F2" || e.key === "Backspace" || e.key === "Delete" || e.key === "Process") return true
+  if (e.key === "Backspace" || e.key === "Delete" || e.key === "Process") return true
   if ((e.metaKey || e.ctrlKey) && !e.altKey) return e.key === "x"
   return e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.key === " " && e.shiftKey)
-}
-
-/** Where el sits under root, as the index of each element on the way down. */
-function placeIn(root: Element, el: Element): number[] | null {
-  const path: number[] = []
-  for (let n: Element | null = el; n !== root; n = n.parentElement) {
-    if (!n?.parentElement) return null
-    path.unshift(Array.prototype.indexOf.call(n.parentElement.children, n))
-  }
-  return path
-}
-
-/** A text box's selection, start and end (one place for a caret); null for a control without one, as a checkbox or an email box. */
-function selectionOf(el: Element): [number, number] | null {
-  if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null
-  const { selectionStart: start, selectionEnd: end } = el
-  return start === null || end === null ? null : [start, end]
-}
-
-/** The element at path under root: a live cell's markup is its resting cell's, place for place. */
-function follow(root: Element | null, path: number[]): Element | null {
-  let n: Element | null = root
-  for (const i of path) n = n?.children[i] ?? null
-  return n
 }
 
 /**
@@ -1011,6 +1033,7 @@ const GridBody = React.memo(function GridBody({
   rows,
   count,
   tail,
+  from,
   height,
   scrollRef,
   virtualizerRef,
@@ -1030,15 +1053,17 @@ const GridBody = React.memo(function GridBody({
   onNearEnd,
   marked,
   edits,
+  adding,
   liveRef,
   groups,
   hues,
   tints,
 }: {
   rows: TableRow[]
-  /** The view's rows, read or not; the last tail of rows are its last. */
+  /** The view's rows, read or not; the last tail of rows are its last, and those read start at place `from`. */
   count: number
   tail: number
+  from: number
   height: number
   scrollRef: React.RefObject<HTMLDivElement | null>
   virtualizerRef: React.MutableRefObject<Virtualizer<HTMLElement, Element> | null>
@@ -1057,10 +1082,11 @@ const GridBody = React.memo(function GridBody({
   floatRoom: boolean
   /** The summary row's height while it shows, stuck under the rows (0 without it): the room a row brought into sight keeps from the frame's foot. */
   footRoom: number
-  onNearEnd?: (last: number) => void
+  onNearEnd?: (last: number, first?: number) => void
   marked?: { rowId: string; note: string } | null
   /** What each row's cells show over its copy until it's read again (useCellCommit). */
   edits: ReadonlyMap<string, RowEdits>
+  adding: readonly AddingRow[]
   /** Where bringToLife sets the one cell drawn live: every other is drawn at rest. */
   liveRef: React.RefObject<((cell: LiveCell) => void) | null>
   groups: GroupBody | null
@@ -1076,6 +1102,7 @@ const GridBody = React.memo(function GridBody({
     given: rows.length,
     count,
     tail,
+    from,
     rowPx: height,
     sizeOf,
     readTo: layout?.readTo,
@@ -1140,6 +1167,9 @@ const GridBody = React.memo(function GridBody({
         // The same element as last time while sameRow holds: React skips it.
         return keep(row.id, props, (p) => <GridRow key={row.id} {...p} />)
       })}
+      {adding.length > 0 && (count === 0 || items[items.length - 1]?.index === count - 1)
+        ? adding.map((a, i) => <RowOnItsWay key={a.key} values={a.values} num={count + i} height={height} fields={fields} frozen={frozen} ctx={ctx} />)
+        : null}
       {padBottom > 0 && (
         <tr aria-hidden="true">
           <td colSpan={colCount} style={{ height: padBottom, padding: 0, border: 0 }} />
@@ -1153,6 +1183,23 @@ const GridBody = React.memo(function GridBody({
     </tbody>
   )
 })
+
+// A row a paste adds, on its way (V-360): with no id yet it takes no press or focus.
+function RowOnItsWay({ values, num, height, fields, frozen, ctx }: { values: Record<string, unknown>; num: number; height: number; fields: TableField[]; frozen: number; ctx: CellContext }) {
+  return (
+    <tr inert data-adding="" aria-busy="true" style={{ height }}>
+      <td data-gutter="" data-sticky-lead="" className="p-0">
+        <span className="flex h-full items-center justify-center text-meta tabular-nums text-ink-3">{num + 1}</span>
+      </td>
+      {fields.map((f, col) => (
+        <td key={f.id} data-field={f.id} data-kind={fieldKind(f.type).cell} {...frozenMarks(col, frozen)} data-saving="" className={cn("overflow-hidden p-0 align-middle", alignsRight(f) && "text-right")}>
+          {restCell({ field: f, value: values[f.id], cellId: "", primary: col === 0, readOnly: true, ctx }) ?? waitFace({ field: f, value: values[f.id], cellId: "" })}
+        </td>
+      ))}
+      <td className="p-0" />
+    </tr>
+  )
+}
 
 /**
  * A row of the view on its way from the server (a window not read yet): its
@@ -1231,6 +1278,8 @@ function GridRow({
   edits,
 }: GridRowProps) {
   const values = React.useMemo(() => shownValues(row, edits), [row, edits])
+  // A reader who may only view the table (V-170): every cell rests, never brought to life.
+  const readOnly = !useTableEdit()
   return (
     <tr
       data-index={rowIndex}
@@ -1303,20 +1352,21 @@ function GridRow({
       {fields.map((f, col) => {
         const cellId = `${rowIndex}:${col}`
         // At rest, plain markup: one render a row, not one a cell.
-        const rest = f.id === liveField ? null : restCell({ field: f, value: values[f.id], cellId, primary: col === 0, ctx })
+        const rest = f.id === liveField ? null : restCell({ field: f, value: values[f.id], cellId, primary: col === 0, readOnly, ctx })
         const saving = !!edits && f.id in edits.saving
         return (
           <td key={f.id} data-field={f.id} data-kind={fieldKind(f.type).cell} {...frozenMarks(col, frozen)} data-tint={tints?.[f.id]} aria-busy={saving || undefined} data-saving={saving || undefined} className={cn("overflow-hidden p-0 align-middle", alignsRight(f) && "text-right")}>
             {rest ?? (
               <LiveCells.View
                 // Until the live cells' chunk is in: the cell as it rests, or its text.
-                fallback={restCell({ field: f, value: values[f.id], cellId, primary: col === 0, ctx }) ?? waitFace({ field: f, value: values[f.id], cellId })}
+                fallback={restCell({ field: f, value: values[f.id], cellId, primary: col === 0, readOnly, ctx }) ?? waitFace({ field: f, value: values[f.id], cellId })}
                 render={(m) => (
                   <m.Cell
                     field={f}
                     value={values[f.id]}
                     cellId={cellId}
                     primary={col === 0}
+                    readOnly={readOnly}
                     ctx={ctx}
                     onCommit={(v) => onCommit(row, f.id, v)}
                     onLink={(change) => onLink(row.id, f.id, change)}
