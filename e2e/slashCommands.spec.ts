@@ -380,8 +380,12 @@ for (const view of views) {
       await expectReachable(setUp)
       await reviewShot(tab, "slash-setup-giphy", scheme)
       await setUp.click()
-      await expect(tab).toHaveURL(/\/app\/admin\?tab=apps&app=giphy$/, { timeout: 30_000 })
+      // The row lands on Admin › Apps with ?app=giphy. The page opens that app's sheet once and takes the app back out
+      // of the address in the same step (MarketplaceCard), so the address with the app is only passing: a fast page
+      // drops it before a look at the address. The sheet, which only that arrival opens, and the address it leaves
+      // are what last.
       await expect(tab.getByRole("dialog", { name: "Giphy" })).toBeVisible({ timeout: 30_000 })
+      await expect(tab).toHaveURL(/\/app\/admin\?tab=apps$/, { timeout: 30_000 })
       await reviewShot(tab, "slash-setup-giphy-opened", scheme)
       await context.close()
     })
