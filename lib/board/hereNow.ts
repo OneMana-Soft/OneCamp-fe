@@ -7,14 +7,9 @@
  * board's rules for where to look, pure so they are tested.
  * components/board/boardHereNow uses them.
  */
-import type { DocCommandBus } from "@/components/docEditor/registry/types"
 import { stampedEditor } from "@/components/docEditor/presence/stamp"
-
-/** A board's own bus for its presence stack: no commands, only the key its list and the board share. Pure. */
-export function boardBusOf(boardId: string): DocCommandBus {
-  const key = `board:${boardId}`
-  return { docId: key, key, emit() {}, on: () => () => {} }
-}
+import { VIEW_FIELD } from "@/components/docEditor/presence/fields"
+import { freshSignals } from "@/lib/board/freshSignals"
 
 /** Where a tab is pointing on the board, or null when it hasn't pointed at it. Pure. */
 export function pointerOf(states: ReadonlyMap<number, unknown>, client: number): { x: number; y: number } | null {
@@ -33,6 +28,7 @@ export function centreOn(view: { width: number; height: number; zoom: number }, 
 /** The awareness field a tab sets to bring everyone to its view, once (miro-21 1): a new id each time. */
 export const BRING_FIELD = "bring"
 
+/** A board view another tab sends: where it looks, and its canvas's size, to be fitted to this one's (followView). */
 type BroughtView = { scrollX: number; scrollY: number; zoom: number; width: number; height: number }
 
 /** Another tab's bring: who made it, and the view to show, fitted to each screen (lib/board/viewport followView). */
@@ -49,21 +45,30 @@ const isView = (v: unknown): v is BroughtView => {
   return all && o!.zoom! > 0 && o!.width! > 0 && o!.height! > 0
 }
 
+/** A view's own numbers, or null for anything that isn't a whole view. Pure. */
+const wholeView = (v: unknown): BroughtView | null => {
+  if (!isView(v)) return null
+  const { scrollX, scrollY, zoom, width, height } = v
+  return { scrollX, scrollY, zoom, width, height }
+}
+
+/**
+ * What a tab says it shows (miro-21 2: Follow shows what the one followed sees), or null: a tab says it only while
+ * someone follows it (presence/sayWhereIAm), so until then, and from a tab that never says it, there is none. Pure.
+ */
+export function viewOfTab(states: ReadonlyMap<number, unknown>, client: number): BroughtView | null {
+  return wholeView((states.get(client) as Record<string, unknown> | undefined)?.[VIEW_FIELD])
+}
+
 /**
  * The brings other tabs made that this one hasn't seen, each once: `seen` keeps their ids. Called as the board
  * opens, it marks what is there as seen, so nobody is moved to a bring made before they came. A bring it can't
  * show (no id, or a view that isn't one) is left out, and so, unseen, is one from someone the relay doesn't stamp an
- * editor: only an editor brings everyone. Who brought it is the relay's name for them. Pure but for `seen`.
+ * editor: only an editor brings everyone. Who brought it is the relay's name for them. It is freshSignals' rule (lib/board/freshSignals),
+ * which reactions, raised hands and their lowering share. Pure but for `seen`.
  */
 export function bringsIn(states: ReadonlyMap<number, unknown>, self: number, seen: Set<string>): Bring[] {
-  const out: Bring[] = []
-  states.forEach((state, client) => {
-    const s = state as { user?: { name?: string } | null; [BRING_FIELD]?: unknown } | undefined
-    const b = s?.[BRING_FIELD] as { id?: unknown; view?: unknown } | null | undefined
-    if (client === self || !stampedEditor(state) || !b || typeof b !== "object" || typeof b.id !== "string" || !b.id || seen.has(b.id) || !isView(b.view)) return
-    seen.add(b.id)
-    const { scrollX, scrollY, zoom, width, height } = b.view
-    out.push({ client, id: b.id, name: s?.user?.name, view: { scrollX, scrollY, zoom, width, height } })
-  })
-  return out
+  return freshSignals(states, self, seen, BRING_FIELD, (b, state) => (stampedEditor(state) ? wholeView(b.view) : null)).map(
+    ({ client, id, name, value }) => ({ client, id, name, view: value }),
+  )
 }

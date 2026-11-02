@@ -39,6 +39,8 @@ let leaveOut = 0
 let working: { done: number; total: number }[] = []
 // Windows that fail with no answer (offline), one a read, after any still being filled.
 let down = 0
+// A server that reads no place (before airtable-04's jumps): it answers a jump with the first window and says no place.
+let noPlaces = false
 const filling = (p: { done: number; total: number }) => `Double is being worked out over ${p.total.toLocaleString("en-US")} rows: ${Math.floor((p.done * 100) / p.total)}% done`
 const tableRows = () => [...Array.from({ length: count }, (_, i) => rowAt(i)), ...extra]
 const bundleNow = (): { data: TableBundle } => ({
@@ -77,9 +79,11 @@ const answer = (spec: RowSpec): TableRow[] => {
   const shut = new Set((g.collapsed ?? []).map((p) => (JSON.parse(p) as string[])[0]))
   return [...rows].sort((a, b) => STAGES.indexOf(stageOf(a)) - STAGES.indexOf(stageOf(b))).filter((r) => !shut.has(stageOf(r)))
 }
-const queryRows = vi.fn<(t: string, body: { spec: RowSpec; cursor?: string; n: number; count?: boolean }, signal?: AbortSignal) => Promise<RowsWindow>>(async (_t, body) => {
+const queryRows = vi.fn<(t: string, body: { spec: RowSpec; cursor?: string; at?: number; n: number; count?: boolean }, signal?: AbortSignal) => Promise<RowsWindow>>(async (_t, body) => {
   const all = answer(body.spec)
-  const at = Number(body.cursor || 0)
+  // A place (a jump) is said back; a cursor here is an offset.
+  const place = noPlaces ? undefined : body.at
+  const at = place ?? Number(body.cursor || 0)
   const rows = all.slice(at, at + body.n)
   const next = at + body.n < all.length ? String(at + body.n) : undefined
   // Each summary asked is 42, but a count, which is the rows'.
@@ -98,7 +102,7 @@ const queryRows = vi.fn<(t: string, body: { spec: RowSpec; cursor?: string; n: n
   }
   if (body.count && body.spec.groups && refuse) throw Object.assign(new Error("Request failed with status code 422"), { response: { status: 422, data: { msg: refuse } } })
   const groups = body.count && body.spec.groups ? STAGES.map((s) => ({ key: [s], count: all.filter((r) => stageOf(r) === s).length })) : undefined
-  return { rows, next, ...(body.count ? { total: all.length, ...(summaries ? { summaries } : {}), ...(groups ? { groups } : {}) } : {}) }
+  return { rows, next, ...(place ? { at: place } : {}), ...(body.count ? { total: all.length, ...(summaries ? { summaries } : {}), ...(groups ? { groups } : {}) } : {}) }
 })
 const listRows = vi.fn(async (_t: string, offset: number, limit: number) => tableRows().slice(offset, offset + limit))
 const rowsByIds = vi.fn(async (_t: string, ids: string[]) => tableRows().filter((r) => ids.includes(r.id)))
@@ -120,6 +124,8 @@ const newestFirst = view({ sort: [{ field: "item", dir: "desc" }] })
 const tell = (data: Record<string, unknown>) => act(() => heard?.(JSON.stringify({ type: 9, data })))
 const ids = (rs: TableRow[]) => rs.map((r) => r.id)
 const windowsFrom = () => queryRows.mock.calls.filter((c) => !c[1].count).map((c) => c[1].cursor ?? "")
+/** Each window read: a cursor's, or "@" and the place it jumped to. */
+const windowsRead = () => queryRows.mock.calls.filter((c) => !c[1].count).map((c) => (c[1].at ? `@${c[1].at}` : (c[1].cursor ?? "")))
 
 beforeEach(() => {
   count = 1200
@@ -129,6 +135,7 @@ beforeEach(() => {
   leaveOut = 0
   working = []
   down = 0
+  noPlaces = false
   staged = {}
   edited = {}
   extra = []
@@ -168,6 +175,71 @@ describe("a view the server answers in windows", () => {
     expect(ids(result.current.rows).at(-1)).toBe("r0")
     expect(windowsFrom()).toEqual(["", "500", "1000"])
     expect(listRows).not.toHaveBeenCalled()
+  })
+
+  it("jumps straight to the end when a scrollbar is dragged there, reading only the window there", async () => {
+    count = 5000
+    bundle = bundleNow()
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    // The last 16 places in sight: the window starts a little above them and ends with the view.
+    act(() => result.current.more(4999, 4984))
+    await waitFor(() => expect(result.current.from).toBe(4734))
+    expect(windowsRead()).toEqual(["", "@4734"])
+    expect(ids(result.current.rows).slice(0, 1)).toEqual(["r265"])
+    expect(ids(result.current.rows).at(-1)).toBe("r0")
+    expect(result.current.count).toBe(5000)
+    expect(result.current.complete).toBe(false)
+  })
+
+  it("reads back by place as the view scrolls up from where it jumped, and on by cursor below it", async () => {
+    count = 5000
+    bundle = bundleNow()
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    act(() => result.current.more(2516, 2500))
+    // The window from 250 above the first in sight, then on by its cursor past the last.
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    expect(windowsRead()).toEqual(["", "@2250", "2750"])
+    expect(result.current.from).toBe(2250)
+    act(() => result.current.more(2216, 2200))
+    await waitFor(() => expect(result.current.from).toBe(1750))
+    expect(windowsRead().at(-1)).toBe("@1750")
+    // Its rows keep their places: the 2,251st is still r2749.
+    expect(result.current.rows[2250 - result.current.from].id).toBe("r2749")
+    // Near the top, back to the first: the whole view is the run's.
+    act(() => result.current.more(100, 84))
+    await waitFor(() => expect(result.current.from).toBe(0))
+    expect(windowsRead().slice(-1)).toEqual([""])
+  })
+
+  it("reads in order from the first where a server reads no place, and draws no rows where it jumped", async () => {
+    count = 5000
+    noPlaces = true
+    bundle = bundleNow()
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    act(() => result.current.more(4999, 4984))
+    await waitFor(() => expect(result.current.complete).toBe(true))
+    expect(result.current.from).toBe(0)
+    expect(windowsRead()).toEqual(["", "@4734", "500", "1000", "1500", "2000", "2500", "3000", "3500", "4000", "4500"])
+    expect(ids(result.current.rows).slice(0, 1)).toEqual(["r4999"])
+  })
+
+  it("reads its run again from where it jumped when a row is made", async () => {
+    count = 5000
+    bundle = bundleNow()
+    const { result } = renderHook(() => useTableRows("t", newestFirst))
+    await waitFor(() => expect(result.current.rows).toHaveLength(500))
+    act(() => result.current.more(4999, 4984))
+    await waitFor(() => expect(result.current.from).toBe(4734))
+    queryRows.mockClear()
+    count = 5001
+    bundle = bundleNow()
+    tell({ action: "created", row_id: "r5000" })
+    await waitFor(() => expect(windowsRead()).toContain("@4734"))
+    await waitFor(() => expect(ids(result.current.rows).slice(0, 1)).toEqual(["r266"]))
+    expect(result.current.from).toBe(4734)
   })
 
   it("counts a filtered view's rows, and shows none past its count", async () => {

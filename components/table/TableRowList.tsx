@@ -100,12 +100,14 @@ const ROW_CLEAR_PX = 12
  * show the first of 10,000. A view the server answers in windows (tables
  * T5c) gives its count: the places of rows not read yet are held, drawn as
  * placeholders, and the rows added here (its last `tail`) are kept at its end.
+ * The rows read start at place `from`: 0, or where the view jumped.
  */
 export function TableRowList({
   fields,
   rows,
   count,
   tail = 0,
+  from = 0,
   onOpen,
   onAdd,
   empty,
@@ -117,16 +119,17 @@ export function TableRowList({
   found,
 }: {
   fields: TableField[]
-  /** The view's rows read, from its first, then its last `tail` rows, added here. */
+  /** The view's rows read, from place `from`, then its last `tail` rows, added here. */
   rows: TableRow[]
   /** How many rows the view has, read or not: rows' own length unless it reads in windows. */
   count?: number
   tail?: number
+  from?: number
   onOpen: (rowId: string) => void
   onAdd?: () => void
   empty?: React.ReactNode
-  /** The list nears the last row read, or passes it: the place of the last row in sight. */
-  onNearEnd?: (last: number) => void
+  /** Near or past a row not read: the places of the last and first rows in sight. */
+  onNearEnd?: (last: number, first?: number) => void
   /** A row to bring into view (one just added), with the window's own scroll. */
   scrollTo?: string | null
   /** What each row shows over its copy until it's read again (useCellCommit). */
@@ -153,7 +156,7 @@ export function TableRowList({
   return (
     <div data-table-list="" aria-busy={(!!body && !layout) || undefined}>
       {length === 0 ? empty : null}
-      <ListBody fields={fields} rows={body?.rows ?? rows} count={length} tail={tail} onOpen={onOpen} onNearEnd={onNearEnd} scrollTo={scrollTo} edits={edits} groups={groups || null} hues={hues} found={found} />
+      <ListBody fields={fields} rows={body?.rows ?? rows} count={length} tail={tail} from={from} onOpen={onOpen} onNearEnd={onNearEnd} scrollTo={scrollTo} edits={edits} groups={groups || null} hues={hues} found={found} />
       {onAdd ? (
         <button type="button" onClick={onAdd} className="flex h-11 w-full items-center gap-2 text-ui text-ink-3 active:bg-press">
           <Plus className="size-4" aria-hidden="true" /> New row
@@ -181,6 +184,7 @@ const ListBody = React.memo(function ListBody({
   rows,
   count,
   tail,
+  from,
   onOpen,
   onNearEnd,
   scrollTo,
@@ -193,8 +197,9 @@ const ListBody = React.memo(function ListBody({
   rows: TableRow[]
   count: number
   tail: number
+  from: number
   onOpen: (rowId: string) => void
-  onNearEnd?: (last: number) => void
+  onNearEnd?: (last: number, first?: number) => void
   scrollTo?: string | null
   edits: ReadonlyMap<string, RowEdits>
   groups: { layout: GroupLayout; levels: Grouping["levels"]; all: TableField[]; onToggle: (path: string[]) => void; partial?: boolean } | null
@@ -208,6 +213,7 @@ const ListBody = React.memo(function ListBody({
     given: rows.length,
     count,
     tail,
+    from,
     rowPx: LIST_ROW_PX,
     sizeOf,
     readTo: layout?.readTo,
@@ -235,8 +241,8 @@ const ListBody = React.memo(function ListBody({
     const index = rows.findIndex((r) => r.id === scrollTo)
     if (index < 0) return
     scrolledTo.current = scrollTo
-    virtualizer.scrollToIndex(layout ? layout.placeOf(index) : placeOfRow(index, rows.length, count, tail), { align: "auto" })
-  }, [scrollTo, rows, count, tail, virtualizer, layout])
+    virtualizer.scrollToIndex(layout ? layout.placeOf(index) : placeOfRow(index, rows.length, count, tail, from), { align: "auto" })
+  }, [scrollTo, rows, count, tail, from, virtualizer, layout])
   // A find's marks (G2b-2): each row's matched fields, and the match it's at. At every step that row comes into
   // sight, as the grid brings its cell, by its place in the view while it isn't read yet; once per match, so rows
   // arriving never pull the list back to it.
@@ -248,11 +254,11 @@ const ListBody = React.memo(function ListBody({
     if (!current || shownMatch.current === current) return
     shownMatch.current = current
     const index = rows.findIndex((r) => r.id === current.row)
-    const place = index >= 0 ? (layout ? layout.placeOf(index) : placeOfRow(index, rows.length, count, tail)) : layout ? -1 : current.at
+    const place = index >= 0 ? (layout ? layout.placeOf(index) : placeOfRow(index, rows.length, count, tail, from)) : layout ? -1 : current.at
     if (place < 0) return
     virtualizer.scrollToIndex(place, { align: "auto" })
     pageTo.current = current.row
-  }, [current, rows, count, tail, virtualizer, layout])
+  }, [current, rows, count, tail, from, virtualizer, layout])
   // The list's box can reach past the screen's edge (the bar and its Replace row sit above it on a phone): once the
   // row is drawn, the page brings it in too, as little as it must, once per match: 12 px clear of the edge (its
   // scroll margin, table.css) and under the bar pinned over the page, never behind it (usePinnedPad).

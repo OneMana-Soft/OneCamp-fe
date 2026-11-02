@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { followersOf, newSeen, presenceOf, type AwarenessState } from "./people"
+import { handsUp } from "./hands"
 
 // Who is in a doc, from its awareness states, by client: two people called
 // Sam are two people (N50), a person's tabs are one person, idle is every tab
@@ -84,5 +85,47 @@ describe("people on a board", () => {
   it("leaves out a board tab that hasn't named its person yet", () => {
     const p = presenceOf(states([[1, { pointer: { x: 1, y: 1 } }], [2, { user: maya }]]), 9, newSeen(), null, 1000)
     expect(Object.keys(p.people)).toEqual(["u-maya"])
+  })
+})
+
+describe("raised hands on a board (miro-24)", () => {
+  // A tab says its hand as { id, raisedAt } by its own clock (components/board/boardSignals), and null once it is lowered.
+  it("gives a person the hand their tab raised first, and none for a hand that isn't one", () => {
+    const p = presenceOf(
+      states([
+        [1, { user: maya, hand: { id: "h1", raisedAt: 500 } }],
+        [2, { user: maya, hand: { id: "h2", raisedAt: 200 } }],
+        [3, { user: sam1, hand: null }],
+        [4, { user: sam2, hand: { id: "h4", raisedAt: "soon" } }],
+        [5, { user: { id: "u-kim", name: "Kim" }, hand: { raisedAt: 100 } }],
+      ]),
+      3,
+      newSeen(),
+      null,
+      1000,
+    )
+    expect(p.people["u-maya"].hand).toEqual({ client: 2, raisedAt: 200 })
+    expect(["u-sam-1", "u-sam-2", "u-kim"].map((id) => p.people[id].hand)).toEqual([undefined, undefined, undefined])
+  })
+
+  it("queues the hands first raised first, ties by tab, so every screen shows one order", () => {
+    const p = presenceOf(
+      states([
+        [7, { user: sam1, hand: { id: "a", raisedAt: 300 } }],
+        [4, { user: maya, hand: { id: "b", raisedAt: 100 } }],
+        [9, { user: { id: "u-kim", name: "Kim" }, hand: { id: "c", raisedAt: 300 } }],
+        [2, { user: sam2 }],
+      ]),
+      2,
+      newSeen(),
+      null,
+      1000,
+    )
+    expect(handsUp(p.people)).toEqual([
+      { id: "u-maya", name: "Maya Chen", client: 4, raisedAt: 100 },
+      { id: "u-sam-1", name: "Sam Rivera", client: 7, raisedAt: 300 },
+      { id: "u-kim", name: "Kim", client: 9, raisedAt: 300 },
+    ])
+    expect(handsUp(undefined)).toEqual([])
   })
 })

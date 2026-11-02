@@ -38,6 +38,7 @@ import {getGroupingId} from "@/lib/utils/getGroupingId";
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
+import { AGENT_PEER_LINE, isAgentPeer, mayCallPeer } from "@/lib/botCopy"
 
 export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string) => boolean | void}) => {
     const dispatch = useDispatch()
@@ -52,7 +53,8 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
     // Where views can't sit side by side (a phone, a tablet) it opens the call's page.
     const openBeside = useOpenBeside();
     const chatRecordingHref = `/app/chat/${chatId}/recording`;
-    const isBotPeer = otherUserInfo.data?.data?.is_bot === true;
+    const isBotPeer = isAgentPeer(otherUserInfo.data?.data);
+    const mayCall = mayCallPeer(otherUserInfo.data?.data);
     const peerName = userDisplayName(otherUserInfo.data?.data);
     const extras = useCallback((send: (html: string) => void, conversation: ConversationRef) => (
         <DmComposerExtras conversation={conversation} send={send} peerName={peerName} isBot={isBotPeer} />
@@ -106,7 +108,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                 <span data-header-title='' className='min-w-[4ch] max-w-[60%] shrink-0 truncate text-heading text-ink'>{userDisplayName(otherUserInfo.data?.data)}</span>
                 {isBotPeer ? (
                     <span data-header-meta='' className='inline-flex h-[22px] min-w-0 items-center gap-1.5 rounded-sm bg-agent-muted px-2 text-meta text-agent-ink'>
-                        <ShieldCheck className='size-3 shrink-0' aria-hidden='true' /> <span className='truncate'>Acts for you · can do only what you can</span>
+                        <ShieldCheck className='size-3 shrink-0' aria-hidden='true' /> <span className='truncate'>{AGENT_PEER_LINE}</span>
                     </span>
                 ) : (
                     <span data-header-meta='' className='flex min-w-0 items-center gap-1.5 truncate border-l border-line-2 pl-2.5 text-ui-sm text-ink-3'>
@@ -118,7 +120,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                 <div className='flex shrink-0 items-center gap-1'>
                     {/* Calls need a LiveKit server, which the shipped stack does not include.
                         Hidden rather than shown-and-failing when the operator has not run one. */}
-                    {!isBotPeer && (
+                    {mayCall && (
                         <FeatureGate feature={FEATURE_CALLS}>
                             <HuddleButton href={chatCallHref} live={chatCallStatusActive} onOpen={(e) => openBeside({ kind: "call-chat", id: chatId }, e)} />
                         </FeatureGate>
@@ -170,7 +172,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                     </DropdownMenu>
                 </div>
             </header>
-            {chatCallStatusActive && !isBotPeer && (
+            {chatCallStatusActive && mayCall && (
                 <FeatureGate feature={FEATURE_CALLS}>
                     <HuddleBanner href={chatCallHref} onOpen={(e) => openBeside({ kind: "call-chat", id: chatId }, e)} />
                 </FeatureGate>

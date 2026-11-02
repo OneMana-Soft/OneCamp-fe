@@ -4,6 +4,8 @@
 // on everyone's screen under someone else's name, and into the in-call AI's
 // context (calls audit, CALL-BUG-5's client side). Pure, no LiveKit import.
 
+import { isReaction, type Reaction } from "@/lib/reactions/set"
+
 /** Who may send a signal: the server (no participant), a person, or the transcription agent. */
 export type SignalFrom = "server" | "participant" | "agent"
 
@@ -100,28 +102,14 @@ export function readCallSignal(payload: Uint8Array, sender: SignalSender | undef
   return { kind: raw.kind, payload: raw.payload ?? null, from: { identity: sender.identity, name: sender.name || sender.identity } }
 }
 
-/** What a call can react with, in the tray's order. */
-export const CALL_REACTIONS = ["👍", "❤️", "😂", "🎉", "👏", "😮"] as const
-export type CallReaction = (typeof CALL_REACTIONS)[number]
-
-/** Each reaction's name: its button's, and what the stage's live region says. */
-export const REACTION_NAMES: Record<CallReaction, string> = {
-  "👍": "Thumbs up",
-  "❤️": "Heart",
-  "😂": "Laughing",
-  "🎉": "Celebrate",
-  "👏": "Clapping",
-  "😮": "Surprised",
-}
-
 /**
  * A reaction from a person in the call. Only an emoji the tray offers is
  * read, so a packet never puts words or markup on everyone's stage. Pure.
  */
-export function readReaction(payload: Uint8Array, sender: SignalSender | undefined, received: string | undefined): { emoji: CallReaction; identity: string; name: string } | null {
+export function readReaction(payload: Uint8Array, sender: SignalSender | undefined, received: string | undefined): { emoji: Reaction; identity: string; name: string } | null {
   const s = readCallSignal(payload, sender, received)
   if (!s || s.kind !== "reaction") return null
   const emoji = (s.payload as { emoji?: unknown } | null)?.emoji
-  if (typeof emoji !== "string" || !(CALL_REACTIONS as readonly string[]).includes(emoji)) return null
-  return { emoji: emoji as CallReaction, ...s.from }
+  if (!isReaction(emoji)) return null
+  return { emoji, ...s.from }
 }

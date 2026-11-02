@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { draftOf, fieldFilterMatches, fieldIdOfFilter, formatFieldValue, withField, type TaskField } from "./fields"
-import { parseFieldInput } from "./fieldInput"
+import { parseFieldInput, readAnswer } from "./fieldInput"
 import { parseTypedNumber } from "@/lib/format/number"
+import { pinTestClock } from "@/lib/testing/testClock"
+
+// Its dates are read against the test's own day, never the machine's (app/testClock.test.ts).
+pinTestClock()
 
 const field = (type: TaskField["type"], more: Partial<TaskField> = {}): TaskField => ({
   id: "0a1b2c3d-0000-4000-8000-000000000001",
@@ -109,5 +113,34 @@ describe("a number typed in the reader's own way", () => {
     expect(parseTypedNumber("12,5,0", "de-DE")).toBeNull()
     expect(parseTypedNumber("1.2.3", "en-US")).toBeNull()
     expect(parseTypedNumber("", "en-US")).toBe("")
+  })
+})
+
+// An answer to a field a task template asks for, as the shared answer box
+// (components/forms/AnswerInput) holds it, read as the field's value (CR-172 F3).
+describe("an answer for a task field, of any type", () => {
+  it("takes a person as their id, and nobody as no answer", () => {
+    expect(readAnswer(field("person"), "7c9e6679-7425-40de-944b-e07fc1f90ae7")).toEqual({ value: "7c9e6679-7425-40de-944b-e07fc1f90ae7" })
+    expect(readAnswer(field("person"), "")).toEqual({ value: null })
+  })
+  it("takes a multi-select as the list of options picked, and none as no answer", () => {
+    expect(readAnswer(field("multi_select"), ["o1", "o2"])).toEqual({ value: ["o1", "o2"] })
+    expect(readAnswer(field("multi_select"), [])).toEqual({ value: null })
+    expect(readAnswer(field("multi_select"), "o1")).toEqual({ value: null })
+  })
+  it("takes a checkbox ticked as true, and one left unticked as no answer", () => {
+    expect(readAnswer(field("checkbox"), true)).toEqual({ value: true })
+    expect(readAnswer(field("checkbox"), false)).toEqual({ value: null })
+    expect(readAnswer(field("checkbox"), "true")).toEqual({ value: null })
+  })
+  it("takes a select's option and a date's day as they are", () => {
+    expect(readAnswer(field("select"), "o2")).toEqual({ value: "o2" })
+    expect(readAnswer(field("date"), "2026-11-09")).toEqual({ value: "2026-11-09" })
+    expect(readAnswer(field("date"), "")).toEqual({ value: null })
+  })
+  it("reads what's typed for text, a link, a number or money as the task page does", () => {
+    expect(readAnswer(field("text"), "  Acme ")).toEqual({ value: "Acme" })
+    expect(readAnswer(field("money"), "12.50")).toEqual({ value: 1250 })
+    expect(readAnswer(field("url"), "not a link")).toHaveProperty("error")
   })
 })

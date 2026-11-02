@@ -5,6 +5,7 @@ import { giphyCard, serveGif } from "./giphyCard"
 import { RUNNING_TASK, RUNNING_TIMER } from "./runningTimer"
 import { openKeyboard } from "./keyboard"
 import { settled } from "./sheetLayout"
+import { animationsSettled } from "./settled"
 
 // A command's answer (a Giphy card, "Ran /x here") shows above a phone's
 // message box, in the box's sheet. The sheet was sized without it, so the
@@ -169,7 +170,7 @@ test("with Giphy's card over the box, Jump to latest hangs 12px above the card",
   await expect(pill).toBeVisible({ timeout: 15_000 })
   // Settled, as jumpPillPhone measures it: placed by the measure, its pill-in over.
   await expect(page.locator("[data-jump-row]")).toHaveAttribute("style", /bottom:/)
-  await expect.poll(() => pill.evaluate((el) => el.getAnimations().some((a) => a.playState === "running"))).toBe(false)
+  await animationsSettled(pill)
   const answers = page.locator("[data-composer-sheet] [data-command-answers]")
   await expect.poll(async () => {
     const [p, a] = [await pill.boundingBox(), await answers.boundingBox()]

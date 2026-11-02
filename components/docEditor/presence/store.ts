@@ -12,6 +12,8 @@ export interface PresencePerson {
   mode?: "editing" | "viewing"
   /** No input for 2 minutes in any of their tabs. */
   idle: boolean
+  /** Their hand while a tab of theirs has it up (a board's, miro-24): that tab, and when it went up by its clock. */
+  hand?: { client: number; raisedAt: number }
 }
 
 export interface DocPresence {

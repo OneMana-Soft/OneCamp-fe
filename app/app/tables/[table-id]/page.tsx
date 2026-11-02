@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   ChevronRight,
@@ -18,7 +18,7 @@ import {
 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
-import { DataTableGrid, SelectionPart } from "@/components/table/DataTableGrid"
+import { DataTableGrid, SelectionPart, TableKeysPart } from "@/components/table/DataTableGrid"
 import { BoardPart, CalendarPart, ChartPart, CleanupPart, FindPart, FormsPart, GalleryPart, ListPart, TimelinePart, MadeByAiPart, MenusPart, PresencePart, RecordPart, RulesPart, SaveDotPart, SharePart, TrashPart, ViewsPart, warmView } from "@/components/table/lazyParts"
 import { warmCellPickers } from "@/components/table/cellPickerPart"
 import { monthOf } from "@/lib/tables/month"
@@ -31,6 +31,7 @@ import {
 } from "@/services/tableService"
 import { filterCount, fitRules, freshFilter, groupingOf, keepInSight, KEPT_NOTE, loadViewRules, MAX_FILTERS, namesMe, NO_RULES, saveViewRules, searchRows, withoutComputed, type ViewRules } from "@/lib/tables/viewRules"
 import { ROWS_HELD_MAX } from "@/lib/tables/useTableRows"
+import { TableEditProvider, VIEW_ONLY_WHY } from "@/lib/tables/tableEdit"
 import { useRowWindow } from "@/hooks/useRowWindow"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -49,11 +50,15 @@ import { hueFor, type CampHue } from "@/lib/campHue"
 import { rowsView, viewFromQuery, type ViewChoice } from "@/lib/tables/tableView"
 import type { SaveState } from "@/components/docEditor/SaveDot"
 import { DEFAULT_DISPLAY, listByDefault, loadDisplay, saveDisplay, type TableDisplay } from "@/lib/tables/display"
-import { useCellCommit } from "@/lib/tables/useCellCommit"
+import { ledger, useCellCommit } from "@/lib/tables/useCellCommit"
 import { tablesPath } from "@/lib/tables/route"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { undoneNote } from "@/lib/tables/undoneNote"
-import { findKey, onMac, undoKey } from "@/lib/tables/undoKeys"
+import { isMacLike } from "@/lib/keys/chord"
+import type { TableCommand } from "@/lib/tables/tableKeys"
+import { showPageKeys } from "@/lib/shortcuts/pageGroups"
+import { openPalette } from "@/lib/ui/palette"
+import { lazyChunk } from "@/lib/loadChunk"
 import type { CleanStep, TransformMatch } from "@/lib/tables/transform"
 import type { FindMarks } from "@/lib/tables/findMarks"
 import type { ViewRows } from "@/lib/tables/viewRows"
@@ -69,14 +74,8 @@ type Menus = typeof import("@/components/table/TableMenus")
 /** The rows a list or a grid draws while it waits. */
 const SKELETON_ROWS = 9
 const NO_SHUT: string[][] = []
+const switchers = lazyChunk(() => import("@/components/table/tablePalette"))
 
-
-/** A key on the page that isn't typed into a field. */
-function pageKey(e: KeyboardEvent): boolean {
-  const t = e.target as HTMLElement | null
-  if (e.metaKey || e.ctrlKey || e.altKey) return false
-  return !(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.closest("[role=dialog],[data-radix-popper-content-wrapper]")))
-}
 
 function useNarrow(): boolean {
   const [narrow, setNarrow] = React.useState(false)
@@ -158,6 +157,7 @@ function ViewTabs({ active, onPick, hue, onForms }: { active: ViewChoice; onPick
 
 export default function TableDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const tableId = String(params["table-id"] || "")
   // Opened from the AI bar: a table AI made, private to its asker. Its note's
@@ -201,6 +201,8 @@ export default function TableDetailPage() {
   const windowed = held.windowed
   usePageName(held.bundle?.table?.name)
   const { bundle, isLoading, isError, refresh } = held
+  // Whether the reader edits the table's rows (V-170): its owner chooses; a bundle that doesn't say means they do.
+  const canEdit = bundle?.can_edit ?? true
   // A row's record, the find bar and a cell's picker are a click or a key
   // away: their chunks load once the table is drawn and the page is idle.
   const loaded = !!bundle
@@ -491,7 +493,8 @@ export default function TableDetailPage() {
       setSavedAt(new Date())
     }
   }, [])
-  const commit = useCellCommit({ tableId, rows: held.rows, onChange: changed, onSaving, onSaved: putSaved })
+  const commit = useCellCommit({ tableId, rows: held.rows, onChange: changed, onSaving, onSaved: putSaved, canEdit })
+  const { press, write } = commit
   // Each row's colour and each cell's tint (V3), as the view colours them and its cells show them.
   const paint = React.useMemo(
     () => (applying && display.colors && rowsView(activeView) ? applying.paint(held.rows, bundle?.fields || [], display.colors, me, commit.edits, held.summaries) : null),
@@ -548,13 +551,29 @@ export default function TableDetailPage() {
   )
   const addRow = React.useCallback(async () => {
     try {
-      const r = await createRow(tableId, {})
+      const r = await write("row", () => createRow(tableId, {}))
       if (r?.id) onCreated([r], true)
     } catch {
       // surfaced
     }
-  }, [tableId, onCreated])
+  }, [tableId, onCreated, write])
   const focused = React.useCallback(() => setFocusAt(null), [])
+  // A record Space expanded from a cell (airtable-04): Escape puts the focus
+  // back on that cell, in the row the record shows by then (J and K step it).
+  const expandedFrom = React.useRef<string | null>(null)
+  const openFromGrid = React.useCallback(
+    (id: string, from?: { field: string }) => {
+      expandedFrom.current = from?.field ?? null
+      setOpenRow(id)
+    },
+    [setOpenRow],
+  )
+  const closeRecord = React.useCallback(() => {
+    const field = expandedFrom.current
+    expandedFrom.current = null
+    setOpenRow(null)
+    if (field && openRow && activeView === "grid" && !listMode && shownRows.some((r) => r.id === openRow)) setFocusAt({ row: openRow, field })
+  }, [openRow, setOpenRow, activeView, listMode, shownRows])
   // Someone's face: their cell, or their row's record where the grid doesn't show it.
   const goTo = React.useCallback(
     (row: string, field: string) => (activeView === "grid" && !listMode && shownRows.some((r) => r.id === row) ? setFocusAt({ row, field }) : setOpenRow(row)),
@@ -572,55 +591,73 @@ export default function TableDetailPage() {
   const finds = activeView === "grid" || activeView === "list"
   const openFind = React.useCallback((mode: "find" | "replace") => setFinding((f) => ({ mode, opened: (f?.opened ?? 0) + 1 })), [])
 
-  // ⌘Z undoes the reader's latest change to the table, ⌘⇧Z redoes it (A2),
-  // when they aren't typing into a field, whose text the browser undoes.
-  // ⌘F finds, ⌘⇧H (Ctrl+H off a Mac) replaces, from a cell's box too.
+  // The table's keys (TableKeysPart, in before the rows), on the document: the AI panel's ⌘J, on the window, comes after.
+  const keys = TableKeysPart.useLoaded()
+  const [askedRules, setAskedRules] = React.useState<{ menu: "filter" | "sort"; n: number } | null>(null)
   React.useEffect(() => {
-    if (!bundle?.table) return
-    const mac = onMac()
-    const onKey = (e: KeyboardEvent) => {
-      const find = finds && !openRow ? findKey(e, mac) : null
-      if (find) {
-        e.preventDefault()
-        return openFind(find)
-      }
-      const want = undoKey(e, mac)
-      if (!want) return
-      e.preventDefault()
-      void (async () => {
+    if (!bundle?.table || !keys) return
+    const mac = isMacLike()
+    // In the table's undo order (V-360): a write on its way is taken, not the change before it.
+    const undo = (want: "undo" | "redo") =>
+      void press(async (aim) => {
+        // The write it took wasn't saved, or changed nothing: there's nothing to take back, and it says which.
+        if ("what" in aim) return void toast({ title: `That ${aim.what} ${aim.kind === "lost" ? "wasn't saved" : "changed nothing"}, so there's nothing to undo` })
         try {
           // The ledger loads on the first undo, off the table's first load.
-          const { redoChange, undoChange } = await import("@/lib/tables/ledger")
-          const r = want === "undo" ? await undoChange(tableId) : await redoChange(tableId)
+          const { redoChange, undoChange } = await ledger()
+          const r = want === "undo" ? await (aim.kind === "set" ? undoChange(tableId, aim.set) : undoChange(tableId)) : await redoChange(tableId)
           toast(undoneNote(r, want === "redo"))
         } catch (err) {
           toast({ title: apiErrorMessage(err, want === "undo" ? "Couldn't undo that" : "Couldn't redo that") })
         } finally {
           reload()
         }
-      })()
+      }, want === "undo")
+    // Each command's work where it applies now; a key with none here is left to the browser.
+    const did = (work: () => void) => {
+      work()
+      return true
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [bundle?.table, tableId, toast, reload, finds, openRow, openFind])
-
-  // R adds a row, / searches (T05).
-  React.useEffect(() => {
-    if (!bundle?.table) return
-    const onKey = (e: KeyboardEvent) => {
-      if (!pageKey(e) || openRow) return
-      if ((e.key === "r" || e.key === "R") && activeView === "grid") {
-        e.preventDefault()
-        void addRow()
-      } else if (e.key === "/") {
-        e.preventDefault()
+    const rulesBar = activeView !== "chart" && !openRow
+    const ask = (menu: "filter" | "sort") => setAskedRules((a) => ({ menu, n: (a?.n ?? 0) + 1 }))
+    const run: Record<TableCommand, () => boolean> = {
+      switchTable: () => did(() => openPalette({ entry: keys.SWITCH_TABLE })),
+      switchView: () => did(() => openPalette({ entry: keys.SWITCH_VIEW })),
+      find: () => finds && !openRow && did(() => openFind("find")),
+      replace: () => finds && !openRow && did(() => openFind("replace")),
+      filter: () => rulesBar && did(() => ask("filter")),
+      sort: () => rulesBar && did(() => ask("sort")),
+      addRow: () => canEdit && activeView === "grid" && !openRow && did(() => void addRow()),
+      search: () => !openRow && did(() => {
         setSearching(true)
         requestAnimationFrame(() => searchRef.current?.focus())
-      }
+      }),
+      undo: () => did(() => undo("undo")),
+      redo: () => did(() => undo("redo")),
+      // The grid's selected cell takes these (DataTableGrid's cellKey).
+      expandRecord: () => false,
+      today: () => false,
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [bundle?.table, activeView, addRow, openRow])
+    const onKey = (e: KeyboardEvent) => {
+      const command = keys.tableKeyRow(e, mac, keys.keyPlace(e.target))?.command
+      if (command && run[command]()) e.preventDefault()
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [bundle?.table, keys, tableId, toast, reload, finds, openRow, openFind, activeView, addRow, canEdit, press])
+  // The keys list's Tables group while the table is open; ⌘J's switcher, once its chunk has come (none: ⌘J opens Search).
+  React.useEffect(() => (keys ? showPageKeys({ title: "Tables", rows: keys.tableShortcutRows(isMacLike()) }) : undefined), [keys])
+  React.useEffect(() => {
+    let stop: (() => void) | undefined
+    let gone = false
+    void switchers.use(() => undefined).then((m) => {
+      if (m && !gone) stop = m.offerTableSwitch(tableId, router)
+    })
+    return () => {
+      gone = true
+      stop?.()
+    }
+  }, [tableId, router])
 
   // Only what changed: the rest of this page's copy may be out of date.
   const saveTable = async (change: { name?: string; description?: string; visibility?: Visibility }) => {
@@ -775,10 +812,12 @@ export default function TableDetailPage() {
               />
             ),
           )}
-          <Button size="sm" onClick={() => void addRow()} className="ml-1 gap-1.5" aria-label="New row">
-            <Plus className="size-3.5" /> <span className="max-sm:hidden">New row</span>
-            <kbd className="kbd max-sm:hidden">R</kbd>
-          </Button>
+          {canEdit ? (
+            <Button size="sm" onClick={() => void addRow()} className="ml-1 gap-1.5" aria-label="New row">
+              <Plus className="size-3.5" /> <span className="max-sm:hidden">New row</span>
+              <kbd className="kbd max-sm:hidden">R</kbd>
+            </Button>
+          ) : null}
         </>
       ) : null}
       {activeView === "board" ? (
@@ -790,7 +829,7 @@ export default function TableDetailPage() {
     </>
   )
 
-  return (
+  const page = (
     <div className="flex min-h-full flex-col" data-table-page="">
       {/* The header row (T03): breadcrumb and save dot, then Share and More. */}
       <header className="flex h-[52px] shrink-0 items-center gap-2 px-4 sm:px-6">
@@ -815,8 +854,8 @@ export default function TableDetailPage() {
             render={(m) => <m.SaveDot state={saveState} savedAt={savedAt ?? new Date(t.updated_at)} onRetry={reload} className="ml-1" />}
           />
         </nav>
-        {bundle.can_manage ? null : (
-          // Rows anyone may write come back from the trash; its columns are a manager's.
+        {bundle.can_manage || !canEdit ? null : (
+          // Rows anyone who edits them may write come back from the trash; its columns are a manager's.
           <Button variant="ghost" size="icon-sm" aria-label="Trash" title="Deleted rows" onPointerEnter={() => void TrashPart.prefetch()} onFocus={() => void TrashPart.prefetch()} onClick={() => setTrashOpen(true)}>
             <RotateCcw className="size-4" />
           </Button>
@@ -900,10 +939,16 @@ export default function TableDetailPage() {
             ) : t.description ? (
               <p className="mt-0.5 truncate text-ui text-ink-2">{t.description}</p>
             ) : null}
-            {bundle.can_manage ? null : (
+            {bundle.can_manage ? null : canEdit ? (
               // Its column menus open read-only, and nothing said why (QA PTC-62).
               <p className="mt-0.5 text-meta text-ink-3" data-rows-only="">
                 You can edit its rows. Its owner changes its columns.
+              </p>
+            ) : (
+              // Its rows too (V-170): the mark says so at a glance (as a board's does), the line says why.
+              <p className="mt-0.5 flex items-start gap-1.5 text-meta text-ink-3" data-view-only="">
+                <span className="tag shrink-0 bg-hover text-ink-2">View only</span>
+                <span className="min-w-0">{VIEW_ONLY_WHY}</span>
               </p>
             )}
           </div>
@@ -917,7 +962,7 @@ export default function TableDetailPage() {
               </span>
             }
             render={(m) => (
-              <m.TableViews tableId={tableId} views={bundle.views} fields={fields} canManage={!!bundle.can_manage} layout={activeView} rules={rules} display={display} onApply={applyView} />
+              <m.TableViews tableId={tableId} views={bundle.views} fields={fields} canManage={!!bundle.can_manage} layout={activeView} rules={rules} display={display} onApply={applyView} onLayout={showView} />
             )}
           />
           <ViewTabs active={activeView} onPick={showView} hue={hueFor(tableId)} onForms={bundle.can_manage ? openForms : undefined} />
@@ -954,6 +999,7 @@ export default function TableDetailPage() {
             end={toolbarEnd}
             notice={refusedInBody ? null : (refused ?? held.sumsOut)}
             noticeRetry={held.recount ? { busy: held.recounting, onRetry: held.recount } : null}
+            asked={askedRules}
           />}
           {finding && finds ? (
             <FindPart.View
@@ -967,6 +1013,8 @@ export default function TableDetailPage() {
                   view={viewNow}
                   onReveal={(m, focus) => (focus ? m.field && goTo(m.row, m.field) : !listMode && setFoundAt(m))}
                   onFound={listMode ? setListMarks : undefined}
+                  write={write}
+                  undo={commit.undo}
                   onChanged={reload}
                   onClose={() => (setFinding(null), setFoundAt(null), setListMarks(null))}
                 />
@@ -979,27 +1027,26 @@ export default function TableDetailPage() {
             <ViewSkeleton view={activeView === "grid" ? "list" : activeView} />
           ) : (activeView === "grid" || listMode) &&
             (listMode ? (
-              <div>
-                <ListPart.View
-                  fallback={<ViewSkeleton view="list" />}
-                  render={(m) => (
-                    <m.TableRowList
-                      fields={fields}
-                      rows={shownRows}
-                      count={windowed ? viewCount : undefined}
-                      tail={windowed ? held.tail : groupView && keptHeld ? 1 : 0}
-                      grouping={groupView}
-                      hues={paint?.hues}
-                      onOpen={setOpenRow}
-                      onNearEnd={held.complete ? undefined : holdMore}
-                      scrollTo={listTo}
-                      found={listMarks}
-                      edits={commit.edits}
-                      empty={noRows ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
-                    />
-                  )}
-                />
-              </div>
+              <ListPart.View
+                fallback={<ViewSkeleton view="list" />}
+                render={(m) => (
+                  <m.TableRowList
+                    fields={fields}
+                    rows={shownRows}
+                    count={windowed ? viewCount : undefined}
+                    tail={windowed ? held.tail : groupView && keptHeld ? 1 : 0}
+                    from={windowed ? held.from : 0}
+                    grouping={groupView}
+                    hues={paint?.hues}
+                    onOpen={setOpenRow}
+                    onNearEnd={held.complete ? undefined : holdMore}
+                    scrollTo={listTo}
+                    found={listMarks}
+                    edits={commit.edits}
+                    empty={noRows ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
+                  />
+                )}
+              />
             ) : (
               <DataTableGrid
                 tableId={tableId}
@@ -1007,6 +1054,7 @@ export default function TableDetailPage() {
                 rows={shownRows}
                 count={ruling ? Math.min(held.rows.length, SKELETON_ROWS) : windowed ? viewCount : undefined}
                 tail={windowed ? held.tail : groupView && keptHeld ? 1 : undefined}
+                from={windowed ? held.from : 0}
                 grouping={groupView}
                 hues={paint?.hues}
                 tints={paint?.tints}
@@ -1043,7 +1091,7 @@ export default function TableDetailPage() {
                   if (f && filterCount(rules.filters) < MAX_FILTERS) changeRules({ ...rules, filters: [...rules.filters, freshFilter(f)] })
                 }}
                 onHide={(id) => changeDisplay({ hidden: [...display.hidden, id] })}
-                onOpenRow={setOpenRow}
+                onOpenRow={openFromGrid}
                 compact={narrow}
                 empty={
                   noRows ? (
@@ -1067,6 +1115,7 @@ export default function TableDetailPage() {
                   rows={shownRows}
                   canManage={bundle.can_manage}
                   groupFieldId={display.boardGroup ?? undefined}
+                  write={write}
                   onChange={changed}
                   onCreated={onCreated}
                   onOpenRow={setOpenRow}
@@ -1085,6 +1134,7 @@ export default function TableDetailPage() {
                   rows={shownRows}
                   count={windowed ? viewCount : undefined}
                   tail={windowed ? held.tail : 0}
+                  from={windowed ? held.from : 0}
                   hues={paint?.hues}
                   edits={commit.edits}
                   onOpen={setOpenRow}
@@ -1103,6 +1153,7 @@ export default function TableDetailPage() {
                   rows={shownRows}
                   count={windowed ? viewCount : undefined}
                   tail={windowed ? held.tail : 0}
+                  from={windowed ? held.from : 0}
                   hues={paint?.hues}
                   edits={commit.edits}
                   look={display.timeline}
@@ -1112,6 +1163,7 @@ export default function TableDetailPage() {
                   onOpen={setOpenRow}
                   onNearEnd={held.complete ? undefined : holdMore}
                   onChange={changed}
+                  write={write}
                   empty={noRows ? <TableViewState kind="no-rows" hue={hueFor(tableId)} /> : noHit}
                 />
               )}
@@ -1126,6 +1178,7 @@ export default function TableDetailPage() {
                   rows={shownRows}
                   canManage={bundle.can_manage}
                   onChange={reload}
+                  write={write}
                   onCreated={onCreated}
                   month={calendarMonth}
                   onOpenGrid={() => showView("grid")}
@@ -1152,13 +1205,14 @@ export default function TableDetailPage() {
               rows={openShown || !loneRow ? shownRows : [loneRow]}
               count={windowed && openShown ? held.count : undefined}
               tail={windowed && openShown ? held.tail : undefined}
+              from={windowed && openShown ? held.from : 0}
               alone={!openShown}
               onReach={windowed ? holdMore : undefined}
               rowId={openRow}
               canManage={bundle.can_manage}
               commit={commit}
               onStep={setOpenRow}
-              onClose={() => setOpenRow(null)}
+              onClose={closeRecord}
               onChange={reload}
               focusThread={openThread}
             />
@@ -1171,7 +1225,7 @@ export default function TableDetailPage() {
       {cleaning ? (
         <CleanupPart.View
           fallback={null}
-          render={(m) => <m.CleanupDialog step={cleaning.step} field={cleaning.field} tableId={tableId} shown={shownFields} view={viewNow} onChanged={reload} onClose={() => setCleaning(null)} />}
+          render={(m) => <m.CleanupDialog step={cleaning.step} field={cleaning.field} tableId={tableId} shown={shownFields} view={viewNow} write={write} undo={commit.undo} onChanged={reload} onClose={() => setCleaning(null)} />}
         />
       ) : null}
 
@@ -1180,10 +1234,12 @@ export default function TableDetailPage() {
       ) : null}
 
       {sharing ? (
-        <SharePart.View fallback={null} render={(m) => <m.ShareTableDialog tableId={tableId} tableName={t.name} canShare={bundle.can_manage} onClose={() => setSharing(false)} />} />
+        <SharePart.View fallback={null} render={(m) => <m.ShareTableDialog tableId={tableId} tableName={t.name} canShare={bundle.can_manage} editing={bundle.can_manage ? bundle.editing : undefined} isPrivate={t.visibility === "private"} onClose={() => setSharing(false)} />} />
       ) : null}
     </div>
   )
+  // Every view, the record and find read whether the reader edits the rows from here (lib/tables/tableEdit).
+  return <TableEditProvider value={canEdit}>{page}</TableEditProvider>
 }
 
 /**

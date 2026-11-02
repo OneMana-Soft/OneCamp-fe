@@ -36,6 +36,7 @@ import { NOTE_AUTHORS, storeWithMakers } from "@/lib/board/authors"
 import { useBoardPresence } from "@/components/board/boardPresence"
 import { BoardCursors } from "@/components/board/boardCursors"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import "@excalidraw/excalidraw/index.css"
 // Before Excalidraw loads: its faces come from this server, never esm.sh (V-94).
 import "@/lib/board/excalidrawAssets"
@@ -48,7 +49,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 const MemberEmbedView = lazyPiece(() => import("@/components/board/boardCard").then((m) => ({ default: m.BoardEmbedView })))
 
 const Excalidraw = dynamic(
-  async () => (await import("@/components/board/boardExcalidraw")).default,
+  async () => (await import("@/components/board/boardExcalidraw")).MemberExcalidraw,
   {
     ssr: false,
     loading: () => (
@@ -147,6 +148,7 @@ function BoardCanvas({
   onApiReady,
   opensAt,
 }: BoardCanvasProps) {
+  const sheetMode = useSheetMode()
   const apiRef = React.useRef<ExcalidrawImperativeAPI | null>(null)
   // Marks for e2e and scripts/fluidity, written to the DOM (no render):
   // data-board-synced/-elements once the server's drawing is on, and
@@ -616,6 +618,7 @@ function BoardCanvas({
   return (
     <div ref={wrapRef} className="relative h-full w-full" data-board-canvas="">
       <Excalidraw
+        sheetMode={sheetMode}
         embedView={MemberEmbedView}
         excalidrawAPI={handleApi}
         onChange={handleChange as never}
@@ -623,6 +626,7 @@ function BoardCanvas({
         onLibraryChange={persistLibrary as never}
         viewModeEnabled={!editable}
         theme={theme}
+        boardId={boardId}
         initialData={{
           // Enable object snapping so dragging/resizing shows alignment guides
           // and snaps to nearby elements - cleaner, more precise diagrams.

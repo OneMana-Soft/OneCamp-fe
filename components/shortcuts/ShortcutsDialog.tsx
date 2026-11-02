@@ -6,7 +6,7 @@ import { SPLIT_SHORTCUTS } from "@/lib/split"
 import { GO_KEYS } from "@/lib/goKeys"
 import { LIST_SHORTCUTS } from "@/lib/listKeys"
 import { calendarShortcutRows } from "@/lib/calendar/keys"
-import { pageGroups } from "@/lib/shortcuts/pageGroups"
+import { pageGroups, subscribePageGroups } from "@/lib/shortcuts/pageGroups"
 import { app_calendar_path } from "@/types/paths"
 import { usePathname } from "next/navigation"
 import { useAIAvailable } from "@/hooks/useClientConfig"
@@ -160,6 +160,8 @@ function Keys({ keys, mac, hit }: { keys: string; mac: boolean; hit: boolean }) 
   )
 }
 
+const noGroups: ReturnType<typeof pageGroups> = []
+
 /**
  * The keys, behind ? and F1 (not typing), ⌘/ and the palette (shell §K, M7).
  * The filter narrows by what a key does or by its keys. A listed combination
@@ -197,7 +199,10 @@ export function ShortcutsDialog() {
   }, [])
 
   const onCalendar = usePathname() === app_calendar_path
-  const groups = React.useMemo(() => [...(open ? pageGroups() : []).map((g) => ({ ...g, page: true })), ...shortcutGroups({ ai, calendar: onCalendar })], [ai, onCalendar, open])
+  // A page's keys that come while the list is open (a table's lazy chunk) join it.
+  const follow = React.useCallback((f: () => void) => (open ? subscribePageGroups(f) : () => {}), [open])
+  const page = React.useSyncExternalStore(follow, () => (open ? pageGroups() : noGroups), () => noGroups)
+  const groups = React.useMemo(() => [...page.map((g) => ({ ...g, page: true })), ...shortcutGroups({ ai, calendar: onCalendar })], [ai, onCalendar, page])
 
   // Live keys: while the list is open, a listed combination lights its row and
   // goes no further, so ⌘K finds "Search or ask" rather than opening the palette.

@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test"
 import { fakeCallServer, type FakePerson } from "./fakeCallServer"
 import { reviewShot, SAM, SHOT_THEMES, stubBackend } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // Annotation on Call Signals (ROWS head S3 for meet-14 and zoom-03): anyone
 // the call lets share draws on a screen someone shares, everyone sees it on
@@ -103,7 +104,7 @@ async function barIsClear(page: Page, tile: Locator, tools: Locator, touch: bool
       })
     })
     expect(met, `a press anywhere on ${name} meets it`).toBe(true)
-    if (touch) expect(Math.round(Math.min(r.width, r.height)), `${name} is 44 px for a finger`).toBeGreaterThanOrEqual(44)
+    if (touch) expectTouchSize(Math.min(r.width, r.height), `${name} for a finger`)
   }
 }
 

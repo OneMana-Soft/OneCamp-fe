@@ -49,11 +49,11 @@ export function useProjectPlan(projectId: string | undefined) {
   }
 }
 
-/** The workspace's statuses and labels, read once a picker opens, under one key; failed offers Try again. */
+/** The workspace's statuses and labels under one key, read while shown; failed offers Try again; retry waits. */
 export function usePlanRegistry(on: boolean) {
   const read = useFetch<{ data?: PlanRegistry }>(on ? "/project/plan/registry" : "", undefined, undefined, OWN_ERRORS)
   const registry = read.data?.data
-  return { registry, failed: !!read.isError && !registry, retry: () => void read.mutate() }
+  return { registry, failed: !!read.isError && !registry, retry: () => read.mutate() }
 }
 
 export type ProjectPlanRead = ReturnType<typeof useProjectPlan>

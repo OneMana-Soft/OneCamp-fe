@@ -49,6 +49,10 @@ import { loadDisplay, type TableDisplay } from "@/lib/tables/display"
 import { loadViewRules, type ViewRules } from "@/lib/tables/viewRules"
 import { viewFromQuery, type ViewChoice } from "@/lib/tables/tableView"
 import { drawnAs, keepsOwnChange, loadLastView, mayChangeView, openingView, sameViewState, saveLastView, viewConfig, viewStateOf, type ViewState } from "@/lib/tables/savedViews"
+import { offerPaletteEntries, type PaletteChoice } from "@/lib/ui/paletteEntries"
+import { useStableCallback } from "@/hooks/useStableCallback"
+import { paletteKeys } from "@/components/table/tablePalette"
+import { TABLE_VIEWS_SURFACE } from "@/lib/tables/tableKeys"
 
 /** A name to give: a new view, the reader's copy of one, or a view's new name. */
 type Naming = { kind: "new" | "mine" | "copy" | "rename"; title: string; name: string }
@@ -62,6 +66,7 @@ export function TableViews({
   rules,
   display,
   onApply,
+  onLayout,
 }: {
   tableId: string
   /** The table's views as the reader's bundle lists them: the shared ones, and their own. */
@@ -74,6 +79,8 @@ export function TableViews({
   display: TableDisplay
   /** Shows the table as a view keeps it. */
   onApply: (state: ViewState) => void
+  /** Shows the table in another layout, as its tab does: the palette's "Switch view…" lists the layouts too. */
+  onLayout?: (layout: ViewChoice) => void
 }) {
   const confirm = useConfirm()
   const [list, setList] = React.useState(views ?? [])
@@ -127,6 +134,30 @@ export function TableViews({
     choose(view, state)
     onApply(state)
   }
+
+  // "Switch view…" in the palette while the table is open (airtable-04, ⌘⇧K):
+  // the saved views, then the layouts, the one shown marked; a pick goes
+  // through this menu's own pick, or the layout's tab.
+  const switchChoices = useStableCallback((): PaletteChoice[] => [
+    ...list.map((v) => ({ value: v.id, label: v.name, current: v.id === chosen })),
+    ...(onLayout ? VIEW_LAYOUTS.map((l) => ({ value: `layout:${l.type}`, label: l.label, current: !current && l.type === layout })) : []),
+  ])
+  const switchTo = useStableCallback((value: string) => {
+    if (value.startsWith("layout:")) return onLayout?.(value.slice("layout:".length) as ViewChoice)
+    const view = list.find((v) => v.id === value)
+    if (view) pick(view)
+  })
+  React.useEffect(
+    () =>
+      offerPaletteEntries({
+        id: TABLE_VIEWS_SURFACE,
+        group: "This table",
+        entries: () => [
+          { id: "switch-view", label: "Switch view…", keywords: ["view", "views", "layout", "switch", "saved"], keys: paletteKeys("switchView"), choices: switchChoices, apply: switchTo },
+        ],
+      }),
+    [switchChoices, switchTo],
+  )
 
   // One write at a time: a second click while one is on its way does nothing.
   const write = async (run: () => Promise<void>) => {

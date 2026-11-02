@@ -13,6 +13,8 @@ import { hueFor, type CampHue } from "@/lib/campHue"
 import { fieldOrder } from "@/lib/tables/fieldOrder"
 import { datesOf, dateFields, readTimelineLook, selfLinks, spanOfRow, waitsOn, type RowSpan, type TimelineLook } from "@/lib/tables/tableTimeline"
 import { shownValues, type RowEdits } from "@/lib/tables/useCellCommit"
+import { useTableEdit } from "@/lib/tables/tableEdit"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
 import { applyEdit, barBox, bubbleLabel, DAY_WIDTH, dependencyLinks, offsetOf, timelineRange, type EditKind } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
 import { patchRow, type TableField, type TableRow } from "@/services/tableService"
@@ -40,6 +42,7 @@ export function TableTimeline({
   rows,
   count,
   tail = 0,
+  from = 0,
   hues,
   edits,
   look: kept,
@@ -49,15 +52,17 @@ export function TableTimeline({
   onOpen,
   onNearEnd,
   onChange,
+  write: inOrder,
   empty,
 }: {
   tableId: string
   fields: TableField[]
-  /** The view's rows read, from its first, then its last `tail` rows, added here. */
+  /** The view's rows read, from place `from`, then its last `tail` rows, added here. */
   rows: TableRow[]
   /** How many rows the view has, read or not: rows' own length unless it reads in windows. */
   count?: number
   tail?: number
+  from?: number
   hues?: ReadonlyMap<string, CampHue> | null
   edits: ReadonlyMap<string, RowEdits>
   /** As the view's display keeps it (TableDisplay.timeline). */
@@ -67,9 +72,11 @@ export function TableTimeline({
   gantt?: boolean
   compact?: boolean
   onOpen: (rowId: string) => void
-  onNearEnd?: (last: number) => void
+  onNearEnd?: (last: number, first?: number) => void
   /** A row's dates were written: the view reads it again. */
   onChange: () => void
+  /** The table's undo order (useCellCommit's write): a bar's move is the reader's to undo. */
+  write: UndoOrder["write"]
   empty?: React.ReactNode
 }) {
   const look = React.useMemo(() => readTimelineLook(kept, fields, tableId), [kept, fields, tableId])
@@ -83,6 +90,7 @@ export function TableTimeline({
     given: rows.length,
     count: total,
     tail,
+    from,
     rowPx: ROW,
     scrollRef,
     overscan: 8,
@@ -120,26 +128,36 @@ export function TableTimeline({
   }, [rows.length, read, today, range, dayWidth, zoom, nameWidth])
 
   // A bar on its way to new days: as the drag or the keys have it, until the row comes back.
+  // A reader who may only view the table (V-170) opens a bar's row, and moves none.
+  const canEdit = useTableEdit()
   const [drag, setDrag] = React.useState<Drag | null>(null)
   const [moved, setMoved] = React.useState<ReadonlyMap<string, RowSpan>>(() => new Map())
   const spanOf = (id: string, span: RowSpan): RowSpan => (drag?.id === id && drag.days ? applyEdit(span, { kind: drag.kind, days: drag.days }) : (moved.get(id) ?? span))
   const write = (id: string, from: RowSpan, to: RowSpan) => {
+    if (!canEdit) return
     if (to.start.getTime() === from.start.getTime() && to.end.getTime() === from.end.getTime()) return
     setMoved((m) => new Map(m).set(id, to))
-    patchRow(tableId, id, datesOf(to, look))
+    // The bar goes back to its row's own days.
+    const drop = () =>
+      setMoved((m) => {
+        const next = new Map(m)
+        next.delete(id)
+        return next
+      })
+    // A Ctrl+Z pressed on its way takes the move (V-360): the bar goes back at once, and the read after that Undo
+    // draws it, so no read of the moved row comes between (it flickered back, forward, back).
+    let taken = false
+    inOrder("move", () => patchRow(tableId, id, datesOf(to, look)), undefined, () => {
+      taken = true
+      drop()
+    })
       // A failure is said once, by the request (lib/axiosInstance: "Not allowed" for a 403, and a write
       // with no answer); the bar only goes back.
       .then(
-        () => onChange(),
+        () => taken || onChange(),
         () => {},
       )
-      .finally(() =>
-        setMoved((m) => {
-          const next = new Map(m)
-          next.delete(id)
-          return next
-        }),
-      )
+      .finally(drop)
   }
 
   const start = (e: React.PointerEvent, id: string, kind: EditKind) => {
@@ -149,7 +167,7 @@ export function TableTimeline({
     setDrag({ id, kind, x0: e.clientX, days: 0, moved: false })
   }
   const move = (e: React.PointerEvent) => {
-    if (!drag) return
+    if (!drag || !canEdit) return
     const days = Math.round((e.clientX - drag.x0) / dayWidth)
     if (days !== drag.days || (!drag.moved && Math.abs(e.clientX - drag.x0) > 3)) setDrag({ ...drag, days, moved: drag.moved || Math.abs(e.clientX - drag.x0) > 3 })
   }
@@ -162,7 +180,7 @@ export function TableTimeline({
   }
   const key = (e: React.KeyboardEvent, id: string, span: RowSpan) => {
     if (e.key === "Enter") return onOpen(id)
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+    if (!canEdit || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return
     e.preventDefault()
     // Shift moves the end, Alt the start; the arrows alone, the whole bar.
     write(id, span, applyEdit(spanOf(id, span), { kind: e.shiftKey ? "end" : e.altKey ? "start" : "move", days: e.key === "ArrowLeft" ? -1 : 1 }))
@@ -247,14 +265,15 @@ export function TableTimeline({
                         onKeyDown={(e) => key(e, row.id, span!)}
                         className={cn(
                           HUE_CLASS[hue],
-                          "group/bar absolute top-1.5 flex h-6 cursor-grab items-center overflow-hidden rounded-md bg-[var(--hue-a2)] px-2 text-meta font-medium text-white shadow-e1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                          "group/bar absolute top-1.5 flex h-6 items-center overflow-hidden rounded-md bg-[var(--hue-a2)] px-2 text-meta font-medium text-white shadow-e1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                          canEdit ? "cursor-grab" : "cursor-pointer",
                           drag?.id === row.id && drag.moved && "cursor-grabbing shadow-e2",
                         )}
                         style={{ left: box.left, width: Math.max(box.width, 6) }}
                       >
-                        <span aria-hidden="true" onPointerDown={(e) => start(e, row.id, "start")} className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize" />
+                        {canEdit ? <span aria-hidden="true" onPointerDown={(e) => start(e, row.id, "start")} className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize" /> : null}
                         <span className="truncate">{box.width > 48 ? name : ""}</span>
-                        <span aria-hidden="true" onPointerDown={(e) => start(e, row.id, "end")} className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize" />
+                        {canEdit ? <span aria-hidden="true" onPointerDown={(e) => start(e, row.id, "end")} className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize" /> : null}
                       </button>
                     ) : null}
                     {shown && box && box.width <= 48 ? (

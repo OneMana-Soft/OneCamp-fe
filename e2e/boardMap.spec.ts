@@ -266,7 +266,7 @@ for (const [width, height, expand, touch] of [[960, 860, true, false], [700, 860
   })
 }
 
-test("with two people on a board, Here now jumps to the other's pointer and follows it as it moves", async ({ browser }) => {
+test("with two people on a board, Here now jumps to the other's pointer, and Follow shows what they see as they move", async ({ browser }) => {
   const b = farBoard()
   const sam = await open(browser, USERS.sam, b, { scrollX: 0, scrollY: 0, zoom: 1 })
   // Ann is over at the far note, her pointer resting on her screen's middle.
@@ -291,8 +291,9 @@ test("with two people on a board, Here now jumps to the other's pointer and foll
     return c ? Math.max(Math.abs(c.scrollX - want.scrollX), Math.abs(c.scrollY - want.scrollY)) : Infinity
   }, { timeout: 10_000 }).toBeLessThan(3)
 
-  // Follow: Sam's screen keeps Ann's pointer in its middle as she moves, and says so the whole time:
-  // a frame in her hue, "Following ann" with Esc and Stop, and a status for a screen reader.
+  // Follow (miro-21 2): Sam's screen shows what Ann's shows (her tab says it while someone follows her, as a doc's
+  // does), and says so the whole time: a frame in her hue, "Following ann" with Esc and Stop, and a status for a
+  // screen reader. Their screens are the same size, so Sam's camera is hers.
   const frame = sam.page.locator("[data-following]")
   const status = (words: string) => sam.page.getByRole("status").filter({ hasText: words })
   const follow = async () => {
@@ -302,13 +303,22 @@ test("with two people on a board, Here now jumps to the other's pointer and foll
     await expect(frame.getByRole("button", { name: "Stop", exact: true })).toBeVisible()
     await expect(status("Following ann. Press Esc to stop.")).toHaveCount(1)
   }
+  /** How far Sam's camera is from Ann's, in board units (a hundredth of zoom counts as one). */
+  const apartFromAnn = async () => {
+    const [s, a] = [await cameraOf(sam.page), await cameraOf(ann.page)]
+    return s && a ? Math.max(Math.abs(s.scrollX - a.scrollX), Math.abs(s.scrollY - a.scrollY), Math.abs(s.zoom - a.zoom) * 100) : Infinity
+  }
   await follow()
+  await expect.poll(apartFromAnn, { timeout: 10_000, message: "Sam's screen shows what Ann's shows" }).toBeLessThan(3)
+  // Her pointer moving alone moves nothing: what she shows is where Sam looks.
+  const still = (await cameraOf(sam.page))!
   await pointAt(700, 500)
-  const next = middleFor(700, 500)
-  await expect.poll(async () => {
-    const c = await cameraOf(sam.page)
-    return c ? Math.max(Math.abs(c.scrollX - next.scrollX), Math.abs(c.scrollY - next.scrollY)) : Infinity
-  }, { timeout: 10_000 }).toBeLessThan(3)
+  await sam.page.waitForTimeout(1_000)
+  expect(await cameraOf(sam.page)).toEqual(still)
+  // She scrolls her board: Sam's screen goes where she went.
+  await ann.page.mouse.wheel(0, 480)
+  await expect.poll(async () => (await cameraOf(ann.page))?.scrollY ?? 0, { timeout: 10_000 }).toBeLessThan(-1600)
+  await expect.poll(apartFromAnn, { timeout: 10_000, message: "Sam's screen follows where Ann scrolled" }).toBeLessThan(3)
 
   // Sam presses Escape: following stops, the frame goes, the status says so, and Ann's next move is hers alone.
   await sam.page.keyboard.press("Escape")
@@ -329,6 +339,37 @@ test("with two people on a board, Here now jumps to the other's pointer and foll
   await sam.page.mouse.wheel(0, 240)
   await expect(frame).toHaveCount(0)
   await expect(status("Stopped following ann")).toHaveCount(1)
+  await ann.context.close()
+  await sam.context.close()
+})
+
+test("Follow fits what a phone shows to this computer, as the phone moves", async ({ browser }) => {
+  const b = farBoard()
+  const sam = await open(browser, USERS.sam, b, { scrollX: 0, scrollY: 0, zoom: 1 })
+  const ann = await open(browser, USERS.ann, b, { scrollX: -2200, scrollY: -1400, zoom: 1 }, PHONE)
+  /** The camera that shows Ann's phone's view on Sam's computer: her middle, at the zoom that fits her screen in his. */
+  const fitted = async () => {
+    const a = (await cameraOf(ann.page))!
+    const middle = { x: -a.scrollX + ann.canvas.width / 2 / a.zoom, y: -a.scrollY + ann.canvas.height / 2 / a.zoom }
+    const zoom = Math.min(sam.canvas.width / (ann.canvas.width / a.zoom), sam.canvas.height / (ann.canvas.height / a.zoom))
+    return { scrollX: sam.canvas.width / 2 / zoom - middle.x, scrollY: sam.canvas.height / 2 / zoom - middle.y, zoom }
+  }
+  const offFit = async () => {
+    const [s, f] = [await cameraOf(sam.page), await fitted()]
+    return s ? Math.max(Math.abs(s.scrollX - f.scrollX), Math.abs(s.scrollY - f.scrollY), Math.abs(s.zoom - f.zoom) * 100) : Infinity
+  }
+  await sam.page.getByRole("button", { name: /^Here now: / }).click()
+  await sam.page.locator("[data-presence-rows]").getByRole("button", { name: /^Follow ann\b/i }).click()
+  await expect(sam.page.locator("[data-following]").getByText("Following ann", { exact: true })).toBeVisible()
+  // The phone never pointed at the board: what it shows, fitted to this computer, is where Sam looks.
+  await expect.poll(offFit, { timeout: 10_000, message: "Sam's computer shows the phone's view, fitted to it" }).toBeLessThan(3)
+  // Ann scrolls her phone's board: Sam's computer follows.
+  // Measured from where her phone looks, at whatever zoom it opened at (a wheel moves the camera by delta / zoom).
+  const before = (await cameraOf(ann.page))!.scrollY
+  await ann.page.mouse.move(ann.canvas.x + ann.canvas.width / 2, ann.canvas.y + ann.canvas.height / 2)
+  await ann.page.mouse.wheel(0, 600)
+  await expect.poll(async () => (await cameraOf(ann.page))?.scrollY ?? before, { timeout: 10_000, message: "Ann's phone scrolls" }).toBeLessThan(before - 100)
+  await expect.poll(offFit, { timeout: 10_000, message: "Sam's computer follows the phone's scroll" }).toBeLessThan(3)
   await ann.context.close()
   await sam.context.close()
 })

@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import { docInfo, stubBackend, withStatus, type Answers } from "./stubbedApp"
+import { reachesTouch } from "./touchTarget"
 
 // The Connected panel (the work graph, DG5) on a doc, in a real browser with
 // every request answered here: the popover beside the header's button on a
@@ -349,7 +350,7 @@ for (const theme of ["light", "dark"] as const) {
       const row = page.locator("[data-connected-panel]").getByRole("link", { name: /^Weekly launch sync, Discussed this/ })
       await expect(row).toBeVisible({ timeout: 30_000 })
       const box = await row.boundingBox()
-      expect(box && box.height >= 44 && box.x >= 0 && box.x + box.width <= 390).toBeTruthy()
+      expect(box && reachesTouch(box.height) && box.x >= 0 && box.x + box.width <= 390).toBeTruthy()
       await shot(page, `meeting-390-${theme}`)
     })
 

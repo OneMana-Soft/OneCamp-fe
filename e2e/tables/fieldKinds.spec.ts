@@ -2,6 +2,7 @@ import { expect, test, type Locator } from "@playwright/test"
 
 import { SAM } from "../stubbedApp"
 import { PRIYA, TableServer } from "./tableServer"
+import { expectTouchSize } from "../touchTarget"
 
 // Tables B1's kinds (T3, STEP5 spec E): a status's lozenges in their groups, people's
 // faces, a phone's call button, a duration as hours and minutes, a rating's
@@ -114,7 +115,7 @@ test("at 390 under a finger, the status and people pickers' rows take 44px and a
   // The three statuses, and Clear status under them.
   const statusRows = await rowHeights("data-status-picker")
   expect(statusRows).toHaveLength(4)
-  for (const h of statusRows) expect(h, "a status row under a finger").toBeGreaterThanOrEqual(44)
+  for (const h of statusRows) expectTouchSize(h, "a status row under a finger")
   await expect(page.locator('[data-status-picker] [cmdk-item][data-selected="true"]')).toHaveText("Building")
   await page.getByRole("option", { name: "Shipped" }).tap()
   await expect.poll(() => server.valuesOf(0).stage).toBe("Shipped")
@@ -124,7 +125,7 @@ test("at 390 under a finger, the status and people pickers' rows take 44px and a
   await expect(page.getByRole("option", { name: /priya@example\.com/ })).toBeVisible({ timeout: 15_000 })
   const peopleRows = await rowHeights("data-people-picker")
   expect(peopleRows).toHaveLength(2)
-  for (const h of peopleRows) expect(h, "a person's row under a finger").toBeGreaterThanOrEqual(44)
+  for (const h of peopleRows) expectTouchSize(h, "a person's row under a finger")
   await page.getByRole("option", { name: /priya@example\.com/ }).tap()
   await expect.poll(() => server.valuesOf(2).owners).toEqual([person(PRIYA)])
   await context.close()
@@ -156,7 +157,7 @@ test("at 390 under a finger, a long text opens in a sheet with Cancel and Save u
   const footer = sheet.locator("[data-sheet-footer]")
   for (const name of ["Cancel", "Save"]) {
     const b = (await footer.getByRole("button", { name }).boundingBox())!
-    expect(Math.round(b.height), `${name} under a finger`).toBeGreaterThanOrEqual(44)
+    expectTouchSize(b.height, `${name} under a finger`)
   }
   // Cancel puts it back, and nothing is written.
   await box.fill("Venue opens at ten")

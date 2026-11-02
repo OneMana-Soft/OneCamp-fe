@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
 
 import { SAM, stubBackend, withStatus } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // A task's approval (package 9 R2) on its page, in a real browser on the
 // stubbed app: waiting for 2 of 2, one answered; the approver's answers; a
@@ -124,7 +125,7 @@ for (const theme of ["light", "dark"] as const) {
         await expect(card.getByText("Numbers match the plans.")).toBeVisible()
         const approve = card.getByRole("button", { name: /Approve/ })
         await expect(approve).toBeVisible()
-        if (label === "on a phone") expect((await approve.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+        if (label === "on a phone") expectTouchSize((await approve.boundingBox())!.height, "Approve")
         const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
         expect(over).toBeLessThanOrEqual(0)
         await card.scrollIntoViewIfNeeded()
@@ -155,7 +156,7 @@ for (const theme of ["light", "dark"] as const) {
         await sheet.getByRole("button", { name: /^maya/ }).click()
         await sheet.getByRole("textbox", { name: /What you ask/ }).fill(ASKED.ask)
         const ask = sheet.getByRole("button", { name: "Ask", exact: true })
-        if (label === "on a phone") expect((await ask.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+        if (label === "on a phone") expectTouchSize((await ask.boundingBox())!.height)
         await noSideScroll(page)
         await shot(page, "task-approval-ask", theme)
         await ask.click()

@@ -233,6 +233,16 @@ describe("the rows a table's page holds", () => {
     expect(listRows).not.toHaveBeenCalled()
   })
 
+  it("asks for the bundle alone when who edits the table changes, so an open page turns editable or View only (V-170)", async () => {
+    const { result } = renderHook(() => useTableRows("t"))
+    act(() => result.current.more())
+    await waitFor(() => expect(result.current.rows).toHaveLength(1000))
+    listRows.mockClear()
+    tell({ action: "editing" })
+    await waitFor(() => expect(refetches()).toBe(1))
+    expect(listRows).not.toHaveBeenCalled()
+  })
+
   it("reads through to a row added here, which is the table's last", async () => {
     const { result, rerender } = renderHook(() => useTableRows("t"))
     count = 1201

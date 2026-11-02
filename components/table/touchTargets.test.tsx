@@ -19,6 +19,10 @@ import { ColumnHeader } from "@/components/table/ColumnMenu"
 import type { TableField, TableRow } from "@/services/tableService"
 import { loadColumnMenus } from "@/components/table/ColumnMenu"
 import { cellPickers } from "@/components/table/cellPickerPart"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
+
+/** The table's undo order as a write that only sends: the tests of the order hold their own. */
+const pass: UndoOrder["write"] = (_what, send) => send()
 
 // The column menus, the cell pickers are chunks of their own
 // (lazyView): loaded once, before these tests, they draw at once.
@@ -39,7 +43,7 @@ describe("the tables' own controls under a finger", () => {
       { id: "stage", table_id: "t", name: "Stage", type: "select", config: JSON.stringify({ options: [{ id: "o_todo", label: "To do" }] }), position: 1 },
     ]
     const rows: TableRow[] = Array.from({ length: 60 }, (_, i) => ({ id: `r${i}`, table_id: "t", position: i, created_at: "", updated_at: "", values: JSON.stringify({ item: `Card ${i}`, stage: "To do" }) }))
-    render(<DataTableBoard tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} />)
+    render(<DataTableBoard write={pass} tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} />)
     expect(screen.getByRole("button", { name: "Move Card 1" }).hasAttribute("data-touch-target")).toBe(true)
     expect(screen.getAllByRole("button", { name: /Add card/ })[0].className).toContain(COARSE_ROW)
     expect(screen.getByRole("button", { name: "Show 10 more" }).className).toContain(COARSE_ROW)

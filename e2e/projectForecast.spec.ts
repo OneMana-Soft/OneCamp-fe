@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route, type TestInfo } from "@playwright/test"
 
 import { SAM, SHOT_THEMES, reviewShot, stubBackend, withStatus } from "./stubbedApp"
+import { animationsSettled } from "./settled"
 
 // linear-20: when a project's open work lands, from the pace its tasks got done at and from what that work waits
 // on, as the header's chip beside its health, with a card that says how (a sheet on a phone). Linear's project graph
@@ -278,14 +279,7 @@ for (const theme of SHOT_THEMES) {
           await expect(card).not.toContainText(pace)
           // Read once its opening has run (the shimmer's endless loop isn't the opening).
           const box = async () => {
-            await card.evaluate((el) =>
-              Promise.all(
-                el
-                  .getAnimations()
-                  .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
-                  .map((a) => a.finished.catch(() => undefined)),
-              ),
-            )
+            await animationsSettled(card)
             const b = await card.boundingBox()
             if (!b) throw new Error("the card has no box")
             return b

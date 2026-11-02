@@ -122,6 +122,7 @@ export function ViewRulesBar({
   end,
   notice,
   noticeRetry,
+  asked,
 }: {
   /** The table's fields, in column order. */
   fields: TableField[]
@@ -144,9 +145,16 @@ export function ViewRulesBar({
   notice?: string | null
   /** A notice that asking again may change: its Try again, and whether that's asking. */
   noticeRetry?: { busy: boolean; onRetry: () => void } | null
+  /** A menu the table's keys asked for (⌘⇧F, ⌘⇧S: lib/tables/tableKeys), opened each time its count moves. */
+  asked?: { menu: "filter" | "sort"; n: number } | null
 }) {
   const [sortOpen, setSortOpen] = React.useState(false)
   const [filterOpen, setFilterOpen] = React.useState(false)
+  React.useEffect(() => {
+    if (!asked) return
+    setFilterOpen(asked.menu === "filter")
+    setSortOpen(asked.menu === "sort")
+  }, [asked])
   const byId = (id: string) => fields.find((f) => f.id === id)
   const active = rules.sort.length + rules.filters.length > 0 || !!rules.groups
   const count = rowsShownText(shown, held, total, !loading, atLeast, working)

@@ -9,7 +9,8 @@ import { useUserInfoState } from "@/hooks/useUserInfoState"
 import { useChannelAgents } from "@/components/ai/ChannelAgents"
 import { openChannelDetails } from "@/components/channel/details/openChannelDetails"
 import { GroupedAvatar } from "@/components/groupedAvatar/groupedAvatar"
-import { Headphones } from "@/lib/icons"
+import { Headphones, ShieldCheck } from "@/lib/icons"
+import { AGENT_ROLE, isAgentPeer, mayCallPeer } from "@/lib/botCopy"
 import { cn } from "@/lib/utils/helpers/cn"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -35,7 +36,7 @@ import type { ConversationKind } from "@/lib/mqtt/conversationAccess"
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-function TitleButton({ title, subtitle, onClick, label }: { title: React.ReactNode; subtitle?: string; onClick: () => void; label: string }) {
+function TitleButton({ title, subtitle, onClick, label }: { title: React.ReactNode; subtitle?: React.ReactNode; onClick: () => void; label: string }) {
     return (
         <button
             type="button"
@@ -84,8 +85,13 @@ function DmTitle({ id }: { id: string }) {
     const loaded = state && state.deviceConnected !== -1
     const name = state.userName || userDisplayName(person)
     const said = state.emojiStatus?.status_user_emoji_desc
-    // Where they are, as a computer's header says it (lib/presence, QA F-18).
-    const subtitle = said || (person || loaded ? PRESENCE_WORDS[presenceOf(state, person)] : undefined)
+    // An agent its role (lib/botCopy); a person where they are (lib/presence, QA F-18).
+    const subtitle = isAgentPeer(person) ? (
+        <span className="inline-flex items-center gap-1 text-agent-ink">
+            <ShieldCheck className="size-3 shrink-0" aria-hidden="true" />
+            {AGENT_ROLE}
+        </span>
+    ) : said || (person || loaded ? PRESENCE_WORDS[presenceOf(state, person)] : undefined)
     return (
         <TitleButton
             label={`${name || "Person"}, profile`}
@@ -137,9 +143,10 @@ export function PhoneHuddleButton({ kind, id }: { kind: "channel" | "dm"; id: st
     const live = useSelector((s: RootState) =>
         kind === "channel" ? !!s.channel.channelCallStatus[id]?.active : !!s.chat.chatCallStatus?.[id]?.active,
     )
-    // No huddle in a conversation that isn't there (QA F-08).
+    // No huddle in a conversation that isn't there (QA F-08), nor with an agent.
     const { missing } = useConversationMissing(kind, id)
-    if (missing) return null
+    const peer = useFetchOnlyOnce<UserProfileInterface>(kind === "dm" ? `${GetEndpointUrl.SelfProfile}/${id}` : "").data?.data
+    if (missing || (kind === "dm" && !mayCallPeer(peer))) return null
     const href = `${kind === "channel" ? app_channel_call : app_chat_call}/${id}`
     return (
         <Link

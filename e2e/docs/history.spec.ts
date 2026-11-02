@@ -6,6 +6,7 @@ import { bigVersion } from "./bigVersions"
 import { CollabRelay } from "./collabRelay"
 import { openDocWith } from "./docWith"
 import { PRIYA } from "./twoPeople"
+import { expectTouchSize } from "../touchTarget"
 
 // Version history (B8, collaboration.md P1-B): opened from More, or the
 // phone's doc sheet; a version read in the doc's own type, its changes marked
@@ -143,7 +144,7 @@ test("on a phone, Restore asks in a sheet of its own, its actions in a thumb's r
   expect(await scrimOverLayerBelow(tab.page), "the confirm's scrim dims the history sheet").toBe(true)
   const restore = (await ask.getByRole("button", { name: "Restore version" }).boundingBox())!
   const cancel = (await ask.getByRole("button", { name: "Cancel" }).boundingBox())!
-  expect(Math.min(restore.height, cancel.height)).toBeGreaterThanOrEqual(44)
+  expectTouchSize(Math.min(restore.height, cancel.height), "Restore and Cancel")
   expect(cancel.y).toBeGreaterThanOrEqual(restore.y + restore.height)
   expect(cancel.y + cancel.height).toBeLessThanOrEqual(844)
 

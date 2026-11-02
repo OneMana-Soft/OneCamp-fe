@@ -116,7 +116,7 @@ const serverReason = (e: unknown) => (apiErrorStatus(e) ? apiErrorMessage(e) : u
 
 // The filter list the component starts with, replaced by whatever the server
 // reports, so the menu has its items on the first paint.
-const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent", "docs", "calendar"]
+const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "agent", "docs", "boards", "calendar"]
 
 const ALL = "all"
 /** Entries read at a time; a page that comes back shorter was the last. */

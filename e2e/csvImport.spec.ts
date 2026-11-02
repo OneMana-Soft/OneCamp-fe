@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type Request, type TestInfo } fr
 
 import { scrollsInItsBody } from "./sheetLayout"
 import { SAM, reviewShot, stubBackend } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // A CSV of tasks brought in from Admin › Import (asana-16, jira-16), on a
 // production build with no backend. The file goes straight to storage (a
@@ -209,9 +210,9 @@ for (const theme of ["light", "dark"] as const) {
         await expect(page.getByRole("option", { name: "Money, USD (suggested)" })).toHaveCount(0)
         if (view.phone) {
           // A touch target, and Start pinned in the sheet's footer while the columns are read.
-          // The select lays out a hair under 44 (43.99994 in the sheet), so it is read to the pixel.
+          // The select lays out a hair under 44 (43.99994 in the sheet); the bar reads it to a hundredth of a pixel.
           const box = await points.boundingBox()
-          expect(Math.round(box?.height ?? 0)).toBeGreaterThanOrEqual(44)
+          expectTouchSize(box?.height, "the select")
           await points.scrollIntoViewIfNeeded()
           await expect(dialog.getByRole("button", { name: "Start import" })).toBeInViewport()
         }

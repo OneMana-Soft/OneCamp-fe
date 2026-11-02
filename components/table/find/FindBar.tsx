@@ -24,9 +24,11 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { isComposingKey } from "@/lib/keys/ime"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { useUndoToast } from "@/components/table/ledger/useUndoToast"
-import { rowsText, undoChange } from "@/lib/tables/ledger"
+import { rowsText, undoableWrite } from "@/lib/tables/ledger"
 import { count, leftText, stepFields, stepKindsText, stepRefusal, transformRows, viewNamed, type TransformInput, type TransformMatch } from "@/lib/tables/transform"
 import { matchesByRow, type FindMarks } from "@/lib/tables/findMarks"
+import { useTableEdit } from "@/lib/tables/tableEdit"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
 import { usePinnedPad } from "@/lib/ui/pinnedPad"
 import type { ViewRows } from "@/lib/tables/viewRows"
 import type { TableField } from "@/services/tableService"
@@ -43,6 +45,10 @@ export interface FindBarProps {
   view: () => Promise<ViewRows>
   /** A match brought into sight, the focus left in the bar; with focus, the cell takes it (the bar is closing). */
   onReveal: (match: TransformMatch, focus: boolean) => void
+  /** The table's undo order (useCellCommit's write): a replace is the reader's to undo. */
+  write: UndoOrder["write"]
+  /** The toasts' one Undo path (useCellCommit's undo): a replace's change set back, in the table's order of writes. */
+  undo: (set: string) => Promise<unknown>
   /** Rows were changed: the page reads them again. */
   onChanged: () => void
   onClose: () => void
@@ -66,9 +72,12 @@ interface Found {
 
 const key = (m: TransformMatch) => `${m.row}:${m.field ?? ""}`
 
-export function FindBar({ mode, opened, tableId, shown, view, onReveal, onChanged, onClose, onFound }: FindBarProps) {
+export function FindBar({ mode, opened, tableId, shown, view, write: inOrder, undo, onReveal, onChanged, onClose, onFound }: FindBarProps) {
   const [text, setText] = React.useState("")
   const [replacing, setReplacing] = React.useState(mode === "replace")
+  // A reader who may only view the table (V-170) finds, and replaces nothing.
+  const canEdit = useTableEdit()
+  const replaceShown = replacing && canEdit
   const [replace, setReplace] = React.useState("")
   const [flags, setFlags] = React.useState({ match_case: false, whole_cell: false, regex: false })
   const [found, setFound] = React.useState<Found | null>(null)
@@ -217,11 +226,12 @@ export function FindBar({ mode, opened, tableId, shown, view, onReveal, onChange
   const write = async (input: TransformInput, which: "one" | "all") => {
     setWriting(which)
     try {
-      const r = await transformRows(tableId, input, undefined)
+      // set: none when an Undo pressed on its way took it back already, so no toast offers it again (V-381).
+      const { answer: r, set } = await undoableWrite(inOrder, "replace", () => transformRows(tableId, input, undefined), (t) => t.change_sets[0] ?? null)
       onChanged()
       const refused = await recount()
       setNote(refused ?? (r.cells ? null : (leftText(r) ?? "Nothing was replaced: those cells changed since.")))
-      if (r.change_sets.length) offerUndo(`Replaced ${count(r.cells)} in ${rowsText(r.rows)}`, () => undoChange(tableId, r.change_sets[0]), leftText(r))
+      if (set) offerUndo(`Replaced ${count(r.cells)} in ${rowsText(r.rows)}`, () => undo(set), leftText(r))
     } catch (e) {
       setNote(stepRefusal(e))
     } finally {
@@ -293,13 +303,15 @@ export function FindBar({ mode, opened, tableId, shown, view, onReveal, onChange
       <Button type="button" variant="ghost" size="icon-sm" aria-label="Next match" disabled={!found?.total} onClick={() => step(1)}>
         <ChevronDown className="size-4" />
       </Button>
-      <Button type="button" variant="ghost" size="icon-sm" aria-label={replacing ? "Hide replace" : "Show replace"} aria-expanded={replacing} onClick={() => setReplacing(!replacing)} className={cn("text-ink-3", replacing && "text-ink")}>
-        <Replace className="size-4" />
-      </Button>
+      {canEdit ? (
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={replacing ? "Hide replace" : "Show replace"} aria-expanded={replacing} onClick={() => setReplacing(!replacing)} className={cn("text-ink-3", replacing && "text-ink")}>
+          <Replace className="size-4" />
+        </Button>
+      ) : null}
       <Button type="button" variant="ghost" size="icon-sm" aria-label="Close find" onClick={close}>
         <X className="size-4" />
       </Button>
-      {replacing ? (
+      {replaceShown ? (
         <div className="flex w-full items-center gap-1.5">
           <label className={cn(box, "focus-within:focus-halo")}>
             <input value={replace} onChange={(e) => setReplace(e.target.value)} onKeyDown={keys((e) => (e.metaKey || e.ctrlKey ? replaceAll() : replaceOne()))} data-escape-own="" aria-label="Replace with" placeholder="Replace with" className={field} />
@@ -312,7 +324,7 @@ export function FindBar({ mode, opened, tableId, shown, view, onReveal, onChange
           </Button>
         </div>
       ) : null}
-      {replacing && why ? (
+      {replaceShown && why ? (
         <p id={whyId} className="w-full text-meta text-ink-3">
           {why}
         </p>

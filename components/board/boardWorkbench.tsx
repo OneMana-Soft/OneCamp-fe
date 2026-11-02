@@ -29,7 +29,7 @@ import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { getTemplate } from "@/services/marketplaceService"
 import { useToast } from "@/hooks/use-toast"
 import { app_board_path } from "@/types/paths"
-import { addCopies, fitTypedNote, loadConvert, type Convert, type SceneElement } from "@/components/board/boardOps"
+import { addCopies, fitNotesToFaces, fitTypedNote, loadConvert, type Convert, type SceneElement } from "@/components/board/boardOps"
 import { NoteTagChips } from "@/components/board/noteTagChips"
 import { TagFilterPill, TagVeil } from "@/components/board/tagFilter"
 import { useTagHues } from "@/components/board/tagHues"
@@ -62,6 +62,8 @@ const FindPanel = lazyPanel(SIDE_CODE.find, PANEL, SidePanelShape)
 const WARM = { frames: lazyChunk(SIDE_CODE.frames), tagFilter: lazyChunk(SIDE_CODE.tagFilter), addWork: lazyChunk(SIDE_CODE.addWork), find: lazyChunk(SIDE_CODE.find) }
 
 const NOBODY = { id: "", name: "" }
+/** No tag filter: while Find dims the rest, its veil stands for the filter's. */
+const NO_TAGS: readonly string[] = []
 
 /**
  * A press in the page's chrome, for a tool here: a new `at` each time. "warm" is the page's Board options opening:
@@ -168,6 +170,48 @@ export function useTypedNoteFit(api: ExcalidrawImperativeAPI | null, editable: b
   }, [api, editable])
 }
 
+/**
+ * Notes whose words were laid out in a face that isn't theirs are fitted again in it (miro-07, V-229; boardOps
+ * fitNotesToFaces), on the screen of someone who may edit: once the board has synced, which heals a board saved with
+ * the fallback face's widths, and again as each face lands (the font set's loadingdone, on which Excalidraw only draws
+ * the words again). Every other screen gets the fit as any edit. A viewer's screen never writes, nor does a link guest's,
+ * whose board has no workbench.
+ */
+export function useNotesFitTheirFaces(api: ExcalidrawImperativeAPI | null, editable: boolean, synced: boolean): void {
+  React.useEffect(() => {
+    const fonts = typeof document === "undefined" ? undefined : document.fonts
+    if (!api || !editable || !synced || !fonts) return
+    let convert: Convert | null = null
+    let live = true
+    let frame = 0
+    // The words found right in their face, by version, so a face landing later costs nothing for them.
+    const seen = new Set<string>()
+    // A frame later: once the synced drawing is on the scene, and Excalidraw has drawn a face that just landed.
+    const fit = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        if (live && convert) fitNotesToFaces(api, convert, seen)
+      })
+    }
+    loadConvert().then(
+      (c) => {
+        if (!live) return
+        convert = c
+        fit()
+      },
+      () => {
+        // Excalidraw's code didn't come: the notes keep the layout they have, and nothing is left unhandled.
+      },
+    )
+    fonts.addEventListener("loadingdone", fit)
+    return () => {
+      live = false
+      cancelAnimationFrame(frame)
+      fonts.removeEventListener("loadingdone", fit)
+    }
+  }, [api, editable, synced])
+}
+
 export default function BoardWorkbench({
   api,
   provider,
@@ -204,6 +248,8 @@ export default function BoardWorkbench({
   const selection = useBoardSelection(api)
   // A note keeps its size while its words are typed, its words shrinking to fit it (miro-07).
   useTypedNoteFit(api, editable)
+  // And notes laid out before their face had come are fitted again in it as it lands, on open too (V-229).
+  useNotesFitTheirFaces(api, editable, synced)
   // A tag is one colour for everyone: on the notes and in the notes bar (miro-07 5).
   const tagHues = useTagHues(provider, synced)
   // Dot voting's round, shared with the facilitation bar: the notes bar votes in it while it's on.
@@ -241,6 +287,9 @@ export default function BoardWorkbench({
   }, [host, askFind])
   // Filter by tag (miro-07 5): the tags picked, this person's view only, kept while they work.
   const [filterTags, setFilterTags] = React.useState<string[]>([])
+  // What Find keeps clear while it dims the rest of the board (V-271), and where it draws that veil.
+  const [found, setFound] = React.useState<ReadonlySet<string> | null>(null)
+  const [veilHost, setVeilHost] = React.useState<HTMLElement | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [exporting, setExporting] = React.useState(false)
   const [noteNow, setNoteNow] = React.useState(0)
@@ -379,6 +428,8 @@ export default function BoardWorkbench({
           if (findFirstVisit.current) frameDrawing(api)
         }}
         onClose={closeSide}
+        veilHost={veilHost}
+        onKept={setFound}
       />
     ) : side === "tagFilter" ? (
       <TagFilterPanel api={api} tags={filterTags} onTags={setFilterTags} tagHues={tagHues} editable={editable} onClose={closeSide} />
@@ -395,12 +446,15 @@ export default function BoardWorkbench({
           }}
         />
       )}
-      <TagVeil api={api} tags={filterTags} />
+      {/* One veil at a time: Find's while it dims the rest (V-271), else the tag filter's. Find draws its own into the
+          host (its rules are in its chunk), here under the tag chips, which fade with it. */}
+      <TagVeil api={api} tags={found ? NO_TAGS : filterTags} />
+      <div ref={setVeilHost} data-find-veil-host="" className="contents" />
       {/* Here now's Jump to and Follow (miro-04 4), for everyone on the board, and the following frame. */}
-      <BoardHereNow provider={provider} api={api} boardId={boardId} host={host} editable={editable} />
+      <BoardHereNow provider={provider} api={api} boardId={boardId} host={host} editable={editable} synced={synced} />
       {/* The board's map, on a computer: a phone's board is small enough to cross with a finger. */}
       {!isMobile && <BoardMap api={api} host={host} />}
-      <NoteTagChips api={api} tagHues={tagHues} filter={filterTags} selected={selection.ids} />
+      <NoteTagChips api={api} tagHues={tagHues} filter={found ? NO_TAGS : filterTags} lit={found} selected={selection.ids} />
       {editable && selection.notes.length > 0 && !selection.editing && <NotesBar api={api} ids={selection.notes} tagHues={tagHues} votes={votes} />}
       {editable && selection.editingNote && <HideExcalidrawPanel />}
       {editable && selection.frame && !selection.editing && <FrameBar api={api} frameId={selection.frame} boardId={boardId} />}
@@ -414,7 +468,7 @@ export default function BoardWorkbench({
         <TagFilterPill api={api} tags={filterTags} onOpen={() => setSide("tagFilter")} onClear={() => setFilterTags([])} />
       )}
       {saving && editable && <SaveBoardTemplate api={api} title={title} onClose={() => setSaving(false)} />}
-      {exporting && <BoardExport api={api} provider={provider} title={title} onClose={() => setExporting(false)} />}
+      {exporting && <BoardExport api={api} provider={provider} title={title} boardId={boardId} onClose={() => setExporting(false)} />}
       {editable && (
         <input
           ref={fileRef}

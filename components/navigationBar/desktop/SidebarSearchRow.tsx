@@ -32,21 +32,7 @@ export function SidebarSearchRow() {
   const rightPanel = useSelector((s: RootState) => s.rightPanel.rightPanelState)
   const aiOpen = rightPanel.isOpen && !!rightPanel.data?.aiChatOpen
   const toggleAI = () => dispatch(aiOpen ? closeRightPanel() : openRightPanel({ aiChatOpen: true }))
-
-  // ⌘J (Ctrl J) opens and closes the AI panel, as the button does. One
-  // deliberate key, so the panel's own entrance plays. Left alone when
-  // something under the focus already used the key (the reaction picker
-  // walks its grid with Ctrl J).
-  useEffect(() => {
-    if (!aiAvailable) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.shiftKey || e.altKey || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "j") return
-      e.preventDefault()
-      dispatch(aiOpen ? closeRightPanel() : openRightPanel({ aiChatOpen: true }))
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [aiAvailable, aiOpen, dispatch])
+  // ⌘J (Ctrl J) is AiQuickInvoke's, app-wide, behind the same FEATURE_AI.
 
   return (
     <div className="mb-2.5 mt-2 flex items-center gap-1.5">

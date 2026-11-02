@@ -102,7 +102,7 @@ describe("one socket per tab", () => {
     expect(text(again.doc)).toContain("last Tuesday")
     expect(sockets).toHaveLength(1)
     expect(collabSocketConnections()).toBe(1)
-    expect(sockets[0].url).toBe(`wss://collab.example.test?schema=${SCHEMA_MANIFEST_HASH}`)
+    expect(sockets[0].url).toMatch(new RegExp(`^wss://collab\\.example\\.test\\?schema=${SCHEMA_MANIFEST_HASH}&tab=[0-9a-f]{32}$`))
   })
 
   it("closes the socket once nothing has held it for a while", async () => {
@@ -390,6 +390,8 @@ describe("a sign-in nobody answers (22 Oct, 20:05)", () => {
     s.acquire()
     await until(() => expect(s.getSnapshot().synced).toBe(true))
     expect(sockets.length).toBe(2)
+    // The same tab: the new connection carries the same key (V-337).
+    expect(sockets[1].url).toBe(sockets[0].url)
     expect(s.getSnapshot().stalled).toBe(false)
   })
 

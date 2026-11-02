@@ -100,10 +100,12 @@ describe("the grid's moves before the live cells land, then after", () => {
     const onWidth = vi.fn()
     render(<DataTableGrid tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} onWidth={onWidth} />)
     cell("0:0").focus()
-    // Left (at the edge, so nothing), Down, Enter (down from a text cell), then right: each held, the focus where it
-    // was. Only in that order do they end on 2:1: pressed the other way round, Left comes last and ends on 2:0.
+    // Left (at the edge, so nothing), Down, Enter (it opens the cell selected there, V-295), Enter (it saves it,
+    // going down), then right: each held, the focus where it was. Only in that order do they end on 2:1: pressed the
+    // other way round, Left comes last and ends on 2:0.
     expect(key("ArrowLeft")).toBe(false)
     expect(key("ArrowDown")).toBe(false)
+    expect(key("Enter")).toBe(false)
     expect(key("Enter")).toBe(false)
     expect(key("ArrowRight")).toBe(false)
     expect(document.activeElement).toBe(cell("0:0"))

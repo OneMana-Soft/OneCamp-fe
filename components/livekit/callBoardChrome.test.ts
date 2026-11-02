@@ -26,9 +26,10 @@ describe("a board on a call's stage", () => {
     expect(STAGE_BOARD_FRAME).toContain("after:pointer-events-none")
   })
   it("scrolls a phone's tool row inside the frame, faded by the one shared rule, never a mask of its own", () => {
-    expect(stageRules).toMatch(/\[data-call-board\] \.excalidraw \.App-toolbar--mobile \{[^}]*max-width: calc\(100cqw - 16px\);[^}]*overflow-x: auto;/)
+    // The row scrolls as it does on every board (excalidrawTheme.test.ts); the stage holds it to the frame's width.
+    expect(theme.slice(0, theme.indexOf("/* ---- on a call's stage"))).toMatch(/\n\.excalidraw\.excalidraw \.App-toolbar--mobile \{[^}]*overflow-x: auto;/)
+    expect(stageRules).toMatch(/\[data-call-board\] \.excalidraw \.App-toolbar--mobile \{[^}]*max-width: calc\(100cqw - 16px\);/)
     expect(stageRules).not.toMatch(/mask-image/)
-    expect(stageRules).toMatch(/\.App-toolbar--mobile \.ToolIcon \{\s*scroll-snap-align: start;/)
   })
   it("gives the phone's tool row and bottom bar the call's light shade, and the bottom bar hugs Undo and Redo", () => {
     expect(stageRules).not.toMatch(/0 24px 48px/)

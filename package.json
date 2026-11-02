@@ -160,7 +160,8 @@
       "next@16.3.8": "patches/next@16.3.8.patch",
       "y-prosemirror@1.3.7": "patches/y-prosemirror@1.3.7.patch",
       "virtua@0.41.5": "patches/virtua@0.41.5.patch",
-      "@excalidraw/excalidraw@0.18.1": "patches/@excalidraw__excalidraw@0.18.1.patch"
+      "@excalidraw/excalidraw@0.18.1": "patches/@excalidraw__excalidraw@0.18.1.patch",
+      "@radix-ui/react-dismissable-layer@1.1.11": "patches/@radix-ui__react-dismissable-layer@1.1.11.patch"
     }
   }
 }

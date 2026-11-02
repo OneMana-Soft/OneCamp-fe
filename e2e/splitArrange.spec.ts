@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test"
 import { docInfo, stubBackend } from "./stubbedApp"
+import { animationsSettled } from "./settled"
 
 // Split view, rearranged (20 Oct 2026; release-1010/design/split/ANALYSIS.md):
 // a view moves by dragging its bar (the page by the grip at its top), by
@@ -155,9 +156,7 @@ test.describe("on a computer", () => {
     // for the swap target to stop moving: the Undo slides the views into their
     // places, and a lift mid-slide measured the target where it had been, so the
     // first arrow went past its place to the line before it.
-    await page.waitForFunction(() =>
-      [...document.querySelectorAll("[data-split-row] [data-flip-id]")].every((el) => el.getAnimations().every((a) => a.playState !== "running")),
-    )
+    await animationsSettled(page.locator("[data-split-row] [data-flip-id]"))
     await handle(page, key(A)).focus()
     await page.keyboard.press("Space")
     await expect(page.locator("html")).toHaveAttribute("data-dragging", "true")

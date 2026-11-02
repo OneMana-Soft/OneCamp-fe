@@ -29,7 +29,8 @@ export function TableToolbar({ children, end, className }: { children?: React.Re
 
 /**
  * The body under the row: it scrolls inside the frame, so the view tabs and
- * the toolbar stay in sight; table.css fits it to the page on a computer.
+ * the toolbar stay in sight. On the table's page table.css fits it to the
+ * height left under the toolbar, at every width; the cap is for a doc's embed.
  */
 export const TABLE_VIEW_BODY = "max-h-[calc(100dvh-16rem)] min-h-[8rem] overflow-auto overscroll-contain"
 

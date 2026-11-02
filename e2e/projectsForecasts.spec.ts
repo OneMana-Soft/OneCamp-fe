@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
+import { CHUNKS, routeChunks } from "./holdChunk"
 import { SAM, SHOT_THEMES, reviewShot, stubBackend } from "./stubbedApp"
 
 // linear-20, head 2: the projects overview and a goal's projects say when each project's open work lands, from ONE
@@ -10,8 +11,21 @@ import { SAM, SHOT_THEMES, reviewShot, stubBackend } from "./stubbedApp"
 const NOW = new Date("2026-10-29T10:00:00Z")
 const id = (n: number) => `9e0a0000-0000-4000-8000-${String(n).padStart(12, "0")}`
 const NAMES = ["Billing revamp", "Q4 launch", "Mobile app", "Help centre", "Pricing page", "Partner portal", "SSO for pilots", "Onboarding emails", "Webinar series", "Importer", "Status page", "Brand refresh"]
-// Q4 launch is the longest phone row: held up, late tasks and a next milestone with a long name.
-const PROJECTS = NAMES.map((name, i) => ({ project_uuid: id(i + 1), project_name: name, is_admin: 1, open: 4 + i, done: 2, overdue: i === 1 ? 2 : 0, due_soon: 0 }))
+// Q4 launch is the longest phone row: held up, late tasks, a target already past (V-255) and a next milestone with a
+// long name.
+const PROJECTS = NAMES.map((name, i) => ({
+  project_uuid: id(i + 1),
+  project_name: name,
+  is_admin: 1,
+  open: 4 + i,
+  done: 2,
+  overdue: i === 1 ? 2 : 0,
+  due_soon: 0,
+  // A whole plan, as the server sends one: only its target is set.
+  ...(i === 1
+    ? { plan: { lead: null, start: null, target: { date: "2026-10-28", resolution: "day" }, priority: "", status: { category: "planned", name: "Planned", color: "" }, labels: null } }
+    : {}),
+}))
 /** Held up past their pace: Q4 launch, and Webinar series, the 9th row, below a phone's fold. */
 const HELD = new Set([PROJECTS[1].project_uuid, PROJECTS[8].project_uuid])
 const MILESTONE = {
@@ -29,6 +43,26 @@ const MILESTONE = {
 }
 /** The one the server leaves out of the forecasts: nothing is said for it. */
 const LEFT_OUT = PROJECTS[11]
+/** A goal of the first two projects, due before the second lands. */
+const goalLine = (p: (typeof PROJECTS)[number]) => ({ project_uuid: p.project_uuid, project_name: p.project_name, open: 6, done: 4, overdue: 0, progress: 0.4 })
+const GOAL = {
+  id: "g-1",
+  title: "Ship the new billing",
+  description: "",
+  owner: { user_uuid: SAM.user_uuid, user_full_name: "Sam Lee" },
+  due_date: "2026-11-20",
+  measure: "projects",
+  progress: 0.4,
+  status: "open",
+  projects: 2,
+  subgoals: 0,
+  can_edit: false,
+  project_list: [goalLine(PROJECTS[0]), goalLine(PROJECTS[1])],
+  hidden_projects: 0,
+  subgoal_list: [],
+  checkins: [],
+}
+const GOAL_READ = { "/goal/g-1": { msg: "ok", data: GOAL } }
 
 const forecast = (projectId: string, date: string, held = false) => ({
   project_uuid: projectId,
@@ -82,22 +116,30 @@ async function open(page: Page, testInfo: TestInfo, theme: string, path: string,
 }
 
 // The lines are a chunk of their own (components/project/LazyForecastLines, V-49). Its goal mark is in no other file.
-const CODE = /\/_next\/static\/.*\.js(\?|$)/
 const LINES_MARK = "data-lands-after-goal"
+// The sidebar's docs tree is a chunk of its own too (components/docTree/DocsSection): three skeleton rows stand in until
+// it lands. On a loaded machine it once landed while a goal's lines were held (INTEGRATOR-74, wK34), so a goal's test
+// holds it with them.
+const DOCS_TREE_MARK = "data-docs-tree-groups"
 
-/** Holds the lines' code until decide(true) lets it through, or decide(false) refuses it. Every other file goes on. */
-async function holdLines(page: Page) {
+/**
+ * Holds the lines' code until decide(true) lets it through, or decide(false) refuses it. A chunk carrying one of
+ * `alsoHold`'s marks waits with it, and goes through either way. Every other chunk goes on, through the house's
+ * fetch-safe route (e2e/holdChunk): under load the server once reset a chunk's fetch here (wK34's :218), and the
+ * page then never drew its rows.
+ */
+async function holdLines(page: Page, alsoHold: readonly string[] = []) {
   let decide: (ok: boolean) => void = () => {}
   const decided = new Promise<boolean>((r) => (decide = r))
   let seen: () => void = () => {}
   const asked = new Promise<void>((r) => (seen = r))
-  await page.route(CODE, async (route) => {
-    const response = await route.fetch()
-    const body = await response.text()
-    if (!body.includes(LINES_MARK)) return route.fulfill({ response, body })
-    seen()
-    if (await decided) await route.fulfill({ response, body })
-    else await route.abort()
+  await routeChunks(page, async (body) => {
+    if (body.includes(LINES_MARK)) {
+      seen()
+      return (await decided) ? "through" : "refuse"
+    }
+    if (alsoHold.some((mark) => body.includes(mark))) await decided
+    return "through"
   })
   return { asked, decide }
 }
@@ -118,6 +160,16 @@ async function boxes(page: Page, selector: string) {
     }),
   )
 }
+
+/** An overview row and every cell of it but the forecast's own, which takes its words. */
+const CELLS = "[data-project-row], [data-project-row] > span:not([data-forecast-cell]), [data-project-row] > span:not([data-forecast-cell]) > span"
+
+/**
+ * A goal's project rows and every section and heading of the page itself. On a laptop the page is the frame's <main>:
+ * the sidebar beside it loads its own pieces on its own clock (its docs tree), and they may change while the lines
+ * come. A phone's frame has no sidebar, and no <main>.
+ */
+const goalBoxes = (page: Page) => ((page.viewportSize()?.width ?? 0) < 640 ? "li, section, h2" : "main li, main section, main h2")
 
 /** Each forecast line that runs past its own cell or is cut short: none, with the longest words. */
 async function overruns(page: Page) {
@@ -166,25 +218,7 @@ for (const theme of SHOT_THEMES) {
 
       test("a goal's projects say when each lands, and which lands after the goal's date", async ({ page }, testInfo) => {
         const reads: Reads = { asked: [] }
-        const line = (p: (typeof PROJECTS)[number]) => ({ project_uuid: p.project_uuid, project_name: p.project_name, open: 6, done: 4, overdue: 0, progress: 0.4 })
-        const goal = {
-          id: "g-1",
-          title: "Ship the new billing",
-          description: "",
-          owner: { user_uuid: SAM.user_uuid, user_full_name: "Sam Lee" },
-          due_date: "2026-11-20",
-          measure: "projects",
-          progress: 0.4,
-          status: "open",
-          projects: 2,
-          subgoals: 0,
-          can_edit: false,
-          project_list: [line(PROJECTS[0]), line(PROJECTS[1])],
-          hidden_projects: 0,
-          subgoal_list: [],
-          checkins: [],
-        }
-        await open(page, testInfo, theme, "/app/goals/g-1", reads, { "/goal/g-1": { msg: "ok", data: goal } })
+        await open(page, testInfo, theme, "/app/goals/g-1", reads, GOAL_READ)
         const row = (name: string) => page.locator("li").filter({ hasText: name }).filter({ has: page.locator("[data-forecast-when]") })
         // Before the goal's date: when it lands, and nothing more.
         await expect(row(PROJECTS[0].project_name)).toContainText("Lands ~18 Nov", { timeout: 60_000 })
@@ -228,7 +262,7 @@ for (const theme of SHOT_THEMES) {
         await expect(page.locator("[data-forecast-when]")).toHaveCount(0)
         await expect(page.getByText(/Something broke/)).toHaveCount(0)
         await reviewShot(page, "forecasts-lines-failed", theme)
-        await page.unroute(CODE)
+        await page.unroute(CHUNKS)
         await context.setOffline(true)
         await context.setOffline(false)
         await expect(row(PROJECTS[0].project_name).locator("[data-forecast-when]")).toHaveText("Lands ~18 Nov", { timeout: 30_000 })
@@ -244,20 +278,22 @@ for (const theme of SHOT_THEMES) {
         await expect(row(PROJECTS[1].project_name)).toBeVisible({ timeout: 60_000 })
         await expect(row(PROJECTS[1].project_name).locator("[data-next-milestone]")).toBeVisible({ timeout: 30_000 })
         await lines.asked
-        // Every cell but the forecast's own, which takes its words.
-        const cells = "[data-project-row], [data-project-row] > span:not([data-forecast-cell]), [data-project-row] > span:not([data-forecast-cell]) > span"
-        const before = await boxes(page, cells)
+        const before = await boxes(page, CELLS)
         lines.decide(true)
         await expect(row(PROJECTS[1].project_name).locator("[data-forecast-when]")).toHaveText(/^Lands ~25 Nov\s*· held up$/, { timeout: 30_000 })
         await expect(page.locator("[data-forecast-when]")).toHaveCount(PROJECTS.length - 1)
         expect(await overruns(page)).toEqual([])
         if ((page.viewportSize()?.width ?? 0) < 640) {
-          // The phone's second line: what the counts say is all there, whatever gives beside them, and nothing
-          // shown runs past the row (a milestone with no room left wraps onto the line that is never shown).
+          // The phone's second line: what the counts and the end say is all there, whatever gives beside them, and
+          // nothing shown runs past the row (a milestone with no room left wraps onto the line that is never shown).
+          const end = row(PROJECTS[1].project_name).locator("[data-plan-target]")
+          await expect(end).toHaveText("28 Oct")
+          await expect(end).toHaveClass(/text-danger-ink/)
+          expect(await end.evaluate((el) => el.scrollWidth <= el.clientWidth), "the end's words were cut").toBe(true)
           for (const p of [PROJECTS[1], PROJECTS[8]]) {
             const line = await row(p.project_name).locator("[data-row-counts]").evaluate((el) => {
               const box = (el.parentElement!.parentElement as HTMLElement).getBoundingClientRect()
-              const spill = [...el.parentElement!.parentElement!.querySelectorAll("[data-forecast-when], [data-next-milestone], [data-row-counts]")].flatMap((c) => {
+              const spill = [...el.parentElement!.parentElement!.querySelectorAll("[data-forecast-when], [data-next-milestone], [data-row-counts], [data-plan-target], [data-tasks-end]")].flatMap((c) => {
                 const r = c.getBoundingClientRect()
                 const shown = r.top < box.bottom - 0.5
                 return shown && r.right > box.right + 0.5 ? [`${c.textContent} ends at ${Math.round(r.right)}, the line at ${Math.round(box.right)}`] : []
@@ -269,7 +305,7 @@ for (const theme of SHOT_THEMES) {
           }
         } else {
           // The laptop's cells: none moved when the lines came.
-          expect(await boxes(page, cells)).toEqual(before)
+          expect(await boxes(page, CELLS)).toEqual(before)
         }
         await reviewShot(page, "forecasts-overview-longest", theme)
         await row(PROJECTS[8].project_name).scrollIntoViewIfNeeded()
@@ -279,38 +315,69 @@ for (const theme of SHOT_THEMES) {
 
       // DB-40's FIX 3: a goal's rows hold their lines' room from the first paint, so nothing moves when they land.
       test("a goal's projects keep their place while their lines come, and when they land", async ({ page }, testInfo) => {
-        const lines = await holdLines(page)
-        const line = (p: (typeof PROJECTS)[number]) => ({ project_uuid: p.project_uuid, project_name: p.project_name, open: 6, done: 4, overdue: 0, progress: 0.4 })
-        const goal = {
-          id: "g-1",
-          title: "Ship the new billing",
-          description: "",
-          owner: { user_uuid: SAM.user_uuid, user_full_name: "Sam Lee" },
-          due_date: "2026-11-20",
-          measure: "projects",
-          progress: 0.4,
-          status: "open",
-          projects: 2,
-          subgoals: 0,
-          can_edit: false,
-          project_list: [line(PROJECTS[0]), line(PROJECTS[1])],
-          hidden_projects: 0,
-          subgoal_list: [],
-          checkins: [],
-        }
-        await open(page, testInfo, theme, "/app/goals/g-1", { asked: [] }, { "/goal/g-1": { msg: "ok", data: goal } })
+        const lines = await holdLines(page, [DOCS_TREE_MARK])
+        await open(page, testInfo, theme, "/app/goals/g-1", { asked: [] }, GOAL_READ)
         await expect(page.getByText(PROJECTS[1].project_name).first()).toBeVisible({ timeout: 60_000 })
         await lines.asked
         await reviewShot(page, "forecasts-goal-waiting", theme)
-        // The goal's project rows and every section and heading on the page (the app's frame has no <main>).
-        const below = "li, section, h2"
+        const below = goalBoxes(page)
         const before = await boxes(page, below)
         expect(before.length).toBeGreaterThan(4)
         lines.decide(true)
         await expect(page.locator("[data-lands-after-goal]")).toHaveText(", after the goal's date", { timeout: 30_000 })
         await expect(page.locator("[data-forecast-when]")).toHaveCount(2)
+        await expect(page.locator("[data-doc-tree-skeleton]")).toHaveCount(0)
         expect(await overruns(page)).toEqual([])
         expect(await boxes(page, below)).toEqual(before)
+      })
+
+      // A late forecast ANSWER moves no row (main, 1 Nov, on wK34). The answer waits (the lines' code doesn't), and when
+      // it lands every box but a forecast's own words keeps its place: the overview's rows and cells (on a laptop each
+      // forecast cell keeps its place across the row too), then a goal's page.
+      test("a late forecast answer moves no row, on the overview or a goal's page", async ({ page }, testInfo) => {
+        let answered: () => void = () => {}
+        let seen: () => void = () => {}
+        let asked = Promise.resolve()
+        /** Holds every forecasts read from now until answered(). */
+        const hold = () => {
+          asked = new Promise<void>((r) => (seen = r))
+          return new Promise<void>((r) => (answered = r))
+        }
+        let held = hold()
+        const reads: Reads = { asked: [] }
+        await open(page, testInfo, theme, "/app/project", reads, {
+          ...GOAL_READ,
+          "/project/forecasts": async (url: URL) => {
+            seen()
+            await held
+            return answer(url, reads)
+          },
+        })
+        const laptop = (page.viewportSize()?.width ?? 0) >= 640
+        const row = (name: string) => page.locator("[data-project-row]").filter({ hasText: name })
+        await expect(row(PROJECTS[1].project_name).locator("[data-next-milestone]")).toBeVisible({ timeout: 60_000 })
+        await asked
+        const still = laptop ? CELLS : "[data-project-row]"
+        const across = async () => (laptop ? (await boxes(page, "[data-forecast-cell]")).map((b) => b.split(",").filter((_, i) => i % 2 === 0).join(",")) : [])
+        const before = await boxes(page, still)
+        const places = await across()
+        answered()
+        await expect(page.locator("[data-forecast-when]")).toHaveCount(PROJECTS.length - 1, { timeout: 30_000 })
+        expect(await overruns(page)).toEqual([])
+        expect(await boxes(page, still)).toEqual(before)
+        expect(await across()).toEqual(places)
+
+        held = hold()
+        await page.goto("/app/goals/g-1", { waitUntil: "domcontentloaded", timeout: 120_000 })
+        await expect(page.getByText(PROJECTS[1].project_name).first()).toBeVisible({ timeout: 60_000 })
+        await asked
+        const below = goalBoxes(page)
+        const goalBefore = await boxes(page, below)
+        expect(goalBefore.length).toBeGreaterThan(4)
+        answered()
+        await expect(page.locator("[data-lands-after-goal]")).toHaveText(", after the goal's date", { timeout: 30_000 })
+        await expect(page.locator("[data-forecast-when]")).toHaveCount(2)
+        expect(await boxes(page, below)).toEqual(goalBefore)
       })
     })
   }

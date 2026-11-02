@@ -26,16 +26,16 @@
     "app/app/calendar/layout.tsx": {"source": 2287},
     "app/app/calendar/page.tsx": {"source": 1860271, "gzipKB": 498},
     "app/app/channel/[channel-id]/[post-id]/layout.tsx": {"source": 9808},
-    "app/app/channel/[channel-id]/[post-id]/page.tsx": {"source": 2624221, "gzipKB": 805},
+    "app/app/channel/[channel-id]/[post-id]/page.tsx": {"source": 2629700, "gzipKB": 805},
     "app/app/channel/[channel-id]/page.tsx": {"source": 3028860, "gzipKB": 862},
     "app/app/channel/[channel-id]/recording/page.tsx": {"source": 1729562, "gzipKB": 505},
     "app/app/channel/page.tsx": {"source": 1746626, "gzipKB": 481},
     "app/app/chat/[chat-id]/[message-id]/layout.tsx": {"source": 9898},
-    "app/app/chat/[chat-id]/[message-id]/page.tsx": {"source": 2636444, "gzipKB": 810},
+    "app/app/chat/[chat-id]/[message-id]/page.tsx": {"source": 2641900, "gzipKB": 810},
     "app/app/chat/[chat-id]/page.tsx": {"source": 3082067, "gzipKB": 870},
     "app/app/chat/[chat-id]/recording/page.tsx": {"source": 1788804, "gzipKB": 514},
     "app/app/chat/group/[chat-grp-id]/[message-id]/layout.tsx": {"source": 9892},
-    "app/app/chat/group/[chat-grp-id]/[message-id]/page.tsx": {"source": 2636355, "gzipKB": 810},
+    "app/app/chat/group/[chat-grp-id]/[message-id]/page.tsx": {"source": 2641900, "gzipKB": 810},
     "app/app/chat/group/[chat-grp-id]/page.tsx": {"source": 3045565, "gzipKB": 866},
     "app/app/chat/group/[chat-grp-id]/recording/page.tsx": {"source": 1788834, "gzipKB": 514},
     "app/app/chat/layout.tsx": {"source": 595354},
@@ -120,6 +120,6 @@
     "app/unsubscribe/page.tsx": {"source": 331259, "gzipKB": 217}
   },
   "beyondHome": {
-    "app/app/doc/[doc-id]/page.tsx": { "source": 740440, "owner": "docs A1", "target": { "gzipKBOverHome": 300 } }
+    "app/app/doc/[doc-id]/page.tsx": { "source": 745500, "owner": "docs A1", "target": { "gzipKBOverHome": 300 } }
   }
 }

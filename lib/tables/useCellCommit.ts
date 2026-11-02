@@ -3,8 +3,19 @@
 import * as React from "react"
 import type { AxiosError } from "axios"
 import { changeLinks, parseRowValues, patchRow, type TableRow } from "@/services/tableService"
+import { refusedAsViewer } from "@/lib/tables/tableEdit"
+import { UndoOrder, type Aim } from "@/lib/tables/undoOrder"
+import type { AddingRow, Adds, CellsRecord } from "@/lib/tables/cellsWrite"
+import { reloadForNewBuild } from "@/lib/newBuild"
 
 type RowValues = Record<string, unknown>
+
+/** The ledger, its own chunk, as the table's undos and range writes read it; gone after a deploy, the page reloads for the new build. */
+export const ledger = () =>
+  import("@/lib/tables/ledger").catch(async (e: unknown) => {
+    if (await reloadForNewBuild(e)) return new Promise<never>(() => undefined)
+    throw e
+  })
 
 /** How long the grid waits after an edit before asking for the row again. */
 const REFRESH_AFTER_EDIT_MS = 600
@@ -49,6 +60,8 @@ export function shownValues(row: TableRow, edits?: RowEdits): RowValues {
  * (edits, shownValues), those on their way as saving, and a failed one goes
  * back to the copy: a cell left at rest drew the copy's old value until the
  * save answered (REGRESSION-HUNT-1, 26 Oct).
+ * A range's write goes through it too (cellsWrite), and each write enters the
+ * table's undo order when made (V-360).
  */
 export function useCellCommit({
   tableId,
@@ -56,9 +69,12 @@ export function useCellCommit({
   onChange,
   onSaving,
   onSaved,
+  canEdit = true,
 }: {
   tableId: string
   rows: TableRow[]
+  /** Whether the reader edits the table's rows (V-170): a cell's write or link by one who may only view it is never sent. */
+  canEdit?: boolean
   /** Asks for the table again; given a row, only as far as that row needs. */
   onChange: (rowId?: string) => void
   /** A saved row as its save answered it (useTableRows' put). */
@@ -66,8 +82,12 @@ export function useCellCommit({
   /** How many saves are in flight, as it changes (for a save dot). */
   onSaving?: (inFlight: number) => void
 }) {
-  const latest = React.useRef({ tableId, onChange, onSaving, onSaved })
-  latest.current = { tableId, onChange, onSaving, onSaved }
+  // One undo order a table.
+  const order = React.useRef<{ tableId: string; undos: UndoOrder } | null>(null)
+  if (order.current?.tableId !== tableId) order.current = { tableId, undos: new UndoOrder() }
+  const { undos } = order.current
+  const latest = React.useRef({ tableId, onChange, onSaving, onSaved, canEdit, undos })
+  latest.current = { tableId, onChange, onSaving, onSaved, canEdit, undos }
   const inFlight = React.useRef(0)
   const track = React.useCallback((by: number) => {
     inFlight.current += by
@@ -130,13 +150,13 @@ export function useCellCommit({
 
   // Each row's last write on its way: the next waits for it, saved or not.
   const queued = React.useRef(new Map<string, Promise<unknown>>())
-  const inOrder = React.useCallback(<T,>(rowId: string, send: () => Promise<T>): Promise<T> => {
-    const before = queued.current.get(rowId)
-    const mine = before ? before.then(send) : send()
+  const inOrder = React.useCallback(<T,>(rowIds: string[], send: () => Promise<T>): Promise<T> => {
+    const before = rowIds.flatMap((id) => queued.current.get(id) ?? [])
+    const mine = before.length === 0 ? send() : (before.length === 1 ? before[0] : Promise.all(before)).then(send)
     const done = mine.catch(() => undefined)
-    queued.current.set(rowId, done)
+    for (const id of rowIds) queued.current.set(id, done)
     void done.then(() => {
-      if (queued.current.get(rowId) === done) queued.current.delete(rowId)
+      for (const id of rowIds) if (queued.current.get(id) === done) queued.current.delete(id)
     })
     return mine
   }, [])
@@ -150,9 +170,11 @@ export function useCellCommit({
   // save drops it, so the cell goes back to the copy, and asks for the row
   // again (the table, when the row is gone). Resolves false when it failed.
   // Takes the row it was rendered with, so an edit still saves when its row
-  // has left the page (scrolled out, or filtered out by the edit itself).
+  // has left the page (scrolled out, or filtered out by the edit itself). An
+  // Undo pressed on its way takes it: the cell goes back at once.
   const commitCell = React.useCallback(
     async (row: TableRow, fieldId: string, value: unknown): Promise<boolean> => {
+      if (!latest.current.canEdit) return false
       const edits = pending.current.get(row.id) ?? {}
       const done = saved.current.get(row.id)
       const current =
@@ -170,8 +192,15 @@ export function useCellCommit({
       const nth = (writes.current.get(row.id) ?? 0) + 1
       writes.current.set(row.id, nth)
       track(1)
+      const { undos } = latest.current
+      const free = undos.ready()
+      const send = () => patchRow(latest.current.tableId, row.id, { [fieldId]: value })
       try {
-        const answered = await inOrder(row.id, () => patchRow(latest.current.tableId, row.id, { [fieldId]: value }))
+        const going = inOrder([row.id], free ? () => free.then(send) : send)
+        // Its answer names the change set it stored (V-360): an Undo on its way takes that.
+        const made = undos.made("edit", going, forget)
+        const answered = await going
+        if (made.taken()) return true
         // Saved, unless a later edit to the cell is on its way (it records itself).
         const left = pending.current.get(row.id)
         if (left && fieldId in left && same(left[fieldId], value)) {
@@ -186,8 +215,9 @@ export function useCellCommit({
         return true
       } catch (err) {
         forget()
-        // The row alone, unless it's gone (404), which only reading the table again shows.
-        latest.current.onChange((err as AxiosError)?.response?.status === 404 ? undefined : row.id)
+        // The row alone, unless it's gone (404) or its writer may now only view
+        // the table (V-170), which only reading the table again shows.
+        latest.current.onChange((err as AxiosError)?.response?.status === 404 || refusedAsViewer(err) ? undefined : row.id)
         return false
       } finally {
         if (writes.current.get(row.id) === nth) writes.current.delete(row.id)
@@ -198,8 +228,9 @@ export function useCellCommit({
   )
 
   const linkCell = React.useCallback(async (rowId: string, fieldId: string, change: { add?: string[]; remove?: string[] }) => {
+    if (!latest.current.canEdit) return
     try {
-      await changeLinks(latest.current.tableId, rowId, fieldId, change)
+      await latest.current.undos.write("change", () => changeLinks(latest.current.tableId, rowId, fieldId, change))
     } catch {
       // surfaced by the interceptor
     } finally {
@@ -207,7 +238,39 @@ export function useCellCommit({
     }
   }, [])
 
-  return React.useMemo(() => ({ commitCell, linkCell, edits: shown }), [commitCell, linkCell, shown])
+  // The rows writes add, on their way (adding): shown until the rows the
+  // answer made are held, or for a few seconds at most (a window view sorts them).
+  const [adds, setAdds] = React.useState<readonly Adds[]>(NO_ADDS)
+  const addTimers = React.useRef(new Set<ReturnType<typeof setTimeout>>())
+  React.useEffect(() => {
+    const timers = addTimers.current
+    return () => timers.forEach(clearTimeout)
+  }, [])
+  const adding = React.useMemo(() => {
+    if (!adds.length) return NO_ADDING
+    const held = new Set(rows.map((r) => r.id))
+    const out = adds.filter((x) => !x.made?.every((id) => held.has(id))).flatMap((x) => x.rows)
+    return out.length ? out : NO_ADDING
+  }, [adds, rows])
+  // What a write of many cells works on (cellsWrite): it's in the range's piece, off the first load.
+  const cells = React.useMemo<CellsRecord>(
+    () => ({ latest, pending: pending.current, saved: saved.current, writes: writes.current, inOrder, track, publish, setAdds, timers: addTimers.current, same }),
+    [inOrder, track, publish],
+  )
+
+  const press = React.useCallback(<T,>(run: (aim: Aim) => Promise<T>, aims = true): Promise<T> => latest.current.undos.press(run, aims), [])
+  // A write of whole rows (an add, a move, a delete, a find's replace) is the reader's to undo too.
+  const write = React.useCallback<UndoOrder["write"]>((what, send, setOf, onTaken) => latest.current.undos.write(what, send, setOf, onTaken), [])
+  // A change's own Undo (a toast's: a delete, a duplicate, a clean-up, a replace, a range's write), the one path for
+  // them all: in the order, after the presses before it, taking nothing on its way.
+  const undo = React.useCallback((set: string): Promise<unknown> => press(() => ledger().then((m) => m.undoChange(latest.current.tableId, set)), false), [press])
+
+  return React.useMemo(() => ({ commitCell, cells, linkCell, press, write, undo, edits: shown, adding }), [commitCell, cells, linkCell, press, write, undo, shown, adding])
 }
 
+const NO_ADDING: readonly AddingRow[] = []
+const NO_ADDS: readonly Adds[] = []
+
 export type CellCommit = ReturnType<typeof useCellCommit>
+/** The record panel's part of the edit path. */
+export type CellEdits = Pick<CellCommit, "commitCell" | "linkCell" | "write" | "undo" | "edits">

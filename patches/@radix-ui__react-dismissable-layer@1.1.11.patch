@@ -1,0 +1,40 @@
+diff --git a/dist/index.js b/dist/index.js
+index 16c48898e85048392a31e654c9c072c0d8d7ad18..6c9fec4294c21a3773e8fabdc633b5fd5412311b 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -95,7 +95,14 @@ var DismissableLayer = React.forwardRef(
+       if (!event.defaultPrevented) onDismiss?.();
+     }, ownerDocument);
+     (0, import_react_use_escape_keydown.useEscapeKeydown)((event) => {
+-      const isHighestLayer = index === context.layers.size - 1;
++      // OneCamp patch (patches/@radix-ui__react-dismissable-layer@1.1.11.patch): a layer
++      // that is closing (data-state="closed": fading out, or kept drawn closed) is no layer
++      // for Esc, which goes to the innermost layer still open: one press, one thing (the
++      // interaction spec's rule 7). A press while a popover faded out in a dialog was the
++      // popover's, and did nothing (components/ui/closingLayerEscape.test.tsx).
++      const isOpen = (layer) => layer.getAttribute?.("data-state") !== "closed";
++      const openLayers = Array.from(context.layers).filter(isOpen);
++      const isHighestLayer = !!node && openLayers[openLayers.length - 1] === node;
+       if (!isHighestLayer) return;
+       onEscapeKeyDown?.(event);
+       if (!event.defaultPrevented && onDismiss) {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index d668167e42ed3bacb20bf72ae6bbb78e411c378e..eaf7167bf4d3ccaf8119d22fe3c496257ceaef33 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -57,7 +57,14 @@ var DismissableLayer = React.forwardRef(
+       if (!event.defaultPrevented) onDismiss?.();
+     }, ownerDocument);
+     useEscapeKeydown((event) => {
+-      const isHighestLayer = index === context.layers.size - 1;
++      // OneCamp patch (patches/@radix-ui__react-dismissable-layer@1.1.11.patch): a layer
++      // that is closing (data-state="closed": fading out, or kept drawn closed) is no layer
++      // for Esc, which goes to the innermost layer still open: one press, one thing (the
++      // interaction spec's rule 7). A press while a popover faded out in a dialog was the
++      // popover's, and did nothing (components/ui/closingLayerEscape.test.tsx).
++      const isOpen = (layer) => layer.getAttribute?.("data-state") !== "closed";
++      const openLayers = Array.from(context.layers).filter(isOpen);
++      const isHighestLayer = !!node && openLayers[openLayers.length - 1] === node;
+       if (!isHighestLayer) return;
+       onEscapeKeyDown?.(event);
+       if (!event.defaultPrevented && onDismiss) {

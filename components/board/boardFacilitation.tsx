@@ -21,7 +21,7 @@
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
-import { Ellipsis, Lock, Pause, Play, Plus, Presentation, Timer, Vote, X } from "@/lib/icons"
+import { Ellipsis, Lock, Pause, Play, Plus, Presentation, Timer, Users, Vote, X } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { useSheetMode } from "@/components/ui/overlayMode"
 import { celebrate } from "@/lib/celebrateSoon"
@@ -36,8 +36,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useBoardView } from "@/hooks/useBoardView"
 import { useMedia } from "@/context/MediaQueryContext"
+import { usePresenceControl } from "@/components/docEditor/presence/control"
+import { useOthersHere } from "@/components/docEditor/presence/othersHere"
 import { cn } from "@/lib/utils/helpers/cn"
 import { BarPicker } from "@/components/board/barPicker"
 import ResultsList from "@/components/board/boardResults"
@@ -45,13 +46,12 @@ import {
   BAR_MAX_COMPUTER,
   BAR_SURFACE,
   FacilitationDock,
-  PRESENTING_FIELD,
   TIMER_KEY,
   facilitationOf,
-  presentersIn,
   timerIn,
-  type Presenter,
 } from "@/components/board/facilitationDock"
+import { PRESENTING_FIELD } from "@/lib/board/presenting"
+import { usePresenterFollow } from "@/components/board/usePresenterFollow"
 import { useGiveWay } from "@/components/board/useGiveWay"
 import { useBoardVoting } from "@/components/board/useBoardVoting"
 import {
@@ -65,13 +65,15 @@ import {
   type CompactBar,
   type Votable,
 } from "@/lib/board/facilitation"
-import { followScene, sceneToLocal, viewOf } from "@/lib/board/viewport"
+import { sceneToLocal } from "@/lib/board/viewport"
 
 interface Props {
   provider: HocuspocusProvider
   api: ExcalidrawImperativeAPI
   user: { id: string; name: string }
   editable: boolean
+  /** The board's Here now key (lib/board/hereBus boardBusOf): its Bring everyone here is offered on the bar too. */
+  hereKey: string
 }
 
 const TIMER_MINUTES = [1, 3, 5, 10, 15]
@@ -99,7 +101,7 @@ function chime() {
   }
 }
 
-export default function BoardFacilitation({ provider, api, user, editable }: Props) {
+export default function BoardFacilitation({ provider, api, user, editable, hereKey }: Props) {
   const yDoc = provider.document
   const yFac = React.useMemo(() => facilitationOf(yDoc), [yDoc])
   const awareness = provider.awareness
@@ -183,25 +185,23 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   }
 
   // ---- Presenting --------------------------------------------------------
-  const [presenters, setPresenters] = React.useState<Presenter[]>([])
   const [presenting, setPresenting] = React.useState(false)
-  const [following, setFollowing] = React.useState<number | null>(null)
   // Presenting, holding everyone on this view until we let them move (miro-21 3).
   const [holding, setHolding] = React.useState(false)
   React.useEffect(() => {
     if (!presenting) setHolding(false)
   }, [presenting])
-  // Where the board is looking: for vote dots, and for presenting and
-  // following. Off the rest of the time, so a pan costs this panel nothing.
-  const view = useBoardView(api, !!voting || presenting || following !== null)
-  const declined = React.useRef<Set<number>>(new Set())
-
-  React.useEffect(() => {
-    const read = () => setPresenters(presentersIn(awareness))
-    read()
-    awareness?.on("change", read)
-    return () => awareness?.off("change", read)
-  }, [awareness])
+  // Following a presenter, one copy with a share link's guest (components/board/usePresenterFollow). Where the board
+  // is looking comes back from it: read for vote dots, and while presenting or following; off the rest of the time,
+  // so a pan costs this panel nothing.
+  const { presenters, presenter, held, view, follow, stopFollowing } = usePresenterFollow(api, awareness, { presenting, watching: !!voting })
+  // Bring everyone here (miro-21 1), Here now's one bringAll (components/board/boardHereNow, editors only), offered
+  // beside Present as well while anyone else is on the board (V-286): the list of who's here names members only, and
+  // a share link's guest is on the board unnamed, so an editor alone with guests had nowhere to press it. Not while
+  // someone presents: their followers would be pulled two ways.
+  const bringAll = usePresenceControl(hereKey)?.bringAll
+  const othersHere = useOthersHere(awareness)
+  const bring = othersHere && !presenting && presenters.length === 0 ? bringAll : undefined
 
   // Broadcast what we show while presenting; stop when we stop or leave.
   React.useEffect(() => {
@@ -221,54 +221,6 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
     return () => clearTimeout(t)
   }, [awareness, presenting, view, user.id, user.name, holding])
   React.useEffect(() => () => awareness?.setLocalStateField(PRESENTING_FIELD, null), [awareness])
-
-  // Someone starts presenting: follow them, unless we already said no to them. A presenter who holds everyone
-  // takes back those who said no.
-  const presenter = presenters.find((p) => p.clientId === following) ?? null
-  const held = !!presenter?.hold
-  React.useEffect(() => {
-    if (presenting) return
-    if (following !== null && !presenters.some((p) => p.clientId === following)) setFollowing(null)
-    if (following === null) {
-      const next = presenters.find((p) => p.hold || !declined.current.has(p.clientId))
-      if (next) setFollowing(next.clientId)
-    }
-  }, [presenters, following, presenting])
-
-  // Follow: show what they show, fitted to this screen as the board has it now, from the moment following starts.
-  React.useEffect(() => {
-    if (!presenter) return
-    const next = followScene(presenter.view, viewOf(api.getAppState()))
-    if (next) api.updateScene({ appState: next })
-  }, [presenter, api])
-
-  // Held, a move of our own comes back to the presenter's view once the board settles.
-  React.useEffect(() => {
-    if (!held || !presenter || !view) return
-    const next = followScene(presenter.view, view)
-    if (!next) return
-    const t = setTimeout(() => api.updateScene({ appState: next }), 250)
-    return () => clearTimeout(t)
-  }, [held, presenter, view, api])
-
-  // Moving the board yourself stops following, as in Miro, unless the presenter holds everyone.
-  const stopFollowing = React.useCallback(() => {
-    if (held) return
-    if (following !== null) declined.current.add(following)
-    setFollowing(null)
-  }, [following, held])
-  React.useEffect(() => {
-    if (following === null || held) return
-    const canvas = document.querySelector(".excalidraw") as HTMLElement | null
-    if (!canvas) return
-    const stop = () => stopFollowing()
-    canvas.addEventListener("wheel", stop, { passive: true })
-    canvas.addEventListener("pointerdown", stop)
-    return () => {
-      canvas.removeEventListener("wheel", stop)
-      canvas.removeEventListener("pointerdown", stop)
-    }
-  }, [following, stopFollowing, held])
 
   // ---- Render ------------------------------------------------------------
   const timeUp = !!timer && left === 0 && timer.pausedLeftMs === undefined
@@ -313,12 +265,8 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
 
   if (idle && !editable) return null
   const segments: React.ReactNode[] = []
-  const follow = (p: Presenter) => {
-    declined.current.delete(p.clientId)
-    setFollowing(p.clientId)
-  }
   const present = () => {
-    setFollowing(null)
+    follow(null)
     setPresenting(true)
   }
   const stopTimer = () => setShared(TIMER_KEY, null)
@@ -519,6 +467,13 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
             Present
           </SegmentButton>
         )}
+        {/* A word on a phone, so the row stays whole at 390; its name says it all. */}
+        {bring && (
+          <SegmentButton onClick={bring} aria-label={isMobile ? "Bring everyone here" : undefined}>
+            <Users className="size-3.5" aria-hidden />
+            {isMobile ? "Bring" : "Bring everyone here"}
+          </SegmentButton>
+        )}
       </Segment>,
     )
   }
@@ -563,6 +518,13 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
         </DropdownMenuItem>,
       )
     }
+    if (bring)
+      presentingRows.push(
+        <DropdownMenuItem key="bring" onSelect={bring}>
+          <Users />
+          Bring everyone here
+        </DropdownMenuItem>,
+      )
     if (editable && voting && !voting.closedAt) {
       votingRows.push(
         <DropdownMenuItem key="end" onSelect={endVoting}>

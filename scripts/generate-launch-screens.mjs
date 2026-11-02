@@ -5,17 +5,19 @@
 //
 // iOS shows an apple-touch-startup-image while a home-screen app starts, and
 // Android shows the manifest's background_color (and theme_color in the
-// status bar). Both are the ground the app starts on (lib/pwa/grounds): a
-// phone's, the sheet, light and dark. They were hand-made, and the iOS images
-// were the frame's grey, so a launch went grey and then white as the app took
-// over. This writes them from app/globals.css, the one source:
+// status bar and, since August 2026, the navigation bar). Both are the
+// ground the app starts on (lib/pwa/grounds): a phone's, the sheet, light and
+// dark. They were hand-made, and the iOS images were the frame's grey, so a
+// launch went grey and then white as the app took over. This writes them from
+// app/globals.css, the one source:
 //   - public/splash/{light,dark}-WxH.png for every iPhone in lib/pwa/splash.ts,
 //     flat, so the splash's own glow and scene arrive on them with no seam
 //     (Apple's guidance too: a launch screen is the first screen, unbranded);
-//   - public/manifest.json's background_color and theme_color, and the dark
-//     ones under user_preferences.color_scheme.dark, which a browser that has
-//     dark launch colours for web apps reads (Chromium's web app dark mode)
-//     and every other ignores.
+//   - the two manifests lib/pwa/manifests' MANIFEST names: the same app, each on
+//     its mode's ground. Chrome reads no dark pair from a manifest, so a dark
+//     app needs its own (V-322); the boot script links the one for the mode
+//     shown. Both keep the dark pair under user_preferences.color_scheme.dark
+//     for a browser that reads it.
 // lib/pwa/grounds.test.ts fails when any of them drifts from the tokens: run
 // this after changing --sheet.
 //
@@ -106,10 +108,19 @@ for (const { width, height, ratio } of devices()) {
   }
 }
 
-const manifestPath = join(ROOT, "public/manifest.json")
-const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
-manifest.background_color = ground.light
-manifest.theme_color = ground.light
+/** The manifest's address in each mode, as lib/pwa/manifests.ts's MANIFEST names them: { light, dark }. */
+function manifests() {
+  const src = readFileSync(join(ROOT, "lib/pwa/manifests.ts"), "utf8")
+  const m = /MANIFEST = \{ light: "(\/[\w.-]+\.json)", dark: "(\/[\w.-]+\.json)" \}/.exec(src)
+  if (!m) throw new Error("no MANIFEST addresses found in lib/pwa/manifests.ts")
+  return { light: m[1], dark: m[2] }
+}
+
+const at = manifests()
+const manifest = JSON.parse(readFileSync(join(ROOT, "public", at.light), "utf8"))
 manifest.user_preferences = { color_scheme: { dark: { background_color: ground.dark, theme_color: ground.dark } } }
-writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n")
-console.log(`public/manifest.json  ${ground.light} (dark ${ground.dark})`)
+for (const scheme of ["light", "dark"]) {
+  const app = { ...manifest, background_color: ground[scheme], theme_color: ground[scheme] }
+  writeFileSync(join(ROOT, "public", at[scheme]), JSON.stringify(app, null, 2) + "\n")
+  console.log(`public${at[scheme]}  ${ground[scheme]}`)
+}

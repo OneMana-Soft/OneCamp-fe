@@ -42,6 +42,12 @@ import { RecordPanel } from "@/components/table/RecordPanel"
 import type { TableField, TableRow } from "@/services/tableService"
 import { loadColumnMenus } from "@/components/table/ColumnMenu"
 import { cellPickers } from "@/components/table/cellPickerPart"
+import { UndoOrder, type Aim } from "@/lib/tables/undoOrder"
+
+/** The table's undo order as a write that only sends: the tests of the order hold their own. */
+const pass: UndoOrder["write"] = (_what, send) => send()
+/** Lets what has settled so far run on: a press free to run has run. */
+const tick = () => new Promise((r) => setTimeout(r, 0))
 
 // The column menus, the cell pickers are chunks of their own
 // (lazyView): loaded once, before these tests, they draw at once. So is a
@@ -142,11 +148,34 @@ describe("a record's delete", () => {
     ledger.batchRows.mockResolvedValue({ change_set: "cs-row", created: [], updated: [], deleted: ["r0"] })
     ledger.undoChange.mockResolvedValue({ change_set: "u", reversed: "cs-row", kind: "delete", changes: 1, skipped: 0 })
     const close = vi.fn()
-    render(<RecordPanel tableId="t" tableName="Budget" fields={fields} rows={rowsOf(1)} rowId="r0" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={close} onChange={vi.fn()} />)
+    // The table's one Undo path (useCellCommit's undo), as a stand-in that goes to the ledger.
+    const undo = vi.fn((set: string) => ledger.undoChange("t", set))
+    render(<RecordPanel tableId="t" tableName="Budget" fields={fields} rows={rowsOf(1)} rowId="r0" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: pass, undo, edits: new Map() }} onStep={vi.fn()} onClose={close} onChange={vi.fn()} />)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete this row" })))
     expect(ledger.batchRows).toHaveBeenCalledWith("t", { delete: ["r0"] })
     expect(close).toHaveBeenCalled()
     await undoLast("Row deleted")
+    expect(undo, "its toast's Undo goes the table's one Undo path").toHaveBeenCalledWith("cs-row")
     expect(ledger.undoChange).toHaveBeenCalledWith("t", "cs-row")
+  })
+})
+
+// Main's 3b (V-360): a write the reader makes here is theirs to undo, so it enters the table's one undo order when
+// made: a Ctrl+Z pressed while it's on its way waits for it and takes it, never the change before it.
+describe("a record's delete, in the table's undo order", () => {
+  it("is what a Ctrl+Z pressed while it's on its way takes, by its change set", async () => {
+    const order = new UndoOrder()
+    let land!: (d: unknown) => void
+    ledger.batchRows.mockReturnValueOnce(new Promise((r) => (land = r)))
+    render(<RecordPanel tableId="t" tableName="Budget" fields={fields} rows={rowsOf(1)} rowId="r0" canManage commit={{ commitCell: vi.fn(), linkCell: vi.fn(), write: (w, s, o, t) => order.write(w, s, o, t), undo: vi.fn(), edits: new Map() }} onStep={vi.fn()} onClose={vi.fn()} onChange={vi.fn()} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Delete this row" })))
+    expect(ledger.batchRows).toHaveBeenCalledWith("t", { delete: ["r0"] })
+    const aims: Aim[] = []
+    const pressed = order.press(async (aim) => void aims.push(aim))
+    await tick()
+    expect(aims, "nothing is undone while it's on its way").toEqual([])
+    await act(async () => land({ change_set: "cs-row", created: [], updated: [], deleted: ["r0"] }))
+    await pressed
+    expect(aims).toEqual([{ kind: "set", set: "cs-row" }])
   })
 })

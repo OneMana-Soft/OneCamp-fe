@@ -3,6 +3,7 @@ import { constants, inflateSync } from "node:zlib"
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import { reviewShot, stubBackend } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // B1's View options (gcal-2): Google's custom view and its view settings by
 // the switch. A length chosen there shows at once and is kept with the view
@@ -154,7 +155,7 @@ test.describe("the view options on a phone", () => {
     await density.scrollIntoViewIfNeeded()
     for (const name of ["Density", "Show weekends", "Week numbers", "Week starts on"]) {
       const row = rows.locator("[data-view-option-rows] > div").filter({ hasText: name })
-      expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+      expectTouchSize((await row.boundingBox())!.height, "a row")
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
     // The switches apply as they're flipped, so the footer closes the sheet and says so: Done, not Cancel.

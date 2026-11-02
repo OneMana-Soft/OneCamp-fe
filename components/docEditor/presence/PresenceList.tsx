@@ -6,7 +6,8 @@
  * minutes), and Jump to and Follow. Both go to the person's awareness client
  * (the tab they used last), found by its number, never by their name: two
  * people called Sam are two people, and each button names who it is for.
- * You are listed last, as "You", with nothing to jump to.
+ * You are listed last, as "You", with nothing to jump to. On a board, the
+ * raised hands come first, in their queue (presence/HandQueue, miro-24).
  */
 
 import * as React from "react"
@@ -16,6 +17,7 @@ import { collaboratorHue } from "@/lib/identityHue"
 import { useDocBus } from "@/components/docEditor/registry/commandBus"
 import { stateOf, usePresence } from "./store"
 import { usePresenceControl } from "./control"
+import { HandQueue, RowButton } from "./HandQueue"
 import type { ActiveUser } from "@/components/docEditor/ActiveUsersBar"
 
 const WHAT: Record<string, string> = { editing: "Editing", viewing: "Viewing", idle: "Idle" }
@@ -29,6 +31,7 @@ export default function PresenceList({ users, onDone }: { users: ActiveUser[]; o
   const others = rows.some((u) => u.id !== self)
   return (
     <>
+      <HandQueue docId={bus.docId} busKey={bus.key} divider="after" />
       <ul data-presence-rows="">
         {rows.map((u) => {
           const person = presence?.people[u.id]
@@ -98,22 +101,5 @@ export default function PresenceList({ users, onDone }: { users: ActiveUser[]; o
         </>
       )}
     </>
-  )
-}
-
-function RowButton({ label, pressed, onClick, children }: { label: string; pressed?: boolean; onClick(): void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        "h-6 rounded-md px-2 text-meta font-medium outline-none transition-colors duration-[140ms] focus-visible:ring-2 focus-visible:ring-brand",
-        pressed ? "bg-brand-muted text-brand-text" : "text-ink-2 hover:bg-hover hover:text-ink",
-      )}
-    >
-      {children}
-    </button>
   )
 }

@@ -181,8 +181,11 @@ describe("the splash's weight", () => {
  * Bytes, gzipped. Set at the first measurement; they may only go down. The
  * line's type moved from the CSS to the scale's class in the markup (tracking
  * comes from the scale alone, app/tracking.test.ts): markup 720 to 727, CSS
- * 1,207 to 1,191.
+ * 1,207 to 1,191. The script took the docs tree's kept room (V-266, main's
+ * grant on 1 Nov), with the rest of it written shorter: 536 to 571. It took
+ * the installed app's manifest for the mode shown, in the theme-color pass
+ * (V-322, main's grant on 2 Nov): 571 to 603.
  */
 const MARKUP_GZIP_CEILING = 727
-const SCRIPT_GZIP_CEILING = 536
+const SCRIPT_GZIP_CEILING = 603
 const CSS_GZIP_CEILING = 1191

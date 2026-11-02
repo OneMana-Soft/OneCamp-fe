@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { Provider } from "react-redux"
-import { pinTestClock } from "@/lib/testing/testClock"
+import { pinTestClock, TEST_TODAY } from "@/lib/testing/testClock"
 
 // The New task form, as the dialog shows it, with the project list and the
 // request standing in for the server.
@@ -25,10 +25,30 @@ let projects: { data: (Project & { project_key?: string })[] } | undefined
 let statuses: { data: { built_in: []; custom: { id: string; project_id: string; name: string; category: string; color: string; position: number }[]; colors: string[]; max: number } } | undefined
 // The signed-in person (the self profile), for a form opened from My Tasks.
 let selfProfile: { data: { user_uuid: string } } | undefined
+// The picked project's task templates, types and fields (lib/work/taskTemplates), when a test gives them.
+let templateList: { data: { templates: { id: string; name: string; project_id?: string }[]; defaults: Record<string, string>; can_manage: boolean } } | undefined
+let typeList: { data: { id: string; builtin?: string; name: string; icon: string }[] } | undefined
+let fieldList: { data: { fields: { id: string; name: string; type: string; options: [] }[]; can_edit: boolean } } | undefined
+const routed = (key: string) =>
+  key.endsWith("/statuses") ? statuses : key.endsWith("/task-templates") ? templateList : key.endsWith("/types") ? typeList : key.endsWith("/fields") ? fieldList : key ? projects : undefined
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (key: string) => ({ data: key.endsWith("/statuses") ? statuses : key ? projects : undefined, isLoading: false, mutate: () => {} }),
+  useFetch: (key: string) => ({ data: routed(key), isLoading: false, mutate: () => {} }),
   useFetchOnlyOnce: () => ({ data: selfProfile }),
 }))
+// The project's types as the template pieces read its Task type for a default (components/task/taskTemplateParts).
+vi.mock("@/lib/axiosInstance", async () => (await import("@/lib/testing/axiosInstance")).axiosInstanceModule({ default: { get: async (url: string) => ({ data: routed(url) }) } }))
+// A template read in full, and a task made from one (lib/work/taskTemplatesApi).
+const tpl = vi.hoisted(() => ({ get: vi.fn(), make: vi.fn() }))
+vi.mock("@/lib/work/taskTemplatesApi", () => ({
+  taskTemplatesPath: (p?: string) => (p ? `/project/${p}/task-templates` : "/project/task-templates"),
+  getTaskTemplate: tpl.get,
+  makeFromTemplate: tpl.make,
+}))
+// Setting a plain task's type once it exists (lib/work/keysApi), and the toasts that say what failed.
+const keys = vi.hoisted(() => ({ setType: vi.fn() }))
+vi.mock("@/lib/work/keysApi", async (orig) => ({ ...(await orig<typeof import("@/lib/work/keysApi")>()), setTaskType: keys.setType }))
+const toasts = vi.hoisted(() => ({ toast: vi.fn() }))
+vi.mock("@/hooks/use-toast", () => ({ toast: toasts.toast, useToast: () => ({ toast: toasts.toast, toasts: [], dismiss: () => {} }) }))
 const send = vi.fn()
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: send, isSubmitting: false }) }))
 vi.mock("@/hooks/useUploadFile", () => ({ useUploadFile: () => ({ makeRequestToUploadToCreateTask: () => {} }) }))
@@ -56,8 +76,10 @@ const create = async () => {
 const sentProject = () => (send.mock.calls.at(-1)?.[0] as { payload: { task_project_uuid: string } }).payload.task_project_uuid
 const pickerOpen = () => screen.queryByPlaceholderText("Select project…") !== null
 const sentPayload = () => (send.mock.calls.at(-1)?.[0] as { payload: Record<string, unknown> }).payload
+// A picker's rows can come with its code (the template pickers are a chunk of their own): wait for the row.
 const pick = async (name: RegExp) => {
-  await act(async () => void fireEvent.click(screen.getByRole("option", { name })))
+  const row = await screen.findByRole("option", { name })
+  await act(async () => void fireEvent.click(row))
 }
 
 pinTestClock()
@@ -399,5 +421,302 @@ describe("a task made with no network (lib/offline)", () => {
     const { onCreated } = await made("t1")
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith({ taskUUID: "t1", name: "Book the venue" }))
     expect(lists.remove).not.toHaveBeenCalled()
+  })
+})
+
+describe("a new task from a template (linear-09)", () => {
+  const bug = { id: "t1", name: "Bug report", project_id: "p1" }
+  const weekly = { id: "t2", name: "Weekly review" }
+  const full: Record<string, unknown> = {
+    t1: { ...bug, shape: { name: "Bug: ", priority: "high", tags: "bug", due_day: 2, subtasks: [{ name: "Reproduce" }, { name: "Fix" }, { name: "Verify" }] } },
+    t2: { ...weekly, shape: { name: "Weekly review", priority: "medium" } },
+  }
+  const openForm = (props: Record<string, unknown> = {}) =>
+    render(
+      <Provider store={store}>
+        <TaskCreateForm defaultProjectId="p1" {...props} />
+      </Provider>,
+    )
+  const pickTemplate = async (name: string) => {
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: /^Template/ })))
+    await pick(new RegExp(`^${name}`))
+  }
+  beforeEach(() => {
+    projects = { data: [project("p1", "Website")] }
+    templateList = { data: { templates: [bug, weekly], defaults: {}, can_manage: true } }
+    typeList = { data: [{ id: "type-task", builtin: "task", name: "Task", icon: "task" }, { id: "type-bug", builtin: "bug", name: "Bug", icon: "bug" }] }
+    fieldList = { data: { fields: [{ id: "f1", name: "Customer", type: "text", options: [] }], can_edit: false } }
+    tpl.get.mockReset()
+    tpl.get.mockImplementation(async (_p: string, id: string) => full[id])
+    tpl.make.mockReset()
+    tpl.make.mockResolvedValue({ made: { task_id: "n1", subtasks: 3 } })
+  })
+
+  it("offers the project's templates, its own first, and fills the form from the one picked", async () => {
+    openForm()
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Template" })))
+    expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toEqual(["Bug report", "Weekly review"])
+    await pick(/^Bug report/)
+    expect(tpl.get).toHaveBeenCalledWith("p1", "t1")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Template: Bug report" })).toBeTruthy())
+    expect((screen.getByLabelText("Task title") as HTMLInputElement).value).toBe("Bug: ")
+    expect(screen.getByRole("button", { name: "Priority: High" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Labels: bug" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /^Due date: / })).toBeTruthy()
+    expect(screen.getByText(/3 sub-tasks/)).toBeTruthy()
+  })
+
+  it("makes the task through the template, with what the form shows typed over it", async () => {
+    const onSuccess = vi.fn()
+    openForm({ onSuccess })
+    await pickTemplate("Bug report")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Template: Bug report" })).toBeTruthy())
+    nameIt("Bug: the login page loops")
+    await create()
+    expect(send).not.toHaveBeenCalled()
+    expect(tpl.make).toHaveBeenCalledWith("p1", "t1", expect.objectContaining({ name: "Bug: the login page loops", priority: "high", tags: "bug" }))
+    expect(tpl.make.mock.calls[0][2].due).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled())
+  })
+
+  it("asks for what the template requires in words, keeps the form, and makes it once that is filled", async () => {
+    const onSuccess = vi.fn()
+    tpl.make.mockResolvedValueOnce({ asks: { missing: ["field:f1"], leftOff: [] } })
+    openForm({ onSuccess })
+    await pickTemplate("Bug report")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Template: Bug report" })).toBeTruthy())
+    nameIt("Bug: export drops rows")
+    await create()
+    const ask = await screen.findByRole("alert")
+    expect(ask.textContent).toMatch(/This template asks for/)
+    expect(ask.textContent).toMatch(/Customer/)
+    expect(onSuccess).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText("Customer"), { target: { value: "Acme" } })
+    await create()
+    // The field reader is its own chunk (lib/tasks/fieldInput), loaded as the answer is read.
+    await waitFor(() => expect(tpl.make).toHaveBeenCalledTimes(2))
+    expect(tpl.make.mock.calls[1][2]).toMatchObject({ fields: { f1: "Acme" } })
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled())
+  })
+
+  it("starts from the project's default for a new task, and a type picked starts from its own", async () => {
+    templateList = { data: { templates: [bug, weekly], defaults: { "type-task": "t2", "type-bug": "t1" }, can_manage: true } }
+    openForm()
+    await waitFor(() => expect(screen.getByRole("button", { name: "Template: Weekly review" })).toBeTruthy())
+    expect((screen.getByLabelText("Task title") as HTMLInputElement).value).toBe("Weekly review")
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Type: Task" })))
+    await pick(/^Bug/)
+    await waitFor(() => expect(screen.getByRole("button", { name: "Template: Bug report" })).toBeTruthy())
+    nameIt("Bug: a type picked")
+    await create()
+    expect(tpl.make).toHaveBeenCalledWith("p1", "t1", expect.objectContaining({ type: "type-bug" }))
+  })
+
+  it("makes a plain task when No template is picked", async () => {
+    openForm()
+    await pickTemplate("Bug report")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Template: Bug report" })).toBeTruthy())
+    await pickTemplate("No template")
+    expect(screen.getByRole("button", { name: "Template" })).toBeTruthy()
+    nameIt("Plain one")
+    await create()
+    expect(tpl.make).not.toHaveBeenCalled()
+    expect(send).toHaveBeenCalled()
+  })
+
+  it("opens on the template picker when asked (Alt+C on a project's list)", async () => {
+    openForm({ pickTemplate: true })
+    await waitFor(() => expect(screen.getByRole("option", { name: /^Bug report/ })).toBeTruthy())
+  })
+
+  // What's made is what the form shows (CR-172 F1-F3, V-321).
+  const incident = { id: "t3", name: "Incident", project_id: "p1" }
+  const title = () => (screen.getByLabelText("Task title") as HTMLInputElement).value
+  const chosen = (name: string) => waitFor(() => expect(screen.getByRole("button", { name: `Template: ${name}` })).toBeTruthy())
+  beforeEach(() => {
+    full.t3 = { ...incident, shape: { name: "Incident: ", type: "type-bug" } }
+    full.t4 = { id: "t4", name: "Triage", shape: { name: "", assignee: "u-Sam" } }
+    keys.setType.mockReset()
+    toasts.toast.mockReset()
+  })
+
+  it("shows the template's type in the Type chip, and makes the task as that type", async () => {
+    templateList = { data: { templates: [bug, weekly, incident], defaults: {}, can_manage: true } }
+    openForm()
+    await pickTemplate("Incident")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Type: Bug" })).toBeTruthy())
+    nameIt("Incident: checkout is down")
+    await create()
+    expect(tpl.make.mock.calls[0][2]).toMatchObject({ type: "type-bug" })
+  })
+
+  it("keeps a type picked by hand, and a type a template set never swaps the template for that type's default", async () => {
+    templateList = { data: { templates: [bug, weekly, incident], defaults: { "type-task": "t3", "type-bug": "t1" }, can_manage: true } }
+    openForm()
+    await chosen("Incident")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Type: Bug" })).toBeTruthy())
+    expect(screen.getByRole("button", { name: "Template: Incident" })).toBeTruthy()
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Type: Bug" })))
+    await pick(/^Task/)
+    await waitFor(() => expect(screen.getByRole("button", { name: "Type: Task" })).toBeTruthy())
+    await pickTemplate("Incident")
+    expect(screen.getByRole("button", { name: "Type: Task" })).toBeTruthy()
+    nameIt("Incident: a Task by hand")
+    await create()
+    expect(tpl.make.mock.calls.at(-1)?.[2]).toMatchObject({ type: "type-task" })
+  })
+
+  it("says what the project couldn't take beside what the template asks for", async () => {
+    tpl.make.mockResolvedValueOnce({ asks: { missing: ["field:f1"], leftOff: ["The value of a field this project doesn't have is left off."] } })
+    openForm()
+    await pickTemplate("Bug report")
+    await chosen("Bug report")
+    nameIt("Bug: export drops rows")
+    await create()
+    expect((await screen.findByRole("alert")).textContent).toMatch(/Customer/)
+    expect(screen.getByText("The value of a field this project doesn't have is left off.")).toBeTruthy()
+  })
+
+  it("says what the project couldn't take under Created, and stays open until that's read", async () => {
+    const onSuccess = vi.fn()
+    tpl.make.mockResolvedValue({ made: { task_id: "n1", subtasks: 3, left_off: ['The status "Triage": this project has no such status, so the task starts in its first one.'] } })
+    openForm({ onSuccess })
+    await pickTemplate("Bug report")
+    await chosen("Bug report")
+    nameIt("Bug: export drops rows")
+    await create()
+    await waitFor(() => expect(screen.getByText(/this project has no such status/)).toBeTruthy())
+    expect(screen.getByRole("status").textContent).toMatch(/Created/)
+    expect(onSuccess).not.toHaveBeenCalled()
+    // The next one starts from the template again, so Create doesn't make this one twice.
+    expect(title()).toBe("Bug: ")
+  })
+
+  it("keeps Created and what was left off on screen past the 3 s a plain Created line lasts", async () => {
+    vi.useRealTimers() // the file's pinTestClock mocks the date, and vitest refuses fake timers over a mocked date
+    vi.useFakeTimers({ now: TEST_TODAY, shouldAdvanceTime: true })
+    try {
+      tpl.make.mockResolvedValueOnce({ made: { task_id: "n1", subtasks: 3, left_off: ['The status "Triage": this project has no such status, so the task starts in its first one.'] } })
+      openForm()
+      await pickTemplate("Bug report")
+      await chosen("Bug report")
+      nameIt("Bug: export drops rows")
+      await create()
+      await waitFor(() => expect(screen.getByText(/this project has no such status/)).toBeTruthy())
+      await act(async () => void vi.advanceTimersByTime(3100))
+      expect(screen.getByText(/this project has no such status/)).toBeTruthy()
+      expect(screen.getByRole("status").textContent).toMatch(/Created/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("with Create more on, lets a plain Created line go after 3 s", async () => {
+    vi.useRealTimers() // the file's pinTestClock mocks the date, and vitest refuses fake timers over a mocked date
+    vi.useFakeTimers({ now: TEST_TODAY, shouldAdvanceTime: true })
+    try {
+      openForm()
+      await pickTemplate("Bug report")
+      await chosen("Bug report")
+      // Without Create more, a plain make closes the form (onSuccess): its Created line shows only while the form stays.
+      await act(async () => void fireEvent.click(screen.getByRole("switch", { name: "Create more" })))
+      nameIt("Bug: export drops rows")
+      await create()
+      await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/Created/))
+      await act(async () => void vi.advanceTimersByTime(3100))
+      expect(screen.queryByRole("status")?.textContent ?? "").not.toMatch(/Created/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("with Create more on, starts the next task from the template's title again", async () => {
+    openForm()
+    await pickTemplate("Bug report")
+    await chosen("Bug report")
+    await act(async () => void fireEvent.click(screen.getByRole("switch", { name: "Create more" })))
+    nameIt("Bug: the first one")
+    await create()
+    await waitFor(() => expect(tpl.make).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(title()).toBe("Bug: "))
+    expect(screen.getByRole("button", { name: "Template: Bug report" })).toBeTruthy()
+  })
+
+  it("answers a multi-select the template asks for by ticking its options, and makes it with their ids", async () => {
+    fieldList = { data: { fields: [{ id: "f2", name: "Area", type: "multi_select", options: [{ id: "o1", label: "Data loss", color: "red" }, { id: "o2", label: "Billing", color: "sky" }] as never }], can_edit: false } }
+    tpl.make.mockResolvedValueOnce({ asks: { missing: ["field:f2"], leftOff: [] } })
+    openForm()
+    await pickTemplate("Bug report")
+    await chosen("Bug report")
+    nameIt("Bug: export drops rows")
+    await create()
+    expect((await screen.findByRole("alert")).textContent).toMatch(/Area/)
+    fireEvent.click(await screen.findByRole("button", { name: "Data loss" }))
+    await create()
+    await waitFor(() => expect(tpl.make).toHaveBeenCalledTimes(2))
+    expect(tpl.make.mock.calls[1][2]).toMatchObject({ fields: { f2: ["o1"] } })
+  })
+
+  it("never sends an answer given to one template's asks with another template's make", async () => {
+    tpl.make.mockResolvedValueOnce({ asks: { missing: ["field:f1"], leftOff: [] } })
+    openForm()
+    await pickTemplate("Bug report")
+    await chosen("Bug report")
+    nameIt("Bug: export drops rows")
+    await create()
+    await screen.findByRole("alert")
+    fireEvent.change(screen.getByLabelText("Customer"), { target: { value: "Acme" } })
+    await pickTemplate("Weekly review")
+    await chosen("Weekly review")
+    await create()
+    await waitFor(() => expect(tpl.make).toHaveBeenCalledTimes(2))
+    expect(tpl.make.mock.calls[1][1]).toBe("t2")
+    expect(tpl.make.mock.calls[1][2].fields ?? {}).toEqual({})
+  })
+
+  it("keeps the latest pick when an earlier template reads slower", async () => {
+    let release = () => {}
+    tpl.get.mockImplementation(async (_p: string, id: string) => {
+      if (id === "t1") await new Promise<void>((r) => (release = r))
+      return full[id]
+    })
+    openForm()
+    await pickTemplate("Bug report")
+    await pickTemplate("Weekly review")
+    await chosen("Weekly review")
+    await act(async () => release())
+    expect(screen.getByRole("button", { name: "Template: Weekly review" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Priority: Medium" })).toBeTruthy()
+  })
+
+  it("puts back what the template filled when it's dropped, but keeps what the maker changed", async () => {
+    openForm()
+    await pickTemplate("Bug report")
+    await chosen("Bug report")
+    expect(screen.getByRole("button", { name: "Priority: High" })).toBeTruthy()
+    nameIt("Bug: mine")
+    await pickTemplate("No template")
+    expect(screen.getByRole("button", { name: "Priority: Medium" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Labels: bug" })).toBeNull()
+    expect(title()).toBe("Bug: mine")
+  })
+
+  it("never lets a default template replace what the opener set: My Tasks' yours", async () => {
+    projects = { data: [project("p1", "Website", ["Maya", "Sam"])] }
+    selfProfile = { data: { user_uuid: "u-Maya" } }
+    templateList = { data: { templates: [bug, { id: "t4", name: "Triage", project_id: "p1" }], defaults: { "type-task": "t4" }, can_manage: true } }
+    openForm({ assignToMe: true })
+    await chosen("Triage")
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Assignee: Maya/ })).toBeTruthy())
+  })
+
+  it("says so when a plain task's type couldn't be set", async () => {
+    keys.setType.mockRejectedValueOnce(new Error("offline"))
+    openForm()
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Type: Task" })))
+    await pick(/^Bug/)
+    nameIt("Plain bug")
+    await create()
+    await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/type/i) })))
   })
 })

@@ -56,9 +56,12 @@ function namesOf(file: string): { enums: string[]; keys: string[] } {
 }
 
 const shared = namesOf(SHARED)
+// An area may split its endpoints into slices, services/endpoints/<area>.<slice>.ts, so a reader outside the
+// area that goes through the area's own hook loads one slice, not the whole module (V-305: the demo guide on
+// Home reads check-ins through useCheckIns, which reads projects.checkIns.ts). A slice is its area's.
 const areaModules = readdirSync(AREA_DIR)
   .filter((f) => f.endsWith(".ts"))
-  .map((f) => ({ area: f.replace(/\.ts$/, ""), file: `${AREA_DIR}/${f}`, ...namesOf(`${AREA_DIR}/${f}`) }))
+  .map((f) => ({ area: f.replace(/\.ts$/, "").split(".")[0], file: `${AREA_DIR}/${f}`, ...namesOf(`${AREA_DIR}/${f}`) }))
 const shell = await shellFiles(".")
 
 /** Which areas' own files name each endpoint; and those a test names (a test keeps one alive, but places nothing). */

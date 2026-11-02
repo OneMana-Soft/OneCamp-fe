@@ -9,6 +9,7 @@ vi.mock("@/lib/tables/ledger", async (importOriginal) => ({
 }))
 
 import { deleteRows, duplicateRows, type Selection } from "@/components/table/RowSelectionBar"
+import { UndoOrder, type Aim, type SetOf } from "@/lib/tables/undoOrder"
 import type { TableField, TableRow } from "@/services/tableService"
 
 // The selected rows' Delete and Duplicate live in the selection bar's chunk,
@@ -27,7 +28,8 @@ const rows: TableRow[] = [0, 1, 2].map((i) => ({
   values: JSON.stringify({ item: `Line ${i}`, cost: 100 + i, twice: 200 + 2 * i }),
 }))
 
-function selection(ids: string[]) {
+function selection(ids: string[], pressed = false) {
+  const made: { what: string; aim?: Aim }[] = []
   const s = {
     tableId: "t",
     fields,
@@ -38,8 +40,18 @@ function selection(ids: string[]) {
     offerUndo: vi.fn(),
     onChange: vi.fn(),
     onCreated: vi.fn(),
+    // The table's undo order (the grid's write), as a stand-in: what entered it, and (pressed) what a Ctrl+Z pressed
+    // while it was on its way takes (the order's own reading of its answer). The write hears of that take (V-381).
+    write: async (what: string, send: () => Promise<unknown>, setOf?: SetOf<unknown>, onTaken?: () => void) => {
+      const order = new UndoOrder()
+      const going = order.write(what, send, setOf, onTaken)
+      made.push(pressed ? { what, aim: await order.press(async (aim) => aim) } : { what })
+      return going
+    },
+    // The toasts' one Undo path (the grid's undo).
+    undo: vi.fn(async () => undefined),
   }
-  return { s, sel: s as unknown as Selection }
+  return { s, sel: s as unknown as Selection, made }
 }
 
 /** What Delete asked the reader to confirm. */
@@ -67,7 +79,8 @@ describe("the selection bar's actions", () => {
     expect(s.clear).toHaveBeenCalled()
     expect(s.offerUndo).toHaveBeenCalledWith("2 rows deleted", expect.any(Function))
     s.offerUndo.mock.calls[0][1]()
-    expect(undoChange).toHaveBeenCalledWith("t", "cs1")
+    expect(s.undo, "the toast's Undo goes the table's one Undo path, by the delete's change set").toHaveBeenCalledWith("cs1")
+    expect(undoChange, "never straight to the ledger").not.toHaveBeenCalled()
     expect(s.onChange).toHaveBeenCalledTimes(1)
   })
 
@@ -84,7 +97,8 @@ describe("the selection bar's actions", () => {
     expect(s.clear).toHaveBeenCalled()
     expect(s.offerUndo).toHaveBeenCalledWith("2 rows duplicated", expect.any(Function))
     s.offerUndo.mock.calls[0][1]()
-    expect(undoChange).toHaveBeenCalledWith("t", "cs2")
+    expect(s.undo, "the toast's Undo goes the table's one Undo path, by the duplicate's change set").toHaveBeenCalledWith("cs2")
+    expect(undoChange, "never straight to the ledger").not.toHaveBeenCalled()
     expect(s.onCreated).toHaveBeenCalledWith(made)
     expect(s.onChange).not.toHaveBeenCalled()
   })
@@ -113,5 +127,53 @@ describe("the selection bar's actions", () => {
     expect(s.offerUndo).not.toHaveBeenCalled()
     expect(s.onCreated).not.toHaveBeenCalled()
     expect(s.onChange).toHaveBeenCalledTimes(2)
+  })
+})
+
+// Main's 3b (V-360): each is the reader's to undo, so it enters the table's
+// undo order when made, named by its batch's change set: an Undo pressed
+// while it's on its way takes it, never the change before it.
+describe("the selection bar's writes, in the table's undo order", () => {
+  it("deletes and duplicates through it, each named by its batch's change set", async () => {
+    batchRows.mockResolvedValue({ change_set: "c7", created: [], updated: [], deleted: ["r0"] })
+    const del = selection(["r0"], true)
+    deleteRows(del.sel)
+    await asked(del.s.confirm).onConfirm()
+    expect(del.made).toEqual([{ what: "delete", aim: { kind: "set", set: "c7" } }])
+    batchRows.mockResolvedValue({ change_set: "c8", created: [], updated: [], deleted: [] })
+    const dup = selection(["r0"], true)
+    await duplicateRows(dup.sel)
+    expect(dup.made).toEqual([{ what: "duplicate", aim: { kind: "set", set: "c8" } }])
+  })
+
+  // V-360 MUST 1 (a): a batch that stored nothing answers change_set null. Its toast's Undo would have no set, and an
+  // Undo with none takes the reader's latest change instead: so it offers none.
+  it("offers no Undo for a delete or a duplicate the server stored nothing for (no change set)", async () => {
+    batchRows.mockResolvedValue({ change_set: null, created: [], updated: [], deleted: [] })
+    const { s, sel } = selection(["r0"], true)
+    deleteRows(sel)
+    await asked(s.confirm).onConfirm()
+    await duplicateRows(sel)
+    expect(s.offerUndo).not.toHaveBeenCalled()
+    expect(s.undo).not.toHaveBeenCalled()
+    expect(undoChange).not.toHaveBeenCalled()
+  })
+
+  // V-381: one a Ctrl+Z took while it was on its way is undone already, so no toast offers it again (a second Undo of
+  // it would answer 409 "That change was undone already").
+  it("offers no Undo for a delete or a duplicate a Ctrl+Z took while it was on its way", async () => {
+    batchRows.mockResolvedValue({ change_set: "c9", created: [rows[0]], updated: [], deleted: ["r0"] })
+    const del = selection(["r0"], true)
+    deleteRows(del.sel)
+    await asked(del.s.confirm).onConfirm()
+    const dup = selection(["r0"], true)
+    await duplicateRows(dup.sel)
+    expect([...del.made, ...dup.made]).toEqual([
+      { what: "delete", aim: { kind: "set", set: "c9" } },
+      { what: "duplicate", aim: { kind: "set", set: "c9" } },
+    ])
+    expect(del.s.offerUndo, "no toast for a delete the Ctrl+Z took back").not.toHaveBeenCalled()
+    expect(dup.s.offerUndo, "no toast for a duplicate the Ctrl+Z took back").not.toHaveBeenCalled()
+    expect(undoChange).not.toHaveBeenCalled()
   })
 })

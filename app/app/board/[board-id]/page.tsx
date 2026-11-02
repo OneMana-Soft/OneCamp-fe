@@ -24,7 +24,7 @@ import { LoadFailureState } from "@/components/ui/load-failure-state";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import { ActiveUsersBar } from "@/components/docEditor/ActiveUsersBar";
 import { DocBusContext } from "@/components/docEditor/registry/docBusContext";
-import { boardBusOf } from "@/lib/board/hereNow";
+import { boardBusOf } from "@/lib/board/hereBus";
 import { saveDotCopy } from "@/components/docEditor/SaveDot";
 import {
   DropdownMenu,
@@ -46,6 +46,7 @@ import { useBoardGrid, useBoardSnap, useBoardStyle } from "@/components/board/bo
 import type { BoardCommand } from "@/components/board/boardWorkbench";
 import type BoardFacilitationPart from "@/components/board/boardFacilitation";
 import { lazyPart } from "@/lib/lazy/lazyPart";
+import { lazyPiece } from "@/lib/lazy/lazyPiece";
 import { FacilitationFailed } from "@/components/board/facilitationDock";
 import BoardComments from "@/components/board/boardComments";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
@@ -76,6 +77,9 @@ const DocSaveNotice = dynamic(() => import("@/components/docEditor/DocSaveNotice
 const facilitation = lazyPart<React.ComponentProps<typeof BoardFacilitationPart>>(() => import("@/components/board/boardFacilitation").then((m) => m.default), {
   failed: FacilitationFailed,
 });
+// React and raise a hand (miro-24), for everyone on the board: the button and its tray in a chunk of their own, in a
+// room of the button's size while it comes; what they do comes with the board's tools (components/board/boardSignals).
+const BoardReact = lazyPiece(() => import("@/components/board/boardReact"));
 
 // Ask AI wears the agent's colour, open or not: brand is for actions.
 const AI_BUTTON = (open: boolean) =>
@@ -145,6 +149,9 @@ export default function BoardPage() {
   const [excalApi, setExcalApi] = React.useState<ExcalidrawImperativeAPI | null>(null);
   const [commentMode, setCommentMode] = React.useState(false);
   const [aiOpen, setAiOpen] = React.useState(false);
+  // One opener for both clusters: isMobile picks the cluster (the layout); BoardAIPanel's
+  // useSheetMode alone decides whether the composer is a sheet.
+  const toggleAi = React.useCallback(() => setAiOpen((o) => !o), []);
   // The grid is the board's, for everyone (miro-02 1); those who can edit set it.
   const [gridOn, setGrid] = useBoardGrid(excalApi, provider ?? null, synced, hasEditAccess);
   // Snapping to shapes and equal gaps is each person's, on until they turn it off (miro-02 3).
@@ -423,7 +430,7 @@ export default function BoardPage() {
 
         {/* Timer, dot voting and follow-the-presenter */}
         {provider && excalApi && me && (
-          <facilitation.Part provider={provider} api={excalApi} editable={hasEditAccess} user={me} />
+          <facilitation.Part provider={provider} api={excalApi} editable={hasEditAccess} user={me} hereKey={hereBus.key} />
         )}
 
         {/* Pinned comments (everyone with access sees them; editors can add) */}
@@ -492,6 +499,9 @@ export default function BoardPage() {
                   <ClusterDivider />
                 </>
               )}
+              <React.Suspense fallback={<span aria-hidden="true" className="size-8 shrink-0" />}>
+                <BoardReact hereKey={hereBus.key} />
+              </React.Suspense>
               {hasEditAccess && (
                 <>
                   {TOOLS.map(([kind, label, Icon]) => (
@@ -499,7 +509,7 @@ export default function BoardPage() {
                       <Icon />
                     </ClusterButton>
                   ))}
-                  <ClusterButton label="Ask AI" active={aiOpen} onClick={() => setAiOpen((o) => !o)} className={AI_BUTTON(aiOpen)}>
+                  <ClusterButton label="Ask AI" active={aiOpen} onClick={toggleAi} className={AI_BUTTON(aiOpen)}>
                     <Sparkles />
                   </ClusterButton>
                   <ClusterButton
@@ -536,7 +546,7 @@ export default function BoardPage() {
                 <ClusterButton label="Add a note" onClick={() => run("note")}>
                   <Plus />
                 </ClusterButton>
-                <ClusterButton label="Ask AI" active={aiOpen} onClick={() => setAiOpen((o) => !o)} className={AI_BUTTON(aiOpen)}>
+                <ClusterButton label="Ask AI" active={aiOpen} onClick={toggleAi} className={AI_BUTTON(aiOpen)}>
                   <Sparkles />
                 </ClusterButton>
                 <ClusterButton label="Add a comment" active={commentMode} onClick={() => setCommentMode((m) => !m)}>
@@ -547,6 +557,9 @@ export default function BoardPage() {
                 </ClusterButton>
               </>
             )}
+            <React.Suspense fallback={<span aria-hidden="true" className="size-9 shrink-0" />}>
+              <BoardReact hereKey={hereBus.key} />
+            </React.Suspense>
             {menu(
               <ClusterButton label="Board options">
                 <Ellipsis />

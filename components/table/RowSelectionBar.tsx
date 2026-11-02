@@ -10,8 +10,9 @@
 import { Copy, Trash2, X } from "@/lib/icons"
 import { FloatingBar, FloatingBarButton, FloatingBarDivider } from "@/components/ui/FloatingBar"
 import type { useConfirm } from "@/hooks/useConfirm"
-import { batchRows, rowsText, undoChange } from "@/lib/tables/ledger"
+import { batchRows, rowsText, undoableWrite } from "@/lib/tables/ledger"
 import { parseRowValues, writableValues, type TableField, type TableRow } from "@/services/tableService"
+import type { UndoOrder } from "@/lib/tables/undoOrder"
 
 /** The rows selected and what the bar's actions do with them: the grid's. */
 export interface Selection {
@@ -24,10 +25,14 @@ export interface Selection {
   offerUndo: (title: string, undo: () => void) => void
   onChange: () => void
   onCreated?: (rows: TableRow[]) => void
+  /** The table's undo order (useCellCommit's write): a delete or a duplicate is the reader's to undo. */
+  write: UndoOrder["write"]
+  /** The toasts' one Undo path (useCellCommit's undo): a change set back, in the table's order of writes. */
+  undo: (set: string) => Promise<unknown>
 }
 
 /** Deletes the rows selected, once confirmed: one request, one change set, so the whole delete is one Undo, and its rows wait in the table's trash until someone brings them back. */
-export function deleteRows({ tableId, ids, clear, confirm, offerUndo, onChange }: Selection) {
+export function deleteRows({ tableId, ids, clear, confirm, offerUndo, onChange, write, undo }: Selection) {
   const del = [...ids]
   confirm({
     title: del.length === 1 ? "Delete the selected row?" : `Delete ${del.length} selected rows?`,
@@ -36,9 +41,11 @@ export function deleteRows({ tableId, ids, clear, confirm, offerUndo, onChange }
     destructive: true,
     onConfirm: async () => {
       try {
-        const done = await batchRows(tableId, { delete: del })
+        // Its answer names its change set (V-360); none: someone else's delete got there first, or an Undo pressed on
+        // its way took it back already (V-381), and there's nothing for a toast to take back.
+        const { set } = await undoableWrite(write, "delete", () => batchRows(tableId, { delete: del }))
         clear()
-        offerUndo(del.length === 1 ? "Row deleted" : `${rowsText(del.length)} deleted`, () => undoChange(tableId, done.change_set))
+        if (set) offerUndo(del.length === 1 ? "Row deleted" : `${rowsText(del.length)} deleted`, () => undo(set))
       } catch {
         // surfaced
       } finally {
@@ -49,14 +56,14 @@ export function deleteRows({ tableId, ids, clear, confirm, offerUndo, onChange }
 }
 
 /** Copies the rows selected after every row, in the order shown, in one request: one change set, one Undo. */
-export async function duplicateRows({ tableId, fields, rows, ids, clear, offerUndo, onChange, onCreated }: Selection) {
+export async function duplicateRows({ tableId, fields, rows, ids, clear, offerUndo, onChange, onCreated, write, undo }: Selection) {
   const picked = rows.filter((r) => ids.has(r.id))
   let made: TableRow[] = []
   try {
-    const done = await batchRows(tableId, { create: picked.map((r) => ({ values: writableValues(fields, parseRowValues(r)) })) })
+    const { answer: done, set } = await undoableWrite(write, "duplicate", () => batchRows(tableId, { create: picked.map((r) => ({ values: writableValues(fields, parseRowValues(r)) })) }))
     made = done.created ?? []
     clear()
-    offerUndo(picked.length === 1 ? "Row duplicated" : `${rowsText(picked.length)} duplicated`, () => undoChange(tableId, done.change_set))
+    if (set) offerUndo(picked.length === 1 ? "Row duplicated" : `${rowsText(picked.length)} duplicated`, () => undo(set))
   } catch {
     // surfaced
   } finally {

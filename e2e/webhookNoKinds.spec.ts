@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type BrowserContextOptions, type Locator, type Page, type Request, type TestInfo } from "@playwright/test"
 
 import { reviewShot, SAM, SHOT_THEMES, stubBackend, untilStill } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // V-112: an outgoing webhook is sent only the kinds of event it names, so one
 // that names none is sent nothing. New and Edit wait until a kind is ticked
@@ -194,7 +195,7 @@ for (const [device, use] of Object.entries(DEVICES)) {
         if (device === "phone") {
           const reach = await editReach(page)
           testInfo.annotations.push({ type: "edit-reach", description: JSON.stringify(reach) })
-          expect(reach.height, JSON.stringify(reach)).toBeGreaterThanOrEqual(44)
+          expectTouchSize(reach.height, JSON.stringify(reach))
         }
 
         await notice.getByRole("button", { name: "Edit Old feed" }).click()

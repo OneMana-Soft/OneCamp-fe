@@ -8,6 +8,7 @@ import { boxOf } from "./boxes"
 import { drawnOver } from "./layers"
 import { settled } from "./sheetLayout"
 import { untilStill } from "./stubbedApp"
+import { animationsSettled } from "./settled"
 
 // Tags with colours, to cluster by (miro-07 5): a tagged note shows its tags
 // on the board in each tag's colour, as many as fit whole and a count of the
@@ -688,18 +689,11 @@ test("on a phone, a note dragged by a finger keeps its chips, and the selection'
   await page.touchscreen.tap(from.x, from.y)
   await expect(toolbar).toBeVisible()
   // The dock's place once its own entrance and fades have played out (mid-entrance it is still scaling in).
-  const settled = async () => {
-    await dock.evaluate((el) =>
-      Promise.all(
-        el
-          .getAnimations({ subtree: true })
-          .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
-          .map((a) => a.finished),
-      ),
-    )
+  const atRest = async () => {
+    await animationsSettled(dock, { subtree: true })
     return (await toolbar.boundingBox())!
   }
-  const rest = await settled()
+  const rest = await atRest()
   // A finger as Chromium hands it to the page: touch events, and pointer events of type "touch".
   const cdp = await b.context.newCDPSession(page)
   const finger = (type: "touchStart" | "touchMove" | "touchEnd", p?: { x: number; y: number }) =>
@@ -725,7 +719,7 @@ test("on a phone, a note dragged by a finger keeps its chips, and the selection'
   // The note went where the finger took it, and the dock is back in its own place.
   const dropped = await w.noteBox()
   expect(dropped.y - start.y).toBeGreaterThan(180)
-  expect(await settled()).toEqual(rest)
+  expect(await atRest()).toEqual(rest)
 
   const { drawn, frames } = await w.seen()
   // The chips held to the note's corner on every frame Excalidraw drew, and were never hidden or dimmed.

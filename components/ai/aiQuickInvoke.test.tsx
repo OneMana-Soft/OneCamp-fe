@@ -38,4 +38,23 @@ describe("Ctrl J", () => {
     }
     expect(dispatched).toHaveLength(0)
   })
+
+  it("leaves the key to a page's own Ctrl J on the document, even one that started listening after it", () => {
+    // A table's Ctrl J opens its switcher from a listener on the document,
+    // added again each time the page's state moves, so often after this one.
+    // Two listeners on the document run in the order they were added: the
+    // panel opened beside the switcher, and its field took the letters typed
+    // next (tableKeys.spec :89, under load, 1 Nov).
+    render(<AiQuickInvoke />)
+    const page = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "j") e.preventDefault()
+    }
+    document.addEventListener("keydown", page)
+    try {
+      fireEvent.keyDown(document.body, { key: "j", ctrlKey: true })
+    } finally {
+      document.removeEventListener("keydown", page)
+    }
+    expect(dispatched).toHaveLength(0)
+  })
 })

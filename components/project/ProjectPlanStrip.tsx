@@ -12,11 +12,11 @@ import { usePlanRegistry, useProjectPlan } from "@/hooks/useProjectPlan"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
-import type { PlanField, PlanMember, PlanPick } from "@/lib/work/projectPlan"
+import type { PlanField, PlanPick } from "@/lib/work/projectPlan"
 
 const PlanChips = dynamic(() => import("@/components/project/ProjectPlanChips").then((m) => m.PlanChips), { ssr: false })
 
-export function ProjectPlanStrip({ projectId, members, className }: { projectId: string; members: PlanMember[]; className?: string }) {
+export function ProjectPlanStrip({ projectId, className }: { projectId: string; className?: string }) {
   const { plan, canEdit, canLead, save, failed: readFailed, retry: readAgain } = useProjectPlan(projectId)
   const [open, setOpen] = useState<PlanField | null>(null)
   const { registry, failed, retry } = usePlanRegistry(open === "status" || open === "labels")
@@ -43,7 +43,8 @@ export function ProjectPlanStrip({ projectId, members, className }: { projectId:
         plan={plan}
         canEdit={canEdit}
         canLead={canLead}
-        members={members}
+        projectId={projectId}
+        membersError={(again) => <ErrorState compact subject="the project's members" onRetry={again} />}
         registry={registry}
         registryError={failed ? <ErrorState compact subject="the workspace's statuses and labels" onRetry={retry} /> : null}
         open={open}

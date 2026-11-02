@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Request, type TestInfo } from "@playwright/test"
 
 import { SAM, stubBackend } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // Calendar A2 (STEP4_PLAN §4 #5): the event card answers "Going?". The
 // organiser's card counts who said what; a guest's asks Yes, Maybe or No at
@@ -324,7 +325,7 @@ for (const theme of ["light", "dark"] as const) {
       const sheet = page.locator("[data-event-sheet]")
       await expect(sheet.getByRole("radiogroup", { name: "Going?" })).toBeVisible({ timeout: 20_000 })
       const yes = await sheet.getByRole("radio", { name: "Yes" }).boundingBox()
-      expect(yes && yes.height >= 43.5, `Yes is ${yes?.height} px tall`).toBe(true)
+      expectTouchSize(yes?.height, "Yes")
       await shot(page, "sheet-guest", theme)
     })
 
@@ -339,7 +340,7 @@ for (const theme of ["light", "dark"] as const) {
       // 44 px under a finger, so its reach is its own box and takes none of
       // the Guests row's taps above it.
       const box = await row.boundingBox()
-      expect(box && box.height >= 43.5, `the row is ${box?.height} px tall`).toBe(true)
+      expectTouchSize(box?.height, "the row")
       await row.tap()
       // A sheet over the event's: "Remind me", the event under it, seven 44 px rows.
       const choices = page.locator("[data-reminder-sheet]")
@@ -347,7 +348,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(choices.getByRole("button", { name: "10 minutes before" })).toHaveAttribute("aria-current", "true")
       const rows = choices.getByRole("group", { name: "Remind me" }).getByRole("button")
       await expect(rows).toHaveCount(7)
-      for (const box of await Promise.all((await rows.all()).map((r) => r.boundingBox()))) expect(box && box.height >= 43.5, `a row is ${box?.height} px tall`).toBe(true)
+      for (const box of await Promise.all((await rows.all()).map((r) => r.boundingBox()))) expectTouchSize(box?.height, "a row")
       await shot(page, "sheet-reminders-open", theme)
       const saved = page.waitForRequest((r) => r.method() === "PUT" && r.url().endsWith(`/calendar/events/${HANDS}/reminders`))
       await choices.getByRole("button", { name: "30 minutes before" }).tap()

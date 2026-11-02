@@ -125,3 +125,11 @@ function isBotKind(kind: string): kind is BotKind {
 export function botProfileCopy(kind: string | null | undefined): BotProfileCopy {
     return kind && isBotKind(kind) ? BOT_PROFILE_COPY[kind] : BOT_PROFILE_COPY[FALLBACK_KIND]
 }
+
+// One rule for a DM's other on both widths (V-126): a bot, by class, is an agent: its role, never presence, never a call.
+export const AGENT_ROLE = "Acts for you"
+export const AGENT_PEER_LINE = `${AGENT_ROLE} · can do only what you can`
+type Peer = { is_bot?: boolean } | null | undefined
+export const isAgentPeer = (p: Peer) => p?.is_bot === true
+/** A huddle or call only with a known person. */
+export const mayCallPeer = (p: Peer) => !!p && !isAgentPeer(p)

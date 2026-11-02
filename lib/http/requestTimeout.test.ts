@@ -96,7 +96,12 @@ describe("what waits as long as its work takes", () => {
     const entries = [GetEndpointUrl, PostEndpointUrl, PostFileUploadURL, ...AREA_ENUMS].flatMap((e) => Object.entries(e) as [string, string][])
     const uses = new Map<string, number>()
     for (const [, url] of entries) uses.set(url, (uses.get(url) ?? 0) + 1)
-    const missed = entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1 && !waitsAsLongAsItTakes({ url })).map(([name, url]) => `${name} = ${url}`)
+    // A route that only tells the admin log of an export the browser made (components/board/exportRecord) is
+    // named for an export but answered by none: a one-row write, timed as any.
+    const tellsOnly = new Set(["/board/recordExport"])
+    const missed = entries
+      .filter(([name, url]) => named.test(name) && uses.get(url) === 1 && !tellsOnly.has(url) && !waitsAsLongAsItTakes({ url }))
+      .map(([name, url]) => `${name} = ${url}`)
     expect(missed).toEqual([])
     expect(entries.filter(([name, url]) => named.test(name) && uses.get(url) === 1).length).toBeGreaterThan(30)
   })

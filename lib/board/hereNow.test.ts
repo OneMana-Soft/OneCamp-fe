@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { BRING_FIELD, bringsIn, centreOn, pointerOf } from "./hereNow"
+import { BRING_FIELD, bringsIn, centreOn, pointerOf, viewOfTab } from "./hereNow"
 
 // "Here now" on a board (miro-04 4): where to look to see someone. Who is here is the doc's grouping (presence/people.test).
 
@@ -56,5 +56,30 @@ describe("here now on a board", () => {
       expect(bringsIn(new Map<number, unknown>([[1, { user, [BRING_FIELD]: { id: "forged", view } }]]), 2, seen), JSON.stringify(user)).toEqual([])
     }
     expect(seen.has("forged"), "a refused bring isn't marked seen").toBe(false)
+  })
+})
+
+describe("what a followed tab shows (miro-21 2)", () => {
+  const VIEW = { scrollX: -400, scrollY: -200, zoom: 2, width: 390, height: 700 }
+
+  it("reads the view a tab says it shows, and only a whole one", () => {
+    const states = new Map<number, unknown>([
+      [1, { ...tab("ann", "Ann"), view: VIEW }],
+      [2, { ...tab("sam", "Sam"), view: { ...VIEW, zoom: 0 } }],
+      [3, { ...tab("lee", "Lee"), view: { ...VIEW, width: Number.NaN } }],
+      [4, tab("vic", "Vic", { x: 1, y: 2 })],
+      [5, { ...tab("kim", "Kim"), view: "far away" }],
+    ])
+    expect(viewOfTab(states, 1)).toEqual(VIEW)
+    expect(viewOfTab(states, 2), "no zoom").toBeNull()
+    expect(viewOfTab(states, 3), "no width").toBeNull()
+    expect(viewOfTab(states, 4), "a pointer is not a view").toBeNull()
+    expect(viewOfTab(states, 5), "not a view at all").toBeNull()
+    expect(viewOfTab(states, 9), "a tab that isn't here").toBeNull()
+  })
+
+  it("keeps only the view's own numbers", () => {
+    const states = new Map<number, unknown>([[1, { view: { ...VIEW, offsetLeft: 12, note: "x" } }]])
+    expect(viewOfTab(states, 1)).toEqual(VIEW)
   })
 })

@@ -70,8 +70,10 @@ const FORMS: Array<{ file: string; host: Host; field: Field; via?: string }> = [
   { file: "components/checkins/ChannelCheckIns.tsx", host: "dialog", field: "TimeField" },
   { file: "components/dialog/createProjectDialog.tsx", host: "dialog", field: "DateField" },
   { file: "components/dialog/updateUserStatusDialog.tsx", host: "sheet", field: "DateTimeField" },
-  { file: "components/forms/FormPages.tsx", host: "page", field: "DateField" },
-  { file: "components/forms/FormPages.tsx", host: "dialog", field: "DateField" },
+  // A form's answer box, shared with the fields a task template asks for in New task.
+  { file: "components/forms/AnswerInput.tsx", via: "components/forms/FormPages.tsx", host: "page", field: "DateField" },
+  { file: "components/forms/AnswerInput.tsx", via: "components/forms/FormPages.tsx", host: "dialog", field: "DateField" },
+  { file: "components/forms/AnswerInput.tsx", via: "components/task/taskTemplateParts.tsx", host: "dialog", field: "DateField" },
   { file: "components/notifications/NotificationPreferencesCard.tsx", host: "page", field: "TimeField" },
   { file: "components/project/ProjectPlanPickers.tsx", host: "popover", field: "DateField" },
   { file: "components/table/fields/FieldSettings.tsx", host: "popover", field: "DateField" },

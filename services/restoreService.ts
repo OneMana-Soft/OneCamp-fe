@@ -1,22 +1,21 @@
 /**
  * What a delete keeps for its Undo (V-78): a project's field, status, cycle,
- * milestone, form (a table's form is a form too) or link (basecamp-16), a
- * time entry, a draft invoice.
+ * milestone, form (a table's too) or link (basecamp-16), a time entry, a
+ * draft invoice, the workspace's plan status or label.
  */
-export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | "link" | "time_entry" | "invoice"
+export type RestoreKind = "field" | "status" | "cycle" | "milestone" | "form" | "link" | "time_entry" | "invoice" | "project_status" | "project_label"
 
 /**
  * Brings back what a delete took: POST /restore/{kind}/{id} on the caller's
- * client, which checks the caller as the delete did. It posts quietly, as a
+ * client, which checks the caller as the delete did. It posts quietly: a
  * refusal is the Undo toast's to say (with Retry on a 503). readAgain reads
  * what shows it however it went: a 503 means part of it is back (a status
  * whose tasks aren't yet), which the toast's Retry finishes.
  *
- * This module imports none of the shared core (main's chunking rule, 30 Oct):
- * the lazy dialogs take it, and a lazy chunk's own import of the HTTP client
- * re-cuts every route's chunks (V-49 bisect, 30 Oct: even a named import of
- * OWN_ERRORS does). So http is the caller's client, which it already has, and
- * QUIET is OWN_ERRORS' value written here.
+ * No shared core here (main's chunking rule, 30 Oct): lazy dialogs take this
+ * module, and a lazy chunk's own import of the HTTP client re-cuts every
+ * route's chunks (V-49 bisect: even a named import of OWN_ERRORS). So http is
+ * the caller's client, and QUIET is OWN_ERRORS' value written here.
  */
 type Http = { post: (path: string, body: object, config: { suppressErrorToast: boolean }) => Promise<unknown> }
 const QUIET = { suppressErrorToast: true }

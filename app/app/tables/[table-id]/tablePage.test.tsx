@@ -79,8 +79,10 @@ vi.mock("@/lib/tables/applyRules", async (importOriginal) => ({
   },
 }))
 // The views themselves have their own tests; here they say what they were given.
-vi.mock("@/components/table/DataTableGrid", () => ({
+// The table's keys are the grid's chunk of them, which the page binds too: the real one.
+vi.mock("@/components/table/DataTableGrid", async () => ({
   SelectionPart: { prefetch: () => Promise.resolve() },
+  TableKeysPart: (await import("@/lib/lazy/lazyView")).lazyView(() => import("@/lib/tables/tableKeys")),
   DataTableGrid: ({ rows, count, tail, empty, onNearEnd }: { rows: TableRow[]; count?: number; tail?: number; empty?: ReactNode; onNearEnd?: () => void }) => (
     <div data-testid="grid" data-count={count} data-tail={tail} data-first={rows[0]?.id} data-last={rows.at(-1)?.id}>
       {(count ?? rows.length) ? `${rows.length} rows` : empty}
@@ -121,13 +123,14 @@ import { Toaster } from "@/components/ui/toaster"
 import { loadColumnMenus } from "@/components/table/ColumnMenu"
 import { cellPickers } from "@/components/table/cellPickerPart"
 import { loadTablePageParts } from "@/components/table/lazyParts"
+import { TableKeysPart } from "@/components/table/DataTableGrid"
 
 // The column menus, the cell pickers and the page's views, record and dialogs are chunks of their own
 // (lazyView): loaded once, before these tests, they draw at once.
 // The parts are loaded first, but never the find bar's or the clean-ups' (G2b) beside them: those read
 // lib/tables/applyRules too, and loaded beside RulesPart they took the real module while the mock above
 // was still being made, so the export's rules probe read nothing.
-beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), loadTablePageParts()]))
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), loadTablePageParts(), TableKeysPart.warm()]))
 
 beforeEach(() => {
   window.history.replaceState(null, "", `/app/tables/${TABLE_ID}`)
@@ -690,6 +693,14 @@ describe("a table's undo and redo keys", () => {
     undoChange.mockReset()
     redoChange.mockReset()
   })
+  /** A new row's create, held until the test answers or refuses it; the Undo and Redo answer as the ledger does. */
+  function rowHeld() {
+    const held: { answer: (r: unknown) => void; refuse: (e: unknown) => void } = { answer: () => {}, refuse: () => {} }
+    createRow.mockReturnValue(new Promise((res, rej) => ((held.answer = res), (held.refuse = rej))))
+    undoChange.mockResolvedValue({ change_set: "u", reversed: "c", kind: "create", changes: 1, skipped: 0 })
+    redoChange.mockResolvedValue({ change_set: "r", reversed: "u", kind: "undo", changes: 1, skipped: 0 })
+    return held
+  }
 
   it("undo and redo the reader's latest change, and say what they left", async () => {
     fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
@@ -707,6 +718,70 @@ describe("a table's undo and redo keys", () => {
     fireEvent.keyDown(document.body, { key: "z", metaKey: true, shiftKey: true })
     await waitFor(() => expect(redoChange).toHaveBeenCalledWith(TABLE_ID))
     expect(await screen.findByText("Redone")).toBeTruthy()
+  })
+
+  // V-360 for a row's write (main's 3b): the new row is the reader's latest once
+  // the server has it; an Undo pressed while it's on its way waits for it, so it
+  // never takes the change before it.
+  it("takes back a new row pressed while it's on its way, never the change before it: by the change set its answer names", async () => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    const land = rowHeld()
+    render(<TableDetailPage />)
+    fireEvent.keyDown(document.body, { key: "r" })
+    await waitFor(() => expect(createRow).toHaveBeenCalledWith(TABLE_ID, {}))
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true })
+    await new Promise((r) => setTimeout(r, 30))
+    expect(undoChange, "nothing is taken back while the row is on its way").not.toHaveBeenCalled()
+    land.answer({ ...row("new"), position: 2, change_set: "c8" })
+    await waitFor(() => expect(undoChange).toHaveBeenCalledWith(TABLE_ID, "c8"))
+  })
+
+  it("takes back the reader's latest for a new row answered by a server from before V-360 (no change set in its answer), as before: mid-deploy", async () => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    const land = rowHeld()
+    render(<TableDetailPage />)
+    fireEvent.keyDown(document.body, { key: "r" })
+    await waitFor(() => expect(createRow).toHaveBeenCalledWith(TABLE_ID, {}))
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true })
+    land.answer({ ...row("new"), position: 2 })
+    await waitFor(() => expect(undoChange).toHaveBeenCalledWith(TABLE_ID))
+  })
+
+  // CR-190's P2 and S1: an Undo whose write wasn't saved, or changed nothing, says which, and takes back nothing.
+  it.each([
+    ["wasn't saved", (land: ReturnType<typeof rowHeld>) => land.refuse(new Error("offline")), "That row wasn't saved, so there's nothing to undo"],
+    ["changed nothing", (land: ReturnType<typeof rowHeld>) => land.answer({ ...row("new"), position: 2, change_set: null }), "That row changed nothing, so there's nothing to undo"],
+  ])("says a new row taken on its way %s, and takes back nothing", async (_how, settle, words) => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    const land = rowHeld()
+    render(
+      <>
+        <TableDetailPage />
+        <Toaster />
+      </>,
+    )
+    fireEvent.keyDown(document.body, { key: "r" })
+    await waitFor(() => expect(createRow).toHaveBeenCalledWith(TABLE_ID, {}))
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true })
+    settle(land)
+    expect(await screen.findByText(words)).toBeTruthy()
+    expect(undoChange).not.toHaveBeenCalled()
+  })
+
+  // CR-190's P3: a Redo takes no write on its way, so an Undo pressed after it still takes the new row.
+  it("redoes without taking a new row on its way: an Undo pressed after the Redo takes the row by its change set", async () => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    const land = rowHeld()
+    render(<TableDetailPage />)
+    fireEvent.keyDown(document.body, { key: "r" })
+    await waitFor(() => expect(createRow).toHaveBeenCalledWith(TABLE_ID, {}))
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true, shiftKey: true })
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true })
+    await new Promise((r) => setTimeout(r, 30))
+    expect(redoChange, "the Redo waits for the row made before it").not.toHaveBeenCalled()
+    land.answer({ ...row("new"), position: 2, change_set: "c8" })
+    await waitFor(() => expect(undoChange).toHaveBeenCalledWith(TABLE_ID, "c8"))
+    expect(redoChange).toHaveBeenCalledWith(TABLE_ID)
   })
 
   it("leave a field's own undo to it", () => {

@@ -15,7 +15,16 @@ vi.mock("@/components/ui/undoToast", () => ({
 }))
 
 import { FindBar } from "@/components/table/find/FindBar"
+import { TableEditProvider } from "@/lib/tables/tableEdit"
 import type { ViewRows } from "@/lib/tables/viewRows"
+import { UndoOrder, type Aim } from "@/lib/tables/undoOrder"
+
+/** The table's undo order as a write that only sends: the tests of the order hold their own. */
+const pass: UndoOrder["write"] = (_what, send) => send()
+/** The toasts' one Undo path (the page's commit.undo). */
+const undoSet = vi.fn<(set: string) => Promise<unknown>>(async () => undefined)
+/** Lets what has settled so far run on: a press free to run has run. */
+const tick = () => new Promise((r) => setTimeout(r, 0))
 
 const field = (id: string, type: TableField["type"]): TableField => ({ id, table_id: "t", name: id[0].toUpperCase() + id.slice(1), type, config: "{}", position: 0 })
 const shown = [field("name", "text"), field("amount", "number"), field("notes", "long_text")]
@@ -41,18 +50,31 @@ afterEach(() => {
   cleanup()
   transformRows.mockReset()
   undoChange.mockReset()
+  undoSet.mockClear()
   offers.length = 0
 })
 
-function bar(mode: "find" | "replace" = "find", fields = shown) {
+function bar(mode: "find" | "replace" = "find", fields = shown, write = pass) {
   const onReveal = vi.fn()
   const onChanged = vi.fn()
   const onClose = vi.fn()
-  render(<FindBar mode={mode} opened={1} tableId="t" shown={fields} view={viewOf(fields)} onReveal={onReveal} onChanged={onChanged} onClose={onClose} />)
+  render(<FindBar write={write} undo={undoSet} mode={mode} opened={1} tableId="t" shown={fields} view={viewOf(fields)} onReveal={onReveal} onChanged={onChanged} onClose={onClose} />)
   return { onReveal, onChanged, onClose }
 }
 
 describe("the table's find bar (G2b)", () => {
+  it("finds, with no Replace row or its toggle, in a table its reader may only view (V-170)", () => {
+    render(
+      <TableEditProvider value={false}>
+        <FindBar write={pass} undo={undoSet} mode="replace" opened={1} tableId="t" shown={shown} view={viewOf(shown)} onReveal={vi.fn()} onChanged={vi.fn()} onClose={vi.fn()} />
+      </TableEditProvider>,
+    )
+    expect(screen.getByRole("textbox", { name: "Find" })).toBeTruthy()
+    expect(screen.queryByRole("textbox", { name: "Replace with" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Replace all" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^(Show|Hide) replace$/ })).toBeNull()
+  })
+
   it("counts what the server finds over the view, and steps through it with Enter and Shift+Enter", async () => {
     transformRows.mockResolvedValue(found(3))
     const { onReveal } = bar()
@@ -96,7 +118,8 @@ describe("the table's find bar (G2b)", () => {
     // Its Undo brings the matches back into the count.
     transformRows.mockResolvedValueOnce(found(3))
     await act(async () => offers[0].undo())
-    expect(undoChange).toHaveBeenCalledWith("t", "c1")
+    expect(undoSet, "the toast's Undo goes the table's one Undo path, by the replace's change set").toHaveBeenCalledWith("c1")
+    expect(undoChange, "never straight to the ledger").not.toHaveBeenCalled()
     await screen.findByText("1 of 3")
   })
 
@@ -202,7 +225,7 @@ describe("the find bar over a phone's list", () => {
   it("tells the page its matches and the one it's at as it steps, and nothing once it finds nothing or goes", async () => {
     transformRows.mockResolvedValue(found(3))
     const onFound = vi.fn()
-    const { unmount } = render(<FindBar mode="find" opened={1} tableId="t" shown={shown} view={viewOf(shown)} onReveal={() => {}} onChanged={() => {}} onClose={() => {}} onFound={onFound} />)
+    const { unmount } = render(<FindBar write={pass} undo={undoSet} mode="find" opened={1} tableId="t" shown={shown} view={viewOf(shown)} onReveal={() => {}} onChanged={() => {}} onClose={() => {}} onFound={onFound} />)
     const box = screen.getByRole("textbox", { name: "Find" })
     fireEvent.change(box, { target: { value: "acme" } })
     await screen.findByText("1 of 3")
@@ -216,5 +239,36 @@ describe("the find bar over a phone's list", () => {
     await screen.findByText("1 of 3")
     unmount()
     expect(onFound).toHaveBeenLastCalledWith(null)
+  })
+})
+
+// Main's 3b (V-360): a write the reader makes here is theirs to undo, so it enters the table's one undo order when
+// made: a Ctrl+Z pressed while it's on its way waits for it and takes it, never the change before it.
+describe("the find bar's replace, in the table's undo order", () => {
+  const replaceHeld = async (answer: object) => {
+    const order = new UndoOrder()
+    let land!: (r: unknown) => void
+    transformRows.mockResolvedValueOnce(found(3)).mockReturnValueOnce(new Promise((r) => (land = r))).mockResolvedValue(found(0))
+    bar("replace", shown, (w, s, o, t) => order.write(w, s, o, t))
+    fireEvent.change(screen.getByRole("textbox", { name: "Find" }), { target: { value: "acme" } })
+    fireEvent.change(screen.getByRole("textbox", { name: "Replace with" }), { target: { value: "Acme" } })
+    await screen.findByText("1 of 3")
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Replace all" })))
+    const aims: Aim[] = []
+    const pressed = order.press(async (aim) => void aims.push(aim))
+    await tick()
+    expect(aims, "nothing is undone while it's on its way").toEqual([])
+    await act(async () => land({ ...found(0), ...answer }))
+    await pressed
+    return aims
+  }
+  // V-381: the Ctrl+Z took it back already, so no toast offers it again (its Undo would answer 409 "undone already").
+  it("is what a Ctrl+Z pressed while it's on its way takes, by its change set, and then offers no toast", async () => {
+    expect(await replaceHeld({ rows: 2, cells: 3, operation: "op", change_sets: ["c1", "c2"] })).toEqual([{ kind: "set", set: "c1" }])
+    expect(offers, "no toast for a replace the Ctrl+Z took back").toEqual([])
+  })
+  // CR-190's S1: it said "That replace wasn't saved"; it was saved, and changed nothing.
+  it("replaced nothing, so a Ctrl+Z pressed meanwhile takes nothing back and says it changed nothing", async () => {
+    expect(await replaceHeld({})).toEqual([{ kind: "none", what: "replace" }])
   })
 })

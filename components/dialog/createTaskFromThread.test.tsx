@@ -11,23 +11,45 @@ vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn(async (
 const { toast } = vi.hoisted(() => ({ toast: vi.fn() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 let created: ((t: { taskUUID: string; name: string }) => void) | undefined
+let picker: boolean | undefined
 vi.mock("@/components/task/taskCreateForm", () => ({
-  default: (p: { onCreated?: (t: { taskUUID: string; name: string }) => void }) => {
+  default: (p: { onCreated?: (t: { taskUUID: string; name: string }) => void; pickTemplate?: boolean }) => {
     created = p.onCreated
+    picker = p.pickTemplate
     return null
   },
 }))
+// The store's New task, as UnifiedUIManager opened it (closed: a doc comment's task).
+const ui = vi.hoisted(() => ({ createTask: { isOpen: false, data: null as { projectId?: string; pickTemplate?: boolean } | null } }))
+vi.mock("react-redux", () => ({ useSelector: (read: (s: { ui: typeof ui }) => unknown) => read({ ui }) }))
 
 import CreateTaskDialog from "./createTaskDialog"
 import { taskDraftFromMessage } from "@/lib/task/messageToTask"
 
-describe("a doc comment made a task", () => {
-  afterEach(() => {
-    cleanup()
-    post.mockClear()
-    toast.mockClear()
-    created = undefined
+afterEach(() => {
+  cleanup()
+  post.mockClear()
+  toast.mockClear()
+  created = undefined
+  picker = undefined
+  ui.createTask = { isOpen: false, data: null }
+})
+
+describe("New task opened by Alt+C on a list", () => {
+  it("opens the form on the template picker", () => {
+    ui.createTask = { isOpen: true, data: { projectId: "p-launch", pickTemplate: true } }
+    render(<CreateTaskDialog dialogOpenState setOpenState={() => {}} projectId="p-launch" />)
+    expect(picker).toBe(true)
   })
+
+  it("and by C, on the form", () => {
+    ui.createTask = { isOpen: true, data: { projectId: "p-launch", pickTemplate: false } }
+    render(<CreateTaskDialog dialogOpenState setOpenState={() => {}} projectId="p-launch" />)
+    expect(picker).toBeFalsy()
+  })
+})
+
+describe("a doc comment made a task", () => {
 
   it("says it came from the comment", () => {
     const d = taskDraftFromMessage("<p>Fix the footer</p>", { threadID: "th1", link: "https://x/app/doc/d1?thread=th1", authorName: "Dana" })
@@ -40,6 +62,7 @@ describe("a doc comment made a task", () => {
     const source = { threadID: "th1", link: "https://x/app/doc/d1?thread=th1" }
     render(<CreateTaskDialog dialogOpenState setOpenState={() => {}} fromMessage={{ draft: taskDraftFromMessage("<p>Fix</p>", source), source }} onLinked={linked} />)
     expect(created).toBeTypeOf("function")
+    expect(picker).toBeFalsy()
     await act(async () => created!({ taskUUID: "t-9", name: "Fix" }))
     expect(post).toHaveBeenCalledWith("/threads/th1/task", { task_uuid: "t-9" }, OWN_ERRORS)
     expect(linked).toHaveBeenCalledWith("t-9")

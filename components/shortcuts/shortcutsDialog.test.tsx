@@ -135,6 +135,22 @@ describe("a page's own group", () => {
     openList()
     expect(screen.queryByRole("heading", { level: 3, name: "This call" })).toBeNull()
   })
+
+  // INTEGRATOR-76's wR34 FAIL (tableKeys :46): a table's keys come in their own lazy chunk, and "?"
+  // pressed before it lands opened a list that never took them.
+  it("joins a list already open, first, when the page's keys come after it opened, and leaves it with them", async () => {
+    const { showPageKeys } = await import("@/lib/shortcuts/pageGroups")
+    openList()
+    expect(screen.queryByRole("heading", { level: 3, name: "Tables" })).toBeNull()
+    let hide = () => {}
+    act(() => {
+      hide = showPageKeys({ title: "Tables", rows: [{ keys: "Ctrl/⌘ + J", does: "Switch to another table" }] })
+    })
+    expect(screen.getAllByRole("heading", { level: 3 })[0].textContent).toBe("Tables")
+    expect(screen.getByText("Switch to another table")).toBeTruthy()
+    act(() => hide())
+    expect(screen.queryByRole("heading", { level: 3, name: "Tables" })).toBeNull()
+  })
 })
 
 describe("opening the list", () => {

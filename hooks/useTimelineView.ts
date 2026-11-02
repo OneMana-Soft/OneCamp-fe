@@ -29,6 +29,20 @@ export function stuckRoom(end: number, inset = 0): string {
   return `max(0px, calc(${end - inset}px - var(${SCROLL_X}, 0px)))`
 }
 
+/** The CSS variable the scroller keeps the grid's width in view in, beside its scroll. */
+export const VIEW_W = "--timeline-view-w"
+
+/**
+ * How wide a chip at an edge of the view may be, as a CSS length: nothing
+ * while the bar it points to is in view, all of it once the bar is wholly
+ * out of view on its side, before the view (the bar ending `edge` px into the
+ * grid) or after it (the bar starting there). Pure.
+ */
+export function offViewRoom(side: "before" | "after", edge: number): string {
+  const past = side === "before" ? `var(${SCROLL_X}, 0px) - ${edge}px` : `${edge}px - var(${SCROLL_X}, 0px) - var(${VIEW_W}, 100vw)`
+  return `max(0px, calc((${past}) * 999))`
+}
+
 export function useTimelineView({
   scrollRef,
   range,
@@ -54,6 +68,10 @@ export function useTimelineView({
   const place = (el: HTMLDivElement) => {
     const { day, at } = anchorNow()
     el.scrollLeft = Math.max(0, offsetOf(day, range, dayWidth) + dayWidth / 2 - visibleGrid() * at)
+    // What is in view, for the chips at its edges: kept here too, as a placing
+    // that leaves the scroll where it was sends no scroll event.
+    el.style.setProperty(VIEW_W, `${visibleGrid()}px`)
+    el.style.setProperty(SCROLL_X, `${el.scrollLeft}px`)
   }
 
   const onScroll = () => {
@@ -102,13 +120,15 @@ export function useTimelineView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-made when the scroller or the grid changes, as the layout effect is
   }, [scroller, rangeFrom, dayWidth, ready])
 
-  const goToday = () => {
+  /** Scrolls so `day` sits `at` across the view (0 its left edge, 1 its right), smoothly unless motion is reduced. */
+  const goTo = (day: Date, at: number) => {
     const el = scrollRef.current
     if (!el) return
-    anchor.current = { day: today, at: 1 / 3 }
+    anchor.current = { day, at }
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-    el.scrollTo({ left: Math.max(0, offsetOf(today, range, dayWidth) + dayWidth / 2 - visibleGrid() / 3), behavior: reduce ? "auto" : "smooth" })
+    el.scrollTo({ left: Math.max(0, offsetOf(day, range, dayWidth) + dayWidth / 2 - visibleGrid() * at), behavior: reduce ? "auto" : "smooth" })
   }
+  const goToday = () => goTo(today, 1 / 3)
 
-  return { onScroll, goToday, scrollerRef }
+  return { onScroll, goToday, goTo, scrollerRef }
 }

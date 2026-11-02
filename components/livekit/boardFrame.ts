@@ -4,7 +4,6 @@
 // with a call page's first screen (app/firstLoad's route ceilings).
 
 import * as React from "react"
-import { PHONE_TOOL_ROW } from "@/components/board/excalidrawPart"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
@@ -54,28 +53,5 @@ export function useBoardCompact(ref: React.RefObject<HTMLElement | null>): boole
     return () => watch.disconnect()
   }, [ref])
   return compact
-}
-
-
-/**
- * Marks the canvas's phone tool row in the frame at ref as a strip that
- * scrolls sideways (data-edge-fade, app/interaction.css's one rule for every
- * strip): its edge fades while there is more past it, and a scrolled row
- * rests on a whole tool. The row is the canvas's own and drawn again as the
- * canvas likes, so it is marked whenever it appears.
- */
-export function useToolRowEdgeFade(ref: React.RefObject<HTMLElement | null>): void {
-  React.useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const mark = () => {
-      for (const row of el.querySelectorAll(`${PHONE_TOOL_ROW}:not([data-edge-fade])`)) row.setAttribute("data-edge-fade", "")
-    }
-    mark()
-    if (typeof MutationObserver === "undefined") return
-    const watch = new MutationObserver(mark)
-    watch.observe(el, { childList: true, subtree: true })
-    return () => watch.disconnect()
-  }, [ref])
 }
 

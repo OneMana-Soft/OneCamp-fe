@@ -30,7 +30,7 @@ export const AREA_RULES = [
   // Calendar: events, booking, focus time.
   ...rule("calendar", /^components\/(calendar|booking)\//, /^app\/(app\/calendar|book|booking|rsvp)\//, /^lib\/calendar\//, /^hooks\/use(Calendar|FocusTime|StartFocus)/, /^services\/(bookingService|eventInvitationService)\./, /\/(event|calendar|booking)[A-Z][^/]*\.(t|j)sx?$/),
   // Tables.
-  ...rule("tables", /^components\/table\//, /^app\/app\/tables\//, /^lib\/(tables|csv)\b/, /^services\/(tableService|tableRows|tableCalls|tableViews)\b/),
+  ...rule("tables", /^components\/table\//, /^app\/app\/tables\//, /^lib\/(tables|csv)\b/, /^services\/(tableService|tableEditingService|tableRows|tableCalls|tableViews)\b/),
   // Docs: the editor, the tree, comments, live entities.
   ...rule("docs", /^components\/(doc|docEditor|docTree|docComments|docTemplates|minimal-tiptap|entityLink|liveEntity)\//, /^app\/app\/doc\//, /^lib\/(doc[A-Za-z]*|docs|docComments|codec|anchors|embeds|liveEntity|export)(\/|\.)/, /^hooks\/useDoc/, /^services\/(doc[A-Za-z]*|entityLinkService|followService|connectedService)\./),
   // Projects and tasks.

@@ -16,6 +16,8 @@ import { BOARD_MAX_ELEMENTS } from "@/components/board/boardCanvas"
 import { CAPTURE, bumped } from "@/lib/board/binding"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
+import { useSheetMode } from "@/components/ui/overlayMode"
 import { Sparkles, X, Loader2, Workflow, Milestone, Route, Network, Users, Smartphone, Monitor, ChevronDown } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
@@ -637,33 +639,31 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
     }
   }
 
+  const sheet = useSheetMode()
   if (disabled) return null
 
-  return (
+  // On a phone (useSheetMode, which alone decides) the composer is the app's sheet: what it asks, in the
+  // sheet's one scroller, and its actions (Plan first and Generate, or Apply change) pinned at its foot, over
+  // the keyboard while the prompt has it (miro-40 H1). A computer keeps the card over the board's foot.
+  const title = mode === "refine" ? "Refine diagram" : "Generate with AI"
+  // A ready plan's row (Dismiss, Approve & build): in the plan's box on the card, pinned at the sheet's foot.
+  const planRow = plan?.ready ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-2xs text-muted-foreground">
+                      Type: {DIAGRAM_TYPES.find((t) => t.value === plan.suggested_type)?.label || "Auto"}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Button size="sm" variant="ghost" onClick={() => setPlan(null)} className="h-7 text-xs">
+                        Dismiss
+                      </Button>
+                      <Button size="sm" onClick={approvePlan} disabled={isStreaming || !api} className="h-7 gap-1.5 text-xs">
+                        <Sparkles className="h-3.5 w-3.5" /> Approve &amp; build
+                      </Button>
+                    </div>
+                  </div>
+  ) : null
+  const composeBody = (planActions: React.ReactNode) => (
     <>
-      <div className="pointer-events-none absolute bottom-[124px] left-1/2 z-30 -translate-x-1/2 max-sm:bottom-[11.5rem]">
-        {open ? (
-        <div data-board-ai="" className="content-float float-below pointer-events-auto w-[min(92vw,32.5rem)] rounded-[16px] bg-pop p-4 text-ink shadow-e3">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-heading text-ink">
-              <Sparkles className="size-4 text-agent" />
-              <span>{mode === "refine" ? "Refine diagram" : "Generate with AI"}</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          {/* AI decides the diagram type by default; the picker is optional and
-              collapsed so the common path is just "describe it and generate". */}
-          {mode === "compose" && (
-            <>
           <div className="mb-2">
             <button
               type="button"
@@ -814,19 +814,7 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
                       <li key={i}>{s}</li>
                     ))}
                   </ol>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-2xs text-muted-foreground">
-                      Type: {DIAGRAM_TYPES.find((t) => t.value === plan.suggested_type)?.label || "Auto"}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <Button size="sm" variant="ghost" onClick={() => setPlan(null)} className="h-7 text-xs">
-                        Dismiss
-                      </Button>
-                      <Button size="sm" onClick={approvePlan} disabled={isStreaming || !api} className="h-7 gap-1.5 text-xs">
-                        <Sparkles className="h-3.5 w-3.5" /> Approve &amp; build
-                      </Button>
-                    </div>
-                  </div>
+                  {planActions}
                 </>
               ) : (
                 <>
@@ -847,7 +835,10 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
             </div>
           )}
 
-          <div className="mt-2 flex items-center justify-between gap-2">
+    </>
+  )
+  const composeActions = (
+          <div className={cn("flex items-center justify-between gap-2", !sheet && "mt-2")}>
             <div className="flex min-w-0 items-center gap-1.5">
               <AiModelPicker />
               <span className="hidden truncate text-2xs text-muted-foreground sm:inline">
@@ -887,11 +878,9 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
               </Button>
             </div>
           </div>
-            </>
-          )}
-
-          {mode === "refine" && (
-            <div className="space-y-2">
+  )
+  const refineBody = (
+    <>
               <p className="text-2xs text-muted-foreground">
                 Tell AI how to change the diagram, or go deeper. Each change updates it in place.
               </p>
@@ -930,6 +919,9 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
                   {refineError}
                 </p>
               )}
+    </>
+  )
+  const refineActions = (
               <div className="flex items-center justify-between gap-2">
                 <Button variant="ghost" size="sm" onClick={startNewDiagram} disabled={isSubmitting} className="gap-1.5">
                   <Sparkles className="h-3.5 w-3.5" /> New diagram
@@ -939,9 +931,57 @@ function BoardAIPanel({ boardId, api, disabled, open: openProp, onOpenChange }: 
                   {isSubmitting ? "Applying" : "Apply change"}
                 </Button>
               </div>
+  )
+
+  return (
+    <>
+      <div className="pointer-events-none absolute bottom-[124px] left-1/2 z-30 -translate-x-1/2 max-sm:bottom-[11.5rem]">
+        {open ? (
+        sheet ? (
+          <Drawer open onOpenChange={(o) => !o && setOpen(false)} detent="medium">
+            <DrawerContent
+              data-board-ai=""
+              header={<DrawerTitle asChild><p className="text-heading text-ink">{title}</p></DrawerTitle>}
+              footer={mode === "compose" ? (planRow ?? composeActions) : refineActions}
+            >
+              <div className={cn("px-4 pb-2", mode === "refine" && "space-y-2")}>{mode === "compose" ? composeBody(null) : refineBody}</div>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+        <div data-board-ai="" className="content-float float-below pointer-events-auto w-[min(92vw,32.5rem)] rounded-[16px] bg-pop p-4 text-ink shadow-e3">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-heading text-ink">
+              <Sparkles className="size-4 text-agent" />
+              <span>{mode === "refine" ? "Refine diagram" : "Generate with AI"}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          {/* AI decides the diagram type by default; the picker is optional and
+              collapsed so the common path is just "describe it and generate". */}
+          {mode === "compose" && (
+            <>
+              {composeBody(planRow)}
+              {composeActions}
+            </>
+          )}
+
+          {mode === "refine" && (
+            <div className="space-y-2">
+              {refineBody}
+              {refineActions}
             </div>
           )}
         </div>
+        )
       ) : controlled ? null : (
         <Button
           onClick={() => setOpen(true)}

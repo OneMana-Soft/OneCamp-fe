@@ -13,7 +13,9 @@ import { resetGrowForTests } from "@/hooks/useGrow"
 const state = vi.hoisted(() => {
   let go = () => {}
   const chunk = new Promise<void>((resolve) => (go = resolve))
-  return { chunk, go: () => go(), loading: false, projects: undefined as ProjectOverview[] | undefined }
+  let land = () => {}
+  const timeline = new Promise<void>((resolve) => (land = resolve))
+  return { chunk, go: () => go(), timeline, land: () => land(), loading: false, projects: undefined as ProjectOverview[] | undefined }
 })
 
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => <a href={href} {...rest}>{children}</a> }))
@@ -24,9 +26,15 @@ vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: me
 vi.mock("@/hooks/useProjectsOverview", () => ({ useProjectsOverview: () => ({ projects: state.projects, isLoading: state.loading, isError: false, mutate: vi.fn() }) }))
 // Every project's milestones, which the overview reads after its list (linear-16): none here.
 vi.mock("@/hooks/useMyMilestones", () => ({ useMyMilestones: () => new Map() }))
+// Each project's forecast (linear-20) is its own tests': none here.
+vi.mock("@/hooks/useProjectForecasts", () => ({ useProjectForecasts: () => undefined }))
 vi.mock("@/components/goals/GoalsView", () => ({ GoalsView: () => null }))
 vi.mock("@/components/reports/ReportsView", () => ({ ReportsView: () => null }))
-vi.mock("@/components/project/ProjectsTimeline", () => ({ ProjectsTimeline: () => null }))
+// The Timeline view's chunk too (head 2c): it arrives only when the test lets it.
+vi.mock("@/components/project/ProjectsTimeline", async () => {
+  await state.timeline
+  return { ProjectsTimeline: ({ projects }: { projects: unknown[] }) => <div data-projects-timeline="">{projects.length} on the timeline</div> }
+})
 vi.mock("@/components/project/ProjectsWorkload", () => ({ ProjectsWorkload: () => null }))
 // The Cycles view's chunk arrives only when the test lets it.
 vi.mock("@/components/work/RunningCycles", async () => {
@@ -60,6 +68,18 @@ describe("the projects overview's loading rows", () => {
     state.go()
     expect(await screen.findByText("cycles at a desk")).toBeTruthy()
     expect(screen.queryByRole("status", { name: "Loading cycles" })).toBeNull()
+  })
+
+  it("holds the Timeline view's place with the list's loading rows while its chunk is on its way, then draws the view", async () => {
+    state.projects = [{ project_uuid: "p1", project_name: "Billing revamp", is_admin: 1, open: 2, done: 1, overdue: 0, due_soon: 0 }]
+    render(<ProjectsOverview />)
+    fireEvent.click(screen.getByRole("tab", { name: /Timeline/ }))
+    const rows = screen.getByRole("status", { name: "Loading projects" })
+    expect(rows.children).toHaveLength(6)
+    expect(screen.getByRole("tab", { name: /Timeline/ }).getAttribute("aria-selected")).toBe("true")
+    state.land()
+    expect(await screen.findByText("1 on the timeline")).toBeTruthy()
+    expect(screen.queryByRole("status", { name: "Loading projects" })).toBeNull()
   })
 
   it("holds the projects table's place with its header and five rows a project's row high", () => {

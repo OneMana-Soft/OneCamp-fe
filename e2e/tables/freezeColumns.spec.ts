@@ -21,8 +21,10 @@ const rows = () => [
 ]
 const widths = { name: 200, where: 180, notes: 260, owner: 260, budget: 260 }
 
-async function open(browser: Browser, testInfo: TestInfo, device: { viewport: { width: number; height: number }; isMobile?: boolean; hasTouch?: boolean }, frozen?: number) {
+async function open(browser: Browser, testInfo: TestInfo, device: { viewport: { width: number; height: number }; isMobile?: boolean; hasTouch?: boolean }, frozen?: number, saved = false) {
   const server = new TableServer(fields, rows())
+  // Opened on a saved view, whose change draws the view's Save / Reset bar.
+  if (saved) server.savedViews = [{ id: "5a7e0000-0000-4000-8000-0000000000ab", table_id: server.id, name: "Everything", type: "grid", config: "{}", position: 0 }]
   const context = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), ...device })
   const page = await context.newPage()
   await server.attach(page, testInfo, SAM)
@@ -86,5 +88,31 @@ test("at 390 by touch, a phone keeps one frozen column, whatever the reader kept
   await expect(m.getByRole("button", { name: "Field settings" })).toBeVisible()
   await expect(m.getByRole("button", { name: "Freeze up to here" })).toHaveCount(0)
   await expect(m.getByRole("button", { name: "Unfreeze columns" })).toHaveCount(0)
+  await t.context.close()
+})
+
+// airtable-04 (DESIGN-BUILD-88's LIVE look, 2 Nov): after freezing, with the
+// view's Save / Reset bar up, the "Row height and colour" menu sets each of
+// the four heights, each found by its name alone ("Tall", as a voice or a
+// screen reader says it; its pixels are a hint for the eye).
+test("at 1280, after freezing, with the view's Save / Reset bar up, the row height menu sets each of the four heights by its name", async ({ browser }, testInfo) => {
+  const t = await open(browser, testInfo, { viewport: { width: 1280, height: 800 } }, undefined, true)
+  const m = await t.menu("Notes")
+  await m.getByRole("button", { name: "Freeze up to here" }).click()
+  await expect(t.frozenHeads).toHaveCount(3)
+  await expect(t.page.locator("[data-view-actions]").getByRole("button", { name: "Reset", exact: true })).toBeVisible()
+  const first = t.page.locator("tbody tr[data-row]").first()
+  for (const [name, px] of [
+    ["Short", 32],
+    ["Medium", 40],
+    ["Tall", 64],
+    ["Extra tall", 104],
+  ] as const) {
+    await t.page.getByRole("button", { name: "Row height and colour" }).click()
+    await t.page.getByRole("menuitemradio", { name, exact: true }).click({ timeout: 10_000 })
+    await expect.poll(async () => Math.round((await first.boundingBox())?.height ?? 0)).toBe(px)
+  }
+  await t.page.getByRole("button", { name: "Row height and colour" }).click()
+  await expect(t.page.getByRole("menuitemradio", { name: "Extra tall", exact: true })).toHaveAttribute("aria-checked", "true")
   await t.context.close()
 })

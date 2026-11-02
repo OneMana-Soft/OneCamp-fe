@@ -5,7 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 import { cn } from "@/lib/utils/helpers/cn"
 import type { HandedOn } from "@/lib/keys/escape"
-import { useSheetMark } from "@/components/ui/sheetMark"
+import { sheetEdge, useSheetMark } from "@/components/ui/sheetMark"
 import { TitledBy } from "@/components/ui/sheetTitle"
 
 /**
@@ -47,6 +47,7 @@ export function OverlaySheet({
   escape = "close",
   className,
   children,
+  onClick,
   ...rest
 }: {
   open: boolean
@@ -65,9 +66,10 @@ export function OverlaySheet({
   const [titledBy, setTitledBy] = React.useState<string | null>(null)
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogPrimitive.Overlay className="shell-scrim" onClick={onClose} />
+      <DialogPrimitive.Overlay className="shell-scrim" onClick={sheetEdge(onClose)} />
       <DialogPrimitive.Content
         ref={marks}
+        onClick={sheetEdge(onClick)}
         aria-describedby={undefined}
         data-v3-sheet=""
         data-overlay-sheet={escape === "own" ? "own-escape" : ""}

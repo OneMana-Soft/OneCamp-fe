@@ -107,7 +107,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                     <ProjectGoalChip projectId={projectId} className="min-w-0 shrink overflow-hidden" />
                 </div>
                 {/* Its plan (linear-15), a row of its own that scrolls sideways to the screen's edges. */}
-                <ProjectPlanStrip projectId={projectId} members={info?.project_members ?? []} className="-mx-4 px-4" />
+                <ProjectPlanStrip projectId={projectId} className="-mx-4 px-4" />
             </div>
         <SectionTabs
             tabs={[

@@ -439,6 +439,30 @@ body {
   [data-edge-fade] > :not([aria-hidden="true"]) {
     scroll-snap-align: start;
   }
+  /* A strip at rest at its start stays there when a tab is drawn ahead of
+     the one it rested on (DESIGN-BUILD-87, 2 Nov: New task's Type chip, drawn
+     once the project is known, scrolled a phone's chip row 48px and showed
+     only its own last letters). A browser keeps a snapped strip on the tab it
+     rested on when the row's layout changes; this mark at the strip's start
+     is what a strip at its start rests on, and it never moves. A strip the
+     person scrolled still keeps their tab (e2e/edgeFade). With no weight
+     (:where), so a strip's own position wins. A canvas's own tool row is laid
+     out by its library, whose menus are placed against boxes past the row, so
+     it is left as it is (components/livekit/boardFrame). A column (block)
+     scrolls down, where nothing snaps. */
+  :where([data-edge-fade]:not([data-edge-fade="block"], .excalidraw *)) {
+    position: relative;
+  }
+  :where([data-edge-fade]:not([data-edge-fade="block"], .excalidraw *))::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+    scroll-snap-align: start;
+  }
   @supports (animation-timeline: scroll()) {
     [data-edge-fade] {
       -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--ix-fade-s), #000 calc(100% - var(--ix-fade-e)), transparent);

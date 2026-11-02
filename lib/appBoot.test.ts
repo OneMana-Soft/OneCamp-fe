@@ -17,6 +17,8 @@ import {
 import { MEMBER_KEY, forgetMember, rememberMember } from "./memberMark"
 import { VALID_COLOR_THEMES } from "@/components/activeTheme/activeTheme"
 import { GROUND } from "@/lib/pwa/grounds"
+import { MANIFEST } from "@/lib/pwa/manifests"
+import { TREE_ROOM_KEY } from "@/components/docTree/treeRoom"
 
 // A cold open of an app page was blank white for seconds (about seven on a
 // 10 Mb/s line): the providers draw nothing until the stored state is read, so
@@ -69,6 +71,8 @@ afterEach(() => {
   document.documentElement.classList.remove("dark")
   localStorage.removeItem("onecamp-theme-color")
   localStorage.removeItem(MEMBER_KEY)
+  localStorage.removeItem(TREE_ROOM_KEY)
+  document.documentElement.style.removeProperty("--docs-tree-h")
 })
 
 const themeOf = () => [...screenEl.classList].filter((c) => c.startsWith("theme-"))
@@ -138,6 +142,60 @@ describe("the first paint of an app page", () => {
   it("leaves the browser's bar alone where it shows no splash", () => {
     openAt("/signup")
     expect([...new Set(metas().map((m) => m.content))]).toEqual(["#000000"])
+  })
+
+  // V-322: Chrome on Android paints an installed app's navigation bar with its
+  // manifest's theme colour. It reads the manifest when it installs the app
+  // and when it checks it for an update, as the page finishes loading: the
+  // app's own code can come later than that, so the pick is the boot script's.
+  it("links the installed app's manifest for the mode it shows, where it shows the splash", () => {
+    const link = document.createElement("link")
+    link.rel = "manifest"
+    document.head.appendChild(link)
+    const at = (url: string, dark: boolean, member = false) => {
+      link.setAttribute("href", MANIFEST.light)
+      document.documentElement.classList.toggle("dark", dark)
+      vi.stubGlobal("innerWidth", 390)
+      openAt(url, undefined, { member })
+      vi.unstubAllGlobals()
+      return link.getAttribute("href")
+    }
+    try {
+      expect(at("/app/home", true)).toBe(MANIFEST.dark)
+      expect([...new Set(metas().map((m) => m.content))], "the bar takes its ground beside it").toEqual([GROUND.dark.phone])
+      expect(at("/app/home", false)).toBe(MANIFEST.light)
+      expect(at("/", true, true), "the installed app's start page, for a member").toBe(MANIFEST.dark)
+      expect(at("/signup", true), "no splash, no pick").toBe(MANIFEST.light)
+    } finally {
+      link.remove()
+    }
+  })
+
+  it("gives the sidebar's docs tree the room it last took on this device, and only a room a tree could take (V-266)", () => {
+    const roomAt = (url: string, kept: string | null) => {
+      document.documentElement.style.removeProperty("--docs-tree-h")
+      if (kept === null) localStorage.removeItem(TREE_ROOM_KEY)
+      else localStorage.setItem(TREE_ROOM_KEY, kept)
+      openAt(url)
+      return document.documentElement.style.getPropertyValue("--docs-tree-h")
+    }
+    // The key DocsTreeGroups keeps, read before any code runs: the stand-in takes that room.
+    expect(roomAt("/app/project", "150")).toBe("150px")
+    expect(roomAt("/app", "30")).toBe("30px")
+    // Nothing kept, or nothing a tree could take: the stand-in keeps an empty tree's one row.
+    for (const kept of [null, "", "0", "-30", "abc", "4000", "1e9"]) expect(roomAt("/app/project", kept), `kept ${kept}`).toBe("")
+    // No sidebar where there is no app.
+    expect(roomAt("/signup", "150")).toBe("")
+    // Storage the browser blocks: the splash still shows, and the stand-in keeps an empty tree's one row.
+    const blocked = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked")
+    })
+    try {
+      expect(roomAt("/app/project", "150")).toBe("")
+      expect(document.documentElement.hasAttribute(APP_BOOT_ATTR)).toBe(true)
+    } finally {
+      blocked.mockRestore()
+    }
   })
 
   it("is hidden unless the document is marked", () => {

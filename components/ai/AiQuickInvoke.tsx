@@ -53,8 +53,8 @@ function AiQuickInvoke() {
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return
       if (e.key.toLowerCase() !== "j") return
       // Left alone when something under the focus already used the key (the
-      // reaction picker walks its grid with Ctrl J), as the sidebar's own
-      // listener leaves it.
+      // reaction picker walks its grid with Ctrl J), or a page did: a table's
+      // Ctrl J opens its switcher.
       if (e.defaultPrevented) return
       e.preventDefault()
       if (isAiOpen) {
@@ -63,8 +63,13 @@ function AiQuickInvoke() {
         dispatch(openRightPanel({ aiChatOpen: true, aiContextType: surfaceTypeFromPath(pathname) }))
       }
     }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
+    // On the window, so it hears the key after every listener on the document,
+    // whatever order they were added in. On the document it ran first whenever
+    // a table's own listener was added after it (as each change to the page
+    // adds it again): the panel opened beside the table switcher, and its field
+    // took the letters typed for the switcher (tableKeys.spec :89, 1 Nov).
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
   }, [dispatch, pathname, isAiOpen])
 
   return null

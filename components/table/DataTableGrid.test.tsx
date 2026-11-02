@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi, beforeAll } from "vitest"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 
 const patchRow = vi.fn()
+const createRow = vi.fn()
 const updateField = vi.fn()
 const parsed = vi.fn()
 // AI on, unless a test says otherwise (hooks/useClientConfig reads the server's config).
@@ -15,6 +16,7 @@ vi.mock("@/services/tableService", async (importOriginal) => {
   return {
     ...real,
     patchRow: (...args: unknown[]) => patchRow(...args),
+    createRow: (...args: unknown[]) => createRow(...args),
     // Counted: a row that renders reads its values.
     parseRowValues: (r: Parameters<typeof real.parseRowValues>[0]) => {
       parsed(r.id)
@@ -34,7 +36,10 @@ vi.mock("@/lib/tables/ledger", async (importOriginal) => {
   return { ...real, batchRows: (...args: Parameters<typeof real.batchRows>) => (batch.rows ? batch.rows(...args) : real.batchRows(...args)) }
 })
 
-import { DataTableGrid, LiveCells, SelectionPart, SummaryPart, groupedNumber } from "@/components/table/DataTableGrid"
+import { DataTableGrid, LiveCells, SelectionPart, SummaryPart, TableKeysPart, groupedNumber } from "@/components/table/DataTableGrid"
+import { TableEditProvider } from "@/lib/tables/tableEdit"
+import { useCellCommit } from "@/lib/tables/useCellCommit"
+import { useMemo } from "react"
 import { optionColorClass } from "@/components/table/optionChip"
 import type { TableField, TableRow } from "@/services/tableService"
 import type { QuerySummaries } from "@/lib/querySpec/types"
@@ -43,7 +48,7 @@ import { cellPickers } from "@/components/table/cellPickerPart"
 
 // The column menus, the cell pickers are chunks of their own
 // (lazyView): loaded once, before these tests, they draw at once.
-beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), SummaryPart.warm(), LiveCells.warm(), SelectionPart.warm(), import("@/components/table/columnOps")]))
+beforeAll(() => Promise.all([loadColumnMenus(), cellPickers.warm(), SummaryPart.warm(), LiveCells.warm(), SelectionPart.warm(), TableKeysPart.warm(), import("@/components/table/columnOps")]))
 
 const fields: TableField[] = [
   { id: "item", table_id: "t", name: "Item", type: "text", config: "{}", position: 0 },
@@ -64,6 +69,7 @@ function rowsOf(n: number): TableRow[] {
 afterEach(() => {
   cleanup()
   patchRow.mockReset()
+  createRow.mockReset()
   vi.useRealTimers()
 })
 
@@ -102,6 +108,74 @@ describe("a narrow table's grid", () => {
   })
 })
 
+describe("a table its reader may only view (V-170)", () => {
+  it("never brings a cell to life, offers no New row, and clears or ticks nothing", () => {
+    patchRow.mockClear()
+    const rows = vi.fn()
+    batch.rows = rows
+    try {
+      render(
+        <TableEditProvider value={false}>
+          <DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage={false} onChange={() => {}} />
+        </TableEditProvider>,
+      )
+      const items = () => screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
+      expect(document.querySelector("tbody [data-rest]")).toBeNull()
+      fireEvent.pointerOver(items()[0])
+      expect(items()[0].readOnly).toBe(true)
+      items()[1].focus()
+      fireEvent.keyDown(items()[1], { key: "Z" })
+      expect(items()[1].readOnly).toBe(true)
+      fireEvent.keyDown(items()[1], { key: "Delete" })
+      fireEvent.click(screen.getAllByRole("checkbox", { name: "Paid" })[0])
+      expect(patchRow).not.toHaveBeenCalled()
+      expect(rows).not.toHaveBeenCalled()
+      expect(screen.queryByRole("button", { name: /New row/ })).toBeNull()
+    } finally {
+      batch.rows = null
+    }
+  })
+
+  it("still edits where the page says its reader may", () => {
+    render(
+      <TableEditProvider value>
+        <DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage={false} onChange={() => {}} />
+      </TableEditProvider>,
+    )
+    expect(document.querySelector("tbody [data-rest]")).not.toBeNull()
+    expect(screen.getByRole("button", { name: /New row/ })).toBeTruthy()
+  })
+
+  // CR-164 F2: ⌘; (Ctrl+; off a Mac) saves a date cell's day from a cell at
+  // rest, with no box brought to life to refuse it. A viewer's grid takes no
+  // such key, saves nothing, and the cell keeps its day: one three years
+  // before today, which the key's today never is, whatever day the suite runs.
+  it("takes no Ctrl+; on a date cell: nothing is saved and the cell keeps its day", async () => {
+    const then = new Date()
+    then.setFullYear(then.getFullYear() - 3)
+    const iso = `${then.getFullYear()}-${String(then.getMonth() + 1).padStart(2, "0")}-${String(then.getDate()).padStart(2, "0")}`
+    const dated: TableField[] = [...fields, { id: "due", table_id: "t", name: "Due", type: "date", config: "{}", position: 3 }]
+    const rows = rowsOf(2).map((r) => ({ ...r, values: JSON.stringify({ ...JSON.parse(r.values), due: iso }) }))
+    patchRow.mockResolvedValue({})
+    render(
+      <TableEditProvider value={false}>
+        <DataTableGrid tableId="t" fields={dated} rows={rows} canManage={false} onChange={() => {}} />
+      </TableEditProvider>,
+    )
+    const due = document.querySelector('tbody tr[data-row="r1"] td[data-field="due"] [data-cell]') as HTMLElement
+    const day = due.closest("td")!.textContent
+    expect(day).toContain(String(then.getFullYear()))
+    due.focus()
+    let taken = false
+    await act(async () => {
+      taken = !fireEvent.keyDown(due, { key: ";", ctrlKey: true })
+    })
+    expect(patchRow).not.toHaveBeenCalled()
+    expect(due.closest("td")!.textContent).toBe(day)
+    expect(taken).toBe(false)
+  })
+})
+
 describe("a big table's grid", () => {
   it("puts only a screenful of a thousand rows in the page", () => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(1000)} canManage onChange={() => {}} />)
@@ -114,19 +188,27 @@ describe("a big table's grid", () => {
     expect(parseInt(spacer.style.height, 10)).toBeGreaterThan(900 * 30)
   })
 
-  it("moves down on ArrowDown and Enter, and left from the start of the text", () => {
+  // V-295 (main's 21:0x 1 Nov ruling): Enter on a selected cell opens it, the
+  // caret at its text's end, as a sheet's does; Enter in it then saves it,
+  // going down a row.
+  it("moves down on ArrowDown, opens a selected cell on Enter and saves it on the next, going down, and goes left from the start of the text", () => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(20)} canManage onChange={() => {}} />)
-    const items = screen.getAllByRole("textbox", { name: "Item" })
-    const costs = screen.getAllByRole("textbox", { name: "Cost" })
-    items[0].focus()
-    fireEvent.keyDown(items[0], { key: "ArrowDown" })
-    expect(document.activeElement).toBe(items[1])
-    fireEvent.keyDown(items[1], { key: "Enter" })
-    expect(document.activeElement).toBe(items[2])
-    costs[2].focus()
-    ;(costs[2] as HTMLInputElement).setSelectionRange(0, 0)
-    fireEvent.keyDown(costs[2], { key: "ArrowLeft" })
-    expect(document.activeElement).toBe(items[2])
+    const items = () => screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
+    const costs = () => screen.getAllByRole("textbox", { name: "Cost" }) as HTMLInputElement[]
+    items()[0].focus()
+    fireEvent.keyDown(items()[0], { key: "ArrowDown" })
+    expect(document.activeElement).toBe(items()[1])
+    fireEvent.keyDown(items()[1], { key: "Enter" })
+    const open = items()[1]
+    expect(document.activeElement).toBe(open)
+    expect(open.readOnly).toBe(false)
+    expect([open.selectionStart, open.selectionEnd]).toEqual([6, 6])
+    fireEvent.keyDown(open, { key: "Enter" })
+    expect(document.activeElement).toBe(items()[2])
+    costs()[2].focus()
+    costs()[2].setSelectionRange(0, 0)
+    fireEvent.keyDown(costs()[2], { key: "ArrowLeft" })
+    expect(document.activeElement).toBe(items()[2])
   })
 
   // A box at rest (a cell the keys reached) is read-only with all of it
@@ -187,22 +269,95 @@ describe("a big table's grid", () => {
     expect(document.activeElement).toBe(items()[1])
   })
 
-  // The press put the caret in the box at rest, or a drag's selection; the
-  // live box takes it, as a box the mouse came onto takes the press itself.
-  // Its whole text was selected, so a word typed after the click replaced it.
-  it("keeps the caret a mouse's press put in a cell it opened at rest", () => {
+  // V-295 (main's 21:0x 1 Nov ruling): a mouse's or a pen's click selects a
+  // cell it finds unfocused, its whole text, so a word typed replaces it, as a
+  // sheet's click does; a drag's selection stays. A double-click puts the
+  // caret where it was pressed. jsdom puts no caret on a press: each test
+  // puts the one a browser's press would.
+  it.each(["mouse", "pen"] as const)("selects the whole text of a cell at rest a %s clicks while another holds the focus, and keeps a drag's selection", (pointerType) => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
     const items = () => screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
     live(items()[0]).focus()
     const pressed = items()[1]
-    fireEvent.pointerOver(pressed, { pointerType: "mouse" })
-    press(pressed, "mouse")
-    // Where a browser's press puts the caret: jsdom puts none.
-    pressed.setSelectionRange(2, 4)
+    fireEvent.pointerOver(pressed, { pointerType })
+    press(pressed, pointerType)
+    pressed.setSelectionRange(2, 2)
     fireEvent.click(pressed, { detail: 1 })
     const opened = items()[1]
     expect(document.activeElement).toBe(opened)
-    expect([opened.selectionStart, opened.selectionEnd]).toEqual([2, 4])
+    expect(opened.readOnly).toBe(false)
+    expect([opened.selectionStart, opened.selectionEnd]).toEqual([0, 6])
+    const dragged = items()[2]
+    fireEvent.pointerOver(dragged, { pointerType })
+    press(dragged, pointerType)
+    dragged.setSelectionRange(1, 3)
+    fireEvent.click(dragged, { detail: 1 })
+    expect(document.activeElement).toBe(items()[2])
+    expect([items()[2].selectionStart, items()[2].selectionEnd]).toEqual([1, 3])
+  })
+
+  it("selects the whole text of a cell the mouse brought to life as it clicks it, and its double-click puts the caret where it was pressed", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
+    const items = () => screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
+    fireEvent.pointerOver(items()[1], { pointerType: "mouse" })
+    const box = items()[1]
+    expect(box.readOnly).toBe(false)
+    press(box, "mouse")
+    // The press's own: the focus, and the caret where it landed.
+    box.focus()
+    box.setSelectionRange(2, 2)
+    fireEvent.click(box, { detail: 1 })
+    expect([box.selectionStart, box.selectionEnd]).toEqual([0, 6])
+    // The second press: the caret goes back where the first put it, where a browser would select a word.
+    press(box, "mouse")
+    expect(fireEvent.mouseDown(box, { detail: 2 })).toBe(false)
+    fireEvent.click(box, { detail: 2 })
+    expect(document.activeElement).toBe(box)
+    expect([box.selectionStart, box.selectionEnd]).toEqual([2, 2])
+  })
+
+  it("selects the whole text of the cell the keys reached when it is clicked, as a sheet's click does", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
+    const items = () => screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
+    const reached = items()[1]
+    reached.focus()
+    reached.select()
+    fireEvent.pointerOver(reached, { pointerType: "mouse" })
+    expect(items()[1]).toBe(reached)
+    press(reached, "mouse")
+    reached.setSelectionRange(2, 2)
+    fireEvent.click(reached, { detail: 1 })
+    const opened = items()[1]
+    expect(document.activeElement).toBe(opened)
+    expect(opened.readOnly).toBe(false)
+    expect([opened.selectionStart, opened.selectionEnd]).toEqual([0, 6])
+  })
+
+  it("leaves the caret where a press put it in the cell being typed in, and that cell's double-click to the browser", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
+    const items = () => screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
+    const box = live(items()[1])
+    box.focus()
+    fireEvent.change(box, { target: { value: "Line 1 and more" } })
+    press(box, "mouse")
+    box.setSelectionRange(3, 3)
+    fireEvent.click(box, { detail: 1 })
+    expect([box.selectionStart, box.selectionEnd]).toEqual([3, 3])
+    press(box, "mouse")
+    expect(fireEvent.mouseDown(box, { detail: 2 })).toBe(true)
+  })
+
+  it("leaves a finger's tap to the touch screen's own selection", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} />)
+    const items = () => screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
+    live(items()[0]).focus()
+    press(items()[1], "touch")
+    const box = items()[1]
+    expect(box.readOnly).toBe(false)
+    box.focus()
+    box.setSelectionRange(2, 2)
+    fireEvent.click(box, { detail: 1 })
+    expect([box.selectionStart, box.selectionEnd]).toEqual([2, 2])
   })
 
   // The mouse coming onto the cell the keys are on leaves it as it is: brought
@@ -892,5 +1047,86 @@ describe("a cell left while its save is on its way", () => {
     await act(async () => fail(new Error("refused")))
     expect(costBox().value).toBe("100")
     expect(costBox().closest("td")!.hasAttribute("aria-busy")).toBe(false)
+  })
+})
+
+// airtable-04 (AV-6, AV-7): Space on a selected cell expands its row's record,
+// the grid naming the cell it came from (the page puts the focus back there as
+// Escape closes it). Shift+Space still selects the row, as in a spreadsheet, a
+// box being typed in types its space, and a checkbox keeps Space for its tick.
+// ⌘; (Ctrl+; off a Mac) sets a date cell to today, through the cell's own save.
+describe("a selected cell's keys (airtable-04)", () => {
+  it("Space expands the row's record from a cell at rest, never from a box in use or a checkbox", () => {
+    const opened = vi.fn()
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} onOpenRow={opened} />)
+    const items = () => screen.getAllByRole("textbox", { name: "Item" }) as HTMLTextAreaElement[]
+    items()[1].focus()
+    fireEvent.keyDown(items()[1], { key: " " })
+    expect(opened).toHaveBeenCalledTimes(1)
+    expect(opened).toHaveBeenCalledWith("r1", { field: "item" })
+    // The cell stays as it was: the space never reached it.
+    expect(items()[1].value).toBe("Line 1")
+    fireEvent.keyDown(items()[1], { key: " ", shiftKey: true })
+    expect(opened).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('tbody tr[data-row="r1"]')?.getAttribute("aria-selected")).toBe("true")
+    const box = live(items()[2])
+    box.focus()
+    fireEvent.keyDown(box, { key: " " })
+    expect(opened).toHaveBeenCalledTimes(1)
+    const paid = screen.getAllByRole("checkbox", { name: "Paid" })[0]
+    paid.focus()
+    fireEvent.keyDown(paid, { key: " " })
+    expect(opened).toHaveBeenCalledTimes(1)
+  })
+
+  it("Escape in a box in use puts back what was typed, then leaves the cell selected but shut, where Space expands the record", () => {
+    const opened = vi.fn()
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(3)} canManage onChange={() => {}} onOpenRow={opened} />)
+    const box = live(screen.getAllByRole("textbox", { name: "Item" })[1]) as unknown as HTMLTextAreaElement
+    box.focus()
+    fireEvent.change(box, { target: { value: "Line 1 and more" } })
+    fireEvent.keyDown(box, { key: "Escape" })
+    expect(box.value).toBe("Line 1")
+    expect(document.activeElement).toBe(box)
+    fireEvent.keyDown(box, { key: "Escape" })
+    const shut = box.closest<HTMLElement>("[data-cell-box]")!
+    expect(document.activeElement).toBe(shut)
+    fireEvent.keyDown(shut, { key: " " })
+    expect(opened).toHaveBeenCalledWith("r1", { field: "item" })
+  })
+
+  it("Ctrl+; sets a date cell to today through its save, and does nothing on another kind of cell", async () => {
+    const dated: TableField[] = [...fields, { id: "due", table_id: "t", name: "Due", type: "date", config: "{}", position: 3 }]
+    patchRow.mockResolvedValue({})
+    render(<DataTableGrid tableId="t" fields={dated} rows={rowsOf(2)} canManage onChange={() => {}} />)
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+    const due = document.querySelector('tbody tr[data-row="r1"] td[data-field="due"] [data-cell]') as HTMLElement
+    due.focus()
+    await act(async () => fireEvent.keyDown(due, { key: ";", ctrlKey: true }))
+    expect(patchRow).toHaveBeenCalledWith("t", "r1", { due: today })
+    const item = screen.getAllByRole("textbox", { name: "Item" })[0]
+    item.focus()
+    await act(async () => fireEvent.keyDown(item, { key: ";", ctrlKey: true }))
+    expect(patchRow).toHaveBeenCalledTimes(1)
+  })
+})
+
+// CR-190's S10: the grid's New row enters the table's one undo order when made, so a Ctrl+Z pressed while it's on its
+// way takes it (by the change set its answer names), never the change before it.
+describe("the grid's New row, in the table's undo order (V-360)", () => {
+  it("is made through the table's order of writes", async () => {
+    const rows = rowsOf(2)
+    createRow.mockResolvedValue({ ...rows[0], id: "n1", change_set: "c2" })
+    const made: string[] = []
+    function Grid() {
+      const c = useCellCommit({ tableId: "t", rows, onChange: () => {} })
+      const commit = useMemo(() => ({ ...c, write: ((what, send, setOf, onTaken) => (made.push(what), c.write(what, send, setOf, onTaken))) as typeof c.write }), [c])
+      return <DataTableGrid tableId="t" fields={fields} rows={rows} canManage onChange={() => {}} commit={commit} />
+    }
+    render(<Grid />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "New row" })))
+    expect(createRow).toHaveBeenCalledWith("t", {})
+    expect(made).toEqual(["row"])
   })
 })

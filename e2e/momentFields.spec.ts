@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { SAM, expectEveryCallAnswered, expectHomeSettled, stubBackend } from "./stubbedApp"
+import { animationsSettled } from "./settled"
 
 // EVERY DAY AND TIME FROM THE SHARED PICKERS (21 Oct 2026). The owner, 18 Oct:
 // Pause's Custom was the browser's own date-time box, mm/dd/yyyy with a clock
@@ -168,7 +169,7 @@ for (const h of HOSTS) {
       : page.locator("[data-radix-popper-content-wrapper]").filter({ has: page.getByRole("listbox", { name: "Time" }) })
     if (h.touch) await expect(picker.getByRole("heading", { name: h.half })).toBeVisible({ timeout: 30_000 })
     else await expect(picker).toBeVisible({ timeout: 30_000 })
-    await expect.poll(() => picker.evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === "running").length), { timeout: 15_000 }).toBe(0)
+    await animationsSettled(picker, { subtree: true, timeout: 15_000 })
     expect(await paintsOver(picker, page.locator(h.layer).last()), `the ${h.half.toLowerCase()} picker over the layer that asked for it`).toBe(true)
     // A pick: the picker goes, and the custom time is there with what was picked.
     if (h.half === "Date") await picker.getByRole("button", { name: "Tomorrow", exact: true }).click()
@@ -195,7 +196,7 @@ test("Reschedule's popover, on a phone held sideways, stays on the screen", asyn
   await page.getByRole("button", { name: "Reschedule" }).click({ timeout: 30_000 })
   const popover = page.locator("[data-radix-popper-content-wrapper]").filter({ has: page.getByRole("group", { name: "Custom time" }) })
   await expect(popover).toBeVisible({ timeout: 30_000 })
-  await expect.poll(() => popover.evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.playState === "running").length), { timeout: 15_000 }).toBe(0)
+  await animationsSettled(popover, { subtree: true, timeout: 15_000 })
   const box = (await popover.locator("[data-overlay]").boundingBox())!
   expect(box.y, "its top on the screen").toBeGreaterThanOrEqual(0)
   expect(box.y + box.height, "its foot on the screen").toBeLessThanOrEqual(390)

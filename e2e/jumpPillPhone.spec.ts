@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { SAM, stubBackend } from "./stubbedApp"
+import { animationsSettled } from "./settled"
 
 // QA F-27: on a phone the composer floats over the list's last 150px, and the
 // sticky "Jump to latest" counted from above that room, so it hung about 100px
@@ -45,7 +46,7 @@ test("on a phone, Jump to latest hangs 12px above the composer", async ({ page }
   // (until then the row's own bottom-3 holds it), and its pill-in, which lifts
   // it 8px as it fades in, over.
   await expect(page.locator("[data-jump-row]")).toHaveAttribute("style", /bottom:/)
-  await expect.poll(() => pill.evaluate((el) => el.getAnimations().some((a) => a.playState === "running"))).toBe(false)
+  await animationsSettled(pill)
   const pillBox = await pill.boundingBox()
   const cardBox = await card.boundingBox()
   const gap = cardBox!.y - (pillBox!.y + pillBox!.height)

@@ -3,6 +3,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import { finger } from "./finger"
 import { SAM, expectEveryCallAnswered, stubBackend } from "./stubbedApp"
 import { settled } from "./sheetLayout"
+import { animationsSettled } from "./settled"
 
 // A project's board on a phone (390 x 844, touch), as the owner asked: "verify
 // how kanban works in mobile view". Each test is a fault the board had there:
@@ -301,7 +302,7 @@ test.describe("on a short phone", () => {
     const menu = page.getByRole("menu")
     await expect(menu).toBeVisible()
     // Measured once it has risen: on a phone it is a sheet that slides up (app/overlay.css §8).
-    await menu.evaluate((el) => Promise.all(el.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))))
+    await animationsSettled(menu)
     const box = (await menu.boundingBox())!
     expect(box.y + box.height).toBeLessThanOrEqual(640)
     const last = page.getByRole("menuitemcheckbox", { name: "Cancelled" })

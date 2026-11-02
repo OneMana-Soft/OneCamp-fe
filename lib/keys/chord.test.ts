@@ -16,6 +16,13 @@ describe("a chord in the shortcut list's words", () => {
     expect(chordWords("Alt-Shift-ArrowDown")).toBe("Alt + Shift + ↓")
     expect(chordWords("ArrowLeft")).toBe("←")
   })
+
+  it("names the space bar, and writes a symbol key as it is", () => {
+    expect(chordWords("Space")).toBe("Space")
+    expect(chordWords("Shift-Space")).toBe("Shift + Space")
+    expect(chordWords("Mod-;")).toBe("Ctrl/⌘ + ;")
+    expect(chordWords("Mod-Shift-Enter")).toBe("Ctrl/⌘ + Shift + Enter")
+  })
 })
 
 describe("a chord pressed", () => {
@@ -28,5 +35,13 @@ describe("a chord pressed", () => {
     expect(chordMatches(press({ key: "¥", code: "KeyY", altKey: true }), "Alt-y", false)).toBe(false)
     expect(chordMatches(press({ key: "Ω", code: "KeyZ", altKey: true }), "Alt-y", true)).toBe(false)
     expect(chordMatches(press({ key: "y", code: "KeyY", altKey: true }), "Alt-y", false)).toBe(true)
+  })
+
+  it("reads Mod with a symbol key by the key alone, Shift aside, as a shifted symbol is a key of its own", () => {
+    expect(chordMatches(press({ key: ";", metaKey: true }), "Mod-;", true)).toBe(true)
+    expect(chordMatches(press({ key: ";", ctrlKey: true }), "Mod-;", false)).toBe(true)
+    expect(chordMatches(press({ key: ";", ctrlKey: true }), "Mod-;", true)).toBe(false)
+    expect(chordMatches(press({ key: "Enter", ctrlKey: true, shiftKey: true }), "Mod-Shift-Enter", false)).toBe(true)
+    expect(chordMatches(press({ key: "Enter", ctrlKey: true }), "Mod-Shift-Enter", false)).toBe(false)
   })
 })

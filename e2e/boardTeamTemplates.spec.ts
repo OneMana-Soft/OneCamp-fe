@@ -3,6 +3,7 @@ import { expect, test, type Browser, type BrowserContextOptions } from "@playwri
 // collaboration server. Nothing leaves the machine.
 import { USERS, collabFor, fakeApp } from "../scripts/fluidity/fakeApp.mjs"
 import { boardDoc, boardDocName, boardFixtures, frame, note } from "../scripts/fluidity/fakeBoard.mjs"
+import { expectTouchSize } from "./touchTarget"
 
 // A board saved as a template for the workspace (whiteboard W-1b, miro-19 3):
 // More › Save as template keeps what a person sees on it, and every board's
@@ -150,7 +151,7 @@ test.describe("a board saved as a template", () => {
       }, { timeout: 10_000 })
       .toBeLessThanOrEqual(844)
     const box = (await save.boundingBox())!
-    expect(box.height).toBeGreaterThanOrEqual(44)
+    expectTouchSize(box.height)
     expect(box.y).toBeGreaterThanOrEqual(0)
     await save.tap()
     await expect(sheet).toBeHidden()

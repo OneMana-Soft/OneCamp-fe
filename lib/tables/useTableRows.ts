@@ -15,6 +15,7 @@ import { refusalReason } from "@/lib/utils/apiError"
 import { unprocessableReason, workingOutOf, type WorkingOut } from "@/lib/tables/unprocessable"
 import { eachRowOnce, isComputed, listRows, queryRows, rowsByIds, tableBundleKey, type RowsWindow, type TableBundle, type TableRow } from "@/services/tableService"
 import type { RefusedSums, RowsChanged } from "@/lib/tables/types"
+import { windowRead, type WindowReadRules } from "@/lib/tables/windowReads"
 
 /** Rows the bundle carries, and each page read after it. */
 export const ROW_PAGE = 500
@@ -63,13 +64,15 @@ interface Read {
   ended: boolean
 }
 
-/** A view's windows (tables T5c): the rows it shows, read so far in its order. */
+/** A view's windows (tables T5c): the rows it holds, one run of its places read in its order. */
 interface Windows {
   tableId: string
   /** The spec's key: another spec's windows are another view's. */
   key: string
   rows: TableRow[]
-  /** The next window's cursor: "" before the first is read, null once the last has been. */
+  /** The run's first place: 0, or where the view jumped (lib/tables/windowReads). */
+  from: number
+  /** The cursor after the run: "" before the first read, null at the view's end. */
   next: string | null
   /** How many rows the view shows, once the server has counted them. */
   total: number | null
@@ -111,7 +114,15 @@ export const WORKING_AGAIN_MS = 2_000
 /** The longest a view still being filled waits to read again: a fill that runs long is asked about twice a minute. */
 export const WORKING_MOST_MS = 30_000
 const NO_SHUT: string[][] = []
-const noWindows = (tableId: string, key: string): Windows => ({ tableId, key, rows: NO_ROWS, next: "", total: null, capped: false, round: 0, summaries: null, asked: "", groups: null, refused: null, shut: NO_SHUT, leftOut: 0, refusedSums: null, stopped: false, working: null })
+const noWindows = (tableId: string, key: string): Windows => ({ tableId, key, rows: NO_ROWS, from: 0, next: "", total: null, capped: false, round: 0, summaries: null, asked: "", groups: null, refused: null, shut: NO_SHUT, leftOut: 0, refusedSums: null, stopped: false, working: null })
+
+/** A grouped view never jumps: its groups are counted from the first row. */
+const readRulesOf = (v: { isCounted: boolean; count: number; tail: readonly TableRow[]; grouped: boolean }, jumps: boolean): WindowReadRules => ({
+  end: v.isCounted ? v.count - v.tail.length : Infinity,
+  around: READ_AHEAD,
+  window: WINDOW_ROWS,
+  jumps: jumps && !v.grouped,
+})
 
 /** A count's spec: the view's, with the bar's summaries (a window's never has them). */
 const counting = (spec: RowSpec, asks: QuerySummaryRequest[]): RowSpec => (asks.length ? { ...spec, summaries: asks } : spec)
@@ -206,13 +217,13 @@ function notHeld(rows: TableRow[], held: TableRow[][]): TableRow[] {
 }
 
 /**
- * A view's windows read again from the first, in order, as far as upTo rows
- * (or its end), with its count beside them when asked: a row was made,
- * deleted or moved, so the windows read before may no longer meet.
+ * A view's run of windows read again from its place, as far as upTo rows: a
+ * row was made, deleted or moved, so the windows read before may no longer meet.
  */
 async function readWindowsAgain(
   tableId: string,
   spec: RowSpec,
+  from: number,
   upTo: number,
   count: RowSpec | null,
   computed: ReadonlySet<string>,
@@ -222,7 +233,7 @@ async function readWindowsAgain(
   const rows: TableRow[] = []
   let next: string | null = ""
   while (next !== null && rows.length < upTo) {
-    const w = await queryRows(tableId, { spec, cursor: next || undefined, n: WINDOW_ROWS })
+    const w = await queryRows(tableId, { spec, ...(next ? { cursor: next } : from > 0 ? { at: from } : { cursor: undefined }), n: WINDOW_ROWS })
     rows.push(...w.rows)
     next = w.next || null
   }
@@ -240,8 +251,8 @@ async function readWindowsAgain(
  * 10,000; past them it waits for "Load all", as the rest do.
  *
  * A view that reads windows (RowView, tables T5c) is answered by the server
- * instead, in its order: a window of 500 at a time, as far as the view has
- * reached (more(last)) and a little past, keyset, from the first; its count
+ * instead, in its order: a window of 500 at a time around the places in
+ * sight, on by cursor or straight to a far place (a jump); its count
  * beside the first. Nothing is held past what's read, and nothing is loaded
  * all at once: a formula's or a rollup's rules go there too (airtable-03),
  * never to "Load all", and a window the server refuses says why in its words
@@ -312,8 +323,11 @@ export function useTableRows(tableId: string, view?: RowView) {
   const windowSpec = React.useMemo(() => spec && withShut(spec, shut), [spec, shut])
   const [pinned, setPinned] = React.useState({ tableId, rows: NO_ROWS })
   const tail = windowed && pinned.tableId === tableId ? pinned.rows : NO_ROWS
-  const [reached, setReached] = React.useState({ tableId, key, at: 0 })
-  const reach = reached.tableId === tableId && reached.key === key ? reached.at : 0
+  // A ref: scrolling renders (wake) only when the places in sight need a read.
+  const sight = React.useRef({ tableId, key, first: 0, last: 0 })
+  const [wake, setWake] = React.useState(0)
+  // Off once a server answers a jump without its place (it reads none).
+  const jumps = React.useRef(true)
 
   // Offsets read so far: the bundle's page, then the pages after it.
   const readEnd = first.length + (truncated ? mine.rows.length : 0)
@@ -321,11 +335,11 @@ export function useTableRows(tableId: string, view?: RowView) {
   // A view in the table's own order (no filter, no sort) begins with the
   // bundle's page: it is shown while the view's first window is on its way,
   // rather than placeholders over rows already here.
-  const opening = windowed && !spec?.filter && !spec?.sorts && !grouped && myWin.next === "" && myWin.rows.length === 0
+  const opening = windowed && !spec?.filter && !spec?.sorts && !grouped && myWin.from === 0 && myWin.next === "" && myWin.rows.length === 0
   const base = opening ? first : myWin.rows
   const shown = React.useMemo(() => (tail.length ? [...notHeld(base, [tail]), ...tail] : base), [base, tail])
   const rows = windowed ? shown : paged
-  const complete = windowed ? myWin.next === null : !truncated || mine.ended || (total !== null && readEnd >= total)
+  const complete = windowed ? myWin.from === 0 && myWin.next === null : !truncated || mine.ended || (total !== null && readEnd >= total)
   // Stopped at the rows held on its own: past them only on "Load all".
   const capped = !windowed && !complete && want <= ROWS_HELD_MAX && readEnd >= ROWS_HELD_MAX
   const reading = readingFor === tableId
@@ -333,7 +347,8 @@ export function useTableRows(tableId: string, view?: RowView) {
   // How many rows the view has in all, read or not: the grid's length. A
   // view without a filter has every row of the table until the server counts.
   // A grouped view's count holds its collapsed rows.
-  const viewCount = myWin.next === null && !(grouped && myWin.total !== null) ? myWin.rows.length : Math.max(myWin.total ?? (spec?.filter ? 0 : (total ?? 0)), base.length)
+  const runEnd = myWin.from + base.length
+  const viewCount = myWin.next === null && !(grouped && myWin.total !== null) ? runEnd : Math.max(myWin.total ?? (spec?.filter ? 0 : (total ?? 0)), runEnd)
   const count = windowed ? viewCount + tail.length : rows.length
   // Whether count is the view's own (a filtered view's, once the server has
   // counted it or its last window has been read), and whether that count
@@ -343,8 +358,9 @@ export function useTableRows(tableId: string, view?: RowView) {
 
   const stale = JSON.stringify(myWin.shut) !== shutKey && (myWin.rows.length > 0 || myWin.next !== "")
 
-  const latest = React.useRef({ tableId, mine, first, readEnd, total, want, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs })
-  latest.current = { tableId, mine, first, readEnd, total, want, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs }
+  const latest = React.useRef({ tableId, mine, first, readEnd, total, want, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs, count, isCounted, grouped, reading })
+  latest.current = { tableId, mine, first, readEnd, total, want, mutate, windowed, spec, windowSpec, shut, key, myWin, tail, asks, askKey, computedRefs, count, isCounted, grouped, reading }
+
 
   // Back under one page, the bundle holds every row: pages read before go,
   // so they can't come back as rows if the table grows again.
@@ -380,29 +396,37 @@ export function useTableRows(tableId: string, view?: RowView) {
       .finally(() => setReadingFor((t) => (t === tableId ? null : t)))
   }, [windowed, bundle, truncated, reading, failed, mine.ended, mine.rows.length, want, total, readEnd, tableId])
 
-  // The view's next window, while it hasn't read as far as the view reached
-  // and a little past; the first with its count beside it. The count lands
-  // when it lands: a window's rows never wait for it (counting a filter over
-  // every row can take longer than reading a window of them).
+  // The view's next read (lib/tables/windowReads). The count lands when it
+  // lands: a window's rows never wait for it (counting a filter over every
+  // row can take longer than reading a window of them).
   React.useEffect(() => {
-    if (!windowed || !spec || !windowSpec || reading || failed || stale || myWin.next === null) return
-    const at = myWin.rows.length
-    if (at > 0 && at >= reach + READ_AHEAD) return
-    const { round, next } = myWin
+    // Refused, or filling, a view reads no more while next is null: the
+    // fill's timer reads it again with next "" (its progress kept).
+    if (!windowed || !spec || !windowSpec || reading || failed || stale || (myWin.next === null && (myWin.stopped || !!myWin.working))) return
+    const { from, next, round } = myWin
+    const held = myWin.rows.length
+    const seen = sight.current.tableId === tableId && sight.current.key === key ? sight.current : { first: 0, last: 0 }
+    const step = windowRead({ from, held, next }, seen, readRulesOf(latest.current, jumps.current))
+    if (!step) return
     const ac = new AbortController()
     reads.current = ac
     setReadingFor(tableId)
-    // Kept only where the windows weren't read again from the first since.
-    const mineNow = (cur: Windows) => {
+    // Kept only where the windows weren't read again from the first since,
+    // and, for a window, where the run is still as it was asked for.
+    const ours = (cur: Windows) => {
       const base = cur.tableId === tableId && cur.key === key ? cur : noWindows(tableId, key)
       return base.round === round ? base : null
+    }
+    const asWas = (cur: Windows) => {
+      const base = ours(cur)
+      return base && base.from === from && base.rows.length === held ? base : null
     }
     if (next === "") {
       const { asks, askKey, computedRefs } = latest.current
       countOf(tableId, counting(spec, asks), computedRefs, ac.signal)
         .then(({ c, spec: answered, refusedSums }) =>
           setWin((cur) => {
-            const base = mineNow(cur)
+            const base = ours(cur)
             return base ? withSums({ ...base, total: c.total ?? null, capped: !!c.total_capped }, c, answered, askKey, refusedSums) : cur
           }),
         )
@@ -411,19 +435,33 @@ export function useTableRows(tableId: string, view?: RowView) {
           (e) =>
             grouped &&
             setWin((cur) => {
-              const base = mineNow(cur)
+              const base = ours(cur)
               return base ? { ...base, refused: refusalReason(e) ?? null } : cur
             }),
         )
     }
     heardAtRead.current = heardNow.current
-    queryRows(tableId, { spec: windowSpec, cursor: next || undefined, n: WINDOW_ROWS }, ac.signal)
+    const at = step.read === "on" ? 0 : step.at
+    const where = step.read === "on" ? { cursor: next || undefined } : at > 0 ? { at } : { cursor: undefined }
+    queryRows(tableId, { spec: windowSpec, ...where, n: step.read === "back" ? step.n : WINDOW_ROWS }, ac.signal)
       .then((w) =>
         setWin((cur) => {
-          const base = mineNow(cur)
-          // Read again from the first since, or another window landed first.
-          if (!base || base.rows.length !== at) return cur
-          return { ...base, rows: [...base.rows, ...notHeld(w.rows, [base.rows, latest.current.tail])], next: w.next || null, shut, working: null }
+          const base = asWas(cur)
+          if (!base) return cur
+          const tail = latest.current.tail
+          if (step.read === "on") return { ...base, rows: [...base.rows, ...notHeld(w.rows, [base.rows, tail])], next: w.next || null, shut, working: null }
+          // A server that reads no place answers with its first rows and no
+          // `at`: they go nowhere, and the view reads on in order from now.
+          if ((w.at ?? 0) !== at) {
+            jumps.current = false
+            return { ...base }
+          }
+          const there = { ...base, from: at, rows: notHeld(w.rows, [tail]), next: w.next || null, working: null }
+          if (step.read === "jump") return there
+          // Read back: the rows before the run, unless the run holds them
+          // all already (rows moved since), when it starts again there.
+          const before = notHeld(w.rows, [base.rows, tail])
+          return before.length ? { ...base, from: Math.max(0, from - before.length), rows: [...before, ...base.rows] } : there
         }),
       )
       .catch((e) => {
@@ -435,8 +473,8 @@ export function useTableRows(tableId: string, view?: RowView) {
         const working = workingOutOf(e)
         if (working) {
           return setWin((cur) => {
-            const base = mineNow(cur)
-            return base && base.rows.length === at ? { ...base, next: null, working } : cur
+            const base = asWas(cur)
+            return base ? { ...base, next: null, working } : cur
           })
         }
         // Any other answer ends a fill's wait (DB-42): its progress would
@@ -444,18 +482,18 @@ export function useTableRows(tableId: string, view?: RowView) {
         const why = unprocessableReason(e)
         if (!why) {
           setWin((cur) => {
-            const base = mineNow(cur)
+            const base = ours(cur)
             return base?.working ? { ...base, working: null } : cur
           })
           return setFailedFor(tableId)
         }
         setWin((cur) => {
-          const base = mineNow(cur)
-          return base && base.rows.length === at ? { ...base, next: null, refused: why, stopped: true, working: null } : cur
+          const base = asWas(cur)
+          return base ? { ...base, next: null, refused: why, stopped: true, working: null } : cur
         })
       })
       .finally(() => setReadingFor((t) => (t === tableId ? null : t)))
-  }, [windowed, spec, windowSpec, shut, grouped, stale, key, reading, failed, myWin, reach, tableId])
+  }, [windowed, spec, windowSpec, shut, grouped, stale, key, reading, failed, myWin, wake, tableId])
 
   // A view whose formula or rollup the server is still filling is read again
   // from the first, every WORKING_AGAIN_MS, saying how far meanwhile, until a
@@ -616,15 +654,19 @@ export function useTableRows(tableId: string, view?: RowView) {
           const count = counting(spec, asks)
           const [, rows, fresh, sums] = await Promise.all([
             job.bundle ? mutate().catch(() => undefined) : undefined,
-            again || job.shut ? readWindowsAgain(tableId, windowSpec, Math.max(myWin.rows.length, WINDOW_ROWS), again ? count : null, computedRefs).catch(() => null) : null,
+            again || job.shut ? readWindowsAgain(tableId, windowSpec, myWin.from, Math.max(myWin.rows.length, WINDOW_ROWS), again ? count : null, computedRefs).catch(() => null) : null,
             ids.length ? rowsByIds(tableId, ids).catch(() => null) : null,
             resum ? countOf(tableId, count, computedRefs).catch(() => null) : null,
           ])
           if (rows) {
             setWin((cur) => {
               if (cur.tableId !== tableId || cur.key !== key) return cur
-              // Read again, a view the server had refused (a lock held a moment) reads on.
-              const read = { ...cur, rows: notHeld(rows.rows, [latest.current.tail]), next: rows.next, round: cur.round + 1, shut, ...(cur.stopped && { refused: null, stopped: false }) }
+              // Read again, a view the server had refused (a lock held a moment) reads on. A run
+              // that jumped since keeps its rows: they were read after the change.
+              const read =
+                cur.from !== myWin.from
+                  ? cur
+                  : { ...cur, rows: notHeld(rows.rows, [latest.current.tail]), next: rows.next, round: cur.round + 1, shut, ...(cur.stopped && { refused: null, stopped: false }) }
               const c = rows.counted
               return c ? withSums({ ...read, total: c.c.total ?? cur.total, capped: !!c.c.total_capped }, c.c, c.spec, askKey, c.refusedSums) : read
             })
@@ -765,7 +807,8 @@ export function useTableRows(tableId: string, view?: RowView) {
         j.rows.add(commented)
         rowCommentsChanged(commented)
       } else if ((data?.action === "updated" || data?.action === "page") && typeof data.row_id === "string" && data.row_id) j.rows.add(data.row_id)
-      else if (data?.action === "created" || data?.action === "table") j.bundle = true
+      // Who edits the table changed (V-170): the bundle says again whether its reader does.
+      else if (data?.action === "created" || data?.action === "table" || data?.action === "editing") j.bundle = true
       else if (data?.action === "changed" && onlyUpdated(data)) for (const id of data.updated ?? []) j.rows.add(id)
       else j.bundle = j.pages = true
       if (heardTimer.current) clearTimeout(heardTimer.current)
@@ -790,16 +833,20 @@ export function useTableRows(tableId: string, view?: RowView) {
   useMqttTopic({ topic: bundle?.mqtt_topic || "", onMessage: heard, onLive: () => void queue((j) => (j.bundle = j.pages = true)) })
 
   /**
-   * The view reached a row (its index in the view, read or not; the last in
-   * sight): a window view reads on to it, and a little past; the pages read
-   * one more, up to 10,000.
+   * The view reached places (the last in sight, and the first): a window view
+   * reads around them (lib/tables/windowReads); the pages read one more, up to 10,000.
    */
   const more = React.useCallback(
-    (last?: number) => {
-      const { windowed, key, myWin } = latest.current
+    (last?: number, first?: number) => {
+      const v = latest.current
+      const { windowed, key, myWin } = v
       if (windowed) {
-        const at = Math.max(last ?? myWin.rows.length, 0)
-        setReached((r) => (r.tableId === tableId && r.key === key && r.at >= at ? r : { tableId, key, at }))
+        // No place, or not a number (a press passes its event): the view reads on.
+        const placed = (n: number | undefined) => (typeof n === "number" && Number.isFinite(n) ? Math.max(n, 0) : undefined)
+        const at = placed(last) ?? myWin.from + myWin.rows.length
+        sight.current = { tableId, key, first: Math.min(placed(first) ?? at, at), last: at }
+        // A render only when the places in sight need a read: one under way reads them as it ends.
+        if (!v.reading && windowRead({ from: myWin.from, held: myWin.rows.length, next: myWin.next }, sight.current, readRulesOf(v, jumps.current))) setWake((n) => n + 1)
         return
       }
       setWanted((w) => {
@@ -897,6 +944,8 @@ export function useTableRows(tableId: string, view?: RowView) {
     recount: windowed && myWin.leftOut > LEFT_OUT_MS.length ? recount : null,
     recounting,
     shutRead: windowed ? myWin.shut : NO_SHUT,
+    /** The first row read's place: 0, or where the view jumped. */
+    from: windowed ? myWin.from : 0,
     /** How many of rows, at their end, were added here and are kept at the view's end (its last count). */
     tail: tail.length,
     unpin,

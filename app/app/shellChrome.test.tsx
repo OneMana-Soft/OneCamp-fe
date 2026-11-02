@@ -57,6 +57,13 @@ describe("the shell without a top bar", () => {
     expect(FOOT).toMatch(/aria-label="Profile and settings"/)
   })
 
+  it("leaves Ctrl J to AiQuickInvoke, the one listener that opens the AI panel from the keys", () => {
+    // The sidebar's own listener could never act (AiQuickInvoke, behind the
+    // same FEATURE_AI, took the key first). Beside it on the window, whichever
+    // was added first would act, and the sidebar's opens with no surface.
+    expect(SEARCH).not.toMatch(/addEventListener\(\s*"keydown"/)
+  })
+
   it("puts the sheet 8px from the frame's edges, and every sheet on the e-sheet ladder at r12", () => {
     expect(NAV).toMatch(/data-shell-main=""[^>]*py-2 pr-2/)
     expect(LAYOUT).toMatch(/"app-sheet relative flex h-full flex-col overflow-hidden"/)

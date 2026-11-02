@@ -40,6 +40,8 @@ export interface ViewQuery {
     summaries?: { field: string; fns: string[] }[]
   }
   cursor?: string
+  /** A window at a place in the view's order (a jump, airtable-04): the answer says it back. */
+  at?: number
   n: number
   count?: boolean
 }
@@ -128,6 +130,8 @@ export class TableServer {
   bundleReads = 0
   /** The workspace's optional features, as /config/client answers them (AI's, for an AI column's fill). */
   features: Record<string, boolean> | null = null
+  /** The workspace's other tables, as GET /tables lists them after this one (a table's ⌘J switcher, airtable-04). */
+  others: { id: string; name: string }[] = []
   /**
    * Live (V-124): a page opened after this is set connects to a realtime
    * broker of the test's own (stubbedApp brokerOn) and hears the table's
@@ -145,6 +149,16 @@ export class TableServer {
   /** Whether the person manages the table, as the bundle says. */
   canManage = true
   /**
+   * Whether the person edits the table's rows, as the bundle says (V-170): a
+   * row write by one who doesn't is refused as the server refuses it (403,
+   * read_only), and nothing is written.
+   */
+  canEdit = true
+  /** Who edits the table's rows (V-170), as GET /tables/{id}/editing answers it and the bundle carries it for a manager. */
+  editing: { general: "edit" | "comment"; people: { user_id: string; name: string; email: string; granted_at: string }[] } = { general: "edit", people: [] }
+  /** Each POST /tables/{id}/editing body, in order. */
+  readonly editingAsks: Record<string, unknown>[] = []
+  /**
    * The table's saved views (migration 512), as the bundle lists them for its
    * reader: one made "personal" is the reader's own (owner_id), as on the server.
    */
@@ -160,12 +174,14 @@ export class TableServer {
    * Batches (POST .../rows/batch, tables G1): each body as sent; a number
    * column refuses text that isn't a number, cell by cell, as Batch does
    * (400 with errors); batchForbidden answers as for someone who can't
-   * change the table (403). changeSets keeps what each batch changed, so an
-   * undo (the page's Ctrl+Z names none: the latest) takes it back.
+   * change the table (403). changeSets keeps what each batch and each cell's
+   * edit changed, as the server's ledger does, so an undo takes it back: the
+   * one it names, or with none named the latest (V-360: a Ctrl+Z pressed while
+   * a fill was on its way took back the edit before it).
    */
   readonly batches: Record<string, unknown>[] = []
   batchForbidden = false
-  readonly changeSets: { id: string; before: { id: string; values: Values }[]; created: string[]; deleted?: Row[]; undone?: boolean }[] = []
+  readonly changeSets: { id: string; kind?: string; before: { id: string; values: Values }[]; created: string[]; deleted?: Row[]; undone?: boolean }[] = []
   /**
    * Steps over a view's rows (POST .../rows/transform, tables G2b): each body
    * as sent. A find, a dry run and a write answer whoever opens the table, as
@@ -220,6 +236,8 @@ export class TableServer {
       views: this.savedViews,
       rows: rows.slice(0, BUNDLE_ROWS).map((r) => this.rowJson(r)),
       can_manage: this.canManage,
+      can_edit: this.canEdit,
+      ...(this.canManage ? { editing: this.editing } : {}),
       mqtt_topic: `table/${this.id}`,
       ...(this.here ? { presence_topic: `here/${this.id}` } : {}),
       rows_truncated: rows.length > BUNDLE_ROWS,
@@ -374,9 +392,26 @@ export class TableServer {
     const body = (req.postDataJSON() ?? {}) as Record<string, unknown>
     const parts = url.pathname.slice(url.pathname.indexOf("/tables")).split("/").filter(Boolean)
     // ["tables"], ["tables", id], ["tables", id, "rows"], ["tables", id, "rows", rowId, "patch"], ...
-    if (parts.length === 1 && req.method() === "GET") return json(200, { data: [this.table()] })
+    if (parts.length === 1 && req.method() === "GET") return json(200, { data: [this.table(), ...this.others.map((t) => ({ ...this.table(), ...t }))] })
     const theirs = this.linked.get(parts[1])
     if (theirs && parts[2] === "fields" && req.method() === "GET") return json(200, { data: fieldsJson(parts[1], theirs) })
+    // Who edits the table (V-170): GET answers it, POST changes it as business/DataTable SetEditing does.
+    if (parts.length === 3 && parts[2] === "editing") {
+      if (req.method() !== "POST") return json(200, { data: this.editing })
+      this.editingAsks.push(body)
+      const before = JSON.stringify(this.editing)
+      const remove = new Set((body.remove as string[] | undefined) ?? [])
+      const add = ((body.add as string[] | undefined) ?? []).filter((id) => !this.editing.people.some((p) => p.user_id === id))
+      this.editing = {
+        general: body.general === "edit" || body.general === "comment" ? body.general : this.editing.general,
+        people: [
+          ...this.editing.people.filter((p) => !remove.has(p.user_id)),
+          ...add.map((id) => ({ user_id: id, name: id, email: "", granted_at: new Date().toISOString() })),
+        ],
+      }
+      return json(200, { data: this.editing, changed: JSON.stringify(this.editing) !== before })
+    }
+    if (!this.canEdit && req.method() === "POST" && parts[1] === this.id && parts[2] === "rows") return json(403, { msg: "You can view this table", read_only: true })
     // The trash, and a delete for good from it: the table leaves the trash at once (202), as the server answers.
     if (parts.length === 2 && parts[1] === "trash" && req.method() === "GET") {
       this.trashReads++
@@ -452,7 +487,7 @@ export class TableServer {
         this.rows = this.rows.filter((r) => !cs.created.includes(r.id))
         if (cs.deleted) this.rows = [...this.rows, ...cs.deleted].sort((a, b) => a.position - b.position)
         this.writes.push({ kind: "batch", body: { undo: cs.id } })
-        return json(200, { data: { change_set: `u${cs.id.slice(1)}`, reversed: cs.id, kind: "paste", changes: cs.before.length + cs.created.length, skipped: 0 } })
+        return json(200, { data: { change_set: `u${cs.id.slice(1)}`, reversed: cs.id, kind: cs.kind ?? "paste", changes: cs.before.length + cs.created.length, skipped: 0 } })
       }
       return json(200, { data: { change_set: "u0000001", reversed: body.change_set, kind: "ai", changes: this.aiFill?.filled ?? 0, skipped: 0 } })
     }
@@ -519,10 +554,11 @@ export class TableServer {
           },
         })
       }
-      const at = Number(q.cursor || 0)
+      // Keyset from a cursor (here an offset), or at a place (a jump), which the answer says.
+      const at = q.at ? q.at : Number(q.cursor || 0)
       const n = Math.min(q.n || 500, 500)
       const next = at + n < shown.length ? { next: String(at + n) } : {}
-      return json(200, { data: { rows: shown.slice(at, at + n).map((r) => this.rowJson(r)), ...next } })
+      return json(200, { data: { rows: shown.slice(at, at + n).map((r) => this.rowJson(r)), ...next, ...(q.at ? { at: q.at } : {}) } })
     }
     if (parts.length === 3 && parts[2] === "rows" && req.method() === "GET" && url.searchParams.has("ids")) {
       // Rows by id (tables A7), in the order asked, without rows gone since.
@@ -540,7 +576,10 @@ export class TableServer {
       const at = this.rows.length ? Math.max(...this.rows.map((r) => r.position)) + 1 : 0
       const r: Row = { id: `00000000-0000-4000-9000-${String(this.rows.length).padStart(12, "0")}`, position: typeof body.position === "number" ? body.position : at, values: (body.values as Values) ?? {}, updated_at: new Date().toISOString() }
       this.rows.push(r)
-      return json(201, { data: this.rowJson(r) })
+      const set = `c${String(this.changeSets.length + 1).padStart(7, "0")}`
+      this.changeSets.push({ id: set, kind: "create", before: [], created: [r.id] })
+      // Every row write answers the change set it stored (V-360), as the API does.
+      return json(201, { data: { ...this.rowJson(r), change_set: set } })
     }
     if (parts.length === 4 && parts[2] === "files" && req.method() === "GET") {
       // A file's address, as the API answers whoever may read the table: a
@@ -589,6 +628,8 @@ export class TableServer {
         row.updated_at = new Date().toISOString()
         return [this.rowJson(row)]
       })
+      const gone = this.rows.filter((r) => ((body.delete as string[] | undefined) ?? []).includes(r.id))
+      this.rows = this.rows.filter((r) => !gone.includes(r))
       let at = this.rows.length ? Math.max(...this.rows.map((r) => r.position)) + 1 : 0
       const created = made.map((values) => {
         const r: Row = { id: `00000000-0000-4000-a000-${String(this.rows.length).padStart(12, "0")}`, position: at++, values, updated_at: new Date().toISOString() }
@@ -596,23 +637,27 @@ export class TableServer {
         return r
       })
       const id = `c${String(this.changeSets.length + 1).padStart(7, "0")}`
-      this.changeSets.push({ id, before, created: created.map((r) => r.id) })
+      this.changeSets.push({ id, kind: typeof body.kind === "string" ? body.kind : gone.length ? "delete" : "paste", before, created: created.map((r) => r.id), ...(gone.length ? { deleted: gone } : {}) })
       this.writes.push({ kind: "batch", body })
-      return json(200, { data: { change_set: id, created: created.map((r) => this.rowJson(r)), updated, deleted: [] } })
+      return json(200, { data: { change_set: id, created: created.map((r) => this.rowJson(r)), updated, deleted: gone.map((r) => r.id) } })
     }
     if (parts.length === 5 && parts[2] === "rows" && req.method() === "POST") {
       const r = this.rows.find((x) => x.id === parts[3])
       if (!r) return json(404, { msg: "row not found" })
       const values = (body.values as Values) ?? {}
+      let set: string | undefined
       if (parts[4] === "patch") {
         this.writes.push({ kind: "patch", rowId: r.id, body })
+        set = `c${String(this.changeSets.length + 1).padStart(7, "0")}`
+        this.changeSets.push({ id: set, kind: "edit", before: [{ id: r.id, values: { ...r.values } }], created: [] })
         r.values = { ...r.values, ...values }
       } else if (parts[4] === "update") {
         this.writes.push({ kind: "update", rowId: r.id, body })
         r.values = values
       } else return json(404, { msg: "not in this test" })
       r.updated_at = new Date().toISOString()
-      return json(200, { data: this.rowJson(r) })
+      // A patch answers the change set it stored (V-360), as the API does.
+      return json(200, { data: { ...this.rowJson(r), ...(set ? { change_set: set } : {}) } })
     }
     return json(404, { msg: "not in this test" })
   }

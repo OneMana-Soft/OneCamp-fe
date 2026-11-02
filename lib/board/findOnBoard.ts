@@ -58,7 +58,8 @@ export interface BoardMatch {
   preview: { before: string; hit: string; after: string }
 }
 
-const isFrame = (el: FindElement) => el.type === "frame" || el.type === "magicframe"
+/** Whether an element is a frame, Excalidraw's own or its magic one: its name is words on the board. */
+export const isFrame = (el: { type: string }) => el.type === "frame" || el.type === "magicframe"
 
 /** The words an element holds for Find: a frame's name, a text element's words as typed. */
 export function wordsOf(el: FindElement): string {
@@ -237,4 +238,17 @@ export function unreplaceOnBoard(elements: readonly FindElement[], wrote: Readon
     if (was !== undefined && !el.isDeleted && wordsOf(el) === wrote.get(el.id)) out.set(el.id, was)
   }
   return out
+}
+
+/**
+ * What Find keeps clear while it dims the rest of the board (V-271): each match's words and what they are in (its
+ * target: the frame, the note, shape or arrow), once each, in the order found. Pure.
+ */
+export function keptOf(matches: readonly BoardMatch[]): string[] {
+  const ids = new Set<string>()
+  for (const m of matches) {
+    ids.add(m.id)
+    ids.add(m.target)
+  }
+  return [...ids]
 }

@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import { stubBackend } from "./stubbedApp"
+import { expectTouchSize } from "./touchTarget"
 
 // A status, set and cleared on a computer and on a phone: an emoji picked in
 // the picker (a plain one, one that comes in skin tones, one joined from
@@ -130,7 +131,7 @@ test.describe("on a phone", () => {
       await expect(page.getByRole("button", { name: "Choose a status emoji" })).toHaveText(e.glyph)
       await field.fill(e.words)
       // The sheet's "Clear after" chips take a finger's 44px.
-      for (const chip of await page.locator("[data-clear-after]").all()) expect((await chip.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+      for (const chip of await page.locator("[data-clear-after]").all()) expectTouchSize((await chip.boundingBox())!.height, "a clear-after chip")
       await page.getByRole("button", { name: /^(Set status|Save)$/ }).click()
       await expect.poll(() => sent.at(-1)?.body?.emoji_id).toBe(e.id)
       await expect.poll(() => shownStatus(page)).toContain(e.words)

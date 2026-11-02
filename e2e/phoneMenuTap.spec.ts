@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { SAM, reviewShot, stubBackend } from "./stubbedApp"
+import { animationsSettled } from "./settled"
 
 // On a phone a menu is a bottom sheet (app/overlay.css §8) that rises under
 // the finger that opened it. Opened on the finger's pointerdown, the click the
@@ -149,7 +150,7 @@ test("offline, the connection pill stays under a menu's sheet, and the sheet's l
   await plus.tap()
   const menu = page.getByRole("menu")
   await expect(menu.getByRole("menuitem", { name: "Create a poll" })).toBeVisible()
-  await expect.poll(() => menu.evaluate((el) => el.getAnimations().filter((a) => a.playState === "running").length), { message: "the sheet has risen" }).toBe(0)
+  await animationsSettled(menu, { message: "the sheet has risen" })
   const box = (await pill.boundingBox())!
   const onTop = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest("[data-connection-pill]"), { x: box.x + box.width / 2, y: box.y + box.height / 2 })
   expect(onTop, "the pill is not drawn over the open sheet").toBe(false)

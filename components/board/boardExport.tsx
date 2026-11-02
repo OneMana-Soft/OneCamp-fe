@@ -24,15 +24,16 @@ import { facilitationOf, roundIn } from "@/components/board/facilitationDock"
 import { closedVotes, noteRows, notesCsv, pdfFrames, type ExportElement } from "@/lib/board/exportBoard"
 import { NOTE_AUTHORS } from "@/lib/board/authors"
 import { frameOrderOf } from "@/lib/board/frames"
-import { urlToDataURL } from "@/lib/utils/file/urlToDataURL"
 import { downloadFile, exportFileName } from "@/lib/export/download"
 import { printTitled } from "@/lib/export/print"
 import { prefersReducedMotion } from "@/lib/reducedMotion"
 import { useToast } from "@/hooks/use-toast"
+import type { BoardExportFormat } from "@/components/board/exportRecord"
+import { runBoardExport, saveBoardFile } from "@/components/board/exportRun"
 import { cn } from "@/lib/utils/helpers/cn"
 import { FileSpreadsheet, FileText, ImageIcon, Layers } from "@/lib/icons"
 
-type Format = "pdf" | "csv" | "file" | "picture"
+type Format = BoardExportFormat
 
 /** The board's own order and votes, from its shared document. */
 function shared(provider: HocuspocusProvider) {
@@ -92,21 +93,8 @@ export async function exportBoard(
     downloadFile(`${name}.csv`, notesCsv(rows, counts !== null), "text/csv;charset=utf-8")
     return `${rows.length} ${rows.length === 1 ? "note" : "notes"} saved as ${name}.csv`
   }
+  if (format === "file") return saveBoardFile(api, title)
   const excalidraw = await import("@excalidraw/excalidraw")
-  if (format === "file") {
-    const files: Record<string, unknown> = {}
-    const used = new Set(elements.map((e) => (e as { fileId?: string }).fileId).filter(Boolean))
-    let missing = 0
-    for (const [id, f] of Object.entries(api.getFiles())) {
-      if (!used.has(id)) continue
-      const dataURL = await urlToDataURL(String((f as { dataURL?: string }).dataURL ?? ""))
-      if (dataURL) files[id] = { ...(f as object), dataURL }
-      else missing++
-    }
-    const json = excalidraw.serializeAsJSON(api.getSceneElements(), api.getAppState(), files as never, "local")
-    downloadFile(`${name}.excalidraw`, json, "application/vnd.excalidraw+json")
-    return missing > 0 ? `Saved as ${name}.excalidraw, without ${missing} ${missing === 1 ? "picture" : "pictures"} that couldn't be read` : `Saved as ${name}.excalidraw`
-  }
   // A PDF: each frame a page, in the Frames panel's order.
   const frames = pdfFrames(elements, frameOrder)
   const appState = { ...api.getAppState(), exportBackground: true, exportWithDarkMode: false, viewBackgroundColor: "#ffffff" }
@@ -152,11 +140,14 @@ export default function BoardExport({
   api,
   provider,
   title,
+  boardId,
   onClose,
 }: {
   api: ExcalidrawImperativeAPI
   provider: HocuspocusProvider
   title: string
+  /** The board, its exports are told under in the admin log. */
+  boardId: string
   onClose: () => void
 }) {
   const { toast } = useToast()
@@ -170,11 +161,7 @@ export default function BoardExport({
   const run = async () => {
     setBusy(true)
     try {
-      const said = await exportBoard(format, api, provider, title)
-      onClose()
-      if (said) toast({ title: said })
-    } catch {
-      toast({ variant: "destructive", title: "The board couldn't be exported", description: "Try again. A large board's pictures can take a moment to read." })
+      await runBoardExport({ format, make: () => exportBoard(format, api, provider, title), boardId, toast, made: onClose })
     } finally {
       setBusy(false)
     }

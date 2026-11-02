@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type Request, type TestInfo } fr
 
 import { displayNameOf } from "../lib/personName"
 import { SAM, SHOT_THEMES, reviewShot, stubBackend, withStatus } from "./stubbedApp"
+import { expectTouchSize, TOUCH_PX } from "./touchTarget"
 
 // linear-15: a project's plan on its home: where it stands among the five
 // status categories (the workspace's own statuses sit in them), its priority,
@@ -65,8 +66,14 @@ interface Server {
   failing?: boolean
   /** How many times the plan was read. */
   reads: number
+  /** How many times the project's members were read (/project/membersInfo). */
+  memberReads: number
+  /** Held until released: the members still on their way. */
+  membersHeld?: Promise<void>
+  /** While set, every read of the members fails. */
+  membersFailing?: boolean
 }
-const serverOf = (role: Role, plan = fresh()): Server => ({ role, plan, labels: [LAUNCH], posts: [], reads: 0 })
+const serverOf = (role: Role, plan = fresh()): Server => ({ role, plan, labels: [LAUNCH], posts: [], reads: 0, memberReads: 0 })
 
 /** The change as business/ProjectPlan's Save makes it (the dates come snapped already). */
 function apply(s: Server, c: Record<string, unknown>) {
@@ -98,8 +105,15 @@ async function openProject(page: Page, testInfo: TestInfo, s: Server) {
       msg: "ok",
       data: { ...project, project_tasks_backlog: [], project_tasks_todo: [], project_tasks_in_progress: [], project_tasks_in_review: [], project_tasks_done: [], project_tasks_canceled: [], project_tasks_done_count: 0, project_tasks_canceled_count: 0, project_column_counts: { backlog: 0, todo: 0, inProgress: 0, inReview: 0, done: 0, canceled: 0 } },
     },
-    [`/project/info/${P}`]: { msg: "ok", data: project },
-    [`/project/membersInfo/${P}`]: { msg: "ok", data: project },
+    // As a live server answers it: the project's own fields, its members null (DB-93, 2 Nov). The lead's picker reads
+    // them from /project/membersInfo at every width; a phone's once read them from here and listed only "No lead".
+    [`/project/info/${P}`]: { msg: "ok", data: { ...project, project_members: null } },
+    [`/project/membersInfo/${P}`]: async () => {
+      s.memberReads++
+      if (s.membersHeld) await s.membersHeld
+      if (s.membersFailing) return withStatus(503, { msg: "The server is busy." })
+      return { msg: "ok", data: project }
+    },
     [`/project/${P}/glance`]: { msg: "ok", data: { open: 0, done: 0, overdue: 0, due_this_week: 0 } },
     [`/project/${P}/updates`]: { msg: "ok", data: { updates: [], can_post: true } },
     [`/project/${P}/cycles`]: { msg: "ok", data: { cycles: [], can_edit: true } },
@@ -156,19 +170,26 @@ for (const theme of SHOT_THEMES) {
         await reviewShot(page, "project-plan-status-picker", theme)
         await press(option(page, "Paused"))
         await expect(chip(page, "status")).toHaveText("Paused")
-        expect(s.posts.at(-1)).toEqual({ status: "paused" })
+        await expect.poll(() => s.posts.at(-1)).toEqual({ status: "paused" })
 
         await press(chip(page, "priority"))
         await press(option(page, /^High/))
         await expect(chip(page, "priority")).toHaveAccessibleName("Priority: high")
 
+        // The members are read as the lead's picker opens (main, 2 Nov 21:2x): a phone's page reads none before it;
+        // a laptop's reads them for its member stack, under the same key, so the picker never reads them again.
+        if (!phone) await expect.poll(() => s.memberReads).toBeGreaterThan(0)
+        const membersBefore = s.memberReads
+        if (phone) expect(membersBefore).toBe(0)
         await press(chip(page, "lead"))
         // Its admins and members only: a guest never leads. Each is named by the one rule (lib/personName), the
         // display name first, as the server names the lead: Gil Guest is "gil", Oz Ito is "oz".
+        await expect(option(page, "oz")).toBeVisible()
+        expect(s.memberReads).toBe(phone ? 1 : membersBefore)
         await expect(option(page, "gil")).toHaveCount(0)
         await press(option(page, "oz"))
         await expect(chip(page, "lead")).toHaveAccessibleName("Lead: oz")
-        expect(s.posts.at(-1)).toEqual({ lead_uuid: OZ.user_uuid })
+        await expect.poll(() => s.posts.at(-1)).toEqual({ lead_uuid: OZ.user_uuid })
 
         await press(chip(page, "dates"))
         await expect(picker(page).getByRole("radio", { name: /^Target/ })).toHaveAttribute("aria-checked", "true")
@@ -177,13 +198,13 @@ for (const theme of SHOT_THEMES) {
         const year = Number(await picker(page).locator("[data-plan-year]").getAttribute("data-plan-year"))
         await press(picker(page).getByRole("button", { name: "Q3", exact: true }))
         await expect(chip(page, "dates")).toHaveText(`Target Q3 ${year}`)
-        expect(s.posts.at(-1)).toEqual({ target: { date: `${year}-09-30`, resolution: "quarter" } })
+        await expect.poll(() => s.posts.at(-1)).toEqual({ target: { date: `${year}-09-30`, resolution: "quarter" } })
         // The start, a month: one year said once.
         await press(picker(page).getByRole("radio", { name: /^Start/ }))
         await press(picker(page).getByRole("radio", { name: "Month" }))
         await press(picker(page).getByRole("button", { name: "Feb", exact: true }))
         await expect(chip(page, "dates")).toHaveText(`Feb → Q3 ${year}`)
-        expect(s.posts.at(-1)).toEqual({ start: { date: `${year}-02-01`, resolution: "month" } })
+        await expect.poll(() => s.posts.at(-1)).toEqual({ start: { date: `${year}-02-01`, resolution: "month" } })
         await page.keyboard.press("Escape")
 
         await press(chip(page, "labels"))
@@ -193,11 +214,20 @@ for (const theme of SHOT_THEMES) {
         await picker(page).getByRole("combobox").fill("Ops")
         await press(option(page, "Make “Ops”"))
         await expect(chip(page, "labels")).toHaveText(/Ops/)
-        expect(s.posts.at(-1)).toMatchObject({ labels: [LAUNCH.id], new_labels: [{ name: "Ops" }] })
+        await expect.poll(() => s.posts.at(-1)).toMatchObject({ labels: [LAUNCH.id], new_labels: [{ name: "Ops" }] })
         // Read once the picker shuts: on a phone it is a sheet, and the page behind a sheet is hidden from a screen reader.
         await page.keyboard.press("Escape")
         await expect(chip(page, "labels")).toHaveAccessibleName("Labels: Launch, Ops")
         await reviewShot(page, `project-plan-admin-${phone ? "390" : "1280"}`, theme)
+
+        // The server holds what was set, so a reload reads it back the same: the dates at their resolutions, the
+        // lead, the labels (DB-93: one phone leg on LIVE lost its dates in a network stall; its re-run kept them).
+        await page.reload({ waitUntil: "domcontentloaded" })
+        await expect(chip(page, "dates")).toHaveText(`Feb → Q3 ${year}`, { timeout: 60_000 })
+        expect(s.plan.start).toEqual({ date: `${year}-02-01`, resolution: "month" })
+        expect(s.plan.target).toEqual({ date: `${year}-09-30`, resolution: "quarter" })
+        await expect(chip(page, "lead")).toHaveAccessibleName("Lead: oz")
+        await expect(chip(page, "labels")).toHaveAccessibleName("Labels: Launch, Ops")
       })
 
       test("a refusal puts the change back and says the server's words", async ({ page }, testInfo) => {
@@ -246,10 +276,10 @@ for (const theme of SHOT_THEMES) {
         await press(chip(page, "dates"))
         await expect(picker(page).getByRole("button", { name: "Q1", exact: true })).toHaveAttribute("aria-pressed", "true")
         const clear = picker(page).getByRole("button", { name: "Clear the target" })
-        expect((await clear.boundingBox())!.height, "Clear is below a thumb's size").toBeGreaterThanOrEqual(phone ? 44 : 28)
+        expectTouchSize((await clear.boundingBox())!.height, "Clear is below a thumb's size", phone ? TOUCH_PX : 28)
         await reviewShot(page, "project-plan-dates-set", theme)
         await press(clear)
-        expect(s.posts.at(-1)).toEqual({ target: null })
+        await expect.poll(() => s.posts.at(-1)).toEqual({ target: null })
       })
 
       test("a failed read says so in the row's place, and Try again reads it again", async ({ page }, testInfo) => {
@@ -268,6 +298,27 @@ for (const theme of SHOT_THEMES) {
         await press(again)
         await expect(chip(page, "status")).toHaveText("In progress")
         expect(s.reads).toBeGreaterThan(before)
+      })
+
+      test("the lead's picker says it's reading the members, and a failed read offers Try again", async ({ page }, testInfo) => {
+        const s = serverOf("admin")
+        let release = () => {}
+        s.membersHeld = new Promise<void>((done) => (release = done))
+        s.membersFailing = true
+        await openProject(page, testInfo, s)
+        await press(chip(page, "lead"))
+        const reading = picker(page).getByRole("status").filter({ hasText: "Reading the members…" })
+        await expect(reading).toBeVisible()
+        release()
+        // The shell's error state in the list's place, with Try again; the picker stays open on it.
+        await expect(picker(page).getByRole("alert")).toContainText("the project's members", { timeout: 60_000 })
+        await expect(reading).toHaveCount(0)
+        const before = s.memberReads
+        s.membersFailing = false
+        await press(picker(page).getByRole("button", { name: "Try again" }))
+        await expect(option(page, "oz")).toBeVisible()
+        expect(s.memberReads).toBeGreaterThan(before)
+        await expect(picker(page).getByRole("alert")).toHaveCount(0)
       })
 
       test("the row holds its height, so the page never moves when the plan arrives", async ({ page }, testInfo) => {

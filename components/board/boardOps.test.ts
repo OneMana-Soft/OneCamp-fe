@@ -5,7 +5,7 @@ import { boardScene, convertForTest, convertInFace, type TestElement } from "@/l
 
 vi.mock("@excalidraw/excalidraw", () => ({ convertToExcalidrawElements: (sk: Record<string, unknown>[]) => convertForTest(sk), FONT_FAMILY: { Excalifont: 5 } }))
 
-import { addNotes, clusterIntoFrames, fitTypedNote, frameElement, loadConvert, moveElements, recolourNotes, resizeNotes, rewordElements, selectAndEdit, setFrame, tagNotes, viewMiddle } from "./boardOps"
+import { addNotes, clusterIntoFrames, fitNotesToFaces, fitTypedNote, frameElement, loadConvert, moveElements, recolourNotes, resizeNotes, rewordElements, selectAndEdit, setFrame, tagNotes, viewMiddle } from "./boardOps"
 import { NOTE_COLOURS, NOTE_SIZES, noteSkeleton } from "@/lib/board/notes"
 
 // What the board's tools do to the scene (whiteboard W-1): each change is one
@@ -247,34 +247,154 @@ describe("a note's words fit it", () => {
     expect([closed.byId("a")?.height, closed.byId("a-text")?.fontSize]).toEqual([240, font])
   })
 
-  it("fits a note again when its words' face lands, as a correction no undo step of the person's carries", async () => {
-    // The words' face is still on its way, so they're fitted in the fallback face (0.6 em a letter). The face's own
-    // letters are wider (0.7 em): a frame after it lands, the note is fitted again in it.
-    let landed = false
-    let land = () => {}
-    const comes = new Promise<void>((resolve) => (land = resolve))
-    const fonts = { check: vi.fn(() => landed), load: vi.fn(() => comes.then(() => [])) }
-    Object.defineProperty(document, "fonts", { value: fonts, configurable: true })
-    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => (frame(0), 0))
+  /**
+   * convertInFace, with a note's words laid out in lines, as wide as their widest line, in a face whose letters are
+   * `letter` em wide, as Excalidraw measures them: what tells words laid out in one face from another (V-229).
+   */
+  const linedIn = (letter: number) =>
+    ((skeletons: Record<string, unknown>[]) =>
+      convertInFace(letter)(skeletons).map((e) => {
+        if (e.type !== "text" || !e.containerId) return e
+        const perLine = Math.max(1, Math.floor((e.width + 10) / (Number(e.fontSize) * letter)))
+        const lines = String(e.originalText ?? "").match(new RegExp(`[^]{1,${perLine}}`, "g")) ?? [""]
+        return { ...e, text: lines.join("\n"), width: Math.max(...lines.map((l) => l.length)) * Number(e.fontSize) * letter }
+      })) as never
+  /** The words' faces, here once `here` says so, as the browser's font set says. */
+  const faces = { here: false }
+  const withFaces = async (run: () => void | Promise<void>) => {
+    Object.defineProperty(document, "fonts", { value: { check: () => faces.here }, configurable: true })
     try {
       await loadConvert()
-      const convert = ((sk: Record<string, unknown>[]) => convertInFace(landed ? 0.7 : 0.6)(sk)) as never
+      await run()
+    } finally {
+      Reflect.deleteProperty(document, "fonts")
+      faces.here = false
+    }
+  }
+  const laid = (letter: number, id: string, x: number, text: string, fontSize?: number) => {
+    const sk = noteSkeleton({ id, x, y: 0, text })
+    return (linedIn(letter) as (s: unknown[]) => TestElement[])([fontSize ? { ...sk, label: { ...sk.label, fontSize } } : sk])
+  }
+
+  it("fits again, once their face has come, the notes whose words were laid out in another, in one write no undo step carries (V-229)", () =>
+    withFaces(() => {
+      // Laid out before their face had come, in the fallback face (0.6 em a letter): the face's own letters are wider.
+      const s = boardScene([...laid(0.6, "a", 0, "Ship it"), ...laid(0.6, "b", 200, "Book a room")])
+      expect(fitNotesToFaces(s.api, linedIn(0.7)), "their face hasn't come").toBe(0)
+      expect(s.writes).toHaveLength(0)
+      faces.here = true
+      expect(fitNotesToFaces(s.api, linedIn(0.7))).toBe(2)
+      // A correction of the layout, not a step of the person's: NEVER, as Excalidraw writes a remote change.
+      expect(s.writes.map((w) => w.captureUpdate)).toEqual(["NEVER"])
+      expect(s.byId("a-text")?.width).toBeCloseTo(7 * 18 * 0.7)
+      expect(s.byId("b-text")?.width).toBeCloseTo(11 * 18 * 0.7)
+      expect([s.byId("a")?.version, s.byId("a-text")?.version]).toEqual([2, 2])
+      // Right in their face now: a pass again writes nothing.
+      expect(fitNotesToFaces(s.api, linedIn(0.7))).toBe(0)
+      expect(s.writes).toHaveLength(1)
+    }))
+
+  it("never writes words laid out in their own face, at whatever size, nor a note sized by hand, and looks at each once (V-229)", () =>
+    withFaces(() => {
+      faces.here = true
+      // A note from before miro-07: its words at 20 px, above the fit's 18, laid out in their face. The fit would
+      // change them; laid out in their face already, they're left as they are.
+      const [handRect, handText] = laid(0.6, "hand", 400, "Ship it")
+      const s = boardScene([...laid(0.7, "old", 0, "Ship it", 20), { ...handRect, width: 200 }, handText])
+      const convert = vi.fn(linedIn(0.7) as (s: unknown[]) => TestElement[])
+      const seen = new Set<string>()
+      expect(fitNotesToFaces(s.api, convert as never, seen)).toBe(0)
+      expect(s.writes).toHaveLength(0)
+      const looks = convert.mock.calls.length
+      expect(looks).toBeGreaterThan(0)
+      expect(fitNotesToFaces(s.api, convert as never, seen), "a later pass").toBe(0)
+      expect(convert.mock.calls.length, "words found right are looked at once").toBe(looks)
+      expect(fitTypedNote(s.api, linedIn(0.7), "old-text"), "the fit itself would change them").toBe(true)
+    }))
+
+  it("fits words being typed through the typing's fit, in the same correction (V-229, V-104)", () =>
+    withFaces(() => {
+      faces.here = true
+      const s = boardScene([...laid(0.6, "a", 0, "Ship it"), ...laid(0.6, "b", 200, "Book a room")], { editingTextElement: { id: "b-text" } })
+      expect(fitNotesToFaces(s.api, linedIn(0.7))).toBe(2)
+      expect(s.writes.map((w) => w.captureUpdate)).toEqual(["NEVER", "NEVER"])
+      expect(s.byId("b-text")?.width).toBeCloseTo(11 * 18 * 0.7)
+    }))
+
+  it("fits a note typed before its words' face came again once it has, as a correction no undo step of the person's carries", () =>
+    withFaces(() => {
+      // Typed in the fallback face (0.6 em a letter), the words fit at 15 px; in the face's own wider letters, at 14.
       const s = boardScene(typedPast("a", words(150)))
-      expect(fitTypedNote(s.api, convert, "a-text")).toBe(true)
+      expect(fitTypedNote(s.api, linedIn(0.6), "a-text")).toBe(true)
       expect([s.byId("a")?.height, s.byId("a-text")?.fontSize]).toEqual([180, 15])
-      expect(fonts.load).toHaveBeenCalledTimes(1)
-      landed = true
-      land()
-      await vi.waitFor(() => expect(s.writes).toHaveLength(2))
+      faces.here = true
+      expect(fitNotesToFaces(s.api, linedIn(0.7))).toBe(1)
       expect([s.byId("a")?.height, s.byId("a-text")?.fontSize]).toEqual([180, 14])
       // The typing's fit joins the typing's own undo step. The face's is a layout correction that no step carries, as
       // Excalidraw writes a remote change: undoing the person's next step can't bring the fallback face's layout back.
       expect(s.writes.map((w) => w.captureUpdate)).toEqual(["EVENTUALLY", "NEVER"])
-    } finally {
-      Reflect.deleteProperty(document, "fonts")
-      vi.unstubAllGlobals()
-    }
-  })
+    }))
+
+  // Each layout stamps the words with the face it was made in (main, 1 Nov 18:4x): screens measure one face otherwise
+  // (Chromium and WebKit by up to 22 px, CODE-REVIEWER-159), so measuring again here can't tell a fallback face's layout
+  // from another screen's in the right one, and editors on two browsers would write each other's notes on every open.
+  const IN_FACE = "Excalifont 18px"
+  const stampOf = (s: ReturnType<typeof boardScene>, id: string) => (s.byId(id)?.customData as { laidIn?: string } | undefined)?.laidIn
+  const stamped = (els: TestElement[], laidIn: string) => els.map((e) => (e.type === "text" ? { ...e, customData: { laidIn } } : e))
+
+  it("never lays out again words stamped as laid out in their face, however this screen measures them (V-229)", () =>
+    withFaces(() => {
+      faces.here = true
+      // Laid out on another screen in their face: as this screen measures it, 0.6 em a letter there is 0.7 here.
+      const s = boardScene([...stamped(laid(0.6, "p", 0, "Ship it"), IN_FACE), ...stamped(laid(0.6, "q", 200, "Book a room"), IN_FACE)])
+      expect(fitNotesToFaces(s.api, linedIn(0.7))).toBe(0)
+      expect(s.writes).toHaveLength(0)
+      // A stamp names the face and size the words were laid out in: words since sized otherwise, or put in another face,
+      // by something that didn't stamp them, are looked at as words with no stamp are.
+      const resized = boardScene(stamped(laid(0.6, "c", 0, "Ship it"), "Excalifont 20px"))
+      expect(fitNotesToFaces(resized.api, linedIn(0.7))).toBe(1)
+    }))
+
+  it("lays a saved board's words out again once, stamped, and then no other screen lays them out again (V-229)", () =>
+    withFaces(() => {
+      faces.here = true
+      // Saved before words carried a stamp, laid out in the fallback face (0.6 em a letter).
+      const s = boardScene([...laid(0.6, "p", 0, "Ship it"), ...laid(0.6, "q", 200, "Book a room")])
+      expect(fitNotesToFaces(s.api, linedIn(0.7))).toBe(2)
+      expect([stampOf(s, "p-text"), stampOf(s, "q-text")]).toEqual([IN_FACE, IN_FACE])
+      // Another screen, measuring the face otherwise (0.72 em), writes nothing.
+      expect(fitNotesToFaces(s.api, linedIn(0.72))).toBe(0)
+      expect(s.writes).toHaveLength(1)
+    }))
+
+  it("lays words stamped with a fallback face out again once their face comes, whatever this screen measures, and stamps them (V-229)", () =>
+    withFaces(() => {
+      // Laid out before the face had come, though as wide as this screen lays the face out: only the stamp says so.
+      const s = boardScene(stamped(laid(0.7, "f", 0, "Ship it"), "fallback"))
+      expect(fitNotesToFaces(s.api, linedIn(0.7)), "the face hasn't come").toBe(0)
+      faces.here = true
+      expect(fitNotesToFaces(s.api, linedIn(0.7))).toBe(1)
+      expect(s.writes.map((w) => w.captureUpdate)).toEqual(["NEVER"])
+      expect([stampOf(s, "f-text"), s.byId("f-text")?.width]).toEqual([IN_FACE, 7 * 18 * 0.7])
+      expect(fitNotesToFaces(s.api, linedIn(0.75)), "stamped in its face now").toBe(0)
+    }))
+
+  it("stamps new notes, sizes and typed words with the face they're laid out in: the fallback before it comes (V-229)", () =>
+    withFaces(async () => {
+      const s = boardScene()
+      await addNotes(s.api, [noteSkeleton({ id: "n1", x: 0, y: 0, text: "Ship it" })])
+      expect(stampOf(s, "n1-text"), "laid out before its face came").toBe("fallback")
+      faces.here = true
+      await resizeNotes(s.api, new Set(["n1"]), "l")
+      const words = s.elements().find((e) => e.type === "text" && e.containerId === "n1" && !e.isDeleted)!
+      expect(words.customData).toEqual({ laidIn: `Excalifont ${words.fontSize}px` })
+      // Typed words with no stamp take one as they're fitted, once: the next key that changes nothing writes nothing.
+      const typed = boardScene(laid(0.7, "t", 0, "Ship it"))
+      expect(fitTypedNote(typed.api, linedIn(0.7), "t-text")).toBe(true)
+      expect(stampOf(typed, "t-text")).toBe(IN_FACE)
+      expect(fitTypedNote(typed.api, linedIn(0.7), "t-text")).toBe(false)
+      expect(typed.writes).toHaveLength(1)
+    }))
 
   it("gives words born in a note the note's ink before their first letter, and leaves words that have letters theirs (V-95)", () => {
     // Excalidraw makes a note's new words in its own current ink (#1e1e1e), whatever the note's colour.

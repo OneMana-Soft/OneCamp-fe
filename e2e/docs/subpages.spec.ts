@@ -4,6 +4,7 @@ import { SAM, SHOT_THEMES, docInfo, reviewShot, withStatus, type Answers } from 
 import { CollabRelay } from "./collabRelay"
 import { PRIYA, openDocAs, type DocTab, type OpenAs, type Person } from "./twoPeople"
 import { grip, hover, menu } from "./blockHandle"
+import { expectTouchSize } from "../touchTarget"
 
 // A doc's pages in its body and in the tree (docs C7a), in two browsers on
 // the relay. Deleting a child page's block puts the page in the trash, and the
@@ -273,7 +274,7 @@ test.describe("on a phone, 390 px with touch", () => {
           const reach = before.content === "none" ? 0 : Math.max(parseFloat(before.height) || 0, 0)
           return Math.max(box.height, reach)
         })
-        expect(hit).toBeGreaterThanOrEqual(44)
+        expectTouchSize(hit)
       }
       await reviewShot(phone.page, "pages-inside", theme)
 

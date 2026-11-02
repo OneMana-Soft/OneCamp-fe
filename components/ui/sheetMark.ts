@@ -19,6 +19,18 @@ function hold(): () => void {
 }
 
 /**
+ * A sheet's edge, the onClick of a sheet primitive's surface and of its scrim:
+ * React's walk up from a tap there ends at it, and the browser's goes on
+ * (sheetEdge.test). `own`, the caller's onClick or the scrim's close, runs first.
+ */
+export const sheetEdge =
+  <E extends { isPropagationStopped(): boolean }>(own?: (event: E) => void) =>
+  (event: E) => {
+    own?.(event)
+    event.isPropagationStopped = () => true
+  }
+
+/**
  * A sheet primitive's ref, passed on to `ref`: while its node is a sheet
  * ([data-v3-sheet]) that says it is open, the page is marked. The mark goes
  * as the sheet starts to close, before its slide ends, and when it leaves.

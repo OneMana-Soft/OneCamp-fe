@@ -52,7 +52,9 @@ export async function takesAFinger(control: Locator, among?: Locator) {
   const group = among ? await among.elementHandle() : null
   try {
     return await control.evaluate((el, box) => {
-      const b = el.getBoundingClientRect(), x = b.left + b.width / 2, out = Math.max(0, (44 - b.height) / 2 - 1)
+      // The taps land 21 px above and below its centre, just inside the 44 px span: outside a smaller box, inside a
+      // taller one (out < 0), never on its bottom edge, which belongs to what lies below.
+      const b = el.getBoundingClientRect(), x = b.left + b.width / 2, out = (44 - b.height) / 2 - 1
       return [b.top - out, b.bottom + out].every((y) => {
         const hit = document.elementFromPoint(x, y)?.closest("a, button")
         return !!hit && (hit === el || (!!box && box.contains(hit)))

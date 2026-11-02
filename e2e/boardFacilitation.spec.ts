@@ -221,6 +221,48 @@ test("on a phone, every control on the facilitation bar is whole in one row: idl
   await b.context.close()
 })
 
+// Bring everyone here on the bar (V-286): the list of who's here names members only, so an editor alone with a share
+// link's guests had nowhere to press it. Beside Present, while anyone else is on the board: in the bar's row (a word
+// on a phone, so the row stays whole at 390), and in its menu while the bar is compact. Never while anyone presents.
+test("on a phone, Bring everyone here is on the bar while someone else is on the board: in its row, not while anyone presents, and in its menu during a round", async ({ browser }) => {
+  test.setTimeout(150_000)
+  const on = shareBoard({ sam: "edit", ann: "edit" })
+  const b = await open(browser, "phone", { on })
+  const bring = b.bar.getByRole("button", { name: "Bring everyone here" })
+  await expect(b.bar.getByRole("button", { name: "Present" })).toBeVisible()
+  await expect(bring, "alone, there is no one to bring").toHaveCount(0)
+
+  // Ann opens the board on her computer: Bring comes, the row stays whole, and a tap brings her.
+  const ann = await open(browser, "computer", { on, user: USERS.ann })
+  await expect(bring).toBeVisible({ timeout: 10_000 })
+  await whole(b.page, 390)
+  await bring.tap()
+  await expect(ann.page.locator(".toast-root").filter({ hasText: `${displayNameOf(USERS.sam)} brought everyone here` })).toBeVisible({ timeout: 10_000 })
+
+  // Ann presents and the phone follows her: no Bring in the row or the menu, since a bring would pull her followers
+  // two ways. Bring comes back when she stops.
+  const ANN = displayNameOf(USERS.ann)
+  await ann.bar.getByRole("button", { name: "Present", exact: true }).click()
+  await expect(b.bar).toContainText(`Following ${ANN}`)
+  await expect(bring, "no Bring in the row while Ann presents").toHaveCount(0)
+  await b.bar.getByRole("button", { name: "Facilitation options" }).tap()
+  await expect(b.page.getByRole("menuitem", { name: "Stop following" })).toBeVisible()
+  await expect(b.page.getByRole("menuitem", { name: "Bring everyone here" }), "no Bring in the menu while Ann presents").toHaveCount(0)
+  await b.page.getByRole("menuitem", { name: "Stop following" }).tap()
+  await expect(b.bar).toContainText(`${ANN} is presenting`)
+  await ann.bar.getByRole("button", { name: "Stop", exact: true }).click()
+  await expect(bring).toBeVisible({ timeout: 10_000 })
+
+  // A round makes the bar compact: Bring waits in its menu, after Present.
+  b.lee("voting", { id: ROUND, perPerson: 3, byId: "lee", byName: "Lee" })
+  await expect(b.bar.getByText("3 left")).toBeVisible()
+  await expect(bring).toHaveCount(0)
+  await b.bar.getByRole("button", { name: "Facilitation options" }).tap()
+  await expect(b.page.getByRole("menuitem", { name: "Bring everyone here" })).toBeVisible()
+  await ann.context.close()
+  await b.context.close()
+})
+
 // The bar as the others on the board see it, at 390 (design review, 29 Oct): a viewer is told who started the
 // round, follows whoever presents, stops and follows again from the menu, and a round nobody voted in says so,
 // in a sheet at 390 and above the bar at 1280. Two screens on one board: Ann edits at 1280, Vic views at 390.
@@ -588,9 +630,11 @@ test(`Bring everyone here moves every screen to the bringer's view once, and Go 
   await scrollBoard(ann.page, 0, 900)
   await expect.poll(async () => (await cameraOf(ann.page))?.scrollX ?? 0, { timeout: 10_000 }).toBeLessThan(-800)
   await ann.page.locator("[data-presence-stack]").click()
-  await expect(ann.page.getByRole("button", { name: "Bring everyone here" })).toBeVisible()
+  // The list's own Bring: the facilitation bar has one too while anyone else is here (V-286).
+  const listBring = ann.page.locator("[data-presence-list]").getByRole("button", { name: "Bring everyone here" })
+  await expect(listBring).toBeVisible()
   await reviewShot(ann.page, "board-bring-list", theme)
-  await ann.page.getByRole("button", { name: "Bring everyone here" }).click()
+  await listBring.click()
   await expect(ann.page.locator(".toast-root").filter({ hasText: "Everyone here now sees what you see" })).toBeVisible()
 
   // Vic's phone shows the middle of what Ann sees, fitted to the phone, and says who brought him.
@@ -598,6 +642,9 @@ test(`Bring everyone here moves every screen to the bringer's view once, and Go 
   // The toast itself (Radix's role=status is only a hidden copy for screen readers, gone after a second).
   const toast = vic.page.locator(".toast-root").filter({ hasText: `${ANN} brought everyone here` })
   await expect(toast).toBeVisible()
+  // A pointer on the toast holds it (the toast viewport pauses every timer under a pointer), as for a person reaching
+  // for Go back: on a loaded machine the checks before Go back outlast an action toast's 6 s (WB-76 r1, 1 Nov 21:45).
+  await toast.hover()
   // The toast's card is whole on the phone (what a person sees: its root is a shell the stack moves); an idle
   // viewer has no facilitation bar to measure.
   const t = await boxOf(toast.locator(".toast-card"))
@@ -685,7 +732,8 @@ test("a tab that opens after a bring stays where it opened, with no toast", asyn
   await scrollBoard(ann.page, 900)
   await expect.poll(async () => (await cameraOf(ann.page))?.scrollY ?? 0, { timeout: 10_000 }).toBeLessThan(-200)
   await ann.page.locator("[data-presence-stack]").click()
-  await ann.page.getByRole("button", { name: "Bring everyone here" }).click()
+  // The list's own Bring: the facilitation bar has one too while anyone else is here (V-286).
+  await ann.page.locator("[data-presence-list]").getByRole("button", { name: "Bring everyone here" }).click()
   await expect.poll(() => sameMiddle(ann.page, vic.page), { timeout: 10_000, message: "the bring reached the phone" }).toBe(true)
 
   // Vic opens the board again, on a computer. Its Here now names Ann once her awareness, the bring in it, has come.

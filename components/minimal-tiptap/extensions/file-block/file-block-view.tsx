@@ -203,7 +203,7 @@ function RecoveringMedia({ kind, src, label }: { kind: "video" | "audio"; src: s
     },
   }
   return kind === "video" ? (
-    <video {...props} playsInline className="block max-h-[70vh] w-full bg-[#000]" />
+    <video {...props} data-node-media playsInline className="block max-h-[70vh] w-full bg-[#000]" />
   ) : (
     <audio {...props} className="block w-full px-3 pb-3" />
   )
@@ -262,7 +262,7 @@ function PdfView({ src, guest, name, tooBig }: { src: string; guest: boolean; na
     // Not on a phone: its browser can't show a PDF in the page, so the row's Open and Download are the way in.
     <div ref={box} className="h-[600px] border-t border-line bg-sunken max-sm:hidden">
       {url ? (
-        <iframe src={`${url}#view=FitH`} title={name} className="size-full border-0" />
+        <iframe data-node-media src={`${url}#view=FitH`} title={name} className="size-full border-0" />
       ) : (
         <p className="flex h-full items-center justify-center gap-2 px-6 text-center text-ui-sm text-ink-3" role={failed ? "alert" : undefined}>
           {failed || tooBig ? null : <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}

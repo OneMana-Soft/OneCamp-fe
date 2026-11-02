@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { boxAllInView, offsetsOf, viewBesidePanel } from "@/lib/board/panelView"
+import { FRAME_NAME_ROOM, boxAllInView, offsetsOf, roomAbove, viewBesidePanel } from "@/lib/board/panelView"
 import { boxInView, sceneToLocal, viewAboveSheet } from "@/lib/board/viewport"
 
 describe("offsetsOf: the canvasOffsets that keep scrollToContent inside an open view", () => {
@@ -13,6 +13,22 @@ describe("offsetsOf: the canvasOffsets that keep scrollToContent inside an open 
     const phone = { scrollX: 0, scrollY: 0, zoom: 1, width: 390, height: 694, offsetLeft: 0, offsetTop: 150 }
     expect(offsetsOf(phone, viewBesidePanel(phone, true, 422, 219))).toEqual({ top: 69, left: 0, right: 0, bottom: 422 })
     expect(offsetsOf(phone, phone)).toEqual({ top: 0, left: 0, right: 0, bottom: 0 })
+  })
+
+  it("keeps room over the content for what of it is drawn above its box, a frame's name, and moves no other side (V-270)", () => {
+    const phone = { scrollX: 0, scrollY: 0, zoom: 1, width: 390, height: 694, offsetLeft: 0, offsetTop: 150 }
+    expect(offsetsOf(phone, viewBesidePanel(phone, true, 422, 219), roomAbove({ type: "frame" }))).toEqual({ top: 69 + FRAME_NAME_ROOM, left: 0, right: 0, bottom: 422 })
+  })
+})
+
+describe("roomAbove: what of an element is drawn above its box", () => {
+  it("is a frame's name: Excalidraw 0.18.1's, its foot 3 px over the frame, 14 px words on a 1.25 line, and air (V-270)", () => {
+    expect(FRAME_NAME_ROOM).toBe(24)
+    expect([roomAbove({ type: "frame" }), roomAbove({ type: "magicframe" })]).toEqual([FRAME_NAME_ROOM, FRAME_NAME_ROOM])
+  })
+
+  it("is nothing for a note, a shape, an arrow or words", () => {
+    expect(["rectangle", "ellipse", "arrow", "text"].map((type) => roomAbove({ type }))).toEqual([0, 0, 0, 0])
   })
 })
 

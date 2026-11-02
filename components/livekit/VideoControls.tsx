@@ -34,7 +34,8 @@ import {
 } from "@/lib/icons"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
-import { CALL_REACTIONS, REACTION_NAMES, type CallReaction } from "@/lib/calls/signals"
+import { REACTIONS, type Reaction } from "@/lib/reactions/set"
+import { REACTION_NAMES } from "@/lib/reactions/names"
 import type { CallFeedback } from "@/lib/calls/handsCore"
 import {
   DropdownMenu,
@@ -250,7 +251,7 @@ export interface CallDockProps {
   /** Docked above the dock, left-aligned with it: who waits to join (CALLS-2's KnockBar). */
   notice?: React.ReactNode
   /** Sends a reaction to everyone in the call (lib/calls/signals). */
-  onReact?: (emoji: CallReaction) => void
+  onReact?: (emoji: Reaction) => void
   /** What the people running the call hold for you now (meet-12): those controls stay, dimmed, and say why. */
   held?: ReadonlySet<CallHold>
   /** Your hand (lib/calls/hands): raised or not, and the switch; absent where you can't. */
@@ -583,7 +584,7 @@ function heldControl(held: ReadonlySet<CallHold> | undefined, what: CallHold, on
  * call holds reactions the six give way to why, and the signs beside your
  * name stay.
  */
-function ReactButton({ onReact, feedback, held }: { onReact: (emoji: CallReaction) => void; feedback?: CallDockProps["feedback"]; held: boolean }) {
+function ReactButton({ onReact, feedback, held }: { onReact: (emoji: Reaction) => void; feedback?: CallDockProps["feedback"]; held: boolean }) {
   const [open, setOpen] = React.useState(false)
   const anchor = React.useRef<HTMLSpanElement>(null)
   return (
@@ -616,7 +617,7 @@ function ReactButton({ onReact, feedback, held }: { onReact: (emoji: CallReactio
           </p>
         ) : (
         <div role="group" aria-label="Reactions" className="flex gap-1">
-          {CALL_REACTIONS.map((emoji) => (
+          {REACTIONS.map((emoji) => (
             <button
               key={emoji}
               type="button"

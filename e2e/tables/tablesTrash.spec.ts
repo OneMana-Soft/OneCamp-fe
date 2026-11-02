@@ -2,6 +2,7 @@ import { expect, test, type Locator } from "@playwright/test"
 
 import { SAM, reviewShot } from "../stubbedApp"
 import { TableServer } from "./tableServer"
+import { expectTouchSize } from "../touchTarget"
 
 // V-121: a table in the trash is deleted for good with the same button and
 // confirmation as docs' trash (components/trash/DeleteForGood). It asks
@@ -48,7 +49,7 @@ for (const phone of [false, true]) {
     ).toBe(true)
     if (phone) {
       const box = await purge.boundingBox()
-      expect(box && Math.min(box.width, box.height), "the phone's Delete for good is a full touch target").toBeGreaterThanOrEqual(44)
+      expectTouchSize(box && Math.min(box.width, box.height), "the phone's Delete for good is a full touch target")
     }
     await theme("tables-trash")
 

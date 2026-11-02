@@ -87,6 +87,15 @@ import { PaletteMarkIcon, paletteMarkTag } from "@/components/ui/paletteMark"
 import { PalettePeek, peekAttrs, readPeek, type PeekInfo } from "@/components/ui/palettePeek"
 import { hitPeek } from "@/lib/search/peekFacts"
 
+// The request's entry is declared here, beside its one reader: lib/ui/palette
+// is on every page's first load, which a type line there would grow.
+declare module "@/lib/ui/palette" {
+  interface OpenPaletteRequest {
+    /** A surface's action to open on, "<surface>:<entry>" (lib/ui/paletteEntries): its page, or it runs. Search when none offers it. */
+    entry?: string
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
@@ -208,6 +217,9 @@ export function CommandPalette() {
   const [requestedMode, setRequestedMode] = React.useState<PaletteMode>("search")
   // A pushed page: an action that asks for its argument (P1, "Nested pages").
   const [page, setPage] = React.useState<PalettePage | null>(null)
+  // A surface's action a request opened on (lib/ui/palette's entry: a table's
+  // ⌘J): its page opens, or it runs, once the open surfaces are listed.
+  const [wantEntry, setWantEntry] = React.useState<string | null>(null)
   // Bumped on Enter and ⌘⏎ in Ask mode; the Ask view acts on each bump.
   const [askNonce, setAskNonce] = React.useState(0)
   const [continueNonce, setContinueNonce] = React.useState(0)
@@ -325,6 +337,23 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", down)
   }, [])
 
+  // Closing any way (Escape, a click outside, the shortcut again) starts the
+  // next opening empty, on Search, at the top level. It used to keep the last
+  // query, so typing again ran the two together ("q4q4") and found nothing.
+  // Before the request below: as the palette mounts both run, closed, and a
+  // first request taken after this reset keeps its query and its entry.
+  React.useEffect(() => {
+    if (open) return
+    setInputValue("")
+    setScope(null)
+    setPage(null)
+    setWantEntry(null)
+    setPeek(null)
+    setAskNonce(0)
+    setContinueNonce(0)
+    navigatedByArrows.current = false
+  }, [open, setInputValue])
+
   // Opened from elsewhere: the sidebar pill, the phone's search icon, a 404's
   // Search button with the broken path as the query (lib/ui/palette). A
   // request made before this lazy palette mounted is taken now, so the first
@@ -333,6 +362,7 @@ export function CommandPalette() {
     const apply = (r: OpenPaletteRequest) => {
       setRequestedMode(r.mode === "ask" ? "ask" : "search")
       setPage(null)
+      setWantEntry(r.entry ?? null)
       setAskNonce(0)
       setContinueNonce(0)
       if (r.query) setInputValue(r.query)
@@ -347,20 +377,6 @@ export function CommandPalette() {
   React.useEffect(() => {
     announcePaletteState(open)
   }, [open])
-
-  // Closing any way (Escape, a click outside, the shortcut again) starts the
-  // next opening empty, on Search, at the top level. It used to keep the last
-  // query, so typing again ran the two together ("q4q4") and found nothing.
-  React.useEffect(() => {
-    if (open) return
-    setInputValue("")
-    setScope(null)
-    setPage(null)
-    setPeek(null)
-    setAskNonce(0)
-    setContinueNonce(0)
-    navigatedByArrows.current = false
-  }, [open, setInputValue])
 
   // The 2px sweep under the field, only once a search has taken 300ms.
   const busy = inputValue.trim().length > 0 && (isSearching || !!isRefreshing)
@@ -1032,6 +1048,17 @@ export function CommandPalette() {
     [surfaces],
   )
   const leadSurface = surfaces.find((s) => s.lead)
+  // The action a request named, once a surface lists it: its page opens, or it
+  // runs, as when it's picked from the list. A lazy surface's code comes
+  // later and lists the surfaces again; none offering it leaves Search open.
+  React.useEffect(() => {
+    if (!open || !wantEntry) return
+    const cmd = surfaceCommands.find((c) => c.id === wantEntry)
+    if (!cmd) return
+    setWantEntry(null)
+    if (cmd.page) pushPage(cmd.page)
+    else runCommand(cmd.action)
+  }, [open, wantEntry, surfaceCommands, pushPage, runCommand])
 
   const query = inputValue.trim()
   const hasSearchQuery = query.length > 0

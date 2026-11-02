@@ -1,9 +1,10 @@
-import { basename, join } from "node:path"
+import { join } from "node:path"
 import { expect, test, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from "@playwright/test"
 // The app's server side, faked: fixtures for the API, and one in-memory
 // collaboration server. Nothing leaves the machine.
 import { USERS, collabFor, fakeApp } from "../scripts/fluidity/fakeApp.mjs"
 import { boardDoc, boardDocName, boardFixtures, note, shape } from "../scripts/fluidity/fakeBoard.mjs"
+import { SHOT_THEMES, reviewShot } from "./stubbedApp"
 
 // A Miro team's first ten minutes on a OneCamp board (whiteboard W-1;
 // miro-07, miro-11, miro-19, miro-04): a sticky note on N and a run of them
@@ -22,7 +23,7 @@ const DEVICES = {
   phone: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 },
 } satisfies Record<string, BrowserContextOptions>
 
-type Shared = { id: string; type: string; x: number; y: number; width?: number; height?: number; fontSize?: number; lineHeight?: number; strokeColor?: string; isDeleted?: boolean; text?: string; originalText?: string; containerId?: string | null; backgroundColor?: string; name?: string; customData?: { kind?: string; colour?: string } }
+type Shared = { id: string; type: string; x: number; y: number; width?: number; height?: number; fontSize?: number; lineHeight?: number; strokeColor?: string; isDeleted?: boolean; text?: string; originalText?: string; containerId?: string | null; backgroundColor?: string; name?: string; customData?: { kind?: string; colour?: string; laidIn?: string }; version?: number }
 
 /** The board, empty unless given its drawing; a first visit has no camera kept from before, and `search` opens it by a link. */
 /** "#rrggbb" as CSS computes it: "rgb(r, g, b)". */
@@ -31,11 +32,19 @@ const hexToRgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice
 async function open(
   browser: Browser,
   device: keyof typeof DEVICES,
-  { drawing = [] as unknown[], firstVisit = false, search = "", route = undefined as ((context: BrowserContext) => Promise<unknown>) | undefined } = {},
+  {
+    drawing = [] as unknown[],
+    firstVisit = false,
+    search = "",
+    route = undefined as ((context: BrowserContext) => Promise<unknown>) | undefined,
+    theme = "light" as (typeof SHOT_THEMES)[number],
+    // A leg that holds a face the board draws (holdFaces) can't wait for the page's load: the face it holds is part of it.
+    waitUntil = "load" as "load" | "domcontentloaded",
+  } = {},
 ) {
   const board = { uuid: BOARD, title: "Kickoff", levels: LEVELS, update: boardDoc(drawing) }
   const collab = collabFor([{ id: NAME, update: board.update, levels: LEVELS }])
-  const context = await browser.newContext(DEVICES[device])
+  const context = await browser.newContext({ ...DEVICES[device], colorScheme: theme })
   await context.addInitScript(({ key, firstVisit }: { key: string; firstVisit: boolean }) => {
     try {
       if (!firstVisit) localStorage.setItem(key, JSON.stringify({ scrollX: 0, scrollY: 0, zoom: 1 }))
@@ -48,7 +57,7 @@ async function open(
   // A leg's own routes, after the fake app's, so they answer first.
   if (route) await route(context)
   const page = await context.newPage()
-  await page.goto(`/app/board/${BOARD}${search}`)
+  await page.goto(`/app/board/${BOARD}${search}`, { waitUntil })
   await expect(page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
   const elements = () => (Array.from(collab.doc(NAME).getMap("elements").values()) as Shared[]).filter((e) => !e.isDeleted)
   const notes = () => elements().filter((e) => e.type === "rectangle" && e.customData?.kind === "note")
@@ -66,6 +75,53 @@ async function at(page: Page, x: number, y: number) {
   if (!box) throw new Error("the canvas isn't on the page")
   return { x: box.x + x, y: box.y + y }
 }
+
+/** Excalidraw's faces, each fetched by files of its own folder, and the package's own copy of them. */
+const FACES = join(process.cwd(), "node_modules/@excalidraw/excalidraw/dist/prod/fonts")
+const faceFiles = (faces: string[]) => new RegExp(`/fonts/(${faces.join("|")})/[^/]+\\.woff2(\\?.*)?$`)
+/** The faces a board's notes are written in: a clean board's Nunito and a sketched one's Excalifont (lib/board/notes STYLE_FONT). */
+const BOARD_FACES = ["Nunito", "Excalifont"]
+
+/** A leg's route: these faces' files held, as a slow line would hold them, until `landed`, then answered. */
+const holdFaces = (faces: string[], landed: Promise<void>) => (context: BrowserContext) =>
+  context.route(faceFiles(faces), async (route) => {
+    await landed
+    const [face, file] = new URL(route.request().url()).pathname.split("/").slice(-2)
+    await route.fulfill({ path: join(FACES, face, file) }).catch(() => {})
+  })
+
+/** A note's words as the server holds them: the lines they're laid out in, and how wide, in their size and face. */
+type Label = { id: string; text: string; width: number; fontSize: number; fontFamily: number }
+const labelsOf = (elements: Shared[]) =>
+  elements
+    .map((e) => e as typeof e & { containerId?: string | null; fontFamily?: number })
+    .filter((e) => e.type === "text" && e.containerId && (e.text ?? "").trim())
+    .map((e): Label => ({ id: e.id, text: e.text ?? "", width: e.width ?? 0, fontSize: e.fontSize ?? 0, fontFamily: e.fontFamily ?? 5 }))
+
+/**
+ * The notes' words whose widest line, measured in the face they're drawn in once it has come, isn't as wide as they're
+ * laid out (to a pixel): never wider, so Excalidraw cuts no line, and never narrower, as a face that isn't theirs made
+ * them (V-229). Empty when every one fits.
+ */
+const misfits = (page: Page, labels: Label[]) =>
+  page.evaluate(async (ls) => {
+    // Excalidraw 0.18.1's FONT_FAMILY, turned round.
+    const faces: Record<number, string> = { 1: "Virgil", 2: "Helvetica", 3: "Cascadia", 5: "Excalifont", 6: "Nunito", 7: "Lilita One", 8: "Comic Shanns", 9: "Liberation Sans" }
+    const ctx = document.createElement("canvas").getContext("2d")!
+    const out: string[] = []
+    for (const l of ls) {
+      const font = `${l.fontSize}px "${faces[l.fontFamily] ?? "unknown"}"`
+      await document.fonts.load(font, l.text)
+      if (!document.fonts.check(font, l.text)) {
+        out.push(`${l.id}: its face (${font}) hasn't come`)
+        continue
+      }
+      ctx.font = font
+      const drawn = Math.max(...l.text.split("\n").map((line) => ctx.measureText(line).width))
+      if (Math.abs(drawn - l.width) > 1) out.push(`${l.id} "${l.text.replace(/\n/g, "|")}": laid ${l.width.toFixed(1)} px wide, drawn ${drawn.toFixed(1)} px in ${font}`)
+    }
+    return out
+  }, labels)
 
 test.describe("a board's first ten minutes", () => {
   test("a note on N, a run of notes on Tab, a pasted list, a colour, a template and the Frames panel", async ({ browser }) => {
@@ -355,18 +411,10 @@ test.describe("a note's words fit it", () => {
 
   test("on a computer, a note fitted before its face has come fits again when the face lands", async ({ browser }) => {
     test.setTimeout(120_000)
-    // Excalidraw fetches its handwriting face (Excalifont) by files of its own: held, as a slow line would hold them,
-    // then answered from the package's own copy of the same files.
+    // Excalidraw fetches its handwriting face (Excalifont) by files of its own: held, then answered (holdFaces).
     let land = () => {}
     const landed = new Promise<void>((resolve) => (land = resolve))
-    const faces = join(process.cwd(), "node_modules/@excalidraw/excalidraw/dist/prod/fonts/Excalifont")
-    const b = await open(browser, "computer", {
-      route: (context) =>
-        context.route(/\/fonts\/Excalifont\/[^/]+\.woff2(\?.*)?$/, async (route) => {
-          await landed
-          await route.fulfill({ path: join(faces, basename(new URL(route.request().url()).pathname)) }).catch(() => {})
-        }),
-    })
+    const b = await open(browser, "computer", { route: holdFaces(["Excalifont"], landed) })
     const { page } = b
     const ready = () => page.evaluate(() => document.fonts.check("18px Excalifont", "Write"))
     await page.locator(".excalidraw").first().focus()
@@ -485,6 +533,83 @@ test.describe("a note's words fit it", () => {
     await expect.poll(() => b.words(b.notes()[0].id), { timeout: 5_000 }).toBe("Ship it!")
     await expect.poll(() => fit(b), { timeout: 5_000 }).toEqual({ width: 240, height: 240, font: 24 })
     await b.context.close()
+  })
+
+  // V-229: a template laid on a phone before its words' face has come (a phone's first board has drawn no words in it,
+  // as a computer's empty board has) kept the widths the fallback face gave its notes' words; Excalidraw then drew them
+  // in the face, as wide as the face makes them, inside those widths, and cut each note's widest line at both ends
+  // ("\/hat slowed u" on the demo). Each note's words are laid out again when their face lands, as a typed note's are:
+  // as wide as their widest line in the face they're drawn in.
+  /** Lays the Retrospective from a phone's empty board, and returns its three prompts' words as the server holds them. */
+  async function layRetro(b: Awaited<ReturnType<typeof open>>) {
+    await expect(b.page.locator("[data-empty-canvas]")).toBeVisible({ timeout: 10_000 })
+    await b.page.getByRole("button", { name: "See all templates" }).tap()
+    await b.page.getByRole("option", { name: /Retrospective/ }).first().tap()
+    await expect.poll(() => b.elements().filter((e) => e.type === "frame").map((e) => e.name).sort(), { timeout: 5_000 }).toEqual(["Actions", "To improve", "Went well"])
+    const labels = labelsOf(b.elements())
+    expect(labels.map((l) => l.text.replace(/\n/g, " ")).sort(), "the template's three prompts").toEqual(["What slowed us down?", "What went well?", "Who does what by when?"])
+    return labels
+  }
+
+  for (const theme of SHOT_THEMES) {
+    test(`on a phone, a template laid before its face has come has its notes' words fitted again when it lands, no line cut (V-229, ${theme})`, async ({ browser }) => {
+      test.setTimeout(120_000)
+      let land = () => {}
+      const landed = new Promise<void>((resolve) => (land = resolve))
+      const b = await open(browser, "phone", { theme, route: holdFaces(BOARD_FACES, landed), waitUntil: "domcontentloaded" })
+      await layRetro(b)
+      // The face lands: each prompt is as wide as its widest line in the face it's drawn in, on the server.
+      land()
+      await expect.poll(() => misfits(b.page, labelsOf(b.elements())), { timeout: 10_000, message: "each prompt laid out in the face it's drawn in" }).toEqual([])
+      await reviewShot(b.page, "board-template-retro-phone", theme)
+      await b.context.close()
+    })
+  }
+
+  // V-229, boards laid before the fix (main, 1 Nov): a board laid out on a phone while its words' face couldn't come keeps
+  // the fallback face's widths on the server, and every screen cut its prompts. When someone who may edit opens it and
+  // the face lands, each note's words are laid out again in the face, once, as an edit everyone gets; and a board whose
+  // words are already right in their face is never written when it's opened.
+  test("on a phone, a board laid out while its words' face couldn't come is laid out again in it when opened and the face lands, and only once (V-229)", async ({ browser }) => {
+    test.setTimeout(150_000)
+    const a = await open(browser, "phone", { route: (context) => context.route(faceFiles(BOARD_FACES), (route) => route.abort()) })
+    const laid = await layRetro(a)
+    // As a board laid out before words carried the face they were laid out in (main, 1 Nov 18:4x): no stamp.
+    const saved = a.elements().map((e) => (e.type === "text" ? { ...e, customData: {} } : e))
+    expect.soft(a.elements().filter((e) => e.type === "text" && e.containerId).map((e) => e.customData?.laidIn), "laid out while the face couldn't come").toEqual(["fallback", "fallback", "fallback"])
+    await a.context.close()
+
+    let land = () => {}
+    const landed = new Promise<void>((resolve) => (land = resolve))
+    const b = await open(browser, "phone", { drawing: saved, route: holdFaces(BOARD_FACES, landed), waitUntil: "domcontentloaded" })
+    land()
+    await expect.poll(() => misfits(b.page, labelsOf(b.elements())), { timeout: 10_000, message: "each saved prompt laid out again in the face it's drawn in, on the server" }).toEqual([])
+    const widths = new Map(laid.map((l) => [l.id, l.width]))
+    expect(labelsOf(b.elements()).filter((l) => widths.get(l.id) !== l.width).length, "the saved prompts were laid out in another face").toBeGreaterThan(0)
+
+    // Opened again, its words right in their face: nothing is written. The refit runs a frame after the board syncs,
+    // so a beat after that is enough to see a write if one came.
+    const versions = () => b.elements().map((e) => `${e.id}:${(e as { version?: number }).version}`).sort().join(" ")
+    const healed = versions()
+    await b.page.reload()
+    await expect(b.page.locator('[data-board-canvas][data-board-synced="true"]')).toBeAttached({ timeout: 30_000 })
+    await b.page.waitForTimeout(2_000)
+    expect(versions(), "a board whose words fit their face is never written when it's opened").toBe(healed)
+
+    // Words stamped as laid out in their face are never laid out again for measuring otherwise (CODE-REVIEWER-159; main,
+    // 1 Nov 18:4x): screens measure one face otherwise, Chromium and WebKit by up to 22 px. The healed board with one
+    // prompt as another screen laid it out in its face, 6 px wider, opened where the face comes at once: nothing written.
+    const board = b.elements()
+    await b.context.close()
+    const prompt = labelsOf(board)[0]
+    expect.soft(board.find((e) => e.id === prompt.id)?.customData?.laidIn, "the healed prompt says the face it was laid out in").toMatch(/^Nunito [0-9.]+px$/)
+    const elsewhere = board.map((e) => (e.id === prompt.id ? { ...e, width: prompt.width + 6, customData: { laidIn: `Nunito ${prompt.fontSize}px` } } : e))
+    const c = await open(browser, "phone", { drawing: elsewhere, route: holdFaces(BOARD_FACES, Promise.resolve()), waitUntil: "domcontentloaded" })
+    await expect.poll(() => c.page.evaluate((f) => document.fonts.check(f, "What"), `${prompt.fontSize}px "Nunito"`), { timeout: 10_000, message: "the face has come" }).toBe(true)
+    await c.page.waitForTimeout(2_000)
+    const opened = (els: Shared[]) => els.map((e) => `${e.id}:${e.version}:${e.width}`).sort().join(" ")
+    expect(opened(c.elements()), "a prompt stamped as laid out in its face, measured otherwise here, is never written").toBe(opened(elsewhere))
+    await c.context.close()
   })
 })
 

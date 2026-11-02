@@ -4,11 +4,27 @@
  * loads when Find opens, imports this module, so the board's first load never
  * carries it; lib/board/viewport keeps what every board needs. Pure.
  */
+import { isFrame } from "@/lib/board/findOnBoard"
 import { viewAboveSheet, type BoardView } from "@/lib/board/viewport"
 
 /** Whether all of a box on the canvas (its corners as sceneToLocal gives them) is in view: where Find leaves a match. */
 export function boxAllInView(v: Pick<BoardView, "width" | "height">, left: number, top: number, right: number, bottom: number) {
   return left >= 0 && top >= 0 && right <= v.width && bottom <= v.height
+}
+
+/**
+ * The room a frame's name takes above the frame on the page, whatever the zoom: Excalidraw 0.18.1 writes the name over
+ * its canvas (#<app>-frame-name-<frame id>), its foot 3 px above the frame's top edge (FRAME_STYLE.nameOffsetY), in
+ * 14 px words on a 1.25 line, and a little air above it (V-270).
+ */
+export const FRAME_NAME_ROOM = Math.ceil(3 + 14 * 1.25) + 3
+
+/**
+ * What of an element is outside its box, above it, on the page: a frame's name, which is the words Find matches on a
+ * frame. Find counts it in, so a match on a frame's name comes into view with its words, not only the frame they name.
+ */
+export function roomAbove(el: { type: string }): number {
+  return isFrame(el) ? FRAME_NAME_ROOM : 0
 }
 
 /**
@@ -32,10 +48,13 @@ export function viewBesidePanel<V extends BoardView>(v: V, sheet: boolean, edge?
   return { ...v, offsetTop: top, height: open, scrollY: v.scrollY - (top - v.offsetTop) / v.zoom }
 }
 
-/** The canvasOffsets that keep Excalidraw's scrollToContent inside an open view of the whole canvas (viewBesidePanel). */
-export function offsetsOf(whole: BoardView, open: BoardView) {
+/**
+ * The canvasOffsets that keep Excalidraw's scrollToContent inside an open view of the whole canvas (viewBesidePanel),
+ * with `above` kept over the content for what of it is drawn above its box (roomAbove).
+ */
+export function offsetsOf(whole: BoardView, open: BoardView, above = 0) {
   return {
-    top: open.offsetTop - whole.offsetTop,
+    top: open.offsetTop - whole.offsetTop + above,
     left: open.offsetLeft - whole.offsetLeft,
     right: whole.offsetLeft + whole.width - (open.offsetLeft + open.width),
     bottom: whole.offsetTop + whole.height - (open.offsetTop + open.height),

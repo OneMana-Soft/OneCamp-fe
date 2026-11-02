@@ -19,6 +19,9 @@ import { useBoardView } from "@/hooks/useBoardView"
 import { clientToScene, sceneToLocal } from "@/lib/board/viewport"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { Button } from "@/components/ui/button"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
+import { useSheetMode } from "@/components/ui/overlayMode"
+import { SHEET_FOOTER_ROW } from "@/components/ui/sheetRows"
 import { avatarHueClass } from "@/components/ui/graphics/hues"
 import { Check, X, Trash, SmilePlus } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -253,6 +256,10 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
   )
 
   const open = comments.find((c) => c.id === openId) || null
+  // A phone (useSheetMode, which alone decides): the thread and a new comment are the app's sheets, from the
+  // bottom edge, what they hold in the sheet's one scroller and the reply or Comment pinned at its foot (miro-40
+  // H1). A computer keeps the cards at the pin.
+  const sheet = useSheetMode()
 
   return (
     <div
@@ -302,6 +309,20 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
 
       {/* Open thread popover */}
       {open && (() => {
+        const thread = (
+          <CommentThread
+            sheet={sheet}
+            comment={open}
+            editable={editable}
+            currentUserId={user.id}
+            onReply={(body, mentioned) => addReply(open.id, body, mentioned)}
+            onResolve={() => toggleResolved(open.id)}
+            onDelete={() => deleteComment(open.id)}
+            onToggleReaction={(messageId, emoji) => toggleReaction(open.id, messageId, emoji)}
+            onClose={() => setOpenId(null)}
+          />
+        )
+        if (sheet) return thread
         const pos = pinPos(open.x, open.y)
         if (!pos) return null
         const cw = overlayRef.current?.clientWidth ?? 0
@@ -315,22 +336,24 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
             style={{ left, top }}
             onClick={(e) => e.stopPropagation()}
           >
-            <CommentThread
-              comment={open}
-              editable={editable}
-              currentUserId={user.id}
-              onReply={(body, mentioned) => addReply(open.id, body, mentioned)}
-              onResolve={() => toggleResolved(open.id)}
-              onDelete={() => deleteComment(open.id)}
-              onToggleReaction={(messageId, emoji) => toggleReaction(open.id, messageId, emoji)}
-              onClose={() => setOpenId(null)}
-            />
+            {thread}
           </div>
         )
       })()}
 
       {/* New-comment draft composer */}
       {draft && (() => {
+        const composer = (
+          <NewCommentComposer
+            sheet={sheet}
+            onSubmit={(body, mentioned) => {
+              addComment(draft.x, draft.y, body, mentioned)
+              setDraft(null)
+            }}
+            onCancel={() => setDraft(null)}
+          />
+        )
+        if (sheet) return composer
         const pos = pinPos(draft.x, draft.y)
         if (!pos) return null
         const cw = overlayRef.current?.clientWidth ?? 0
@@ -343,13 +366,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
             style={{ left, top }}
             onClick={(e) => e.stopPropagation()}
           >
-            <NewCommentComposer
-              onSubmit={(body, mentioned) => {
-                addComment(draft.x, draft.y, body, mentioned)
-                setDraft(null)
-              }}
-              onCancel={() => setDraft(null)}
-            />
+            {composer}
           </div>
         )
       })()}
@@ -358,6 +375,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
 }
 
 function CommentThread({
+  sheet = false,
   comment,
   editable,
   currentUserId,
@@ -367,6 +385,8 @@ function CommentThread({
   onToggleReaction,
   onClose,
 }: {
+  /** The app's sheet (a phone): its messages in the sheet's one scroller, the reply pinned at its foot. */
+  sheet?: boolean
   comment: BoardComment
   editable: boolean
   currentUserId: string
@@ -386,6 +406,72 @@ function CommentThread({
     onReply(body, replyMentions)
     setReply("")
     setReplyMentions([])
+  }
+
+  const messages = (comment.messages || []).map((m) => (
+    <ThreadMessageRow
+      key={m.id}
+      message={m}
+      editable={editable}
+      currentUserId={currentUserId}
+      onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
+    />
+  ))
+  const replyBox = (
+    <BoardMentionInput
+      value={reply}
+      onChange={setReply}
+      onMentionedUsersChange={setReplyMentions}
+      onSubmit={submitReply}
+      placeholder="Reply… (use @ to mention)"
+      className="min-h-[44px] resize-none text-sm"
+    />
+  )
+  const replyButton = (
+    <Button size="sm" disabled={!reply.trim()} onClick={submitReply}>
+      Reply
+    </Button>
+  )
+
+  if (sheet) {
+    return (
+      <Drawer open onOpenChange={(o) => !o && onClose()} detent="medium">
+        <DrawerContent
+          data-board-comment=""
+          header={
+            <DrawerTitle asChild>
+              <p className="text-heading text-ink">{comment.resolved ? "Resolved" : "Comment"}</p>
+            </DrawerTitle>
+          }
+          footer={
+            editable ? (
+              <div className="flex flex-col gap-2">
+                {replyBox}
+                <div className={SHEET_FOOTER_ROW}>{replyButton}</div>
+              </div>
+            ) : undefined
+          }
+        >
+          <div className="space-y-2 px-2 pb-2">
+            {editable ? (
+              <div className="flex justify-end gap-1">
+                <Button variant="ghost" size="sm" onClick={onResolve}>
+                  <Check className={cn("h-3.5 w-3.5", comment.resolved && "text-success-ink")} />
+                  {comment.resolved ? "Reopen" : "Resolve"}
+                </Button>
+                {canManage && (
+                  <Button variant="ghost" size="sm" className="text-ink-3 hover:text-danger-ink" onClick={onDelete}>
+                    <Trash className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                )}
+              </div>
+            ) : null}
+            {messages}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    )
   }
 
   return (
@@ -409,33 +495,12 @@ function CommentThread({
         </div>
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-2">
-        {(comment.messages || []).map((m) => (
-          <ThreadMessageRow
-            key={m.id}
-            message={m}
-            editable={editable}
-            currentUserId={currentUserId}
-            onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
-          />
-        ))}
-      </div>
+      <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-2">{messages}</div>
 
       {editable && (
         <div className="border-t border-line p-2">
-          <BoardMentionInput
-            value={reply}
-            onChange={setReply}
-            onMentionedUsersChange={setReplyMentions}
-            onSubmit={submitReply}
-            placeholder="Reply… (use @ to mention)"
-            className="min-h-[44px] resize-none text-sm"
-          />
-          <div className="mt-1.5 flex justify-end">
-            <Button size="sm" disabled={!reply.trim()} onClick={submitReply}>
-              Reply
-            </Button>
-          </div>
+          {replyBox}
+          <div className="mt-1.5 flex justify-end">{replyButton}</div>
         </div>
       )}
     </div>
@@ -532,7 +597,16 @@ function ThreadMessageRow({
   )
 }
 
-function NewCommentComposer({ onSubmit, onCancel }: { onSubmit: (body: string, mentioned: MentionedUser[]) => void; onCancel: () => void }) {
+function NewCommentComposer({
+  sheet = false,
+  onSubmit,
+  onCancel,
+}: {
+  /** The app's sheet (a phone): the words in its one scroller, Cancel and Comment pinned at its foot. */
+  sheet?: boolean
+  onSubmit: (body: string, mentioned: MentionedUser[]) => void
+  onCancel: () => void
+}) {
   const [body, setBody] = React.useState("")
   const [mentions, setMentions] = React.useState<MentionedUser[]>([])
 
@@ -542,26 +616,51 @@ function NewCommentComposer({ onSubmit, onCancel }: { onSubmit: (body: string, m
     onSubmit(text, mentions)
   }
 
+  const words = (
+    <BoardMentionInput
+      value={body}
+      onChange={setBody}
+      onMentionedUsersChange={setMentions}
+      onSubmit={submit}
+      onCancel={onCancel}
+      autoFocus
+      placeholder="Add a comment… (use @ to mention)"
+      className="min-h-[60px] resize-none text-sm"
+    />
+  )
+  const actions = (
+    <>
+      <Button variant="ghost" size="sm" onClick={onCancel}>
+        Cancel
+      </Button>
+      <Button size="sm" disabled={!body.trim()} onClick={submit}>
+        Comment
+      </Button>
+    </>
+  )
+
+  if (sheet) {
+    return (
+      <Drawer open onOpenChange={(o) => !o && onCancel()} detent="medium">
+        <DrawerContent
+          data-board-comment=""
+          header={
+            <DrawerTitle asChild>
+              <p className="text-heading text-ink">New comment</p>
+            </DrawerTitle>
+          }
+          footer={<div className={SHEET_FOOTER_ROW}>{actions}</div>}
+        >
+          <div className="px-4 pb-2 pt-1">{words}</div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
   return (
     <div>
-      <BoardMentionInput
-        value={body}
-        onChange={setBody}
-        onMentionedUsersChange={setMentions}
-        onSubmit={submit}
-        onCancel={onCancel}
-        autoFocus
-        placeholder="Add a comment… (use @ to mention)"
-        className="min-h-[60px] resize-none text-sm"
-      />
-      <div className="mt-2 flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button size="sm" disabled={!body.trim()} onClick={submit}>
-          Comment
-        </Button>
-      </div>
+      {words}
+      <div className="mt-2 flex justify-end gap-2">{actions}</div>
     </div>
   )
 }

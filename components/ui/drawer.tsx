@@ -8,7 +8,7 @@ import { lastInputWasPointer, watchInputModality } from "@/lib/ui/inputModality"
 import { watchMore } from "@/components/ui/moreMarks"
 import { focusDialogItself } from "@/components/ui/overlayFocus"
 import { PanelsContext, type Panel } from "@/components/ui/sheetPanels"
-import { useSheetMark } from "@/components/ui/sheetMark"
+import { sheetEdge, useSheetMark } from "@/components/ui/sheetMark"
 import { lazyPiece } from "@/lib/lazy/lazyPiece"
 
 /**
@@ -174,7 +174,7 @@ const DrawerContent = React.forwardRef<
      */
     footer?: React.ReactNode
   }
->(({ className, children, overlayClassName, handleClassName, above, header, footer, onEscapeKeyDown, onOpenAutoFocus, onCloseAutoFocus, onFocusCapture, ...props }, ref) => {
+>(({ className, children, overlayClassName, handleClassName, above, header, footer, onEscapeKeyDown, onOpenAutoFocus, onCloseAutoFocus, onFocusCapture, onClick, ...props }, ref) => {
   const detent = React.useContext(DetentContext)
   const settles = useCloseSettles(ref)
   const marks = useSheetMark(settles)
@@ -224,14 +224,11 @@ const DrawerContent = React.forwardRef<
   const titleId = React.useId()
   return (
     <DrawerPortal>
-      {/* A tap on the scrim closes the sheet and nothing else. React carries
-          its click up the tree the portal came from, so the scrim of a sheet
-          opened inside a row (a tree row's "⋯") opened the row's page too:
-          the click stops here. Stopped, it no longer reaches the document,
-          where Radix closes a sheet on a finger's tap outside (a mouse's press
-          has closed it already), so the scrim is the sheet's close, as Done
-          is: the dialog's own, vaul's onOpenChange, which a sheet that isn't
-          dismissible refuses. It stays a layer, with no button's type. */}
+      {/* A tap on the scrim closes the sheet and nothing else. It stops here,
+          the browser's event too, so Radix, at the document, never hears a
+          finger's tap outside: the scrim is the sheet's close, as Done is,
+          vaul's onOpenChange, which a sheet that isn't dismissible refuses.
+          It stays a layer, with no button's type. */}
       <DrawerClose asChild type={undefined} onClick={(event) => event.stopPropagation()}>
         <DrawerOverlay className={overlayClassName} />
       </DrawerClose>
@@ -250,19 +247,12 @@ const DrawerContent = React.forwardRef<
           // The pop surface at e4, no border; the r20 top corners are
           // app/phone.css's ([data-v3-sheet]), the sheet step.
           "fixed inset-x-0 bottom-0 z-[var(--z-modal)] flex h-auto flex-col bg-pop shadow-e4",
-          // A sheet taller than the screen used to grow off the top of it.
-          //
-          // The element is fixed to the bottom with an automatic height, so
-          // `mt-24` never applied: margin does nothing to a fixed box with no
-          // top. Content simply extended past the top edge and was clipped, and
-          // the rows up there could not be reached by any gesture. The More menu
-          // is the one people meet, because it is the longest, but only three of
-          // the twenty-nine drawers handled their own height and none capped it,
-          // so this was every drawer on a short screen.
-          //
-          // dvh, not vh: on mobile Safari `vh` is the tall viewport, measured as
-          // if the address bar were hidden, so a 92vh sheet still runs under the
-          // bar when it is not.
+          // Capped at its detent's height: a sheet taller than the screen ran
+          // off its top and was clipped, its rows past any gesture's reach (the
+          // More menu, the longest, first), as a fixed box with no top takes no
+          // margin (`mt-24` never applied). dvh, not vh: mobile Safari's `vh` is
+          // the tall viewport, measured as if the address bar were hidden, so a
+          // 92vh sheet still ran under the bar.
           DETENT_HEIGHT[detent],
           // Reserve the home-indicator strip. layout.tsx sets viewportFit:"cover",
           // so a `bottom-0` sheet genuinely extends under it, and the OS owns the
@@ -281,6 +271,7 @@ const DrawerContent = React.forwardRef<
           detent === "menu" && "pt-2",
           className
         )}
+        onClick={sheetEdge(onClick)}
         // One layer a press: a panel, then the sheet.
         onEscapeKeyDown={(event) => {
           if (top) {

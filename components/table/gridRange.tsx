@@ -23,10 +23,10 @@ import { blockText } from "@/lib/tables/cellText"
 import { formatLocale } from "@/lib/tables/numberFormat"
 import { isComposingKey } from "@/lib/keys/ime"
 import { lazyView } from "@/lib/lazy/lazyView"
-import { reloadForNewBuild } from "@/lib/newBuild"
 import { whenIdle } from "@/lib/whenIdle"
 import { feedback } from "@/lib/ui/feedback"
 import type { Box } from "@/lib/tables/cellRange"
+import { ledger } from "@/lib/tables/useCellCommit"
 import type { GridWrites, RangeWrites } from "@/components/table/rangeActions"
 import type { EarlyPress, KeyLike, RangeHandlers, RangeShell } from "@/components/table/rangePiece"
 
@@ -37,13 +37,6 @@ const RangePart = lazyView(() =>
     return m
   }),
 )
-
-/** The ledger, its own chunk (as the grid's undo reads it); gone after a deploy, the page reloads for the new build. */
-const ledger = () =>
-  import("@/lib/tables/ledger").catch(async (e: unknown) => {
-    if (await reloadForNewBuild(e)) return new Promise<never>(() => undefined)
-    throw e
-  })
 
 /** The grid's writes with the kit (RangeKit): the work of code the piece can't import. */
 const kitOf = (g: GridWrites): RangeWrites => ({
@@ -58,9 +51,12 @@ const kitOf = (g: GridWrites): RangeWrites => ({
       ),
     }),
   batch: (input) => ledger().then((m) => m.batchRows(g.tableId, input, true)),
-  undo: (set) => ledger().then((m) => m.undoChange(g.tableId, set)),
   failure: (e, fallback) => ({ status: apiErrorStatus(e), message: apiErrorMessage(e, fallback) }),
   writable: (f) => fieldKind(f.type).stored,
+  read: (f, text) => {
+    const read = fieldKind(f.type).parse?.(text, f)
+    return read && "value" in read ? read.value : text
+  },
   text: (rows, fields) => blockText(rows, fields, g.valuesOf),
   count: (n) => formatLocale(n, {}),
 })
@@ -217,6 +213,19 @@ export function useGridRange(o: Pick<RangeShell, "tableRef" | "scrollRef" | "foc
     onFocusIn: useStableCallback((target: EventTarget) => (handlers() ? handlers()!.onFocusIn(target) : warm())),
     /** The focus left the grid. */
     clear: useStableCallback(() => (handlers() ? handlers()!.clear() : (s.range = null))),
+    /**
+     * The rows given moved (a read before them, or a jump): the range keeps its
+     * places by `to`, and goes once its rows aren't given.
+     */
+    moved: useStableCallback((to: (row: number) => number) => {
+      const r = s.range
+      if (!r) return
+      const anchor = to(r.anchor.row)
+      const focus = to(r.focus.row)
+      if (anchor === r.anchor.row && focus === r.focus.row) return
+      s.range = anchor < 0 || focus < 0 ? null : { anchor: { ...r.anchor, row: anchor }, focus: { ...r.focus, row: focus } }
+      handlers()?.place()
+    }),
     onKey,
     onCopy,
     onPaste,

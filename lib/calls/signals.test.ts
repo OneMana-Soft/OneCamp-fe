@@ -38,7 +38,8 @@ describe("readCaption", () => {
 // Step 3, part 2: the call's own signals, the layer the Call State package
 // (#29, shared with chat B7) takes over: one topic, a kind and a payload,
 // from the sender LiveKit names. Reactions ride on it, UI only.
-import { CALL_REACTIONS, CALL_SIGNAL_TOPIC, encodeSignal, readCallSignal, readReaction } from "./signals"
+import { REACTIONS } from "@/lib/reactions/set"
+import { CALL_SIGNAL_TOPIC, encodeSignal, readCallSignal, readReaction } from "./signals"
 
 describe("a call's own signals", () => {
   it("carry a kind and a payload on one topic, from the sender LiveKit says", () => {
@@ -63,7 +64,7 @@ describe("a call's own signals", () => {
 
 describe("a reaction", () => {
   it("is one of the tray's emoji, from whoever sent it", () => {
-    expect(CALL_REACTIONS).toHaveLength(6)
+    expect(REACTIONS).toHaveLength(6)
     expect(readReaction(encodeSignal("reaction", { emoji: "🎉" }), { identity: "maya", name: "Maya Chen" }, CALL_SIGNAL_TOPIC)).toEqual({ emoji: "🎉", identity: "maya", name: "Maya Chen" })
   })
 

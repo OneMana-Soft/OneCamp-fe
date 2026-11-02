@@ -53,11 +53,14 @@ export function NoteTagChips({
   api,
   tagHues,
   filter = [],
+  lit = null,
   selected = NO_IDS,
 }: {
   api: ExcalidrawImperativeAPI
   tagHues: TagHues
   filter?: readonly string[]
+  /** While Find dims the rest of the board (V-271), what it keeps clear, by id: it stands for `filter` then. */
+  lit?: ReadonlySet<string> | null
   /** Every selected element, by id (the workbench's BoardSelection.ids): what a drag carries. */
   selected?: readonly string[]
 }) {
@@ -94,7 +97,8 @@ export function NoteTagChips({
         const { left, top, width, height, inView } = noteBox(view, n)
         if (!inView) return null
         const tags = noteTags(n)
-        const faded = wanted.size > 0 && !hasAnyTag(tags, wanted)
+        // Find keeps a note clear when it keeps the note or the frame it is in (that frame's hole holds it).
+        const faded = lit ? !lit.has(n.id) && !(n.frameId != null && lit.has(n.frameId)) : wanted.size > 0 && !hasAnyTag(tags, wanted)
         // Whole chips while they fit (a narrow note or a far view shows fewer), the rest counted; a first tag too
         // long for the note is cut short.
         const whole = itemsThatFit(

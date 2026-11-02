@@ -100,6 +100,18 @@ describe("tags on the notes", () => {
     view.rerender(<NoteTagChips api={s.api} tagHues={tagHues} filter={[]} />)
     expect(document.querySelector("[data-faded]")).toBeNull()
   })
+
+  it("fades the chips of the notes Find leaves out while it dims the rest, but not a note in a frame it keeps, over any filter (V-271)", () => {
+    const inFrame = note("c", 100, 400, ["ux"])
+    inFrame[0].frameId = "f"
+    const s = boardScene([...note("a", 100, 100, ["risk"]), ...note("b", 400, 100, ["ux"]), ...inFrame])
+    const view = render(<NoteTagChips api={s.api} tagHues={tagHues} filter={["ux"]} lit={new Set(["a", "f"])} />)
+    const faded = (id: string) => document.querySelector(`[data-note-tags-of="${id}"]`)!.getAttribute("data-faded")
+    expect([faded("a"), faded("b"), faded("c")]).toEqual([null, "true", null])
+    // Find no longer dims: the filter's own fading is back.
+    view.rerender(<NoteTagChips api={s.api} tagHues={tagHues} filter={["ux"]} lit={null} />)
+    expect([faded("a"), faded("b"), faded("c")]).toEqual(["true", null, null])
+  })
 })
 
 // Excalidraw moves a note IN PLACE, frame by frame, and keeps its array until the move ends (boardScene's move).

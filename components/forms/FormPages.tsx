@@ -10,19 +10,15 @@
 // page's own, which the form is sent with; its answer is the files' ids.
 
 import { useEffect, useId, useMemo, useRef, useState } from "react"
-import { Check, Plus } from "@/lib/icons"
+import { Check } from "@/lib/icons"
 import type { CampHue } from "@/lib/campHue"
 import { celebrateTask, warmBurstsWhenIdle } from "@/lib/celebrateSoon"
-import { ix } from "@/lib/ui/interactive"
 import { cn } from "@/lib/utils/helpers/cn"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { Bar } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { DateField } from "@/components/ui/date-field"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AnswerInput, type AnswerKind } from "@/components/forms/AnswerInput"
 import { SpamTrap } from "@/components/common/SpamTrap"
 import { FileQuestion, sending, type PickedFile } from "@/components/forms/FileQuestion"
 import { uploadFormFile } from "@/services/formFiles"
@@ -360,7 +356,6 @@ function Question({ id, field, hue, value, problem, onChange }: { id: string; fi
   const helpId = `${id}-help`
   const problemId = `${id}-problem`
   const described = [field.help ? helpId : "", problem ? problemId : ""].filter(Boolean).join(" ") || undefined
-  const invalid = problem ? true : undefined
   const words = (
     <>
       {field.label}
@@ -369,111 +364,47 @@ function Question({ id, field, hue, value, problem, onChange }: { id: string; fi
   )
   const help = field.help ? <p id={helpId} className="-mt-0.5 whitespace-pre-line text-meta text-ink-3">{field.help}</p> : null
   const said = problem ? <p id={problemId} className="text-meta text-danger-ink">{problem}</p> : null
-  const str = typeof value === "string" ? value : ""
-  const label = <Label htmlFor={id} id={`${id}-label`} className="flex items-baseline justify-between gap-2 text-ui-sm font-medium text-foreground">{words}</Label>
+  // The box is the one New task's template asks draw too (components/forms/AnswerInput).
+  const box = (
+    <AnswerInput id={id} kind={field.type as AnswerKind} value={value} onChange={onChange} choices={(field.options ?? []).map((o) => ({ value: o, label: o }))}
+      hue={hue} invalid={!!problem} describedBy={described} labelledBy={`${id}-label`} maxLength={answerLimit(field.type)} />
+  )
   switch (field.type) {
     case "checkbox":
       return (
         <div className="grid gap-1.5">
           <label className="flex items-start gap-2.5 text-ui-sm text-foreground" htmlFor={id}>
-            <input id={id} type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--hue)]" checked={value === true} onChange={(e) => onChange(e.target.checked)} aria-invalid={invalid} aria-describedby={described} />
+            {box}
             <span className="flex flex-1 items-baseline justify-between gap-2 font-medium">{words}</span>
           </label>
           {help}
           {said}
         </div>
       )
-    case "multi_select": {
-      const picked = Array.isArray(value) ? (value as string[]) : []
+    case "multi_select":
       return (
         <div className="grid gap-1.5">
           <p id={`${id}-label`} className="flex items-baseline justify-between gap-2 text-ui-sm font-medium text-foreground">{words}</p>
           {help}
-          <div role="group" aria-labelledby={`${id}-label`} aria-describedby={described} className="flex flex-wrap gap-2">
-            {(field.options ?? []).map((o, i) => {
-              const on = picked.includes(o)
-              return (
-                <button
-                  key={o}
-                  id={i === 0 ? id : undefined}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => onChange(on ? picked.filter((x) => x !== o) : [...picked, o])}
-                  data-touch-target=""
-                  {...ix("chip", { hue })}
-                  className="chip h-11 gap-1.5 px-3.5 text-sm sm:h-9 sm:px-3"
-                >
-                  {on ? <Check aria-hidden="true" className="size-3.5" /> : <Plus aria-hidden="true" className="size-3.5 text-ink-3" />}
-                  {o}
-                </button>
-              )
-            })}
-          </div>
+          {box}
           {said}
         </div>
       )
-    }
-    case "select":
+    default:
       return (
         <div className="grid gap-1.5">
-          {label}
+          <Label htmlFor={id} id={`${id}-label`} className="flex items-baseline justify-between gap-2 text-ui-sm font-medium text-foreground">{words}</Label>
           {help}
-          <Select value={str} onValueChange={onChange}>
-            <SelectTrigger id={id} aria-invalid={invalid} aria-describedby={described}><SelectValue placeholder="Choose one" /></SelectTrigger>
-            <SelectContent>{(field.options ?? []).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-          </Select>
+          {box}
           {said}
         </div>
       )
-    case "date":
-      return (
-        <div className="grid gap-1.5">
-          {label}
-          {help}
-          <DateField id={id} value={str} onChange={onChange} aria-invalid={invalid} aria-describedby={described} />
-          {said}
-        </div>
-      )
-    case "long_text":
-      return (
-        <div className="grid gap-1.5">
-          {label}
-          {help}
-          <Textarea id={id} value={str} onChange={(e) => onChange(e.target.value)} maxLength={answerLimit("long_text")} rows={4} aria-invalid={invalid} aria-describedby={described} />
-          {said}
-        </div>
-      )
-    default: {
-      // A number is typed as text in the person's own signs ("1,5" in de-DE),
-      // and sent as typed: a browser number input rewrote it in the browser's
-      // locale, or emptied it.
-      const kind = INPUT[field.type] ?? TEXT
-      return (
-        <div className="grid gap-1.5">
-          {label}
-          {help}
-          <Input id={id} type={kind.type} inputMode={kind.mode} autoComplete={kind.auto} spellCheck={kind.spell} placeholder={field.type === "url" ? "https://" : undefined}
-            value={str} onChange={(e) => onChange(e.target.value)} maxLength={answerLimit(field.type)} aria-invalid={invalid} aria-describedby={described} />
-          {said}
-        </div>
-      )
-    }
   }
 }
 
-type Box = { type: string; mode?: "decimal" | "tel" | "url" | "email"; auto?: string; spell?: boolean }
-const TEXT: Box = { type: "text" }
 /** What's wrong, said at its question: a missing answer plainly (the question is right above it), anything else in the server's words. */
 const atQuestion = (q: FormField, p: Problem) =>
   !p.required ? p.message : q.type === "checkbox" ? "This needs to be ticked." : q.type === "file" ? "This needs a file." : "This needs an answer."
-
-/** Each kind's box: its type, keyboard and autofill. */
-const INPUT: Partial<Record<FormField["type"], Box>> = {
-  email: { type: "email", mode: "email", auto: "email", spell: false },
-  phone: { type: "tel", mode: "tel", auto: "tel" },
-  url: { type: "url", mode: "url", auto: "url", spell: false },
-  number: { type: "text", mode: "decimal" },
-}
 
 /** "Required" in words beside a label: a red star said it to sighted people only. */
 function RequiredWord() {

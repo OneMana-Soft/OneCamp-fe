@@ -5,11 +5,10 @@ import type { HocuspocusProvider } from "@hocuspocus/provider"
 import type { Doc as YDoc, Map as YMap } from "yjs"
 import { PartRetry } from "@/components/ui/part-retry"
 import { PHONE_DOCK } from "@/components/board/phoneDock"
-import { stampedEditor } from "@/components/docEditor/presence/stamp"
 import { useMedia } from "@/context/MediaQueryContext"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { BoardTimer, BoardVoting } from "@/lib/board/facilitation"
-import type { BoardView } from "@/lib/board/viewport"
+import { presentersIn } from "@/lib/board/presenting"
 
 /**
  * Where the facilitation bar docks, and the one surface it is drawn on. The bar (boardFacilitation) is a
@@ -64,8 +63,6 @@ export interface FacilitationOn {
 export const facilitationOf = (doc: YDoc): YMap<unknown> => doc.getMap<unknown>("facilitation")
 export const ROUND_KEY = "voting"
 export const TIMER_KEY = "timer"
-/** The awareness field a presenting screen fills with the view it shows (null when it stops). */
-export const PRESENTING_FIELD = "presenting"
 
 /** The board's round, running or ended: an ended round stays on, with its Results, until it's cleared. */
 export const roundIn = (shared: YMap<unknown>): BoardVoting | null => (shared.get(ROUND_KEY) as BoardVoting | undefined) ?? null
@@ -73,35 +70,6 @@ export const roundIn = (shared: YMap<unknown>): BoardVoting | null => (shared.ge
 /** The board's timer, running, paused or run out (it stays on, saying time's up, until it's dismissed). */
 export const timerIn = (shared: YMap<unknown>): BoardTimer | null => (shared.get(TIMER_KEY) as BoardTimer | undefined) ?? null
 
-/** Another screen presenting: who, and the view it shows. */
-export interface Presenter {
-  clientId: number
-  userId: string
-  name: string
-  view: Pick<BoardView, "scrollX" | "scrollY" | "zoom" | "width" | "height">
-  /** The presenter holds everyone on their view until they let them move (miro-21 3). */
-  hold?: boolean
-}
-
-/** A board's awareness, as far as the reader needs it. */
-interface AwarenessLike {
-  clientID: number
-  getStates(): Map<number, Record<string, unknown>>
-}
-
-/**
- * Every other screen presenting (its awareness has a view); this screen's own never counts, nor does one from someone
- * the relay doesn't stamp an editor: only an editor presents or holds everyone.
- */
-export function presentersIn(awareness: AwarenessLike | null | undefined): Presenter[] {
-  const out: Presenter[] = []
-  awareness?.getStates().forEach((state, clientId) => {
-    if (clientId === awareness.clientID || !stampedEditor(state)) return
-    const p = state[PRESENTING_FIELD] as Omit<Presenter, "clientId"> | null | undefined
-    if (p?.view) out.push({ ...p, clientId })
-  })
-  return out
-}
 
 const PRESENTING = 1
 const VOTING = 2

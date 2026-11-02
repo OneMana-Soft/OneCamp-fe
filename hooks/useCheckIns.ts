@@ -8,16 +8,16 @@ import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { ProjectsGet } from "@/services/endpoints/projects"
+import { CheckInRoutes } from "@/services/endpoints/projects.checkIns"
 import type { CheckIn, CheckInInput } from "@/lib/checkins"
 
 export function useCheckIns(channelId: string | undefined) {
   // GET/POST /ch/{channel}/checkins; one check-in is /ch/checkins/{id}/edit|pause|delete|ask.
-  const key = channelId ? `${ProjectsGet.CheckIns}/${channelId}/checkins` : ""
+  const key = channelId ? `${CheckInRoutes.Base}/${channelId}/checkins` : ""
   const { data, isLoading, isError, mutate } = useFetch<{ data: { checkins: CheckIn[]; can_edit: boolean } }>(key, undefined, undefined, OWN_ERRORS)
   const act = useCallback(
     async (path: string, body: object = {}) => {
-      const res = await axiosInstance.post(`${ProjectsGet.CheckIns}${path}`, body)
+      const res = await axiosInstance.post(`${CheckInRoutes.Base}${path}`, body)
       await mutate()
       return res.data?.data
     },

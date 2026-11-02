@@ -4,7 +4,7 @@
 // these, with its state, pickers and saves; every other cell is drawn at
 // rest (cellFaces' restCell). A chunk of its own (DataTableGrid's LiveCells),
 // off the table's first screen; the record panel draws its fields with them.
-// The grid's moves (gridMoves: the keys between cells, a column's drag) ride in it.
+// The grid's moves (gridMoves: the keys between cells, a click's text, a column's drag) ride in it.
 
 import { rowLines } from "@/lib/tables/display"
 import * as React from "react"
@@ -41,7 +41,7 @@ import {
 } from "@/components/table/cellFaces"
 
 // The grid's keys between cells and its column drag come with the live cells (V-148).
-export { columnDrag, gridKeyDown } from "@/components/table/gridMoves"
+export { cellClick, cellKeyDown, cellMouseDown, cellPress, columnDrag, gridKeyDown, gridKeyUp } from "@/components/table/gridMoves"
 
 /** A files cell (FilesCell.tsx): a chunk of its own, as few tables have one. */
 const filesPart = lazyView(() => import("@/components/table/FilesCell"))
@@ -372,12 +372,16 @@ export function TextCell({
     if (lines && ctx.panel && area.current) fitLines(area.current, true)
   }, [lines, ctx.panel, local])
 
+  // Escape puts back what was typed; with nothing to put back, it ends the
+  // typing as a sheet's does: the grid's cell is selected but shut, its box
+  // holding the focus, so the keys reach it again (Space, a key typed over it).
   const escape = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape" && local !== savedText) {
+    if (e.key !== "Escape") return
+    if (local !== savedText) {
       e.preventDefault()
       e.stopPropagation()
       setLocal(savedText)
-    }
+    } else if (!ctx.panel) e.currentTarget.closest<HTMLElement>("[data-cell-box]")?.focus()
   }
   // The grid's text area grows while it's edited; the panel's always fits its lines.
   const fit = (el: HTMLTextAreaElement, open: boolean) => {

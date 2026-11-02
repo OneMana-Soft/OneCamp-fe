@@ -12,7 +12,8 @@ import { Spark } from "@/components/ui/graphics"
 import { useConfirm } from "@/hooks/useConfirm"
 import { onEscape } from "@/lib/keys/onEscape"
 import { fillTableAIColumn, parseFieldConfig, type TableField, type TableRow } from "@/services/tableService"
-import { batchRows, undoChange } from "@/lib/tables/ledger"
+import { batchRows, undoableWrite } from "@/lib/tables/ledger"
+import { useTableEdit } from "@/lib/tables/tableEdit"
 import { useUndoToast } from "@/components/table/ledger/useUndoToast"
 import { RowHistory } from "@/components/table/history/RowHistory"
 import { Cell, lineBreakKey } from "@/components/table/gridCells"
@@ -26,7 +27,7 @@ import { placeOfRow, rowAtPlace } from "@/lib/tables/viewPlaces"
 import { tintedFields } from "@/components/table/optionChip"
 import { aiPromptOf } from "@/components/table/ColumnMenu"
 import { TableGlyph } from "@/components/table/TableGlyph"
-import { shownValues, type CellCommit } from "@/lib/tables/useCellCommit"
+import { shownValues, type CellEdits } from "@/lib/tables/useCellCommit"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { ix } from "@/lib/ui/interactive"
 import { useAIAvailable } from "@/hooks/useClientConfig"
@@ -42,11 +43,14 @@ const RowPage = dynamic(() => import("@/components/table/rowPage/RowPage"), { lo
 /**
  * Under an AI column's value [AI]: whether a person wrote it, which the AI
  * then leaves be, and "Fill again", which asks the AI for this row's cell
- * whoever wrote it (TAB-BUG-4), where AI is on: with it off (or on the
- * edition without it) the button could only fail.
+ * whoever wrote it (TAB-BUG-4), where AI is on and the reader edits the
+ * table's rows: with AI off (or on the edition without it), or for a reader
+ * who may only view the table (V-170), the button could only fail.
  */
 function AiCellNote({ tableId, field, row, onFilled }: { tableId: string; field: TableField; row: TableRow; onFilled: () => void }) {
   const ai = useAIAvailable()
+  const canEdit = useTableEdit()
+  const refill = ai && canEdit
   const { toast } = useToast()
   const [filling, setFilling] = React.useState(false)
   const kept = !!row.ai_kept?.includes(field.id)
@@ -63,12 +67,12 @@ function AiCellNote({ tableId, field, row, onFilled }: { tableId: string; field:
       onFilled()
     }
   }
-  if (!kept && !ai) return null
+  if (!kept && !refill) return null
   // A second dd under the value: a dt may have several.
   return (
     <dd className="col-start-2 -mt-0.5 flex items-center gap-2 pb-1 text-meta text-ink-3 max-sm:col-start-1" data-ai-cell-note="">
       {kept ? <span>Written by a person, so AI leaves it be</span> : null}
-      {ai ? (
+      {refill ? (
         <button type="button" onClick={() => void fill()} disabled={filling} className="inline-flex items-center gap-1 rounded-sm font-medium text-agent-ink hover:underline disabled:opacity-60">
           {filling ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <Spark size={12} className="text-agent" />}
           {filling ? "Filling…" : "Fill again"}
@@ -92,6 +96,7 @@ export function RecordPanel({
   rows,
   count,
   tail = 0,
+  from = 0,
   alone = false,
   onReach,
   rowId,
@@ -110,13 +115,15 @@ export function RecordPanel({
   /** How many rows the view has, read or not (lib/tables/viewPlaces): rows' own length unless it reads in windows. */
   count?: number
   tail?: number
+  /** The first row read's place: 0, or where the view jumped. */
+  from?: number
   /** A row the view hasn't reached (the address named it): opened by itself, with no place and no steps. */
   alone?: boolean
   /** The record stepped to a place: the view reads on to the place after it. */
   onReach?: (place: number) => void
   rowId: string
   canManage: boolean
-  commit: CellCommit
+  commit: CellEdits
   onStep: (rowId: string) => void
   onClose: () => void
   onChange: () => void
@@ -130,14 +137,14 @@ export function RecordPanel({
   const row = index >= 0 ? rows[index] : undefined
   // Its place in the view, and the row a step away, read or not (viewPlaces).
   const of = count ?? rows.length
-  const place = index >= 0 && !alone ? placeOfRow(index, rows.length, of, tail) : -1
+  const place = index >= 0 && !alone ? placeOfRow(index, rows.length, of, tail, from) : -1
   const stepTo = React.useCallback(
     (by: number): TableRow | undefined => {
       if (place < 0) return undefined
-      const at = rowAtPlace(place + by, rows.length, of, tail)
+      const at = rowAtPlace(place + by, rows.length, of, tail, from)
       return at >= 0 ? rows[at] : undefined
     },
-    [place, rows, of, tail],
+    [place, rows, of, tail, from],
   )
   React.useEffect(() => {
     if (place >= 0) onReach?.(place + 1)
@@ -149,6 +156,8 @@ export function RecordPanel({
   const panelRef = React.useRef<HTMLDivElement>(null)
   // A cell a new comment goes on, and each cell's count of open comments.
   const [commentOn, setCommentOn] = React.useState<string | null>(null)
+  // A reader who may only view the table (V-170) reads every field and comments; nothing takes typing.
+  const readOnly = !useTableEdit()
   const [cellCounts, setCellCounts] = React.useState<Record<string, number>>({})
   const { copy } = useCopyToClipboard()
   // A record opens beside the grid, or as a page across the window (T2).
@@ -200,8 +209,10 @@ export function RecordPanel({
       onConfirm: async () => {
         try {
           const next = stepTo(1) ?? stepTo(-1)
-          const done = await batchRows(tableId, { delete: [row.id] })
-          offerUndo("Row deleted", () => undoChange(tableId, done.change_set))
+          // Its answer names its change set (V-360): the Undo pressed on its way, or the toast's, takes that. None:
+          // someone else's delete got there first, or an Undo pressed on its way took it back already (V-381).
+          const { set } = await undoableWrite(commit.write, "delete", () => batchRows(tableId, { delete: [row.id] }))
+          if (set) offerUndo("Row deleted", () => commit.undo(set))
           if (next) onStep(next.id)
           else onClose()
         } catch {
@@ -271,7 +282,7 @@ export function RecordPanel({
             key={`${row.id}:${title}`}
             label={primary.name}
             value={title}
-            readOnly={primary.type === "formula" || primary.type === "rollup"}
+            readOnly={readOnly || primary.type === "formula" || primary.type === "rollup"}
             onCommit={(v) => void commit.commitCell(row, primary.id, v)}
           />
         ) : null}
@@ -290,6 +301,7 @@ export function RecordPanel({
                     field={f}
                     value={values[f.id]}
                     cellId={`panel:${f.id}`}
+                    readOnly={readOnly}
                     ctx={ctx}
                     onCommit={(v) => commit.commitCell(row, f.id, v)}
                     onLink={(change) => void commit.linkCell(row.id, f.id, change)}

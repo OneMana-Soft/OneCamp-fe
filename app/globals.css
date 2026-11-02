@@ -3838,6 +3838,16 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
     color: var(--brand-text);
     box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 40%, transparent), inset 0 -1px 0 color-mix(in oklab, var(--brand) 40%, transparent);
   }
+  /* A row's keys take at most three fifths of it and wrap from the right, so
+     its words always keep the rest, in every group of the app's keys list (a
+     doc's list lays out its own rows). Here, not in the row's classes: the
+     list is in every page's first load, and these three as utilities cost
+     each page's script 17-27 B. */
+  [data-shortcuts-dialog] [data-shortcut-row] > :last-child {
+    max-width: 60%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 
   @media (prefers-reduced-motion: no-preference) {
     .sk {
