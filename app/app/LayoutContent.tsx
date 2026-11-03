@@ -25,7 +25,6 @@ import { useRef, useEffect, useLayoutEffect, useState } from "react";
 import { RIGHT_PANEL_MIN_PX, rightPanelKind, rightPanelMaxSize, rightPanelMinSize, rightPanelOpenSize } from "@/lib/ui/rightPanelSize";
 import { usePathname } from "next/navigation";
 import { PageTransition } from "@/components/ui/PageTransition";
-import { AgentNoteOnOpen } from "@/components/ai/AgentNoteOnOpen";
 import { RunningTimerChip } from "@/components/time/RunningTimerChip";
 import { useOpenFromUrl } from "@/hooks/useOpenFromUrl";
 import { useSplitView } from "@/hooks/useSplitView";
@@ -299,7 +298,6 @@ function Shell({ children }: { children: React.ReactNode }) {
         }
       >
         {children}
-        <AgentNoteOnOpen />
         <RunningTimerChip />
         {/* With no network, a task opens over the page, in a sheet, as a laptop's panel opens it (asana-12 (a)):
             a move to its page would show the browser's own offline page. Its code is on the device first. */}
@@ -361,7 +359,6 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <DesktopNavigationBar>
-      <AgentNoteOnOpen />
       <RunningTimerChip />
       <PreloadPanels />
       <TaskInPlace />

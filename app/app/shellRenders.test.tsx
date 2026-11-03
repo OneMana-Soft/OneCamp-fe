@@ -43,6 +43,8 @@ const { draws, stub } = vi.hoisted(() => {
   }
 })
 const total = () => [...draws.values()].reduce((a, b) => a + b, 0)
+// The daily note's watch (AgentNoteOnOpen): how often it comes and goes.
+const notes = vi.hoisted(() => ({ mounted: 0, unmounted: 0 }))
 
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false }) }))
 vi.mock("@/components/navigationBar/tablet/useShellBand", () => ({ useShellBand: () => "desktop", usePanelPlacement: () => "beside" }))
@@ -59,7 +61,19 @@ vi.mock("@/context/LoadingContext", () => ({ SheetProgressBar: stub("SheetProgre
 vi.mock("@/components/error/PanelErrorBoundary", () => ({ PanelErrorBoundary: stub("PanelErrorBoundary") }))
 vi.mock("@/components/rightPanel/rightPanel", () => ({ PreloadPanels: stub("PreloadPanels"), RightPanel: stub("RightPanel"), usePreloadPanels: () => undefined }))
 vi.mock("@/components/ui/PageTransition", () => ({ PageTransition: stub("PageTransition") }))
-vi.mock("@/components/ai/AgentNoteOnOpen", () => ({ AgentNoteOnOpen: stub("AgentNoteOnOpen") }))
+vi.mock("@/components/ai/AgentNoteOnOpen", async () => {
+  const { useEffect } = await import("react")
+  const Drawn = stub("AgentNoteOnOpen")
+  return {
+    AgentNoteOnOpen: function AgentNoteOnOpen() {
+      useEffect(() => {
+        notes.mounted++
+        return () => void notes.unmounted++
+      }, [])
+      return <Drawn />
+    },
+  }
+})
 vi.mock("@/components/time/RunningTimerChip", () => ({ RunningTimerChip: stub("RunningTimerChip") }))
 vi.mock("@/components/split/SplitPane", () => ({ SplitPane: stub("SplitPane") }))
 vi.mock("@/components/split/MeetingSplit", () => ({ MeetingSplit: stub("MeetingSplit") }))
@@ -134,5 +148,24 @@ describe("the shell's render budget", () => {
     const before = draws.get("Shell") ?? 0
     act(() => at.go("/app/inbox"))
     expect((draws.get("Shell") ?? 0) - before).toBe(1)
+  })
+})
+
+// V-385 (DESIGN-BUILD-101's call-stage look, 3 Nov): on a computer a call's page is a frame of its own
+// (MeetingSplit), and the shell mounted the daily note's watch only in the phone's frame and the desktop shell. A move
+// into a call unmounted it, ending its watch with a note up (that note sat on the call's stage until its own time ran
+// out, and never came back), and a call's page opened first never asked for the note. The one watch now sits above
+// every frame, in app/app/layout.tsx beside the shell (app/app/noteWatch.test.ts), so the shell mounts none.
+describe("the daily note's watch", () => {
+  const watching = (at: { container: HTMLElement }) => at.container.querySelectorAll('[data-stub="AgentNoteOnOpen"]').length
+
+  it("is never the shell's, in any frame: a move into a call's page on a computer can't end it", async () => {
+    const at = await shellAt("/app/home")
+    expect(watching(at), "the desktop shell").toBe(0)
+    act(() => at.go("/app/meet/instant"))
+    await settled()
+    expect(draws.get("MeetingSplit"), "the call's own frame").toBeGreaterThan(0)
+    expect(watching(at), "a call's frame").toBe(0)
+    expect(notes.mounted, "never mounted by the shell").toBe(0)
   })
 })

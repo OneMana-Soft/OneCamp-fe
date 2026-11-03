@@ -24,6 +24,7 @@ const DraftSyncLoader = dynamic(() => import("@/components/conversation/DraftSyn
 // chunk of its own, after the page.
 const OfflineLoader = dynamic(() => import("@/components/offline/OfflineLoader").then((m) => m.OfflineLoader), { ssr: false });
 import { AccountClock } from "@/components/common/AccountClock";
+import { AgentNoteOnOpen } from "@/components/ai/AgentNoteOnOpen";
 
 export default function AppLayout({
   children,
@@ -53,6 +54,7 @@ export default function AppLayout({
           </Suspense>
           <FaviconBadge />
           <AccountClock />
+          <AgentNoteOnOpen />
         </AppProtectedRoute>
         {/* The one polite live region (lib/ui/announce). */}
         <LiveRegion />
