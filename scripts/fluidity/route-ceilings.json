@@ -110,7 +110,7 @@
     "app/layout.tsx": {"source": 177080},
     "app/logout/page.tsx": {"source": 703190, "gzipKB": 277},
     "app/not-found.tsx": {"source": 153599, "gzipKB": 197},
-    "app/page.tsx": {"source": 456706, "gzipKB": 271},
+    "app/page.tsx": {"source": 456706, "gzipKB": 258},
     "app/reset-password/page.tsx": {"source": 363364, "gzipKB": 220},
     "app/p/[slug]/page.tsx": {"source": 320801, "gzipKB": 231},
     "app/r/[slug]/page.tsx": {"source": 511729, "gzipKB": 287},
