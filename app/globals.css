@@ -4,6 +4,8 @@
 @import "./themes.css";
 @import "./content.css";
 @import "../components/calendar/calendar.css";
+/* A strip's fade lifts while it holds a menu drawn in place (edgeFadeMenus). */
+@import "../components/ui/popoverInStrip.css";
 @import "./hub.css";
 /* Design v3, admin and settings: one file per slice (app/styles/admin). */
 @import "./styles/admin/core.css";

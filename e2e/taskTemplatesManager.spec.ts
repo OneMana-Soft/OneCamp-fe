@@ -156,6 +156,18 @@ async function expectFooterOnScreen(page: Page, editor: Locator) {
   expect(box.y + box.height, "Save template is on the screen").toBeLessThanOrEqual(height)
 }
 
+/**
+ * A phone's template row puts its badge under the name, so the name keeps the row's width (DESIGN-BUILD-100, 3 Nov:
+ * at 390 "Feature br…" was cut beside a whole "Default for Feature").
+ */
+async function expectBadgeUnderName(list: Locator, name: string, badge: string) {
+  const row = list.getByRole("listitem").filter({ hasText: name })
+  const [title, tag] = [row.getByText(name, { exact: true }), row.getByText(badge, { exact: true })]
+  const [t, b] = [(await title.boundingBox())!, (await tag.boundingBox())!]
+  expect(b.y, `the badge is under the name: ${JSON.stringify({ t, b })}`).toBeGreaterThanOrEqual(t.y + t.height - 1)
+  expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth), "the name is whole").toBe(true)
+}
+
 for (const scheme of SCHEMES) {
   for (const screen of SCREENS) {
     test.describe(`Task templates kept, ${screen.name}, ${scheme}`, () => {
@@ -211,6 +223,7 @@ for (const scheme of SCHEMES) {
         const own = manager.getByRole("list", { name: "This project's templates" })
         await expect(own).toContainText("Bug report", { timeout: 30_000 })
         await expect(own).toContainText("Default for Bug")
+        if (screen.hasTouch) await expectBadgeUnderName(own, "Bug report", "Default for Bug")
         expect(server.writes).toHaveLength(1)
         expect(server.writes[0]).toMatchObject({
           path: `/project/${P}/task-templates`,

@@ -174,16 +174,19 @@ function TemplateRows({ at, inProject }: { at: Templates; inProject: boolean }) 
     <ul role="list" aria-label={label} className="divide-y divide-line">
       {ts.map((t) => {
         const type = typeOf(t.default_for)
+        // On a phone the badge goes under the name, so the name keeps the row's
+        // width (DESIGN-BUILD-100, 3 Nov: "Feature br…" was cut beside a whole
+        // "Default for Feature"); a computer keeps the row on one line.
         return (
-          <li key={t.id} className="flex items-center gap-3 py-2.5">
+          <li key={t.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 md:flex md:gap-3">
             {type ? <TaskTypeGlyph type={type} className="size-4 shrink-0" /> : <LayoutTemplate className="size-4 shrink-0 text-ink-3" aria-hidden />}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink-1">{t.name}</p>
               {t.description && <p className="truncate text-meta text-ink-2">{t.description}</p>}
             </div>
-            {type && <span className="shrink-0 rounded-sm bg-muted px-2 py-0.5 text-meta text-ink-2">Default for {type.name}</span>}
+            {type && <span className="col-start-2 row-start-2 shrink-0 justify-self-start rounded-sm bg-muted px-2 py-0.5 text-meta text-ink-2">Default for {type.name}</span>}
             {at.canKeep(t) && (
-              <div className="flex shrink-0 gap-1">
+              <div className={cn("flex shrink-0 gap-1", type && "row-span-2")}>
                 <Button type="button" variant="ghost" size="icon" className="size-11 md:size-8" aria-label={`Edit ${t.name}`} disabled={at.busy} onClick={() => at.open(t)}>
                   <Pencil className="size-4" />
                 </Button>

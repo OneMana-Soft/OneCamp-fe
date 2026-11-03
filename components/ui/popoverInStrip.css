@@ -1,0 +1,17 @@
+/* A strip that fades its edges (app/interaction.css: data-edge-fade and
+   data-edge-fade-block) fades them with a mask, and a mask cuts everything in
+   its box, for the eye and the pointer, a position: fixed menu too. A popover
+   drawn in place (portalled={false}, so a dialog's scroll lock lets its list
+   scroll) inside a strip showed only what fitted in the strip: at 1280 New
+   task's Type menu showed its first row, and a click on the rest landed on the
+   dialog's overlay; a phone's Status sheet was cut at its foot (linear-09's
+   LIVE walk, 3 Nov; e2e/newTaskChipMenus). While it holds a menu Radix placed,
+   the strip doesn't fade. Keyed by the strip's own attribute, as
+   foreignSheets.css's lift for a docked sheet is (app/selectorKeyGuard).
+   app/globals.css imports it, so it loads on every page the masks do
+   (app/interaction.css) and adds no page script. */
+[data-edge-fade]:has([data-radix-popper-content-wrapper]),
+[data-edge-fade-block]:has([data-radix-popper-content-wrapper]) {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
