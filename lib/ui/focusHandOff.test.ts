@@ -63,4 +63,38 @@ describe("a menu's hand-off of the focus as it closes", () => {
     row.remove()
     field.remove()
   })
+
+  // A sheet over the sheet that holds the row: the trap of the one behind can
+  // put the focus on its own box as this one goes, a task before its close
+  // (V-426; focusHandOffNested.test.tsx has it with Radix's own dialogs).
+  it("gives a key's close to its target when the focus is only on the dialog that holds it", () => {
+    const dialog = (): HTMLElement => {
+      const box = Object.assign(document.createElement("div"), { tabIndex: -1 })
+      box.setAttribute("role", "dialog")
+      return document.body.appendChild(box)
+    }
+    const behind = dialog()
+    const row = behind.appendChild(Object.assign(document.createElement("div"), { tabIndex: -1 }))
+    const field = behind.appendChild(document.createElement("input"))
+    const other = dialog()
+    const handOff = focusHandOff(() => row)
+    behind.focus()
+    key()
+    const byKey = closing()
+    handOff.onCloseAutoFocus(byKey)
+    expect(byKey.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(row)
+    // A field in that dialog keeps it, as one anywhere does.
+    field.focus()
+    key()
+    handOff.onCloseAutoFocus(closing())
+    expect(document.activeElement).toBe(field)
+    // So does a dialog that doesn't hold the row: one a pick opened.
+    other.focus()
+    key()
+    handOff.onCloseAutoFocus(closing())
+    expect(document.activeElement).toBe(other)
+    behind.remove()
+    other.remove()
+  })
 })
