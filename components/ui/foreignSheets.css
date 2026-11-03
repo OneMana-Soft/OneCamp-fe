@@ -82,6 +82,14 @@
   inset: auto !important;
   padding-inline: 16px !important;
 }
+/* A popper's arrow (Radix draws it beside the surface, placed absolutely on
+   the side that faces what opened it) points at nothing in a docked sheet,
+   and hung off the sheet's foot (a popover floating above what opened it, as
+   the font list's on a phone) it made the sheet hold 10px more than it showed,
+   to be scrolled (V-384). A docked popover draws none. */
+[data-foreign-sheet] > [data-side] > span:has(> svg) {
+  display: none !important;
+}
 /* A row or a grid of buttons a docked popover holds (a colour picker's
    swatches, the arrowheads) spreads across the sheet's width, its first and
    last on the gutters. */

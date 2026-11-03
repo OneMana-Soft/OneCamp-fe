@@ -107,11 +107,16 @@ export async function expectSheet(sheet: Locator, what: string, action?: Locator
         : bs.display.endsWith("grid") && columns > 1 && shown.length >= columns
       if (fills) rows.push({ at: `${box.tagName.toLowerCase()}.${String(box.className).split(" ")[0]}`, gutters: gutters(shown) })
     }
+    // A popper's arrow (Radix: a box of its own beside the surface, placed absolutely) points from a floating popover
+    // at what opened it. A docked sheet points at nothing, and the arrow, hung off its foot, made it hold 10 px more
+    // than it showed (V-384: the font list, on a build whose popover floats above what opened it).
+    const arrows = side ? [...side.children].filter((k) => k.tagName === "SPAN" && getComputedStyle(k).position === "absolute" && k.getBoundingClientRect().height > 0).length : 0
     const only = node.children.length === 1 ? node.children[0].getBoundingClientRect() : null
     return {
       docked: node.hasAttribute("data-foreign-sheet"),
       grabber: node.hasAttribute("data-foreign-sheet") && node.getAttribute("data-foreign-sheet") !== "menu",
       popover: !!side,
+      arrows,
       own: only && [Math.round(only.left - left), Math.round(left + room - only.right)],
       room,
       gutters: drawn.length ? gutters(drawn) : [Infinity, Infinity],
@@ -128,6 +133,7 @@ export async function expectSheet(sheet: Locator, what: string, action?: Locator
     expect.soft(Math.max(...held.gutters), `${told} what it holds fills its width`).toBeLessThanOrEqual(GUTTER)
     if (held.popover)
       expect.soft(Math.min(...held.gutters), `${told} what a popover holds keeps the sheet's ${SURFACE_GUTTER}px gutter`).toBeGreaterThanOrEqual(SURFACE_GUTTER - 1)
+    expect.soft(held.arrows, `${told} draws no arrow: a docked sheet points at nothing`).toBe(0)
     const boxed = held.rows.filter((row) => Math.max(...row.gutters) > GUTTER)
     expect.soft(boxed, `${told} every row or grid of buttons it holds spreads across its width`).toEqual([])
     expect.soft(held.shown, `${told} is as tall as what it holds, up to its tallest`).toBeGreaterThanOrEqual(Math.min(held.holds, held.tallest) - 1)
