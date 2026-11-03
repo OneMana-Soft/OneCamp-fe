@@ -61,6 +61,8 @@ const ScimProvisioningCard = dynamic(() => import("@/components/admin/ScimProvis
 const PermissionsCard = dynamic(() => import("@/components/admin/PermissionsCard"), { loading: AdminCardSkeleton })
 const ProjectsPermissionsCard = dynamic(() => import("@/components/admin/ProjectsPermissionsCard"), { loading: AdminCardSkeleton })
 const ProjectPlanCard = dynamic(() => import("@/components/admin/ProjectPlanCard"), { loading: AdminCardSkeleton })
+// The workspace's task templates (linear-09): a lazy chunk with no shared core, so it takes the page's client.
+const TaskTemplatesCard = dynamic(() => import("@/components/task/TaskTemplatesManager").then((m) => m.WorkspaceTaskTemplatesCard), { loading: AdminCardSkeleton })
 const CalendarPermissionsCard = dynamic(() => import("@/components/admin/CalendarPermissionsCard"), { loading: AdminCardSkeleton })
 const DocPoliciesCard = dynamic(() => import("@/components/admin/DocPoliciesCard"), { loading: AdminCardSkeleton })
 const TranscriptionSettingsCard = dynamic(() => import("@/components/admin/TranscriptionSettingsCard"), { loading: AdminCardSkeleton })
@@ -298,6 +300,7 @@ const AdminPage = () => {
                   <PermissionsCard />
                   <ProjectsPermissionsCard />
                   <ProjectPlanCard plan={projectPlan} http={axiosInstance} />
+                  <TaskTemplatesCard http={axiosInstance} />
                   <CalendarPermissionsCard />
                 </div>
               </TabsContent>

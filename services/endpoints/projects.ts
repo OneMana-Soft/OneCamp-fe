@@ -58,7 +58,6 @@ export enum ProjectsGet {
     GetGitHubTaskActivity = "/task/github-activity",
     GetGitHubSearchIssues = "/task/github-search-issues",
     GetGitHubSearchPRs = "/task/github-search-prs",
-    CheckIns = "/ch",
 }
 
 export enum ProjectsPost {

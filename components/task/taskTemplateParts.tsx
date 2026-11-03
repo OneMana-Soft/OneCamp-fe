@@ -15,6 +15,9 @@ import { getTaskTemplate, makeFromTemplate, type Made } from "@/lib/work/taskTem
 
 export { setTaskType } from "@/lib/work/keysApi"
 export { unfilled } from "@/lib/work/taskTemplates"
+// An AI teammate on the Assignee chip: a template's preset brings one who isn't among the project's people, so the
+// code comes with the template. Its own light module, which the template manager draws its rows with too.
+export { AgentWho } from "@/components/task/agentWho"
 
 /**
  * New task's template pieces (linear-09), a chunk of their own (fetched by

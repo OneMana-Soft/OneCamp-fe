@@ -87,7 +87,7 @@ const SheetOpener = React.forwardRef<HTMLButtonElement, React.ComponentPropsWith
     return (
       <Opener
         ref={ref}
-        type={asChild ? undefined : "button"}
+        type="button"
         aria-haspopup="dialog"
         aria-expanded={state?.open ?? false}
         data-state={state?.open ? "open" : "closed"}

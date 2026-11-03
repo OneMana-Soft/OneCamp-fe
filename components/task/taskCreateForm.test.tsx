@@ -710,6 +710,41 @@ describe("a new task from a template (linear-09)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /^Assignee: Maya/ })).toBeTruthy())
   })
 
+  // A preset assignee who isn't one of the project's people (DB-92): the server
+  // names them while its rule lets them have the project's tasks (assignee_who).
+  const presets = (shape: Record<string, unknown>, who?: Record<string, unknown>) => {
+    templateList = { data: { templates: [bug, { id: "t5", name: "Triage", project_id: "p1" }], defaults: {}, can_manage: true } }
+    full.t5 = { id: "t5", name: "Triage", project_id: "p1", shape: { name: "Triage: ", ...shape }, ...(who && { assignee_who: who }) }
+  }
+
+  it("shows a template's preset AI teammate, who isn't one of the project's people, on the Assignee chip: their square, name and Agent tag", async () => {
+    presets({ assignee: "u-ada" }, { user_uuid: "u-ada", user_name: "Ada", is_bot: true, user_bot_kind: "agent" })
+    openForm()
+    await pickTemplate("Triage")
+    const chip = await screen.findByRole("button", { name: "Assignee: Ada, AI teammate" })
+    await waitFor(() => expect(chip.querySelector("[data-agent-avatar]")).toBeTruthy())
+    expect(chip.querySelector('[data-principal-tag="ai"]')).toBeTruthy()
+    expect(chip.textContent).toContain("Ada")
+  })
+
+  it("says Assignee when the server names no one for the preset (they can't have the project's tasks)", async () => {
+    presets({ assignee: "u-gone" })
+    openForm()
+    await pickTemplate("Triage")
+    await chosen("Triage")
+    expect(screen.getByRole("button", { name: "Pick someone" })).toBeTruthy()
+  })
+
+  it("takes the preset's name off the chip when the next template sets no assignee", async () => {
+    presets({ assignee: "u-Maya" })
+    openForm()
+    await pickTemplate("Triage")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Assignee: Maya" })).toBeTruthy())
+    await pickTemplate("Bug report")
+    await chosen("Bug report")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Pick someone" })).toBeTruthy())
+  })
+
   it("says so when a plain task's type couldn't be set", async () => {
     keys.setType.mockRejectedValueOnce(new Error("offline"))
     openForm()

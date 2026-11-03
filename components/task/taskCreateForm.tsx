@@ -4,7 +4,7 @@ import { useModEnter } from "@/hooks/useModKey";
 import { fieldKeyDown } from "@/lib/keys/ime";
 import { ProjectInfoListRawInterface, type ProjectInfoInterface } from "@/types/project";
 import { listOnceRead } from "@/lib/utils/listOf";
-import { UserProfileDataInterface } from "@/types/user";
+import { botSubtitle } from "@/lib/botCopy";
 import { priorities } from "@/types/table";
 import { useUploadFile } from "@/hooks/useUploadFile";
 import { useDispatch, useSelector } from "react-redux";
@@ -51,7 +51,7 @@ import type { TaskDraft } from "@/lib/task/messageToTask";
 import { lastTaskProject, rememberTaskProject, startingProject } from "@/lib/task/startingProject";
 import { myTaskAssignee } from "@/lib/task/myTaskAssignee";
 import type { PlacedAddress } from "@/lib/task/newTaskAddress";
-import { LeftOff, TemplateAsks, TemplateChip, TemplateNote, TypeChip, templateKit, type FieldAnswer } from "@/components/task/taskTemplateChips";
+import { AgentWho, LeftOff, TemplateAsks, TemplateChip, TemplateNote, TypeChip, templateKit, type FieldAnswer } from "@/components/task/taskTemplateChips";
 import { toast } from "@/hooks/use-toast";
 import { OWN_ERRORS } from "@/lib/axiosInstance";
 import type { ProjectType } from "@/lib/work/keysApi";
@@ -101,7 +101,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const [popOpenEstimate, setPopOpenEstimate] = useState(false);
   const [popOpenMore, setPopOpenMore] = useState(false);
   const [popOpenGitHub, setPopOpenGitHub] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserProfileDataInterface | null>(null);
   // What the form holds beyond the schema: the status it starts in, and an
   // estimate, set once the task exists (its own endpoint).
   const [status, setStatus] = useState("todo");
@@ -202,17 +201,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     }));
     setValue("task_attachments", attachments);
   }, [uploadedForProject, taskProjectUUID, setValue]);
-
-  useEffect(() => {
-    if (
-      selectedProject &&
-      taskAssigneeUUID &&
-      (!selectedUser || selectedUser.user_uuid !== taskAssigneeUUID)
-    ) {
-      const user = selectedProject.project_members.find(member => member.user_uuid === taskAssigneeUUID);
-      setSelectedUser(user || null);
-    }
-  }, [selectedProject, taskAssigneeUUID, selectedUser]);
 
 
   const handleFileUpload = React.useCallback(
@@ -384,6 +372,10 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const [asks, setAsks] = useState<string[]>([]);
   const [answers, setAnswers] = useState<Record<string, FieldAnswer>>({});
   const [askError, setAskError] = useState<string | undefined>(undefined);
+  // Who the Assignee chip shows: one of the project's people, or a template's
+  // preset who isn't (an AI teammate), as the server names them (assignee_who).
+  const preset = template?.assignee_who;
+  const who = !taskAssigneeUUID ? undefined : selectedProject?.project_members.find((m) => m.user_uuid === taskAssigneeUUID) ?? (preset?.user_uuid === taskAssigneeUUID ? preset : undefined);
   const templates = useFetch<{ data: TemplateList }>(taskProjectUUID ? taskTemplatesPath(taskProjectUUID) : "", undefined, { revalidateOnFocus: false }, OWN_ERRORS).data?.data;
   const hasDefaults = Object.keys(templates?.defaults ?? {}).length > 0;
   const kit = () => templateKit.use(() => setAskError("Templates couldn't load. Check your connection and try again."));
@@ -733,16 +725,23 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                     type="button"
                     disabled={needsProject}
                     title={pickProjectFirst}
-                    aria-label={selectedUser ? `Assignee: ${displayNameOf(selectedUser)}` : "Pick someone"}
+                    aria-label={who ? `Assignee: ${displayNameOf(who)}${who.is_bot ? `, ${botSubtitle(who.user_bot_kind)}` : ""}` : "Pick someone"}
                     aria-keyshortcuts="A"
-                    className={cn(chip, selectedUser && "text-foreground")}
+                    className={cn(chip, who && "text-foreground")}
                   >
-                    {selectedUser ? (
-                      <IdentityMark variant="avatar" id={avatarSeed(selectedUser)} label={displayNameOf(selectedUser)} size={18} />
+                    {who?.is_bot ? (
+                      <AgentWho who={who} />
+                    ) : who ? (
+                      <>
+                        <IdentityMark variant="avatar" id={avatarSeed(who)} label={displayNameOf(who)} size={18} />
+                        {displayNameOf(who)}
+                      </>
                     ) : (
-                      <span aria-hidden className="size-3.5 rounded-full border border-dashed border-line-3" />
+                      <>
+                        <span aria-hidden className="size-3.5 rounded-full border border-dashed border-line-3" />
+                        Assignee
+                      </>
                     )}
-                    {selectedUser ? displayNameOf(selectedUser) : "Assignee"}
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className={menuSurface} side="bottom" align="start" portalled={false}>

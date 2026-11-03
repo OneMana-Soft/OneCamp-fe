@@ -392,7 +392,7 @@ export default function BoardPage() {
     // No top bar row (content.md B03): the canvas runs the sheet's full
     // height, and the board's controls float over it at the top corners;
     // docked, they sit in a band of their own and the canvas starts under it.
-    <div ref={setWrap} className="relative h-full overflow-hidden" data-board-page="" data-board-docked={docked ? "" : undefined}>
+    <div ref={setWrap} className="relative h-full overflow-hidden" data-board-page="" data-work-surface="" data-board-docked={docked ? "" : undefined}>
       {docked && <div aria-hidden className="absolute inset-x-0 top-0 h-16 border-b border-line bg-sheet" />}
       {/* Canvas */}
       <div className={cn("absolute inset-x-0 bottom-0", docked ? "top-16" : "top-0")}>

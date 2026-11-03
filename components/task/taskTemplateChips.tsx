@@ -5,6 +5,7 @@ import type { FieldAnswer, TemplateChipProps, TypeChipProps } from "@/components
 import { ChevronDown, LayoutTemplate } from "@/lib/icons"
 import { lazyChunk } from "@/lib/loadChunk"
 import { lazyPart } from "@/lib/lazy/lazyPart"
+import { displayNameOf } from "@/lib/personName"
 import { cn } from "@/lib/utils/helpers/cn"
 import type { ProjectType } from "@/lib/work/keysApi"
 
@@ -82,3 +83,5 @@ export const TypeChip = lazyChip<TypeChipProps>(
 /** Drawn only once a template is chosen, so their code is in. */
 export const TemplateNote = lazyPart(() => parts().then((m) => m.TemplateNote)).Part
 export const TemplateAsks = lazyPart(() => parts().then((m) => m.TemplateAsks)).Part
+/** An AI teammate on the Assignee chip: its name holds the room while the code comes. */
+export const AgentWho = lazyPart(() => parts().then((m) => m.AgentWho), { placeholder: ({ who }) => <>{displayNameOf(who)}</> }).Part

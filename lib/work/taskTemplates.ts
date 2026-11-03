@@ -1,4 +1,6 @@
 import type { FieldValue, TaskField } from "@/lib/tasks/fields"
+import type { ProjectType } from "@/lib/work/keysApi"
+import type { UserProfileDataInterface } from "@/types/user"
 
 /** A template as the project's list names it (business/TaskTemplate Summary): project_id is "" for the workspace's. */
 export interface TemplateSummary {
@@ -34,14 +36,17 @@ export interface TaskTemplate {
   description?: string
   default_for?: string
   shape: TemplateShape
+  /** The preset assignee as the server knows them (a person or an AI teammate), while they may be given its tasks. */
+  assignee_who?: UserProfileDataInterface
 }
 
-/** The project's list: its own and the workspace's, the template each type starts from, and who keeps them. */
+/** A place's list, the template each type starts from, who keeps them, and the types a template there may have. */
 export interface TemplateList {
   templates: TemplateSummary[]
   defaults: Record<string, string>
   can_manage: boolean
   can_manage_workspace?: boolean
+  types?: ProjectType[]
 }
 
 /** What the form shows, as make takes it over the template (business/TaskTemplate Typed). */
@@ -86,8 +91,8 @@ export interface FormValues {
   fields?: Record<string, FieldValue>
 }
 
-/** The properties a template may ask for, as the form names them (taskWriter.Prop*). */
-const ASKS: Record<string, string> = {
+/** The properties a template may ask for, as the form names them (taskWriter.Prop*), in the order the manager offers them. */
+export const ASKS: Record<string, string> = {
   description: "Description",
   priority: "Priority",
   due: "Due date",
