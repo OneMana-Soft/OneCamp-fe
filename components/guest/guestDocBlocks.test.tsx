@@ -23,8 +23,8 @@ const collab = vi.hoisted(() => ({ provider: null as unknown }))
 vi.mock("@/hooks/useCollaborationProvider", () => ({
   useCollaborationProvider: () => ({ provider: collab.provider, synced: !!collab.provider }),
 }))
-// Data hooks only (never the editor): a guest's node views must ask for nothing.
-vi.mock("@/hooks/useMqttTopic", () => ({ useMqttTopic: () => undefined }))
+// The live topic hook is the real one, with no provider, as on the guest page (no live connection there): a guest's
+// live blocks (a page, a whiteboard) hear nothing and never throw. Standing in for it hid V-440 (the page threw).
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/guest/d/token" }))
 
 import { GuestDocViewer } from "./GuestDocViewer"

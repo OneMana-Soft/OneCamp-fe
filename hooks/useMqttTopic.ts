@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import {useMqtt} from "@/components/mqtt/mqttContext";
+import { useContext, useEffect, useRef, useState } from "react"
+import { MqttContext } from "@/components/mqtt/mqttContext"
 
 interface UseMqttTopicOptions {
     topic: string
@@ -20,7 +20,7 @@ interface UseMqttTopicOptions {
  * of the messages: one kept in state drew the whole page again on each.
  */
 export const useMqttTopic = ({ topic, onMessage, onLive }: UseMqttTopicOptions) => {
-    const { subscribeToTopic, unsubscribeFromTopic, connectionState } = useMqtt()
+    const { subscribeToTopic, unsubscribeFromTopic, connectionState } = useContext(MqttContext) ?? ({ connectionState: {} } as never)
     const subscriptionIdRef = useRef<string | null>(null)
     // The latest handlers, so new ones each render need no resubscribe.
     const latest = useRef({ onMessage, onLive })
