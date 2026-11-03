@@ -33,7 +33,7 @@ export type TableCommand =
 export interface KeyPlace {
   /** A text box (a cell's read-only one at rest too), a select, an editor. */
   field: boolean
-  /** A box open for typing, a select, an editor: the browser undoes its text. */
+  /** A box open for typing (a cell's once typed in), a select, an editor: the browser undoes its text. */
   editing: boolean
   /** A menu or a picker. */
   menu: boolean
@@ -116,8 +116,11 @@ export function keyPlace(target: EventTarget | null): KeyPlace {
   const t = target as HTMLElement | null
   if (!t || typeof t.closest !== "function") return { field: false, editing: false, menu: false, dialog: false }
   const box = /^(INPUT|TEXTAREA)$/.test(t.tagName)
-  // A read-only box (a grid's cell at rest, selected) has no text of its own to undo: the table's change is undone.
-  const editing = t.isContentEditable || t.tagName === "SELECT" || (box && !(t as HTMLInputElement | HTMLTextAreaElement).readOnly)
+  // A box with no typing of its own has no text to undo, so the table's change is undone: a read-only one (a
+  // grid's cell at rest), and a cell's live box until it's typed in, as a click or a tap selects it (V-295), or
+  // a checkbox (V-444). A cell's box typed in is marked data-escape-own (TextCell; gridMoves' selectedCell).
+  const typing = box && !(t as HTMLInputElement | HTMLTextAreaElement).readOnly && (!t.hasAttribute("data-cell") || t.hasAttribute("data-escape-own"))
+  const editing = t.isContentEditable || t.tagName === "SELECT" || typing
   return { field: editing || box, editing, menu: !!t.closest("[data-radix-popper-content-wrapper]"), dialog: !!t.closest("[role=dialog]") }
 }
 

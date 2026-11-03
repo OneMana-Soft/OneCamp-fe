@@ -84,6 +84,44 @@ describe("a selected cell at rest (G1)", () => {
   })
 })
 
+describe("a cell selected by a click or a tap (V-444)", () => {
+  // A click or a tap brings a cell to life and selects it, as a sheet's (V-295): its box takes the
+  // focus, not read-only, its saved text whole. TextCell marks a box typed in data-escape-own.
+  const cellBox = (tag: "input" | "textarea", typed = false, type?: string) => {
+    const box = document.createElement(tag)
+    box.setAttribute("data-cell", "0:0")
+    if (type && box instanceof HTMLInputElement) box.type = type
+    if (typed) box.setAttribute("data-escape-own", "")
+    return box
+  }
+  it("is no typing: ⌘Z or Ctrl+Z on its live box undoes the table's latest change, and the shift redoes it", () => {
+    for (const tag of ["input", "textarea"] as const) {
+      expect(undoKey(key("z", { ctrlKey: true }, cellBox(tag)), false)).toBe("undo")
+      expect(undoKey(key("z", { metaKey: true }, cellBox(tag)), true)).toBe("undo")
+      expect(undoKey(key("z", { metaKey: true, shiftKey: true }, cellBox(tag)), true)).toBe("redo")
+      expect(undoKey(key("y", { ctrlKey: true }, cellBox(tag)), false)).toBe("redo")
+    }
+  })
+  it("and a checkbox cell's box has no text of its own to undo", () => {
+    expect(undoKey(key("z", { ctrlKey: true }, cellBox("input", false, "checkbox")), false)).toBe("undo")
+  })
+  it("but once typed in, its box keeps the browser's own undo of the typing", () => {
+    for (const tag of ["input", "textarea"] as const) {
+      expect(undoKey(key("z", { ctrlKey: true }, cellBox(tag, true)), false)).toBeNull()
+      expect(undoKey(key("z", { metaKey: true, shiftKey: true }, cellBox(tag, true)), true)).toBeNull()
+    }
+  })
+  it("and a box that is no cell's (the search, a column's name, a form's field) keeps it always", () => {
+    const search = document.createElement("input")
+    search.type = "search"
+    for (const t of [search, document.createElement("input"), document.createElement("textarea")]) expect(undoKey(key("z", { ctrlKey: true }, t), false)).toBeNull()
+  })
+  it("still counts as a field for the keys a field types (R, /)", () => {
+    expect(command(key("r", {}, cellBox("input")), false)).toBeNull()
+    expect(command(key("/", {}, cellBox("textarea")), false)).toBeNull()
+  })
+})
+
 describe("a table's find and replace keys (G2b)", () => {
   it("opens find with Ctrl+F off a Mac and ⌘F on one, anywhere on the page, a cell's box included", () => {
     expect(findKey(key("f", { ctrlKey: true }), false)).toBe("find")
