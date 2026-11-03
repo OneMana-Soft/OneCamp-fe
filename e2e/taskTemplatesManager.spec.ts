@@ -6,17 +6,15 @@ import { SCHEMES, SCREENS, press, screenUse, type Screen } from "./screens"
 /**
  * Keeping task templates (linear-09, as Linear's issue templates): a project's admin makes, edits and deletes the
  * project's own in its tools (Delete with Undo), and a workspace admin the workspace's in Admin › Permissions. A
- * template is its type's default, asks for a field before a task is made, and presets a status and an assignee: a
- * person in a project, an AI teammate anywhere. Then New task, opened on its picker by Alt+C on the project's list (a
- * phone taps the Template chip), makes a task from one; the workspace's AI teammate preset shows on the Assignee chip
- * with their tag, though they aren't one of the project's people. On a computer and on a phone by touch, light and dark.
+ * template is its type's default, asks for a field before a task is made, and presets a status and an assignee (a
+ * person in a project; people are per project, so the workspace's presets no one). Then New task, opened on its picker
+ * by Alt+C on the project's list (a phone taps the Template chip), makes a task from one. On a computer and on a phone
+ * by touch, light and dark.
  */
 const P = "5a1e7c2d-0b3f-4d6a-8e9c-1f2a3b4c5d6e"
 // The signed-in admin, a project member, named as the server names one: user_name is the name every picker shows.
 const SAM = { ...STUB_SAM, user_name: "Sam Rivera" }
 const ADMIN = { ...SAM, user_is_admin: true }
-// An AI teammate: listed with the teammates (/user/dm-ai-targets), never among a project's people.
-const ADA = { user_uuid: "ad0a0000-0000-4000-8000-00000000ada1", user_name: "Ada", user_full_name: "Ada", is_bot: true, user_bot_kind: "agent" }
 const project = {
   project_uuid: P,
   project_name: "Website relaunch",
@@ -52,7 +50,7 @@ function templatesServer(seed: Template[]) {
   const made: Record<string, unknown>[] = []
   let next = 1
   const shown = (t: Template) => {
-    const who = [SAM, ADA].find((u) => u.user_uuid === t.shape.assignee)
+    const who = [SAM].find((u) => u.user_uuid === t.shape.assignee)
     return { ...t, ...(who && { assignee_who: who }) }
   }
   const answer = (place: string) => (url: URL, request: Request) => {
@@ -135,8 +133,8 @@ async function stub(page: Page, testInfo: TestInfo, server: Server) {
     "/project/plan/": { msg: "ok", data: { categories: [], statuses: [], labels: [], colors: [] } },
     "/user/assignedTaskList": { msg: "ok", pageCount: 1, data: { user_tasks: [] } },
     "/task/views": { msg: "ok", data: [] },
-    "/user/dm-ai-targets": { msg: "ok", data: [ADA] },
-    "/user/botKinds": { msg: "ok", data: { [ADA.user_uuid]: "agent" } },
+    "/user/dm-ai-targets": { msg: "ok", data: [] },
+    "/user/botKinds": { msg: "ok", data: {} },
     "/notices": { msg: "ok", data: [] },
   })
 }
@@ -165,8 +163,8 @@ for (const scheme of SCHEMES) {
       test("a project's admin makes, edits and deletes the project's templates, and New task makes a task from one", async ({ page }, testInfo) => {
         test.setTimeout(240_000)
         await page.addInitScript((t) => localStorage.setItem("ui-theme", t), scheme)
-        // The workspace's template an admin made in Admin › Permissions: an AI teammate is its assignee.
-        const server = templatesServer([{ id: "w1", project_id: "", name: "Agent triage", description: "Ada sorts what came in", shape: { name: "Triage: ", assignee: ADA.user_uuid, status: "todo" } }])
+        // The workspace's template an admin made in Admin › Permissions: its tasks start with a name and a status.
+        const server = templatesServer([{ id: "w1", project_id: "", name: "Customer triage", description: "Sorts what came in", shape: { name: "Triage: ", status: "todo" } }])
         await stub(page, testInfo, server)
         await page.goto(`/app/project/${P}?tab=list`, { waitUntil: "domcontentloaded", timeout: 120_000 })
         const actions = page.getByRole("button", { name: "Project actions" })
@@ -177,7 +175,7 @@ for (const scheme of SCHEMES) {
         // The project's own (none yet) and the workspace's.
         const manager = page.getByRole("dialog", { name: "Task templates" })
         await expect(manager.getByText("No templates of its own yet.")).toBeVisible({ timeout: 30_000 })
-        await expect(manager.getByRole("list", { name: "The workspace's templates" })).toContainText("Agent triage")
+        await expect(manager.getByRole("list", { name: "The workspace's templates" })).toContainText("Customer triage")
         await reviewShot(page, `task-templates-list-${at}`, scheme)
 
         // A new one: Bug's default, a preset status and person, a body in Markdown with its preview, a sub-task, and the
@@ -268,18 +266,15 @@ for (const scheme of SCHEMES) {
         }
         const options = page.getByRole("option")
         await expect(options.filter({ hasText: "Bug report" })).toBeVisible({ timeout: 30_000 })
-        await expect(options.filter({ hasText: "Agent triage" })).toBeVisible()
+        await expect(options.filter({ hasText: "Customer triage" })).toBeVisible()
 
-        // The workspace's template: its AI teammate isn't one of the project's people, and the chip names them, tagged.
-        await press(screen, options.filter({ hasText: "Agent triage" }))
-        const agent = page.getByRole("button", { name: "Assignee: Ada, AI teammate" })
-        await expect(agent).toBeVisible({ timeout: 30_000 })
-        await expect(agent.locator('[data-principal-tag="ai"]')).toBeVisible()
-        await expect(agent.locator("[data-agent-avatar]")).toBeVisible()
-        await reviewShot(page, `task-templates-agent-chip-${at}`, scheme)
+        // The workspace's template: its name starts the title.
+        await press(screen, options.filter({ hasText: "Customer triage" }))
+        await expect(page.getByRole("button", { name: "Template: Customer triage" })).toBeVisible({ timeout: 30_000 })
+        await expect(page.getByLabel("Task title")).toHaveValue("Triage: ")
 
         // The project's own: its type, status and person; Create asks for the Customer first, then makes it.
-        await press(screen, page.getByRole("button", { name: "Template: Agent triage" }))
+        await press(screen, page.getByRole("button", { name: "Template: Customer triage" }))
         await press(screen, page.getByRole("option").filter({ hasText: "Bug report" }))
         await expect(page.getByRole("button", { name: "Template: Bug report" })).toBeVisible({ timeout: 30_000 })
         await expect(page.getByRole("button", { name: "Assignee: Sam Rivera" })).toBeVisible()
@@ -313,46 +308,47 @@ for (const scheme of SCHEMES) {
         await section.scrollIntoViewIfNeeded()
         await press(screen, section.getByRole("button", { name: "New template" }))
 
-        // Every project's: a built-in type, a built-in status, and an AI teammate (people are per project).
+        // Every project's: a built-in type, a built-in status, and no one (people are per project).
         const editor = page.getByRole("dialog", { name: "New task template" })
-        await editor.getByLabel("Template name").fill("Agent triage")
-        await editor.getByLabel("What it's for").fill("Ada sorts what came in")
+        await editor.getByLabel("Template name").fill("Customer triage")
+        await editor.getByLabel("What it's for").fill("Sorts what came in")
         await choose(screen, page, editor.getByRole("combobox", { name: "Type" }), /^Task$/)
         await press(screen, editor.getByRole("switch", { name: "The default for its type" }))
         await choose(screen, page, editor.getByRole("combobox", { name: "Status" }), /^To do$/)
         const assignee = editor.getByRole("combobox", { name: /^Assignee/ })
         await press(screen, assignee)
-        await expect(page.getByRole("option", { name: /^Ada/ })).toBeVisible({ timeout: 30_000 })
+        await expect(page.getByRole("option", { name: "No one" })).toBeVisible({ timeout: 30_000 })
         await expect(page.getByRole("option", { name: /Sam Rivera/ })).toHaveCount(0)
-        await press(screen, page.getByRole("option", { name: /^Ada/ }))
-        await expect(assignee).toContainText("Ada")
+        await press(screen, page.getByRole("option", { name: "No one" }))
+        await expect(assignee).toContainText("No one")
         await expectFooterOnScreen(page, editor)
         await reviewShot(page, `task-templates-workspace-editor-${at}`, scheme)
         await press(screen, editor.getByRole("button", { name: "Save template" }))
         const list = section.getByRole("list", { name: "The workspace's templates" })
-        await expect(list).toContainText("Agent triage", { timeout: 30_000 })
+        await expect(list).toContainText("Customer triage", { timeout: 30_000 })
         await expect(list).toContainText("Default for Task")
         expect(server.writes[0]).toMatchObject({
           path: "/project/task-templates",
-          body: { name: "Agent triage", description: "Ada sorts what came in", default_for: "type-task", shape: { type: "type-task", status: "todo", assignee: ADA.user_uuid } },
+          body: { name: "Customer triage", description: "Sorts what came in", default_for: "type-task", shape: { type: "type-task", status: "todo" } },
         })
 
-        // Edited: its tasks start in progress; Ada stays.
-        await press(screen, list.getByRole("button", { name: "Edit Agent triage" }))
-        const edit = page.getByRole("dialog", { name: "Edit “Agent triage”" })
-        await expect(edit.getByRole("combobox", { name: /^Assignee/ })).toContainText("Ada", { timeout: 30_000 })
+        // Edited: its tasks start in progress; it still presets no one.
+        await press(screen, list.getByRole("button", { name: "Edit Customer triage" }))
+        const edit = page.getByRole("dialog", { name: "Edit “Customer triage”" })
+        await expect(edit.getByRole("combobox", { name: /^Assignee/ })).toContainText("No one", { timeout: 30_000 })
         await choose(screen, page, edit.getByRole("combobox", { name: "Status" }), /^In progress$/)
         await press(screen, edit.getByRole("button", { name: "Save template" }))
         await expect.poll(() => server.writes.length, { timeout: 30_000 }).toBe(2)
-        expect(server.writes[1]).toMatchObject({ path: "/project/task-templates/tt1", body: { default_for: "type-task", shape: { status: "inProgress", assignee: ADA.user_uuid } } })
+        expect(server.writes[1]).toMatchObject({ path: "/project/task-templates/tt1", body: { default_for: "type-task", shape: { status: "inProgress" } } })
+        expect(server.writes.map((w) => (w.body.shape as { assignee?: string } | undefined)?.assignee ?? "")).toEqual(["", ""])
 
         // Deleted, back with Undo, and gone again.
-        await press(screen, list.getByRole("button", { name: "Delete Agent triage" }))
+        await press(screen, list.getByRole("button", { name: "Delete Customer triage" }))
         await expect(section.getByText("No templates yet. Make one for the tasks your teams start most.")).toBeVisible({ timeout: 30_000 })
-        const deleted = page.locator(".toast-card").filter({ hasText: "Deleted template “Agent triage”" })
+        const deleted = page.locator(".toast-card").filter({ hasText: "Deleted template “Customer triage”" })
         await press(screen, deleted.getByRole("button", { name: "Undo" }))
-        await expect(list).toContainText("Agent triage", { timeout: 30_000 })
-        await press(screen, list.getByRole("button", { name: "Delete Agent triage" }))
+        await expect(list).toContainText("Customer triage", { timeout: 30_000 })
+        await press(screen, list.getByRole("button", { name: "Delete Customer triage" }))
         await expect(section.getByText("No templates yet. Make one for the tasks your teams start most.")).toBeVisible({ timeout: 30_000 })
         expect(server.writes.map((w) => w.path).slice(2)).toEqual(["/project/task-templates/tt1/delete", "/project/task-templates/tt1/restore", "/project/task-templates/tt1/delete"])
         await expectEveryCallAnswered(page)

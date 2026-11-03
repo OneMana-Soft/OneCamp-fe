@@ -250,8 +250,8 @@ const Face = ({ who }: { who: UserProfileDataInterface }) => <IdentityMark varia
  * re-cut it too (bisect-s, 3 Nov). A row is found by typing its name's first letters (textValue, so a face's initials
  * don't lead), not by a filter.
  */
-function AssigneeField({ id, people, teammates, who, onPick }: { id: string; people: UserProfileDataInterface[]; teammates: UserProfileDataInterface[]; who?: UserProfileDataInterface; onPick: (uuid: string) => void }) {
-  const listed = !who || [...people, ...teammates].some((u) => u.user_uuid === who.user_uuid)
+function AssigneeField({ id, people, who, onPick }: { id: string; people: UserProfileDataInterface[]; who?: UserProfileDataInterface; onPick: (uuid: string) => void }) {
+  const listed = !who || people.some((u) => u.user_uuid === who.user_uuid)
   const row = (u: UserProfileDataInterface, ai: boolean) => (
     <SelectItem key={u.user_uuid} value={u.user_uuid} textValue={displayNameOf(u)}>
       <span className="flex min-w-0 items-center gap-2">
@@ -286,12 +286,6 @@ function AssigneeField({ id, people, teammates, who, onPick }: { id: string; peo
           <SelectGroup>
             <SelectLabel>People</SelectLabel>
             {people.map((u) => row(u, false))}
-          </SelectGroup>
-        )}
-        {teammates.length > 0 && (
-          <SelectGroup>
-            <SelectLabel>AI teammates</SelectLabel>
-            {teammates.map((u) => row(u, true))}
           </SelectGroup>
         )}
       </SelectContent>
@@ -424,7 +418,7 @@ function TemplateEditor({ at }: { at: Templates }) {
           </Select>
         </Row>
         <Row id={`${id}-assignee`} label="Assignee">
-          <AssigneeField id={`${id}-assignee`} people={members} teammates={teammates} who={who} onPick={(assignee) => set({ assignee })} />
+          <AssigneeField id={`${id}-assignee`} people={members} who={who} onPick={(assignee) => set({ assignee })} />
         </Row>
       </div>
       <label className="flex items-center justify-between gap-3 text-sm text-ink-1">

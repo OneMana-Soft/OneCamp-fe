@@ -39,11 +39,12 @@ const list = (over: Partial<TemplateList> = {}): TemplateList => ({
   types,
   ...over,
 })
-// Named as the server names them: user_name is the name shown (lib/personName), and an AI teammate has its kind.
+// Named as the server names them: user_name is the name shown (lib/personName).
 const SAM = { user_uuid: "u-sam", user_name: "Sam Rivera", user_full_name: "Samuel Rivera" }
-const OPS = { user_uuid: "a-ops", user_name: "Ops Agent", is_bot: true, user_bot_kind: "agent" }
-// The preset assignee is an AI teammate the GET names (assignee_who): the picker shows them before any list loads.
-const full = { id: "t1", project_id: "p", name: "Bug report", description: "What broke", default_for: BUG, shape: { name: "Bug: ", type: BUG, status: "Triage", assignee: OPS.user_uuid, description: "<h3>Steps</h3>" }, assignee_who: OPS } as TaskTemplate
+const KIM = { user_uuid: "u-kim", user_name: "Kim Lee" }
+// The preset assignee is one of the project's people the GET names (assignee_who): the picker shows them before any
+// list loads.
+const full = { id: "t1", project_id: "p", name: "Bug report", description: "What broke", default_for: BUG, shape: { name: "Bug: ", type: BUG, status: "Triage", assignee: KIM.user_uuid, description: "<h3>Steps</h3>" }, assignee_who: KIM } as TaskTemplate
 
 /** The page's client, answering the list and one template, and keeping what's posted. */
 function client(answer: TemplateList, template: TaskTemplate = full) {
@@ -54,8 +55,7 @@ function client(answer: TemplateList, template: TaskTemplate = full) {
       gets.push(path)
       if (/task-templates$/.test(path)) return { data: { data: answer } }
       if (/\/fields$/.test(path)) return { data: { data: { fields: [], can_edit: true } } }
-      if (path.startsWith("/project/memberWithAdminFlag/")) return { data: { data: { project_members: [SAM] } } }
-      if (path === "/user/dm-ai-targets") return { data: { data: [OPS] } }
+      if (path.startsWith("/project/memberWithAdminFlag/")) return { data: { data: { project_members: [SAM, KIM] } } }
       if (/\/statuses$/.test(path)) return { data: { data: { custom: [] } } }
       return { data: { data: template } }
     }),
@@ -90,7 +90,7 @@ describe("the task templates' manager (linear-09)", () => {
     expect(gets).toContain("/project/p/task-templates/t1")
     fireEvent.change(name, { target: { value: "Bug intake" } })
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save template" })))
-    expect(posts).toEqual([{ path: "/project/p/task-templates/t1", body: expect.objectContaining({ name: "Bug intake", default_for: BUG, shape: expect.objectContaining({ status: "Triage", type: BUG, assignee: OPS.user_uuid, description: "<h3>Steps</h3>" }) }) }])
+    expect(posts).toEqual([{ path: "/project/p/task-templates/t1", body: expect.objectContaining({ name: "Bug intake", default_for: BUG, shape: expect.objectContaining({ status: "Triage", type: BUG, assignee: KIM.user_uuid, description: "<h3>Steps</h3>" }) }) }])
     await screen.findByRole("list", { name: "This project's templates" })
   })
 
@@ -125,33 +125,30 @@ describe("the task templates' manager (linear-09)", () => {
     expect(posts).toEqual([{ path: "/project/task-templates", body: expect.objectContaining({ name: "Escalation", default_for: "" }) }])
   })
 
-  it("reads the project's fields, people, AI teammates and statuses on the page's client: the page passes only that", async () => {
+  it("reads the project's fields, people and statuses on the page's client: the page passes only that", async () => {
     const { http, gets } = client(list())
     render(<ProjectTaskTemplatesDefault http={http} projectId="p" onClose={() => {}} />)
     await screen.findByRole("list", { name: "This project's templates" })
-    await waitFor(() => expect(gets).toEqual(expect.arrayContaining(["/project/p/fields", "/project/memberWithAdminFlag/p", "/user/dm-ai-targets", "/project/p/statuses"])))
-    for (const path of ["/project/p/fields", "/project/memberWithAdminFlag/p", "/user/dm-ai-targets", "/project/p/statuses"]) {
+    await waitFor(() => expect(gets).toEqual(expect.arrayContaining(["/project/p/fields", "/project/memberWithAdminFlag/p", "/project/p/statuses"])))
+    for (const path of ["/project/p/fields", "/project/memberWithAdminFlag/p", "/project/p/statuses"]) {
       expect(http.get).toHaveBeenCalledWith(path, { suppressErrorToast: true })
     }
   })
 
-  it("sets a preset assignee from the place's people and AI teammates, and writes the body in Markdown with a live preview", async () => {
+  it("sets a preset assignee from the place's people, and writes the body in Markdown with a live preview", async () => {
     const { http, posts } = client(list())
     render(<ProjectTaskTemplatesDialog http={http} projectId="p" onClose={() => {}} />)
     fireEvent.click(await screen.findByRole("button", { name: "Edit Bug report" }))
-    // The preset AI teammate, as the read names them (assignee_who), and named an AI teammate as New task's chip names
-    // one ("Assignee: Ada, AI teammate"). The shared principal tag isn't drawn here: its module re-cut the /app shell.
+    // The preset person, as the read names them (assignee_who).
     const assignee = await screen.findByRole("combobox", { name: "Assignee" })
-    await waitFor(() => expect(assignee.textContent).toBe("Ops AgentAI teammate"))
-    expect(assignee.querySelector("[data-principal-tag]")).toBeNull()
+    await waitFor(() => expect(assignee.textContent).toContain("Kim Lee"))
     expect(screen.getByRole("combobox", { name: "Status" }).textContent).toContain("Triage")
-    // The shared Select, as Type, Priority and Status are: No one, the project's people, then the AI teammates, each
-    // named once (a face or an agent's square is drawn beside the name).
+    // The shared Select, as Type, Priority and Status are: No one, then the project's people, each named once (a face
+    // is drawn beside the name).
     fireEvent.keyDown(assignee, { key: "ArrowDown" })
     await waitFor(() => expect(within(screen.getByRole("group", { name: "People" })).getByRole("option", { name: "Sam Rivera" })).toBeTruthy())
-    expect(within(screen.getByRole("group", { name: "AI teammates" })).getByRole("option", { name: /^Ops Agent/ })).toBeTruthy()
     const options = screen.getAllByRole("option")
-    expect(["No one", "Sam Rivera", /^Ops Agent/].map((name) => options.indexOf(screen.getByRole("option", { name })))).toEqual([0, 1, 2])
+    expect(["No one", "Sam Rivera", "Kim Lee"].map((name) => options.indexOf(screen.getByRole("option", { name })))).toEqual([0, 1, 2])
     fireEvent.click(screen.getByRole("option", { name: "Sam Rivera" }))
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Assignee" }).textContent).toContain("Sam Rivera"))
     // The body in Markdown, its preview drawn as its tasks will start, as it's typed.
@@ -198,28 +195,28 @@ describe("the task templates' manager (linear-09)", () => {
     expect(preview.querySelector("a")).toBeNull()
   })
 
-  it("lets the workspace's templates preset an AI teammate and a built-in status, reading no project", async () => {
+  it("lets the workspace's templates preset no one, reading no project", async () => {
     const { http, gets, posts } = client(list({ templates: [], defaults: {} }))
     render(<WorkspaceTaskTemplatesCard http={http} />)
     fireEvent.click(await screen.findByRole("button", { name: "New template" }))
     fireEvent.change(await screen.findByLabelText("Template name"), { target: { value: "Escalation" } })
-    // Every project's: No one and the AI teammates (people are per project).
+    // Every project's: No one (people are per project).
     fireEvent.keyDown(await screen.findByRole("combobox", { name: "Assignee" }), { key: "ArrowDown" })
-    await waitFor(() => expect(within(screen.getByRole("group", { name: "AI teammates" })).getByRole("option", { name: /^Ops Agent/ })).toBeTruthy())
-    expect(screen.getByRole("option", { name: "No one" })).toBeTruthy()
+    await waitFor(() => expect(screen.getByRole("option", { name: "No one" })).toBeTruthy())
+    expect(screen.getAllByRole("option")).toHaveLength(1)
     expect(screen.queryByRole("group", { name: "People" })).toBeNull()
     expect(screen.queryByRole("option", { name: "Sam Rivera" })).toBeNull()
-    fireEvent.click(screen.getByRole("option", { name: /^Ops Agent/ }))
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Assignee" }).textContent).toContain("Ops Agent"))
+    fireEvent.click(screen.getByRole("option", { name: "No one" }))
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull())
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save template" })))
-    expect(posts).toEqual([{ path: "/project/task-templates", body: expect.objectContaining({ shape: expect.objectContaining({ assignee: OPS.user_uuid }) }) }])
+    expect(posts).toEqual([{ path: "/project/task-templates", body: expect.objectContaining({ name: "Escalation" }) }])
+    expect((posts[0].body as { shape?: { assignee?: string } }).shape?.assignee ?? "").toBe("")
     expect(gets.filter((g) => /fields|memberWithAdminFlag|statuses/.test(g))).toEqual([])
   })
 
   it("reads each list at the path the page's own reads use", () => {
     expect(placePaths.fields("p")).toBe(projectFieldsKey("p"))
     expect(placePaths.people("p")).toBe(`${GetEndpointUrl.GetProjectMembers}/p`)
-    expect(placePaths.teammates).toBe(GetEndpointUrl.GetDMableAITargets)
   })
 
   it("shows no keeping to someone who keeps nothing here", async () => {

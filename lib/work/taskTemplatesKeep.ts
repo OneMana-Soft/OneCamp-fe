@@ -56,7 +56,6 @@ export interface PlaceLists {
 export const placePaths = {
   fields: (projectId: string) => `/project/${projectId}/fields`,
   people: (projectId: string) => `/project/memberWithAdminFlag/${projectId}`,
-  teammates: "/user/dm-ai-targets",
 }
 
 /** A place's lists for the editor, read once on the page's client; a list that fails reads as empty. */
@@ -75,7 +74,8 @@ export async function placeLists(http: KeepHttp, projectId?: string): Promise<Pl
   const [fields, members, teammates, statuses] = await Promise.all([
     projectId ? read(placePaths.fields(projectId), (d) => (d as { fields?: TaskField[] } | null)?.fields, []) : [],
     projectId ? read(placePaths.people(projectId), (d) => (d as { project_members?: UserProfileDataInterface[] } | null)?.project_members, []) : [],
-    read(placePaths.teammates, (d) => d as UserProfileDataInterface[] | undefined, []),
+    // No AI teammates on this edition, and no read for them: its server has none to give.
+    [] as UserProfileDataInterface[],
     projectId ? read<OrderedStatuses | null>(projectStatusesKey(projectId), (d) => d as OrderedStatuses | null, null) : null,
   ])
   // The project's people as the task panel lists them: an AI teammate is listed with the teammates.
