@@ -15,10 +15,11 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Archive, Bell, ClipboardList, Clock, Globe, Hash, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
+import { Archive, Bell, ClipboardList, Clock, Globe, Hash, Layers, LayoutTemplate, Link2, MoreHorizontal, Pencil, RotateCcw, ShieldCheck, Users, Workflow } from "@/lib/icons"
 import type { WorkAccess } from "@/lib/work/types"
 import { useArchiveProject } from "@/hooks/useArchiveProject"
 import { useProjectLinks } from "@/hooks/useProjectLinks"
+import axiosInstance from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { app_project_path } from "@/types/paths"
@@ -50,6 +51,7 @@ const ProjectRulesDialog = dynamic(() => import("@/components/work/rules/Project
 const ProjectAccessDialog = dynamic(() => import("@/components/project/ProjectAccessDialog").then((m) => m.ProjectAccessDialog), { loading: () => null })
 const ProjectKeyTypesDialog = dynamic(() => import("@/components/project/ProjectKeyTypesDialog").then((m) => m.ProjectKeyTypesDialog), { loading: () => null })
 const ProjectLinksDialog = dynamic(() => import("@/components/project/ProjectLinksDialog").then((m) => m.ProjectLinksDialog), { loading: () => null })
+const TemplatesDialog = dynamic(() => import("@/components/task/TaskTemplatesManager"), { loading: () => null })
 
 /** Starts the menu's dialogs loading, so the one chosen opens without a wait. */
 function warmTools() {
@@ -62,7 +64,7 @@ function warmTools() {
 }
 const warmTime = () => void import("@/components/project/ProjectTimeDialog")
 
-type ToolKey = "time" | "rules" | "links" | "forms" | "share" | "template" | "access" | "keys"
+type ToolKey = "time" | "rules" | "links" | "forms" | "share" | "template" | "access" | "keys" | "templates"
 export interface ProjectTool {
   key: ToolKey
   label: string
@@ -114,6 +116,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
       tool("template", "Save as a template", LayoutTemplate),
       tool("access", "Who can change tasks", ShieldCheck),
       tool("keys", "Key and types", Hash),
+      tool("templates", "Task templates", Layers),
     ] : []),
   ]
   const dialogs = !allowed ? null : (
@@ -126,6 +129,7 @@ export function useProjectTools({ projectId, projectName, isAdmin, isMember }: {
       {isAdmin && was("template") && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}
       {isAdmin && was("access") && <ProjectAccessDialog projectId={projectId} open={open === "access"} onOpenChange={set("access")} />}
       {isAdmin && was("keys") && <ProjectKeyTypesDialog projectId={projectId} open={open === "keys"} onOpenChange={set("keys")} />}
+      {open === "templates" && <TemplatesDialog http={axiosInstance} projectId={projectId} onClose={() => setOpen(null)} />}
     </>
   )
   return { allowed, tools, dialogs }

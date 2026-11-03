@@ -835,3 +835,17 @@ describe("the board on the stage", () => {
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Hosts turned off sharing, so Maya Chen's board left the stage" }))
   })
 })
+
+// V-385: news nobody asked for (OneCamp AI's daily note) waits off a call's
+// stage (lib/ui/news). On its own page the stage marks itself a work surface;
+// in a side pane beside other work it doesn't.
+describe("V-385: a call's stage keeps news nobody asked for off it", () => {
+  it("is a work surface on its own page, and not in a side pane beside other work", async () => {
+    const view = await act(async () => render(call()))
+    const stage = () => document.querySelector("[data-call-stage]")
+    await waitFor(() => expect(stage()).not.toBeNull())
+    expect(stage()!.hasAttribute("data-work-surface"), "on its own page").toBe(true)
+    await act(async () => view.rerender(call({ embedded: true })))
+    expect(stage()!.hasAttribute("data-work-surface"), "in a side pane").toBe(false)
+  })
+})

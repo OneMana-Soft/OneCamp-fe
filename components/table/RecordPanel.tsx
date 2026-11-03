@@ -70,6 +70,7 @@ function AiCellNote({ tableId, field, row, onFilled }: { tableId: string; field:
   // This edition has no AI, so it says nothing about AI under a cell, even one
   // an AI edition once filled and a person then wrote over.
   if (!ai) return null
+  if (!kept && !refill) return null
   // A second dd under the value: a dt may have several.
   return (
     <dd className="col-start-2 -mt-0.5 flex items-center gap-2 pb-1 text-meta text-ink-3 max-sm:col-start-1" data-ai-cell-note="">

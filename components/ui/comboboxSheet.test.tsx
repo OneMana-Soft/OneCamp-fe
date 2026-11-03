@@ -21,7 +21,7 @@ vi.mock("next/dynamic", () => ({
   },
 }))
 
-const { Combobox, ComboboxContent, ComboboxField, ComboboxInput, ComboboxItem, ComboboxList } = await import("./combobox")
+const { Combobox, ComboboxContent, ComboboxField, ComboboxInput, ComboboxItem, ComboboxList, ComboboxTrigger } = await import("./combobox")
 const { Drawer, DrawerContent, DrawerTitle } = await import("./drawer")
 
 beforeEach(() => {
@@ -114,6 +114,45 @@ describe("the combobox on a phone", () => {
     const lit = await within(again).findByRole("option", { name: "Olu Adeyemi" })
     expect(lit.getAttribute("data-selected")).toBe("true")
     expect(again.querySelectorAll('[cmdk-item][data-selected="true"]')).toHaveLength(1)
+  })
+
+  it("a chip that opens it stays a button: in a form, every press opens the menu and none sends the form", async () => {
+    // A chip's face that spreads what its opener gives it after its own type, as New task's Template and Type chips
+    // do. A popover's trigger gives a button's type; the sheet's opener gave none, so from the second press on (the
+    // first is the chip's face before its picker's code is in) the chip sent New task and closed the page.
+    const Chip = React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<"button">>((props, ref) => (
+      <button ref={ref} type="button" {...props} aria-label="Template">
+        Template
+      </button>
+    ))
+    Chip.displayName = "Chip"
+    const sent = vi.fn((e: React.FormEvent) => e.preventDefault())
+    render(
+      <form onSubmit={sent}>
+        <Combobox>
+          <ComboboxTrigger asChild>
+            <Chip />
+          </ComboboxTrigger>
+          <ComboboxContent label="Template">
+            <ComboboxList>
+              <ComboboxItem value="t1" keywords={["Bug report"]} onSelect={() => {}}>
+                Bug report
+              </ComboboxItem>
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
+      </form>,
+    )
+    const chip = screen.getByRole("button", { name: "Template" })
+    for (const press of [1, 2]) {
+      fireEvent.click(chip)
+      expect(sent, `press ${press} sends no form`).not.toHaveBeenCalled()
+      const sheet = await screen.findByRole("dialog", { name: "Template" })
+      fireEvent.click(within(sheet).getByRole("option", { name: "Bug report" }))
+      expect(chip.getAttribute("aria-expanded"), `press ${press} closes on a pick`).toBe("false")
+    }
+    // As a popover's trigger does: a button's type unless the chip names its own.
+    expect(chip.getAttribute("type")).toBe("button")
   })
 
   it("in a sheet, opens as a panel of that sheet with Back, never a sheet over it", async () => {

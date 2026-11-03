@@ -4,7 +4,7 @@ import path from "path"
 import ts from "typescript"
 import { lineProblem, sourceMeasure } from "../scripts/fluidity/routes.mjs"
 
-import { chainOf, firstScreen, firstScreenEntries, routeReach, sourceOf, walk } from "../scripts/fluidity/reach.mjs"
+import { chainOf, dynamicImportRe, firstScreen, firstScreenEntries, resolve, routeReach, sourceOf, walk } from "../scripts/fluidity/reach.mjs"
 
 // What a visitor's first screen downloads. A new visitor waited 8 to 9
 // seconds for Home, a good part of it on code Home never runs: the editor
@@ -586,6 +586,9 @@ const SHELL_LAZY = [
   // computer, once the first screen has settled (components/onboarding/KeysTipLoader).
   // Home's demo guide marks it seen through components/onboarding/keysTip.
   "components/onboarding/KeyboardTip.tsx",
+  // News nobody asked for (the daily note) and what it waits for: fetched
+  // with a note, once the first screen has settled (components/ai/AgentNoteOnOpen).
+  "lib/ui/news.ts",
   // Your profile's sections, which the profile menu warms once the first
   // screen has settled (components/profile/profileSections, fluid-14).
   "components/profile/ProfileSettingsSections.tsx",
@@ -844,5 +847,34 @@ describe("the palette's task actions", () => {
     const { files, packages } = walk(["lib/work/taskPaletteEntries.ts"]) as { files: Map<string, string | null>; packages: Array<[string, string]> }
     expect([...files.keys()].filter((f) => f !== "lib/work/taskPaletteEntries.ts")).toEqual(["lib/work/taskBranchName.ts"])
     expect(packages).toEqual([])
+  })
+})
+
+// The task templates' manager (linear-09) is a lazy chunk that a project's tools and Admin › Permissions load. Its own
+// lazy imports of the task's editor and assignee picker, each reaching swr, redux and the HTTP client, gave Turbopack
+// new async groups, and it re-cut the /app shell: a 7.9 KB chunk that shipped the date helpers twice on every /app route
+// (+7.4 KB, 54 routes past their gzip lines; tt3, 3 Nov). The manager writes a body in Markdown through the content
+// codec and picks an assignee from the lists the page's client read, so nothing it loads, now or on demand, reaches the
+// shared core (LEAD-RULES, 30 Oct 00:13). Its settings card's load-failure toast (lib/http/loadFailure) is every
+// settings card's, and moves no chunk.
+describe("the task templates' manager", () => {
+  it("loads nothing, now or on demand, that reaches the shared core: the page hands it the client and the lists", () => {
+    const { files, packages } = walk(["components/task/TaskTemplatesManager.tsx"], { dynamic: true }) as { files: Map<string, string | null>; packages: Array<[string, string]> }
+    const core = ["lib/axiosInstance.ts", "hooks/useFetch.ts", "components/task/QuietEditor.tsx", "components/task/taskAssigneePicker.tsx"]
+    expect(core.filter((f) => files.has(f)).map((f) => chainOf(files, f))).toEqual([])
+    expect([...new Set(packages.map(([spec]) => spec).filter((spec) => /^(swr|react-redux|@reduxjs\/)/.test(spec)))]).toEqual([])
+  })
+
+  // Nor may what it loads at once open a lazy chunk the shell measured without it. The shared combobox's menu is an
+  // import() of its own: from the manager's group it was a new async group, and the /app shell re-cut on every /app
+  // route (39 -> 40 chunks, +~930 B; bisect-tt3f), even with the menu's parts also imported at once (measure-e). The
+  // lazy edges below are the shared pieces' own (the dialog's and the Select's phone sheets, the date field's panels and
+  // sheet, the disabled tip, the Undo toast), with which the shell measured clean (bisect-tt3f variant A, 3 Nov). A new
+  // one is measured before it lands.
+  it("opens no lazy chunk of its own from what it loads at once: the /app shell keeps its chunks", () => {
+    const { files } = walk(["components/task/TaskTemplatesManager.tsx"]) as { files: Map<string, string | null> }
+    const measured = ["components/ui/date-field-panels.tsx", "components/ui/date-field-sheet.tsx", "components/ui/disabledTip.tsx", "components/ui/responsive-sheet.tsx", "components/ui/selectSheet.tsx", "components/ui/undoToast.tsx"]
+    const lazy = [...files.keys()].flatMap((file) => [...sourceOf(file).matchAll(dynamicImportRe)].map((m) => [resolve(m[1], file) ?? m[1], file]))
+    expect(lazy.filter(([target]) => !measured.includes(target)).map(([target, file]) => `${target} <- ${chainOf(files, file)}`)).toEqual([])
   })
 })

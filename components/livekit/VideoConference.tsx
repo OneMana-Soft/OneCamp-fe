@@ -352,6 +352,7 @@ function Conference({
       className={`dark @container relative w-full overflow-hidden bg-[#0B0C0E] text-foreground before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(700px_480px_at_-80px_-100px,rgb(var(--glow)/0.10),transparent_68%)] ${STAGE_TYPE} ${embedded ? "h-full" : "h-full md:h-dvh"}`}
       data-lk-theme="default"
       data-call-stage=""
+      data-work-surface={embedded ? undefined : ""}
     >
       <LiveKitRoom
         key={gen}
