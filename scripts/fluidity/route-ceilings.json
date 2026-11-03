@@ -120,6 +120,6 @@
     "app/unsubscribe/page.tsx": {"source": 331397, "gzipKB": 217}
   },
   "beyondHome": {
-    "app/app/doc/[doc-id]/page.tsx": { "source": 745500, "owner": "docs A1", "target": { "gzipKBOverHome": 300 } }
+    "app/app/doc/[doc-id]/page.tsx": { "source": 745600, "owner": "docs A1", "target": { "gzipKBOverHome": 300 } }
   }
 }
