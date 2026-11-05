@@ -52,14 +52,16 @@ const loadedFaces = (p: Page) =>
   })
 /** A control's fill, as it draws. */
 const fillOf = (control: Locator) => control.evaluate((el) => getComputedStyle(el).backgroundColor)
-/** How many times a page draws `text` where an eye reads it: shown, and more than a pixel (screen-reader-only text isn't). */
+/** How many times a page draws `text` where an eye reads it: shown, and more than a pixel (screen-reader-only text isn't).
+ *  Counted at the innermost element that reads it whole, so a name drawn in two spans (a plate's first word and the rest,
+ *  narrow plates) is drawn once, and the same name drawn again anywhere else still counts twice. */
 const timesDrawn = (p: Page, text: string) =>
   p.evaluate((t) => {
+    const reads = (el: Element) => el.textContent?.replace(/\s+/g, " ").trim() === t
     let n = 0
-    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
-    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
-      const el = node.parentElement
-      if (node.nodeValue?.trim() !== t || !el?.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
+    for (const el of Array.from(document.body.querySelectorAll("*"))) {
+      if (!reads(el) || Array.from(el.children).some(reads)) continue
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue
       const box = el.getBoundingClientRect()
       if (box.width > 1 && box.height > 1) n++
     }

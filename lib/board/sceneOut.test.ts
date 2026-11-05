@@ -87,7 +87,6 @@ describe("the board as it may leave this tab", () => {
 const SENDS = /\b(makeRequest|axiosInstance\s*\.\s*(post|put|patch)|authedStreamFetch|publishTemplate|uploadBoardBlob|exportToBlob|exportToSvg|exportToCanvas|storeWithMakers|fetch)\s*[(<]/
 const READS = /\bgetSceneElements(IncludingDeleted)?\s*\(|"@\/lib\/board\/sceneOut"/
 const HOW: Record<string, string> = {
-  "components/board/boardAIPanel.tsx": "sceneOut", // clustering sends the board's words; a generation sends the prompt, a refine the AI's own graph
   "components/board/boardTools.tsx": "sceneOut", // Make tasks: a note held in private mode stays out
   "components/board/saveBoardTemplate.tsx": "sceneOut", // a saved template
   "components/board/boardCanvas.tsx": "writer", // the frame's sync writes through the writer; the thumbnail sends the outward view
