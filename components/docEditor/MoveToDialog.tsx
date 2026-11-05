@@ -21,6 +21,7 @@ import { DocIcon } from "./DocIcon"
 import { ChromeSheet } from "./chrome/Sheet"
 import { ChoiceCards, InlineError } from "./chrome/parts"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { navigate } from "./chrome/pageFacts"
 import { peekStagedDrop, releaseStagedDrop } from "./chrome/stagedDrop"
 import { peekStagedMove, releaseStagedMove } from "./chrome/stagedMove"
@@ -176,7 +177,7 @@ export default function MoveToDialog(props: MoveToProps) {
       })
       onClose()
     } catch (e) {
-      setError(e instanceof Error && staged ? e.message : apiErrorMessage(e, "It didn't move. Try again in a moment."))
+      setError(e instanceof Error && staged ? e.message : saidHere(e, "It didn't move. Try again in a moment."))
     } finally {
       setBusy(false)
     }
@@ -202,7 +203,7 @@ export default function MoveToDialog(props: MoveToProps) {
       await finish(target, how)
     } catch (e) {
       setChosen(null)
-      setError(apiErrorMessage(e, "Couldn't check who'd have access there. Try again."))
+      setError(saidHere(e, "Couldn't check who'd have access there. Try again."))
     } finally {
       setBusy(false)
     }

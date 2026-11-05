@@ -173,6 +173,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
             removeReaction={removeReaction}
             onSelectAttachment={handleSelectAttachment}
             mediaGetUrl={GetEndpointUrl.GetGroupChatMedia + '/' + grpId}
+            call={{ kind: "group", id: grpId }}
         />
     )
 }

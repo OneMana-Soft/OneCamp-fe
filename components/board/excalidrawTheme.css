@@ -443,11 +443,15 @@
    canvas, or a move by hand from a frame's name, has travelled Excalidraw's
    own 10 px drag threshold, so a click never blinks it. Gone at once, with no pointer and no tab stop; at the drop it is
    back above the note's new place (the dock in its own), fading in only
-   (miro-06, DB-43). The rest of the chrome keeps its dim. */
+   (miro-06, DB-43). The rest of the chrome keeps its dim. It steps aside the
+   same way while Excalidraw's own menu (a right press, a long press) is open,
+   so it never lies across one of the menu's rows, and is back when the menu
+   closes (miro-44, DB-113 F2). */
 [data-following-bar] {
   transition: opacity var(--duration-hover) var(--ease-out);
 }
-[data-board-moving="true"] [data-following-bar] {
+[data-board-moving="true"] [data-following-bar],
+[data-board-page]:has(.excalidraw .context-menu) [data-following-bar] {
   opacity: 0;
   visibility: hidden;
   transition: none;
@@ -486,7 +490,9 @@
 /* ---- the notes bar ---------------------------------------------------------
    While notes are selected, the notes bar (components/board/notesBar) holds
    what people change on them, beside the selection; Excalidraw's own panel
-   steps behind the bar's More, which sets data-props-open. */
+   steps behind the bar's More, which sets data-props-open. The same flag
+   keeps it away while a note's words are typed and while a protected object
+   is selected, whose changes the server puts back (miro-44). */
 [data-board-page][data-notes-selected]:not([data-props-open]) .excalidraw.excalidraw .App-menu__left {
   display: none;
 }

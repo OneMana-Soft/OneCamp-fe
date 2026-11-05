@@ -9,6 +9,8 @@
 //    Excalidraw's own panel (hidden while notes are selected).
 //  - One frame: lay its notes out in a grid, rows or columns (miro-11), and
 //    copy a link that opens the board at it (miro-04).
+//  - Either, last: what the workbench adds (`extra`), the selection's
+//    Protect for the board's owner and admins (miro-44).
 //
 // It sits above the selection, or below it near the top of the canvas, and
 // slides with it as the board moves. On a phone each picker is a sheet.
@@ -87,8 +89,10 @@ function useBarSpot(api: ExcalidrawImperativeAPI, ids: readonly string[], bar: R
 /**
  * The bar's place, above (or below) the selection, following pans and zooms.
  * The bar's contents come from the parent, so a pan re-renders only this.
+ * The workbench puts a selection's protection in one too, when neither bar
+ * here is drawn (miro-44).
  */
-function Floating({ api, ids, label, attr, children }: { api: ExcalidrawImperativeAPI; ids: readonly string[]; label: string; attr: string; children: React.ReactNode }) {
+export function Floating({ api, ids, label, attr, children }: { api: ExcalidrawImperativeAPI; ids: readonly string[]; label: string; attr: string; children: React.ReactNode }) {
   const { isMobile } = useMedia()
   if (isMobile) {
     // A phone: low, one bar above the facilitation bar (PHONE_DOCK), off
@@ -140,7 +144,10 @@ function useHideExcalidrawPanel(open: boolean) {
   }, [open])
 }
 
-/** While a note's words are typed: Excalidraw's panel stays hidden, as it is while notes are selected (design-22 1). */
+/**
+ * While a note's words are typed (design-22 1), or a protected object is selected (miro-44): Excalidraw's panel stays
+ * hidden, as it is while notes are selected.
+ */
 export function HideExcalidrawPanel() {
   useHideExcalidrawPanel(false)
   return null
@@ -152,7 +159,7 @@ const SIZES: { id: NoteSize; label: string; name: string }[] = [
   { id: "l", label: "L", name: "Large" },
 ]
 
-export default function NotesBar({ api, ids, tagHues, votes }: { api: ExcalidrawImperativeAPI; ids: string[]; tagHues: TagHues; votes?: BoardVotes }) {
+export default function NotesBar({ api, ids, tagHues, votes, extra }: { api: ExcalidrawImperativeAPI; ids: string[]; tagHues: TagHues; votes?: BoardVotes; extra?: React.ReactNode }) {
   const [panel, setPanel] = React.useState(false)
   useHideExcalidrawPanel(panel)
   const { toast } = useToast()
@@ -388,6 +395,7 @@ export default function NotesBar({ api, ids, tagHues, votes }: { api: Excalidraw
           <FloatingBarButton label={panel ? "Hide the style panel" : "More: stroke, fill and layers"} active={panel} onClick={() => setPanel((p) => !p)}>
             <Ellipsis />
           </FloatingBarButton>
+          {extra}
       </Floating>
       <NotesToTasksDialog open={tasksOpen} onOpenChange={setTasksOpen} api={api} notes={notes} />
     </>
@@ -437,7 +445,7 @@ const LAYOUTS: { id: FrameLayout; label: string; glyph: React.ReactNode }[] = [
 ]
 
 /** One frame selected: lay out its notes, make them tasks (a retro's actions), or copy a link to it. */
-export function FrameBar({ api, frameId, boardId }: { api: ExcalidrawImperativeAPI; frameId: string; boardId: string }) {
+export function FrameBar({ api, frameId, boardId, extra }: { api: ExcalidrawImperativeAPI; frameId: string; boardId: string; extra?: React.ReactNode }) {
   const ids = React.useMemo(() => [frameId], [frameId])
   const { toast } = useToast()
   const [tasksOpen, setTasksOpen] = React.useState(false)
@@ -488,6 +496,7 @@ export function FrameBar({ api, frameId, boardId }: { api: ExcalidrawImperativeA
           <FloatingBarButton label="Copy a link to this frame" onClick={() => void copyLink()}>
             <Link2 />
           </FloatingBarButton>
+          {extra}
       </Floating>
       <NotesToTasksDialog open={tasksOpen} onOpenChange={setTasksOpen} api={api} notes={notes} />
     </>

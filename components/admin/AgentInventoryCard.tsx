@@ -40,6 +40,7 @@ import { AgentAvatar } from "@/components/ui/graphics/PrincipalAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import {
   getAgentInventory,
   revokeInventoryCredential,
@@ -263,7 +264,7 @@ export function AgentInventoryCard() {
       } catch (e) {
         toast({
           title: `Couldn't ${next ? "resume" : "pause"} ${a.name}`,
-          description: apiErrorMessage(e, "Try again in a moment."),
+          description: saidHere(e, "Try again in a moment."),
           variant: "destructive",
         })
         throw e
@@ -284,7 +285,7 @@ export function AgentInventoryCard() {
       await revokeInventoryCredential(c.id)
       toast({ title: `${c.name} revoked`, description: "Its next request is refused." })
     } catch (e) {
-      toast({ title: `Couldn't revoke ${c.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+      toast({ title: `Couldn't revoke ${c.name}`, description: saidHere(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(null)
       void load()

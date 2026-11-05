@@ -5,11 +5,8 @@
 // whoever runs the call does to it. One hook, so the channel, DM and group
 // pages and the instant meeting's page read it alike.
 
-import { useEffect } from "react"
-import { useFetch } from "@/hooks/useFetch"
-import { OWN_ERRORS } from "@/lib/axiosInstance"
-import { CALL_STATE_EVENT } from "@/lib/calls/stateEvent"
-import { callCurrentPath, callReadKeyOf, type CallRef } from "@/services/callService"
+import { useLiveCall } from "@/lib/calls/useLiveCall"
+import type { CallRef } from "@/lib/calls/callRef"
 import type { CallSessionRead } from "./callState"
 
 /**
@@ -24,17 +21,7 @@ import type { CallSessionRead } from "./callState"
 export function useCallSession(ref: CallRef | null, phase: "waiting" | "in-call" | "over"): CallSessionRead | undefined {
   const refreshInterval = (latest?: { data?: CallSessionRead }) =>
     phase === "waiting" ? 10_000 : phase === "in-call" && !latest?.data?.session?.id ? 2_000 : 0
-  const key = callCurrentPath(ref)
-  const { data, mutate } = useFetch<{ data?: CallSessionRead }>(key, undefined, { refreshInterval }, OWN_ERRORS)
-  // The server says when this call changes (MESSAGE_CALL_STATE, passed on by
-  // the app's MQTT handler): read it again then, not at the next poll.
-  useEffect(() => {
-    if (!key) return
-    const onState = (e: Event) => {
-      if (callReadKeyOf((e as CustomEvent).detail) === key) void mutate()
-    }
-    window.addEventListener(CALL_STATE_EVENT, onState)
-    return () => window.removeEventListener(CALL_STATE_EVENT, onState)
-  }, [key, mutate])
-  return data?.data
+  // The server says when this call changes (MESSAGE_CALL_STATE): useLiveCall
+  // reads it again then, not at the next poll.
+  return useLiveCall(ref, refreshInterval)
 }

@@ -11,6 +11,7 @@ import {MobileTopNavigationBarSecondBoard} from "@/components/navigationBar/mobi
 import { Suspense } from "react";
 import { phoneSettingsTitle } from "@/lib/adminSections";
 import { AdminPhoneTitle } from "@/components/admin/AdminPhoneBar";
+import { projectRouteOf } from "@/lib/projectRoute";
 
 export function MobileTopNavigationBarSecond() {
     const pathname = usePathname();
@@ -21,7 +22,6 @@ export function MobileTopNavigationBarSecond() {
         switch (path[2]) {
             case "home":
                 return "Home";
-                break;
             case "admin":
                 // The section that is open, by its own name (lib/adminSections).
                 return <Suspense fallback="Admin"><AdminPhoneTitle/></Suspense>
@@ -63,13 +63,10 @@ export function MobileTopNavigationBarSecond() {
                 switch (path[3]) {
                     case "ch":
                         return <PhoneConversationTitle kind="channel" id={path[4]}/>
-                        break;
                     case "chat":
                         return <PhoneConversationTitle kind="dm" id={path[4]}/>
-                        break;
                     case "grp":
                         return <PhoneConversationTitle kind="group" id={path[4]}/>
-                        break;
 
                 }
                 break
@@ -99,13 +96,12 @@ export function MobileTopNavigationBarSecond() {
                 return "Recordings"
             case "search":
                 return "Search";
-                break;
-            case "project":
-                if (path.length < 4)
-                    return "Projects";
-                if (path.length < 5)
-                    return <MobileTopNavigationBarSecondProject projectUUID={path[3]}/>
+            case "project": {
+                const route = projectRouteOf(pathname)
+                if (route)
+                    return route.page ?? (route.id ? <MobileTopNavigationBarSecondProject projectUUID={route.id}/> : "Projects")
                 break
+            }
             case "channel":
                 if (path.length < 4)
                     return "Channels";

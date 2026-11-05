@@ -17,7 +17,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import type { AddWorkReads } from "@/components/board/addWorkReads"
 import BoardTools, { insertBoardTemplate } from "@/components/board/boardTools"
 import StickyTool from "@/components/board/stickyTool"
-import NotesBar, { FrameBar, HideExcalidrawPanel } from "@/components/board/notesBar"
+import NotesBar, { FrameBar, Floating, HideExcalidrawPanel } from "@/components/board/notesBar"
 import { BOARD_TEMPLATES } from "@/lib/board/templates"
 import { STYLE_FONT, STYLE_ROUGHNESS, isStickyNote, type BoardStyle } from "@/lib/board/notes"
 import { findFromSearch, linkedFromSearch } from "@/lib/board/frames"
@@ -39,6 +39,8 @@ import { BoardMap } from "@/components/board/boardMap"
 import { useBottomRow } from "@/components/board/bottomRow"
 import { BoardSideFrame, SIDE_PANELS, SidePanelShape } from "@/components/board/boardSidePanel"
 import { lazyPanel } from "@/lib/lazy/lazyPanel"
+import { lazyPiece } from "@/lib/lazy/lazyPiece"
+import { useCanProtect, useProtection } from "@/lib/board/protection"
 import { lazyChunk } from "@/lib/loadChunk"
 import { useMedia } from "@/context/MediaQueryContext"
 
@@ -59,6 +61,10 @@ const FramesPanel = lazyPanel(SIDE_CODE.frames, PANEL, SidePanelShape)
 const TagFilterPanel = lazyPanel(SIDE_CODE.tagFilter, PANEL, SidePanelShape)
 const AddWorkPanel = lazyPanel(SIDE_CODE.addWork, PANEL, SidePanelShape)
 const FindPanel = lazyPanel(SIDE_CODE.find, PANEL, SidePanelShape)
+// Protected objects (miro-44): their badges, and Protect in a selection's bar, one chunk for a board that has a
+// protected object or a reader who may protect.
+const ProtectedLayer = lazyPiece(() => import("@/components/board/protectedLayer"))
+const ProtectControl = lazyPiece(() => import("@/components/board/protectedLayer").then((m) => ({ default: m.ProtectControl })))
 const WARM = { frames: lazyChunk(SIDE_CODE.frames), tagFilter: lazyChunk(SIDE_CODE.tagFilter), addWork: lazyChunk(SIDE_CODE.addWork), find: lazyChunk(SIDE_CODE.find) }
 
 const NOBODY = { id: "", name: "" }
@@ -246,6 +252,12 @@ export default function BoardWorkbench({
   addWorkReads?: React.ComponentType<{ children: (reads: AddWorkReads) => React.ReactNode }>
 }) {
   const selection = useBoardSelection(api)
+  // What's protected (miro-44): a protected selection gets no notes or frame bar (the server puts back any change to
+  // it), only who protected it, and Lift protection for those who may.
+  const protection = useProtection(provider.document)
+  // The board's owner or a workspace admin protects objects and lifts protection (getBoardInfo's board_can_protect).
+  const canProtect = useCanProtect(boardId)
+  const held = protection.size > 0 && selection.ids.some((id) => protection.has(id))
   // A note keeps its size while its words are typed, its words shrinking to fit it (miro-07).
   useTypedNoteFit(api, editable)
   // And notes laid out before their face had come are fitted again in it as it lands, on open too (V-229).
@@ -437,6 +449,20 @@ export default function BoardWorkbench({
       <WithAddWorkReads>{(reads) => <AddWorkPanel api={api} onClose={closeSide} reads={reads} />}</WithAddWorkReads>
     ) : null
 
+  // The bars a selection gets: the notes bar or the frame bar, unless it's protected; and in it, or on its own,
+  // Protect for those who may, or who protected it for everyone.
+  const notesBar = editable && selection.notes.length > 0 && !selection.editing && !held
+  const frameBar = editable && !!selection.frame && !selection.editing && !held
+  const mayProtect = canProtect && editable
+  const protect =
+    selection.ids.length > 0 && !selection.editing && (mayProtect || held)
+      ? (lead: boolean) => (
+          <React.Suspense fallback={null}>
+            <ProtectControl api={api} boardId={boardId} ids={selection.ids} record={protection} canProtect={mayProtect} lead={lead} />
+          </React.Suspense>
+        )
+      : null
+
   return (
     <>
       <BoardTools api={api} editable={editable} boardId={boardId} synced={synced} quiet={quiet || pickerOpen} onMoreTemplates={() => setPickerOpen(true)} style={style ?? undefined} />
@@ -455,9 +481,22 @@ export default function BoardWorkbench({
       {/* The board's map, on a computer: a phone's board is small enough to cross with a finger. */}
       {!isMobile && <BoardMap api={api} host={host} />}
       <NoteTagChips api={api} tagHues={tagHues} filter={found ? NO_TAGS : filterTags} lit={found} selected={selection.ids} />
-      {editable && selection.notes.length > 0 && !selection.editing && <NotesBar api={api} ids={selection.notes} tagHues={tagHues} votes={votes} />}
+      {notesBar && <NotesBar api={api} ids={selection.notes} tagHues={tagHues} votes={votes} extra={protect && protect(true)} />}
       {editable && selection.editingNote && <HideExcalidrawPanel />}
-      {editable && selection.frame && !selection.editing && <FrameBar api={api} frameId={selection.frame} boardId={boardId} />}
+      {frameBar && <FrameBar api={api} frameId={selection.frame!} boardId={boardId} extra={protect && protect(true)} />}
+      {protect && !notesBar && !frameBar && (
+        <Floating api={api} ids={selection.ids} label="Protection" attr="data-protect-bar">
+          {protect(false)}
+        </Floating>
+      )}
+      {/* Nothing changed on a protected selection stays (the server puts it back), so Excalidraw's style panel steps
+          away for it as for notes, and the bar and the badge are its only chrome (DB-113 F1). */}
+      {held && protect && <HideExcalidrawPanel />}
+      {protection.size > 0 && (
+        <React.Suspense fallback={null}>
+          <ProtectedLayer api={api} doc={provider.document} record={protection} canProtect={mayProtect} />
+        </React.Suspense>
+      )}
       {pickerOpen && editable && <TemplatePicker onUse={(t) => applyTemplate(api, t)} onClose={() => setPickerOpen(false)} />}
       {side && sidePanel && (
         <BoardSideFrame key={side} {...SIDE_PANELS[side](editable)} onClose={closeSide}>

@@ -18,6 +18,7 @@ import { openPalette } from "@/lib/ui/palette";
 import { PhoneSelfAvatar } from "@/components/navigationBar/mobile/phoneSelfAvatar";
 import { usePauseNotifications } from "@/hooks/usePauseNotifications";
 import { LazyConnected } from "@/components/workGraph/LazyConnected";
+import { projectRouteOf } from "@/lib/projectRoute";
 import { lazyPart } from "@/lib/lazy/lazyPart";
 
 // A doc's actions load with a doc, in a chunk of their own. The bar is drawn
@@ -104,23 +105,25 @@ export function MobileTopNavigationBarThird() {
                     </div>
                 break
 
-            case "project":
-
+            case "project": {
+                const route = projectRouteOf(path.join('/'))
                 // The list, as teams: it showed one project's filter and
                 // options, for no project, to everyone but an admin.
-                if(path.length < 4)
+                if (route && !route.page && !route.id)
                     return selfProfile.data?.data.user_is_admin
                         ? <CreateButton label='New project' onClick={()=>{dispatch(openUI({ key: 'createProject' }))}} />
                         : null
-                if(path.length < 5)
+                // A project's actions on its page only (DB-114 F1).
+                if (route?.id)
                     return <div className='flex space-x-1'>
-                        <LazyConnected kind="project" id={path[3]} className={PHONE_CONNECTED} />
-                        <Button aria-label='Filter tasks' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'projectTaskFilterDrawer', data: { projectUUID: path[3] } }))}}><Filter className='h-5'/></Button>
+                        <LazyConnected kind="project" id={route.id} className={PHONE_CONNECTED} />
+                        <Button aria-label='Filter tasks' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'projectTaskFilterDrawer', data: { projectUUID: route.id } }))}}><Filter className='h-5'/></Button>
                         {/* No "⋯" here: the project header line's menu is the one,
                             holding the tools, notifications, name and members. */}
 
                     </div>
                 break
+            }
 
             case "calendar":
                 return path[3] === "event" ? null : <div className='flex space-x-1'>

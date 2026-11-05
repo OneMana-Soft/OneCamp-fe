@@ -3,7 +3,6 @@
 // have. With several projects and no history it starts empty, and pressing
 // Create asks for one, rather than guessing where the work belongs.
 
-import { app_project_path } from "@/types/paths"
 
 const LAST_PROJECT_KEY = "onecamp:last-task-project"
 
@@ -25,10 +24,9 @@ export function lastTaskProject(): string {
     }
 }
 
-/** The project a page shows, from its path (/app/project/{id}), or "". Pure. */
+/** The project a page shows, from its path (/app/project/{id}; dashboards is none), or "". Pure. */
 export function projectAt(pathname: string | null | undefined): string {
-    const prefix = `${app_project_path}/`
-    return pathname?.startsWith(prefix) ? pathname.slice(prefix.length).split("/")[0] : ""
+    return pathname?.match(/^\/app\/project\/(?!dashboards(?:\/|$))([^/]+)/)?.[1] ?? ""
 }
 
 /** The project a new task starts in, of projects: last, when it's still one of them, or the only one. */

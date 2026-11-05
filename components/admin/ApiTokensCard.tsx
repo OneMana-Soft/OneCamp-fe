@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Key, MoreHorizontal, Plus, Sparkles } from "@/lib/icons"
 import { CopyableCode } from "@/components/ui/copyable-code"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 import { mcpClientConfig, mcpEndpointUrl } from "@/lib/utils/mcpEndpoint"
 import type { CampHue } from "@/lib/campHue"
 import { SpotKey } from "@/components/admin/apiTokenSpot"
@@ -83,6 +84,7 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
           toast({ title: "Token revoked", tone: "success" })
           mutate()
         } catch (e) {
+          saysWriteFailure(e)
           toast({
             title: `Couldn't revoke "${t.name}"`,
             description: apiErrorMessage(e, "Try again in a moment."),

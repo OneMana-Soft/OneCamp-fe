@@ -27,7 +27,7 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban, Link2 } from "@/lib/icons"
 import { useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 import { setGuestOption, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
-import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { formatDistanceToNow } from "date-fns"
 import { NEUTRAL_TILE } from "@/components/admin/neutralTile"
 import { tablePath } from "@/lib/tables/route"
@@ -199,7 +199,7 @@ export default function GuestAccessCard() {
                     setGrants((prev) => prev.filter((g) => g.id !== id))
                     toast({ title: "Guest link revoked" })
                 } catch (e) {
-                    toast({ title: "Couldn't revoke the link", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+                    toast({ title: "Couldn't revoke the link", description: saidHere(e, "Try again in a moment."), variant: "destructive" })
                 } finally {
                     setRevoking(null)
                 }

@@ -204,6 +204,7 @@ const ChannelMessageMobileComponent = ({
             removeReaction={removeReaction}
             onSelectAttachment={handleSelectAttachment}
             mediaGetUrl={GetEndpointUrl.GetChannelMedia + "/" + channelId}
+            call={{ kind: "channel", id: channelId }}
         />
     )
 }

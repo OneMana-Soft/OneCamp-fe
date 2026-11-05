@@ -177,6 +177,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
             removeReaction={removeReaction}
             onSelectAttachment={handleSelectAttachment}
             mediaGetUrl={GetEndpointUrl.GetChatMedia + '/' + otherUserUUID}
+            call={{ kind: "chat", id: otherUserUUID }}
         />
     )
 }

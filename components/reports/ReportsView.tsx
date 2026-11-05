@@ -54,7 +54,7 @@ import { app_project_path } from "@/types/paths"
 import { useProjectHues } from "@/lib/projectHue"
 import { ProjectTile } from "@/components/ui/graphics/ProjectTile"
 import { areaHue } from "@/lib/areas"
-import { Sparkline } from "@/components/ui/graphics/Sparkline"
+import { Stat } from "@/components/reports/stat"
 import { lazyView } from "@/lib/lazy/lazyView"
 
 // How long work takes (B9-a) is a chunk of its own, drawn once the report is in: off the overview's first load.
@@ -73,33 +73,6 @@ const STAGES: { key: "to_do" | "in_progress" | "in_review"; label: string; class
   { key: "in_progress", label: "In progress", className: "bg-info" },
   { key: "in_review", label: "In review", className: "bg-warning" },
 ]
-
-/**
- * One headline figure (design v3, work.md W44): a 12 ink-2 label, the figure
- * at title-2 in tabular numbers, a delta against the week before in words
- * and colour (never colour alone), and a 32 px sparkline of its weeks where
- * it has them. Tiles stand on one sunken band, not a bordered card each.
- */
-function Stat({ label, value, note, alert, series, delta }: { label: string; value: string | number; note?: string; alert?: boolean; series?: number[]; delta?: { by: number; good: "up" | "down" } }) {
-  return (
-    <div className="min-w-0" data-kpi="">
-      <dt className="text-xs text-ink-2">{label}</dt>
-      <dd className="mt-1 flex items-baseline gap-2">
-        <span className="text-title-2 font-semibold tabular-nums text-foreground">{value}</span>
-        {delta && delta.by !== 0 && (
-          <span
-            data-delta={delta.by > 0 ? "up" : "down"}
-            className={cn("text-xs font-[510] tabular-nums", (delta.by > 0) === (delta.good === "up") ? "text-camp-moss-ink" : "text-danger-ink")}
-          >
-            {delta.by > 0 ? "↑" : "↓"} {Math.abs(delta.by)} on last week
-          </span>
-        )}
-      </dd>
-      {note && <dd className={cn("mt-0.5 text-xs", alert ? "font-[510] text-danger-ink" : "text-ink-3")}>{note}</dd>}
-      {series && <Sparkline values={series} />}
-    </div>
-  )
-}
 
 /** The change from the week before to this one, for a weekly series; none with fewer than two weeks. */
 const lastDelta = (xs: number[] | null | undefined) => (xs && xs.length > 1 ? Math.round((xs[xs.length - 1] - xs[xs.length - 2]) * 10) / 10 : 0)

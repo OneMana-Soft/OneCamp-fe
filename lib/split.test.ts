@@ -11,6 +11,9 @@ describe("split view", () => {
     expect(paneFromHref(`/app/chat/group/${id}?x=1`)).toEqual({ kind: "group", id })
     expect(paneFromHref(`/app/chat/${id}`)).toEqual({ kind: "chat", id })
     expect(paneFromHref(`/app/project/${id}?tab=kanban`)).toEqual({ kind: "project", id })
+    // Dashboards is a page beside the projects, never a project to open beside.
+    expect(paneFromHref("/app/project/dashboards?d=x")).toBeNull()
+    expect(paneFromHref("/app/project/dashboardsplan1")).toEqual({ kind: "project", id: "dashboardsplan1" })
     expect(paneFromHref("/app/home")).toBeNull()
     expect(paneFromHref(`https://elsewhere.example/app/doc/${id}`)).toBeNull()
   })

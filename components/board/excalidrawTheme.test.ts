@@ -36,9 +36,14 @@ describe("the board canvas's chrome", () => {
 
   it("sends the bar beside a selection away while a note moves by hand, and fades it back in at the drop (miro-06)", () => {
     // Gone at once, with no pointer and no tab stop; back by fading in only, in the chrome's own hover time.
-    expect(css).toMatch(/\[data-board-moving="true"\] \[data-following-bar\] \{\s*opacity: 0;\s*visibility: hidden;\s*transition: none;/)
+    expect(css).toMatch(/\[data-board-moving="true"\] \[data-following-bar\],?[^{]*\{\s*opacity: 0;\s*visibility: hidden;\s*transition: none;/)
     expect(css).toMatch(/\[data-following-bar\] \{\s*transition: opacity var\(--duration-hover\) var\(--ease-out\);/)
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\[data-following-bar\] \{\s*transition: none;/)
+  })
+
+  it("sends the bar beside a selection away while Excalidraw's own menu is open, so it never covers a row of it (miro-44, DB-113 F2)", () => {
+    // The same way as for a move: at once, back when the menu closes. Only on the board's page, where the bars are.
+    expect(css).toMatch(/\[data-board-page\]:has\(\.excalidraw \.context-menu\) \[data-following-bar\] \{\s*opacity: 0;\s*visibility: hidden;\s*transition: none;/)
   })
 
   it("draws no bottom bar on a call's stage for someone who can't draw", () => {

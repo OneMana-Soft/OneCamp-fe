@@ -29,6 +29,8 @@ describe("startingProject", () => {
 describe("projectAt", () => {
     it("is the project a project's page shows", () => {
         expect(projectAt("/app/project/p1")).toBe("p1")
+        // Dashboards is a page beside the projects: it shows none.
+        expect(projectAt("/app/project/dashboards")).toBe("")
         expect(projectAt("/app/project/p1/settings")).toBe("p1")
     })
 

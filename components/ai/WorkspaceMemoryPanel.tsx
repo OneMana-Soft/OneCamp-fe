@@ -81,6 +81,7 @@ import {
 } from "@/lib/icons"
 import { ToastAction } from "@/components/ui/toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 import { cn } from "@/lib/utils/helpers/cn"
 import { withAI } from "@/components/common/withFeature"
 import { Tile } from "@/components/ui/graphics/Tile"
@@ -432,6 +433,7 @@ function WorkspaceMemoryPanel({
       toast({ title: "Reopened" })
     } catch (e: unknown) {
       setItems((cur) => (cur.some((i) => i.id === item.id) ? cur : [...cur, item]))
+      saysWriteFailure(e)
       toast({ title: "Couldn't reopen", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusyId(null)
@@ -451,6 +453,7 @@ function WorkspaceMemoryPanel({
         toast({ title: "Couldn't create task", description: res?.message, variant: "destructive" })
       }
     } catch (e: unknown) {
+      saysWriteFailure(e)
       toast({ title: "Couldn't create task", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusyId(null)
@@ -471,6 +474,7 @@ function WorkspaceMemoryPanel({
         toast({ title: "Couldn't set reminder", description: res?.message, variant: "destructive" })
       }
     } catch (e: unknown) {
+      saysWriteFailure(e)
       toast({ title: "Couldn't set reminder", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusyId(null)
@@ -492,6 +496,7 @@ function WorkspaceMemoryPanel({
     } catch (e: unknown) {
       // Roll back on failure.
       setItems((cur) => cur.map((i) => (i.id === id ? { ...i, due_at: prevDue } : i)))
+      saysWriteFailure(e)
       toast({ title: "Couldn't update due date", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusyId(null)

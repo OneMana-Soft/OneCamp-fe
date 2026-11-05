@@ -48,6 +48,8 @@ import { ReplyLine } from "@/components/message/replyLine"
 import { isEmojiOnly } from "@/lib/chat/emojiOnly"
 import { useMessageReactions } from "@/hooks/useMessageReactions"
 import { PinnedMark } from "@/components/conversation/pins/PinnedMark"
+import { HuddlePost } from "@/components/message/huddlePost"
+import { HUDDLE_KIND, conversationOf } from "@/lib/calls/huddle"
 import type { RootState } from "@/store/store"
 
 interface RightPanelConfig {
@@ -559,7 +561,11 @@ export const BaseMessageCard = React.memo(({
             )}
             onClickCapture={handleInternalLinkClick}
           >
-            {editor}
+            {message.kind === HUDDLE_KIND && !isMessageEditEnabled ? (
+              <HuddlePost system={message.system} at={conversationOf(hoverOptionsConfig)} self={selfId} fallback={editor} />
+            ) : (
+              editor
+            )}
             {checkin && (
               <div className="mt-3 flex items-center gap-2.5 border-t border-line pt-2.5">
                 {replyFaces.length > 0 && <ThreadParticipants participants={replyFaces} />}
