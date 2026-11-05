@@ -687,6 +687,7 @@ test("on a phone, a note dragged by a finger keeps its chips, and the selection'
   const start = await w.noteBox()
   const from = { x: start.x + start.width / 2, y: start.y + start.height / 2 }
   await page.touchscreen.tap(from.x, from.y)
+  const selected = Date.now()
   await expect(toolbar).toBeVisible()
   // The dock's place once its own entrance and fades have played out (mid-entrance it is still scaling in).
   const atRest = async () => {
@@ -699,11 +700,20 @@ test("on a phone, a note dragged by a finger keeps its chips, and the selection'
   const finger = (type: "touchStart" | "touchMove" | "touchEnd", p?: { x: number; y: number }) =>
     cdp.send("Input.dispatchTouchEvent", { type, touchPoints: p ? [{ x: Math.round(p.x), y: Math.round(p.y), id: 1 }] : [] })
 
+  // Less than the drag threshold: a tap, and the dock stays. The tap is its own short press: a press held past
+  // Chromium's long press opens Excalidraw's menu, and the dock steps aside for that menu by design. It comes after
+  // Excalidraw's double-tap window (300 ms) since the tap that selected the note, or the two would edit its text.
+  await page.waitForTimeout(Math.max(0, 400 - (Date.now() - selected)))
   await finger("touchStart", from)
-  // Less than the drag threshold: a tap, and the dock stays.
   await finger("touchMove", { x: from.x + 4, y: from.y + 3 })
+  await finger("touchEnd")
+  const lifted = Date.now()
   await frame(page)
   await expect(dock).toHaveCSS("visibility", "visible")
+  // The drag is a fresh press, after Excalidraw's double-tap window (300 ms) has passed since that lift, so it is
+  // never read as a second tap; its first move already crosses the drag threshold.
+  await page.waitForTimeout(Math.max(0, 400 - (Date.now() - lifted)))
+  await finger("touchStart", from)
   // Down the screen, through where the dock sits.
   for (let i = 1; i <= 16; i++) {
     await finger("touchMove", { x: from.x + 6 * i, y: from.y + 14 * i })
@@ -720,6 +730,8 @@ test("on a phone, a note dragged by a finger keeps its chips, and the selection'
   const dropped = await w.noteBox()
   expect(dropped.y - start.y).toBeGreaterThan(180)
   expect(await atRest()).toEqual(rest)
+  // No press here was a long one: Excalidraw's menu never opened.
+  await expect(page.locator(".excalidraw .context-menu")).toHaveCount(0)
 
   const { drawn, frames } = await w.seen()
   // The chips held to the note's corner on every frame Excalidraw drew, and were never hidden or dimmed.
