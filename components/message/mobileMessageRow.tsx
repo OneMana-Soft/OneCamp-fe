@@ -4,6 +4,9 @@ import * as React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMessageReactions } from "@/hooks/useMessageReactions"
 import { PinnedMark } from "@/components/conversation/pins/PinnedMark"
+import { HuddlePost } from "@/components/message/huddlePost"
+import { HUDDLE_KIND } from "@/lib/calls/huddle"
+import type { CallKind } from "@/lib/calls/callRef"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { RelayedAvatar } from "@/components/message/relayedAvatar"
 import { RelayedPersonCard } from "@/components/message/relayedPersonCard"
@@ -71,6 +74,8 @@ export interface MobileMessageRowProps {
     footer?: React.ReactNode
     /** A channel's own post: the reader's keywords are marked in it (chat P3). */
     inChannel?: boolean
+    /** The conversation the row is in, for a huddle's card: its call's read and Join. */
+    call?: { kind: CallKind; id: string }
 }
 
 /** What the long-press sheet lifts above itself (C61). */
@@ -124,6 +129,7 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
     mediaGetUrl,
     footer,
     inChannel,
+    call,
 }: MobileMessageRowProps) {
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const selfId = selfProfile.data?.data?.user_uuid
@@ -179,6 +185,31 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
         onTouchMove: pressEnd,
         onTouchCancel: pressEnd,
     }
+
+    // The message's words, or, while it is edited, its box (a huddle's post shows its card instead).
+    const text = (
+        <MinimalTiptapTextInput
+            throttleDelay={editing ? 0 : 300}
+            isOutputText={!editing}
+            className={cn("max-w-full h-auto", editing && "focus-halo rounded-[10px] bg-raised px-2.5 py-2")}
+            editorContentClassName="overflow-auto"
+            output="html"
+            content={editing && editDraft !== undefined ? editDraft : body}
+            placeholder="Edit message…"
+            editable={editing}
+            // Corrected in place at its own size (textInput's "edit", C29).
+            variant={editing ? "edit" : undefined}
+            mentionContext={mentionContext}
+            editedTitle={edited}
+            buttonOnclick={() => onEditSave(draft.current)}
+            // Escape cancels, after any menu inside the editor (F-05).
+            onCancel={editing ? () => (onEditCancel(), true) : undefined}
+            editorClassName="focus:outline-none"
+            onChange={(content) => {
+                draft.current = content as string
+            }}
+        />
+    )
 
     return (
         <div onClick={editing ? undefined : (e) => opensThread(e) && onOpen()} className={editing ? undefined : "block cursor-pointer"}>
@@ -272,27 +303,11 @@ export const MobileMessageRow = React.memo(function MobileMessageRow({
                         onClickCapture={handleInternalLinkClick}
                         onClick={editing ? (e) => e.stopPropagation() : undefined}
                     >
-                        <MinimalTiptapTextInput
-                            throttleDelay={editing ? 0 : 300}
-                            isOutputText={!editing}
-                            className={cn("max-w-full h-auto", editing && "focus-halo rounded-[10px] bg-raised px-2.5 py-2")}
-                            editorContentClassName="overflow-auto"
-                            output="html"
-                            content={editing && editDraft !== undefined ? editDraft : body}
-                            placeholder="Edit message…"
-                            editable={editing}
-                            // Corrected in place at its own size (textInput's "edit", C29).
-                            variant={editing ? "edit" : undefined}
-                            mentionContext={mentionContext}
-                            editedTitle={edited}
-                            buttonOnclick={() => onEditSave(draft.current)}
-                            // Escape cancels, after any menu inside the editor (F-05).
-                            onCancel={editing ? () => (onEditCancel(), true) : undefined}
-                            editorClassName="focus:outline-none"
-                            onChange={(content) => {
-                                draft.current = content as string
-                            }}
-                        />
+                        {message.kind === HUDDLE_KIND && !editing ? (
+                            <HuddlePost system={message.system} at={call} self={selfId} fallback={text} />
+                        ) : (
+                            text
+                        )}
                         {checkin && (
                             <div className="mt-3 flex items-center gap-2.5 border-t border-line pt-2.5">
                                 {(message.comments?.length ?? 0) > 0 && <ThreadParticipants participants={replyParticipants(message.comments!.slice().reverse(), botKinds)} />}

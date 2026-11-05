@@ -12,6 +12,7 @@ vi.mock("react-redux", () => ({ useDispatch: () => (a: unknown) => dispatched.pu
 vi.mock("@/hooks/useFetch", () => ({ useFetchOnlyOnce: () => ({ data: { data: { user_uuid: "u1", user_is_admin: false } } }), useFetch: () => ({}) }))
 vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil: null, focusUntil: null }) }))
 vi.mock("@/components/navigationBar/mobile/phoneSelfAvatar", () => ({ PhoneSelfAvatar: () => <span>SR</span> }))
+vi.mock("@/components/workGraph/LazyConnected", () => ({ LazyConnected: (p: { id: string }) => <span data-testid="connected" data-id={p.id} /> }))
 
 import { MobileTopNavigationBarSecond } from "./mobileTopNavigationBarSecond"
 import { MobileTopNavigationBarThird } from "./mobileTopNavigationBarThird"
@@ -26,6 +27,8 @@ describe("the phone's top bar", () => {
     ["/app/team", "Teams"],
     ["/app/goals", "Goals"],
     ["/app/goals/g1", "Goal"],
+    // A page beside the projects: never a project's id to look up.
+    ["/app/project/dashboards", "Dashboards"],
     ["/app/calendar", "Calendar"],
     ["/app/calendar/event/e1", "Event"],
     ["/app/profile", "Your profile"],
@@ -53,6 +56,21 @@ describe("the phone's top bar", () => {
     } finally {
       spy.mockRestore()
     }
+  })
+
+  // DB-114 F1 (B9-b3): the third bar took "dashboards" for a project's id and
+  // offered that project's Connected and Filter tasks.
+  it("offers a project's actions on its page only, never on the projects' own Dashboards page", () => {
+    pathname = "/app/project/p1"
+    render(<MobileTopNavigationBarThird />)
+    expect(screen.getByTestId("connected").dataset.id).toBe("p1")
+    fireEvent.click(screen.getByRole("button", { name: "Filter tasks" }))
+    expect(dispatched).toEqual([expect.objectContaining({ payload: expect.objectContaining({ data: { projectUUID: "p1" } }) })])
+    cleanup()
+    pathname = "/app/project/dashboards"
+    render(<MobileTopNavigationBarThird />)
+    expect(screen.queryByRole("button", { name: "Filter tasks" })).toBeNull()
+    expect(screen.queryByTestId("connected")).toBeNull()
   })
 
   it("opens the menu from the avatar by tap or keyboard, a 44px target", () => {

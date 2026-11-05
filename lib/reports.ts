@@ -189,7 +189,7 @@ export function dayLabel(at: Date): string {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 /** Done and added each week, as a chart. Pure. */
-export function throughputChart(r: Report): NormalizedChart {
+export function throughputChart(r: Pick<Report, "weeks" | "done" | "added">): NormalizedChart {
   return {
     type: "bar",
     title: "Done and added each week",
@@ -211,7 +211,7 @@ export function throughputChart(r: Report): NormalizedChart {
  * in review, in progress and to do. A band that keeps widening is work piling
  * up at that step. Null when there's no flow to show. Pure.
  */
-export function flowChart(r: Report): NormalizedChart | null {
+export function flowChart(r: Pick<Report, "weeks" | "flow">): NormalizedChart | null {
   const flow = r.flow
   if (!flow || flow.length !== r.weeks.length || flow.every((w) => w.to_do + w.in_progress + w.in_review + w.done === 0)) return null
   return {

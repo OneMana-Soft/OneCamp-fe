@@ -21,7 +21,9 @@ describe("the projects overview's frame", () => {
     expect(overview).toMatch(/<WorkTabs\b/)
     expect(overview).not.toMatch(/ToggleGroup/)
     expect(overview).not.toMatch(/eyebrow=/)
-    expect(overview).toMatch(/label: "Projects"/)
+    // The tabs live in overviewViews (B9-b3 moved them there for the dashboards page): Table is called "Projects".
+    expect(overview).toMatch(/import \{[^}]*\bVIEWS\b[^}]*\} from "@\/components\/project\/overviewViews"/)
+    expect(read("components/project/overviewViews.ts")).toMatch(/value: "table", label: "Projects"/)
     expect(read("components/task/WorkTabs.tsx")).toContain('role="tablist"')
   })
   it("draws every view's controls in a 32px toolbar row, and states in WorkState", () => {

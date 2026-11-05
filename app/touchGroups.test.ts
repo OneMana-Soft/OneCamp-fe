@@ -67,6 +67,15 @@ describe("a crowded row", () => {
     expect(crowdedRows(row('className="flex"', icon("Edit"), `{open && ${icon("Close")}}`), "a.tsx")).toEqual(["a.tsx:1"])
   })
 
+  // DB-114 F3 (B9-b3): a dashboard's Rename and Delete are icon-sm on a phone
+  // only (size={compact ? "icon-sm" : "sm"}), and the guard read no size there.
+  it("sees a control whose size is small in one of its states", () => {
+    const either = (label: string) => `<Button variant="ghost" size={compact ? "icon-sm" : "sm"} aria-label="${label}"><X /></Button>`
+    expect(crowdedRows(row('className="flex gap-1.5"', either("Rename"), either("Delete")), "a.tsx")).toEqual(["a.tsx:1"])
+    expect(crowdedRows(row('className="flex gap-1.5" data-touch-group=""', either("Rename"), either("Delete")), "a.tsx")).toEqual([])
+    expect(crowdedRows(row('className="flex"', `<Button size={wide ? "lg" : "sm"}>Save</Button>`, `<Button size={wide ? "lg" : "sm"}>Send</Button>`), "a.tsx")).toEqual([])
+  })
+
   it("is not text buttons, nor controls with something between them", () => {
     expect(crowdedRows(row('className="flex"', `<Button size="xs">Cancel</Button>`, `<Button size="xs">Save</Button>`), "a.tsx")).toEqual([])
     expect(crowdedRows(row('className="flex"', icon("Previous"), "<span>Oct 2026</span>", icon("Next")), "a.tsx")).toEqual([])

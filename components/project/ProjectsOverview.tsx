@@ -19,7 +19,7 @@ import { SpotWelcome } from "@/components/ui/graphics/spots"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { KeepWords } from "@/components/ui/keepWords"
 import { Bar } from "@/components/ui/progress"
-import { WorkSearch, WorkSegmented, WorkTabs, type WorkTab } from "@/components/task/WorkTabs"
+import { WorkSearch, WorkSegmented, WorkTabs } from "@/components/task/WorkTabs"
 import { lazyView } from "@/lib/lazy/lazyView"
 import { WorkRowsLoading, WorkState, workToolbar } from "@/components/task/workFrame"
 import { useMedia } from "@/context/MediaQueryContext"
@@ -28,7 +28,8 @@ import { useLongPress } from "@/hooks/useLongPress"
 import { useProjectsOverview } from "@/hooks/useProjectsOverview"
 import { useStoredState } from "@/hooks/useStoredState"
 import { measureFlip, playFlip, type FlipRects } from "@/lib/flip"
-import { BarChart3, ChartGantt, ChevronDown, Filter, List, Plus, Repeat, SlidersHorizontal, Target, Users } from "@/lib/icons"
+import { ChevronDown, Filter, Plus, SlidersHorizontal } from "@/lib/icons"
+import { VIEWS, app_dashboards_path, isView, type OverviewView } from "@/components/project/overviewViews"
 import { HEALTHS } from "@/lib/projectUpdates"
 import { OVERVIEW_SORTS, filterOverview, progressOf, sortOverview, type OverviewFilter, type OverviewSort, type ProjectOverview } from "@/lib/projectsOverview"
 import { PLAN_SORTS, endOf, isPlanSort, sortByPlan, type PlanSort } from "@/lib/work/planOverview"
@@ -70,25 +71,9 @@ type Sort = OverviewSort | PlanSort
 const SORTS: readonly { value: Sort; label: string }[] = [...OVERVIEW_SORTS, ...PLAN_SORTS]
 const isSort = (v: unknown): v is Sort => SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
-type OverviewView = "table" | "timeline" | "workload" | "cycles" | "goals" | "reports"
-const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload" || v === "cycles" || v === "goals" || v === "reports"
 type Grouping = "auto" | "team" | "health" | "none"
 const isGrouping = (v: unknown): v is Grouping => v === "auto" || v === "team" || v === "health" || v === "none"
 const href = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid}`
-
-/**
- * The overview's views as the project page's tabs (design v3, work.md W38):
- * Table is now "Projects", and the switcher stopped being a boxed toggle, so
- * the overview and a project share one tab language.
- */
-const VIEWS: readonly WorkTab<OverviewView>[] = [
-  { value: "table", label: "Projects", icon: List },
-  { value: "timeline", label: "Timeline", icon: ChartGantt },
-  { value: "workload", label: "Workload", icon: Users },
-  { value: "cycles", label: "Cycles", icon: Repeat },
-  { value: "goals", label: "Goals", icon: Target },
-  { value: "reports", label: "Reports", icon: BarChart3 },
-]
 
 const DAY = 86_400_000
 /** No update for this long counts as needing attention: a project gone quiet. */
@@ -594,7 +579,8 @@ export function ProjectsOverview() {
     if (isView(asked)) setView(asked)
   }, [asked, setView])
   useEffect(() => runWhenSettled([Timeline.prefetch]), [])
-  const choose = (v: OverviewView) => {
+  const choose = (v: OverviewView | "dashboards") => {
+    if (v === "dashboards") return router.push(app_dashboards_path)
     setView(v)
     const next = new URLSearchParams(params.toString())
     next.set("view", v)

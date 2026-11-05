@@ -10,9 +10,9 @@ import ts from "typescript"
  * app/touchGroups.test.ts. Pure.
  *
  * A small control here is a square one that reaches past its edges: Button
- * at size icon-sm or icon-xs (or icon drawn at size-5 to size-7), and any
- * element with data-touch-target or the shell's icon-button class drawn at
- * those sizes. Hub tools are 44px under a finger (app/hub.css) and never
+ * at size icon-sm or icon-xs in any of its states (or icon drawn at size-5
+ * to size-7), and any element with data-touch-target or the shell's
+ * icon-button class drawn at those sizes. Hub tools are 44px under a finger (app/hub.css) and never
  * reach past their edges, and a text button is wider than a finger's reach.
  */
 
@@ -30,6 +30,22 @@ function text(a: ts.JsxAttribute | undefined): string | undefined {
   if (ts.isStringLiteral(v)) return v.text
   if (ts.isJsxExpression(v) && v.expression && (ts.isStringLiteral(v.expression) || ts.isNoSubstitutionTemplateLiteral(v.expression))) return v.expression.text
   return undefined
+}
+
+/** Every string an attribute can take: its value as written, or each branch of a conditional ({wide ? "sm" : "icon-sm"}). */
+function texts(a: ts.JsxAttribute | undefined): string[] {
+  const one = text(a)
+  if (one !== undefined) return [one]
+  const v = a?.initializer
+  if (!v || !ts.isJsxExpression(v) || !v.expression) return []
+  const out: string[] = []
+  const walk = (e: ts.Expression) => {
+    if (ts.isParenthesizedExpression(e)) walk(e.expression)
+    else if (ts.isConditionalExpression(e)) [e.whenTrue, e.whenFalse].forEach(walk)
+    else if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) out.push(e.text)
+  }
+  walk(v.expression)
+  return out
 }
 
 function opening(node: ts.Node): ts.JsxOpeningLikeElement | undefined {
@@ -52,8 +68,8 @@ function isSmallControl(node: ts.Node): boolean {
   if (TRANSPARENT.test(tag)) return ts.isJsxElement(node) && node.children.some((c) => kindOf(c) === "control")
   const cls = text(attr(el, "className")) ?? ""
   if (tag === "Button") {
-    const size = text(attr(el, "size"))
-    return size === "icon-sm" || size === "icon-xs" || (size === "icon" && SMALL_SIZE.test(cls))
+    // Small in any of its states: a size that changes with the screen is small where it is.
+    return texts(attr(el, "size")).some((size) => size === "icon-sm" || size === "icon-xs" || (size === "icon" && SMALL_SIZE.test(cls)))
   }
   return (attr(el, "data-touch-target") !== undefined || /(?:^|\s)shell-icon-btn(?:\s|$)/.test(cls)) && SMALL_SIZE.test(cls)
 }

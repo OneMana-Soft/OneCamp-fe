@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } 
 import * as Y from "yjs"
 import { boardScene, convertForTest } from "@/lib/testing/boardScene"
 import { warmBeforeTests } from "@/lib/testing/lazyCode"
+import { SWRConfig } from "swr"
+import { GetEndpointUrl } from "@/services/endPoints"
 
 const xl = vi.hoisted(() => ({ exportToSvg: vi.fn(), serializeAsJSON: vi.fn(), loadFromBlob: vi.fn() }))
 vi.mock("@excalidraw/excalidraw", () => ({
@@ -249,6 +251,37 @@ describe("the workbench", () => {
     act(() => s.typing(words ?? null))
     expect(page.dataset.notesSelected).toBe("true")
     act(() => s.typing(null))
+    expect(page.dataset.notesSelected).toBeUndefined()
+    page.remove()
+  })
+
+  it("keeps Excalidraw's panel away while a protected object is selected, and leaves it for one that isn't (miro-44, DB-113 F1)", () => {
+    const s = boardScene([
+      { id: "r", type: "rectangle", x: 0, y: 0, width: 10, height: 10, version: 1 },
+      { id: "q", type: "rectangle", x: 40, y: 0, width: 10, height: 10, version: 1 },
+    ])
+    const p = provider()
+    p.document.getMap<unknown>("protected").set("r", { by: "u1", name: "Sam Lee", at: 1 })
+    const page = document.createElement("div")
+    page.setAttribute("data-board-page", "")
+    document.body.appendChild(page)
+    // The reader may protect (the page's own board answer, in SWR's cache), so an unprotected shape gets a bar too:
+    // only a protected selection hides the panel, never any selection with Protect on it (CR-219 M1).
+    const mayProtect = { [`${GetEndpointUrl.GetBoardInfo}/b1`]: { data: { board_can_protect: true } } }
+    render(
+      <SWRConfig value={{ provider: () => new Map(), fallback: mayProtect }}>
+        <BoardWorkbench api={s.api} provider={p} boardId="b1" editable synced quiet={false} command={null} style="clean" />
+      </SWRConfig>,
+      { container: page },
+    )
+    // An unprotected shape keeps Excalidraw's panel: its style is the panel's to change. Its bar offers Protect.
+    act(() => s.select(["q"]))
+    expect(page.querySelector("[data-protect-bar]")).not.toBeNull()
+    expect(page.dataset.notesSelected).toBeUndefined()
+    // A protected one has nothing to change there (the server puts any change back).
+    act(() => s.select(["r"]))
+    expect(page.dataset.notesSelected).toBe("true")
+    act(() => s.select([]))
     expect(page.dataset.notesSelected).toBeUndefined()
     page.remove()
   })

@@ -26,3 +26,16 @@ export async function drawnOver(top: Locator, under: Locator): Promise<boolean |
     { at, high: topEl },
   )
 }
+
+/**
+ * Whether `el` is what the page's own hit test finds at its middle: nothing
+ * else (a panel, a menu, a bar) is drawn over it there. `el` must take the
+ * pointer itself; one that takes none is never found.
+ */
+export async function topAtMiddle(el: Locator): Promise<boolean> {
+  return el.evaluate((e) => {
+    const r = e.getBoundingClientRect()
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+    return !!hit && e.contains(hit)
+  })
+}

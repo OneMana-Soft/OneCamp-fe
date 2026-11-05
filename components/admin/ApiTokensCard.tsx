@@ -18,6 +18,7 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Key, MoreHorizontal, Plus } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saysWriteFailure } from "@/lib/http/writeSaid"
 import type { CampHue } from "@/lib/campHue"
 import { SpotKey } from "@/components/admin/apiTokenSpot"
 import { RevealCard } from "@/components/admin/revealCard"
@@ -72,6 +73,7 @@ const ApiTokensCard = ({ creating, onCreatingChange }: { creating: boolean; onCr
           toast({ title: "Token revoked", tone: "success" })
           mutate()
         } catch (e) {
+          saysWriteFailure(e)
           toast({
             title: `Couldn't revoke "${t.name}"`,
             description: apiErrorMessage(e, "Try again in a moment."),

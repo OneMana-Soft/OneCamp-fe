@@ -25,7 +25,7 @@ const ROUTES: [RegExp, PaneKind][] = [
   [new RegExp(`^/app/chat/group/${ID}`), "group"],
   [new RegExp(`^/app/chat/${ID}`), "chat"],
   [new RegExp(`^/app/doc/${ID}`), "doc"],
-  [new RegExp(`^/app/project/${ID}`), "project"],
+  [new RegExp(`^/app/project/(?!dashboards(?:/|$))${ID}`), "project"],
   [new RegExp(`^/app/task/${ID}`), "task"],
 ]
 

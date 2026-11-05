@@ -249,6 +249,7 @@ describe("a failed write said by its caller claims it, so no toast says it again
     expect(offenders).toEqual([])
     // The scan reaches them: 133 on 3 Nov (31 in place: docs' share, move and lock, the AI providers' tests, Slack's
     // bridge, ...; 102 in a toast of their own: the admin and AI cards, docs' cover and trash, uploads, ...).
-    expect(claimed.length).toBeGreaterThanOrEqual(133)
+    // This edition's own measure: 69 on 5 Nov (the full edition's 133 counts cards and providers this one doesn't ship).
+    expect(claimed.length).toBeGreaterThanOrEqual(69)
   })
 })

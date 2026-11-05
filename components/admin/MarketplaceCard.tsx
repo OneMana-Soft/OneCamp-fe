@@ -30,6 +30,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { SettingsSection } from "@/components/ui/settingsSection"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { saidHere } from "@/lib/http/saidHere"
 import { listMarketplace, installTemplate, uninstallTemplate } from "@/services/appService"
 import AppIcon from "@/components/admin/AppIcon"
 import { CommandChip } from "@/components/admin/appParts"
@@ -148,7 +149,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                 toast({ title: `${item.name} installed`, description: item.commands?.[0] ? `Try /${item.commands[0]} in any conversation.` : undefined })
             }
         } catch (e) {
-            toast({ title: `Couldn't install ${item.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: `Couldn't install ${item.name}`, description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setBusySlug(null)
         }
@@ -166,7 +167,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             setConfirmRemove(null)
             setOpen(null)
         } catch (e) {
-            toast({ title: `Couldn't remove ${item.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+            toast({ title: `Couldn't remove ${item.name}`, description: saidHere(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setBusySlug(null)
         }
